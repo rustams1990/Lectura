@@ -1,0 +1,180 @@
+/**
+ * PDF Layout CSS
+ * Styles for positioning extracted PDF images over/under text layer
+ * to match original PDF layout
+ */
+
+/* Main PDF container */
+.pdf-container {
+  position: relative;
+  width: 100%;
+  max-width: 800px; /* Standard PDF width, adjust as needed */
+  margin: 0 auto;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* PDF page container */
+.pdf-page {
+  position: relative;
+  width: 100%;
+  min-height: 1000px; /* Standard PDF page height, adjust as needed */
+  background: white;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+/* Text layer - positioned at bottom by default */
+.pdf-text-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none; /* Allow clicks to pass through to images if needed */
+  font-family: 'Times New Roman', Times, serif;
+  line-height: 1.2;
+  color: #000;
+}
+
+/* Image layer - positioned on top of text */
+.pdf-image-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Individual extracted image */
+.pdf-image {
+  position: absolute;
+  object-fit: contain;
+  pointer-events: auto; /* Enable interaction with images */
+  transition: opacity 0.2s ease;
+}
+
+/* Image positioned over text (default) */
+.pdf-image--overlay {
+  z-index: 3;
+}
+
+/* Image positioned under text */
+.pdf-image--underlay {
+  z-index: 0;
+}
+
+/* Image with hover effect */
+.pdf-image:hover {
+  opacity: 0.9;
+  cursor: pointer;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Responsive scaling */
+@media (max-width: 768px) {
+  .pdf-container {
+    max-width: 100%;
+    padding: 10px;
+  }
+  
+  .pdf-page {
+    min-height: auto;
+  }
+}
+
+/* Print styles */
+@media print {
+  .pdf-container {
+    box-shadow: none;
+    max-width: 100%;
+  }
+  
+  .pdf-page {
+    page-break-after: always;
+    margin-bottom: 0;
+  }
+}
+
+/* Utility classes for different PDF sizes */
+.pdf-page--a4 {
+  width: 210mm;
+  min-height: 297mm;
+}
+
+.pdf-page--letter {
+  width: 8.5in;
+  min-height: 11in;
+}
+
+/* Image loading state */
+.pdf-image--loading {
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pdf-image--loading::after {
+  content: 'Loading...';
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* Image error state */
+.pdf-image--error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pdf-image--error::after {
+  content: 'Image failed to load';
+  color: #ef4444;
+  font-size: 12px;
+}
+
+/* Selection highlighting for text layer */
+.pdf-text-layer ::selection {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .pdf-container {
+    background: #1f2937;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .pdf-page {
+    background: #1f2937;
+  }
+  
+  .pdf-text-layer {
+    color: #e5e7eb;
+  }
+  
+  .pdf-image--loading {
+    background: #374151;
+  }
+  
+  .pdf-image--loading::after {
+    color: #6b7280;
+  }
+  
+  .pdf-image--error {
+    background: #450a0a;
+    border-color: #7f1d1d;
+  }
+  
+  .pdf-image--error::after {
+    color: #fca5a5;
+  }
+}

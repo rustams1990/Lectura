@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lectura</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <script>
+      try {
+        const saved = localStorage.getItem("vocab_clone_words");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === "object") {
+            let modified = false;
+            const cleansed = {};
+            for (const [key, value] of Object.entries(parsed)) {
+              if (value && typeof value === "object" && typeof value.word === "string") {
+                cleansed[key] = value;
+              } else {
+                modified = true;
+              }
+            }
+            if (modified) {
+              localStorage.setItem("vocab_clone_words", JSON.stringify(cleansed));
+              console.log("Cleaned up invalid records in localStorage.");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("LocalStorage pre-cleanse error:", err);
+      }
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

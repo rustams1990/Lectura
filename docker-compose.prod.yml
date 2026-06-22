@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  lectura:
+    image: ghcr.io/YOUR_GITHUB_USERNAME/lectura:latest
+    container_name: lectura
+    restart: unless-stopped
+    ports:
+      - "8585:3000" # Внешний порт 8585, внутренний 3000
+    volumes:
+      # Папка для базы данных и кэша на диске сервера
+      - /DATA/AppData/lectura/data:/app/data
+    environment:
+      - GEMINI_API_KEY=your_gemini_api_key_here
+      - APP_URL=http://your-server-ip:8585 # Замените на IP-адрес сервера или ваш домен
+      - PORT=3000
+      - DATA_DIR=/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
