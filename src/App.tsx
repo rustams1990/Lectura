@@ -773,7 +773,7 @@ export default function App() {
           unsubscribes.push(unsubTypes);
 
           const unsubVocabItems = onSnapshot(
-            collection(db, "users", firebaseUser.uid, "vocab"),
+            collection(db, "users", firebaseUser.uid, "lingqs"),
             (snapshot) => {
               const cloudVocab: Record<string, VocabItem> = {};
               snapshot.forEach((doc) => {
@@ -787,7 +787,7 @@ export default function App() {
             },
             (error) => {
               console.error("Firestore real-time sync vocab failed:", error);
-              try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}/vocab`); } catch(e){}
+              try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}/lingqs`); } catch(e){}
             }
           );
           unsubscribes.push(unsubVocabItems);
