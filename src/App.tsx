@@ -174,27 +174,71 @@ function normalizeLanguagePrefixedKey(key: string): string {
   return k;
 }
 
-function normalizeVocabRecord(record: Record<string, VocabItem> | undefined): Record<string, VocabItem> {
+function normalizeVocabRecord(record: Record<string, VocabItem> | any[] | undefined): Record<string, VocabItem> {
   if (!record || typeof record !== "object") return {};
   const normalized: Record<string, VocabItem> = {};
-  for (const [key, value] of Object.entries(record)) {
+
+  const entries = Array.isArray(record)
+    ? record.map((val, idx) => [String(idx), val] as [string, any])
+    : Object.entries(record);
+
+  for (const [key, value] of entries) {
     if (!value || typeof value !== "object") continue;
-    const cleanKey = normalizeLanguagePrefixedKey(key);
-    let cleanWord = "";
-    if (typeof value.word === "string") {
-      cleanWord = value.word.replace(/^[a-zA-Z]+_/, "");
-    } else if (value.word !== undefined && value.word !== null) {
-      cleanWord = String(value.word).replace(/^[a-zA-Z]+_/, "");
-    } else {
-      cleanWord = cleanKey.replace(/^[a-zA-Z]+_/, "");
+
+    // Detect numeric/array key
+    const isNumericKey = /^\d+$/.test(key);
+
+    // Determine language prefix
+    let lang = "";
+    if (!isNumericKey) {
+      const parts = key.split("_");
+      if (parts.length > 1) {
+        lang = parts[0].toLowerCase();
+      }
     }
+
+    // Fallback: search in properties
+    if (!lang) {
+      const valLang = value.language_code || value.language || value.targetLanguage;
+      if (typeof valLang === "string") {
+        lang = valLang.toLowerCase();
+      }
+    }
+
+    // Default fallback
+    if (!lang) {
+      lang = "english";
+    }
+
+    const rawWord = typeof value.word === "string" ? value.word : "";
+    const cleanWord = rawWord.replace(/^[a-zA-Z]+_/, "");
+    if (!cleanWord) continue;
+
+    const cleanKey = `${lang}_${cleanWord.toLowerCase()}`;
+
+    // Handle string/number status values
+    let cleanStatus: WordStatus = "known";
+    const rawStatus = typeof value.status === "string"
+      ? value.status
+      : typeof value.status === "number"
+        ? String(value.status)
+        : "";
+
+    if (rawStatus === "1" || rawStatus === "2" || rawStatus === "3" || rawStatus === "4" || rawStatus === "5" || rawStatus === "known" || rawStatus === "ignored" || rawStatus === "new") {
+      cleanStatus = rawStatus as WordStatus;
+    } else if (rawStatus === "learning") {
+      cleanStatus = "1";
+    } else {
+      cleanStatus = "known";
+    }
+
     normalized[cleanKey] = {
       word: cleanWord,
       translation: typeof value.translation === "string" ? value.translation : "",
       grammar: typeof value.grammar === "string" ? value.grammar : "",
       ipa: typeof value.ipa === "string" ? value.ipa : "",
       contextRelation: typeof value.contextRelation === "string" ? value.contextRelation : "",
-      status: typeof value.status === "string" ? value.status : "known",
+      status: cleanStatus,
       createdAt: typeof value.createdAt === "number" && !isNaN(value.createdAt) ? value.createdAt : Date.now(),
       tags: Array.isArray(value.tags) ? value.tags.filter((t) => typeof t === "string") : [],
       examples: Array.isArray(value.examples) ? value.examples : [],
@@ -2713,19 +2757,25 @@ export default function App() {
         lessonTypes={lessonTypes}
         listeningSeconds={listeningSeconds}
         onImportData={(imported) => {
+          const importedVocab = imported.vocab || imported.lingqs || imported.lingq;
+          const parsedVocab = importedVocab ? normalizeVocabRecord(importedVocab) : vocab;
+          const parsedWordLinks = imported.wordLinks ? normalizeWordLinksRecord(imported.wordLinks) : wordLinks;
+          const parsedLessons = imported.lessons || lessons;
+          const parsedLessonTypes = imported.lessonTypes || lessonTypes;
+          const parsedListeningSeconds = imported.listeningSeconds !== undefined ? imported.listeningSeconds : listeningSeconds;
+          const parsedLanguageFlags = imported.languageFlags || languageFlags;
+
           if (imported.lessons) {
             setLessons(imported.lessons);
           }
           if (imported.lessonTypes) {
             setLessonTypes(imported.lessonTypes);
           }
-          
-          const importedVocab = imported.vocab || imported.lingqs || imported.lingq;
           if (importedVocab) {
-            setVocab(normalizeVocabRecord(importedVocab));
+            setVocab(parsedVocab);
           }
           if (imported.wordLinks) {
-            setWordLinks(normalizeWordLinksRecord(imported.wordLinks));
+            setWordLinks(parsedWordLinks);
           }
           if (imported.listeningSeconds !== undefined) {
             setListeningSeconds(imported.listeningSeconds);
@@ -2737,21 +2787,34 @@ export default function App() {
           // Force update local storage instantly
           if (imported.lessons) safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(imported.lessons));
           if (imported.lessonTypes) safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(imported.lessonTypes));
-          if (importedVocab) safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(normalizeVocabRecord(importedVocab)));
-          if (imported.wordLinks) safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizeWordLinksRecord(imported.wordLinks)));
+          if (importedVocab) safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(parsedVocab));
+          if (imported.wordLinks) safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(parsedWordLinks));
           if (imported.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", imported.listeningSeconds.toString());
           if (imported.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(imported.languageFlags));
+
+          // Sync with server if in server mode (Local server DB sync)
+          if (storageMode === "server") {
+            lastLocalChangeTime.current = Date.now();
+            syncDataToLocalServer(
+              parsedLessons,
+              parsedLessonTypes,
+              parsedVocab,
+              parsedWordLinks,
+              parsedListeningSeconds,
+              parsedLanguageFlags
+            ).catch(err => console.error("Local server import sync error:", err));
+          }
 
           // Upload to cloud if logged in and cloud sync is active
           if (storageMode === "cloud" && user) {
             uploadLocalToCloud(
               user.uid,
-              imported.lessons || lessons,
-              imported.lessonTypes || lessonTypes,
-              importedVocab || vocab,
-              imported.wordLinks || wordLinks,
-              imported.listeningSeconds !== undefined ? imported.listeningSeconds : listeningSeconds,
-              imported.languageFlags || languageFlags
+              parsedLessons,
+              parsedLessonTypes,
+              parsedVocab,
+              parsedWordLinks,
+              parsedListeningSeconds,
+              parsedLanguageFlags
             ).catch(err => console.error("Cloud import sync error:", err));
           }
         }}
