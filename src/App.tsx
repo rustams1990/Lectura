@@ -840,11 +840,13 @@ export default function App() {
     }, 1500);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, storageMode]);
+  }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, storageMode, localSyncKey, localSyncError]);
 
   // Dynamic automatic syncing of tablet/PC changes over local network (polls every 8s when tab is visible)
   useEffect(() => {
     if (storageMode !== "server") return;
+
+    loadDataFromLocalServer(); // Poll on mount/mode/key change
 
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
@@ -853,7 +855,7 @@ export default function App() {
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [storageMode]);
+  }, [storageMode, localSyncKey, localSyncError]);
 
   // Active word translate helpers
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
