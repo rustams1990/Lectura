@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES } from "./data";
-import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, googleProvider, db } from "./firebase";
 import { onSnapshot, collection, doc, getDocs } from "firebase/firestore";
 import { 
@@ -495,6 +495,11 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [cloudOfflineWarning, setCloudOfflineWarning] = useState<boolean>(false);
+  const [cloudOfflineError, setCloudOfflineError] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState<string>("");
+  const [passwordInput, setPasswordInput] = useState<string>("");
+  const [isEmailRegister, setIsEmailRegister] = useState<boolean>(false);
+  const [emailAuthLoading, setEmailAuthLoading] = useState<boolean>(false);
   const [storageMode, setStorageMode] = useState<"cloud" | "local" | "server">(() => {
     const saved = localStorage.getItem("vocab_clone_storage_mode");
     return (saved === "cloud" || saved === "local" || saved === "server") ? saved : "cloud";
@@ -832,9 +837,11 @@ export default function App() {
           unsubscribes.push(unsubProfile);
 
           setCloudOfflineWarning(false);
-        } catch (err) {
+          setCloudOfflineError(null);
+        } catch (err: any) {
           console.error("Failed to sync offline user details to remote container; falling back to local storage:", err);
           setCloudOfflineWarning(true);
+          setCloudOfflineError(err instanceof Error ? err.message : String(err));
 
           // Robust local fallback: Keep current active in-memory state safe. No-op to avoid data clobbering.
 
@@ -847,24 +854,28 @@ export default function App() {
         } finally {
           setIsSyncing(false);
         }
-      } else if (storageMode === "server") {
-        // Local Dev Server Shared DB
-        loadDataFromLocalServer();
       } else {
-        // Not authenticated: Fall back to local browser storage
-        const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
-        const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
-        const localWordsStr = localStorage.getItem("vocab_clone_words");
-        const localListeningStr = localStorage.getItem("vocab_clone_listening");
-        const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
-        const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
+        setCloudOfflineWarning(false);
+        setCloudOfflineError(null);
+        if (storageMode === "server") {
+          // Local Dev Server Shared DB
+          loadDataFromLocalServer();
+        } else {
+          // Not authenticated: Fall back to local browser storage
+          const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
+          const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
+          const localWordsStr = localStorage.getItem("vocab_clone_words");
+          const localListeningStr = localStorage.getItem("vocab_clone_listening");
+          const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
+          const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
 
-        setLessons(safeParse(localLessonsStr, BUILT_IN_LESSONS));
-        setLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES));
-        setVocab(normalizeVocabRecord(safeParse(localWordsStr, {})));
-        setListeningSeconds(localListeningStr ? parseFloat(localListeningStr) || 0 : 0);
-        setWordLinks(normalizeWordLinksRecord(safeParse(localAliasesStr, {})));
-        setLanguageFlags(safeParse(localFlagsStr, {}));
+          setLessons(safeParse(localLessonsStr, BUILT_IN_LESSONS));
+          setLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES));
+          setVocab(normalizeVocabRecord(safeParse(localWordsStr, {})));
+          setListeningSeconds(localListeningStr ? parseFloat(localListeningStr) || 0 : 0);
+          setWordLinks(normalizeWordLinksRecord(safeParse(localAliasesStr, {})));
+          setLanguageFlags(safeParse(localFlagsStr, {}));
+        }
       }
       setIsAuthLoading(false);
     });
@@ -2334,6 +2345,11 @@ export default function App() {
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5 leading-relaxed">
                   Не удалось подключиться к облачной базе данных Google Firebase. Все функции активны, и ваши данные <strong>сохраняются локально</strong> в кэше браузера. Синхронизация автоматически возобновится при восстановлении связи!
                 </p>
+                {cloudOfflineError && (
+                  <p className="text-[10px] bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/10 p-2 rounded-xl text-amber-850 dark:text-amber-300 font-mono mt-2 break-all">
+                    Детали ошибки: {cloudOfflineError}
+                  </p>
+                )}
               </div>
             </div>
             <button
@@ -2900,46 +2916,152 @@ export default function App() {
                 Авторизация и Синхронизация
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 px-2 leading-relaxed">
-                Войдите под своей учетной записью Google для облачного бекапа на любом устройстве, либо используйте автономный режим гостя на вашем ПК.
+                Войдите под своей учетной записью для облачного бекапа на любом устройстве, либо используйте автономный режим гостя на вашем ПК.
               </p>
             </div>
 
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
-                <p className="font-bold mb-1">⚠️ Ошибка авторизации Google:</p>
+                <p className="font-bold mb-1">⚠️ Ошибка авторизации:</p>
                 <p className="mb-2">{authError}</p>
-                <p className="opacity-80 border-t border-red-150/50 dark:border-red-900/40 pt-1.5 font-sans">
-                  <strong>Для разработчиков на локальном ПК:</strong> Убедитесь, что ваш адрес (например, localhost) зарегистрирован в authorized domains в панели управления Firebase, либо используйте Локальный вход ниже.
-                </p>
               </div>
             )}
 
-            <div className="space-y-3">
-              <button
-                onClick={async () => {
-                  setAuthError(null);
-                  try {
-                    await signInWithPopup(auth, googleProvider);
-                    setShowLocalLoginModal(false);
-                  } catch (err: any) {
-                    console.error("Local PC Sign-In with popup error:", err);
-                    setAuthError(err.message || String(err));
-                  }
-                }}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer shadow-md shadow-teal-650/10"
-              >
-                <span>☁️</span> Войти через Google Account
-              </button>
+            <div className="space-y-4">
+              {/* Option A: Google Sign In */}
+              <div>
+                <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
+                  Рекомендуемый вход (Google Account):
+                </label>
+                <button
+                  onClick={async () => {
+                    setAuthError(null);
+                    try {
+                      await signInWithPopup(auth, googleProvider);
+                      setStorageMode("cloud");
+                      setShowLocalLoginModal(false);
+                    } catch (err: any) {
+                      console.error("Local PC Sign-In with popup error:", err);
+                      setAuthError(err.message || String(err));
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer shadow-md shadow-teal-650/10"
+                >
+                  <span>☁️</span> Войти через Google Account
+                </button>
+                <p className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1 px-1">
+                  * Работает на ПК (localhost/lectura.local). Может блокироваться на планшетах при входе по IP.
+                </p>
+              </div>
 
-              <div className="relative flex py-2 items-center">
+              <div className="relative flex py-1 items-center">
                 <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
                 <span className="flex-shrink mx-3 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest font-mono">или</span>
                 <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
               </div>
 
+              {/* Option B: Email & Password */}
+              <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
+                    Вход по Email (для Планшетов/Телефонов):
+                  </label>
+                  <button
+                    onClick={() => {
+                      setIsEmailRegister(!isEmailRegister);
+                      setAuthError(null);
+                    }}
+                    className="text-[10px] text-teal-600 hover:text-teal-750 dark:text-teal-400 dark:hover:text-teal-350 font-bold underline transition cursor-pointer"
+                  >
+                    {isEmailRegister ? "Вход" : "Регистрация"}
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="Email адрес"
+                    disabled={emailAuthLoading}
+                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                  />
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="Пароль (от 6 символов)"
+                    disabled={emailAuthLoading}
+                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                  />
+
+                  <button
+                    onClick={async () => {
+                      const email = emailInput.trim();
+                      const password = passwordInput.trim();
+                      if (!email || !password) {
+                        setAuthError("Пожалуйста, введите email и пароль.");
+                        return;
+                      }
+                      if (password.length < 6) {
+                        setAuthError("Пароль должен содержать не менее 6 символов.");
+                        return;
+                      }
+
+                      setAuthError(null);
+                      setEmailAuthLoading(true);
+                      try {
+                        if (isEmailRegister) {
+                          await createUserWithEmailAndPassword(auth, email, password);
+                        } else {
+                          await signInWithEmailAndPassword(auth, email, password);
+                        }
+                        setStorageMode("cloud");
+                        setEmailInput("");
+                        setPasswordInput("");
+                        setShowLocalLoginModal(false);
+                      } catch (err: any) {
+                        console.error("Email auth error:", err);
+                        let friendlyMsg = err.message || String(err);
+                        if (err.code === "auth/email-already-in-use") {
+                          friendlyMsg = "Этот адрес почты уже зарегистрирован.";
+                        } else if (err.code === "auth/invalid-email") {
+                          friendlyMsg = "Неверный формат email адреса.";
+                        } else if (err.code === "auth/operation-not-allowed") {
+                          friendlyMsg = "Вход по Email отключен в настройках Firebase.";
+                        } else if (err.code === "auth/weak-password") {
+                          friendlyMsg = "Слишком простой пароль. Нужно не менее 6 символов.";
+                        } else if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+                          friendlyMsg = "Неверный логин или пароль.";
+                        }
+                        setAuthError(friendlyMsg);
+                      } finally {
+                        setEmailAuthLoading(false);
+                      }
+                    }}
+                    disabled={emailAuthLoading}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-zinc-700 hover:bg-zinc-800 active:scale-98 text-white font-bold text-xs transition duration-150 cursor-pointer disabled:opacity-50"
+                  >
+                    {emailAuthLoading ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <span>🔒</span>
+                    )}
+                    <span>{isEmailRegister ? "Создать аккаунт и войти" : "Войти в облако"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
+                <span className="flex-shrink mx-3 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest font-mono">или</span>
+                <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
+              </div>
+
+              {/* Option C: Guest Mode */}
               <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
                 <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
-                  Вход для локального ПК (Режим гостя):
+                  Вход без синхронизации (Режим гостя):
                 </label>
                 <div className="flex gap-2">
                   <input
