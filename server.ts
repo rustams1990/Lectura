@@ -2392,6 +2392,22 @@ function getDbConnection(userId: string = "default") {
       ? SQLITE_DB_PATH
       : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
       
+    // Migrate existing main SQLite database to 'rustam' user profile if they connect for the first time
+    if ((safeUserId === "local_rustam" || safeUserId === "local-rustam") && !fs.existsSync(userDbPath) && fs.existsSync(SQLITE_DB_PATH)) {
+      console.log("Migrating main SQLite database to user profile 'local-rustam'...");
+      try {
+        fs.copyFileSync(SQLITE_DB_PATH, userDbPath);
+        if (fs.existsSync(SQLITE_DB_PATH + "-wal")) {
+          fs.copyFileSync(SQLITE_DB_PATH + "-wal", userDbPath + "-wal");
+        }
+        if (fs.existsSync(SQLITE_DB_PATH + "-shm")) {
+          fs.copyFileSync(SQLITE_DB_PATH + "-shm", userDbPath + "-shm");
+        }
+      } catch (err) {
+        console.error("Failed to copy default SQLite database to local-rustam profile:", err);
+      }
+    }
+      
     conn = new Database(userDbPath);
     conn.pragma("journal_mode = WAL");
     conn.pragma("foreign_keys = ON");
