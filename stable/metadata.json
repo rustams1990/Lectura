@@ -1,8 +1,0 @@
-{
-  "name": "Remix: Lectura 2",
-  "description": "An interactive language reader similar to LingQ. Import texts and audio, click words for context-aware translations, generate AI audio narration, and practice vocabulary with flashcards.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

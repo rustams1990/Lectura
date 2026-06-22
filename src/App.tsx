@@ -456,9 +456,20 @@ export default function App() {
     return (saved === "cloud" || saved === "local" || saved === "server") ? saved : "cloud";
   });
 
+  const [localSyncKey, setLocalSyncKey] = useState<string>(() => {
+    return localStorage.getItem("vocab_clone_local_sync_key") || "";
+  });
+
+  const [localSyncError, setLocalSyncError] = useState<boolean>(false);
+
   useEffect(() => {
     localStorage.setItem("vocab_clone_storage_mode", storageMode);
   }, [storageMode]);
+
+  useEffect(() => {
+    localStorage.setItem("vocab_clone_local_sync_key", localSyncKey);
+    setLocalSyncError(false); // Reset error status when key is edited
+  }, [localSyncKey]);
 
   const activeUser = user || localUser;
 
@@ -467,9 +478,19 @@ export default function App() {
       console.log("Skipping server database poll to avoid overwriting pending local changes.");
       return;
     }
+    if (localSyncError) return;
     setIsSyncing(true);
     try {
-      const res = await fetch("/api/server-db");
+      const res = await fetch("/api/server-db", {
+        headers: {
+          "x-local-sync-key": localSyncKey
+        }
+      });
+      if (res.status === 401 || res.status === 403) {
+        setLocalSyncError(true);
+        setIsSyncing(false);
+        return;
+      }
       if (res.ok) {
         const body = await safeJsonParse(res);
         if (body.status === "ok" && body.data) {
@@ -516,7 +537,10 @@ export default function App() {
 
           await fetch("/api/server-db", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "x-local-sync-key": localSyncKey
+            },
             body: JSON.stringify({
               data: {
                 lessons: lLessons,
@@ -546,11 +570,15 @@ export default function App() {
     currentFlags = languageFlags
   ) => {
     if (storageMode !== "server") return;
+    if (localSyncError) return;
     lastLocalChangeTime.current = Date.now();
     try {
       const res = await fetch("/api/server-db", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-local-sync-key": localSyncKey
+        },
         body: JSON.stringify({
           data: {
             lessons: currentLessons,
@@ -562,6 +590,10 @@ export default function App() {
           },
         }),
       });
+      if (res.status === 401 || res.status === 403) {
+        setLocalSyncError(true);
+        return;
+      }
       if (res.ok) {
         lastLocalChangeTime.current = Date.now();
       }
@@ -2671,6 +2703,9 @@ export default function App() {
         onZoomScaleChange={setZoomScale}
         storageMode={storageMode}
         onStorageModeChange={setStorageMode}
+        localSyncKey={localSyncKey}
+        onLocalSyncKeyChange={setLocalSyncKey}
+        localSyncError={localSyncError}
         firebaseUser={user}
         vocab={vocab}
         lessonTypes={lessonTypes}

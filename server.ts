@@ -2860,8 +2860,21 @@ function saveLocalServerDb(data: any) {
   }
 }
 
+// Middleware to verify local sync key if configured
+function requireLocalSyncKey(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const expectedKey = process.env.LOCAL_SYNC_KEY;
+  if (!expectedKey) {
+    return next();
+  }
+  const clientKey = req.headers["x-local-sync-key"] || req.query.sync_key;
+  if (clientKey === expectedKey) {
+    return next();
+  }
+  return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+}
+
 // API Endpoints for Local Dev Server Sync mode (PC + Tablet synchronization)
-app.get("/api/server-db", (req, res) => {
+app.get("/api/server-db", requireLocalSyncKey, (req, res) => {
   const db = getLocalServerDb();
   if (!db) {
     return res.json({ status: "empty" });
@@ -2869,7 +2882,7 @@ app.get("/api/server-db", (req, res) => {
   return res.json({ status: "ok", data: db });
 });
 
-app.post("/api/server-db", (req, res) => {
+app.post("/api/server-db", requireLocalSyncKey, (req, res) => {
   const { data } = req.body;
   if (!data) {
     return res.status(400).json({ error: "No data provided" });
@@ -2882,7 +2895,7 @@ app.post("/api/server-db", (req, res) => {
   }
 });
 
-app.delete("/api/server-db", (req, res) => {
+app.delete("/api/server-db", requireLocalSyncKey, (req, res) => {
   try {
     if (dbConn) {
       dbConn.close();
@@ -2925,7 +2938,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // Endpoint to register local data and get a transfer PIN
-app.post("/api/local-sync/share", (req, res) => {
+app.post("/api/local-sync/share", requireLocalSyncKey, (req, res) => {
   const { data } = req.body;
   if (!data) {
     return res.status(400).json({ error: "Data is required" });
@@ -2946,7 +2959,7 @@ app.post("/api/local-sync/share", (req, res) => {
 });
 
 // Endpoint to retrieve data using a PIN
-app.get("/api/local-sync/retrieve/:code", (req, res) => {
+app.get("/api/local-sync/retrieve/:code", requireLocalSyncKey, (req, res) => {
   const { code } = req.params;
   if (!code) {
     return res.status(400).json({ error: "Code is required" });

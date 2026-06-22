@@ -28,6 +28,9 @@ interface SettingsModalProps {
   // Storage / Backup and Offline capabilities props
   storageMode: "cloud" | "local" | "server";
   onStorageModeChange: (mode: "cloud" | "local" | "server") => void;
+  localSyncKey: string;
+  onLocalSyncKeyChange: (key: string) => void;
+  localSyncError: boolean;
   firebaseUser: any;
   vocab: Record<string, any>;
   lessonTypes: any[];
@@ -110,6 +113,9 @@ export default function SettingsModal({
   
   storageMode,
   onStorageModeChange,
+  localSyncKey,
+  onLocalSyncKeyChange,
+  localSyncError,
   firebaseUser,
   vocab,
   lessonTypes,
@@ -148,7 +154,10 @@ export default function SettingsModal({
 
       const res = await fetch("/api/local-sync/share", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-local-sync-key": localSyncKey
+        },
         body: JSON.stringify({ data: payload })
       });
 
@@ -185,7 +194,11 @@ export default function SettingsModal({
     setWifiSyncLoading(true);
     setWifiSyncStatus({ type: "idle" });
     try {
-      const res = await fetch(`/api/local-sync/retrieve/${inputWifiPin.trim()}`);
+      const res = await fetch(`/api/local-sync/retrieve/${inputWifiPin.trim()}`, {
+        headers: {
+          "x-local-sync-key": localSyncKey
+        }
+      });
       if (!res.ok) {
         const errJson = await safeJsonParse(res).catch(() => ({}));
         throw new Error(errJson.error || "Не удалось загрузить данные по этому коду.");
@@ -1112,8 +1125,28 @@ export default function SettingsModal({
                       </div>
                     </div>
                     {storageMode === "server" ? (
-                      <div className="mt-3 text-[10px] font-black uppercase text-sky-600 dark:text-sky-400 flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Активен: Локальный Сервер
+                      <div className="mt-3">
+                        <div className="text-[10px] font-black uppercase text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Активен: Локальный Сервер
+                        </div>
+                        
+                        <div className="mt-3 pt-3 border-t border-zinc-150/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
+                          <label className="text-[9px] font-bold uppercase text-zinc-450 dark:text-zinc-500 block mb-1">
+                            Ключ авторизации (пароль)
+                          </label>
+                          <input
+                            type="password"
+                            value={localSyncKey}
+                            onChange={(e) => onLocalSyncKeyChange(e.target.value)}
+                            placeholder="Секретный ключ..."
+                            className="w-full px-3 py-1.5 text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-sky-500 text-zinc-800 dark:text-zinc-200"
+                          />
+                          {localSyncError && (
+                            <div className="text-[10px] text-red-500 font-semibold mt-1">
+                              ⚠️ Неверный ключ или доступ запрещен!
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className="mt-3 text-[10px] font-medium text-zinc-450 dark:text-zinc-400">
