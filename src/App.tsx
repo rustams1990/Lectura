@@ -2717,11 +2717,13 @@ export default function App() {
           if (imported.lessonTypes) {
             setLessonTypes(imported.lessonTypes);
           }
-          if ((imported.vocab || (imported.vocab || imported.vocab))) {
-            setVocab(imported.vocab || (imported.vocab || (imported.vocab || imported.vocab)));
+          
+          const importedVocab = imported.vocab || imported.lingqs || imported.lingq;
+          if (importedVocab) {
+            setVocab(normalizeVocabRecord(importedVocab));
           }
           if (imported.wordLinks) {
-            setWordLinks(imported.wordLinks);
+            setWordLinks(normalizeWordLinksRecord(imported.wordLinks));
           }
           if (imported.listeningSeconds !== undefined) {
             setListeningSeconds(imported.listeningSeconds);
@@ -2733,8 +2735,8 @@ export default function App() {
           // Force update local storage instantly
           if (imported.lessons) safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(imported.lessons));
           if (imported.lessonTypes) safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(imported.lessonTypes));
-          if ((imported.vocab || (imported.vocab || imported.vocab))) safeLocalStorageSetItem("vocab_clone_words", JSON.stringify((imported.vocab || (imported.vocab || imported.vocab))));
-          if (imported.wordLinks) safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(imported.wordLinks));
+          if (importedVocab) safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(normalizeVocabRecord(importedVocab)));
+          if (imported.wordLinks) safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizeWordLinksRecord(imported.wordLinks)));
           if (imported.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", imported.listeningSeconds.toString());
           if (imported.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(imported.languageFlags));
 
@@ -2744,7 +2746,7 @@ export default function App() {
               user.uid,
               imported.lessons || lessons,
               imported.lessonTypes || lessonTypes,
-              (imported.vocab || (imported.vocab || imported.vocab)) || vocab,
+              importedVocab || vocab,
               imported.wordLinks || wordLinks,
               imported.listeningSeconds !== undefined ? imported.listeningSeconds : listeningSeconds,
               imported.languageFlags || languageFlags
