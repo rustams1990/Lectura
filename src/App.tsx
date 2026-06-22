@@ -532,7 +532,8 @@ export default function App() {
     try {
       const res = await fetch("/api/server-db", {
         headers: {
-          "x-local-sync-key": localSyncKey
+          "x-local-sync-key": localSyncKey,
+          "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
         }
       });
       if (res.status === 401 || res.status === 403) {
@@ -588,7 +589,8 @@ export default function App() {
             method: "POST",
             headers: { 
               "Content-Type": "application/json",
-              "x-local-sync-key": localSyncKey
+              "x-local-sync-key": localSyncKey,
+              "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
             },
             body: JSON.stringify({
               data: {
@@ -626,7 +628,8 @@ export default function App() {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-local-sync-key": localSyncKey
+          "x-local-sync-key": localSyncKey,
+          "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
         },
         body: JSON.stringify({
           data: {
@@ -2864,7 +2867,13 @@ export default function App() {
           } else if (storageMode === "server") {
             try {
               setIsSyncing(true);
-              await fetch("/api/server-db", { method: "DELETE" });
+              await fetch("/api/server-db", { 
+                method: "DELETE",
+                headers: {
+                  "x-local-sync-key": localSyncKey,
+                  "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+                }
+              });
             } catch (err) {
               console.error("Failed to clear server-side database:", err);
             } finally {
@@ -3075,7 +3084,7 @@ export default function App() {
                     onClick={() => {
                       const name = localNameInput.trim() || "Guest Developer";
                       const mockUserObj = {
-                        uid: "local-guest",
+                        uid: `local-${name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`,
                         displayName: name,
                         email: `${name.toLowerCase().replace(/\s+/g, "_")}@localhost`
                       };

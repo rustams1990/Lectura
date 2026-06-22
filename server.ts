@@ -2377,21 +2377,27 @@ Output your result as a JSON object matching this schema:
 const SQLITE_DB_PATH = path.join(DATA_DIR, "local_server_db.sqlite");
 const LOCAL_DB_PATH = path.join(DATA_DIR, "local_server_db.json");
 
-let dbConn: Database.Database | null = null;
+let dbConns = new Map<string, Database.Database>();
 
 function cleanWordPrefix(word: string): string {
   if (typeof word !== "string") return "";
   return word.replace(/^[a-zA-Z]+_/, "");
 }
 
-function getDbConnection() {
-  if (!dbConn) {
-    dbConn = new Database(SQLITE_DB_PATH);
-    dbConn.pragma("journal_mode = WAL");
-    dbConn.pragma("foreign_keys = ON");
+function getDbConnection(userId: string = "default") {
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  let conn = dbConns.get(safeUserId);
+  if (!conn) {
+    const userDbPath = safeUserId === "default"
+      ? SQLITE_DB_PATH
+      : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
+      
+    conn = new Database(userDbPath);
+    conn.pragma("journal_mode = WAL");
+    conn.pragma("foreign_keys = ON");
     
     // Ensure all tables exist
-    dbConn.exec(`
+    conn.exec(`
       CREATE TABLE IF NOT EXISTS metadata (
         key TEXT PRIMARY KEY,
         value TEXT
@@ -2454,8 +2460,9 @@ function getDbConnection() {
         icon TEXT NOT NULL
       );
     `);
+    dbConns.set(safeUserId, conn);
   }
-  return dbConn;
+  return conn;
 }
 
 // Function to run migration from JSON if it exists
@@ -2471,7 +2478,7 @@ function migrateJsonToSqliteIfNeeded() {
       return;
     }
     const data = JSON.parse(fileContent);
-    const db = getDbConnection();
+    const db = getDbConnection("default");
 
     const insertLanguage = db.prepare(`
       INSERT INTO languages (code, name, flag) VALUES (?, ?, ?)
@@ -2622,9 +2629,9 @@ function migrateJsonToSqliteIfNeeded() {
 migrateJsonToSqliteIfNeeded();
 
 // Read helper safely
-function getLocalServerDb() {
+function getLocalServerDb(userId: string = "default") {
   try {
-    const db = getDbConnection();
+    const db = getDbConnection(userId);
     
     // Check if db is initialized (i.e. has words or lessons)
     const wordsStmt = db.prepare("SELECT count(*) as count FROM words");
@@ -2718,9 +2725,9 @@ function getLocalServerDb() {
 }
 
 // Write helper safely using a single SQLite transaction
-function saveLocalServerDb(data: any) {
+function saveLocalServerDb(userId: string = "default", data: any) {
   try {
-    const db = getDbConnection();
+    const db = getDbConnection(userId);
 
     const insertLanguage = db.prepare(`
       INSERT INTO languages (code, name, flag) VALUES (?, ?, ?)
@@ -2875,7 +2882,8 @@ function requireLocalSyncKey(req: express.Request, res: express.Response, next: 
 
 // API Endpoints for Local Dev Server Sync mode (PC + Tablet synchronization)
 app.get("/api/server-db", requireLocalSyncKey, (req, res) => {
-  const db = getLocalServerDb();
+  const userId = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+  const db = getLocalServerDb(userId);
   if (!db) {
     return res.json({ status: "empty" });
   }
@@ -2887,7 +2895,8 @@ app.post("/api/server-db", requireLocalSyncKey, (req, res) => {
   if (!data) {
     return res.status(400).json({ error: "No data provided" });
   }
-  const success = saveLocalServerDb(data);
+  const userId = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+  const success = saveLocalServerDb(userId, data);
   if (success) {
     return res.json({ status: "success" });
   } else {
@@ -2896,22 +2905,26 @@ app.post("/api/server-db", requireLocalSyncKey, (req, res) => {
 });
 
 app.delete("/api/server-db", requireLocalSyncKey, (req, res) => {
+  const userId = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const userDbPath = safeUserId === "default"
+    ? SQLITE_DB_PATH
+    : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
+
   try {
-    if (dbConn) {
-      dbConn.close();
-      dbConn = null;
+    const conn = dbConns.get(safeUserId);
+    if (conn) {
+      conn.close();
+      dbConns.delete(safeUserId);
     }
-    if (fs.existsSync(SQLITE_DB_PATH)) {
-      fs.unlinkSync(SQLITE_DB_PATH);
+    if (fs.existsSync(userDbPath)) {
+      fs.unlinkSync(userDbPath);
     }
-    if (fs.existsSync(SQLITE_DB_PATH + "-wal")) {
-      fs.unlinkSync(SQLITE_DB_PATH + "-wal");
+    if (fs.existsSync(userDbPath + "-wal")) {
+      fs.unlinkSync(userDbPath + "-wal");
     }
-    if (fs.existsSync(SQLITE_DB_PATH + "-shm")) {
-      fs.unlinkSync(SQLITE_DB_PATH + "-shm");
-    }
-    if (fs.existsSync(LOCAL_DB_PATH)) {
-      fs.unlinkSync(LOCAL_DB_PATH);
+    if (fs.existsSync(userDbPath + "-shm")) {
+      fs.unlinkSync(userDbPath + "-shm");
     }
     return res.json({ status: "success", message: "Database file deleted successfully" });
   } catch (error) {
