@@ -260,6 +260,18 @@ function normalizeWordLinksRecord(record: Record<string, string> | undefined): R
   return normalized;
 }
 
+const isLocalHostname = (): boolean => {
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("172.")
+  );
+};
+
 export default function App() {
   // Durable browser persistence states
   const [lessons, setLessons] = useState<Lesson[]>(() => {
@@ -502,7 +514,14 @@ export default function App() {
   const [emailAuthLoading, setEmailAuthLoading] = useState<boolean>(false);
   const [storageMode, setStorageMode] = useState<"cloud" | "local" | "server">(() => {
     const saved = localStorage.getItem("vocab_clone_storage_mode");
-    return (saved === "cloud" || saved === "local" || saved === "server") ? saved : "cloud";
+    if (saved === "cloud" || saved === "local" || saved === "server") {
+      return saved;
+    }
+    return isLocalHostname() ? "server" : "cloud";
+  });
+
+  const [authModalTab, setAuthModalTab] = useState<"local" | "cloud">(() => {
+    return isLocalHostname() ? "local" : "cloud";
   });
 
   const [localSyncKey, setLocalSyncKey] = useState<string>(() => {
@@ -521,6 +540,13 @@ export default function App() {
   }, [localSyncKey]);
 
   const activeUser = user || localUser;
+
+  // Auto-show login/profile selection modal on launch if no profile is active
+  useEffect(() => {
+    if (!isAuthLoading && !activeUser) {
+      setShowLocalLoginModal(true);
+    }
+  }, [isAuthLoading, activeUser]);
 
   const loadDataFromLocalServer = async () => {
     if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
@@ -2907,198 +2933,248 @@ export default function App() {
       {showLocalLoginModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-5 animate-in zoom-in-95 duration-150">
-            <button
-              onClick={() => {
-                setShowLocalLoginModal(false);
-                setAuthError(null);
-              }}
-              className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-205 cursor-pointer text-base font-bold"
-            >
-              &times;
-            </button>
+            {activeUser && (
+              <button
+                onClick={() => {
+                  setShowLocalLoginModal(false);
+                  setAuthError(null);
+                }}
+                className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-205 cursor-pointer text-base font-bold"
+              >
+                &times;
+              </button>
+            )}
 
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center mx-auto text-xl">
                 🔑
               </div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight">
-                Авторизация и Синхронизация
+                Авторизация и Профиль
               </h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 px-2 leading-relaxed">
-                Войдите под своей учетной записью для облачного бекапа на любом устройстве, либо используйте автономный режим гостя на вашем ПК.
-              </p>
+            </div>
+
+            {/* Tab selection */}
+            <div className="flex border-b border-zinc-250 dark:border-zinc-800">
+              <button
+                onClick={() => setAuthModalTab("local")}
+                className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-colors ${
+                  authModalTab === "local"
+                    ? "text-teal-600 dark:text-teal-400 border-b-2 border-teal-500"
+                    : "text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200"
+                }`}
+              >
+                💻 Локальный Профиль
+              </button>
+              <button
+                onClick={() => setAuthModalTab("cloud")}
+                className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-colors ${
+                  authModalTab === "cloud"
+                    ? "text-teal-600 dark:text-teal-400 border-b-2 border-teal-500"
+                    : "text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200"
+                }`}
+              >
+                ☁️ Облако (Google / Email)
+              </button>
             </div>
 
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
-                <p className="font-bold mb-1">⚠️ Ошибка авторизации:</p>
+                <p className="font-bold mb-1">⚠️ Ошибка:</p>
                 <p className="mb-2">{authError}</p>
               </div>
             )}
 
             <div className="space-y-4">
-              {/* Option A: Google Sign In */}
-              <div>
-                <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                  Рекомендуемый вход (Google Account):
-                </label>
-                <button
-                  onClick={async () => {
-                    setAuthError(null);
-                    try {
-                      await signInWithPopup(auth, googleProvider);
-                      setStorageMode("cloud");
-                      setShowLocalLoginModal(false);
-                    } catch (err: any) {
-                      console.error("Local PC Sign-In with popup error:", err);
-                      setAuthError(err.message || String(err));
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer shadow-md shadow-teal-650/10"
-                >
-                  <span>☁️</span> Войти через Google Account
-                </button>
-                <p className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1 px-1">
-                  * Работает на ПК (localhost/lectura.local). Может блокироваться на планшетах при входе по IP.
-                </p>
-              </div>
+              {authModalTab === "local" ? (
+                <div className="space-y-4 pt-2">
+                  <div className="text-center space-y-1">
+                    <p className="text-[11px] text-zinc-550 dark:text-zinc-400 leading-normal">
+                      Введите ваше имя, чтобы войти в ваш личный профиль на этом сервере. Ваши книги и словарь сохранятся отдельно.
+                    </p>
+                  </div>
 
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
-                <span className="flex-shrink mx-3 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest font-mono">или</span>
-                <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
-              </div>
-
-              {/* Option B: Email & Password */}
-              <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
-                <div className="flex justify-between items-center">
-                  <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
-                    Вход по Email (для Планшетов/Телефонов):
-                  </label>
-                  <button
-                    onClick={() => {
-                      setIsEmailRegister(!isEmailRegister);
-                      setAuthError(null);
-                    }}
-                    className="text-[10px] text-teal-600 hover:text-teal-750 dark:text-teal-400 dark:hover:text-teal-350 font-bold underline transition cursor-pointer"
-                  >
-                    {isEmailRegister ? "Вход" : "Регистрация"}
-                  </button>
+                  <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
+                    <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
+                      Имя профиля:
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={localNameInput}
+                        onChange={(e) => setLocalNameInput(e.target.value)}
+                        placeholder="Например: Rustam или Сестра"
+                        className="flex-grow text-xs px-3 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-bold"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const name = localNameInput.trim();
+                            if (name) {
+                              const mockUserObj = {
+                                uid: `local-${name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`,
+                                displayName: name,
+                                email: `${name.toLowerCase().replace(/\s+/g, "_")}@localhost`
+                              };
+                              const targetMode = isLocalHostname() ? "server" : "local";
+                              setStorageMode(targetMode);
+                              localStorage.setItem("vocab_clone_storage_mode", targetMode);
+                              setLocalUser(mockUserObj);
+                              localStorage.setItem("vocab_clone_local_user", JSON.stringify(mockUserObj));
+                              setShowLocalLoginModal(false);
+                              setAuthError(null);
+                            } else {
+                              setAuthError("Пожалуйста, введите имя профиля.");
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          const name = localNameInput.trim();
+                          if (!name) {
+                            setAuthError("Пожалуйста, введите имя профиля.");
+                            return;
+                          }
+                          const mockUserObj = {
+                            uid: `local-${name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`,
+                            displayName: name,
+                            email: `${name.toLowerCase().replace(/\s+/g, "_")}@localhost`
+                          };
+                          const targetMode = isLocalHostname() ? "server" : "local";
+                          setStorageMode(targetMode);
+                          localStorage.setItem("vocab_clone_storage_mode", targetMode);
+                          setLocalUser(mockUserObj);
+                          localStorage.setItem("vocab_clone_local_user", JSON.stringify(mockUserObj));
+                          setShowLocalLoginModal(false);
+                          setAuthError(null);
+                        }}
+                        className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-98 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-teal-650/10"
+                      >
+                        Начать 💻
+                      </button>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="space-y-2">
-                  <input
-                    type="email"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="Email адрес"
-                    disabled={emailAuthLoading}
-                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
-                  />
-                  <input
-                    type="password"
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="Пароль (от 6 символов)"
-                    disabled={emailAuthLoading}
-                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
-                  />
-
-                  <button
-                    onClick={async () => {
-                      const email = emailInput.trim();
-                      const password = passwordInput.trim();
-                      if (!email || !password) {
-                        setAuthError("Пожалуйста, введите email и пароль.");
-                        return;
-                      }
-                      if (password.length < 6) {
-                        setAuthError("Пароль должен содержать не менее 6 символов.");
-                        return;
-                      }
-
-                      setAuthError(null);
-                      setEmailAuthLoading(true);
-                      try {
-                        if (isEmailRegister) {
-                          await createUserWithEmailAndPassword(auth, email, password);
-                        } else {
-                          await signInWithEmailAndPassword(auth, email, password);
+              ) : (
+                <div className="space-y-4 pt-2">
+                  {/* Option A: Google Sign In */}
+                  <div>
+                    <button
+                      onClick={async () => {
+                        setAuthError(null);
+                        try {
+                          await signInWithPopup(auth, googleProvider);
+                          setStorageMode("cloud");
+                          setShowLocalLoginModal(false);
+                        } catch (err: any) {
+                          console.error("Local PC Sign-In with popup error:", err);
+                          setAuthError(err.message || String(err));
                         }
-                        setStorageMode("cloud");
-                        setEmailInput("");
-                        setPasswordInput("");
-                        setShowLocalLoginModal(false);
-                      } catch (err: any) {
-                        console.error("Email auth error:", err);
-                        let friendlyMsg = err.message || String(err);
-                        if (err.code === "auth/email-already-in-use") {
-                          friendlyMsg = "Этот адрес почты уже зарегистрирован.";
-                        } else if (err.code === "auth/invalid-email") {
-                          friendlyMsg = "Неверный формат email адреса.";
-                        } else if (err.code === "auth/operation-not-allowed") {
-                          friendlyMsg = "Вход по Email отключен в настройках Firebase.";
-                        } else if (err.code === "auth/weak-password") {
-                          friendlyMsg = "Слишком простой пароль. Нужно не менее 6 символов.";
-                        } else if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-                          friendlyMsg = "Неверный логин или пароль.";
-                        }
-                        setAuthError(friendlyMsg);
-                      } finally {
-                        setEmailAuthLoading(false);
-                      }
-                    }}
-                    disabled={emailAuthLoading}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-zinc-700 hover:bg-zinc-800 active:scale-98 text-white font-bold text-xs transition duration-150 cursor-pointer disabled:opacity-50"
-                  >
-                    {emailAuthLoading ? (
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <span>🔒</span>
-                    )}
-                    <span>{isEmailRegister ? "Создать аккаунт и войти" : "Войти в облако"}</span>
-                  </button>
-                </div>
-              </div>
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer shadow-md shadow-teal-650/10"
+                    >
+                      <span>☁️</span> Войти через Google Account
+                    </button>
+                  </div>
 
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
-                <span className="flex-shrink mx-3 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest font-mono">или</span>
-                <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
-              </div>
+                  <div className="relative flex py-1 items-center">
+                    <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
+                    <span className="flex-shrink mx-3 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest font-mono">или</span>
+                    <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
+                  </div>
 
-              {/* Option C: Guest Mode */}
-              <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
-                <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
-                  Вход без синхронизации (Режим гостя):
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={localNameInput}
-                    onChange={(e) => setLocalNameInput(e.target.value)}
-                    placeholder="Ваше имя (Guest)"
-                    className="flex-grow text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100"
-                  />
-                  <button
-                    onClick={() => {
-                      const name = localNameInput.trim() || "Guest Developer";
-                      const mockUserObj = {
-                        uid: `local-${name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`,
-                        displayName: name,
-                        email: `${name.toLowerCase().replace(/\s+/g, "_")}@localhost`
-                      };
-                      setLocalUser(mockUserObj);
-                      localStorage.setItem("vocab_clone_local_user", JSON.stringify(mockUserObj));
-                      setShowLocalLoginModal(false);
-                      setAuthError(null);
-                    }}
-                    className="px-3.5 py-2 bg-zinc-700 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-                  >
-                    💻 Начать
-                  </button>
+                  {/* Option B: Email & Password */}
+                  <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
+                    <div className="flex justify-between items-center">
+                      <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
+                        Вход по Email:
+                      </label>
+                      <button
+                        onClick={() => {
+                          setIsEmailRegister(!isEmailRegister);
+                          setAuthError(null);
+                        }}
+                        className="text-[10px] text-teal-600 hover:text-teal-750 dark:text-teal-400 dark:hover:text-teal-350 font-bold underline transition cursor-pointer"
+                      >
+                        {isEmailRegister ? "Вход" : "Регистрация"}
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <input
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        placeholder="Email адрес"
+                        disabled={emailAuthLoading}
+                        className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                      />
+                      <input
+                        type="password"
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                        placeholder="Пароль (от 6 символов)"
+                        disabled={emailAuthLoading}
+                        className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                      />
+
+                      <button
+                        onClick={async () => {
+                          const email = emailInput.trim();
+                          const password = passwordInput.trim();
+                          if (!email || !password) {
+                            setAuthError("Пожалуйста, введите email и пароль.");
+                            return;
+                          }
+                          if (password.length < 6) {
+                            setAuthError("Пароль должен содержать не менее 6 символов.");
+                            return;
+                          }
+
+                          setAuthError(null);
+                          setEmailAuthLoading(true);
+                          try {
+                            if (isEmailRegister) {
+                              await createUserWithEmailAndPassword(auth, email, password);
+                            } else {
+                              await signInWithEmailAndPassword(auth, email, password);
+                            }
+                            setStorageMode("cloud");
+                            setEmailInput("");
+                            setPasswordInput("");
+                            setShowLocalLoginModal(false);
+                          } catch (err: any) {
+                            console.error("Email auth error:", err);
+                            let friendlyMsg = err.message || String(err);
+                            if (err.code === "auth/email-already-in-use") {
+                              friendlyMsg = "Этот адрес почты уже зарегистрирован.";
+                            } else if (err.code === "auth/invalid-email") {
+                              friendlyMsg = "Неверный формат email адреса.";
+                            } else if (err.code === "auth/operation-not-allowed") {
+                              friendlyMsg = "Вход по Email отключен в настройках Firebase.";
+                            } else if (err.code === "auth/weak-password") {
+                              friendlyMsg = "Слишком простой пароль. Нужно не менее 6 символов.";
+                            } else if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+                              friendlyMsg = "Неверный логин или пароль.";
+                            }
+                            setAuthError(friendlyMsg);
+                          } finally {
+                            setEmailAuthLoading(false);
+                          }
+                        }}
+                        disabled={emailAuthLoading}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-zinc-700 hover:bg-zinc-800 active:scale-98 text-white font-bold text-xs transition duration-150 cursor-pointer disabled:opacity-50"
+                      >
+                        {emailAuthLoading ? (
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span>🔒</span>
+                        )}
+                        <span>{isEmailRegister ? "Создать аккаунт и войти" : "Войти в облако"}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
