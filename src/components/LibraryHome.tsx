@@ -1019,7 +1019,7 @@ export default function LibraryHome({
                       )}
                     </div>
 
-                    {settings?.showDetailedVocabularyStats !== false && booksPerRow < 5 ? (
+                    {settings?.showDetailedVocabularyStats !== false ? (
                       <div className="flex justify-between items-start text-[9px] font-extrabold font-sans">
                         <div className="flex flex-col text-left">
                           <span 
