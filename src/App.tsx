@@ -588,7 +588,7 @@ export default function App() {
     }
   }, [storageMode, serverToken]);
 
-  const activeUser = user || localUser;
+  const activeUser = storageMode === "cloud" ? user : storageMode === "server" ? localUser : null;
 
   useEffect(() => {
     localStorage.setItem("vocab_clone_storage_mode", storageMode);
@@ -605,6 +605,63 @@ export default function App() {
       setShowLocalLoginModal(true);
     }
   }, [isAuthLoading, activeUser]);
+
+  const handleServerAuthSubmit = async (emailInputVal: string, passwordInputVal: string, nameInputVal: string, isRegisterVal: boolean) => {
+    const email = emailInputVal.trim();
+    const password = passwordInputVal.trim();
+    const name = nameInputVal.trim();
+
+    if (!email || !password) {
+      setAuthError("Пожалуйста, введите email/логин и пароль.");
+      return;
+    }
+
+    setAuthError(null);
+    setIsLocalServerAuthLoading(true);
+
+    try {
+      // 1. Sign out of Firebase Cloud if logged in to avoid conflict
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+
+      // 2. Perform server authentication request
+      const url = isRegisterVal ? "/api/auth/register" : "/api/auth/login";
+      const body = isRegisterVal 
+        ? { email, password, name }
+        : { email, password };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Ошибка авторизации");
+      }
+
+      if (data.token && data.user) {
+        setServerToken(data.token);
+        setLocalUser(data.user);
+        localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
+        setStorageMode("server");
+        localStorage.setItem("vocab_clone_storage_mode", "server");
+
+        // Reset fields
+        setLocalServerEmail("");
+        setLocalServerPassword("");
+        setLocalServerName("");
+        setShowLocalLoginModal(false);
+      }
+    } catch (err: any) {
+      console.error("Local server auth error:", err);
+      setAuthError(err.message || String(err));
+    } finally {
+      setIsLocalServerAuthLoading(false);
+    }
+  };
 
   const loadDataFromLocalServer = async () => {
     if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
@@ -761,6 +818,13 @@ export default function App() {
       unsubscribes.forEach((unsub) => unsub());
       unsubscribes = [];
 
+      if (firebaseUser && storageMode === "server") {
+        console.log("Firebase user detected while in Server mode. Signing out of Firebase.");
+        signOut(auth).catch(err => console.error("Firebase signout failed:", err));
+        setUser(null);
+        return;
+      }
+
       setUser(firebaseUser);
 
       if (firebaseUser) {
@@ -770,6 +834,21 @@ export default function App() {
           setStorageMode("cloud");
           localStorage.setItem("vocab_clone_storage_mode", "cloud");
           return; // The change in storageMode will trigger a re-run of this useEffect
+        }
+      }
+
+      if (storageMode === "cloud") {
+        const savedToken = localStorage.getItem("vocab_clone_server_token");
+        if (savedToken) {
+          console.log("Local server session detected while in Cloud mode. Clearing local server session.");
+          fetch("/api/auth/logout", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${savedToken}` }
+          }).catch(err => console.error("Server logout request failed:", err));
+          setLocalUser(null);
+          localStorage.removeItem("vocab_clone_local_user");
+          localStorage.removeItem("vocab_clone_server_token");
+          setServerToken("");
         }
       }
 
@@ -2446,9 +2525,9 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => {
-                      if (user) {
+                      if (storageMode === "cloud") {
                         signOut(auth).catch(err => console.error(err));
-                      } else {
+                      } else if (storageMode === "server") {
                         if (serverToken) {
                           fetch("/api/auth/logout", {
                             method: "POST",
@@ -3168,108 +3247,14 @@ export default function App() {
                         className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
                         onKeyDown={async (e) => {
                           if (e.key === "Enter") {
-                            const email = localServerEmail.trim();
-                            const password = localServerPassword.trim();
-                            const name = localServerName.trim();
-
-                            if (!email || !password) {
-                              setAuthError("Пожалуйста, введите email/логин и пароль.");
-                              return;
-                            }
-
-                            setAuthError(null);
-                            setIsLocalServerAuthLoading(true);
-
-                            try {
-                              const url = isLocalServerRegister ? "/api/auth/register" : "/api/auth/login";
-                              const body = isLocalServerRegister 
-                                ? { email, password, name }
-                                : { email, password };
-
-                              const res = await fetch(url, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify(body)
-                              });
-
-                              const data = await res.json();
-                              if (!res.ok) {
-                                throw new Error(data.error || "Ошибка авторизации");
-                              }
-
-                              if (data.token && data.user) {
-                                setServerToken(data.token);
-                                setLocalUser(data.user);
-                                localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
-                                setStorageMode("server");
-                                localStorage.setItem("vocab_clone_storage_mode", "server");
-
-                                // Reset fields
-                                setLocalServerEmail("");
-                                setLocalServerPassword("");
-                                setLocalServerName("");
-                                setShowLocalLoginModal(false);
-                              }
-                            } catch (err: any) {
-                              console.error("Local server auth error:", err);
-                              setAuthError(err.message || String(err));
-                            } finally {
-                              setIsLocalServerAuthLoading(false);
-                            }
+                            await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerName, isLocalServerRegister);
                           }
                         }}
                       />
 
                       <button
                         onClick={async () => {
-                          const email = localServerEmail.trim();
-                          const password = localServerPassword.trim();
-                          const name = localServerName.trim();
-
-                          if (!email || !password) {
-                            setAuthError("Пожалуйста, введите email/логин и пароль.");
-                            return;
-                          }
-
-                          setAuthError(null);
-                          setIsLocalServerAuthLoading(true);
-
-                          try {
-                            const url = isLocalServerRegister ? "/api/auth/register" : "/api/auth/login";
-                            const body = isLocalServerRegister 
-                              ? { email, password, name }
-                              : { email, password };
-
-                            const res = await fetch(url, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify(body)
-                            });
-
-                            const data = await res.json();
-                            if (!res.ok) {
-                              throw new Error(data.error || "Ошибка авторизации");
-                            }
-
-                            if (data.token && data.user) {
-                              setServerToken(data.token);
-                              setLocalUser(data.user);
-                              localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
-                              setStorageMode("server");
-                              localStorage.setItem("vocab_clone_storage_mode", "server");
-
-                              // Reset fields
-                              setLocalServerEmail("");
-                              setLocalServerPassword("");
-                              setLocalServerName("");
-                              setShowLocalLoginModal(false);
-                            }
-                          } catch (err: any) {
-                            console.error("Local server auth error:", err);
-                            setAuthError(err.message || String(err));
-                          } finally {
-                            setIsLocalServerAuthLoading(false);
-                          }
+                          await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerName, isLocalServerRegister);
                         }}
                         disabled={isLocalServerAuthLoading}
                         className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-650/10"
