@@ -643,11 +643,12 @@ export default function App() {
       }
 
       if (data.token && data.user) {
+        localStorage.setItem("vocab_clone_server_token", data.token);
+        localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
+        localStorage.setItem("vocab_clone_storage_mode", "server");
         setServerToken(data.token);
         setLocalUser(data.user);
-        localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
         setStorageMode("server");
-        localStorage.setItem("vocab_clone_storage_mode", "server");
 
         // Reset fields
         setLocalServerEmail("");
@@ -671,12 +672,16 @@ export default function App() {
     if (localSyncError) return;
     setIsSyncing(true);
     try {
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+
       const fetchHeaders: Record<string, string> = {
         "x-local-sync-key": localSyncKey,
-        "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
       };
-      if (serverToken) {
-        fetchHeaders["Authorization"] = `Bearer ${serverToken}`;
+      if (savedToken) {
+        fetchHeaders["Authorization"] = `Bearer ${savedToken}`;
       }
       const res = await fetch("/api/server-db", {
         headers: fetchHeaders
@@ -733,10 +738,10 @@ export default function App() {
           const postHeaders: Record<string, string> = {
             "Content-Type": "application/json",
             "x-local-sync-key": localSyncKey,
-            "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+            "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
           };
-          if (serverToken) {
-            postHeaders["Authorization"] = `Bearer ${serverToken}`;
+          if (savedToken) {
+            postHeaders["Authorization"] = `Bearer ${savedToken}`;
           }
 
           await fetch("/api/server-db", {
@@ -774,13 +779,17 @@ export default function App() {
     if (localSyncError) return;
     lastLocalChangeTime.current = Date.now();
     try {
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+
       const postHeaders: Record<string, string> = {
         "Content-Type": "application/json",
         "x-local-sync-key": localSyncKey,
-        "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
       };
-      if (serverToken) {
-        postHeaders["Authorization"] = `Bearer ${serverToken}`;
+      if (savedToken) {
+        postHeaders["Authorization"] = `Bearer ${savedToken}`;
       }
 
       const res = await fetch("/api/server-db", {
@@ -3098,12 +3107,16 @@ export default function App() {
           } else if (storageMode === "server") {
             try {
               setIsSyncing(true);
+              const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+              const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+              const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+
               const deleteHeaders: Record<string, string> = {
                 "x-local-sync-key": localSyncKey,
-                "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+                "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
               };
-              if (serverToken) {
-                deleteHeaders["Authorization"] = `Bearer ${serverToken}`;
+              if (savedToken) {
+                deleteHeaders["Authorization"] = `Bearer ${savedToken}`;
               }
               await fetch("/api/server-db", { 
                 method: "DELETE",
