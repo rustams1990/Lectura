@@ -2674,9 +2674,12 @@ function getLocalServerDb(userId: string = "default") {
     const wordsResult = wordsStmt.get() as { count: number };
     const lessonsStmt = db.prepare("SELECT count(*) as count FROM lessons");
     const lessonsResult = lessonsStmt.get() as { count: number };
+
+    console.log(`[getLocalServerDb] userId: "${userId}", words count: ${wordsResult.count}, lessons count: ${lessonsResult.count}`);
     
     // If we have no data at all, return null so client seeds it
     if (wordsResult.count === 0 && lessonsResult.count === 0) {
+      console.log(`[getLocalServerDb] Database for "${userId}" is empty, returning null to trigger seeding.`);
       return null;
     }
 
@@ -2763,6 +2766,8 @@ function getLocalServerDb(userId: string = "default") {
 // Write helper safely using a single SQLite transaction
 function saveLocalServerDb(userId: string = "default", data: any) {
   try {
+    console.log(`[saveLocalServerDb] Attempting to save for userId: "${userId}"`);
+    console.log(`[saveLocalServerDb] Data details - lessons: ${(data.lessons || []).length}, vocab words: ${Object.keys(data.vocab || data.lingqs || {}).length}`);
     const db = getDbConnection(userId);
 
     const insertLanguage = db.prepare(`
@@ -2896,9 +2901,10 @@ function saveLocalServerDb(userId: string = "default", data: any) {
       }
     })();
 
+    console.log(`[saveLocalServerDb] Transaction successfully committed for userId: "${userId}"`);
     return true;
   } catch (e) {
-    console.error("Error saving SQLite database data:", e);
+    console.error(`[saveLocalServerDb] Error saving SQLite database for "${userId}":`, e);
     return false;
   }
 }
@@ -3093,8 +3099,10 @@ function resolveUserId(req: express.Request): string {
     const db = getDbConnection("default");
     const session = db.prepare("SELECT user_id FROM server_sessions WHERE token = ? AND expires_at > ?").get(token, Date.now()) as any;
     if (session) {
+      console.log(`[resolveUserId] Token found and verified. userId resolved: "${session.user_id}"`);
       return session.user_id;
     }
+    console.warn(`[resolveUserId] Token provided but session not found/expired in database.`);
     throw new Error("UNAUTHORIZED_TOKEN");
   }
 
@@ -3103,11 +3111,14 @@ function resolveUserId(req: express.Request): string {
   if (expectedKey) {
     const clientKey = req.headers["x-local-sync-key"] || req.query.sync_key;
     if (clientKey !== expectedKey) {
+      console.warn(`[resolveUserId] Fallback sync key check failed. expected: ${expectedKey}, client: ${clientKey}`);
       throw new Error("UNAUTHORIZED_SYNC_KEY");
     }
   }
 
-  return String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+  const resolved = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+  console.log(`[resolveUserId] Fallback active. Resolved user from header/query: "${resolved}"`);
+  return resolved;
 }
 
 // API Endpoints for Local Dev Server Sync mode (PC + Tablet synchronization)
@@ -3138,10 +3149,13 @@ app.post("/api/server-db", (req, res) => {
   let userId: string;
   try {
     userId = resolveUserId(req);
+    console.log(`[POST /api/server-db] Resolved request to userId: "${userId}"`);
   } catch (err: any) {
     if (err.message === "UNAUTHORIZED_TOKEN") {
+      console.warn(`[POST /api/server-db] Unauthorized token.`);
       return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
     }
+    console.warn(`[POST /api/server-db] Unauthorized sync key.`);
     return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
   }
 
