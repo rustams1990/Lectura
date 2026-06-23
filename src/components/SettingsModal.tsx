@@ -118,6 +118,7 @@ export default function SettingsModal({
   onLocalSyncKeyChange,
   localSyncError,
   firebaseUser,
+  activeUser,
   vocab,
   lessonTypes,
   listeningSeconds,
