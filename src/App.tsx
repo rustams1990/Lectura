@@ -691,6 +691,16 @@ export default function App() {
 
       setUser(firebaseUser);
 
+      if (firebaseUser) {
+        // Automatically align storageMode to "cloud" when logged in via Firebase
+        if (storageMode !== "cloud") {
+          console.log("Firebase user authenticated. Forcing storageMode to 'cloud' for proper sync.");
+          setStorageMode("cloud");
+          localStorage.setItem("vocab_clone_storage_mode", "cloud");
+          return; // The change in storageMode will trigger a re-run of this useEffect
+        }
+      }
+
       if (firebaseUser && storageMode === "cloud") {
         setIsSyncing(true);
         try {
@@ -700,35 +710,64 @@ export default function App() {
 
           const cloudData = await loadUserData(firebaseUser.uid);
           
-          const hasCloudData = 
-            Object.keys(cloudData.vocab || cloudData.vocab || {}).length > 0 || 
-            cloudData.lessons.length > 0 || 
-            cloudData.listeningSeconds > 0;
+          // Get local storage data
+          const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
+          const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
+          const localWordsStr = localStorage.getItem("vocab_clone_words");
+          const localListeningStr = localStorage.getItem("vocab_clone_listening");
+          const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
+          const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
 
-          if (!hasCloudData) {
-            // First time loading: sync any local browser cache to the cloud
-            const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
-            const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
-            const localWordsStr = localStorage.getItem("vocab_clone_words");
-            const localListeningStr = localStorage.getItem("vocab_clone_listening");
-            const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
-            const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
+          const lLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS) as Lesson[];
+          const lTypes = safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[];
+          const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
+          const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
+          const lWordLinks = normalizeWordLinksRecord(safeParse(localAliasesStr, {}));
+          const lLanguageFlags = safeParse(localFlagsStr, {});
 
-            const lLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS);
-            const lTypes = safeParse(localTypesStr, DEFAULT_LESSON_TYPES);
-            const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
-            const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
-            const lWordLinks = normalizeWordLinksRecord(safeParse(localAliasesStr, {}));
-            const lLanguageFlags = safeParse(localFlagsStr, {});
+          // Merge logic: find missing custom items locally and upload them to the cloud
+          const cloudLessonIds = new Set(cloudData.lessons.map(l => l.id));
+          const missingLessons = lLessons.filter(l => !l.isBuiltIn && !cloudLessonIds.has(l.id));
 
+          const cloudTypeIds = new Set(cloudData.lessonTypes.map(t => t.id));
+          const missingTypes = lTypes.filter(t => !cloudTypeIds.has(t.id));
+
+          const missingWords: Record<string, VocabItem> = {};
+          for (const [key, wordItem] of Object.entries(lWords)) {
+            if (!cloudData.vocab[key]) {
+              missingWords[key] = wordItem;
+            }
+          }
+
+          const missingLinks: Record<string, string> = {};
+          for (const [key, target] of Object.entries(lWordLinks)) {
+            if (!cloudData.wordLinks[key]) {
+              missingLinks[key] = target;
+            }
+          }
+
+          // If there are missing items, upload them (merge local progress into cloud)
+          const needsUpload = 
+            missingLessons.length > 0 || 
+            missingTypes.length > 0 || 
+            Object.keys(missingWords).length > 0 || 
+            Object.keys(missingLinks).length > 0;
+
+          if (needsUpload) {
+            console.log("Merging local data into cloud...", {
+              lessonsCount: missingLessons.length,
+              typesCount: missingTypes.length,
+              wordsCount: Object.keys(missingWords).length,
+              linksCount: Object.keys(missingLinks).length
+            });
             await uploadLocalToCloud(
               firebaseUser.uid,
-              lLessons,
-              lTypes,
-              lWords,
-              lWordLinks,
-              lListening,
-              lLanguageFlags
+              missingLessons,
+              missingTypes,
+              missingWords,
+              missingLinks,
+              Math.max(lListening, cloudData.listeningSeconds),
+              { ...cloudData.languageFlags, ...lLanguageFlags }
             );
           }
 
@@ -2324,10 +2363,13 @@ export default function App() {
                       {(activeUser.displayName || activeUser.email || "U").substring(0, 1).toUpperCase()}
                     </div>
                   )}
-                  <div className="flex flex-col text-left">
-                    <span className="text-[9px] font-black text-teal-700 dark:text-teal-350 flex items-center gap-1">
-                      {user ? "☁️ active" : "💻 local"}
-                      {user && isSyncing && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />}
+                  <div className="flex flex-col text-left justify-center min-w-0 pr-1">
+                    <span className="text-[9px] font-black text-teal-700 dark:text-teal-350 flex items-center gap-1 leading-none">
+                      {storageMode === "cloud" ? "☁️ cloud" : storageMode === "server" ? "🖥️ server" : "📱 local"}
+                      {isSyncing && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse shrink-0" />}
+                    </span>
+                    <span className="text-[7.5px] text-zinc-400 dark:text-zinc-500 font-bold truncate max-w-[100px] leading-tight block mt-0.5" title={activeUser.displayName || activeUser.email || ""}>
+                      {activeUser.displayName || activeUser.email || "user"}
                     </span>
                   </div>
                   <button
@@ -2801,7 +2843,7 @@ export default function App() {
         vocab={vocab}
         lessonTypes={lessonTypes}
         listeningSeconds={listeningSeconds}
-        onImportData={(imported) => {
+        onImportData={(imported: any) => {
           const importedVocab = imported.vocab || imported.lingqs || imported.lingq;
           const parsedVocab = importedVocab ? normalizeVocabRecord(importedVocab) : vocab;
           const parsedWordLinks = imported.wordLinks ? normalizeWordLinksRecord(imported.wordLinks) : wordLinks;
