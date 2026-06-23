@@ -486,7 +486,7 @@ export default function App() {
     localStorage.setItem("vocab_clone_interface_zoom", zoomScale.toString());
     const val = `${zoomScale}%`;
     try {
-      (document.documentElement.style as any).zoom = val;
+      (document.documentElement.style as any).zoom = "";
       if (document.body) {
         (document.body.style as any).zoom = val;
       }

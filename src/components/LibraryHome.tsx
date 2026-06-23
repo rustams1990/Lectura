@@ -970,7 +970,7 @@ export default function LibraryHome({
                 </div>
 
                 {/* Details Section */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
+                <div className="p-4 flex-auto flex flex-col justify-between space-y-4">
                   <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/40 p-2.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800/50">
                     <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest">Фрагмент текста</p>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 italic font-serif">
