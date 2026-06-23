@@ -437,7 +437,12 @@ export default function App() {
 
   const [layoutWidthMode, setLayoutWidthMode] = useState<"standard" | "wide" | "ultra" | "full">(() => {
     const saved = localStorage.getItem("vocab_clone_layout_width");
-    return (saved as "standard" | "wide" | "ultra" | "full") || "standard";
+    // Migrate 'standard' to 'full' — full-width looks better especially at zoom > 100%
+    if (!saved || saved === "standard") {
+      localStorage.setItem("vocab_clone_layout_width", "full");
+      return "full";
+    }
+    return (saved as "standard" | "wide" | "ultra" | "full");
   });
 
   // Customizable reader options (Fonts family, background tone, size, spacing, container width)
