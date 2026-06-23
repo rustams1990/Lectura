@@ -1462,7 +1462,7 @@ export default function SettingsModal({
             )}
 
             <div className="text-[9px] bg-zinc-100/80 dark:bg-zinc-800 text-zinc-550 dark:text-zinc-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono">
-              v2.0.0-auth-sync
+              v2.0.1
             </div>
           </div>
           
