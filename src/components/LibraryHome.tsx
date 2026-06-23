@@ -970,13 +970,15 @@ export default function LibraryHome({
                 </div>
 
                 {/* Details Section */}
-                <div className="p-4 flex-auto flex flex-col justify-between space-y-4">
+                <div className={`${booksPerRow >= 5 ? 'p-2.5 space-y-2' : 'p-4 space-y-4'} flex-auto flex flex-col justify-between`}>
+                  {booksPerRow < 5 && (
                   <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/40 p-2.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800/50">
                     <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest">Фрагмент текста</p>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 italic font-serif">
                        "{lesson.text}"
                     </p>
                   </div>
+                  )}
 
                   <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/20 p-2 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30 select-none">
                     <div className="flex justify-between items-center text-[9px] uppercase font-black tracking-widest text-zinc-400">
@@ -1017,7 +1019,7 @@ export default function LibraryHome({
                       )}
                     </div>
 
-                    {settings?.showDetailedVocabularyStats !== false ? (
+                    {settings?.showDetailedVocabularyStats !== false && booksPerRow < 5 ? (
                       <div className="flex justify-between items-start text-[9px] font-extrabold font-sans">
                         <div className="flex flex-col text-left">
                           <span 
@@ -1054,19 +1056,19 @@ export default function LibraryHome({
                           title={`Известные слова во фрагменте: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных слов из ${bookStats.uniqueTotal})`}
                           className="text-emerald-500 hover:underline cursor-help animate-none"
                         >
-                          Понятно: {bookStats.knownPct}% ({bookStats.knownCount} слов / {bookStats.uniqueKnownCount} уник.)
+                          Понятно: {bookStats.knownPct}%
                         </span>
                         <span 
                           title={`Неизвестные или новые слова во фрагменте: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных слов из ${bookStats.uniqueTotal})`}
                           className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
                         >
-                          Непонятно: {bookStats.unknownPct}% ({bookStats.unknownCount} слов / {bookStats.uniqueUnknownCount} уник.)
+                          Непонятно: {bookStats.unknownPct}%
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
                     <span className="flex items-center gap-1">
                       📚 {wordCount} слов
                     </span>
