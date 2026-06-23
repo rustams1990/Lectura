@@ -3025,6 +3025,7 @@ export default function App() {
         onLocalSyncKeyChange={setLocalSyncKey}
         localSyncError={localSyncError}
         firebaseUser={user}
+        activeUser={activeUser}
         vocab={vocab}
         lessonTypes={lessonTypes}
         listeningSeconds={listeningSeconds}

@@ -32,6 +32,7 @@ interface SettingsModalProps {
   onLocalSyncKeyChange: (key: string) => void;
   localSyncError: boolean;
   firebaseUser: any;
+  activeUser?: any;
   vocab: Record<string, any>;
   lessonTypes: any[];
   listeningSeconds: number;
@@ -1130,23 +1131,31 @@ export default function SettingsModal({
                           <Check className="w-3.5 h-3.5" /> Активен: Локальный Сервер
                         </div>
                         
-                        <div className="mt-3 pt-3 border-t border-zinc-150/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
-                          <label className="text-[9px] font-bold uppercase text-zinc-450 dark:text-zinc-500 block mb-1">
-                            Ключ авторизации (пароль)
-                          </label>
-                          <input
-                            type="password"
-                            value={localSyncKey}
-                            onChange={(e) => onLocalSyncKeyChange(e.target.value)}
-                            placeholder="Секретный ключ..."
-                            className="w-full px-3 py-1.5 text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-sky-500 text-zinc-800 dark:text-zinc-200"
-                          />
-                          {localSyncError && (
-                            <div className="text-[10px] text-red-500 font-semibold mt-1">
-                              ⚠️ Неверный ключ или доступ запрещен!
+                        {activeUser ? (
+                          <div className="mt-3 pt-3 border-t border-zinc-150/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
+                            <div className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
+                              Авторизован как <span className="text-zinc-800 dark:text-zinc-200">{activeUser.displayName || activeUser.email}</span>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 pt-3 border-t border-zinc-150/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
+                            <label className="text-[9px] font-bold uppercase text-zinc-450 dark:text-zinc-500 block mb-1">
+                              Ключ авторизации (пароль)
+                            </label>
+                            <input
+                              type="password"
+                              value={localSyncKey}
+                              onChange={(e) => onLocalSyncKeyChange(e.target.value)}
+                              placeholder="Секретный ключ..."
+                              className="w-full px-3 py-1.5 text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-sky-500 text-zinc-800 dark:text-zinc-200"
+                            />
+                            {localSyncError && (
+                              <div className="text-[10px] text-red-500 font-semibold mt-1">
+                                ⚠️ Неверный ключ или доступ запрещен!
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="mt-3 text-[10px] font-medium text-zinc-450 dark:text-zinc-400">
