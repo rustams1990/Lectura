@@ -2932,11 +2932,14 @@ app.post("/api/auth/register", (req, res) => {
   const cleanEmail = String(email).trim().toLowerCase();
   const cleanName = name ? String(name).trim() : cleanEmail.split("@")[0];
 
+  console.log(`[AUTH REGISTER] Attempting to register email/login: "${cleanEmail}", name: "${cleanName}", password length: ${password.length}`);
+
   const db = getDbConnection("default");
   try {
     // Check if user already exists
     const existing = db.prepare("SELECT id FROM server_users WHERE email = ?").get(cleanEmail) as any;
     if (existing) {
+      console.log(`[AUTH REGISTER] Registration failed: user "${cleanEmail}" already exists with ID: ${existing.id}`);
       return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован" });
     }
 
@@ -2947,11 +2950,15 @@ app.post("/api/auth/register", (req, res) => {
     db.prepare("INSERT INTO server_users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)")
       .run(userId, cleanEmail, pwdHash, cleanName, createdAt);
 
+    console.log(`[AUTH REGISTER] User inserted successfully. ID: ${userId}, pwdHash: ${pwdHash}`);
+
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
 
     db.prepare("INSERT INTO server_sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
       .run(token, userId, expiresAt);
+
+    console.log(`[AUTH REGISTER] Session created for ID ${userId}`);
 
     return res.json({
       token,
@@ -2962,7 +2969,7 @@ app.post("/api/auth/register", (req, res) => {
       }
     });
   } catch (err: any) {
-    console.error("Register error:", err);
+    console.error("[AUTH REGISTER] Error:", err);
     return res.status(500).json({ error: "Ошибка при регистрации пользователя: " + err.message });
   }
 });
@@ -2974,15 +2981,21 @@ app.post("/api/auth/login", (req, res) => {
   }
 
   const cleanEmail = String(email).trim().toLowerCase();
+  console.log(`[AUTH LOGIN] Attempting to login email/login: "${cleanEmail}", password length: ${password.length}`);
+
   const db = getDbConnection("default");
 
   try {
     const user = db.prepare("SELECT * FROM server_users WHERE email = ?").get(cleanEmail) as any;
     if (!user) {
+      console.log(`[AUTH LOGIN] Login failed: user with email "${cleanEmail}" not found in DB`);
       return res.status(400).json({ error: "Неверный логин или пароль" });
     }
 
+    console.log(`[AUTH LOGIN] User found in DB. ID: ${user.id}, stored password_hash: ${user.password_hash}`);
+
     const isValid = verifyPassword(password, user.password_hash);
+    console.log(`[AUTH LOGIN] Password verification result: ${isValid}`);
     if (!isValid) {
       return res.status(400).json({ error: "Неверный логин или пароль" });
     }
@@ -2993,6 +3006,8 @@ app.post("/api/auth/login", (req, res) => {
     db.prepare("INSERT INTO server_sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
       .run(token, user.id, expiresAt);
 
+    console.log(`[AUTH LOGIN] Session created for ID ${user.id}`);
+
     return res.json({
       token,
       user: {
@@ -3002,7 +3017,7 @@ app.post("/api/auth/login", (req, res) => {
       }
     });
   } catch (err: any) {
-    console.error("Login error:", err);
+    console.error("[AUTH LOGIN] Error:", err);
     return res.status(500).json({ error: "Ошибка авторизации: " + err.message });
   }
 });
