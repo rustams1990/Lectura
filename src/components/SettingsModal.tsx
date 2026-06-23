@@ -24,6 +24,8 @@ interface SettingsModalProps {
   onDeleteWordLink: (sourceKey: string) => void;
   zoomScale: number;
   onZoomScaleChange: (scale: number) => void;
+  layoutWidthMode?: "standard" | "wide" | "ultra" | "full";
+  onLayoutWidthModeChange?: (mode: "standard" | "wide" | "ultra" | "full") => void;
 
   // Storage / Backup and Offline capabilities props
   storageMode: "cloud" | "local" | "server";
@@ -111,6 +113,8 @@ export default function SettingsModal({
   onDeleteWordLink,
   zoomScale,
   onZoomScaleChange,
+  layoutWidthMode,
+  onLayoutWidthModeChange,
   
   storageMode,
   onStorageModeChange,
@@ -326,7 +330,7 @@ export default function SettingsModal({
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.0.3</span>
+                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.0.4</span>
               </h3>
               <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed">
                 Настройте масштаб интерфейса, управляйте связями слов и визуальным оформлением флагов.
@@ -576,6 +580,39 @@ export default function SettingsModal({
                     })}
                   </div>
                 </div>
+
+                {/* Width Selector setting */}
+                {layoutWidthMode && onLayoutWidthModeChange && (
+                  <div className="border-t border-zinc-150/60 dark:border-zinc-800 pt-5 space-y-3">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
+                      Максимальная ширина интерфейса:
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { id: "standard", label: "Стандарт (1280px)", desc: "Компактный вид" },
+                        { id: "wide", label: "Широкий (1560px)", desc: "Сбалансированный" },
+                        { id: "full", label: "На весь экран", desc: "Максимальный простор" },
+                      ] as const).map((mode) => {
+                        const isSelected = layoutWidthMode === mode.id;
+                        return (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            onClick={() => onLayoutWidthModeChange(mode.id)}
+                            className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                              isSelected
+                                ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-655 dark:text-teal-400 font-extrabold shadow-sm'
+                                : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805'
+                            }`}
+                          >
+                            <span className="text-xs font-bold leading-tight">{mode.label}</span>
+                            <span className="text-[8px] text-zinc-400 dark:text-zinc-500 font-medium font-sans leading-none">{mode.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Simulated live container sample showing sizes */}
                 <div className="border border-dashed border-zinc-250 dark:border-zinc-800 rounded-2xl p-5 bg-white dark:bg-zinc-900/40 text-center space-y-3 shadow-inner">
@@ -1472,7 +1509,7 @@ export default function SettingsModal({
             )}
 
             <div className="text-[9px] bg-zinc-100/80 dark:bg-zinc-800 text-zinc-550 dark:text-zinc-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono">
-              v2.0.3
+              v2.0.4
             </div>
           </div>
           

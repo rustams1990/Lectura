@@ -3019,6 +3019,8 @@ export default function App() {
         onDeleteWordLink={handleDeleteWordLink}
         zoomScale={zoomScale}
         onZoomScaleChange={setZoomScale}
+        layoutWidthMode={layoutWidthMode}
+        onLayoutWidthModeChange={setLayoutWidthMode}
         storageMode={storageMode}
         onStorageModeChange={setStorageMode}
         localSyncKey={localSyncKey}
