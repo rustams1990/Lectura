@@ -591,6 +591,8 @@ export default function App() {
 
   const activeUser = storageMode === "cloud" ? user : storageMode === "server" ? localUser : null;
 
+  const serverInitialLoadComplete = useRef<boolean>(false);
+
   useEffect(() => {
     localStorage.setItem("vocab_clone_storage_mode", storageMode);
   }, [storageMode]);
@@ -649,6 +651,7 @@ export default function App() {
         localStorage.setItem("vocab_clone_storage_mode", "server");
         setServerToken(data.token);
         setLocalUser(data.user);
+        serverInitialLoadComplete.current = false;
         setStorageMode("server");
         setLocalSyncError(false);
 
@@ -715,6 +718,8 @@ export default function App() {
           safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizedCloudWordLinks));
           if (d.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", d.listeningSeconds.toString());
           if (d.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(d.languageFlags));
+
+          serverInitialLoadComplete.current = true;
         } else if (body.status === "empty") {
           // Empty server database: Seed with current browser's local state
           const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
@@ -761,7 +766,10 @@ export default function App() {
               }
             })
           });
+          serverInitialLoadComplete.current = true;
         }
+      } else {
+        setIsSyncing(false);
       }
     } catch (e) {
       console.error("Failed to load or seed dataset from local server:", e);
@@ -1121,6 +1129,7 @@ export default function App() {
   // Debounced Auto-save to Local Dev Server whenever major modules change
   useEffect(() => {
     if (storageMode !== "server") return;
+    if (!serverInitialLoadComplete.current) return;
 
     const delayDebounceFn = setTimeout(() => {
       syncDataToLocalServer();
