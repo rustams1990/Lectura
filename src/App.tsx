@@ -1151,7 +1151,7 @@ export default function App() {
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [storageMode, localSyncKey, localSyncError]);
+  }, [storageMode, localSyncKey, localSyncError, serverToken]);
 
   // Active word translate helpers
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
