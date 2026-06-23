@@ -1426,39 +1426,45 @@ export default function SettingsModal({
 
         {/* Modal Footer Controls */}
         <div className="p-5 border-t border-zinc-150 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-955/20 shrink-0 select-none">
-          {activeSettingsTab === "flags" ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (confirm("Вы уверены, что хотите сбросить все настроенные флаги на стандартные значения?")) {
-                  onResetLanguageFlags();
-                  setCustomInputs({});
-                  onClose();
-                }
-              }}
-              className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 px-3 py-1.5 hover:bg-red-50/55 dark:hover:bg-red-950/20 rounded-xl transition"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Сбросить флаги (Reset)
-            </button>
-          ) : activeSettingsTab === "interface" ? (
-            <button
-              type="button"
-              onClick={() => {
-                onZoomScaleChange(100);
-              }}
-              className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-805 rounded-xl transition"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Сбросить масштаб (100%)
-            </button>
-          ) : activeSettingsTab === "storage" ? (
-            <div className="text-[10px] text-zinc-405 font-bold uppercase tracking-widest font-mono flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 px-2.5 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
-              Режим: <span className="text-teal-600 dark:text-teal-400 font-black">{storageMode === "cloud" ? "ОБЛАКО ☁️" : "ЛОКАЛЬНЫЙ 💻"}</span>
+          <div className="flex items-center gap-3.5">
+            {activeSettingsTab === "flags" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("Вы уверены, что хотите сбросить все настроенные флаги на стандартные значения?")) {
+                    onResetLanguageFlags();
+                    setCustomInputs({});
+                    onClose();
+                  }
+                }}
+                className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 px-3 py-1.5 hover:bg-red-50/55 dark:hover:bg-red-950/20 rounded-xl transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Сбросить флаги (Reset)
+              </button>
+            ) : activeSettingsTab === "interface" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onZoomScaleChange(100);
+                }}
+                className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-805 rounded-xl transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Сбросить масштаб (100%)
+              </button>
+            ) : activeSettingsTab === "storage" ? (
+              <div className="text-[10px] text-zinc-405 font-bold uppercase tracking-widest font-mono flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 px-2.5 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
+                Режим: <span className="text-teal-600 dark:text-teal-400 font-black">{storageMode === "cloud" ? "ОБЛАКО ☁️" : storageMode === "server" ? "СЕРВЕР 🖥️" : "ЛОКАЛЬНЫЙ 💻"}</span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest font-mono">
+                Связей в базе: {Object.keys(wordLinks).filter(k => k.includes("_")).length}
+              </div>
+            )}
+
+            <div className="text-[9px] bg-zinc-100/80 dark:bg-zinc-800 text-zinc-550 dark:text-zinc-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono">
+              v2.0.0-auth-sync
             </div>
-          ) : (
-            <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest font-mono">
-              Связей в базе: {Object.keys(wordLinks).filter(k => k.includes("_")).length}
-            </div>
-          )}
+          </div>
           
           <button
             type="button"

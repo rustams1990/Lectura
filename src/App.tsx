@@ -504,6 +504,11 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
   const [localNameInput, setLocalNameInput] = useState<string>("");
+  const [isLocalServerRegister, setIsLocalServerRegister] = useState<boolean>(false);
+  const [localServerEmail, setLocalServerEmail] = useState<string>("");
+  const [localServerPassword, setLocalServerPassword] = useState<string>("");
+  const [localServerName, setLocalServerName] = useState<string>("");
+  const [isLocalServerAuthLoading, setIsLocalServerAuthLoading] = useState<boolean>(false);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [cloudOfflineWarning, setCloudOfflineWarning] = useState<boolean>(false);
@@ -530,6 +535,61 @@ export default function App() {
 
   const [localSyncError, setLocalSyncError] = useState<boolean>(false);
 
+  const [serverToken, setServerToken] = useState<string>(() => {
+    return localStorage.getItem("vocab_clone_server_token") || "";
+  });
+
+  useEffect(() => {
+    if (serverToken) {
+      localStorage.setItem("vocab_clone_server_token", serverToken);
+    } else {
+      localStorage.removeItem("vocab_clone_server_token");
+    }
+  }, [serverToken]);
+
+  // Check self-hosted session on mount
+  useEffect(() => {
+    const checkServerSession = async () => {
+      const savedToken = localStorage.getItem("vocab_clone_server_token");
+      if (!savedToken) {
+        setIsAuthLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: {
+            "Authorization": `Bearer ${savedToken}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setLocalUser(data.user);
+            setStorageMode("server");
+            localStorage.setItem("vocab_clone_storage_mode", "server");
+          }
+        } else {
+          console.warn("Server session token invalid or expired, logging out.");
+          localStorage.removeItem("vocab_clone_server_token");
+          setServerToken("");
+          setLocalUser(null);
+        }
+      } catch (err) {
+        console.error("Failed to verify server session:", err);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    if (storageMode === "server") {
+      checkServerSession();
+    } else {
+      setIsAuthLoading(false);
+    }
+  }, [storageMode, serverToken]);
+
+  const activeUser = user || localUser;
+
   useEffect(() => {
     localStorage.setItem("vocab_clone_storage_mode", storageMode);
   }, [storageMode]);
@@ -538,8 +598,6 @@ export default function App() {
     localStorage.setItem("vocab_clone_local_sync_key", localSyncKey);
     setLocalSyncError(false); // Reset error status when key is edited
   }, [localSyncKey]);
-
-  const activeUser = user || localUser;
 
   // Auto-show login/profile selection modal on launch if no profile is active
   useEffect(() => {
@@ -556,11 +614,15 @@ export default function App() {
     if (localSyncError) return;
     setIsSyncing(true);
     try {
+      const fetchHeaders: Record<string, string> = {
+        "x-local-sync-key": localSyncKey,
+        "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+      };
+      if (serverToken) {
+        fetchHeaders["Authorization"] = `Bearer ${serverToken}`;
+      }
       const res = await fetch("/api/server-db", {
-        headers: {
-          "x-local-sync-key": localSyncKey,
-          "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
-        }
+        headers: fetchHeaders
       });
       if (res.status === 401 || res.status === 403) {
         setLocalSyncError(true);
@@ -611,13 +673,18 @@ export default function App() {
           setWordLinks(lWordLinks);
           setLanguageFlags(lLanguageFlags);
 
+          const postHeaders: Record<string, string> = {
+            "Content-Type": "application/json",
+            "x-local-sync-key": localSyncKey,
+            "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+          };
+          if (serverToken) {
+            postHeaders["Authorization"] = `Bearer ${serverToken}`;
+          }
+
           await fetch("/api/server-db", {
             method: "POST",
-            headers: { 
-              "Content-Type": "application/json",
-              "x-local-sync-key": localSyncKey,
-              "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
-            },
+            headers: postHeaders,
             body: JSON.stringify({
               data: {
                 lessons: lLessons,
@@ -650,13 +717,18 @@ export default function App() {
     if (localSyncError) return;
     lastLocalChangeTime.current = Date.now();
     try {
+      const postHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-local-sync-key": localSyncKey,
+        "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+      };
+      if (serverToken) {
+        postHeaders["Authorization"] = `Bearer ${serverToken}`;
+      }
+
       const res = await fetch("/api/server-db", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-local-sync-key": localSyncKey,
-          "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
-        },
+        headers: postHeaders,
         body: JSON.stringify({
           data: {
             lessons: currentLessons,
@@ -2377,8 +2449,20 @@ export default function App() {
                       if (user) {
                         signOut(auth).catch(err => console.error(err));
                       } else {
+                        if (serverToken) {
+                          fetch("/api/auth/logout", {
+                            method: "POST",
+                            headers: {
+                              "Authorization": `Bearer ${serverToken}`
+                            }
+                          }).catch(err => console.error("Server logout request failed:", err));
+                        }
                         setLocalUser(null);
                         localStorage.removeItem("vocab_clone_local_user");
+                        localStorage.removeItem("vocab_clone_server_token");
+                        setServerToken("");
+                        setStorageMode("local");
+                        localStorage.setItem("vocab_clone_storage_mode", "local");
                       }
                     }}
                     className="text-[9px] font-bold text-zinc-450 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-1.5 py-0.5 rounded transition cursor-pointer"
@@ -2935,12 +3019,16 @@ export default function App() {
           } else if (storageMode === "server") {
             try {
               setIsSyncing(true);
+              const deleteHeaders: Record<string, string> = {
+                "x-local-sync-key": localSyncKey,
+                "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
+              };
+              if (serverToken) {
+                deleteHeaders["Authorization"] = `Bearer ${serverToken}`;
+              }
               await fetch("/api/server-db", { 
                 method: "DELETE",
-                headers: {
-                  "x-local-sync-key": localSyncKey,
-                  "x-local-sync-user": activeUser ? (activeUser.uid || activeUser.email || "default") : "default"
-                }
+                headers: deleteHeaders
               });
             } catch (err) {
               console.error("Failed to clear server-side database:", err);
@@ -3032,66 +3120,166 @@ export default function App() {
                 <div className="space-y-4 pt-2">
                   <div className="text-center space-y-1">
                     <p className="text-[11px] text-zinc-550 dark:text-zinc-400 leading-normal">
-                      Введите ваше имя, чтобы войти в ваш личный профиль на этом сервере. Ваши книги и словарь сохранятся отдельно.
+                      Войдите или зарегистрируйтесь на вашем локальном сервере CasaOS. Данные будут храниться и синхронизироваться через вашу собственную базу данных SQLite.
                     </p>
                   </div>
 
                   <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
-                    <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
-                      Имя профиля:
-                    </label>
-                    <div className="flex gap-2">
+                    <div className="flex justify-between items-center">
+                      <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
+                        Профиль на Сервере:
+                      </label>
+                      <button
+                        onClick={() => {
+                          setIsLocalServerRegister(!isLocalServerRegister);
+                          setAuthError(null);
+                        }}
+                        className="text-[10px] text-teal-600 hover:text-teal-750 dark:text-teal-400 dark:hover:text-teal-350 font-bold underline transition cursor-pointer"
+                      >
+                        {isLocalServerRegister ? "Вход" : "Регистрация"}
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {isLocalServerRegister && (
+                        <input
+                          type="text"
+                          value={localServerName}
+                          onChange={(e) => setLocalServerName(e.target.value)}
+                          placeholder="Ваше имя (например, Rustam)"
+                          disabled={isLocalServerAuthLoading}
+                          className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50 font-bold"
+                        />
+                      )}
                       <input
-                        type="text"
-                        value={localNameInput}
-                        onChange={(e) => setLocalNameInput(e.target.value)}
-                        placeholder="Например: Rustam или Сестра"
-                        className="flex-grow text-xs px-3 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-bold"
-                        onKeyDown={(e) => {
+                        type="email"
+                        value={localServerEmail}
+                        onChange={(e) => setLocalServerEmail(e.target.value)}
+                        placeholder="Email адрес или логин"
+                        disabled={isLocalServerAuthLoading}
+                        className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                      />
+                      <input
+                        type="password"
+                        value={localServerPassword}
+                        onChange={(e) => setLocalServerPassword(e.target.value)}
+                        placeholder="Пароль"
+                        disabled={isLocalServerAuthLoading}
+                        className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                        onKeyDown={async (e) => {
                           if (e.key === "Enter") {
-                            const name = localNameInput.trim();
-                            if (name) {
-                              const mockUserObj = {
-                                uid: `local-${name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`,
-                                displayName: name,
-                                email: `${name.toLowerCase().replace(/\s+/g, "_")}@localhost`
-                              };
-                              const targetMode = isLocalHostname() ? "server" : "local";
-                              setStorageMode(targetMode);
-                              localStorage.setItem("vocab_clone_storage_mode", targetMode);
-                              setLocalUser(mockUserObj);
-                              localStorage.setItem("vocab_clone_local_user", JSON.stringify(mockUserObj));
-                              setShowLocalLoginModal(false);
-                              setAuthError(null);
-                            } else {
-                              setAuthError("Пожалуйста, введите имя профиля.");
+                            const email = localServerEmail.trim();
+                            const password = localServerPassword.trim();
+                            const name = localServerName.trim();
+
+                            if (!email || !password) {
+                              setAuthError("Пожалуйста, введите email/логин и пароль.");
+                              return;
+                            }
+
+                            setAuthError(null);
+                            setIsLocalServerAuthLoading(true);
+
+                            try {
+                              const url = isLocalServerRegister ? "/api/auth/register" : "/api/auth/login";
+                              const body = isLocalServerRegister 
+                                ? { email, password, name }
+                                : { email, password };
+
+                              const res = await fetch(url, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(body)
+                              });
+
+                              const data = await res.json();
+                              if (!res.ok) {
+                                throw new Error(data.error || "Ошибка авторизации");
+                              }
+
+                              if (data.token && data.user) {
+                                setServerToken(data.token);
+                                setLocalUser(data.user);
+                                localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
+                                setStorageMode("server");
+                                localStorage.setItem("vocab_clone_storage_mode", "server");
+
+                                // Reset fields
+                                setLocalServerEmail("");
+                                setLocalServerPassword("");
+                                setLocalServerName("");
+                                setShowLocalLoginModal(false);
+                              }
+                            } catch (err: any) {
+                              console.error("Local server auth error:", err);
+                              setAuthError(err.message || String(err));
+                            } finally {
+                              setIsLocalServerAuthLoading(false);
                             }
                           }
                         }}
                       />
+
                       <button
-                        onClick={() => {
-                          const name = localNameInput.trim();
-                          if (!name) {
-                            setAuthError("Пожалуйста, введите имя профиля.");
+                        onClick={async () => {
+                          const email = localServerEmail.trim();
+                          const password = localServerPassword.trim();
+                          const name = localServerName.trim();
+
+                          if (!email || !password) {
+                            setAuthError("Пожалуйста, введите email/логин и пароль.");
                             return;
                           }
-                          const mockUserObj = {
-                            uid: `local-${name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`,
-                            displayName: name,
-                            email: `${name.toLowerCase().replace(/\s+/g, "_")}@localhost`
-                          };
-                          const targetMode = isLocalHostname() ? "server" : "local";
-                          setStorageMode(targetMode);
-                          localStorage.setItem("vocab_clone_storage_mode", targetMode);
-                          setLocalUser(mockUserObj);
-                          localStorage.setItem("vocab_clone_local_user", JSON.stringify(mockUserObj));
-                          setShowLocalLoginModal(false);
+
                           setAuthError(null);
+                          setIsLocalServerAuthLoading(true);
+
+                          try {
+                            const url = isLocalServerRegister ? "/api/auth/register" : "/api/auth/login";
+                            const body = isLocalServerRegister 
+                              ? { email, password, name }
+                              : { email, password };
+
+                            const res = await fetch(url, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(body)
+                            });
+
+                            const data = await res.json();
+                            if (!res.ok) {
+                              throw new Error(data.error || "Ошибка авторизации");
+                            }
+
+                            if (data.token && data.user) {
+                              setServerToken(data.token);
+                              setLocalUser(data.user);
+                              localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
+                              setStorageMode("server");
+                              localStorage.setItem("vocab_clone_storage_mode", "server");
+
+                              // Reset fields
+                              setLocalServerEmail("");
+                              setLocalServerPassword("");
+                              setLocalServerName("");
+                              setShowLocalLoginModal(false);
+                            }
+                          } catch (err: any) {
+                            console.error("Local server auth error:", err);
+                            setAuthError(err.message || String(err));
+                          } finally {
+                            setIsLocalServerAuthLoading(false);
+                          }
                         }}
-                        className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-98 text-white rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-teal-650/10"
+                        disabled={isLocalServerAuthLoading}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-650/10"
                       >
-                        Начать 💻
+                        {isLocalServerAuthLoading ? (
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span>💻</span>
+                        )}
+                        <span>{isLocalServerRegister ? "Создать аккаунт на сервере" : "Войти в профиль сервера"}</span>
                       </button>
                     </div>
                   </div>

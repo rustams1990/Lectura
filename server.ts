@@ -2476,6 +2476,26 @@ function getDbConnection(userId: string = "default") {
         icon TEXT NOT NULL
       );
     `);
+
+    if (safeUserId === "default") {
+      conn.exec(`
+        CREATE TABLE IF NOT EXISTS server_users (
+          id TEXT PRIMARY KEY,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          display_name TEXT,
+          created_at INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS server_sessions (
+          token TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          expires_at INTEGER,
+          FOREIGN KEY(user_id) REFERENCES server_users(id) ON DELETE CASCADE
+        );
+      `);
+    }
+
     dbConns.set(safeUserId, conn);
   }
   return conn;
@@ -2883,6 +2903,159 @@ function saveLocalServerDb(userId: string = "default", data: any) {
   }
 }
 
+// Helper functions for secure password hashing and verification using pbkdf2
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  const parts = storedHash.split(":");
+  if (parts.length !== 2) return false;
+  const [salt, originalHash] = parts;
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+  return hash === originalHash;
+}
+
+// Authentication Endpoints
+
+app.post("/api/auth/register", (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email и пароль обязательны" });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: "Пароль должен быть не менее 6 символов" });
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanName = name ? String(name).trim() : cleanEmail.split("@")[0];
+
+  const db = getDbConnection("default");
+  try {
+    // Check if user already exists
+    const existing = db.prepare("SELECT id FROM server_users WHERE email = ?").get(cleanEmail) as any;
+    if (existing) {
+      return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован" });
+    }
+
+    const userId = "usr_" + crypto.randomBytes(16).toString("hex");
+    const pwdHash = hashPassword(password);
+    const createdAt = Date.now();
+
+    db.prepare("INSERT INTO server_users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(userId, cleanEmail, pwdHash, cleanName, createdAt);
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+
+    db.prepare("INSERT INTO server_sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
+      .run(token, userId, expiresAt);
+
+    return res.json({
+      token,
+      user: {
+        uid: userId,
+        email: cleanEmail,
+        displayName: cleanName
+      }
+    });
+  } catch (err: any) {
+    console.error("Register error:", err);
+    return res.status(500).json({ error: "Ошибка при регистрации пользователя: " + err.message });
+  }
+});
+
+app.post("/api/auth/login", (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email и пароль обязательны" });
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const db = getDbConnection("default");
+
+  try {
+    const user = db.prepare("SELECT * FROM server_users WHERE email = ?").get(cleanEmail) as any;
+    if (!user) {
+      return res.status(400).json({ error: "Неверный логин или пароль" });
+    }
+
+    const isValid = verifyPassword(password, user.password_hash);
+    if (!isValid) {
+      return res.status(400).json({ error: "Неверный логин или пароль" });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+
+    db.prepare("INSERT INTO server_sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
+      .run(token, user.id, expiresAt);
+
+    return res.json({
+      token,
+      user: {
+        uid: user.id,
+        email: user.email,
+        displayName: user.display_name
+      }
+    });
+  } catch (err: any) {
+    console.error("Login error:", err);
+    return res.status(500).json({ error: "Ошибка авторизации: " + err.message });
+  }
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+  if (!token) {
+    return res.json({ status: "success" });
+  }
+
+  const db = getDbConnection("default");
+  try {
+    db.prepare("DELETE FROM server_sessions WHERE token = ?").run(token);
+    return res.json({ status: "success" });
+  } catch (err: any) {
+    console.error("Logout error:", err);
+    return res.status(500).json({ error: "Ошибка при выходе: " + err.message });
+  }
+});
+
+app.get("/api/auth/me", (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+  if (!token) {
+    return res.status(401).json({ error: "Не авторизован" });
+  }
+
+  const db = getDbConnection("default");
+  try {
+    const session = db.prepare("SELECT * FROM server_sessions WHERE token = ? AND expires_at > ?").get(token, Date.now()) as any;
+    if (!session) {
+      return res.status(401).json({ error: "Сессия истекла или недействительна" });
+    }
+
+    const user = db.prepare("SELECT id, email, display_name FROM server_users WHERE id = ?").get(session.user_id) as any;
+    if (!user) {
+      return res.status(401).json({ error: "Пользователь не найден" });
+    }
+
+    return res.json({
+      user: {
+        uid: user.id,
+        email: user.email,
+        displayName: user.display_name
+      }
+    });
+  } catch (err: any) {
+    console.error("Auth check error:", err);
+    return res.status(500).json({ error: "Ошибка при проверке авторизации: " + err.message });
+  }
+});
+
 // Middleware to verify local sync key if configured
 function requireLocalSyncKey(req: express.Request, res: express.Response, next: express.NextFunction) {
   const expectedKey = process.env.LOCAL_SYNC_KEY;
@@ -2896,9 +3069,44 @@ function requireLocalSyncKey(req: express.Request, res: express.Response, next: 
   return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
 }
 
+// Helper function to verify token or sync key, returning resolved userId or throwing an error
+function resolveUserId(req: express.Request): string {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+
+  if (token) {
+    const db = getDbConnection("default");
+    const session = db.prepare("SELECT user_id FROM server_sessions WHERE token = ? AND expires_at > ?").get(token, Date.now()) as any;
+    if (session) {
+      return session.user_id;
+    }
+    throw new Error("UNAUTHORIZED_TOKEN");
+  }
+
+  // Fallback to local sync key for backward compatibility/guests
+  const expectedKey = process.env.LOCAL_SYNC_KEY;
+  if (expectedKey) {
+    const clientKey = req.headers["x-local-sync-key"] || req.query.sync_key;
+    if (clientKey !== expectedKey) {
+      throw new Error("UNAUTHORIZED_SYNC_KEY");
+    }
+  }
+
+  return String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+}
+
 // API Endpoints for Local Dev Server Sync mode (PC + Tablet synchronization)
-app.get("/api/server-db", requireLocalSyncKey, (req, res) => {
-  const userId = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+app.get("/api/server-db", (req, res) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
   const db = getLocalServerDb(userId);
   if (!db) {
     return res.json({ status: "empty" });
@@ -2906,12 +3114,22 @@ app.get("/api/server-db", requireLocalSyncKey, (req, res) => {
   return res.json({ status: "ok", data: db });
 });
 
-app.post("/api/server-db", requireLocalSyncKey, (req, res) => {
+app.post("/api/server-db", (req, res) => {
   const { data } = req.body;
   if (!data) {
     return res.status(400).json({ error: "No data provided" });
   }
-  const userId = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
   const success = saveLocalServerDb(userId, data);
   if (success) {
     return res.json({ status: "success" });
@@ -2920,8 +3138,17 @@ app.post("/api/server-db", requireLocalSyncKey, (req, res) => {
   }
 });
 
-app.delete("/api/server-db", requireLocalSyncKey, (req, res) => {
-  const userId = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
+app.delete("/api/server-db", (req, res) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
   const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
   const userDbPath = safeUserId === "default"
     ? SQLITE_DB_PATH
