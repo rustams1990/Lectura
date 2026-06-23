@@ -895,7 +895,7 @@ export default function LibraryHome({
                 
                 {/* Book Cover Banner */}
                 <div 
-                  className={`relative h-48 bg-linear-to-br ${cover.gradient} p-4 text-white flex flex-col justify-between overflow-hidden select-none bg-cover bg-center`}
+                  className={`relative aspect-video bg-linear-to-br ${cover.gradient} p-4 text-white flex flex-col justify-between overflow-hidden select-none bg-cover bg-center`}
                   style={lesson.coverUrl ? { backgroundImage: `url("${lesson.coverUrl}")` } : undefined}
                 >
                   {/* Overlay shadow for text contrast when using images */}
