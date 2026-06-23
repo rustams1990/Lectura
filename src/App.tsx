@@ -567,6 +567,7 @@ export default function App() {
             setLocalUser(data.user);
             setStorageMode("server");
             localStorage.setItem("vocab_clone_storage_mode", "server");
+            setLocalSyncError(false);
           }
         } else {
           console.warn("Server session token invalid or expired, logging out.");
@@ -649,6 +650,7 @@ export default function App() {
         setServerToken(data.token);
         setLocalUser(data.user);
         setStorageMode("server");
+        setLocalSyncError(false);
 
         // Reset fields
         setLocalServerEmail("");
@@ -669,6 +671,7 @@ export default function App() {
       console.log("Skipping server database poll to avoid overwriting pending local changes.");
       return;
     }
+    if (isAuthLoading) return;
     if (localSyncError) return;
     setIsSyncing(true);
     try {
@@ -776,6 +779,7 @@ export default function App() {
     currentFlags = languageFlags
   ) => {
     if (storageMode !== "server") return;
+    if (isAuthLoading) return;
     if (localSyncError) return;
     lastLocalChangeTime.current = Date.now();
     try {
