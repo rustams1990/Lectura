@@ -2722,6 +2722,7 @@ export default function App() {
           <div className="py-6">
             <VocabularyPractice
               vocab={vocab}
+              wordLinks={wordLinks}
               onUpdateStatus={handleUpdateStatusDirect}
               defaultLanguage={activeLesson?.targetLanguage || "Spanish"}
               onAddLesson={handleAddLesson}

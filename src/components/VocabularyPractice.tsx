@@ -13,6 +13,7 @@ import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCo
 
 interface VocabularyPracticeProps {
   vocab: Record<string, VocabItem>;
+  wordLinks?: Record<string, string>;
   onUpdateStatus: (word: string, status: WordStatus, lang?: string) => void;
   defaultLanguage?: string;
   onAddLesson?: (newL: Lesson) => void;
@@ -22,6 +23,7 @@ interface VocabularyPracticeProps {
 
 export default function VocabularyPractice({
   vocab,
+  wordLinks = {},
   onUpdateStatus,
   defaultLanguage,
   onAddLesson,
@@ -53,9 +55,11 @@ export default function VocabularyPractice({
     return defaultLanguage || "Spanish";
   });
 
-  // Extract all learning status words for the selected language
+  // Extract all learning status words for the selected language, resolving them to parents if they exist
   const learningList = useMemo(() => {
-    return Object.entries(vocab)
+    const parentMap = new Map<string, typeof vocab[string]>();
+
+    Object.entries(vocab)
       .filter(([key, lq]) => {
         if (!lq) return false;
         const isActive = lq.status && ["1", "2", "3", "4", "5", "learning"].includes(lq.status);
@@ -65,20 +69,42 @@ export default function VocabularyPractice({
         const itemLang = parts.length > 1 ? parts[0] : "spanish";
         return itemLang.toLowerCase() === selectedPracticeLang.toLowerCase();
       })
-      .map(([_, lq]) => ({
-        ...lq,
-        word: lq.word || "",
-        translation: lq.translation || "",
-        grammar: lq.grammar || "",
-        ipa: lq.ipa || "",
-        contextRelation: lq.contextRelation || "",
-        status: lq.status || "1",
-        createdAt: typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : Date.now(),
-        tags: Array.isArray(lq.tags) ? lq.tags.filter(t => typeof t === "string") : [],
-        examples: Array.isArray(lq.examples) ? lq.examples : [],
-        imageUrl: typeof lq.imageUrl === "string" ? lq.imageUrl : null,
-      }));
-  }, [vocab, selectedPracticeLang]);
+      .forEach(([key, lq]) => {
+        // Resolve recursively to the top-level parent key
+        let parentKey = key;
+        const visited = new Set<string>();
+        while (wordLinks[parentKey] && !visited.has(wordLinks[parentKey])) {
+          visited.add(parentKey);
+          parentKey = wordLinks[parentKey];
+        }
+
+        const cleanParentWord = parentKey.replace(/^[a-zA-Z]+_/, "");
+
+        // Find the parent item in vocab or fallback to child metadata with parent word
+        const parentLq = vocab[parentKey] || {
+          ...lq,
+          word: cleanParentWord,
+        };
+
+        if (!parentMap.has(parentKey)) {
+          parentMap.set(parentKey, parentLq);
+        }
+      });
+
+    return Array.from(parentMap.values()).map((lq) => ({
+      ...lq,
+      word: lq.word || "",
+      translation: lq.translation || "",
+      grammar: lq.grammar || "",
+      ipa: lq.ipa || "",
+      contextRelation: lq.contextRelation || "",
+      status: lq.status || "1",
+      createdAt: typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : Date.now(),
+      tags: Array.isArray(lq.tags) ? lq.tags.filter(t => typeof t === "string") : [],
+      examples: Array.isArray(lq.examples) ? lq.examples : [],
+      imageUrl: typeof lq.imageUrl === "string" ? lq.imageUrl : null,
+    }));
+  }, [vocab, selectedPracticeLang, wordLinks]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
