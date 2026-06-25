@@ -67,6 +67,8 @@ export default function VocabularyPractice({
     return defaultLanguage || "Spanish";
   });
 
+  const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
+
   // Extract all learning status words for the selected language, resolving them to parents if they exist
   const learningList = useMemo(() => {
     const parentMap = new Map<string, typeof vocab[string]>();
@@ -143,7 +145,6 @@ export default function VocabularyPractice({
   const [modalTranslationLang, setModalTranslationLang] = useState(() => {
     return localStorage.getItem("vocab_default_translation_language") || "Russian";
   });
-  const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
 
   const handleSaveVocabWrapped = (item: VocabItem) => {
     if (onSaveVocab) {
