@@ -2728,6 +2728,11 @@ export default function App() {
               onAddLesson={handleAddLesson}
               onSelectTab={setActiveTab}
               settings={readerSettings}
+              onSaveVocab={handleSaveVocabItem}
+              onDeleteVocab={handleDeleteVocabItem}
+              onSaveWordLink={handleSaveWordLink}
+              onDeleteWordLink={handleDeleteWordLink}
+              lessons={lessons}
             />
           </div>
         ) : (

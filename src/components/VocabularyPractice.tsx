@@ -6,8 +6,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../types";
 import { motion, AnimatePresence } from "motion/react";
-import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2 } from "lucide-react";
+import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3 } from "lucide-react";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect } from "../utils";
+import WordExplainer from "./WordExplainer";
 
 
 
@@ -19,6 +20,11 @@ interface VocabularyPracticeProps {
   onAddLesson?: (newL: Lesson) => void;
   onSelectTab?: (tab: "library" | "read" | "practice" | "statistics") => void;
   settings?: ReaderSettings;
+  onSaveVocab?: (item: VocabItem, lang?: string) => void;
+  onDeleteVocab?: (word: string, lang?: string) => void;
+  onSaveWordLink?: (from: string, to: string, lang?: string) => void;
+  onDeleteWordLink?: (from: string, lang?: string) => void;
+  lessons?: Lesson[];
 }
 
 export default function VocabularyPractice({
@@ -28,7 +34,12 @@ export default function VocabularyPractice({
   defaultLanguage,
   onAddLesson,
   onSelectTab,
-  settings
+  settings,
+  onSaveVocab,
+  onDeleteVocab,
+  onSaveWordLink,
+  onDeleteWordLink,
+  lessons
 }: VocabularyPracticeProps) {
   // Extract all active language keys that have learning words (statuses 1-5)
   const activeDeckLanguages = useMemo(() => {
@@ -110,6 +121,31 @@ export default function VocabularyPractice({
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyMode, setStudyMode] = useState<"word" | "image">("word");
   const [studyDirection, setStudyDirection] = useState<"forward" | "reverse">("forward");
+  const [isEditingWord, setIsEditingWord] = useState<string | null>(null);
+
+  const handleSaveVocabWrapped = (item: VocabItem) => {
+    if (onSaveVocab) {
+      onSaveVocab(item, selectedPracticeLang);
+    }
+  };
+
+  const handleDeleteVocabWrapped = (word: string) => {
+    if (onDeleteVocab) {
+      onDeleteVocab(word, selectedPracticeLang);
+    }
+  };
+
+  const handleSaveWordLinkWrapped = (from: string, to: string) => {
+    if (onSaveWordLink) {
+      onSaveWordLink(from, to, selectedPracticeLang);
+    }
+  };
+
+  const handleDeleteWordLinkWrapped = (from: string) => {
+    if (onDeleteWordLink) {
+      onDeleteWordLink(from, selectedPracticeLang);
+    }
+  };
 
   const [playingSpeech, setPlayingSpeech] = useState(false);
 
@@ -538,7 +574,20 @@ export default function VocabularyPractice({
                     <span className="text-[10px] font-bold tracking-widest text-teal-605 dark:text-teal-400 uppercase">
                       Что это за слово? / Visual Prompt
                     </span>
-                    <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsEditingWord(currentLq.word);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-250 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-550 dark:text-zinc-400 transition-all cursor-pointer"
+                        title="Редактировать слово / Edit word"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                    </div>
                   </div>
 
                   <div className="flex flex-col items-center justify-center flex-grow py-4">
@@ -584,6 +633,17 @@ export default function VocabularyPractice({
                           <Volume2 className="w-4 h-4" />
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsEditingWord(currentLq.word);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-250 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-550 dark:text-zinc-400 transition-all cursor-pointer"
+                        title="Редактировать слово / Edit word"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
                       <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
                     </div>
                   </div>
@@ -647,6 +707,17 @@ export default function VocabularyPractice({
                         title="Прослушать слово (TTS)"
                       >
                         <Volume2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsEditingWord(currentLq.word);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-250 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-550 dark:text-zinc-400 transition-all cursor-pointer"
+                        title="Редактировать слово / Edit word"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -910,6 +981,45 @@ export default function VocabularyPractice({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Word Explainer Edit Modal Overlay */}
+      {isEditingWord && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200" 
+          onClick={() => setIsEditingWord(null)}
+        >
+          <div 
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-3xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 animate-in zoom-in-95 duration-200 relative custom-scrollbar" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setIsEditingWord(null)}
+              className="absolute top-5 right-5 p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-250 transition-colors cursor-pointer z-10"
+              title="Закрыть"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="pt-2 font-sans">
+              <WordExplainer
+                word={isEditingWord}
+                sentence={currentLq?.contextRelation || ""}
+                targetLanguage={selectedPracticeLang}
+                translationLanguage="Russian"
+                existingVocab={vocab[`${selectedPracticeLang.toLowerCase()}_${isEditingWord.toLowerCase()}`] || null}
+                wordLinks={wordLinks}
+                vocab={vocab}
+                onSaveVocab={handleSaveVocabWrapped}
+                onDeleteVocab={handleDeleteVocabWrapped}
+                onSaveWordLink={handleSaveWordLinkWrapped}
+                onDeleteWordLink={handleDeleteWordLinkWrapped}
+                onClose={() => setIsEditingWord(null)}
+                settings={settings}
+                lessons={lessons}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
