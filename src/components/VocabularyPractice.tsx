@@ -142,6 +142,7 @@ export default function VocabularyPractice({
   const [studyMode, setStudyMode] = useState<"word" | "image">("word");
   const [studyDirection, setStudyDirection] = useState<"forward" | "reverse">("forward");
   const [isEditingWord, setIsEditingWord] = useState<string | null>(null);
+  const [showList, setShowList] = useState(false);
   const [modalTranslationLang, setModalTranslationLang] = useState(() => {
     return localStorage.getItem("vocab_default_translation_language") || "Russian";
   });
@@ -495,7 +496,9 @@ export default function VocabularyPractice({
   }
 
   return (
-    <div className="space-y-6 max-w-md mx-auto font-sans">
+    <div className={`space-y-6 font-sans mx-auto transition-all duration-300 ${
+      showList ? "max-w-3xl lg:max-w-4xl" : "max-w-md"
+    }`}>
       {/* Language selector for active decks */}
       {activeDeckLanguages.length > 1 && (
         <div id="deck-lang-tabs" className="flex bg-zinc-100 dark:bg-zinc-850 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
@@ -545,13 +548,29 @@ export default function VocabularyPractice({
           </button>
         ))}
       </div>
-      {/* Deck progress meter */}
-      <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
-        <span className="uppercase tracking-wider">Vocabulary Deck</span>
-        <span>
-          Card {currentIndex + 1} of {learningList.length}
-        </span>
-      </div>
+      <div className={showList ? "grid grid-cols-1 md:grid-cols-12 gap-6" : "space-y-6"}>
+        {/* Left Card Column */}
+        <div className={showList ? "md:col-span-7 space-y-6" : "space-y-6"}>
+          {/* Deck progress meter */}
+          <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
+            <span className="uppercase tracking-wider">Vocabulary Deck</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowList(!showList)}
+                className={`px-2 py-1 rounded-lg border text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                  showList
+                    ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900"
+                    : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-805 dark:border-zinc-800 text-zinc-550 dark:text-zinc-450"
+                }`}
+              >
+                Список 📋
+              </button>
+              <span>
+                Card {currentIndex + 1} of {learningList.length}
+              </span>
+            </div>
+          </div>
 
       {/* Controls Bar (Mode & Direction) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
@@ -875,6 +894,54 @@ export default function VocabularyPractice({
           AI-Генератор Историй (Story Gen)
         </button>
       </div>
+    </div>
+
+    {/* Right Word List Column */}
+    {showList && (
+      <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
+        <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-850 mb-3">
+          <span className="text-[10px] font-black uppercase tracking-wider text-zinc-450 dark:text-zinc-500">
+            Слова в колоде ({learningList.length})
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowList(false)}
+            className="text-[10px] font-bold text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 cursor-pointer"
+          >
+            Скрыть ×
+          </button>
+        </div>
+        
+        <div className="overflow-y-auto custom-scrollbar space-y-1.5 flex-grow pr-1">
+          {learningList.map((item, idx) => {
+            const isActive = idx === currentIndex;
+            const displayLabel = studyDirection === "reverse" ? item.translation : item.word;
+
+            return (
+              <button
+                key={item.word + "_" + idx}
+                type="button"
+                onClick={() => {
+                  setCurrentIndex(idx);
+                  setIsFlipped(false);
+                }}
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${
+                  isActive
+                    ? "bg-teal-50 dark:bg-teal-955/35 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900 shadow-3xs"
+                    : "bg-zinc-50/50 hover:bg-zinc-100 dark:bg-zinc-955/20 dark:hover:bg-zinc-850/30 text-zinc-700 dark:text-zinc-355 border-zinc-150/50 dark:border-zinc-850/60"
+                }`}
+              >
+                <span className="capitalize truncate max-w-[160px]">{displayLabel}</span>
+                <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+                  {idx + 1}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    )}
+  </div>
 
       {/* AI Story Generator Modal */}
       <AnimatePresence>
