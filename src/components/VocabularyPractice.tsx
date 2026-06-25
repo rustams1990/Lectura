@@ -79,7 +79,24 @@ export default function VocabularyPractice({
 
         const parts = key.split("_");
         const itemLang = parts.length > 1 ? parts[0] : "spanish";
-        return itemLang.toLowerCase() === selectedPracticeLang.toLowerCase();
+        if (itemLang.toLowerCase() !== selectedPracticeLang.toLowerCase()) return false;
+
+        // Apply timeframe filter
+        if (timeframeFilter !== "all") {
+          const createdAtVal = typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : Date.now();
+          const now = Date.now();
+          let threshold = 0;
+          if (timeframeFilter === "today") {
+            threshold = now - 24 * 60 * 60 * 1000;
+          } else if (timeframeFilter === "week") {
+            threshold = now - 7 * 24 * 60 * 60 * 1000;
+          } else if (timeframeFilter === "month") {
+            threshold = now - 30 * 24 * 60 * 60 * 1000;
+          }
+          if (createdAtVal < threshold) return false;
+        }
+
+        return true;
       })
       .forEach(([key, lq]) => {
         // Resolve recursively to the top-level parent key
@@ -116,7 +133,7 @@ export default function VocabularyPractice({
       examples: Array.isArray(lq.examples) ? lq.examples : [],
       imageUrl: typeof lq.imageUrl === "string" ? lq.imageUrl : null,
     }));
-  }, [vocab, selectedPracticeLang, wordLinks]);
+  }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -126,6 +143,7 @@ export default function VocabularyPractice({
   const [modalTranslationLang, setModalTranslationLang] = useState(() => {
     return localStorage.getItem("vocab_default_translation_language") || "Russian";
   });
+  const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
 
   const handleSaveVocabWrapped = (item: VocabItem) => {
     if (onSaveVocab) {
@@ -433,6 +451,33 @@ export default function VocabularyPractice({
           </div>
         )}
 
+        {/* Timeframe Filter Selector (Empty state) */}
+        <div className="flex bg-zinc-50 dark:bg-zinc-955/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-850/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
+          {[
+            { id: "all", label: "Все время 📅" },
+            { id: "today", label: "Сегодня ☀️" },
+            { id: "week", label: "Неделя 📅" },
+            { id: "month", label: "Месяц 🗓️" }
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setTimeframeFilter(item.id as any);
+                setCurrentIndex(0);
+                setIsFlipped(false);
+              }}
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                timeframeFilter === item.id
+                  ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-450 shadow-sm border border-zinc-150 dark:border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-350"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-10 text-center space-y-4 shadow-sm">
           <div className="p-4 bg-amber-50 dark:bg-amber-950/35 text-amber-500 rounded-full w-14 h-14 flex items-center justify-center mx-auto">
             <Bookmark className="w-7 h-7" />
@@ -472,6 +517,33 @@ export default function VocabularyPractice({
           ))}
         </div>
       )}
+
+      {/* Timeframe Filter Selector */}
+      <div className="flex bg-zinc-50 dark:bg-zinc-955/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-850/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
+        {[
+          { id: "all", label: "Все время 📅" },
+          { id: "today", label: "Сегодня ☀️" },
+          { id: "week", label: "Неделя 📅" },
+          { id: "month", label: "Месяц 🗓️" }
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              setTimeframeFilter(item.id as any);
+              setCurrentIndex(0);
+              setIsFlipped(false);
+            }}
+            className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+              timeframeFilter === item.id
+                ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-450 shadow-sm border border-zinc-150 dark:border-zinc-800"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-350"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
       {/* Deck progress meter */}
       <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
         <span className="uppercase tracking-wider">Vocabulary Deck</span>
