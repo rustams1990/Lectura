@@ -109,6 +109,7 @@ export default function VocabularyPractice({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyMode, setStudyMode] = useState<"word" | "image">("word");
+  const [studyDirection, setStudyDirection] = useState<"forward" | "reverse">("forward");
 
   const [playingSpeech, setPlayingSpeech] = useState(false);
 
@@ -217,15 +218,18 @@ export default function VocabularyPractice({
     }
   };
 
-  // Auto-play when current card changes or selected language changes
+  // Auto-play when current card changes or when card is flipped to reveal target word
   useEffect(() => {
-    if (currentLq && currentLq.word) {
+    if (!currentLq || !currentLq.word) return;
+
+    const shouldPlay = (studyDirection === "forward" && !isFlipped) || (studyDirection === "reverse" && isFlipped);
+    if (shouldPlay) {
       const timer = setTimeout(() => {
         playSpeech(currentLq.word);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [currentIndex, selectedPracticeLang]);
+  }, [currentIndex, selectedPracticeLang, isFlipped, studyDirection]);
 
   // Keep currentIndex in bounds when deck size or language changes
   useEffect(() => {
@@ -436,42 +440,84 @@ export default function VocabularyPractice({
         </span>
       </div>
 
-      {/* Practice Mode Selector */}
-      {hasAnyImages && (
-        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5 font-sans">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Режим изучения:</span>
+      {/* Controls Bar (Mode & Direction) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
+        {/* Practice Mode Selector */}
+        {hasAnyImages ? (
+          <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
+            <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Режим:</span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setStudyMode("word");
+                  setIsFlipped(false);
+                }}
+                className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  studyMode === "word"
+                    ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
+                    : "text-zinc-450 hover:text-zinc-700 dark:hover:text-zinc-350"
+                }`}
+              >
+                Слово 🔤
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudyMode("image");
+                  setIsFlipped(false);
+                }}
+                className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  studyMode === "image"
+                    ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
+                    : "text-zinc-450 hover:text-zinc-750 dark:hover:text-zinc-350"
+                }`}
+              >
+                Картинка 🖼️
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="hidden sm:block" />
+        )}
+
+        {/* Direction Selector */}
+        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Сначала:</span>
           <div className="flex gap-1">
             <button
               type="button"
               onClick={() => {
-                setStudyMode("word");
+                setStudyDirection("forward");
                 setIsFlipped(false);
               }}
               className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                studyMode === "word"
-                  ? "bg-white dark:bg-zinc-800 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                  : "text-zinc-450 hover:text-zinc-700 dark:hover:text-zinc-300"
+                studyDirection === "forward"
+                  ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
+                  : "text-zinc-450 hover:text-zinc-750 dark:hover:text-zinc-350"
               }`}
+              title="Изучаемое слово -> Перевод"
             >
               Слово 🔤
             </button>
             <button
               type="button"
               onClick={() => {
-                setStudyMode("image");
+                setStudyDirection("reverse");
                 setIsFlipped(false);
               }}
               className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                studyMode === "image"
-                  ? "bg-white dark:bg-zinc-800 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                  : "text-zinc-450 hover:text-zinc-750 dark:hover:text-zinc-300"
+                studyDirection === "reverse"
+                  ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
+                  : "text-zinc-450 hover:text-zinc-750 dark:hover:text-zinc-350"
               }`}
+              title="Перевод -> Изучаемое слово"
             >
-              Картинка 🖼️
+              Перевод 🔄
             </button>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Main Flashcard wrapper */}
       <div className="relative min-h-[365px] cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
@@ -519,32 +565,34 @@ export default function VocabularyPractice({
                 <>
                   <div className="flex justify-between items-start">
                     <span className="text-[10px] font-bold tracking-widest text-teal-605 dark:text-teal-405 uppercase">
-                      Target Word
+                      {studyDirection === "forward" ? "Target Word" : "Translation / Перевод"}
                     </span>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation(); // prevent flipping the card when clicking play!
-                          playSpeech(currentLq.word);
-                        }}
-                        disabled={playingSpeech}
-                        className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-650 dark:text-teal-400 transition-all cursor-pointer ${
-                          playingSpeech ? "animate-pulse" : ""
-                        }`}
-                        title="Прослушать слово (TTS)"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
+                      {studyDirection === "forward" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation(); // prevent flipping the card when clicking play!
+                            playSpeech(currentLq.word);
+                          }}
+                          disabled={playingSpeech}
+                          className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-650 dark:text-teal-400 transition-all cursor-pointer ${
+                            playingSpeech ? "animate-pulse" : ""
+                          }`}
+                          title="Прослушать слово (TTS)"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                      )}
                       <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
                     </div>
                   </div>
 
                   <div className="text-center py-12 flex-grow flex flex-col justify-center">
                     <h2 className="text-4xl font-black tracking-tight text-teal-950 dark:text-zinc-50 capitalize">
-                      {currentLq.word}
+                      {studyDirection === "forward" ? currentLq.word : currentLq.translation}
                     </h2>
-                    {currentLq.ipa && (
+                    {studyDirection === "forward" && currentLq.ipa && (
                       <p className="font-mono text-sm text-teal-650 dark:text-teal-405 mt-2 font-semibold">
                         {currentLq.ipa}
                       </p>
@@ -552,7 +600,7 @@ export default function VocabularyPractice({
                   </div>
 
                   <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 font-medium">
-                    Tap or click card to reveal translation
+                    {studyDirection === "forward" ? "Tap or click card to reveal translation" : "Нажмите для перевода / Reveal original word"}
                   </div>
                 </>
               )}
