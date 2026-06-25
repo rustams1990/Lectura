@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3 } from "lucide-react";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect } from "../utils";
 import WordExplainer from "./WordExplainer";
+import { LANGUAGES_SUPPORTED } from "../data";
 
 
 
@@ -122,6 +123,9 @@ export default function VocabularyPractice({
   const [studyMode, setStudyMode] = useState<"word" | "image">("word");
   const [studyDirection, setStudyDirection] = useState<"forward" | "reverse">("forward");
   const [isEditingWord, setIsEditingWord] = useState<string | null>(null);
+  const [modalTranslationLang, setModalTranslationLang] = useState(() => {
+    return localStorage.getItem("vocab_default_translation_language") || "Russian";
+  });
 
   const handleSaveVocabWrapped = (item: VocabItem) => {
     if (onSaveVocab) {
@@ -1000,11 +1004,34 @@ export default function VocabularyPractice({
               <X className="w-5 h-5" />
             </button>
             <div className="pt-2 font-sans">
+              {/* Language selection dropdown */}
+              <div className="flex justify-between items-center pb-3 border-b border-zinc-150 dark:border-zinc-800 mb-4 pr-8">
+                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Редактирование карточки</h3>
+                <div className="flex items-center gap-1.5 font-sans">
+                  <span className="text-[10px] font-black uppercase text-zinc-400">Язык перевода:</span>
+                  <select
+                    value={modalTranslationLang}
+                    onChange={(e) => {
+                      const newLang = e.target.value;
+                      setModalTranslationLang(newLang);
+                      localStorage.setItem("vocab_default_translation_language", newLang);
+                    }}
+                    className="px-2.5 py-1 text-xs font-bold bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/50 cursor-pointer"
+                  >
+                    {LANGUAGES_SUPPORTED.map((lang) => (
+                      <option key={lang} value={lang}>
+                        {lang}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <WordExplainer
                 word={isEditingWord}
                 sentence={currentLq?.contextRelation || ""}
                 targetLanguage={selectedPracticeLang}
-                translationLanguage="Russian"
+                translationLanguage={modalTranslationLang}
                 existingVocab={vocab[`${selectedPracticeLang.toLowerCase()}_${isEditingWord.toLowerCase()}`] || null}
                 wordLinks={wordLinks}
                 vocab={vocab}
