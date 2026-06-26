@@ -6,7 +6,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Lesson, VocabItem, WordStatus, ReaderSettings } from "../types";
-import { formatTime } from "../utils";
+import { formatTime, normalizeContraction } from "../utils";
 import { Sparkles, Loader2 } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 
@@ -552,6 +552,17 @@ export default function ReaderPanel({
     if (lq) {
       return lq.status;
     }
+
+    // Inherit status from base word if contraction/possessive base is known
+    const normalized = normalizeContraction(key, lang);
+    if (normalized !== key) {
+      const normLangKey = `${lang}_${normalized}`;
+      const normLq = vocab[normLangKey];
+      if (normLq) {
+        return normLq.status;
+      }
+    }
+
     return "new"; // defaults to blue 'new'
   };
 

@@ -47,7 +47,7 @@ import {
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun } from "lucide-react";
-import { safeJsonParse, safeLocalStorageSetItem } from "./utils";
+import { safeJsonParse, safeLocalStorageSetItem, normalizeContraction } from "./utils";
 
 const readerThemes = {
   default: {
@@ -1327,7 +1327,19 @@ export default function App() {
     const lang = (activeLesson?.targetLanguage || "spanish").toLowerCase();
     const resolved = wordLinks[`${lang}_${key}`] || key;
     const cleanResolved = resolved.replace(/^[a-zA-Z]+_/, "");
-    return vocab[`${lang}_${cleanResolved}`] || null;
+    
+    // Check direct match
+    const directMatch = vocab[`${lang}_${cleanResolved}`];
+    if (directMatch) return directMatch;
+
+    // Check normalized contraction base word for inheritance
+    const normalized = normalizeContraction(cleanResolved, lang);
+    if (normalized !== cleanResolved) {
+      const normMatch = vocab[`${lang}_${normalized}`];
+      if (normMatch) return normMatch;
+    }
+
+    return null;
   }, [selectedWord, vocab, wordLinks, activeLesson]);
 
   // Dynamic statistics computing

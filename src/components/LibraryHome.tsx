@@ -7,6 +7,7 @@ import React, { useState, useMemo } from "react";
 import { Lesson, LessonType, AppStats, ReaderSettings } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2 } from "lucide-react";
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
+import { normalizeContraction } from "../utils";
 
 export function getDifficultyBadgeStyles(level: string) {
   const lvl = (level || "").toUpperCase();
@@ -247,7 +248,17 @@ export default function LibraryHome({
       const langKey = `${lang}_${key}`;
       const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
       const langKeyForResolved = `${lang}_${resolvedKey}`;
-      const item = vocab[langKeyForResolved] || vocab[resolvedKey];
+      let item = vocab[langKeyForResolved] || vocab[resolvedKey];
+      
+      // Contraction status inheritance
+      if (!item) {
+        const normalized = normalizeContraction(resolvedKey, lang);
+        if (normalized !== resolvedKey) {
+          const normLangKey = `${lang}_${normalized}`;
+          item = vocab[normLangKey] || vocab[normalized];
+        }
+      }
+
       if (item && (item.status === "known" || item.status === "ignored")) {
         knownCount++;
       }
@@ -797,10 +808,20 @@ export default function LibraryHome({
               processedWords.forEach(word => {
                 const key = word.toLowerCase();
                 const langKey = `${lang}_${key}`;
-                 const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
+                const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
                 const langKeyForResolved = `${lang}_${resolvedKey}`;
                 
-                const item = vocab[langKeyForResolved] || vocab[resolvedKey];
+                let item = vocab[langKeyForResolved] || vocab[resolvedKey];
+                
+                // Contraction status inheritance
+                if (!item) {
+                  const normalized = normalizeContraction(resolvedKey, lang);
+                  if (normalized !== resolvedKey) {
+                    const normLangKey = `${lang}_${normalized}`;
+                    item = vocab[normLangKey] || vocab[normalized];
+                  }
+                }
+
                 uniqueTotalWords.add(resolvedKey);
                 if (item && (item.status === "known" || item.status === "ignored")) {
                   knownCount++;

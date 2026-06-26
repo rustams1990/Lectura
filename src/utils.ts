@@ -198,4 +198,40 @@ export function safeLocalStorageSetItem(key: string, value: string): void {
   }
 }
 
+/**
+ * Normalizes contractions and possessives to their base forms for status inheritance
+ */
+export function normalizeContraction(w: string, targetLanguage: string): string {
+  if (!w) return "";
+  let lower = w.toLowerCase().replace(/’/g, "'").trim();
+  const langCode = getLanguageCode(targetLanguage);
+
+  if (langCode === "en") {
+    // Strip trailing apostrophe (plural possessive, e.g. users')
+    if (lower.endsWith("'")) {
+      lower = lower.slice(0, -1);
+    }
+    // Strip possessive/contraction suffixes (excluding negations like 't)
+    if (lower.endsWith("'s")) return lower.slice(0, -2);
+    if (lower.endsWith("'ve")) return lower.slice(0, -3);
+    if (lower.endsWith("'re")) return lower.slice(0, -3);
+    if (lower.endsWith("'m")) return lower.slice(0, -2);
+    if (lower.endsWith("'ll")) return lower.slice(0, -3);
+    if (lower.endsWith("'d")) return lower.slice(0, -2);
+  } else if (langCode === "fr") {
+    if (lower.startsWith("l'")) return lower.slice(2);
+    if (lower.startsWith("d'")) return lower.slice(2);
+    if (lower.startsWith("j'")) return lower.slice(2);
+    if (lower.startsWith("c'")) return lower.slice(2);
+    if (lower.startsWith("s'")) return lower.slice(2);
+    if (lower.startsWith("n'")) return lower.slice(2);
+    if (lower.startsWith("m'")) return lower.slice(2);
+    if (lower.startsWith("t'")) return lower.slice(2);
+    if (lower.startsWith("qu'")) return lower.slice(3);
+  }
+
+  return lower;
+}
+
+
 

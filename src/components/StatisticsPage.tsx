@@ -8,6 +8,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { VocabItem, Lesson, WordStatus } from "../types";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
+import { normalizeContraction } from "../utils";
 import { 
   TrendingUp, 
   BookOpen, 
@@ -814,7 +815,16 @@ export default function StatisticsPage({
     parsedBatchWords.forEach((item) => {
       const lowerWord = item.word.toLowerCase();
       const keyWithLang = `${langLower}_${lowerWord}`;
-      const exists = !!(vocab[keyWithLang] || vocab[lowerWord]);
+      let exists = !!(vocab[keyWithLang] || vocab[lowerWord]);
+      
+      if (!exists) {
+        const normalized = normalizeContraction(lowerWord, langLower);
+        if (normalized !== lowerWord) {
+          const normKeyWithLang = `${langLower}_${normalized}`;
+          exists = !!(vocab[normKeyWithLang] || vocab[normalized]);
+        }
+      }
+
       if (exists) {
         existingWords++;
       } else {
