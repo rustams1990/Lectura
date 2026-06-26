@@ -970,15 +970,7 @@ export default function LibraryHome({
                 </div>
 
                 {/* Details Section */}
-                <div className={`${booksPerRow >= 5 ? 'p-2.5 space-y-2' : 'p-4 space-y-4'} flex-auto flex flex-col justify-between`}>
-                  {booksPerRow < 5 && (
-                  <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/40 p-2.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800/50">
-                    <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest">Фрагмент текста</p>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 italic font-serif">
-                       "{lesson.text}"
-                    </p>
-                  </div>
-                  )}
+                <div className={`${booksPerRow >= 5 ? 'p-2.5 space-y-2' : 'p-4 space-y-3'} flex-auto flex flex-col justify-between`}>
 
                   <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/20 p-2 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30 select-none">
                     <div className="flex justify-between items-center text-[9px] uppercase font-black tracking-widest text-zinc-400">
