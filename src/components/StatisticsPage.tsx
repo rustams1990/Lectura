@@ -1543,7 +1543,7 @@ export default function StatisticsPage({
     <div className="space-y-6">
       
       {/* Page Title Board */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-805 p-5 rounded-2xl shadow-xs">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs">
         <div>
           <h2 className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-teal-500" />
@@ -1555,7 +1555,7 @@ export default function StatisticsPage({
         </div>
 
         {/* Decorative Time Tracker HUD block */}
-        <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-150/45 dark:border-zinc-800/50 shrink-0 select-none">
+        <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/45 dark:border-zinc-800/50 shrink-0 select-none">
           <Calendar className="w-4 h-4 text-zinc-400" />
           <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
             Статистика обновляется мгновенно в реальном времени
@@ -1565,7 +1565,7 @@ export default function StatisticsPage({
 
       {/* Dynamic Language Selection Hub */}
       {languagesList.length > 0 && (
-        <div id="stats-lang-selector" className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-805 p-3 rounded-2xl shadow-xs font-sans">
+        <div id="stats-lang-selector" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-3 rounded-2xl shadow-xs font-sans">
           <label className="block text-[10px] uppercase font-bold tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">
             Выберите язык для просмотра статистики / Choose Language:
           </label>
@@ -1583,15 +1583,15 @@ export default function StatisticsPage({
                   onClick={() => setSelectedStatsLang(lang)}
                   className={`px-4 py-2 text-xs font-black rounded-xl border transition-all cursor-pointer flex items-center gap-2 ${
                     selectedStatsLang.toLowerCase() === lang.toLowerCase()
-                      ? "bg-teal-50 text-teal-705 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-900"
-                      : "bg-zinc-50 border-zinc-200/60 dark:bg-zinc-955 dark:border-zinc-800 text-zinc-650 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-300"
+                      ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-900"
+                      : "bg-zinc-50 border-zinc-200/60 dark:bg-zinc-950 dark:border-zinc-800 text-zinc-600 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-300"
                   }`}
                 >
                   <span>{lang}</span>
                   <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
                     selectedStatsLang.toLowerCase() === lang.toLowerCase()
                       ? "bg-teal-200/50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                      : "bg-zinc-200/50 dark:bg-zinc-850 text-zinc-500"
+                      : "bg-zinc-200/50 dark:bg-zinc-800 text-zinc-500"
                   }`}>
                     {wordsCount} слов(а)
                   </span>
@@ -1606,7 +1606,7 @@ export default function StatisticsPage({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Card 1: Known Words */}
-        <div id="stat-known-card" className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-801 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden group">
+        <div id="stat-known-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden group">
           <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-emerald-555">
             <Award className="w-24 h-24" />
           </div>
@@ -1620,14 +1620,14 @@ export default function StatisticsPage({
             <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
               {stats.known}
             </span>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-450 font-bold block mt-0.5">
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
               ✓ Полностью освоенные слова
             </span>
           </div>
         </div>
 
         {/* Card 2: Learning Words */}
-        <div id="stat-learning-card" className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-801 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
+        <div id="stat-learning-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
           <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-amber-555">
             <Sparkles className="w-24 h-24 animate-pulse" />
           </div>
@@ -1641,14 +1641,14 @@ export default function StatisticsPage({
             <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
               {stats.learning}
             </span>
-            <span className="text-[10px] text-amber-600 dark:text-amber-450 font-bold block mt-0.5">
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold block mt-0.5">
               ⚡ Активных карточек в обучении
             </span>
           </div>
         </div>
 
         {/* Card 3: Audio listening tracker */}
-        <div id="stat-audio-card" className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-801 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
+        <div id="stat-audio-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
           <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-teal-555">
             <Clock className="w-24 h-24" />
           </div>
@@ -1669,7 +1669,7 @@ export default function StatisticsPage({
         </div>
 
         {/* Card 4: Total active books */}
-        <div id="stat-books-card" className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-801 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
+        <div id="stat-books-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
           <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-teal-555">
             <BookOpen className="w-24 h-24" />
           </div>
@@ -1683,7 +1683,7 @@ export default function StatisticsPage({
             <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
               {lessons.filter(l => !l.isArchived).length}
             </span>
-            <span className="text-[10px] text-teal-600 dark:text-teal-405 font-bold block mt-0.5">
+            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block mt-0.5">
               📖 Всего книг на книжной полке
             </span>
           </div>
@@ -1695,7 +1695,7 @@ export default function StatisticsPage({
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
         
         {/* CEFR Level Milestone Indicator */}
-        <div className="col-span-12 md:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between space-y-4">
+        <div className="col-span-12 md:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between space-y-4">
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-teal-50 dark:bg-teal-950/40 text-[10px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest">
               <Award className="w-3.5 h-3.5" />
@@ -1709,14 +1709,14 @@ export default function StatisticsPage({
             </p>
           </div>
 
-          <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-805">
+          <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
             <div className="flex justify-between items-center text-[10px] font-black text-zinc-400 uppercase tracking-widest">
               <span>До следующего ранга осталось: {stats.cefr.target - stats.known < 0 ? 0 : stats.cefr.target - stats.known} слов</span>
-              <span className="text-teal-650 dark:text-teal-400">{stats.cefr.progress}%</span>
+              <span className="text-teal-600 dark:text-teal-400">{stats.cefr.progress}%</span>
             </div>
             
             {/* Elegant visual gauge bar */}
-            <div className="h-3 w-full rounded-full bg-zinc-100 dark:bg-zinc-950 overflow-hidden flex border border-zinc-200 dark:border-zinc-850">
+            <div className="h-3 w-full rounded-full bg-zinc-100 dark:bg-zinc-950 overflow-hidden flex border border-zinc-200 dark:border-zinc-800">
               <div 
                 style={{ width: `${stats.cefr.progress}%` }}
                 className="h-full bg-linear-to-r from-teal-500 to-teal-700 rounded-full transition-all duration-300"
@@ -1731,7 +1731,7 @@ export default function StatisticsPage({
         </div>
 
         {/* Word Status Level distribution Bar charts (Custom SVG elements) */}
-        <div className="col-span-12 md:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between">
+        <div className="col-span-12 md:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="space-y-1">
             <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">
               Распределение слов по статусу знакомства (Word Status Breakdown)
@@ -1742,11 +1742,11 @@ export default function StatisticsPage({
           </div>
 
           {/* Graphics Custom Level Bars */}
-          <div className="space-y-3 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-805">
+          <div className="space-y-3 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
             
             {/* Status 1 */}
             <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-650 dark:text-zinc-300">
+              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-red-400 inline-block"></span>
                   Новые (Статус 1 - Не помню совсем)
@@ -1763,7 +1763,7 @@ export default function StatisticsPage({
 
             {/* Status 2 & 3 */}
             <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-650 dark:text-zinc-300">
+              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-amber-400 inline-block"></span>
                   В процессе (Статус 2-3 - Припоминаю с трудом)
@@ -1780,7 +1780,7 @@ export default function StatisticsPage({
 
             {/* Status 4 & 5 */}
             <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-650 dark:text-zinc-300">
+              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-teal-400 inline-block"></span>
                   Почти изучено (Статус 4-5 - Хорошо помню)
@@ -1797,7 +1797,7 @@ export default function StatisticsPage({
 
             {/* Known Status */}
             <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-650 dark:text-zinc-300">
+              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-emerald-500 inline-block"></span>
                   Знаю (Полностью выучено)
@@ -1821,8 +1821,8 @@ export default function StatisticsPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
         
         {/* Heatmap & Streak Section */}
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-805 pb-3">
+        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-3">
             <div>
               <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 <Flame className="w-5 h-5 text-orange-500 fill-orange-500 animate-pulse" />
@@ -1835,7 +1835,7 @@ export default function StatisticsPage({
           </div>
 
           {/* Interactive Streak Indicators HUD strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-50 dark:bg-zinc-955 p-3.5 rounded-xl border border-zinc-150/45 dark:border-zinc-805/40 text-xs text-zinc-650 dark:text-zinc-300">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-xl border border-zinc-100/45 dark:border-zinc-800/40 text-xs text-zinc-600 dark:text-zinc-300">
             <div className="space-y-1">
               <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Текущая серия (Streak)</span>
               <div className="flex items-center gap-1.5">
@@ -1846,7 +1846,7 @@ export default function StatisticsPage({
               </div>
             </div>
 
-            <div className="space-y-1 border-l border-zinc-150 dark:border-zinc-800/80 pl-3">
+            <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
               <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Рекорд серии</span>
               <div className="flex items-center gap-1.5">
                 <Award className="w-4 h-4 text-amber-500" />
@@ -1856,7 +1856,7 @@ export default function StatisticsPage({
               </div>
             </div>
 
-            <div className="space-y-1 border-l border-zinc-150 dark:border-zinc-800/80 pl-3">
+            <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
               <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Активных дней</span>
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-teal-500" />
@@ -1866,7 +1866,7 @@ export default function StatisticsPage({
               </div>
             </div>
 
-            <div className="space-y-1 border-l border-zinc-150 dark:border-zinc-800/80 pl-3">
+            <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
               <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Пик за сутки</span>
               <div className="flex items-center gap-1.5">
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -1878,7 +1878,7 @@ export default function StatisticsPage({
           </div>
 
           {/* Actual Contribution Grid wrapper with Month Headers and vertical row labels */}
-          <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl border border-zinc-150 dark:border-zinc-805/50 overflow-hidden">
+          <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl border border-zinc-100 dark:border-zinc-800/50 overflow-hidden">
             
             {/* Months Row */}
             <div className="flex pl-8 text-[9px] font-bold text-zinc-400 select-none relative h-4 mb-1">
@@ -1926,7 +1926,7 @@ export default function StatisticsPage({
                       const count = day.count;
                       
                       // Assign color bounds
-                      let cellColor = "bg-zinc-100 dark:bg-zinc-950 border-zinc-200/20 dark:border-zinc-805/40 hover:scale-115";
+                      let cellColor = "bg-zinc-100 dark:bg-zinc-950 border-zinc-200/20 dark:border-zinc-800/40 hover:scale-115";
                       if (count > 0 && count <= 2) {
                         cellColor = "bg-teal-100 dark:bg-teal-950/30 border-teal-200/50 dark:border-teal-900/50 hover:bg-teal-200 hover:scale-120";
                       } else if (count > 2 && count <= 5) {
@@ -1959,7 +1959,7 @@ export default function StatisticsPage({
             </div>
 
             {/* Heatmap Legend */}
-            <div className="flex items-center justify-between mt-3 text-[10px] text-zinc-400 select-none border-t border-zinc-150/40 dark:border-zinc-805/40 pt-2 px-1">
+            <div className="flex items-center justify-between mt-3 text-[10px] text-zinc-400 select-none border-t border-zinc-100/40 dark:border-zinc-800/40 pt-2 px-1">
               <span>* Кликните на квадрат, чтобы посмотреть добавленные слова за этот день</span>
               <div className="flex items-center gap-1">
                 <span>Меньше</span>
@@ -1983,9 +1983,9 @@ export default function StatisticsPage({
             const fullDateStr = resolvedWords.date.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
             
             return (
-              <div className="bg-teal-50/50 dark:bg-teal-950/20 border border-teal-150 dark:border-teal-900/60 p-3.5 rounded-xl animate-in slide-in-from-top-2 duration-200 font-sans space-y-2">
+              <div className="bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/60 p-3.5 rounded-xl animate-in slide-in-from-top-2 duration-200 font-sans space-y-2">
                 <div className="flex items-center justify-between text-xs select-none border-b border-teal-100/45 pb-1.5">
-                  <span className="font-extrabold text-teal-705 dark:text-teal-400 uppercase tracking-wider">
+                  <span className="font-extrabold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
                     🗓️ Добавлено в {fullDateStr}
                   </span>
                   <button
@@ -2004,9 +2004,9 @@ export default function StatisticsPage({
                           key={`${word}-${wIdx}`} 
                           className="px-2.5 py-1 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-900/60 rounded-lg text-[11px] font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5 shadow-3xs"
                         >
-                          <span className="text-teal-650 dark:text-teal-400 capitalize">{word}</span>
+                          <span className="text-teal-600 dark:text-teal-400 capitalize">{word}</span>
                           {wordObj?.translation && (
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-550 truncate max-w-[120px] font-medium border-l pl-1.5 border-zinc-150 dark:border-zinc-805">
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[120px] font-medium border-l pl-1.5 border-zinc-100 dark:border-zinc-800">
                               {wordObj.translation}
                             </span>
                           )}
@@ -2026,8 +2026,8 @@ export default function StatisticsPage({
         </div>
 
         {/* Month-by-Month Vocabulary Cumulative Growth curve (custom SVG based dashboard) */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between">
-          <div className="space-y-1 pb-3 border-b border-zinc-100 dark:border-zinc-850">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between">
+          <div className="space-y-1 pb-3 border-b border-zinc-100 dark:border-zinc-800">
             <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-teal-500" />
               Рост словаря (Growth History)
@@ -2046,9 +2046,9 @@ export default function StatisticsPage({
                 
                 {/* Visual horizontal guidelines background */}
                 <div className="absolute inset-y-0 left-0 right-0 flex flex-col justify-between pointer-events-none select-none">
-                  <div className="w-full border-t border-zinc-100 dark:border-zinc-850/60 h-0" />
-                  <div className="w-full border-t border-zinc-100 dark:border-zinc-850/60 h-0" />
-                  <div className="w-full border-t border-zinc-100 dark:border-zinc-850/60 h-0" />
+                  <div className="w-full border-t border-zinc-100 dark:border-zinc-800/60 h-0" />
+                  <div className="w-full border-t border-zinc-100 dark:border-zinc-800/60 h-0" />
+                  <div className="w-full border-t border-zinc-100 dark:border-zinc-800/60 h-0" />
                 </div>
 
                 {(() => {
@@ -2059,7 +2059,7 @@ export default function StatisticsPage({
                       <div key={idx} className="flex-1 flex flex-col items-center group relative z-1">
                         
                         {/* Word count Bubble marker displayed on hover/active */}
-                        <div className="absolute bottom-full mb-1 bg-zinc-850 dark:bg-zinc-800 text-white dark:text-zinc-100 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none mb-1.5 duration-100 select-none">
+                        <div className="absolute bottom-full mb-1 bg-zinc-800 dark:bg-zinc-800 text-white dark:text-zinc-100 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none mb-1.5 duration-100 select-none">
                           {month.count} слов
                         </div>
 
@@ -2082,7 +2082,7 @@ export default function StatisticsPage({
               </div>
 
               {/* Sparkline details list summary */}
-              <div className="bg-zinc-50 dark:bg-zinc-955 p-3 rounded-lg border border-zinc-150/50 dark:border-zinc-805/50 space-y-1 text-[11px] text-zinc-650 dark:text-zinc-300">
+              <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-lg border border-zinc-100/50 dark:border-zinc-800/50 space-y-1 text-[11px] text-zinc-600 dark:text-zinc-300">
                 <div className="flex justify-between font-medium select-none">
                   <span>Общий запас (Total Scope):</span>
                   <strong className="text-zinc-900 dark:text-white">{statsArray.length} {onlyPatterns ? "parents" : "слов"}</strong>
@@ -2108,9 +2108,9 @@ export default function StatisticsPage({
       </div>
 
       {/* 2.6. CEFR Word Prioritization & Lesson Corpus Profiler */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-5 font-sans">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-5 font-sans">
         
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-100 dark:border-zinc-805 pb-3">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-100 dark:border-zinc-800 pb-3">
           <div className="space-y-0.5">
             <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2 select-none">
               <Sparkles className="w-5 h-5 text-teal-500 animate-pulse" />
@@ -2126,8 +2126,8 @@ export default function StatisticsPage({
             disabled={isProfiling || vocabArray.length === 0}
             className={`cursor-pointer px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl border transition-all flex items-center gap-2 select-none shadow-3xs hover:shadow-4xs ${
               isProfiling
-                ? "bg-zinc-150 border-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 animate-pulse cursor-not-allowed"
-                : "bg-teal-500 hover:bg-teal-600 active:scale-97 border-teal-600 hover:border-teal-700 text-white dark:bg-teal-650 dark:hover:bg-teal-600"
+                ? "bg-zinc-100 border-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 animate-pulse cursor-not-allowed"
+                : "bg-teal-500 hover:bg-teal-600 active:scale-97 border-teal-600 hover:border-teal-700 text-white dark:bg-teal-600 dark:hover:bg-teal-600"
             }`}
           >
             {isProfiling ? (
@@ -2146,7 +2146,7 @@ export default function StatisticsPage({
 
         {/* Display profile messages / results if any */}
         {profileMessage && (
-          <div className="p-3 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 text-xs font-semibold text-teal-750 dark:text-teal-400 rounded-xl leading-relaxed flex items-start gap-2.5 animate-in fade-in duration-200">
+          <div className="p-3 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 text-xs font-semibold text-teal-700 dark:text-teal-400 rounded-xl leading-relaxed flex items-start gap-2.5 animate-in fade-in duration-200">
             <span className="text-sm select-none">💡</span>
             <span>{profileMessage}</span>
           </div>
@@ -2155,21 +2155,21 @@ export default function StatisticsPage({
         {/* Live CEFR Distribution Profile Stats */}
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs select-none">
-            <span className="font-extrabold text-zinc-650 dark:text-zinc-300">Распределение уровня сложности словаря ({selectedStatsLang}):</span>
+            <span className="font-extrabold text-zinc-600 dark:text-zinc-300">Распределение уровня сложности словаря ({selectedStatsLang}):</span>
             <span className="font-mono text-zinc-400">
               Размечено: <strong className="text-zinc-700 dark:text-zinc-200 font-extrabold">{cefrProfileCounts.totalWithCefr}</strong> из <strong className="text-zinc-700 dark:text-zinc-200 font-extrabold">{vocabArray.length}</strong> слов
             </span>
           </div>
 
           {vocabArray.length === 0 ? (
-            <div className="p-6 bg-zinc-50 dark:bg-zinc-955 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center select-none text-xs text-zinc-400 italic">
+            <div className="p-6 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center select-none text-xs text-zinc-400 italic">
               Словарь пуст. Добавьте слова, читая уроки во вкладке "Читать уроки".
             </div>
           ) : cefrProfileCounts.totalWithCefr > 0 ? (
             <div className="space-y-4">
               
               {/* Segmented Progress Band Bar representational display */}
-              <div className="h-4 rounded-xl flex overflow-hidden border border-zinc-200/45 dark:border-zinc-805/45 select-none shadow-4xs">
+              <div className="h-4 rounded-xl flex overflow-hidden border border-zinc-200/45 dark:border-zinc-800/45 select-none shadow-4xs">
                 {(() => {
                   const items = [
                     { label: "A1", count: cefrProfileCounts.a1, color: "bg-emerald-500 text-white" },
@@ -2223,8 +2223,8 @@ export default function StatisticsPage({
 
             </div>
           ) : (
-            <div className="p-4 bg-zinc-50 dark:bg-zinc-955 rounded-xl border border-zinc-150 dark:border-zinc-850 text-center select-none text-[11px] text-zinc-500 leading-normal">
-              В вашем словаре пока нет размеченных по частотности слов. Нажмите кнопку <strong className="text-teal-650 dark:text-teal-400 font-extrabold">"Запустить разметку словаря"</strong> в правом верхнем углу, чтобы просканировать ваши уроки и присвоить теги приоритета!
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center select-none text-[11px] text-zinc-500 leading-normal">
+              В вашем словаре пока нет размеченных по частотности слов. Нажмите кнопку <strong className="text-teal-600 dark:text-teal-400 font-extrabold">"Запустить разметку словаря"</strong> в правом верхнем углу, чтобы просканировать ваши уроки и присвоить теги приоритета!
             </div>
           )}
         </div>
@@ -2232,7 +2232,7 @@ export default function StatisticsPage({
       </div>
 
       {/* Contextual search across uploaded texts */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4 font-sans">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4 font-sans">
         <div className="space-y-0.5">
           <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2 select-none">
             <BookOpen className="w-5 h-5 text-teal-500" />
@@ -2250,7 +2250,7 @@ export default function StatisticsPage({
             value={contextSearchQuery}
             onChange={(e) => setContextSearchQuery(e.target.value)}
             placeholder="Введите слово или фразу — найдём все вхождения в ваших книгах..."
-            className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-850 dark:text-zinc-150 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
+            className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
           />
         </div>
 
@@ -2272,9 +2272,9 @@ export default function StatisticsPage({
       </div>
 
       {/* Vocabulary Review Interactive Workspace */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4">
         
-        <div className="border-b border-zinc-100 dark:border-zinc-805 pb-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="border-b border-zinc-100 dark:border-zinc-800 pb-3 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="space-y-0.5">
             <h4 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-teal-500" />
@@ -2291,8 +2291,8 @@ export default function StatisticsPage({
               onClick={() => setShowMigrationTools(!showMigrationTools)}
               className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border flex items-center gap-1.5 cursor-pointer ${
                 showMigrationTools
-                  ? "bg-amber-50 border-amber-250 text-amber-705 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
-                  : "bg-zinc-50 border-zinc-200 text-zinc-650 hover:text-zinc-800 dark:bg-zinc-955 dark:border-zinc-805 dark:text-zinc-400"
+                  ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
+                  : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-800 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-400"
               }`}
               title="Инструменты коррекции дат для импортированных слов из Lute/Anki"
             >
@@ -2303,8 +2303,8 @@ export default function StatisticsPage({
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border flex items-center gap-1.5 cursor-pointer ${
                 showAdvancedFilters
-                  ? "bg-teal-50 border-teal-200 text-teal-705 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-900"
-                  : "bg-zinc-50 border-zinc-200 text-zinc-650 hover:text-zinc-800 dark:bg-zinc-955 dark:border-zinc-805 dark:text-zinc-400"
+                  ? "bg-teal-50 border-teal-200 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-900"
+                  : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-800 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-400"
               }`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -2316,7 +2316,7 @@ export default function StatisticsPage({
             <button
               onClick={handleExportCSV}
               disabled={processedVocabularyList.length === 0}
-              className="px-3 py-1.5 bg-zinc-50 border border-zinc-200 text-zinc-650 hover:text-zinc-800 dark:bg-zinc-955 dark:border-zinc-805 dark:text-zinc-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs disabled:opacity-50 disabled:pointer-events-none select-none"
+              className="px-3 py-1.5 bg-zinc-50 border border-zinc-200 text-zinc-600 hover:text-zinc-800 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs disabled:opacity-50 disabled:pointer-events-none select-none"
               title="Экспортировать отфильтрованные слова в CSV файл"
             >
               <Download className="w-3.5 h-3.5" />
@@ -2324,7 +2324,7 @@ export default function StatisticsPage({
             </button>
             <button
               onClick={() => document.getElementById("csv-file-import-input")?.click()}
-              className="px-3 py-1.5 bg-teal-500 hover:bg-teal-650 active:scale-97 border border-teal-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs hover:shadow-4xs select-none"
+              className="px-3 py-1.5 bg-teal-500 hover:bg-teal-600 active:scale-97 border border-teal-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs hover:shadow-4xs select-none"
               title="Импортировать слова из CSV-файла"
             >
               <Upload className="w-3.5 h-3.5" />
@@ -2337,9 +2337,9 @@ export default function StatisticsPage({
               onChange={handleImportCSV}
               className="hidden"
             />
-            <div className="flex bg-zinc-100 dark:bg-zinc-955 px-3 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-805/50 items-center gap-1.5 header-badge-layout select-none">
+            <div className="flex bg-zinc-100 dark:bg-zinc-950 px-3 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 items-center gap-1.5 header-badge-layout select-none">
               <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none">Найдено слов:</span>
-              <span className="text-xs font-black text-teal-650 dark:text-teal-400 leading-none">{processedVocabularyList.length}</span>
+              <span className="text-xs font-black text-teal-600 dark:text-teal-400 leading-none">{processedVocabularyList.length}</span>
             </div>
           </div>
         </div>
@@ -2353,7 +2353,7 @@ export default function StatisticsPage({
               value={vocabSearch}
               onChange={(e) => setVocabSearch(e.target.value)}
               placeholder="Быстрый поиск слова в блокноте... (Поиск перевода или грамматики)"
-              className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-850 dark:text-zinc-150 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
+              className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
             />
           </div>
 
@@ -2362,7 +2362,7 @@ export default function StatisticsPage({
             <select
               value={vocabFilter}
               onChange={(e) => setVocabFilter(e.target.value)}
-              className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 dark:bg-zinc-955 text-zinc-850 dark:text-zinc-150 border border-zinc-200 dark:border-zinc-805 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
+              className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
             >
               <option value="all">🌐 Все активные {onlyPatterns ? "parents" : "слова"} ({statsArray.filter(l => l.status !== "ignored").length})</option>
               <option value="learning">🎓 Изучаю (1-5) ({stats.learning})</option>
@@ -2383,7 +2383,7 @@ export default function StatisticsPage({
             <select
               value={vocabSort}
               onChange={(e) => setVocabSort(e.target.value as any)}
-              className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-850 dark:text-zinc-150 border border-zinc-200 dark:border-zinc-805 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
+              className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
             >
               <option value="newest">📅 Сначала новые</option>
               <option value="oldest">📅 Сначала старые</option>
@@ -2403,7 +2403,7 @@ export default function StatisticsPage({
             className={`w-full py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border flex items-center justify-center gap-2 select-none cursor-pointer ${
               onlyPatterns
                 ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/45 dark:border-teal-900 dark:text-teal-400 font-extrabold shadow-inner"
-                : "bg-zinc-50 border-zinc-150 dark:bg-zinc-950 dark:border-zinc-805 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                : "bg-zinc-50 border-zinc-100 dark:bg-zinc-950 dark:border-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
             title="Отображать только базовые формы (леммы) слов, группируя морфологические формы"
           >
@@ -2421,18 +2421,18 @@ export default function StatisticsPage({
                 <h5 className="text-xs font-black text-amber-800 dark:text-amber-400 uppercase tracking-widest leading-none">
                   Инструменты миграции и ручного управления датами (LUTE / Anki Migration Tools)
                 </h5>
-                <p className="text-[11.5px] text-zinc-650 dark:text-zinc-400 leading-relaxed font-semibold">
+                <p className="text-[11.5px] text-zinc-600 dark:text-zinc-400 leading-relaxed font-semibold">
                   При переезде с Lute или Anki слова часто импортируются или добавляются сотнями за одну сессию. Это создает один огромный пик на тепловой карте и искажает ежедневную статистику. Вы можете точечно менять даты у слов в таблице ниже, либо использовать инструменты пакетного распределения ниже.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-zinc-200/50 dark:border-zinc-805/50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-zinc-200/50 dark:border-zinc-800/50">
               
               {/* Option 1: Disperse / Smooth out date values */}
-              <div className="bg-white/80 dark:bg-zinc-950/45 p-3.5 rounded-xl border border-zinc-250 dark:border-zinc-800 space-y-3">
+              <div className="bg-white/80 dark:bg-zinc-950/45 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
                 <div className="space-y-1">
-                  <h6 className="text-xs font-bold text-zinc-850 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
+                  <h6 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
                     <RefreshCw className="w-3.5 h-3.5 text-teal-500" />
                     Равномерно распределить (Разгладить тепловую карту)
                   </h6>
@@ -2448,7 +2448,7 @@ export default function StatisticsPage({
                       key={days}
                       onClick={() => handleDisperseDates(days)}
                       disabled={processedVocabularyList.length === 0}
-                      className="cursor-pointer px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-zinc-50 hover:bg-teal-500 hover:text-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-lg border border-zinc-250 dark:border-zinc-800 hover:border-teal-500 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                      className="cursor-pointer px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-zinc-50 hover:bg-teal-500 hover:text-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-teal-500 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
                     >
                       {days} дн.
                     </button>
@@ -2457,9 +2457,9 @@ export default function StatisticsPage({
               </div>
 
               {/* Option 2: Set absolute batch date */}
-              <div className="bg-white/80 dark:bg-zinc-950/45 p-3.5 rounded-xl border border-zinc-250 dark:border-zinc-800 space-y-3">
+              <div className="bg-white/80 dark:bg-zinc-950/45 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
                 <div className="space-y-1">
-                  <h6 className="text-xs font-bold text-zinc-850 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
+                  <h6 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
                     <Calendar className="w-3.5 h-3.5 text-cyan-500" />
                     Пакетный перенос на определенный день
                   </h6>
@@ -2473,7 +2473,7 @@ export default function StatisticsPage({
                     type="date"
                     id="batch-target-date"
                     defaultValue={new Date().toISOString().split('T')[0]}
-                    className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                   <button
                     onClick={() => {
@@ -2493,9 +2493,9 @@ export default function StatisticsPage({
             </div>
 
             {/* Option 3: Batch Paste Import with selection of Date */}
-            <div className="bg-white/80 dark:bg-zinc-950/45 p-4 rounded-xl border border-zinc-250 dark:border-zinc-800 space-y-3.5 mt-3">
+            <div className="bg-white/80 dark:bg-zinc-950/45 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3.5 mt-3">
               <div className="space-y-1">
-                <h6 className="text-xs font-bold text-zinc-850 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
+                <h6 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
                   <span className="text-sm leading-none">📋</span>
                   Пакетный импорт новых слов списком с выбором даты
                 </h6>
@@ -2512,12 +2512,12 @@ export default function StatisticsPage({
                     placeholder={`Пример:\nperro\tсобака\ngato\tкошка\nsol\tсолнце\nИли просто список слов по одному на строку`}
                     value={batchImportText}
                     onChange={(e) => setBatchImportText(e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-zinc-800 dark:text-zinc-250 focus:outline-none focus:ring-1 focus:ring-teal-500 placeholder-zinc-400 resize-y"
+                    className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 placeholder-zinc-400 resize-y"
                   />
                   {parsedBatchWords.length > 0 && (
                     <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold bg-teal-500/5 dark:bg-teal-400/5 px-2.5 py-1 rounded-lg border border-teal-500/10 flex items-center justify-between select-none animate-pulse">
                       <span>
-                        🔍 Распознано слов к импорту: <strong className="text-teal-600 dark:text-teal-450">{parsedBatchWords.length} шт.</strong>
+                        🔍 Распознано слов к импорту: <strong className="text-teal-600 dark:text-teal-400">{parsedBatchWords.length} шт.</strong>
                         {" "}(новых: <strong className="text-emerald-600 dark:text-emerald-400">{batchImportStats.newWords}</strong>, обновится: <strong className="text-amber-600 dark:text-amber-400">{batchImportStats.existingWords}</strong>)
                       </span>
                       <span className="text-[8.5px] uppercase font-black tracking-widest text-zinc-400">Язык: {selectedStatsLang}</span>
@@ -2526,7 +2526,7 @@ export default function StatisticsPage({
                 </div>
 
                 {/* Right side: Parameters & Execute Button */}
-                <div className="md:col-span-5 bg-zinc-50/50 dark:bg-zinc-900/30 p-3 rounded-xl border border-zinc-250 dark:border-zinc-800 space-y-3">
+                <div className="md:col-span-5 bg-zinc-50/50 dark:bg-zinc-900/30 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
                   {/* Select Import Date */}
                   <div className="space-y-1">
                     <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
@@ -2536,7 +2536,7 @@ export default function StatisticsPage({
                       type="date"
                       value={batchImportDate}
                       onChange={(e) => setBatchImportDate(e.target.value || new Date().toISOString().split('T')[0])}
-                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-750 dark:text-zinc-250 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                     />
                   </div>
 
@@ -2549,7 +2549,7 @@ export default function StatisticsPage({
                       <select
                         value={batchImportStatus}
                         onChange={(e) => setBatchImportStatus(e.target.value as WordStatus)}
-                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-sans text-zinc-750 dark:text-zinc-250 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-sans text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
                       >
                         <option value="1">Изучаю (1)</option>
                         <option value="2">Изучаю (2)</option>
@@ -2570,7 +2570,7 @@ export default function StatisticsPage({
                         placeholder="lute-import"
                         value={batchImportTag}
                         onChange={(e) => setBatchImportTag(e.target.value)}
-                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs font-mono text-zinc-750 dark:text-zinc-250 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 text-xs font-mono text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                       />
                     </div>
                   </div>
@@ -2589,15 +2589,15 @@ export default function StatisticsPage({
 
               {/* Parsed list preview */}
               {parsedBatchWords.length > 0 && (
-                <div className="space-y-1 pt-1.5 border-t border-zinc-200/50 dark:border-zinc-805/50">
+                <div className="space-y-1 pt-1.5 border-t border-zinc-200/50 dark:border-zinc-800/50">
                   <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Предпросмотр первых нескольких записей:</span>
-                  <div className="max-h-36 overflow-y-auto bg-zinc-500/5 rounded-lg border border-zinc-205 dark:border-zinc-805 p-2 font-mono text-[10.5px] space-y-1.5 align-middle">
+                  <div className="max-h-36 overflow-y-auto bg-zinc-500/5 rounded-lg border border-zinc-200 dark:border-zinc-800 p-2 font-mono text-[10.5px] space-y-1.5 align-middle">
                     {parsedBatchWords.slice(0, 10).map((w, i) => (
                       <div key={i} className="flex items-center justify-between gap-3 text-zinc-700 dark:text-zinc-300">
                         <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
                           <span className="font-extrabold text-teal-600 dark:text-teal-400 truncate">{w.word}</span>
                           {w.grammar && (
-                            <span className="bg-emerald-50 dark:bg-emerald-950/35 text-emerald-750 dark:text-emerald-405 border border-emerald-200/50 dark:border-emerald-800/30 px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase shrink-0">
+                            <span className="bg-emerald-50 dark:bg-emerald-950/35 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30 px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase shrink-0">
                               {w.grammar}
                             </span>
                           )}
@@ -2653,7 +2653,7 @@ export default function StatisticsPage({
                   <button
                     type="button"
                     onClick={handleDeleteFilteredWords}
-                    className="cursor-pointer bg-amber-600 hover:bg-amber-700 active:scale-98 text-white px-3.5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg border border-amber-650 hover:scale-103 transition-all flex items-center gap-1.5 shadow-sm select-none"
+                    className="cursor-pointer bg-amber-600 hover:bg-amber-700 active:scale-98 text-white px-3.5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg border border-amber-600 hover:scale-103 transition-all flex items-center gap-1.5 shadow-sm select-none"
                     title="Удалить только те слова, которые выбраны текущими фильтрами"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -2668,7 +2668,7 @@ export default function StatisticsPage({
 
         {/* Advanced Filters Expandable Card */}
         {showAdvancedFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-150 dark:border-zinc-805/50 rounded-2xl font-sans animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800/50 rounded-2xl font-sans animate-in fade-in slide-in-from-top-2 duration-150">
             {/* Tag Filter */}
             <div className="space-y-1">
               <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 leading-none select-none">
@@ -2739,9 +2739,9 @@ export default function StatisticsPage({
         {/* Words Table/List */}
         {processedVocabularyList.length > 0 ? (
           <>
-            <div className="overflow-x-auto border border-zinc-150 dark:border-zinc-805 rounded-xl max-h-[460px] overflow-y-auto">
+            <div className="overflow-x-auto border border-zinc-100 dark:border-zinc-800 rounded-xl max-h-[460px] overflow-y-auto">
             <table className="w-full table-auto border-collapse text-left text-xs">
-              <thead className="bg-zinc-50 dark:bg-zinc-950 sticky top-0 border-b border-zinc-150 dark:border-zinc-805 text-[10px] font-black text-zinc-400 uppercase tracking-widest select-none">
+              <thead className="bg-zinc-50 dark:bg-zinc-950 sticky top-0 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-black text-zinc-400 uppercase tracking-widest select-none">
                 <tr>
                   <th className="p-3">Иностранное слово</th>
                   <th className="p-3">Parents</th>
@@ -2752,7 +2752,7 @@ export default function StatisticsPage({
                   <th className="p-3 text-center">Действия</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-805 text-zinc-700 dark:text-zinc-300">
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300">
                 {paginatedVocabularyList.map((item, idx) => {
                   const isSavesKnown = item.status === "known";
                   return (
@@ -2765,7 +2765,7 @@ export default function StatisticsPage({
                               src={item.imageUrl}
                               alt={item.word}
                               referrerPolicy="no-referrer"
-                              className="w-7 h-7 object-cover rounded-lg border border-zinc-150 dark:border-zinc-800 shrink-0 select-none shadow-4xs"
+                              className="w-7 h-7 object-cover rounded-lg border border-zinc-100 dark:border-zinc-800 shrink-0 select-none shadow-4xs"
                             />
                           )}
                           <div className="flex flex-col min-w-[120px]">
@@ -2774,10 +2774,10 @@ export default function StatisticsPage({
                                 type="text"
                                 value={editWordValue}
                                 onChange={(e) => setEditWordValue(e.target.value)}
-                                className="bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded px-2 py-1 text-xs font-bold text-zinc-850 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                               />
                             ) : (
-                              <span className="capitalize leading-tight font-extrabold text-teal-650 dark:text-teal-400">{item.word}</span>
+                              <span className="capitalize leading-tight font-extrabold text-teal-600 dark:text-teal-400">{item.word}</span>
                             )}
                             {item.tags && item.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1 select-none">
@@ -2803,7 +2803,7 @@ export default function StatisticsPage({
                             value={editParentValue}
                             onChange={(e) => setEditParentValue(e.target.value)}
                             placeholder="Parents"
-                            className="bg-white dark:bg-zinc-955 border border-zinc-250 dark:border-zinc-800 rounded px-2 py-1 text-xs font-semibold text-zinc-850 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-semibold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                           />
                         ) : onlyPatterns ? (
                           /* If onlyPatterns is true, the item.word is the pattern itself. Show child variations grouped under it */
@@ -2811,11 +2811,11 @@ export default function StatisticsPage({
                             const childWords = getChildWordsForPattern(item.word);
                             return childWords.length > 0 ? (
                               <div className="flex flex-wrap gap-1 max-w-[150px]">
-                                <span className="text-[9px] text-zinc-450 dark:text-zinc-500 block w-full">варианты:</span>
+                                <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block w-full">варианты:</span>
                                 {childWords.map((child, cIdx) => (
                                   <span
                                     key={`${child}-${cIdx}`}
-                                    className="bg-teal-50 dark:bg-teal-950/20 text-teal-650 dark:text-teal-400 text-[9px] px-1.5 py-0.5 rounded border border-teal-150 dark:border-teal-900 font-medium"
+                                    className="bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 text-[9px] px-1.5 py-0.5 rounded border border-teal-100 dark:border-teal-900 font-medium"
                                   >
                                     {child}
                                   </span>
@@ -2830,8 +2830,8 @@ export default function StatisticsPage({
                           (() => {
                             const parent = getParentWord(item.word);
                             return parent ? (
-                              <div className="inline-flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-955 border border-zinc-200/60 dark:border-zinc-800/80 px-2 py-1 rounded-lg">
-                                <span className="font-semibold text-zinc-705 dark:text-zinc-350 capitalize">
+                              <div className="inline-flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 px-2 py-1 rounded-lg">
+                                <span className="font-semibold text-zinc-700 dark:text-zinc-300 capitalize">
                                   {parent}
                                 </span>
                                 <button
@@ -2857,7 +2857,7 @@ export default function StatisticsPage({
                             type="text"
                             value={editTranslationValue}
                             onChange={(e) => setEditTranslationValue(e.target.value)}
-                            className="w-full bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-850 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                           />
                         ) : (
                           <span className="truncate block max-w-xs" title={item.translation}>{item.translation}</span>
@@ -2873,7 +2873,7 @@ export default function StatisticsPage({
                               value={editGrammarValue}
                               onChange={(e) => setEditGrammarValue(e.target.value)}
                               placeholder="часть речи"
-                              className="bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-850 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                              className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                             />
                             <span className="font-mono text-[9px] text-zinc-400 self-start">
                               {item.ipa || "/.../"}
@@ -2912,7 +2912,7 @@ export default function StatisticsPage({
                                 }
                               }}
                               onBlur={() => setEditingWordDate(null)}
-                              className="bg-white dark:bg-zinc-955 border border-zinc-250 dark:border-zinc-800 rounded px-1.5 py-1 text-xs font-mono text-zinc-850 dark:text-zinc-150 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                              className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-1 text-xs font-mono text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                               autoFocus
                             />
                             <button
@@ -2926,7 +2926,7 @@ export default function StatisticsPage({
                         ) : (
                           <div 
                             onClick={() => setEditingWordDate(item.word)}
-                            className="inline-flex items-center justify-center gap-1 bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-955 dark:hover:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 hover:border-teal-400 hover:text-teal-600 dark:hover:border-teal-400 px-2 py-1 rounded-lg transition-all active:scale-95 cursor-pointer group"
+                            className="inline-flex items-center justify-center gap-1 bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 hover:border-teal-400 hover:text-teal-600 dark:hover:border-teal-400 px-2 py-1 rounded-lg transition-all active:scale-95 cursor-pointer group"
                             title="Изменить дату сохранения для статистики"
                           >
                             <span>
@@ -2946,7 +2946,7 @@ export default function StatisticsPage({
                           onChange={(e) => onUpdateStatus(item.word, e.target.value as WordStatus, selectedStatsLang)}
                           className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg border focus:outline-none ${
                             isSavesKnown
-                              ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-250"
+                              ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200"
                               : "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200"
                           }`}
                         >
@@ -2976,7 +2976,7 @@ export default function StatisticsPage({
                             <button
                               type="button"
                               onClick={() => setEditingWord(null)}
-                              className="p-1 px-1.5 text-zinc-500 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-805 dark:hover:bg-zinc-700 dark:text-zinc-355 rounded-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center"
+                              className="p-1 px-1.5 text-zinc-500 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 rounded-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center"
                               title="Отменить редактирование"
                             >
                               <X className="w-3.5 h-3.5" />
@@ -3012,7 +3012,7 @@ export default function StatisticsPage({
 
           {/* Pagination and Rows Selection Controls */}
           {processedVocabularyList.length > 25 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-150 dark:border-zinc-805 rounded-xl animate-in fade-in duration-150">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-xl animate-in fade-in duration-150">
               <div className="flex items-center gap-3">
                 <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
                   Показывать по:
@@ -3024,7 +3024,7 @@ export default function StatisticsPage({
                       setItemsPerPage(Number(e.target.value));
                       setCurrentPage(1);
                     }}
-                    className="cursor-pointer bg-white dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-lg px-2.5 py-1.5 pr-8 text-xs font-black select-none focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none shadow-4xs"
+                    className="cursor-pointer bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-lg px-2.5 py-1.5 pr-8 text-xs font-black select-none focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none shadow-4xs"
                   >
                     <option value="25">25</option>
                     <option value="50">50</option>
@@ -3048,7 +3048,7 @@ export default function StatisticsPage({
                     type="button"
                     disabled={safeCurrentPage === 1}
                     onClick={() => setCurrentPage(safeCurrentPage - 1)}
-                    className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-805 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
+                    className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
                   >
                     Назад
                   </button>
@@ -3062,7 +3062,7 @@ export default function StatisticsPage({
                       className={`cursor-pointer w-8 h-8 flex items-center justify-center rounded-lg text-xs font-black transition-all ${
                         safeCurrentPage === p
                           ? "bg-teal-600 border border-teal-600 text-white shadow-xs"
-                          : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                       }`}
                     >
                       {p}
@@ -3074,7 +3074,7 @@ export default function StatisticsPage({
                     type="button"
                     disabled={safeCurrentPage === totalPages}
                     onClick={() => setCurrentPage(safeCurrentPage + 1)}
-                    className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-805 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
+                    className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
                   >
                     Вперед
                   </button>
@@ -3084,7 +3084,7 @@ export default function StatisticsPage({
           )}
           </>
         ) : (
-          <div className="bg-zinc-50 dark:bg-zinc-950 border border-dashed border-zinc-250 dark:border-zinc-805 p-8 text-center rounded-xl space-y-2">
+          <div className="bg-zinc-50 dark:bg-zinc-950 border border-dashed border-zinc-200 dark:border-zinc-800 p-8 text-center rounded-xl space-y-2">
             <FileText className="w-8 h-8 text-zinc-300 mx-auto" aria-hidden="true" />
             <h5 className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">
               Словарь пуст
@@ -3102,7 +3102,7 @@ export default function StatisticsPage({
       {/* Custom Confirm Dialog Modal */}
       {confirmDialog && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 select-none">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 select-none">
             <h3 className="text-base font-black text-red-600 dark:text-red-400 tracking-tight flex items-center gap-2 mb-2 font-sans">
               <span>⚠️</span> {confirmDialog.title}
             </h3>
@@ -3118,7 +3118,7 @@ export default function StatisticsPage({
               <button
                 type="button"
                 onClick={() => setConfirmDialog(null)}
-                className="cursor-pointer bg-zinc-100 hover:bg-zinc-205 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-300 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all"
+                className="cursor-pointer bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all"
               >
                 Отмена
               </button>

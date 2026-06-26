@@ -36,7 +36,7 @@ export default function ContextSearchResults({
   const resultsBody = (
     <div className={`space-y-2 ${compact ? "" : "max-h-72 overflow-y-auto"}`}>
       {!compact && !embedded && (
-        <p className="text-[10px] text-zinc-500 dark:text-zinc-450 leading-relaxed pt-1.5">
+        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-relaxed pt-1.5">
           Все вхождения «{query}» в загруженных текстах — не только в словаре.
         </p>
       )}
@@ -49,8 +49,8 @@ export default function ContextSearchResults({
           disabled={!onOpenLesson}
           className={`w-full text-left p-2 rounded-lg border transition-colors ${
             onOpenLesson
-              ? "cursor-pointer hover:bg-teal-50/60 dark:hover:bg-teal-950/20 border-zinc-200/60 dark:border-zinc-805/60 hover:border-teal-200 dark:hover:border-teal-900/50"
-              : "cursor-default border-zinc-200/40 dark:border-zinc-805/40"
+              ? "cursor-pointer hover:bg-teal-50/60 dark:hover:bg-teal-950/20 border-zinc-200/60 dark:border-zinc-800/60 hover:border-teal-200 dark:hover:border-teal-900/50"
+              : "cursor-default border-zinc-200/40 dark:border-zinc-800/40"
           } ${hit.lessonId === currentLessonId ? "bg-teal-50/30 dark:bg-teal-950/10" : "bg-white/70 dark:bg-zinc-900/40"}`}
         >
           <div className="flex items-center gap-1.5 mb-1">
@@ -64,7 +64,7 @@ export default function ContextSearchResults({
               </span>
             )}
           </div>
-          <p className="text-[11px] text-zinc-650 dark:text-zinc-350 italic leading-relaxed">
+          <p className="text-[11px] text-zinc-600 dark:text-zinc-300 italic leading-relaxed">
             &ldquo;
             {highlightMatchInSentence(hit.sentence, hit.matchedForm).map((seg, segIdx) =>
               seg.isMatch ? (
@@ -100,13 +100,13 @@ export default function ContextSearchResults({
   }
 
   return (
-    <div className="border border-zinc-150 dark:border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-50/40 dark:bg-zinc-955/20">
+    <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-50/40 dark:bg-zinc-950/20">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
         className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
       >
-        <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-505 font-extrabold font-sans flex items-center gap-1.5">
+        <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-500 font-extrabold font-sans flex items-center gap-1.5">
           <BookOpen className="w-3 h-3" />
           Контекстный поиск по вашим книгам
           <span className="text-teal-600 dark:text-teal-400 normal-case tracking-normal font-black">

@@ -323,14 +323,14 @@ export default function SettingsModal({
       <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
         
         {/* Modal Header */}
-        <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-955/40">
+        <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/40">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-teal-50 dark:bg-teal-950/50 rounded-xl text-teal-600 dark:text-teal-400">
               <Globe className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.2.5</span>
+                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.2.6</span>
               </h3>
               <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed">
                 Настройте масштаб интерфейса, управляйте связями слов и визуальным оформлением флагов.
@@ -339,7 +339,7 @@ export default function SettingsModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-250 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
             title="Закрыть"
           >
             <X className="w-5 h-5" />
@@ -347,12 +347,12 @@ export default function SettingsModal({
         </div>
 
         {/* Modal Tabs Header */}
-        <div className="flex border-b border-zinc-150 dark:border-zinc-800 bg-zinc-55 dark:bg-zinc-950/30 px-6 select-none shrink-0 gap-1 overflow-x-auto">
+        <div className="flex border-b border-zinc-100 dark:border-zinc-800 bg-zinc-55 dark:bg-zinc-950/30 px-6 select-none shrink-0 gap-1 overflow-x-auto">
           <button
             onClick={() => setActiveSettingsTab("flags")}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
               activeSettingsTab === "flags"
-                ? "text-teal-650 dark:text-teal-400 border-teal-500 font-black"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
@@ -362,7 +362,7 @@ export default function SettingsModal({
             onClick={() => setActiveSettingsTab("interface")}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
               activeSettingsTab === "interface"
-                ? "text-teal-650 dark:text-teal-400 border-teal-500 font-black"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
@@ -372,7 +372,7 @@ export default function SettingsModal({
             onClick={() => setActiveSettingsTab("patterns")}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
               activeSettingsTab === "patterns"
-                ? "text-teal-650 dark:text-teal-400 border-teal-500 font-black"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
@@ -386,7 +386,7 @@ export default function SettingsModal({
             }}
             className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
               activeSettingsTab === "storage"
-                ? "text-teal-650 dark:text-teal-400 border-teal-500 font-black"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
@@ -421,7 +421,7 @@ export default function SettingsModal({
                           {renderFlagImg(currentFlag, 40)}
                         </span>
                         <div>
-                          <h4 className="text-sm font-extrabold text-zinc-800 dark:text-zinc-250">
+                          <h4 className="text-sm font-extrabold text-zinc-800 dark:text-zinc-200">
                             {lang}
                           </h4>
                           <p className="text-[10px] text-zinc-400 font-medium">
@@ -437,7 +437,7 @@ export default function SettingsModal({
                           <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
                             Выберите быстрый пресет флага:
                           </span>
-                          <div className="flex flex-wrap gap-1.5 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-150/50 dark:border-zinc-800/60 max-h-[110px] overflow-y-auto">
+                          <div className="flex flex-wrap gap-1.5 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/50 dark:border-zinc-800/60 max-h-[110px] overflow-y-auto">
                             {FLAG_PRESETS.map((preset) => {
                               const isSelected = currentFlag === preset;
                               return (
@@ -451,7 +451,7 @@ export default function SettingsModal({
                                   className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-base bg-white dark:bg-zinc-900 border select-none transition-all active:scale-95 cursor-pointer ${
                                     isSelected 
                                       ? "ring-2 ring-teal-500 border-teal-500 bg-teal-50 dark:bg-teal-950 scale-110" 
-                                      : "border-zinc-250 dark:border-zinc-800 opacity-80 hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                                      : "border-zinc-200 dark:border-zinc-800 opacity-80 hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-800"
                                   }`}
                                   title={`Assign flag ${preset}`}
                                 >
@@ -473,7 +473,7 @@ export default function SettingsModal({
                               onChange={(e) => {
                                 setCustomInputs(prev => ({ ...prev, [langLower]: e.target.value }));
                               }}
-                              className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500"
+                              className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500"
                             />
                           </div>
                           <button
@@ -484,7 +484,7 @@ export default function SettingsModal({
                                 onSaveLanguageFlag(lang, customValue.trim());
                               }
                             }}
-                            className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-100 dark:disabled:bg-zinc-805 text-white disabled:text-zinc-400 font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer"
+                            className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-100 dark:disabled:bg-zinc-800 text-white disabled:text-zinc-400 font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5" /> Применить
                           </button>
@@ -501,37 +501,37 @@ export default function SettingsModal({
           {/* Active Tab: Interface Scale (Увеличение/Уменьшение интерфейса) */}
           {activeSettingsTab === "interface" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-150/60 dark:border-zinc-800 space-y-5">
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-5">
                 <div className="flex items-start gap-3">
-                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-650 dark:text-teal-400 shrink-0">
+                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
                     <Maximize2 className="w-5 h-5" />
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
                       Размер элементов интерфейса (Zoom)
                     </h4>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-450 mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
                       Управляйте масштабом приложения, чтобы сделать текст более читаемым или уместить на экране больше информации. Изменения применяются ко всему приложению мгновенно.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-4.5 rounded-2xl border border-zinc-150 dark:border-zinc-800">
+                <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-4.5 rounded-2xl border border-zinc-100 dark:border-zinc-800">
                   <div className="space-y-1">
                     <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
                       Активный масштаб:
                     </span>
-                    <span className="text-base font-black text-teal-650 dark:text-teal-400 flex items-center gap-2">
+                    <span className="text-base font-black text-teal-600 dark:text-teal-400 flex items-center gap-2">
                       {zoomScale}% {zoomScale === 100 && <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">(Рекомендуемый)</span>}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2.5 select-none text-zinc-700 dark:text-zinc-250">
+                  <div className="flex items-center gap-2.5 select-none text-zinc-700 dark:text-zinc-200">
                     <button
                       type="button"
                       onClick={() => onZoomScaleChange(Math.max(70, zoomScale - 10))}
                       disabled={zoomScale <= 70}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-750 disabled:opacity-40 cursor-pointer transition-all"
+                      className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 cursor-pointer transition-all"
                       title="Уменьшить масштаб на 10%"
                     >
                       －
@@ -539,7 +539,7 @@ export default function SettingsModal({
                     <button
                       type="button"
                       onClick={() => onZoomScaleChange(100)}
-                      className="px-3 py-2 rounded-xl border border-zinc-250 dark:border-zinc-800 text-[10px] font-black uppercase tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-950/40 transition-all cursor-pointer text-zinc-500"
+                      className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[10px] font-black uppercase tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-950/40 transition-all cursor-pointer text-zinc-500"
                     >
                       Сброс
                     </button>
@@ -547,7 +547,7 @@ export default function SettingsModal({
                       type="button"
                       onClick={() => onZoomScaleChange(Math.min(150, zoomScale + 10))}
                       disabled={zoomScale >= 150}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-750 disabled:opacity-40 cursor-pointer transition-all"
+                      className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 cursor-pointer transition-all"
                       title="Увеличить масштаб на 10%"
                     >
                       ＋
@@ -570,8 +570,8 @@ export default function SettingsModal({
                           onClick={() => onZoomScaleChange(scale)}
                           className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-650 dark:text-teal-400 font-extrabold'
-                              : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805'
+                              ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-600 dark:text-teal-400 font-extrabold'
+                              : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                           }`}
                         >
                           {scale}% {scale === 100 && "•"}
@@ -583,7 +583,7 @@ export default function SettingsModal({
 
                 {/* Width Selector setting */}
                 {layoutWidthMode && onLayoutWidthModeChange && (
-                  <div className="border-t border-zinc-150/60 dark:border-zinc-800 pt-5 space-y-3">
+                  <div className="border-t border-zinc-100/60 dark:border-zinc-800 pt-5 space-y-3">
                     <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
                       Максимальная ширина интерфейса:
                     </span>
@@ -601,8 +601,8 @@ export default function SettingsModal({
                             onClick={() => onLayoutWidthModeChange(mode.id)}
                             className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                               isSelected
-                                ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-655 dark:text-teal-400 font-extrabold shadow-sm'
-                                : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805'
+                                ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-600 dark:text-teal-400 font-extrabold shadow-sm'
+                                : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                             }`}
                           >
                             <span className="text-xs font-bold leading-tight">{mode.label}</span>
@@ -615,8 +615,8 @@ export default function SettingsModal({
                 )}
 
                 {/* Simulated live container sample showing sizes */}
-                <div className="border border-dashed border-zinc-250 dark:border-zinc-800 rounded-2xl p-5 bg-white dark:bg-zinc-900/40 text-center space-y-3 shadow-inner">
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-150 dark:border-teal-900/40 uppercase tracking-widest font-mono">
+                <div className="border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 bg-white dark:bg-zinc-900/40 text-center space-y-3 shadow-inner">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/40 uppercase tracking-widest font-mono">
                     Живой пример масштабирования (Scale Live Preview)
                   </span>
                   <p className="text-zinc-800 dark:text-zinc-200 text-xs font-medium leading-relaxed max-w-sm mx-auto">
@@ -629,7 +629,7 @@ export default function SettingsModal({
               </div>
 
               {/* TTS Engine Selector */}
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-150/60 dark:border-zinc-800 space-y-4">
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
                 <div className="flex items-start gap-3">
                   <div className="p-2.5 bg-violet-50 dark:bg-violet-950/40 rounded-xl text-violet-600 dark:text-violet-400 shrink-0">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -643,7 +643,7 @@ export default function SettingsModal({
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
                       Движок озвучки слов (TTS)
                     </h4>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-450 mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
                       Выберите, каким голосом будут озвучиваться слова при нажатии на кнопку 🔊 в карточке слова.
                     </p>
                   </div>
@@ -682,7 +682,7 @@ export default function SettingsModal({
                                 {engine.badge}
                               </span>
                             </div>
-                            <p className="text-[11px] text-zinc-500 dark:text-zinc-450 mt-1 leading-relaxed">
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
                               {engine.desc}
                             </p>
                           </div>
@@ -803,7 +803,7 @@ export default function SettingsModal({
                                   className={`text-left px-3 py-2 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer ${
                                     isSel
                                       ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 font-black"
-                                      : "border-zinc-150 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30 text-zinc-600 dark:text-zinc-300 hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50/50"
+                                      : "border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30 text-zinc-600 dark:text-zinc-300 hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50/50"
                                   }`}
                                 >
                                   {loc.label}
@@ -818,16 +818,16 @@ export default function SettingsModal({
                 })()}
 
                 {/* AI Settings Section */}
-                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-150/60 dark:border-zinc-800 space-y-5">
+                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-5">
                   <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-650 dark:text-teal-400 shrink-0">
+                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
                       <Sparkles className="w-5 h-5" />
                     </div>
                     <div>
                       <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
                         Настройки ИИ (AI Provider)
                       </h4>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-450 mt-1.5 leading-relaxed">
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
                         Выберите, какую нейросеть использовать для перевода, объяснения грамматики, идиом и генерации историй.
                       </p>
                     </div>
@@ -849,7 +849,7 @@ export default function SettingsModal({
                           <span className={`text-sm font-black block ${ (settings?.aiProvider || "gemini") === "gemini" ? "text-teal-700 dark:text-teal-300" : "text-zinc-800 dark:text-zinc-100" }`}>
                             Gemini AI
                           </span>
-                          <p className="text-[10px] text-zinc-500 dark:text-zinc-450 mt-1 leading-normal">
+                          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 leading-normal">
                             Использует облачную модель Google Gemini.
                           </p>
                         </div>
@@ -871,7 +871,7 @@ export default function SettingsModal({
                           <span className={`text-sm font-black block ${ (settings?.aiProvider || "gemini") === "local" ? "text-teal-700 dark:text-teal-300" : "text-zinc-800 dark:text-zinc-100" }`}>
                             Локальный ИИ
                           </span>
-                          <p className="text-[10px] text-zinc-500 dark:text-zinc-450 mt-1 leading-normal">
+                          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 leading-normal">
                             Запросы отправляются на локальный Ollama сервер.
                           </p>
                         </div>
@@ -880,7 +880,7 @@ export default function SettingsModal({
                   </div>
 
                   {(settings?.aiProvider || "gemini") === "local" && (
-                    <div className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-805 space-y-4 shadow-3xs animate-in fade-in duration-150">
+                    <div className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-4 shadow-3xs animate-in fade-in duration-150">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
                           Адрес локального сервера (Ollama URL)
@@ -899,7 +899,7 @@ export default function SettingsModal({
                             }
                           }}
                           placeholder="http://localhost:11434/api/generate"
-                          className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-850 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                          className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
                         />
                       </div>
 
@@ -912,7 +912,7 @@ export default function SettingsModal({
                           value={settings?.localAiModel || "phi3.5"}
                           onChange={(e) => onSettingsChange?.({ localAiModel: e.target.value })}
                           placeholder="phi3.5"
-                          className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-850 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                          className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
                         />
                       </div>
                     </div>
@@ -920,16 +920,16 @@ export default function SettingsModal({
                 </div>
 
                 {/* Book Card Stats Section */}
-                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-150/60 dark:border-zinc-800 space-y-4">
+                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
                   <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-650 dark:text-teal-400 shrink-0">
+                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
                       <TrendingUp className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
                         Детальная статистика на карточках
                       </h4>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-455 mt-1.5 leading-relaxed">
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
                         Показывать раздельную статистику понимания (по общей массе слов) и словарного запаса (по уникальным леммам) на карточках книг.
                       </p>
                     </div>
@@ -967,8 +967,8 @@ export default function SettingsModal({
                           onClick={() => onSettingsChange?.({ mainStatsMetric: "comprehension" })}
                           className={`h-7 px-3 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                             (settings?.mainStatsMetric || "comprehension") === "comprehension"
-                              ? "bg-white dark:bg-zinc-805 text-teal-655 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                              : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-300"
+                              ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                           }`}
                           title="Показывать процент понимания по общей массе слов"
                         >
@@ -979,8 +979,8 @@ export default function SettingsModal({
                           onClick={() => onSettingsChange?.({ mainStatsMetric: "vocabulary" })}
                           className={`h-7 px-3 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                             settings?.mainStatsMetric === "vocabulary"
-                              ? "bg-white dark:bg-zinc-805 text-teal-655 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                              : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-300"
+                              ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                           }`}
                           title="Показывать процент уникального словарного запаса"
                         >
@@ -997,15 +997,15 @@ export default function SettingsModal({
           {/* Active Tab: Patterns & Word Links list with deletion */}
           {activeSettingsTab === "patterns" && (
             <div className="space-y-5 animate-in fade-in duration-200">
-              <div className="flex items-start gap-3 text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed bg-zinc-50 dark:bg-zinc-950/30 p-4.5 rounded-2xl border border-zinc-150/50 dark:border-zinc-805/40">
-                <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-650 dark:text-teal-400 shrink-0">
+              <div className="flex items-start gap-3 text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed bg-zinc-50 dark:bg-zinc-950/30 p-4.5 rounded-2xl border border-zinc-100/50 dark:border-zinc-800/40">
+                <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
                   <Link className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight mb-1">
                     Связи слов (Морфологические Паттерны)
                   </h4>
-                  <p className="text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-450">
+                  <p className="text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
                     Здесь вы можете увидеть и удалить ранее настроенные связи словоформ (например, <span className="font-mono bg-zinc-100 dark:bg-zinc-950 px-1 py-0.5 rounded">zorros ➔ zorro</span>). Связанные слова делят перевод и статистику, предотвращая дублирование в словаре.
                   </p>
                 </div>
@@ -1034,7 +1034,7 @@ export default function SettingsModal({
                   }
 
                   return (
-                    <div className="border border-zinc-150 dark:border-zinc-800/80 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900/40 max-h-[320px] overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900/40 max-h-[320px] overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
                       {languageSpecificLinks.map((key) => {
                         const targetKey = wordLinks[key];
                         if (!targetKey) return null;
@@ -1055,7 +1055,7 @@ export default function SettingsModal({
                           >
                             <div className="flex items-center gap-3">
                               {/* Language Icon Badge */}
-                              <span className="w-6.5 h-6.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-[13px] leading-none select-none border border-zinc-200 dark:border-zinc-750 overflow-hidden shadow-sm">
+                              <span className="w-6.5 h-6.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-[13px] leading-none select-none border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
                                 {renderFlagImg(flag, 16)}
                               </span>
                               
@@ -1064,7 +1064,7 @@ export default function SettingsModal({
                                   {srcWord}
                                 </span>
                                 <span className="text-zinc-400 font-bold shrink-0">➔</span>
-                                <span className="font-black text-teal-650 dark:text-teal-400 capitalize font-mono shrink-0">
+                                <span className="font-black text-teal-600 dark:text-teal-400 capitalize font-mono shrink-0">
                                   {dstWord}
                                 </span>
                               </div>
@@ -1108,7 +1108,7 @@ export default function SettingsModal({
                     className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                       storageMode === "local"
                         ? "border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/10 shadow-md scale-[1.02]"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-350 bg-white dark:bg-zinc-900/40"
+                        : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 bg-white dark:bg-zinc-900/40"
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -1120,7 +1120,7 @@ export default function SettingsModal({
                         <HardDrive className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-805 dark:text-white flex items-center gap-1.5">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white flex items-center gap-1.5">
                           Локальный браузер
                           {storageMode === "local" && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />}
                         </h4>
@@ -1142,19 +1142,19 @@ export default function SettingsModal({
                     className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                       storageMode === "server"
                         ? "border-sky-500 bg-sky-50/20 dark:bg-sky-950/10 shadow-md scale-[1.02]"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-sky-305 dark:hover:border-sky-905 bg-white dark:bg-zinc-900/40"
+                        : "border-zinc-200 dark:border-zinc-800 hover:border-sky-305 dark:hover:border-sky-900 bg-white dark:bg-zinc-900/40"
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <div className={`p-2 rounded-xl shrink-0 ${
                         storageMode === "server" 
-                          ? "bg-sky-100 dark:bg-sky-950 text-sky-650 dark:text-sky-450 animate-pulse"
+                          ? "bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 animate-pulse"
                           : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
                       }`}>
                         <Wifi className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-850 dark:text-white flex items-center gap-1.5">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white flex items-center gap-1.5">
                           По локальной сети (Wi-Fi)
                           {storageMode === "server" && <span className="w-2 h-2 bg-sky-500 rounded-full animate-ping" />}
                         </h4>
@@ -1170,14 +1170,14 @@ export default function SettingsModal({
                         </div>
                         
                         {activeUser ? (
-                          <div className="mt-3 pt-3 border-t border-zinc-150/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
+                          <div className="mt-3 pt-3 border-t border-zinc-100/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
                             <div className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
                               Авторизован как <span className="text-zinc-800 dark:text-zinc-200">{activeUser.displayName || activeUser.email}</span>
                             </div>
                           </div>
                         ) : (
-                          <div className="mt-3 pt-3 border-t border-zinc-150/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
-                            <label className="text-[9px] font-bold uppercase text-zinc-450 dark:text-zinc-500 block mb-1">
+                          <div className="mt-3 pt-3 border-t border-zinc-100/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
+                            <label className="text-[9px] font-bold uppercase text-zinc-400 dark:text-zinc-500 block mb-1">
                               Ключ авторизации (пароль)
                             </label>
                             <input
@@ -1196,7 +1196,7 @@ export default function SettingsModal({
                         )}
                       </div>
                     ) : (
-                      <div className="mt-3 text-[10px] font-medium text-zinc-450 dark:text-zinc-400">
+                      <div className="mt-3 text-[10px] font-medium text-zinc-400 dark:text-zinc-400">
                         Нажмите, чтобы включить
                       </div>
                     )}
@@ -1208,19 +1208,19 @@ export default function SettingsModal({
                     className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                       storageMode === "cloud"
                         ? "border-teal-500 bg-teal-50/20 dark:bg-teal-950/10 shadow-md scale-[1.02]"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-teal-355 bg-white dark:bg-zinc-900/40"
+                        : "border-zinc-200 dark:border-zinc-800 hover:border-teal-300 bg-white dark:bg-zinc-900/40"
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <div className={`p-2 rounded-xl shrink-0 ${
                         storageMode === "cloud" 
-                          ? "bg-teal-100 dark:bg-teal-950 text-teal-650 dark:text-teal-400"
+                          ? "bg-teal-100 dark:bg-teal-950 text-teal-600 dark:text-teal-400"
                           : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
                       }`}>
                         <Database className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-850 dark:text-white">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white">
                           Облако Google Firebase
                         </h4>
                         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
@@ -1229,7 +1229,7 @@ export default function SettingsModal({
                       </div>
                     </div>
                     {storageMode === "cloud" ? (
-                      <div className="mt-3 text-[10px] font-black uppercase text-teal-605 dark:text-teal-400 flex items-center gap-1">
+                      <div className="mt-3 text-[10px] font-black uppercase text-teal-600 dark:text-teal-400 flex items-center gap-1">
                         {firebaseUser ? (
                           <>
                             <Check className="w-3.5 h-3.5" /> Синхронизация: {firebaseUser.email}
@@ -1259,7 +1259,7 @@ export default function SettingsModal({
                 </div>
                 
                 <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">
-                  Вы можете скачать полную копию всей вашей библиотеки, словаря иностранных слов, связей и набранной статистики в виде одного файла резервной копии <span className="font-mono text-zinc-650 bg-zinc-100 dark:bg-zinc-950/50 px-1 py-0.5 rounded">.json</span>. Вы также можете в любой момент загрузить этот файл обратно, чтобы восстановить свой прогресс.
+                  Вы можете скачать полную копию всей вашей библиотеки, словаря иностранных слов, связей и набранной статистики в виде одного файла резервной копии <span className="font-mono text-zinc-600 bg-zinc-100 dark:bg-zinc-950/50 px-1 py-0.5 rounded">.json</span>. Вы также можете в любой момент загрузить этот файл обратно, чтобы восстановить свой прогресс.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1.5">
@@ -1267,7 +1267,7 @@ export default function SettingsModal({
                   <button
                     type="button"
                     onClick={handleExportDataLocal}
-                    className="flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 text-zinc-750 dark:text-zinc-200 border border-zinc-250 dark:border-zinc-750 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-xs rounded-xl transition duration-150 cursor-pointer shadow-3xs"
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-xs rounded-xl transition duration-150 cursor-pointer shadow-3xs"
                     title="Экспортировать базу на компьютер"
                   >
                     <Download className="w-4 h-4 text-teal-500" />
@@ -1286,7 +1286,7 @@ export default function SettingsModal({
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 text-zinc-755 dark:text-zinc-200 border border-zinc-250 dark:border-zinc-750 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-xs rounded-xl transition duration-150 cursor-pointer shadow-3xs"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-xs rounded-xl transition duration-150 cursor-pointer shadow-3xs"
                       title="Загрузить резервную копию с компьютера"
                     >
                       <Upload className="w-4 h-4 text-emerald-500" />
@@ -1298,7 +1298,7 @@ export default function SettingsModal({
                 {importStatus.type !== "idle" && (
                   <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${
                     importStatus.type === "success"
-                      ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-250 text-emerald-805 dark:text-emerald-305"
+                      ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 text-emerald-800 dark:text-emerald-305"
                       : "bg-red-50/50 dark:bg-red-950/20 border-red-250 text-red-805 dark:text-red-350"
                   }`}>
                     {importStatus.message}
@@ -1331,7 +1331,7 @@ export default function SettingsModal({
                     {wifiSyncPin ? (
                       <div className="p-2.5 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900 text-center rounded-xl space-y-1">
                         <span className="text-[10px] uppercase font-bold text-zinc-500 block">Ваш код Wi-Fi PIN:</span>
-                        <div className="text-2xl font-black tracking-widest text-teal-650 dark:text-teal-400 font-mono">
+                        <div className="text-2xl font-black tracking-widest text-teal-600 dark:text-teal-400 font-mono">
                           {wifiSyncPin}
                         </div>
                         <button
@@ -1340,7 +1340,7 @@ export default function SettingsModal({
                             navigator.clipboard.writeText(wifiSyncPin);
                             alert("Код скопирован в буфер обмена!");
                           }}
-                          className="text-[9px] text-teal-605 dark:text-teal-405 underline font-bold cursor-pointer"
+                          className="text-[9px] text-teal-600 dark:text-teal-400 underline font-bold cursor-pointer"
                         >
                           Скопировать код
                         </button>
@@ -1350,7 +1350,7 @@ export default function SettingsModal({
                         type="button"
                         disabled={wifiSyncLoading}
                         onClick={handleLocalWifiShare}
-                        className="w-full py-2 bg-zinc-900 hover:bg-zinc-850 dark:bg-zinc-100 dark:hover:bg-zinc-205 text-white dark:text-zinc-900 font-extrabold text-xs rounded-xl transition duration-150 cursor-pointer flex items-center justify-center gap-1.5"
+                        className="w-full py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-extrabold text-xs rounded-xl transition duration-150 cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${wifiSyncLoading ? "animate-spin" : ""}`} />
                         <span>{wifiSyncLoading ? "Подготовка..." : "Сгенерировать Код PIN"}</span>
@@ -1376,7 +1376,7 @@ export default function SettingsModal({
                         placeholder="000000"
                         value={inputWifiPin}
                         onChange={(e) => setInputWifiPin(e.target.value.replace(/\D/g, ""))}
-                        className="min-w-0 flex-1 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-750 text-zinc-800 dark:text-zinc-100 font-black text-sm rounded-lg text-center tracking-widest font-mono focus:outline-none focus:border-sky-500 bg-white"
+                        className="min-w-0 flex-1 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 font-black text-sm rounded-lg text-center tracking-widest font-mono focus:outline-none focus:border-sky-500 bg-white"
                       />
                       <button
                         type="button"
@@ -1393,7 +1393,7 @@ export default function SettingsModal({
                 {wifiSyncStatus.type !== "idle" && (
                   <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${
                     wifiSyncStatus.type === "success"
-                      ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-250 text-emerald-805 dark:text-emerald-305"
+                      ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 text-emerald-800 dark:text-emerald-305"
                       : "bg-red-50/50 dark:bg-red-950/20 border-red-250 text-red-805 dark:text-red-350"
                   }`}>
                     {wifiSyncStatus.message}
@@ -1443,7 +1443,7 @@ export default function SettingsModal({
                   </span>
                 </div>
                 
-                <p className="text-zinc-550 dark:text-zinc-400 text-[11px] leading-relaxed font-medium">
+                <p className="text-zinc-500 dark:text-zinc-400 text-[11px] leading-relaxed font-medium">
                   При нажатии на кнопку ниже ВСЕ ваши локально сохраненные материалы (уроки, слова в словаре, учебные связи и накопленная статистика) будут БЕЗВОЗВРАТНО стерты с этого компьютера. Рекомендуется сначала скачать копию в формате JSON.
                 </p>
 
@@ -1472,7 +1472,7 @@ export default function SettingsModal({
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="p-5 border-t border-zinc-150 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-955/20 shrink-0 select-none">
+        <div className="p-5 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/20 shrink-0 select-none">
           <div className="flex items-center gap-3.5">
             {activeSettingsTab === "flags" ? (
               <button
@@ -1494,12 +1494,12 @@ export default function SettingsModal({
                 onClick={() => {
                   onZoomScaleChange(100);
                 }}
-                className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-805 rounded-xl transition"
+                className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Сбросить масштаб (100%)
               </button>
             ) : activeSettingsTab === "storage" ? (
-              <div className="text-[10px] text-zinc-405 font-bold uppercase tracking-widest font-mono flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 px-2.5 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
+              <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest font-mono flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 px-2.5 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
                 Режим: <span className="text-teal-600 dark:text-teal-400 font-black">{storageMode === "cloud" ? "ОБЛАКО ☁️" : storageMode === "server" ? "СЕРВЕР 🖥️" : "ЛОКАЛЬНЫЙ 💻"}</span>
               </div>
             ) : (
@@ -1508,15 +1508,15 @@ export default function SettingsModal({
               </div>
             )}
 
-            <div className="text-[9px] bg-zinc-100/80 dark:bg-zinc-800 text-zinc-550 dark:text-zinc-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono">
-              v2.2.5
+            <div className="text-[9px] bg-zinc-100/80 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono">
+              v2.2.6
             </div>
           </div>
           
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 bg-zinc-900 hover:bg-zinc-850 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-5 py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Check className="w-4 h-4" /> Готово
           </button>

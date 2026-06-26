@@ -55,7 +55,7 @@ export default function StatsWidget({ stats }: StatsWidgetProps) {
 
       {/* Known Words */}
       <div className="bg-slate-50 dark:bg-zinc-900/60 p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex items-center gap-4 transition-all hover:scale-[1.01]">
-        <div className="p-3 rounded-xl bg-emerald-105 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 animate-none">
+        <div className="p-3 rounded-xl bg-emerald-100 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 animate-none">
           <CheckCircle2 className="w-5 h-5" />
         </div>
         <div>

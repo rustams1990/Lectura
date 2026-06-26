@@ -432,7 +432,7 @@ export default function VocabularyPractice({
       <div className="space-y-6 max-w-md mx-auto font-sans">
         {/* Language selector even when empty, so they can switch between decks! */}
         {activeDeckLanguages.length > 1 && (
-          <div className="flex bg-zinc-150 dark:bg-zinc-850 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
+          <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
             {activeDeckLanguages.map((lang) => (
               <button
                 key={lang}
@@ -443,8 +443,8 @@ export default function VocabularyPractice({
                 }}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   selectedPracticeLang.toLowerCase() === lang.toLowerCase()
-                    ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-xs"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-350"
+                    ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                 }`}
               >
                 {lang}
@@ -454,7 +454,7 @@ export default function VocabularyPractice({
         )}
 
         {/* Timeframe Filter Selector (Empty state) */}
-        <div className="flex bg-zinc-50 dark:bg-zinc-955/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-850/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
+        <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
           {[
             { id: "all", label: "Все время 📅" },
             { id: "today", label: "Сегодня ☀️" },
@@ -471,8 +471,8 @@ export default function VocabularyPractice({
               }}
               className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                 timeframeFilter === item.id
-                  ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-450 shadow-sm border border-zinc-150 dark:border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-350"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
             >
               {item.label}
@@ -485,7 +485,7 @@ export default function VocabularyPractice({
             <Bookmark className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-150">Ваша колода ({selectedPracticeLang}) пуста</h3>
+            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">Ваша колода ({selectedPracticeLang}) пуста</h3>
             <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
               Слова, которые вы отмечаете желтым/зеленым/красным цветом при чтении уроков {selectedPracticeLang}, автоматически попадают сюда. Начните чтение!
             </p>
@@ -501,7 +501,7 @@ export default function VocabularyPractice({
     }`}>
       {/* Language selector for active decks */}
       {activeDeckLanguages.length > 1 && (
-        <div id="deck-lang-tabs" className="flex bg-zinc-100 dark:bg-zinc-850 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
+        <div id="deck-lang-tabs" className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
           {activeDeckLanguages.map((lang) => (
             <button
               key={lang}
@@ -512,8 +512,8 @@ export default function VocabularyPractice({
               }}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 selectedPracticeLang.toLowerCase() === lang.toLowerCase()
-                  ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-350"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
             >
               {lang}
@@ -523,7 +523,7 @@ export default function VocabularyPractice({
       )}
 
       {/* Timeframe Filter Selector */}
-      <div className="flex bg-zinc-50 dark:bg-zinc-955/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-850/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
+      <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
         {[
           { id: "all", label: "Все время 📅" },
           { id: "today", label: "Сегодня ☀️" },
@@ -540,8 +540,8 @@ export default function VocabularyPractice({
             }}
             className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
               timeframeFilter === item.id
-                ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-450 shadow-sm border border-zinc-150 dark:border-zinc-800"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-350"
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
           >
             {item.label}
@@ -561,7 +561,7 @@ export default function VocabularyPractice({
                 className={`px-2 py-1 rounded-lg border text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
                   showList
                     ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900"
-                    : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-805 dark:border-zinc-800 text-zinc-550 dark:text-zinc-450"
+                    : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400"
                 }`}
               >
                 Список 📋
@@ -587,8 +587,8 @@ export default function VocabularyPractice({
                 }}
                 className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                   studyMode === "word"
-                    ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
-                    : "text-zinc-450 hover:text-zinc-700 dark:hover:text-zinc-350"
+                    ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
+                    : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
                 }`}
               >
                 Слово 🔤
@@ -601,8 +601,8 @@ export default function VocabularyPractice({
                 }}
                 className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                   studyMode === "image"
-                    ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
-                    : "text-zinc-450 hover:text-zinc-750 dark:hover:text-zinc-350"
+                    ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
+                    : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
                 }`}
               >
                 Картинка 🖼️
@@ -625,8 +625,8 @@ export default function VocabularyPractice({
               }}
               className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                 studyDirection === "forward"
-                  ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
-                  : "text-zinc-450 hover:text-zinc-750 dark:hover:text-zinc-350"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
               title="Изучаемое слово -> Перевод"
             >
@@ -640,8 +640,8 @@ export default function VocabularyPractice({
               }}
               className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                 studyDirection === "reverse"
-                  ? "bg-white dark:bg-zinc-900 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-800"
-                  : "text-zinc-450 hover:text-zinc-750 dark:hover:text-zinc-350"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
               title="Перевод -> Изучаемое слово"
             >
@@ -662,12 +662,12 @@ export default function VocabularyPractice({
               animate={{ opacity: 1, rotateY: 0, scale: 1 }}
               exit={{ opacity: 0, rotateY: 90, scale: 0.95 }}
               transition={{ duration: 0.25 }}
-              className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-850 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[365px]"
+              className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-800 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[365px]"
             >
               {isCardWithImage ? (
                 <>
                   <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold tracking-widest text-teal-605 dark:text-teal-400 uppercase">
+                    <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
                       Что это за слово? / Visual Prompt
                     </span>
                     <div className="flex items-center gap-2">
@@ -677,7 +677,7 @@ export default function VocabularyPractice({
                           e.stopPropagation();
                           setIsEditingWord(currentLq.word);
                         }}
-                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-250 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-550 dark:text-zinc-400 transition-all cursor-pointer"
+                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
                         title="Редактировать слово / Edit word"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -696,7 +696,7 @@ export default function VocabularyPractice({
                       />
                     </div>
                     <div className="mt-3.5 text-center">
-                      <span className="text-[10.5px] font-bold px-2.5 py-1 bg-teal-50/65 dark:bg-teal-955/20 text-teal-605 dark:text-teal-400 rounded-full border border-teal-100/30 dark:border-teal-900/10">
+                      <span className="text-[10.5px] font-bold px-2.5 py-1 bg-teal-50/65 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-full border border-teal-100/30 dark:border-teal-900/10">
                         Угадайте слово на {selectedPracticeLang}
                       </span>
                     </div>
@@ -709,7 +709,7 @@ export default function VocabularyPractice({
               ) : (
                 <>
                   <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold tracking-widest text-teal-605 dark:text-teal-405 uppercase">
+                    <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
                       {studyDirection === "forward" ? "Target Word" : "Translation / Перевод"}
                     </span>
                     <div className="flex items-center gap-2">
@@ -721,7 +721,7 @@ export default function VocabularyPractice({
                             playSpeech(currentLq.word);
                           }}
                           disabled={playingSpeech}
-                          className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-650 dark:text-teal-400 transition-all cursor-pointer ${
+                          className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
                             playingSpeech ? "animate-pulse" : ""
                           }`}
                           title="Прослушать слово (TTS)"
@@ -735,7 +735,7 @@ export default function VocabularyPractice({
                           e.stopPropagation();
                           setIsEditingWord(currentLq.word);
                         }}
-                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-250 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-550 dark:text-zinc-400 transition-all cursor-pointer"
+                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
                         title="Редактировать слово / Edit word"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -749,7 +749,7 @@ export default function VocabularyPractice({
                       {studyDirection === "forward" ? currentLq.word : currentLq.translation}
                     </h2>
                     {studyDirection === "forward" && currentLq.ipa && (
-                      <p className="font-mono text-sm text-teal-650 dark:text-teal-405 mt-2 font-semibold">
+                      <p className="font-mono text-sm text-teal-600 dark:text-teal-400 mt-2 font-semibold">
                         {currentLq.ipa}
                       </p>
                     )}
@@ -769,11 +769,11 @@ export default function VocabularyPractice({
               animate={{ opacity: 1, rotateY: 0, scale: 1 }}
               exit={{ opacity: 0, rotateY: -90, scale: 0.95 }}
               transition={{ duration: 0.25 }}
-              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-3xl p-8 flex flex-col justify-between shadow-lg h-full min-h-[365px] cursor-default"
+              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-lg h-full min-h-[365px] cursor-default"
               onClick={(e) => e.stopPropagation()} // don't flip back when clicking other buttons
             >
               <div className="space-y-4">
-                <div className="flex justify-between items-start pb-2.5 border-b border-zinc-100 dark:border-zinc-850">
+                <div className="flex justify-between items-start pb-2.5 border-b border-zinc-100 dark:border-zinc-800">
                   <div className="flex items-center gap-3">
                     {currentLq.imageUrl && (
                       <img
@@ -797,7 +797,7 @@ export default function VocabularyPractice({
                           playSpeech(currentLq.word);
                         }}
                         disabled={playingSpeech}
-                        className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-650 dark:text-teal-400 transition-all cursor-pointer ${
+                        className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
                           playingSpeech ? "animate-pulse" : ""
                         }`}
                         title="Прослушать слово (TTS)"
@@ -810,7 +810,7 @@ export default function VocabularyPractice({
                           e.stopPropagation();
                           setIsEditingWord(currentLq.word);
                         }}
-                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-250 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-550 dark:text-zinc-400 transition-all cursor-pointer"
+                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
                         title="Редактировать слово / Edit word"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -818,7 +818,7 @@ export default function VocabularyPractice({
                     </div>
                   </div>
                   {currentLq.grammar && (
-                    <span className="text-[10px] font-bold uppercase py-0.5 px-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-350 rounded">
+                    <span className="text-[10px] font-bold uppercase py-0.5 px-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded">
                       {currentLq.grammar}
                     </span>
                   )}
@@ -829,18 +829,18 @@ export default function VocabularyPractice({
                   <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
                     Translation
                   </span>
-                  <p className="text-base font-bold text-teal-650 dark:text-teal-400">
+                  <p className="text-base font-bold text-teal-600 dark:text-teal-400">
                     {currentLq.translation}
                   </p>
                 </div>
 
                 {/* Example sentence if exists */}
                 {currentLq.examples && currentLq.examples.length > 0 && (
-                  <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/75 dark:border-zinc-850">
+                  <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/75 dark:border-zinc-800">
                     <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
                       Context Example
                     </span>
-                    <p className="text-xs text-zinc-850 dark:text-zinc-200 font-medium leading-relaxed">
+                    <p className="text-xs text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed">
                       {currentLq.examples[0].text}
                     </p>
                     <p className="text-[10px] text-zinc-500 italic mt-0.5">
@@ -851,7 +851,7 @@ export default function VocabularyPractice({
               </div>
 
               {/* Action buttons on flip side */}
-              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-zinc-100 dark:border-zinc-850">
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <button
                   type="button"
                   id="btn-flashcard-keep-learning"
@@ -880,7 +880,7 @@ export default function VocabularyPractice({
       <div className="text-center space-y-4 pt-2">
         <button
           onClick={() => setIsFlipped(!isFlipped)}
-          className="text-xs text-teal-605 hover:text-teal-700 font-bold uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer select-none"
+          className="text-xs text-teal-600 hover:text-teal-700 font-bold uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer select-none"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           Click to flip card
@@ -898,15 +898,15 @@ export default function VocabularyPractice({
 
     {/* Right Word List Column */}
     {showList && (
-      <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-850 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
-        <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-850 mb-3">
-          <span className="text-[10px] font-black uppercase tracking-wider text-zinc-450 dark:text-zinc-500">
+      <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
+        <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-3">
+          <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
             Слова в колоде ({learningList.length})
           </span>
           <button
             type="button"
             onClick={() => setShowList(false)}
-            className="text-[10px] font-bold text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 cursor-pointer"
+            className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
           >
             Скрыть ×
           </button>
@@ -927,8 +927,8 @@ export default function VocabularyPractice({
                 }}
                 className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${
                   isActive
-                    ? "bg-teal-50 dark:bg-teal-955/35 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900 shadow-3xs"
-                    : "bg-zinc-50/50 hover:bg-zinc-100 dark:bg-zinc-955/20 dark:hover:bg-zinc-850/30 text-zinc-700 dark:text-zinc-355 border-zinc-150/50 dark:border-zinc-850/60"
+                    ? "bg-teal-50 dark:bg-teal-950/35 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900 shadow-3xs"
+                    : "bg-zinc-50/50 hover:bg-zinc-100 dark:bg-zinc-950/20 dark:hover:bg-zinc-800/30 text-zinc-700 dark:text-zinc-300 border-zinc-100/50 dark:border-zinc-800/60"
                 }`}
               >
                 <span className="capitalize truncate max-w-[160px]">{displayLabel}</span>
@@ -962,7 +962,7 @@ export default function VocabularyPractice({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: "spring", duration: 0.4 }}
-              className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl relative z-10 space-y-5 text-left"
+              className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl relative z-10 space-y-5 text-left"
             >
               {/* Header */}
               <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
@@ -975,7 +975,7 @@ export default function VocabularyPractice({
                 {!isGenerating && (
                   <button
                     onClick={() => setShowStoryGen(false)}
-                    className="p-1 text-zinc-400 hover:text-zinc-655 dark:hover:text-zinc-255 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer"
+                    className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -986,8 +986,8 @@ export default function VocabularyPractice({
                 /* Generating Loading State */
                 <div className="py-12 flex flex-col items-center justify-center space-y-4">
                   <div className="relative w-16 h-16 flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-full border-4 border-teal-100 dark:border-zinc-850" />
-                    <div className="absolute inset-0 rounded-full border-4 border-t-teal-600 dark:border-t-teal-450 animate-spin" />
+                    <div className="absolute inset-0 rounded-full border-4 border-teal-100 dark:border-zinc-800" />
+                    <div className="absolute inset-0 rounded-full border-4 border-t-teal-600 dark:border-t-teal-400 animate-spin" />
                     <Sparkles className="w-6 h-6 text-teal-600 dark:text-teal-400 animate-pulse" />
                   </div>
                   <div className="text-center space-y-1.5">
@@ -1016,7 +1016,7 @@ export default function VocabularyPractice({
                             setSelectedWords(learningList.map(lq => lq.word));
                           }
                         }}
-                        className="text-[9px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-405 dark:hover:text-teal-350 hover:underline cursor-pointer"
+                        className="text-[9px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline cursor-pointer"
                       >
                         {selectedWords.length === learningList.length ? "Сбросить все" : "Выбрать все"}
                       </button>
@@ -1026,7 +1026,7 @@ export default function VocabularyPractice({
                       {learningList.map((lq) => {
                         const isChecked = selectedWords.includes(lq.word);
                         return (
-                          <label key={lq.word} className="flex items-center gap-2 px-2 py-1.5 hover:bg-zinc-150/40 dark:hover:bg-zinc-800/40 rounded-lg cursor-pointer transition-colors text-xs font-semibold text-zinc-750 dark:text-zinc-250 select-none">
+                          <label key={lq.word} className="flex items-center gap-2 px-2 py-1.5 hover:bg-zinc-100/40 dark:hover:bg-zinc-800/40 rounded-lg cursor-pointer transition-colors text-xs font-semibold text-zinc-700 dark:text-zinc-200 select-none">
                             <input
                               type="checkbox"
                               checked={isChecked}
@@ -1052,7 +1052,7 @@ export default function VocabularyPractice({
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
                       Уровень сложности / Difficulty
                     </span>
-                    <div className="grid grid-cols-4 gap-1.5 bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-805/60 font-sans">
+                    <div className="grid grid-cols-4 gap-1.5 bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans">
                       {[
                         { id: "A1", label: "A1 (Beg)" },
                         { id: "A2", label: "A2 (Elem)" },
@@ -1065,8 +1065,8 @@ export default function VocabularyPractice({
                           onClick={() => setStoryLevel(lvl.id)}
                           className={`py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                             storyLevel === lvl.id
-                              ? "bg-white dark:bg-zinc-850 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                              : "text-zinc-500 hover:text-zinc-750 dark:hover:text-zinc-350"
+                              ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                              : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                           }`}
                         >
                           {lvl.id}
@@ -1084,7 +1084,7 @@ export default function VocabularyPractice({
                       <select
                         value={storyGenre}
                         onChange={(e) => setStoryGenre(e.target.value)}
-                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-250 dark:border-zinc-805 rounded-xl px-3 py-2.5 text-xs font-semibold text-zinc-850 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 cursor-pointer appearance-none shadow-4xs"
+                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-xs font-semibold text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 cursor-pointer appearance-none shadow-4xs"
                       >
                         <option value="general">Обычный рассказ (General)</option>
                         <option value="humor">Юмор / Комедия (Humor)</option>
@@ -1093,7 +1093,7 @@ export default function VocabularyPractice({
                         <option value="romance">Романтика (Romance)</option>
                         <option value="adventure">Приключение (Adventure)</option>
                       </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-450">
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-400">
                         <ChevronDown className="w-3.5 h-3.5" />
                       </div>
                     </div>
@@ -1101,7 +1101,7 @@ export default function VocabularyPractice({
 
                   {/* Error Notification */}
                   {genError && (
-                    <div className="text-xs text-rose-505 font-bold p-2.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/35 rounded-xl text-center">
+                    <div className="text-xs text-rose-500 font-bold p-2.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/35 rounded-xl text-center">
                       ⚠️ {genError}
                     </div>
                   )}
@@ -1133,19 +1133,19 @@ export default function VocabularyPractice({
           onClick={() => setIsEditingWord(null)}
         >
           <div 
-            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-3xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 animate-in zoom-in-95 duration-200 relative custom-scrollbar" 
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 animate-in zoom-in-95 duration-200 relative custom-scrollbar" 
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setIsEditingWord(null)}
-              className="absolute top-5 right-5 p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-250 transition-colors cursor-pointer z-10"
+              className="absolute top-5 right-5 p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer z-10"
               title="Закрыть"
             >
               <X className="w-5 h-5" />
             </button>
             <div className="pt-2 font-sans">
               {/* Language selection dropdown */}
-              <div className="flex justify-between items-center pb-3 border-b border-zinc-150 dark:border-zinc-800 mb-4 pr-8">
+              <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800 mb-4 pr-8">
                 <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Редактирование карточки</h3>
                 <div className="flex items-center gap-1.5 font-sans">
                   <span className="text-[10px] font-black uppercase text-zinc-400">Язык перевода:</span>

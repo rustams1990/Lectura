@@ -182,7 +182,7 @@ export default function AudioPlayer({
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-105">Аудиоплеер (Audio)</h4>
+            <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Аудиоплеер (Audio)</h4>
             {hasAudio && (
               <button
                 onClick={() => {
@@ -275,7 +275,7 @@ export default function AudioPlayer({
             </button>
             <button
               onClick={() => setError(null)}
-              className="px-2.5 py-1 bg-zinc-850 hover:bg-zinc-800 active:scale-95 text-zinc-300 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+              className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-800 active:scale-95 text-zinc-300 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
             >
               Dismiss
             </button>

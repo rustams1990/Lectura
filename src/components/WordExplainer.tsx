@@ -1327,13 +1327,13 @@ export default function WordExplainer({
                 {word}
               </h3>
               {!existingVocab && detectedPhrases && word && (detectedPhrases[word.toLowerCase()] || detectedPhrases[word]) && (
-                <span className="text-[8px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-705 dark:text-purple-400 border border-purple-200 dark:border-purple-900 px-1.5 py-0.5 rounded leading-none shrink-0 select-none animate-pulse">
+                <span className="text-[8px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-900 px-1.5 py-0.5 rounded leading-none shrink-0 select-none animate-pulse">
                   ИИ Рекомендует
                 </span>
               )}
             </div>
             {ipaValue && (
-              <span className="text-[10px] font-mono text-teal-605 dark:text-teal-405 font-semibold tracking-wider block mt-0.5">
+              <span className="text-[10px] font-mono text-teal-600 dark:text-teal-400 font-semibold tracking-wider block mt-0.5">
                 {ipaValue}
               </span>
             )}
@@ -1352,15 +1352,15 @@ export default function WordExplainer({
                   } else if (status === "ignored") {
                     badgeBg = "bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700";
                   } else if (status === "1") {
-                    badgeBg = "bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-955/20 dark:text-rose-400 dark:border-rose-900/40";
+                    badgeBg = "bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/40";
                   } else if (status === "2") {
-                    badgeBg = "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-955/20 dark:text-amber-400 dark:border-amber-900/40";
+                    badgeBg = "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/40";
                   } else if (status === "3") {
-                    badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-955/20 dark:text-emerald-400 dark:border-emerald-900/40";
+                    badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/40";
                   } else if (status === "4") {
-                    badgeBg = "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-955/20 dark:text-blue-400 dark:border-blue-900/40";
+                    badgeBg = "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/40";
                   } else if (status === "5") {
-                    badgeBg = "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-955/20 dark:text-purple-400 dark:border-purple-900/40";
+                    badgeBg = "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/40";
                   }
 
                   return (
@@ -1437,7 +1437,7 @@ export default function WordExplainer({
               }
             }
           }}
-          className="bg-zinc-100 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-300 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-zinc-200/55 dark:border-zinc-700/60 max-w-[120px] truncate cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-zinc-200/55 dark:border-zinc-700/60 max-w-[120px] truncate cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
         >
           <option value="">Word</option>
           {STANDARD_TAGS.map((tag) => (
@@ -1462,7 +1462,7 @@ export default function WordExplainer({
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             tagsOpen
               ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
-              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
           }`}
         >
           <Tag className="w-2.5 h-2.5" />
@@ -1481,7 +1481,7 @@ export default function WordExplainer({
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             imageOpen
               ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
-              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
           }`}
         >
           <Image className="w-2.5 h-2.5" />
@@ -1500,7 +1500,7 @@ export default function WordExplainer({
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             bookOpen
               ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
-              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
           }`}
         >
           <BookOpen className="w-2.5 h-2.5" />
@@ -1519,7 +1519,7 @@ export default function WordExplainer({
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             aiTabOpen
               ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
-              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
           }`}
         >
           <Sparkles className="w-2.5 h-2.5" />
@@ -1532,7 +1532,7 @@ export default function WordExplainer({
 
         {/* 1. Saved Meaning Container */}
         {!imageOpen && !bookOpen && !aiTabOpen && (
-          <div className="border border-zinc-150 dark:border-zinc-800/80 rounded-xl overflow-visible bg-zinc-50/40 dark:bg-zinc-950/20">
+          <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-visible bg-zinc-50/40 dark:bg-zinc-950/20">
           <button
             onClick={() => setSavedMeaningOpen(!savedMeaningOpen)}
             className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
@@ -1550,7 +1550,7 @@ export default function WordExplainer({
                   onBlur={handleSaveCustom}
                   placeholder="Type a new meaning here..."
                   rows={1}
-                  className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-750 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[34px]"
+                  className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[34px]"
                 />
                 {translationValue && translationValue !== "Pending translation" && !translationValue.startsWith("[") && (
                   <button
@@ -1570,9 +1570,9 @@ export default function WordExplainer({
                   <button
                     type="button"
                     onClick={() => setDictionariesOpen(!dictionariesOpen)}
-                    className="font-extrabold uppercase tracking-widest text-[8px] text-zinc-450 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
+                    className="font-extrabold uppercase tracking-widest text-[8px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
                   >
-                    <BookOpen className="w-2.5 h-2.5 text-teal-605/80" /> Dictionaries
+                    <BookOpen className="w-2.5 h-2.5 text-teal-600/80" /> Dictionaries
                   </button>
                   <button
                     type="button"
@@ -1607,15 +1607,15 @@ export default function WordExplainer({
                             setActiveDictName(dict.name);
                           }
                         }}
-                        className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805/40 hover:border-zinc-300 dark:hover:border-zinc-700 px-2 py-0.5 rounded-md text-[9px] font-bold text-zinc-650 dark:text-zinc-300 transition-all flex items-center gap-1 cursor-pointer"
+                        className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 px-2 py-0.5 rounded-md text-[9px] font-bold text-zinc-600 dark:text-zinc-300 transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <span>{dict.name}</span>
                         {dict.displayType === "popup" ? (
-                          <span className="text-[7px] text-teal-650 dark:text-teal-400 font-extrabold uppercase bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-100/50 dark:border-teal-900/10 font-sans">pop</span>
+                          <span className="text-[7px] text-teal-600 dark:text-teal-400 font-extrabold uppercase bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-100/50 dark:border-teal-900/10 font-sans">pop</span>
                         ) : dict.displayType === "window_popup" ? (
-                          <span className="text-[7px] text-amber-605 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">окно ⧉</span>
+                          <span className="text-[7px] text-amber-600 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">окно ⧉</span>
                         ) : (
-                          <span className="text-[7px] text-blue-605 dark:text-blue-450 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">tab ↗</span>
+                          <span className="text-[7px] text-blue-600 dark:text-blue-400 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">tab ↗</span>
                         )}
                       </button>
                     ))}
@@ -1624,19 +1624,19 @@ export default function WordExplainer({
               </div>
 
               {/* Word Variations Link (Pattern) integrated directly in Saved Meaning Card */}
-              <div className="space-y-1.5 pt-2 border-t border-zinc-150/40 dark:border-zinc-805/40 mt-1.5">
+              <div className="space-y-1.5 pt-2 border-t border-zinc-100/40 dark:border-zinc-800/40 mt-1.5">
                 <div className="flex items-center justify-between text-xs font-sans">
-                  <span className="font-extrabold uppercase tracking-widest text-[8.5px] text-zinc-405 dark:text-zinc-500 flex items-center gap-1">
+                  <span className="font-extrabold uppercase tracking-widest text-[8.5px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
                     🔗 Word Variations Link (Связь форм)
                   </span>
-                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-teal-50/70 dark:bg-teal-950/40 text-teal-650 dark:text-teal-400 font-mono">
+                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-teal-50/70 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 font-mono">
                     zorro ⇄ zorros
                   </span>
                 </div>
 
                 {isLinked ? (
                   <div className="flex items-center justify-between bg-white dark:bg-zinc-900 border border-zinc-200/55 dark:border-zinc-800 p-2 rounded-lg font-medium shadow-3xs">
-                    <p className="text-zinc-650 dark:text-zinc-350 text-[10.5px]">
+                    <p className="text-zinc-600 dark:text-zinc-300 text-[10.5px]">
                       Root: <strong className="text-teal-600 dark:text-teal-400 capitalize">{linkedParent}</strong>
                     </p>
                     <button
@@ -1654,7 +1654,7 @@ export default function WordExplainer({
                         placeholder="Base root (e.g. zorro)..."
                         value={parentWordInput}
                         onChange={(e) => setParentWordInput(e.target.value)}
-                        className="flex-1 px-2 py-1 text-[11px] bg-white dark:bg-zinc-905 border border-zinc-150 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        className="flex-1 px-2 py-1 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                       />
                       <button
                         onClick={() => {
@@ -1664,7 +1664,7 @@ export default function WordExplainer({
                           }
                         }}
                         disabled={!parentWordInput.trim()}
-                        className="px-2.5 py-1 bg-zinc-850 hover:bg-zinc-950 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-lg font-bold transition-colors disabled:opacity-50 text-[11px] shrink-0 cursor-pointer"
+                        className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-950 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-lg font-bold transition-colors disabled:opacity-50 text-[11px] shrink-0 cursor-pointer"
                       >
                         Link
                       </button>
@@ -1682,7 +1682,7 @@ export default function WordExplainer({
                                   setParentWordInput("");
                                 }
                               }}
-                              className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-905/60 flex justify-between items-center transition-colors cursor-pointer"
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-900/60 flex justify-between items-center transition-colors cursor-pointer"
                             >
                               <span className="font-bold text-zinc-800 dark:text-zinc-200 capitalize">
                                 {res.original}
@@ -1699,7 +1699,7 @@ export default function WordExplainer({
                     </div>
                     {suggestedLemmas.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5 pl-0.5">
-                        <span className="text-[9.5px] text-zinc-405 dark:text-zinc-500 font-extrabold uppercase font-sans">
+                        <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-extrabold uppercase font-sans">
                           💡 Suggestions (Подсказки):
                         </span>
                         {suggestedLemmas.map((lemma) => (
@@ -1710,7 +1710,7 @@ export default function WordExplainer({
                                 onSaveWordLink(word.toLowerCase(), lemma);
                               }
                             }}
-                            className="text-[9.5px] font-bold bg-teal-50/80 dark:bg-teal-950/35 hover:bg-teal-100 dark:hover:bg-teal-900/40 text-teal-605 dark:text-teal-400 px-1.5 py-0.5 rounded border border-teal-150/40 dark:border-teal-900/30 capitalize cursor-pointer font-sans transition-all active:scale-95"
+                            className="text-[9.5px] font-bold bg-teal-50/80 dark:bg-teal-950/35 hover:bg-teal-100 dark:hover:bg-teal-900/40 text-teal-600 dark:text-teal-400 px-1.5 py-0.5 rounded border border-teal-100/40 dark:border-teal-900/30 capitalize cursor-pointer font-sans transition-all active:scale-95"
                           >
                             {lemma}
                           </button>
@@ -1722,8 +1722,8 @@ export default function WordExplainer({
               </div>
 
               {/* Popular Meanings — merged into Saved Meaning card */}
-              <div className="space-y-1 pt-2.5 border-t border-zinc-150/40 dark:border-zinc-805/40 mt-1.5">
-                <span className="text-[8.5px] uppercase font-extrabold tracking-wider text-zinc-450 dark:text-zinc-500 flex items-center gap-1">
+              <div className="space-y-1 pt-2.5 border-t border-zinc-100/40 dark:border-zinc-800/40 mt-1.5">
+                <span className="text-[8.5px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
                   <Sparkles className="w-2.5 h-2.5 text-teal-500 animate-pulse" /> Popular Meanings
                 </span>
                 <div className="space-y-1 max-h-[170px] overflow-y-auto scrollbar-thin w-full">
@@ -1735,8 +1735,8 @@ export default function WordExplainer({
                         onClick={() => handleSelectPopularMeaning(meaning)}
                         className={`flex items-center justify-between p-1.5 rounded-lg text-[11px] font-medium transition-all group/row cursor-pointer ${
                           isSelected
-                            ? "bg-teal-50/80 dark:bg-teal-950/30 border border-teal-150 dark:border-teal-900 text-teal-800 dark:text-teal-300 font-bold shadow-3xs"
-                            : "bg-white dark:bg-zinc-900 border border-zinc-150/40 dark:border-zinc-805/40 hover:bg-zinc-100/50 dark:hover:bg-zinc-850 text-zinc-700 dark:text-zinc-350"
+                            ? "bg-teal-50/80 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-900 text-teal-800 dark:text-teal-300 font-bold shadow-3xs"
+                            : "bg-white dark:bg-zinc-900 border border-zinc-100/40 dark:border-zinc-800/40 hover:bg-zinc-100/50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                         }`}
                       >
                         <span className="leading-tight truncate pr-1 capitalize">{meaning}</span>
@@ -1744,7 +1744,7 @@ export default function WordExplainer({
                           className={`w-4 h-4 rounded flex items-center justify-center transition-colors shadow-3xs group-hover/row:scale-105 shrink-0 ${
                             isSelected
                               ? "bg-teal-600 text-white"
-                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-505 hover:bg-teal-605 hover:text-white"
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-teal-600 hover:text-white"
                           }`}
                         >
                           <Plus className="w-2.5 h-2.5" />
@@ -1755,7 +1755,7 @@ export default function WordExplainer({
                 </div>
 
                 {/* Translation Source Selector */}
-                <div className="space-y-1 pt-1.5 border-t border-zinc-150/40 dark:border-zinc-805/40 text-left shrink-0">
+                <div className="space-y-1 pt-1.5 border-t border-zinc-100/40 dark:border-zinc-800/40 text-left shrink-0">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 block pl-0.5">
                     Источник перевода (Source)
                   </span>
@@ -1766,7 +1766,7 @@ export default function WordExplainer({
                       className={`py-1 rounded-md transition-all cursor-pointer ${
                         translationSource === "ai"
                           ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-350"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
                     >
                       ✨ ИИ
@@ -1777,7 +1777,7 @@ export default function WordExplainer({
                       className={`py-1 rounded-md transition-all cursor-pointer ${
                         translationSource === "google"
                           ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-350"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
                     >
                       🌐 Google
@@ -1788,7 +1788,7 @@ export default function WordExplainer({
                       className={`py-1 rounded-md transition-all cursor-pointer ${
                         translationSource === "free_dictionary"
                           ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-350"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
                     >
                       📚 FreeDict
@@ -1799,7 +1799,7 @@ export default function WordExplainer({
                       className={`py-1 rounded-md transition-all cursor-pointer ${
                         translationSource === "wiktionary"
                           ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-350"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
                     >
                       📖 Wikt
@@ -1810,7 +1810,7 @@ export default function WordExplainer({
                       className={`py-1 rounded-md transition-all cursor-pointer ${
                         translationSource === "hybrid"
                           ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-350"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
                     >
                       🌐 Гибрид
@@ -1822,7 +1822,7 @@ export default function WordExplainer({
                   <button
                     type="button"
                     onClick={handleTranslate}
-                    className="w-full py-1.5 bg-gradient-to-r from-teal-500 to-teal-600 text-white font-bold text-[10.5px] rounded-lg shadow-3xs hover:shadow-2xs hover:from-teal-600 hover:to-teal-705 transition-all text-center flex items-center justify-center gap-1 cursor-pointer mt-1"
+                    className="w-full py-1.5 bg-gradient-to-r from-teal-500 to-teal-600 text-white font-bold text-[10.5px] rounded-lg shadow-3xs hover:shadow-2xs hover:from-teal-600 hover:to-teal-700 transition-all text-center flex items-center justify-center gap-1 cursor-pointer mt-1"
                   >
                     {translationSource === "ai" && <Sparkles className="w-3 h-3 animate-pulse" />}
                     {translationSource === "google" && <Languages className="w-3 h-3" />}
@@ -1847,13 +1847,13 @@ export default function WordExplainer({
         {/* Ask AI Section */}
         {aiTabOpen && (
           <div className="space-y-3 shrink-0 animate-in slide-in-from-top-1 duration-150">
-            <div className="border border-purple-100 dark:border-purple-900/50 rounded-xl overflow-visible bg-purple-50/10 dark:bg-purple-955/5">
+            <div className="border border-purple-100 dark:border-purple-900/50 rounded-xl overflow-visible bg-purple-50/10 dark:bg-purple-950/5">
               <button
                 type="button"
                 onClick={() => setAskAiOpen(!askAiOpen)}
-                className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-purple-50/20 dark:hover:bg-purple-955/10 transition-colors"
+                className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-purple-50/20 dark:hover:bg-purple-950/10 transition-colors"
               >
-                <span className="uppercase tracking-wider text-[9px] text-purple-650 dark:text-purple-405 font-black font-sans flex items-center gap-1">
+                <span className="uppercase tracking-wider text-[9px] text-purple-600 dark:text-purple-400 font-black font-sans flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-purple-500 animate-pulse" /> Спросить ИИ (Ask AI)
                 </span>
                 {askAiOpen ? <ChevronUp className="w-3 h-3 text-purple-400" /> : <ChevronDown className="w-3 h-3 text-purple-400" />}
@@ -1867,7 +1867,7 @@ export default function WordExplainer({
                       onChange={(e) => setCustomQuestion(e.target.value)}
                       placeholder="Задайте вопрос к тексту... (например: Почему здесь такая форма? Объясни грамматику. Что это значит?)"
                       rows={2}
-                      className="w-full p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-205 dark:border-zinc-805 rounded-lg text-zinc-750 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/80 transition-all font-medium custom-scrollbar resize-none"
+                      className="w-full p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/80 transition-all font-medium custom-scrollbar resize-none"
                     />
                   </div>
 
@@ -1876,21 +1876,21 @@ export default function WordExplainer({
                     <button
                       type="button"
                       onClick={() => handleAskAi("Объясни грамматику и форму слов")}
-                      className="px-2 py-1 bg-purple-50 dark:bg-purple-955/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
+                      className="px-2 py-1 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
                     >
                       📖 Объясни грамматику
                     </button>
                     <button
                       type="button"
                       onClick={() => handleAskAi("Что означает это выражение/идиома в данном контексте?")}
-                      className="px-2 py-1 bg-purple-50 dark:bg-purple-955/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
+                      className="px-2 py-1 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
                     >
                       💡 Разбери смысл/идиому
                     </button>
                     <button
                       type="button"
                       onClick={() => handleAskAi("Переведи дословно и объясни разницу")}
-                      className="px-2 py-1 bg-purple-50 dark:bg-purple-955/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
+                      className="px-2 py-1 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
                     >
                       ⚡ Переведи дословно
                     </button>
@@ -1925,7 +1925,7 @@ export default function WordExplainer({
                   {customAnswer && (
                     <div className="space-y-1.5 pt-2.5 border-t border-purple-100/30 dark:border-purple-900/20">
                       <div className="flex items-center justify-between">
-                        <span className="text-[8.5px] font-extrabold uppercase tracking-widest text-purple-650 dark:text-purple-405">Объяснение ИИ:</span>
+                        <span className="text-[8.5px] font-extrabold uppercase tracking-widest text-purple-600 dark:text-purple-400">Объяснение ИИ:</span>
                         <button
                           type="button"
                           onClick={handleSaveExplanation}
@@ -1939,7 +1939,7 @@ export default function WordExplainer({
                           value={customAnswer}
                           onChange={(e) => setCustomAnswer(e.target.value)}
                           rows={5}
-                          className="w-full p-2 text-xs bg-purple-50/15 dark:bg-purple-955/5 border border-purple-100/50 dark:border-purple-900/20 rounded-lg text-zinc-750 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/80 transition-all font-medium custom-scrollbar"
+                          className="w-full p-2 text-xs bg-purple-50/15 dark:bg-purple-950/5 border border-purple-100/50 dark:border-purple-900/20 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/80 transition-all font-medium custom-scrollbar"
                         />
                       </div>
                     </div>
@@ -1963,7 +1963,7 @@ export default function WordExplainer({
                       <p className="font-bold text-zinc-800 dark:text-zinc-200">
                         {ex.text}
                       </p>
-                      <p className="text-zinc-500 dark:text-zinc-450 italic">
+                      <p className="text-zinc-500 dark:text-zinc-400 italic">
                         {ex.translation}
                       </p>
                     </div>
@@ -1976,7 +1976,7 @@ export default function WordExplainer({
 
         {/* 2. Custom categorization tags panel (rendered when Tag+ is active) */}
         {!imageOpen && !bookOpen && !aiTabOpen && tagsOpen && (
-          <div className="p-2.5 bg-zinc-50/75 dark:bg-zinc-900/30 border border-zinc-205 dark:border-zinc-805 rounded-xl space-y-2 animate-in slide-in-from-top-1 duration-150">
+          <div className="p-2.5 bg-zinc-50/75 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2 animate-in slide-in-from-top-1 duration-150">
             <span className="text-[9px] uppercase font-extrabold text-zinc-400 dark:text-zinc-500 tracking-wider flex items-center gap-1">
               <Tag className="w-2.5 h-2.5 text-teal-600" /> Manage tags
             </span>
@@ -2006,7 +2006,7 @@ export default function WordExplainer({
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
                       isSelected
                         ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-900"
-                        : "bg-white dark:bg-zinc-900 text-zinc-505 border-zinc-200 dark:border-zinc-800/50"
+                        : "bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800/50"
                     }`}
                   >
                     <span>{tag}</span>
@@ -2035,7 +2035,7 @@ export default function WordExplainer({
               />
               <button
                 onClick={handleAddCustomTag}
-                className="px-2.5 py-0.5 bg-zinc-850 hover:bg-zinc-950 dark:bg-zinc-805 dark:hover:bg-zinc-755 text-white rounded-md text-[10.5px] font-bold shrink-0"
+                className="px-2.5 py-0.5 bg-zinc-800 hover:bg-zinc-950 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-md text-[10.5px] font-bold shrink-0"
               >
                 + Add
               </button>
@@ -2045,14 +2045,14 @@ export default function WordExplainer({
 
         {/* 2.5. Pictures search & selection (Lute Image Search Requirement) */}
         {imageOpen && (
-          <div className="p-2.5 bg-zinc-50/75 dark:bg-zinc-900/30 border border-zinc-205 dark:border-zinc-805 rounded-xl space-y-2.5 animate-in slide-in-from-top-1 duration-150 font-sans">
-            <span className="text-[9px] uppercase font-extrabold text-zinc-450 dark:text-zinc-500 tracking-wider flex items-center gap-1.5 pl-0.5">
-              <span className="text-teal-655">🖼️</span> Изображение слова (Word Image)
+          <div className="p-2.5 bg-zinc-50/75 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 animate-in slide-in-from-top-1 duration-150 font-sans">
+            <span className="text-[9px] uppercase font-extrabold text-zinc-400 dark:text-zinc-500 tracking-wider flex items-center gap-1.5 pl-0.5">
+              <span className="text-teal-600">🖼️</span> Изображение слова (Word Image)
             </span>
 
             {/* Selected Image Preview with delete handle */}
             {imageUrlValue ? (
-              <div className="relative group/img rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-150/20 dark:bg-zinc-900 max-h-32 flex items-center justify-center">
+              <div className="relative group/img rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100/20 dark:bg-zinc-900 max-h-32 flex items-center justify-center">
                 <img
                   src={imageUrlValue.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(imageUrlValue)}` : imageUrlValue}
                   alt={word || ""}
@@ -2070,7 +2070,7 @@ export default function WordExplainer({
                 </div>
               </div>
             ) : (
-              <div className="text-[10px] text-zinc-405 dark:text-zinc-500 leading-normal border border-dashed border-zinc-203 dark:border-zinc-805 p-2 text-center rounded-lg font-medium bg-white dark:bg-zinc-900/40">
+              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-normal border border-dashed border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-lg font-medium bg-white dark:bg-zinc-900/40">
                 Изображение не выбрано. Выберите ниже или вставьте картинку.
               </div>
             )}
@@ -2080,15 +2080,15 @@ export default function WordExplainer({
               <div
                 onPaste={handleClipboardPaste}
                 tabIndex={0}
-                className="p-1 px-1.5 border border-dashed border-zinc-350 dark:border-zinc-750 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-605 dark:hover:border-teal-850 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
+                className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
                 title="Click here, then press Ctrl+V (or Command+V) to paste any copied image from your clipboard!"
               >
-                <span className="font-extrabold uppercase text-[7.5px] text-zinc-405">Paste clipboard</span>
+                <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">Paste clipboard</span>
                 <span className="text-[9.5px] mt-0.5 font-bold">Нажмите и вставьте Ctrl+V</span>
               </div>
 
-              <label className="p-1 px-1.5 border border-dashed border-zinc-350 dark:border-zinc-750 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-550 cursor-pointer hover:border-teal-500 hover:text-teal-605 dark:hover:border-teal-850 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12">
-                <span className="font-extrabold uppercase text-[7.5px] text-zinc-405">File upload</span>
+              <label className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12">
+                <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">File upload</span>
                 <span className="text-[9.5px] mt-0.5 font-bold">Загрузить файл (Upload)</span>
                 <input
                   type="file"
@@ -2112,12 +2112,12 @@ export default function WordExplainer({
                     handleSearchImages(imageSearchKeyword);
                   }
                 }}
-                className="flex-1 px-2.5 py-1 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-800 rounded-lg text-zinc-850 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                className="flex-1 px-2.5 py-1 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
               />
               <button
                 type="button"
                 onClick={() => handleSearchImages(imageSearchKeyword)}
-                className="px-2.5 py-1 bg-zinc-805 hover:bg-zinc-905 dark:bg-zinc-805 dark:hover:bg-zinc-755 text-white rounded-md text-[11px] font-bold shrink-0 transition-colors cursor-pointer"
+                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-md text-[11px] font-bold shrink-0 transition-colors cursor-pointer"
               >
                 Поиск
               </button>
@@ -2125,15 +2125,15 @@ export default function WordExplainer({
 
             {/* Searched Results Horizontal Grid */}
             <div className="space-y-1 w-full">
-              <span className="text-[8.5px] uppercase font-extrabold tracking-widest text-zinc-450 dark:text-zinc-500">Результаты поиска Unsplash:</span>
+              <span className="text-[8.5px] uppercase font-extrabold tracking-widest text-zinc-400 dark:text-zinc-500">Результаты поиска Unsplash:</span>
               
               {imagesLoading ? (
-                <div className="py-4 flex items-center justify-center gap-2 text-zinc-450 dark:text-zinc-500 font-bold text-[10px]">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-655" />
+                <div className="py-4 flex items-center justify-center gap-2 text-zinc-400 dark:text-zinc-500 font-bold text-[10px]">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
                   <span>Ищем картинки...</span>
                 </div>
               ) : imageSearchError ? (
-                <div className="text-[10px] text-rose-550 py-1 font-bold text-center">
+                <div className="text-[10px] text-rose-500 py-1 font-bold text-center">
                   {imageSearchError}
                 </div>
               ) : imagesList.length > 0 ? (
@@ -2149,7 +2149,7 @@ export default function WordExplainer({
                         className={`relative aspect-square w-full rounded-md overflow-hidden border transition-all cursor-pointer hover:scale-103 group ${
                           isSelected
                             ? "ring-2 ring-teal-500 border-transparent shadow-xs"
-                            : "border-zinc-150 hover:border-zinc-400/80"
+                            : "border-zinc-100 hover:border-zinc-400/80"
                         }`}
                       >
                         <img
@@ -2166,7 +2166,7 @@ export default function WordExplainer({
                   })}
                 </div>
               ) : (
-                <div className="text-[10px] text-zinc-405 dark:text-zinc-500 text-center py-2 font-medium">
+                <div className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center py-2 font-medium">
                   Нет картинок. Попробуйте другой запрос.
                 </div>
               )}
@@ -2186,7 +2186,7 @@ export default function WordExplainer({
                 compact={false}
               />
             ) : (
-              <div className="text-zinc-400 dark:text-zinc-505 text-center py-10 text-[11px] font-medium border border-zinc-200 dark:border-zinc-800/60 rounded-xl bg-zinc-50/40 dark:bg-zinc-950/20 font-sans">
+              <div className="text-zinc-400 dark:text-zinc-500 text-center py-10 text-[11px] font-medium border border-zinc-200 dark:border-zinc-800/60 rounded-xl bg-zinc-50/40 dark:bg-zinc-950/20 font-sans">
                 📖 Вхождений в других книгах не найдено.
               </div>
             )}
@@ -2196,22 +2196,22 @@ export default function WordExplainer({
 
         {/* 4. Related Phrases Card */}
         {!imageOpen && !bookOpen && !aiTabOpen && sentence && (
-          <div className="border border-zinc-150 dark:border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-50/40 dark:bg-zinc-955/20">
+          <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-50/40 dark:bg-zinc-950/20">
             <button
               onClick={() => setRelatedPhrasesOpen(!relatedPhrasesOpen)}
               className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
             >
-              <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-505 font-extrabold font-sans">Context Sentence</span>
+              <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-500 font-extrabold font-sans">Context Sentence</span>
               {relatedPhrasesOpen ? <ChevronUp className="w-3 h-3 text-zinc-400" /> : <ChevronDown className="w-3 h-3 text-zinc-400" />}
             </button>
 
             {relatedPhrasesOpen && (
               <div className="p-2.5 pt-0 border-t border-zinc-100 dark:border-zinc-800">
-                <p className="text-[11px] text-zinc-650 dark:text-zinc-350 italic leading-relaxed pt-1.5">
+                <p className="text-[11px] text-zinc-600 dark:text-zinc-300 italic leading-relaxed pt-1.5">
                   &ldquo;{sentence}&rdquo;
                 </p>
                 {contextRelationValue && (
-                  <div className="mt-1.5 bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-805 p-1.5 rounded-lg text-[10px] text-zinc-505 dark:text-zinc-450 leading-normal font-medium">
+                  <div className="mt-1.5 bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800 p-1.5 rounded-lg text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal font-medium">
                     {contextRelationValue}
                   </div>
                 )}
@@ -2226,9 +2226,9 @@ export default function WordExplainer({
 
         {/* 7. Loader Status indicators when AI translates */}
         {!imageOpen && !bookOpen && !aiTabOpen && loading && (
-          <div className="p-6 bg-zinc-50 dark:bg-zinc-900/40 rounded-2xl border border-zinc-150 dark:border-zinc-800 flex flex-col items-center justify-center space-y-2">
+          <div className="p-6 bg-zinc-50 dark:bg-zinc-900/40 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center space-y-2">
             <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-450 font-bold animate-pulse">Running smart translation analysis...</p>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-bold animate-pulse">Running smart translation analysis...</p>
           </div>
         )}
 
@@ -2248,7 +2248,7 @@ export default function WordExplainer({
       </div>
 
       {/* Solid horizontal thick grey divider before actions footer */}
-      <hr className="border-t border-zinc-150 dark:border-zinc-800 my-1 shrink-0" />
+      <hr className="border-t border-zinc-100 dark:border-zinc-800 my-1 shrink-0" />
 
       {/* Sticky Bottom Actions Toolbar containing Trash, Ignore, 1, 2, 3, 4, Known */}
       <div className="flex items-center justify-between gap-1.5 pt-1 shrink-0 pb-1">
@@ -2257,7 +2257,7 @@ export default function WordExplainer({
         <button
           onClick={() => handleUpdateStatus("new")}
           title="Стереть слово (Wipe word status)"
-          className="w-8 h-8 border border-zinc-200 dark:border-zinc-805 hover:border-red-300 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-400 hover:text-rose-605 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-3xs shrink-0 active:scale-90"
+          className="w-8 h-8 border border-zinc-200 dark:border-zinc-800 hover:border-red-300 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-400 hover:text-rose-600 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-3xs shrink-0 active:scale-90"
         >
           <Trash2 className="w-4 h-4" />
         </button>
@@ -2268,8 +2268,8 @@ export default function WordExplainer({
           title="Игнорировать (Ignore word)"
           className={`w-8 h-8 border rounded-full flex items-center justify-center transition-all cursor-pointer shadow-3xs shrink-0 active:scale-95 ${
             status === "ignored"
-              ? "bg-zinc-805 border-zinc-700 text-white dark:bg-zinc-200 dark:border-zinc-300 dark:text-zinc-950 pointer-events-none"
-              : "border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-zinc-700 hover:border-zinc-300 dark:hover:text-zinc-200 dark:hover:border-zinc-705 hover:bg-zinc-50 dark:hover:bg-zinc-805"
+              ? "bg-zinc-800 border-zinc-700 text-white dark:bg-zinc-200 dark:border-zinc-300 dark:text-zinc-950 pointer-events-none"
+              : "border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-zinc-700 hover:border-zinc-300 dark:hover:text-zinc-200 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
           }`}
         >
           <Ban className="w-4 h-4" />
@@ -2284,7 +2284,7 @@ export default function WordExplainer({
             className={`w-7 h-7 rounded-full font-bold text-[11px] flex items-center justify-center border transition-all cursor-pointer active:scale-90 ${
               status === "1"
                 ? "bg-[#f3a4b0] text-rose-950 border-rose-300 font-extrabold shadow-sm pointer-events-none"
-                : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-rose-50 dark:hover:bg-rose-950/10 hover:text-rose-605"
+                : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-rose-50 dark:hover:bg-rose-950/10 hover:text-rose-600"
             }`}
           >
             1
@@ -2297,7 +2297,7 @@ export default function WordExplainer({
             className={`w-7 h-7 rounded-full font-bold text-[11px] flex items-center justify-center border transition-all cursor-pointer active:scale-90 ${
               status === "2"
                 ? "bg-[#f0d46d] text-amber-950 border-amber-305 font-extrabold shadow-sm pointer-events-none"
-                : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-amber-50 dark:hover:bg-amber-955/10 hover:text-amber-600"
+                : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-amber-50 dark:hover:bg-amber-950/10 hover:text-amber-600"
             }`}
           >
             2
@@ -2323,7 +2323,7 @@ export default function WordExplainer({
             className={`w-7 h-7 rounded-full font-bold text-[11px] flex items-center justify-center border transition-all cursor-pointer active:scale-90 ${
               status === "4"
                 ? "bg-[#99bce8] text-blue-950 border-blue-300 font-extrabold shadow-sm pointer-events-none"
-                : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-blue-50 dark:hover:bg-blue-955/10 hover:text-blue-600"
+                : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-blue-50 dark:hover:bg-blue-950/10 hover:text-blue-600"
             }`}
           >
             4
@@ -2362,10 +2362,10 @@ export default function WordExplainer({
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 pointer-events-auto font-sans text-left">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[85vh]">
             {/* Header */}
-            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-150 dark:border-zinc-850 flex items-center justify-between animate-none">
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between animate-none">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                <span className="text-xs font-black uppercase text-zinc-750 dark:text-zinc-300 tracking-wider">
+                <span className="text-xs font-black uppercase text-zinc-700 dark:text-zinc-300 tracking-wider">
                   Управление словарями (Manage Dictionaries)
                 </span>
               </div>
@@ -2388,13 +2388,13 @@ export default function WordExplainer({
               {(showAddForm || editingDict) ? (
                 <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-teal-500/20 dark:border-teal-500/10 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-teal-605 dark:text-teal-400 font-sans">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 font-sans">
                       {editingDict ? "Редактировать словарь" : "Добавить новый словарь"}
                     </h4>
                     <button
                       type="button"
                       onClick={handleCancelEditDict}
-                      className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-250 rounded cursor-pointer"
+                      className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -2402,7 +2402,7 @@ export default function WordExplainer({
 
                   <div className="space-y-2.5">
                     <div>
-                      <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-505 uppercase tracking-widest mb-1 font-sans">
+                      <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1 font-sans">
                         Название (Name)
                       </label>
                       <input
@@ -2410,12 +2410,12 @@ export default function WordExplainer({
                         value={dictFormName}
                         onChange={(e) => setDictFormName(e.target.value)}
                         placeholder="Например: Spanishdict, WordReference..."
-                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl text-zinc-850 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-505 uppercase tracking-widest mb-1 font-sans">
+                      <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1 font-sans">
                         Шаблон ссылки (URL Template)
                       </label>
                       <input
@@ -2423,7 +2423,7 @@ export default function WordExplainer({
                         value={dictFormUrl}
                         onChange={(e) => setDictFormUrl(e.target.value)}
                         placeholder="https://example.com/search?q={word}"
-                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-805 rounded-xl text-zinc-850 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
+                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
                       />
                       <span className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1 block leading-relaxed font-sans">
                         Используйте плейсхолдер <code className="text-teal-600 dark:text-teal-400 font-mono font-bold">{`{word}`}</code> в ссылке. Он автоматически заменится на выделенное слово.
@@ -2431,7 +2431,7 @@ export default function WordExplainer({
                     </div>
 
                     <div>
-                      <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-505 uppercase tracking-widest mb-1.5 font-sans">
+                      <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5 font-sans">
                         Тип отображения (Display Type)
                       </label>
                       <div className="grid grid-cols-3 gap-2 font-sans">
@@ -2441,7 +2441,7 @@ export default function WordExplainer({
                           className={`py-2 px-1 rounded-xl border text-[11px] font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                             dictFormType === "new_tab"
                               ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/40 dark:border-teal-900/50 dark:text-teal-400 font-extrabold shadow-inner"
-                              : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-805 text-zinc-500 hover:text-zinc-750 dark:hover:text-zinc-300"
+                              : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                           }`}
                         >
                           <ExternalLink className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
@@ -2453,7 +2453,7 @@ export default function WordExplainer({
                           className={`py-2 px-1 rounded-xl border text-[11px] font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                             dictFormType === "popup"
                               ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/40 dark:border-teal-900/50 dark:text-teal-400 font-extrabold shadow-inner"
-                              : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-805 text-zinc-500 hover:text-zinc-750 dark:hover:text-zinc-300"
+                              : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                           }`}
                         >
                           <BookOpen className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
@@ -2465,7 +2465,7 @@ export default function WordExplainer({
                           className={`py-2 px-1 rounded-xl border text-[11px] font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                             dictFormType === "window_popup"
                               ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/40 dark:border-teal-900/50 dark:text-teal-400 font-extrabold shadow-inner"
-                              : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-805 text-zinc-500 hover:text-zinc-750 dark:hover:text-zinc-300"
+                              : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                           }`}
                         >
                           <AppWindow className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
@@ -2479,7 +2479,7 @@ export default function WordExplainer({
                     <button
                       type="button"
                       onClick={handleCancelEditDict}
-                      className="px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-805 text-zinc-650 dark:text-zinc-300 rounded-xl font-bold transition-colors text-xs cursor-pointer"
+                      className="px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold transition-colors text-xs cursor-pointer"
                     >
                       Отмена
                     </button>
@@ -2505,14 +2505,14 @@ export default function WordExplainer({
                         localStorage.setItem(activeStorageKey, JSON.stringify(defaults));
                       }
                     }}
-                    className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Сбросить по умолчанию</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowAddForm(true)}
-                    className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 border border-teal-150 dark:border-teal-900/30 cursor-pointer shadow-xs font-sans"
+                    className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 border border-teal-100 dark:border-teal-900/30 cursor-pointer shadow-xs font-sans"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Добавить новый словарь (Add Dictionary)</span>
@@ -2522,11 +2522,11 @@ export default function WordExplainer({
 
               {/* List of existing dictionaries */}
               <div className="space-y-2 font-sans">
-                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-455 dark:text-zinc-505">
+                <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                   Список словарей (Available Dictionaries)
                 </h4>
 
-                <div className="divide-y divide-zinc-150 dark:divide-zinc-800 border border-zinc-150 dark:border-zinc-805 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900">
+                <div className="divide-y divide-zinc-100 dark:divide-zinc-800 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900">
                   {dictionaries.map((dict) => (
                     <div
                       key={dict.id}
@@ -2534,19 +2534,19 @@ export default function WordExplainer({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-xs text-zinc-750 dark:text-zinc-250 truncate">
+                          <span className="font-extrabold text-xs text-zinc-700 dark:text-zinc-200 truncate">
                             {dict.name}
                           </span>
                           {dict.displayType === "popup" ? (
-                            <span className="text-[7.5px] text-teal-605 dark:text-teal-400 font-extrabold uppercase bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-100/50 dark:border-teal-900/10 font-sans">
+                            <span className="text-[7.5px] text-teal-600 dark:text-teal-400 font-extrabold uppercase bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-100/50 dark:border-teal-900/10 font-sans">
                               pop
                             </span>
                           ) : dict.displayType === "window_popup" ? (
-                            <span className="text-[7.5px] text-amber-605 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">
+                            <span className="text-[7.5px] text-amber-600 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">
                               окно ⧉
                             </span>
                           ) : (
-                            <span className="text-[7.5px] text-blue-605 dark:text-blue-400 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">
+                            <span className="text-[7.5px] text-blue-600 dark:text-blue-400 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">
                               tab ↗
                             </span>
                           )}
@@ -2560,7 +2560,7 @@ export default function WordExplainer({
                         <button
                           type="button"
                           onClick={() => handleStartEditDict(dict)}
-                          className="p-1 px-2 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-500 hover:text-teal-650 dark:hover:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-850 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                          className="p-1 px-2 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
                           title="Редактировать словарь"
                         >
                           <Edit className="w-3.5 h-3.5" />
@@ -2569,7 +2569,7 @@ export default function WordExplainer({
                         <button
                           type="button"
                           onClick={() => handleDeleteDictionary(dict.id)}
-                          className="p-1 px-2 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-405 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-50 dark:hover:bg-zinc-850 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                          className="p-1 px-2 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
                           title="Удалить словарь"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2590,7 +2590,7 @@ export default function WordExplainer({
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-150 dark:border-zinc-850 flex items-center justify-end px-5 shrink-0">
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end px-5 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -2615,7 +2615,7 @@ export default function WordExplainer({
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 pointer-events-auto font-sans text-left">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-150 dark:border-zinc-850 flex items-center justify-between">
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-teal-600 dark:text-teal-400 font-bold text-base">📖</span>
                 <span id="dict-modal-title" className="text-xs font-black uppercase text-zinc-500 dark:text-zinc-400 tracking-wider">
@@ -2627,7 +2627,7 @@ export default function WordExplainer({
                   href={activeDictUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-450 text-[10px] font-black uppercase rounded-lg transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 text-[10px] font-black uppercase rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   <span>Открыть в новом окне (Open Link) ↗</span>
                 </a>
@@ -2637,7 +2637,7 @@ export default function WordExplainer({
                     setActiveDictUrl(null);
                     setActiveDictName("");
                   }}
-                  className="p-1.5 text-zinc-505 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-lg bg-zinc-100 dark:bg-zinc-800 transition-colors cursor-pointer"
+                  className="p-1.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-lg bg-zinc-100 dark:bg-zinc-800 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>

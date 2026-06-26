@@ -668,9 +668,9 @@ export default function ImportLessonForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white dark:bg-zinc-900 border border-zinc-150 dark:border-zinc-805 rounded-3xl p-6 shadow-xl space-y-6 max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-150"
+      className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-6 shadow-xl space-y-6 max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-150"
     >
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-805">
+      <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl">
             <PlusCircle className="w-5 h-5 animate-pulse" />
@@ -687,7 +687,7 @@ export default function ImportLessonForm({
         <button
           type="button"
           onClick={onCancel}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805 transition-colors"
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -704,7 +704,7 @@ export default function ImportLessonForm({
             }}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === "youtube"
-                ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-xs"
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
             }`}
           >
@@ -719,7 +719,7 @@ export default function ImportLessonForm({
             }}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
               activeTab === "file"
-                ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-xs"
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
             }`}
           >
@@ -734,7 +734,7 @@ export default function ImportLessonForm({
             }}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === "url"
-                ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-xs"
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
             }`}
           >
@@ -749,18 +749,18 @@ export default function ImportLessonForm({
             }}
             className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === "standard"
-                ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-xs"
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
             }`}
           >
-            <FileText className="w-4 h-4 text-teal-550" />
+            <FileText className="w-4 h-4 text-teal-500" />
             Обычный текст
           </button>
         </div>
       )}
 
       {/* Language selections & Difficulty (Used for both) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-805">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block md:h-8 md:flex md:items-end">
             Язык изучения (Study)
@@ -770,7 +770,7 @@ export default function ImportLessonForm({
               id="sel-target-lang"
               value={targetLanguage}
               onChange={(e) => setTargetLanguage(e.target.value)}
-              className="flex-1 px-3 py-2 text-xs font-semibold bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-808 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              className="flex-1 px-3 py-2 text-xs font-semibold bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             >
               {LANGUAGES_SUPPORTED.map((lang) => (
                 <option key={lang} value={lang}>
@@ -783,8 +783,8 @@ export default function ImportLessonForm({
               onClick={handleRememberTargetLanguage}
               className={`px-3 py-2 text-xs font-bold rounded-xl border cursor-pointer transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0 ${
                 isTargetLanguageRemembered
-                  ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-350 dark:border-teal-900"
-                  : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-805 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400"
+                  ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900"
+                  : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
               }`}
               title="Запомнить язык изучения по умолчанию"
             >
@@ -816,8 +816,8 @@ export default function ImportLessonForm({
               onClick={handleRememberTranslationLanguage}
               className={`px-3 py-2 text-xs font-bold rounded-xl border cursor-pointer transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0 ${
                 isTranslationLanguageRemembered
-                  ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-350 dark:border-teal-900"
-                  : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-805 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400"
+                  ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900"
+                  : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
               }`}
               title="Запомнить язык перевода по умолчанию"
             >
@@ -835,7 +835,7 @@ export default function ImportLessonForm({
             id="sel-difficulty-level"
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value)}
-            className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-808 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+            className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           >
             <option value="">Не указана</option>
             <option value="A1">A1 (Начинающий)</option>
@@ -849,14 +849,14 @@ export default function ImportLessonForm({
       </div>
 
       {difficultyExplanation && (
-        <div className="text-xs bg-zinc-50 dark:bg-zinc-950 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-805 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="text-xs bg-zinc-50 dark:bg-zinc-950 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800 animate-in fade-in slide-in-from-top-1 duration-200">
           <span className="font-bold text-[10px] text-zinc-400 uppercase tracking-widest block mb-1">Обоснование уровня сложности</span>
-          <p className="text-zinc-650 dark:text-zinc-350 italic">"{difficultyExplanation}"</p>
+          <p className="text-zinc-600 dark:text-zinc-300 italic">"{difficultyExplanation}"</p>
         </div>
       )}
 
       {/* Lesson Type Selection */}
-      <div className="space-y-3 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-805">
+      <div className="space-y-3 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
             Тип материала / Ресурс (Source Type)
@@ -870,14 +870,14 @@ export default function ImportLessonForm({
                 setShowTypeCreator(true);
               }
             }}
-            className="text-[10px] text-teal-655 dark:text-teal-400 hover:underline font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+            className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
           >
             {showTypeCreator ? "Закрыть" : "+ Создать свой тип"}
           </button>
         </div>
 
         {showTypeCreator && (
-          <div className="p-3.5 bg-white dark:bg-zinc-900 border border-teal-150 dark:border-teal-900/10 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 border-dashed">
+          <div className="p-3.5 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-900/10 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 border-dashed">
             <h4 className="text-[11px] font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
               {editingType ? "Редактировать тип материала" : "Создать новый тип материала"}
             </h4>
@@ -924,7 +924,7 @@ export default function ImportLessonForm({
               <button
                 type="button"
                 onClick={handleSaveType}
-                className="px-4 py-2 bg-teal-655 hover:bg-teal-700 text-white font-heavy text-[10px] uppercase tracking-wider rounded-xl shadow-xs cursor-pointer active:scale-97 transition-all"
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-heavy text-[10px] uppercase tracking-wider rounded-xl shadow-xs cursor-pointer active:scale-97 transition-all"
               >
                 {editingType ? "Сохранить изменения" : "Создать и выбрать"}
               </button>
@@ -942,8 +942,8 @@ export default function ImportLessonForm({
                 key={type.id}
                 className={`flex items-center gap-1 p-0.5 rounded-xl border transition-all ${
                   isSelected
-                    ? "bg-teal-55 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-350 dark:border-teal-900 shadow-xs"
-                    : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-805 dark:border-zinc-800 text-zinc-650 dark:text-zinc-455"
+                    ? "bg-teal-55 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900 shadow-xs"
+                    : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                 }`}
               >
                 <button
@@ -959,7 +959,7 @@ export default function ImportLessonForm({
                     <button
                       type="button"
                       onClick={() => handleStartEditType(type)}
-                      className="p-1 text-zinc-400 hover:text-teal-655 dark:hover:text-teal-400 hover:bg-teal-50/80 dark:hover:bg-teal-900/20 rounded-md cursor-pointer transition-colors"
+                      className="p-1 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50/80 dark:hover:bg-teal-900/20 rounded-md cursor-pointer transition-colors"
                       title="Редактировать категорию"
                     >
                       <Pencil className="w-3 h-3" />
@@ -991,7 +991,7 @@ export default function ImportLessonForm({
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Вставьте ссылку на видео YouTube (напр., <span className="font-mono bg-zinc-150 dark:bg-zinc-800 px-1 py-0.5 rounded text-[10px]">https://www.youtube.com/watch?v=dQw4w9WgXcQ</span>). Скрипт мгновенно скачает дорожку субтитров на выбранном языке и автоматически подтянет заставку видео в качестве обложки книги!
+              Вставьте ссылку на видео YouTube (напр., <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[10px]">https://www.youtube.com/watch?v=dQw4w9WgXcQ</span>). Скрипт мгновенно скачает дорожку субтитров на выбранном языке и автоматически подтянет заставку видео в качестве обложки книги!
             </p>
           </div>
 
@@ -1032,16 +1032,16 @@ export default function ImportLessonForm({
           )}
 
           {canGenerateFallback && fallbackData && (
-            <div className="p-4 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-150 dark:border-teal-900/40 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="p-4 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
               <div className="flex items-center gap-3">
                 {fallbackData.coverUrl && (
                   <img src={fallbackData.coverUrl} className="w-10 h-14 object-cover rounded shadow-xs shrink-0" alt="Video cover" />
                 )}
                 <div className="space-y-0.5" id="fallback-box">
-                  <h5 className="font-bold text-teal-950 dark:text-teal-350 leading-snug">
+                  <h5 className="font-bold text-teal-950 dark:text-teal-300 leading-snug">
                     Найдено видео: "{fallbackData.title}"
                   </h5>
-                  <p className="text-[10px] text-zinc-650 dark:text-zinc-400 leading-normal max-w-md font-sans">
+                  <p className="text-[10px] text-zinc-600 dark:text-zinc-400 leading-normal max-w-md font-sans">
                     У этого видео нет встроенных субтитров (CC). Но не волнуйтесь! Наш искусственный интеллект (Gemini) может мгновенно сгенерировать увлекательный обучающий материал на выбранном языке (<strong>{targetLanguage}</strong>), вдохновленный темой этого видео!
                   </p>
                 </div>
@@ -1139,13 +1139,13 @@ export default function ImportLessonForm({
           )}
 
           {webSuccess && (
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/45 text-emerald-700 dark:text-emerald-350 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30 font-sans">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/45 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30 font-sans">
               {webSuccess}
             </div>
           )}
 
           {/* Bookmarklet Integration Box */}
-          <div className="mt-4 p-4 border border-teal-150/80 dark:border-teal-950/40 bg-teal-50/15 dark:bg-teal-950/10 rounded-2xl space-y-4">
+          <div className="mt-4 p-4 border border-teal-100/80 dark:border-teal-950/40 bg-teal-50/15 dark:bg-teal-950/10 rounded-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 font-bold" />
@@ -1153,7 +1153,7 @@ export default function ImportLessonForm({
                   Быстрый импорт с любого сайта (Букмарклет)
                 </span>
               </div>
-              <span className="text-[9px] bg-teal-100/60 dark:bg-teal-950/60 text-teal-700 dark:text-teal-350 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[9px] bg-teal-100/60 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full font-bold">
                 В один клик
               </span>
             </div>
@@ -1164,8 +1164,8 @@ export default function ImportLessonForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-0.5">
               {/* Option A: Open in new tab */}
-              <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl space-y-2">
-                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-350">
+              <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
+                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
                   Вариант 1: В новой вкладке (Рекомендуется)
                 </div>
                 <div className="flex items-center gap-2">
@@ -1178,27 +1178,27 @@ export default function ImportLessonForm({
                     📥 Импорт в Lectura (New Tab)
                   </a>
                 </div>
-                <p className="text-[10px] text-zinc-450 dark:text-zinc-500 font-sans leading-normal">
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-sans leading-normal">
                   Открывает очищенный текст в новой вкладке, оставляя исходную статью открытой в текущей вкладке.
                 </p>
               </div>
 
               {/* Option B: Open in same tab */}
-              <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl space-y-2">
-                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-350">
+              <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
+                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
                   Вариант 2: В текущей вкладке (Надёжный)
                 </div>
                 <div className="flex items-center gap-2">
                   <a
                     href={`javascript:(function(){var url=window.location.href;var appUrl='${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/';window.location.href=appUrl+'?import_url='+encodeURIComponent(url);})();`}
-                    className="px-3 py-1.5 bg-emerald-650 hover:bg-emerald-750 text-white font-heavy text-[11px] rounded-lg shadow-sm cursor-grab active:cursor-grabbing select-none hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-1 transition-all"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-heavy text-[11px] rounded-lg shadow-sm cursor-grab active:cursor-grabbing select-none hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-1 transition-all"
                     title="Перетащите меня на panel закладок"
                   >
                     <Globe className="w-3.5 h-3.5" />
                     📥 Импорт в Lectura (Same Tab)
                   </a>
                 </div>
-                <p className="text-[10px] text-zinc-450 dark:text-zinc-500 font-sans leading-normal">
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-sans leading-normal">
                   Перенаправляет текущую страницу в Lectura. Полностью защищен от блокировщиков всплывающих окон.
                 </p>
               </div>
@@ -1207,7 +1207,7 @@ export default function ImportLessonForm({
             {/* Manual Installation (Copy-Paste) */}
             <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-350">
+                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
                   Не получается перетащить? Установите вручную:
                 </div>
                 <button
@@ -1235,10 +1235,10 @@ export default function ImportLessonForm({
               <div className="text-[10px] font-bold text-yellow-850 dark:text-yellow-405">
                 ⚠️ Почему закладка может не реагировать на клик:
               </div>
-              <ul className="text-[10px] text-zinc-550 dark:text-zinc-450 list-disc list-inside space-y-1 leading-normal font-sans">
+              <ul className="text-[10px] text-zinc-500 dark:text-zinc-400 list-disc list-inside space-y-1 leading-normal font-sans">
                 <li>Вы кликнули по закладке на <strong>пустой вкладке браузера</strong> (<code>chrome://newtab</code>) или страницах настроек. Браузерные политики безопасности полностью блокируют букмарклеты на таких служебных страницах.</li>
                 <li>Вы тестируете на высокозащищенных сайтах (например, <em>GitHub</em> или интернет-магазин Chrome). Они блокируют запуск сторонних скриптов с помощью Content Security Policy (CSP).</li>
-                <li><strong>Проверьте:</strong> перейдите на любую статью в <a href="https://ru.wikipedia.org/" target="_blank" rel="noreferrer" className="underline text-teal-650 dark:text-teal-450">Википедии</a> или новостной сайт и нажмите на закладку там!</li>
+                <li><strong>Проверьте:</strong> перейдите на любую статью в <a href="https://ru.wikipedia.org/" target="_blank" rel="noreferrer" className="underline text-teal-600 dark:text-teal-400">Википедии</a> или новостной сайт и нажмите на закладку там!</li>
               </ul>
             </div>
           </div>
@@ -1256,7 +1256,7 @@ export default function ImportLessonForm({
             className={`flex flex-col items-center justify-center border-2 border-dashed rounded-3xl p-8 text-center transition-all min-h-[220px] cursor-pointer relative ${
               dragActive 
                 ? "border-teal-500 bg-teal-50/30 dark:bg-teal-950/10 scale-[1.01]" 
-                : "border-zinc-200 dark:border-zinc-800 hover:border-teal-400 hover:bg-zinc-50/50 dark:hover:bg-zinc-805/40"
+                : "border-zinc-200 dark:border-zinc-800 hover:border-teal-400 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40"
             }`}
             onClick={() => document.getElementById("file-loader")?.click()}
           >
@@ -1289,7 +1289,7 @@ export default function ImportLessonForm({
                     Загрузить файл книги (PDF, EPUB)
                   </h4>
                   <p className="text-[11px] text-zinc-500 mt-1.5 max-w-md font-sans">
-                    Перетащите сюда свой файл <strong className="text-zinc-650 dark:text-zinc-400">.pdf</strong> или <strong className="text-zinc-650 dark:text-zinc-400">.epub</strong>, либо нажмите для выбора на диске.
+                    Перетащите сюда свой файл <strong className="text-zinc-600 dark:text-zinc-400">.pdf</strong> или <strong className="text-zinc-600 dark:text-zinc-400">.epub</strong>, либо нажмите для выбора на диске.
                   </p>
                 </div>
               </div>
@@ -1303,20 +1303,20 @@ export default function ImportLessonForm({
           )}
 
           {fileSuccess && (
-            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-350 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30">
+            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30">
               {fileSuccess}
             </div>
           )}
 
-          <div className="flex items-center gap-2.5 bg-zinc-50/50 dark:bg-zinc-950/35 p-3 rounded-2xl border border-zinc-150 dark:border-zinc-800/80">
+          <div className="flex items-center gap-2.5 bg-zinc-50/50 dark:bg-zinc-950/35 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800/80">
             <input
               type="checkbox"
               id="chk-import-images"
               checked={importImages}
               onChange={(e) => setImportImages(e.target.checked)}
-              className="w-4 h-4 rounded text-teal-605 focus:ring-teal-500 border-zinc-350 dark:border-zinc-700 cursor-pointer accent-teal-600"
+              className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-zinc-300 dark:border-zinc-700 cursor-pointer accent-teal-600"
             />
-            <label htmlFor="chk-import-images" className="text-xs font-bold text-zinc-650 dark:text-zinc-300 cursor-pointer select-none leading-normal">
+            <label htmlFor="chk-import-images" className="text-xs font-bold text-zinc-600 dark:text-zinc-300 cursor-pointer select-none leading-normal">
               Опционально: Извлечь картинки со страниц и сохранить их положение и размеры (только для EPUB)
             </label>
           </div>
@@ -1337,7 +1337,7 @@ export default function ImportLessonForm({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Например: El Patito Feo - Глава 1"
-            className="w-full px-3.5 py-2 text-xs font-semibold bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-505"
+            className="w-full px-3.5 py-2 text-xs font-semibold bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
           />
         </div>
 
@@ -1353,12 +1353,12 @@ export default function ImportLessonForm({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Вставьте оригинальный иностранный текст, сказку или статью для чтения здесь..."
-            className="w-full px-3.5 py-2.5 text-xs bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-505 leading-relaxed font-sans"
+            className="w-full px-3.5 py-2.5 text-xs bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 leading-relaxed font-sans"
           ></textarea>
         </div>
 
         {/* Cover Customizer */}
-        <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-805">
+        <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-teal-555" />
             <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
@@ -1398,7 +1398,7 @@ export default function ImportLessonForm({
                     setCoverUrl(e.target.value);
                     setCoverUploadError(null);
                   }}
-                  className="flex-grow px-3 py-2 text-[11px] bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-450 focus:outline-none focus:ring-2 focus:ring-teal-500/20 min-w-0"
+                  className="flex-grow px-3 py-2 text-[11px] bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 min-w-0"
                 />
                 <button
                   type="button"
@@ -1466,7 +1466,7 @@ export default function ImportLessonForm({
         </div>
 
         {/* Companion Audio Customizer (AI narration or file upload) */}
-        <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-805">
+        <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
@@ -1477,11 +1477,11 @@ export default function ImportLessonForm({
           {audioUrl || audioBase64 ? (
             <div className="flex items-center justify-between p-3.5 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-950/20 rounded-xl">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-teal-50 dark:bg-teal-950/50 text-teal-650 dark:text-teal-400 rounded-lg">
+                <div className="p-2 bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 rounded-lg">
                   <Music className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-emerald-650 dark:text-emerald-400">
+                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                     ✓ Аудиофайл успешно привязан
                   </p>
                   <p className="text-[10px] text-zinc-500">
@@ -1504,7 +1504,7 @@ export default function ImportLessonForm({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Option 1: AI TTS Generation */}
-              <div className="border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3">
+              <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3">
                 <div>
                   <h5 className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 tracking-tight uppercase">
                     Озвучить текст через ИИ (Generate AI Audio)
@@ -1536,7 +1536,7 @@ export default function ImportLessonForm({
               </div>
 
               {/* Option 2: Upload local audio file */}
-              <div className="border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3 relative">
+              <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3 relative">
                 <div>
                   <h5 className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 tracking-tight uppercase">
                     Загрузить аудиофайл (Upload)
@@ -1560,7 +1560,7 @@ export default function ImportLessonForm({
                   <button
                     type="button"
                     disabled={isAudioLoading}
-                    className="w-full px-3 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-805 dark:hover:bg-zinc-750 disabled:opacity-50 text-zinc-750 dark:text-zinc-300 font-heavy text-[10px] uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 border border-zinc-200 dark:border-zinc-800 transition-all cursor-pointer"
+                    className="w-full px-3 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 disabled:opacity-50 text-zinc-700 dark:text-zinc-300 font-heavy text-[10px] uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 border border-zinc-200 dark:border-zinc-800 transition-all cursor-pointer"
                   >
                     {isAudioLoading ? (
                       <>
@@ -1588,7 +1588,7 @@ export default function ImportLessonForm({
       </div>
 
       {/* Buttons panel */}
-      <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-805">
+      <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
         <button
           type="button"
           onClick={onCancel}

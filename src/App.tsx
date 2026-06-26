@@ -81,9 +81,9 @@ const readerThemes = {
   charcoal: {
     pageBg: "bg-zinc-900",
     text: "text-[#eaeaea]",
-    headerBg: "bg-zinc-950/90 border-zinc-850",
+    headerBg: "bg-zinc-950/90 border-zinc-800",
     cardBg: "bg-zinc-950",
-    border: "border-zinc-850",
+    border: "border-zinc-800",
   },
 };
 
@@ -2102,7 +2102,7 @@ export default function App() {
 
             {/* Lesson Title Indicators */}
             <div className="text-center flex-1 max-w-xl truncate">
-              <span className="text-[9px] font-black uppercase tracking-widest text-teal-650 dark:text-teal-400 bg-teal-100/40 dark:bg-teal-950/40 px-2 py-0.5 rounded">
+              <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 dark:text-teal-400 bg-teal-100/40 dark:bg-teal-950/40 px-2 py-0.5 rounded">
                 Focused Reading Room
               </span>
               <h2 className="text-sm font-bold text-inherit block truncate mt-1">
@@ -2135,7 +2135,7 @@ export default function App() {
                   onClick={() => setLayoutWidthMode("standard")}
                   className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                     layoutWidthMode === "standard"
-                      ? "bg-white dark:bg-zinc-805 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150 dark:border-zinc-750"
+                      ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
                   title="Default width (1280px)"
@@ -2147,7 +2147,7 @@ export default function App() {
                   onClick={() => setLayoutWidthMode("wide")}
                   className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                     layoutWidthMode === "wide"
-                      ? "bg-white dark:bg-zinc-805 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150 dark:border-zinc-750"
+                      ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
                   title="Wide width (1560px)"
@@ -2159,7 +2159,7 @@ export default function App() {
                   onClick={() => setLayoutWidthMode("full")}
                   className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                     layoutWidthMode === "full"
-                      ? "bg-white dark:bg-zinc-805 text-teal-605 dark:text-teal-400 shadow-xs border border-zinc-150 dark:border-zinc-750"
+                      ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
                   title="Full screen width"
@@ -2247,7 +2247,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-center py-2 shrink-0">
-                <div className="w-12 h-1.5 bg-zinc-350 dark:bg-zinc-700 rounded-full animate-pulse" />
+                <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full animate-pulse" />
               </div>
               <div className="overflow-y-auto max-h-[calc(80vh-32px)] px-3 pb-6">
                 <WordExplainer
@@ -2303,7 +2303,7 @@ export default function App() {
             className={`relative flex flex-col w-full max-w-[280px] sm:max-w-xs h-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} border-r ${currentReaderTheme.border} shadow-2xl p-5 overflow-y-auto animate-in slide-in-from-left duration-200 z-10`}
           >
             {/* Header / Brand in Sidebar */}
-            <div className="flex items-center justify-between pb-5 border-b border-zinc-150 dark:border-zinc-800">
+            <div className="flex items-center justify-between pb-5 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-teal-600 rounded-xl text-white">
                   <Languages className="w-5 h-5" />
@@ -2312,7 +2312,7 @@ export default function App() {
                   <h3 className="font-black text-sm text-zinc-900 dark:text-white tracking-wide">
                     SLL Menu
                   </h3>
-                  <span className="text-[9px] font-black text-teal-650 dark:text-teal-400 uppercase tracking-widest block font-mono">
+                  <span className="text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest block font-mono">
                     Navigation
                   </span>
                 </div>
@@ -2333,7 +2333,7 @@ export default function App() {
             <div className="flex-1 py-6 space-y-6">
               {/* Core Tabs Navigation */}
               <div className="space-y-1">
-                <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-550 uppercase tracking-widest pl-2 font-mono">
+                <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
                   Tabs (Разделы)
                 </span>
                 
@@ -2346,8 +2346,8 @@ export default function App() {
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                     activeTab === "library" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-750 dark:text-teal-400 border border-teal-100/50 dark:border-teal-905/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805/50 hover:text-zinc-850 dark:hover:text-white"
+                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
                   }`}
                 >
                   <BookMarked className="w-4 h-4 shrink-0" />
@@ -2363,8 +2363,8 @@ export default function App() {
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                     activeTab === "read" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-750 dark:text-teal-400 border border-teal-100/50 dark:border-teal-905/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805/50 hover:text-zinc-850 dark:hover:text-white"
+                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
                   }`}
                 >
                   <BookOpen className="w-4 h-4 shrink-0" />
@@ -2380,8 +2380,8 @@ export default function App() {
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                     activeTab === "practice" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-750 dark:text-teal-400 border border-teal-100/50 dark:border-teal-905/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805/50 hover:text-zinc-850 dark:hover:text-white"
+                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
                   }`}
                 >
                   <GraduationCap className="w-4 h-4 shrink-0" />
@@ -2397,8 +2397,8 @@ export default function App() {
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                     activeTab === "statistics" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-750 dark:text-teal-400 border border-teal-100/50 dark:border-teal-905/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805/50 hover:text-zinc-850 dark:hover:text-white"
+                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
                   }`}
                 >
                   <TrendingUp className="w-4 h-4 shrink-0" />
@@ -2407,8 +2407,8 @@ export default function App() {
               </div>
 
               {/* Quick Actions separator */}
-              <div className="space-y-1.5 pt-4 border-t border-zinc-150 dark:border-zinc-800">
-                <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-550 uppercase tracking-widest pl-2 font-mono">
+              <div className="space-y-1.5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
                   Actions (Действия)
                 </span>
 
@@ -2419,7 +2419,7 @@ export default function App() {
                       setIsFocusMode(true);
                       setIsSidebarOpen(false);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-teal-650 dark:text-teal-400 bg-teal-50/60 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 border border-teal-100/50 dark:border-teal-900/50 rounded-xl transition-all cursor-pointer active:scale-97"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-teal-600 dark:text-teal-400 bg-teal-50/60 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 border border-teal-100/50 dark:border-teal-900/50 rounded-xl transition-all cursor-pointer active:scale-97"
                     title="Enter dedicated focus mode"
                   >
                     <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 animate-pulse" />
@@ -2433,7 +2433,7 @@ export default function App() {
                     setShowSettingsModal(true);
                     setIsSidebarOpen(false);
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-zinc-650 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-805/50 hover:text-zinc-850 dark:hover:text-white rounded-xl transition-all cursor-pointer"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white rounded-xl transition-all cursor-pointer"
                 >
                   <Settings className="w-4 h-4 text-zinc-400 shrink-0" />
                   Настройки (Settings)
@@ -2454,8 +2454,8 @@ export default function App() {
             </div>
 
             {/* Bottom Footer block inside sidebar showing sync/user stats overview */}
-            <div className="pt-4 border-t border-zinc-150 dark:border-zinc-800 text-center">
-              <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-805">
+            <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center">
+              <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-1 font-mono">
                   Cloud Profile
                 </span>
@@ -2463,8 +2463,8 @@ export default function App() {
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-zinc-800 dark:text-zinc-200 truncate">{activeUser.displayName || activeUser.email}</p>
                     <div className="flex items-center justify-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${user ? "bg-teal-500 animate-pulse" : "bg-teal-550"}`} />
-                      <span className="text-[8px] font-bold text-teal-650 dark:text-teal-400 uppercase tracking-wider">
+                      <span className={`w-1.5 h-1.5 rounded-full ${user ? "bg-teal-500 animate-pulse" : "bg-teal-500"}`} />
+                      <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
                         {user ? "Synced to Cloud" : "Local Guest Profile"}
                       </span>
                     </div>
@@ -2475,7 +2475,7 @@ export default function App() {
                       setShowLocalLoginModal(true);
                       setIsSidebarOpen(false);
                     }}
-                    className="text-[9px] font-black text-teal-650 dark:text-teal-400 hover:underline cursor-pointer"
+                    className="text-[9px] font-black text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
                   >
                     🔑 Sign In and Sync
                   </button>
@@ -2528,7 +2528,7 @@ export default function App() {
                   <Languages className="w-5 h-5 transition-transform group-hover:scale-110" />
                 </div>
                 <div>
-                  <h1 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5 text-zinc-900 dark:text-white group-hover:text-teal-650 dark:group-hover:text-teal-400 transition-colors">
+                  <h1 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5 text-zinc-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
                     Smart Language Learner
                   </h1>
                 </div>
@@ -2538,7 +2538,7 @@ export default function App() {
             {/* Right side: Sync State & Login/Logout HUD */}
             <div className="flex items-center gap-2">
               {isAuthLoading ? (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-250 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 shadow-3xs">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 shadow-3xs">
                   <div className="w-3.5 h-3.5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-[10px] text-zinc-400 font-bold hidden sm:inline">Checking...</span>
                 </div>
@@ -2552,12 +2552,12 @@ export default function App() {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-5.5 h-5.5 rounded-full bg-teal-100 dark:bg-teal-950/40 flex items-center justify-center text-[10px] font-black text-teal-700 dark:text-teal-350">
+                    <div className="w-5.5 h-5.5 rounded-full bg-teal-100 dark:bg-teal-950/40 flex items-center justify-center text-[10px] font-black text-teal-700 dark:text-teal-300">
                       {(activeUser.displayName || activeUser.email || "U").substring(0, 1).toUpperCase()}
                     </div>
                   )}
                   <div className="flex flex-col text-left justify-center min-w-0 pr-1">
-                    <span className="text-[9px] font-black text-teal-700 dark:text-teal-350 flex items-center gap-1 leading-none">
+                    <span className="text-[9px] font-black text-teal-700 dark:text-teal-300 flex items-center gap-1 leading-none">
                       {storageMode === "cloud" ? "☁️ cloud" : storageMode === "server" ? "🖥️ server" : "📱 local"}
                       {isSyncing && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse shrink-0" />}
                     </span>
@@ -2586,7 +2586,7 @@ export default function App() {
                         localStorage.setItem("vocab_clone_storage_mode", "local");
                       }
                     }}
-                    className="text-[9px] font-bold text-zinc-450 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-1.5 py-0.5 rounded transition cursor-pointer"
+                    className="text-[9px] font-bold text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-1.5 py-0.5 rounded transition cursor-pointer"
                     title="Выйти (Logout)"
                   >
                     Exit
@@ -2595,7 +2595,7 @@ export default function App() {
               ) : (
                 <button
                   onClick={() => setShowLocalLoginModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-905 border border-zinc-250 dark:border-zinc-800 text-zinc-750 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-[10px] font-bold rounded-xl transition duration-150 cursor-pointer shadow-3xs"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-[10px] font-bold rounded-xl transition duration-150 cursor-pointer shadow-3xs"
                   title="Войдите, чтобы сохранить результаты"
                 >
                   ☁️ Войти (Sync)
@@ -2611,18 +2611,18 @@ export default function App() {
         <div id="banner-cloud-offline-warning" className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
           <div className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-3xs">
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-950/40 text-amber-650 dark:text-amber-450 rounded-xl shrink-0 animate-pulse">
+              <div className="p-2 bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 animate-pulse">
                 <HelpCircle className="w-5 h-5 opacity-80" />
               </div>
               <div>
-                <h4 className="text-xs sm:text-sm font-extrabold text-amber-850 dark:text-amber-450 leading-none">
+                <h4 className="text-xs sm:text-sm font-extrabold text-amber-800 dark:text-amber-400 leading-none">
                   Связь с облаком не установлена (Работа в локальном режиме)
                 </h4>
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5 leading-relaxed">
                   Не удалось подключиться к облачной базе данных Google Firebase. Все функции активны, и ваши данные <strong>сохраняются локально</strong> в кэше браузера. Синхронизация автоматически возобновится при восстановлении связи!
                 </p>
                 {cloudOfflineError && (
-                  <p className="text-[10px] bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/10 p-2 rounded-xl text-amber-850 dark:text-amber-300 font-mono mt-2 break-all">
+                  <p className="text-[10px] bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/10 p-2 rounded-xl text-amber-800 dark:text-amber-300 font-mono mt-2 break-all">
                     Детали ошибки: {cloudOfflineError}
                   </p>
                 )}
@@ -2767,12 +2767,12 @@ export default function App() {
                             setActiveTab("library");
                             setSelectedWord(null);
                           }}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-650 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
                         >
                           <ChevronLeft className="w-4 h-4" />
                           Библиотека (Library)
                         </button>
-                        <span className="text-zinc-350 dark:text-zinc-650 text-xs hidden sm:inline">/</span>
+                        <span className="text-zinc-300 dark:text-zinc-600 text-xs hidden sm:inline">/</span>
                         <span className="text-zinc-700 dark:text-zinc-300 text-xs font-bold truncate max-w-[200px]" title={activeLesson.title}>
                           {activeLesson.title}
                         </span>
@@ -2781,7 +2781,7 @@ export default function App() {
                       <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
                         <button
                           onClick={() => setIsFocusMode(true)}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-650 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           Focus Mode
@@ -2833,14 +2833,14 @@ export default function App() {
                         <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
 
                         {/* Width Selector */}
-                        <div className="flex items-center gap-1 bg-stone-100/50 dark:bg-zinc-900/55 p-1 h-9 rounded-xl border border-zinc-200/50 dark:border-zinc-850/60 font-sans shrink-0">
+                        <div className="flex items-center gap-1 bg-stone-100/50 dark:bg-zinc-900/55 p-1 h-9 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
                           <button
                             type="button"
                             onClick={() => setLayoutWidthMode("standard")}
                             className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                               layoutWidthMode === "standard"
-                                ? "bg-white dark:bg-zinc-805 text-teal-655 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                                : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-300"
+                                ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                             }`}
                             title="Default width (1280px)"
                           >
@@ -2851,8 +2851,8 @@ export default function App() {
                             onClick={() => setLayoutWidthMode("wide")}
                             className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                               layoutWidthMode === "wide"
-                                ? "bg-white dark:bg-zinc-805 text-teal-655 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                                : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-300"
+                                ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                             }`}
                             title="Wide width (1560px)"
                           >
@@ -2863,8 +2863,8 @@ export default function App() {
                             onClick={() => setLayoutWidthMode("full")}
                             className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                               layoutWidthMode === "full"
-                                ? "bg-white dark:bg-zinc-805 text-teal-655 dark:text-teal-400 shadow-xs border border-zinc-150/70 dark:border-zinc-750"
-                                : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-300"
+                                ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                             }`}
                             title="Full screen width"
                           >
@@ -2923,7 +2923,7 @@ export default function App() {
                 ) : (
                   <div className="bg-white dark:bg-zinc-900 p-12 text-center rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-4">
                     <BookOpen className="w-12 h-12 text-zinc-300 mx-auto" />
-                    <p className="text-zinc-550 dark:text-zinc-400">No lessons currently chosen. Go to the Library tab to selects or import lessons!</p>
+                    <p className="text-zinc-500 dark:text-zinc-400">No lessons currently chosen. Go to the Library tab to selects or import lessons!</p>
                   </div>
                 )}
               </div>
@@ -2973,7 +2973,7 @@ export default function App() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex justify-center py-2 shrink-0">
-                    <div className="w-12 h-1.5 bg-zinc-350 dark:bg-zinc-700 rounded-full animate-pulse" />
+                    <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full animate-pulse" />
                   </div>
                   <div className="overflow-y-auto max-h-[calc(80vh-32px)] px-3 pb-6">
                     <WordExplainer
@@ -3006,7 +3006,7 @@ export default function App() {
         )}
       </main>
 
-      <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-650 bg-stone-50 dark:bg-zinc-950/40">
+      <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-600 bg-stone-50 dark:bg-zinc-950/40">
         <p className="leading-relaxed">
           Smart Language Learner &copy; 2026. Powered by Google Gemini. Use this tool to boost reading & listening fluency.
         </p>
@@ -3203,7 +3203,7 @@ export default function App() {
                   setShowLocalLoginModal(false);
                   setAuthError(null);
                 }}
-                className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-205 cursor-pointer text-base font-bold"
+                className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer text-base font-bold"
               >
                 &times;
               </button>
@@ -3219,13 +3219,13 @@ export default function App() {
             </div>
 
             {/* Tab selection */}
-            <div className="flex border-b border-zinc-250 dark:border-zinc-800">
+            <div className="flex border-b border-zinc-200 dark:border-zinc-800">
               <button
                 onClick={() => setAuthModalTab("local")}
                 className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-colors ${
                   authModalTab === "local"
                     ? "text-teal-600 dark:text-teal-400 border-b-2 border-teal-500"
-                    : "text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200"
+                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
                 }`}
               >
                 💻 Локальный Профиль
@@ -3235,7 +3235,7 @@ export default function App() {
                 className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-colors ${
                   authModalTab === "cloud"
                     ? "text-teal-600 dark:text-teal-400 border-b-2 border-teal-500"
-                    : "text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200"
+                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
                 }`}
               >
                 ☁️ Облако (Google / Email)
@@ -3253,14 +3253,14 @@ export default function App() {
               {authModalTab === "local" ? (
                 <div className="space-y-4 pt-2">
                   <div className="text-center space-y-1">
-                    <p className="text-[11px] text-zinc-550 dark:text-zinc-400 leading-normal">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal">
                       Войдите или зарегистрируйтесь на вашем локальном сервере CasaOS. Данные будут храниться и синхронизироваться через вашу собственную базу данных SQLite.
                     </p>
                   </div>
 
-                  <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
+                  <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
                     <div className="flex justify-between items-center">
-                      <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
+                      <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                         Профиль на Сервере:
                       </label>
                       <button
@@ -3268,7 +3268,7 @@ export default function App() {
                           setIsLocalServerRegister(!isLocalServerRegister);
                           setAuthError(null);
                         }}
-                        className="text-[10px] text-teal-600 hover:text-teal-750 dark:text-teal-400 dark:hover:text-teal-350 font-bold underline transition cursor-pointer"
+                        className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline transition cursor-pointer"
                       >
                         {isLocalServerRegister ? "Вход" : "Регистрация"}
                       </button>
@@ -3312,7 +3312,7 @@ export default function App() {
                           await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerName, isLocalServerRegister);
                         }}
                         disabled={isLocalServerAuthLoading}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-650/10"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/10"
                       >
                         {isLocalServerAuthLoading ? (
                           <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -3340,22 +3340,22 @@ export default function App() {
                           setAuthError(err.message || String(err));
                         }
                       }}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer shadow-md shadow-teal-650/10"
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer shadow-md shadow-teal-600/10"
                     >
                       <span>☁️</span> Войти через Google Account
                     </button>
                   </div>
 
                   <div className="relative flex py-1 items-center">
-                    <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
+                    <div className="flex-grow border-t border-zinc-100 dark:border-zinc-800"></div>
                     <span className="flex-shrink mx-3 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest font-mono">или</span>
-                    <div className="flex-grow border-t border-zinc-150 dark:border-zinc-800"></div>
+                    <div className="flex-grow border-t border-zinc-100 dark:border-zinc-800"></div>
                   </div>
 
                   {/* Option B: Email & Password */}
-                  <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-150/40 dark:border-zinc-800/80 space-y-3 text-left">
+                  <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
                     <div className="flex justify-between items-center">
-                      <label className="block text-[10px] font-black text-zinc-450 dark:text-zinc-500 uppercase tracking-wider">
+                      <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                         Вход по Email:
                       </label>
                       <button
@@ -3363,7 +3363,7 @@ export default function App() {
                           setIsEmailRegister(!isEmailRegister);
                           setAuthError(null);
                         }}
-                        className="text-[10px] text-teal-600 hover:text-teal-750 dark:text-teal-400 dark:hover:text-teal-350 font-bold underline transition cursor-pointer"
+                        className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline transition cursor-pointer"
                       >
                         {isEmailRegister ? "Вход" : "Регистрация"}
                       </button>

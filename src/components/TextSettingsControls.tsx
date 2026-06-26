@@ -26,11 +26,11 @@ export default function TextSettingsControls({
   ];
 
   const themes: { id: ReaderSettings["readerTheme"]; name: string; bg: string; text: string; border: string }[] = [
-    { id: "default", name: "System", bg: "bg-white dark:bg-zinc-900", text: "text-zinc-800 dark:text-zinc-200", border: "border-zinc-250 dark:border-zinc-750" },
+    { id: "default", name: "System", bg: "bg-white dark:bg-zinc-900", text: "text-zinc-800 dark:text-zinc-200", border: "border-zinc-200 dark:border-zinc-700" },
     { id: "cream", name: "Cream", bg: "bg-[#faf5eb]", text: "text-[#3d2c16]", border: "border-[#eddcb9]" },
     { id: "sepia", name: "Sepia", bg: "bg-[#f5edd0]", text: "text-[#4d3319]", border: "border-[#e0cea1]" },
-    { id: "slate", name: "Slate", bg: "bg-slate-100/90 dark:bg-slate-900", text: "text-slate-800 dark:text-slate-100", border: "border-slate-300 dark:border-slate-850" },
-    { id: "charcoal", name: "Charcoal", bg: "bg-zinc-950", text: "text-zinc-200", border: "border-zinc-850" },
+    { id: "slate", name: "Slate", bg: "bg-slate-100/90 dark:bg-slate-900", text: "text-slate-800 dark:text-slate-100", border: "border-slate-300 dark:border-slate-800" },
+    { id: "charcoal", name: "Charcoal", bg: "bg-zinc-950", text: "text-zinc-200", border: "border-zinc-800" },
   ];
 
   const lineHeights: { id: ReaderSettings["lineHeight"]; name: string }[] = [
@@ -84,7 +84,7 @@ export default function TextSettingsControls({
           {/* Backdrop closer */}
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className="absolute right-0 mt-2.5 w-80 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-150 dark:border-zinc-800 shadow-2xl p-5 z-50 space-y-4 animate-in fade-in slide-in-from-top-3 duration-150">
+          <div className="absolute right-0 mt-2.5 w-80 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-2xl p-5 z-50 space-y-4 animate-in fade-in slide-in-from-top-3 duration-150">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
               <span className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5" /> Text Appearance
@@ -99,8 +99,8 @@ export default function TextSettingsControls({
 
             {/* Font Size adjustable panel */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-zinc-455 dark:text-zinc-400">Size</span>
-              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-950 p-1.5 rounded-xl border border-zinc-250/50 dark:border-zinc-800">
+              <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">Size</span>
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-950 p-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={handleDecreaseFont}
@@ -127,7 +127,7 @@ export default function TextSettingsControls({
 
             {/* Font Family choosing */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-zinc-455 dark:text-zinc-400">Font Style</span>
+              <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">Font Style</span>
               <div className="grid grid-cols-3 gap-1">
                 {fonts.map((f) => (
                   <button
@@ -136,7 +136,7 @@ export default function TextSettingsControls({
                     className={`px-1 py-2 text-[10px] rounded-lg border font-medium transition-all ${
                       settings.fontFamily === f.id
                         ? "bg-teal-600 border-teal-600 text-white font-bold"
-                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-850 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                     }`}
                   >
                     <span className={`${f.id === "sans" ? "font-sans" : f.id === "serif" ? "font-serif text-[11px]" : "font-mono"}`}>
@@ -149,7 +149,7 @@ export default function TextSettingsControls({
 
             {/* Color Readers Palette Settings */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-zinc-455 dark:text-zinc-400">Background Tone</span>
+              <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">Background Tone</span>
               <div className="grid grid-cols-5 gap-1.5">
                 {themes.map((t) => (
                   <button
@@ -161,7 +161,7 @@ export default function TextSettingsControls({
                     title={t.name}
                   >
                     {settings.readerTheme === t.id && (
-                      <Check className={`w-3.5 h-3.5 ${t.id === "charcoal" ? "text-white" : "text-teal-650"}`} />
+                      <Check className={`w-3.5 h-3.5 ${t.id === "charcoal" ? "text-white" : "text-teal-600"}`} />
                     )}
                   </button>
                 ))}
@@ -176,7 +176,7 @@ export default function TextSettingsControls({
                 <select
                   value={settings.lineHeight}
                   onChange={(e) => updateKey("lineHeight", e.target.value as any)}
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
                   {lineHeights.map((lh) => (
                     <option key={lh.id} value={lh.id}>
@@ -192,7 +192,7 @@ export default function TextSettingsControls({
                 <select
                   value={settings.maxWidth}
                   onChange={(e) => updateKey("maxWidth", e.target.value as any)}
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
                   {maxWidths.map((mw) => (
                     <option key={mw.id} value={mw.id}>
@@ -204,12 +204,12 @@ export default function TextSettingsControls({
             </div>
 
             {/* Sentence Spacing config */}
-            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-805 pt-3">
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Интервал предложений (Sentence Spacing)</span>
               <select
                 value={settings.sentenceSpacing || "normal"}
                 onChange={(e) => updateKey("sentenceSpacing", e.target.value as any)}
-                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
               >
                 <option value="normal">↔️ Стандартное (Normal)</option>
                 <option value="spaced">↔️ Небольшой отступ (Spaced)</option>
@@ -220,12 +220,12 @@ export default function TextSettingsControls({
             </div>
 
             {/* Page Size config */}
-            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-805 pt-3">
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Размер страницы (Page Size)</span>
               <select
                 value={settings.pageSize || "auto"}
                 onChange={(e) => updateKey("pageSize", e.target.value as any)}
-                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
               >
                 <option value="auto">✨ Умный адаптивный (Smart Auto)</option>
                 <option value="all">📝 Показать целиком (Full text)</option>
@@ -265,12 +265,12 @@ export default function TextSettingsControls({
             </div>
 
             {/* TTS Engine config */}
-            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-805 pt-3">
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Озвучка слов (Speech Synthesis)</span>
               <select
                 value={settings.ttsEngine || "browser"}
                 onChange={(e) => updateKey("ttsEngine", e.target.value as any)}
-                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
               >
                 <option value="browser">🔊 Системный синтезатор (Бесплатно, быстро)</option>
                 <option value="gemini">✨ Gemini AI нейро-голос (Лимиты, высокое кач-во)</option>
@@ -278,12 +278,12 @@ export default function TextSettingsControls({
             </div>
 
             {/* Idiom Highlight Style config */}
-            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-805 pt-3">
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Подсветка идиом и фразовых глаголов</span>
               <select
                 value={settings.idiomHighlightStyle || "badge"}
                 onChange={(e) => updateKey("idiomHighlightStyle", e.target.value as any)}
-                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-705 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
               >
                 <option value="badge">🟣 Единая фоновая плашка (Cohesive Badge)</option>
                 <option value="underline">〰️ Сквозной пунктир под всей фразой (Continuous Underline)</option>
@@ -293,7 +293,7 @@ export default function TextSettingsControls({
             </div>
 
             {/* Word Highlight Toggle */}
-            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-805 pt-3">
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Пословная подсветка (Word Highlight)</span>
                 <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -303,7 +303,7 @@ export default function TextSettingsControls({
                     onChange={(e) => updateKey("wordHighlight", e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-650 peer-checked:bg-teal-600"></div>
+                  <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
                 </label>
               </div>
             </div>

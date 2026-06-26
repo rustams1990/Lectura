@@ -178,13 +178,13 @@ export default function MatchPairsModal({
         className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
       >
         {/* Modal Header */}
-        <div className="p-4.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-stone-50/50 dark:bg-zinc-955/20">
+        <div className="p-4.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-stone-50/50 dark:bg-zinc-950/20">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-teal-50 dark:bg-teal-955/40 text-teal-650 dark:text-teal-400 rounded-xl">
+            <div className="p-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl">
               <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-zinc-850 dark:text-zinc-100 tracking-tight">
+              <h3 className="font-extrabold text-sm text-zinc-800 dark:text-zinc-100 tracking-tight">
                 Сопоставление пар (Match Pairs)
               </h3>
               <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mt-0.5">
@@ -194,12 +194,12 @@ export default function MatchPairsModal({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-805 text-zinc-500 dark:text-zinc-400 font-extrabold text-[10px] uppercase rounded-lg border border-zinc-200/40 dark:border-zinc-700/50">
+            <span className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold text-[10px] uppercase rounded-lg border border-zinc-200/40 dark:border-zinc-700/50">
               Очки: {score}
             </span>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-450 dark:text-zinc-450 rounded-xl transition-all cursor-pointer"
+              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-400 rounded-xl transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -207,8 +207,8 @@ export default function MatchPairsModal({
         </div>
 
         {/* Filters bar */}
-        <div className="px-4.5 py-3 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-stone-50/20 dark:bg-zinc-955/10 shrink-0">
-          <div className="flex bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200/50 dark:border-zinc-750/50 text-[10.5px] font-bold">
+        <div className="px-4.5 py-3 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-stone-50/20 dark:bg-zinc-950/10 shrink-0">
+          <div className="flex bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200/50 dark:border-zinc-700/50 text-[10.5px] font-bold">
             <button
               onClick={() => {
                 setTimeFilter("all");
@@ -216,8 +216,8 @@ export default function MatchPairsModal({
               }}
               className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
                 timeFilter === "all"
-                  ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-3xs"
-                  : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-355"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
               Все слова
@@ -229,8 +229,8 @@ export default function MatchPairsModal({
               }}
               className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
                 timeFilter === "today"
-                  ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-3xs"
-                  : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-355"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
@@ -243,8 +243,8 @@ export default function MatchPairsModal({
               }}
               className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
                 timeFilter === "previous"
-                  ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-3xs"
-                  : "text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-355"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
               Предыдущие дни
@@ -268,11 +268,11 @@ export default function MatchPairsModal({
                 exit={{ opacity: 0, scale: 0.97 }}
                 className="flex flex-col items-center justify-center text-center space-y-4 py-12 max-w-sm mx-auto h-full"
               >
-                <div className="p-3 bg-amber-50 dark:bg-amber-955/20 text-amber-500 rounded-full">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-full">
                   <AlertCircle className="w-8 h-8" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-zinc-750 dark:text-zinc-200">
+                  <h4 className="font-extrabold text-zinc-700 dark:text-zinc-200">
                     Недостаточно слов
                   </h4>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-semibold">
@@ -292,7 +292,7 @@ export default function MatchPairsModal({
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="flex flex-col items-center justify-center text-center space-y-5 py-12 max-w-sm mx-auto h-full"
               >
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-955/30 text-emerald-500 rounded-full animate-bounce">
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 rounded-full animate-bounce">
                   <CheckCircle className="w-10 h-10" />
                 </div>
                 <div className="space-y-1.5">
@@ -323,7 +323,7 @@ export default function MatchPairsModal({
                 exit={{ opacity: 0 }}
                 className="space-y-4 h-full"
               >
-                <p className="text-xs text-zinc-450 dark:text-zinc-400 text-center font-bold font-sans">
+                <p className="text-xs text-zinc-400 dark:text-zinc-400 text-center font-bold font-sans">
                   Выберите слово слева и его правильный перевод справа
                 </p>
 
@@ -340,13 +340,13 @@ export default function MatchPairsModal({
                       const isSelected = selectedWordCard?.id === card.id;
                       const isWrong = wrongMatch?.wordId === card.id;
 
-                      let cardStyle = "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-850 hover:border-zinc-300";
+                      let cardStyle = "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300";
                       if (isMatched) {
-                        cardStyle = "bg-emerald-50 dark:bg-emerald-955/40 border-emerald-250 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 cursor-default opacity-60";
+                        cardStyle = "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 cursor-default opacity-60";
                       } else if (isWrong) {
                         cardStyle = "bg-red-50 dark:bg-red-955/40 border-red-250 dark:border-red-900/40 text-red-700 dark:text-red-400 animate-shake";
                       } else if (isSelected) {
-                        cardStyle = "bg-teal-50/50 dark:bg-teal-955/20 border-teal-500 text-teal-700 dark:text-teal-400 shadow-sm shadow-teal-100 dark:shadow-none";
+                        cardStyle = "bg-teal-50/50 dark:bg-teal-950/20 border-teal-500 text-teal-700 dark:text-teal-400 shadow-sm shadow-teal-100 dark:shadow-none";
                       }
 
                       return (
@@ -372,13 +372,13 @@ export default function MatchPairsModal({
                       const isSelected = selectedTransCard?.id === card.id;
                       const isWrong = wrongMatch?.transId === card.id;
 
-                      let cardStyle = "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-850 hover:border-zinc-300";
+                      let cardStyle = "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300";
                       if (isMatched) {
-                        cardStyle = "bg-emerald-50 dark:bg-emerald-955/40 border-emerald-250 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 cursor-default opacity-60";
+                        cardStyle = "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 cursor-default opacity-60";
                       } else if (isWrong) {
                         cardStyle = "bg-red-50 dark:bg-red-955/40 border-red-250 dark:border-red-900/40 text-red-700 dark:text-red-400 animate-shake";
                       } else if (isSelected) {
-                        cardStyle = "bg-teal-50/50 dark:bg-teal-955/20 border-teal-500 text-teal-700 dark:text-teal-400 shadow-sm shadow-teal-100 dark:shadow-none";
+                        cardStyle = "bg-teal-50/50 dark:bg-teal-950/20 border-teal-500 text-teal-700 dark:text-teal-400 shadow-sm shadow-teal-100 dark:shadow-none";
                       }
 
                       return (
@@ -397,7 +397,7 @@ export default function MatchPairsModal({
                 </div>
 
                 {/* Progress bar info */}
-                <div className="pt-4 flex items-center justify-between text-[11px] font-bold text-zinc-405 dark:text-zinc-400 font-mono">
+                <div className="pt-4 flex items-center justify-between text-[11px] font-bold text-zinc-400 dark:text-zinc-400 font-mono">
                   <span>
                     Прогресс раунда: {matchedKeys.length} / {currentPairs.length}
                   </span>
@@ -415,7 +415,7 @@ export default function MatchPairsModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-stone-50/30 dark:bg-zinc-955/10 shrink-0 text-center text-[10px] text-zinc-400 dark:text-zinc-550 font-bold uppercase tracking-wider">
+        <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-stone-50/30 dark:bg-zinc-950/10 shrink-0 text-center text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
           Повторяйте слова во время чтения для лучшего запоминания!
         </div>
       </motion.div>

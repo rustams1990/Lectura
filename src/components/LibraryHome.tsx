@@ -11,16 +11,16 @@ import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
 export function getDifficultyBadgeStyles(level: string) {
   const lvl = (level || "").toUpperCase();
   if (lvl.startsWith("A1")) {
-    return "border-emerald-500/30 text-emerald-450 dark:text-emerald-300 bg-emerald-500/10";
+    return "border-emerald-500/30 text-emerald-400 dark:text-emerald-300 bg-emerald-500/10";
   }
   if (lvl.startsWith("A2")) {
-    return "border-teal-500/30 text-teal-450 dark:text-teal-300 bg-teal-500/10";
+    return "border-teal-500/30 text-teal-400 dark:text-teal-300 bg-teal-500/10";
   }
   if (lvl.startsWith("B1")) {
     return "border-cyan-500/30 text-cyan-450 dark:text-cyan-300 bg-cyan-500/10";
   }
   if (lvl.startsWith("B2")) {
-    return "border-blue-500/30 text-blue-450 dark:text-blue-300 bg-blue-500/10";
+    return "border-blue-500/30 text-blue-400 dark:text-blue-300 bg-blue-500/10";
   }
   if (lvl.startsWith("C1")) {
     return "border-indigo-500/30 text-indigo-450 dark:text-indigo-300 bg-indigo-500/10";
@@ -28,7 +28,7 @@ export function getDifficultyBadgeStyles(level: string) {
   if (lvl.startsWith("C2")) {
     return "border-violet-500/30 text-violet-450 dark:text-violet-300 bg-violet-500/10";
   }
-  return "border-zinc-500/30 text-zinc-400 dark:text-zinc-350 bg-zinc-500/10";
+  return "border-zinc-500/30 text-zinc-400 dark:text-zinc-300 bg-zinc-500/10";
 }
 
 interface LibraryHomeProps {
@@ -60,7 +60,7 @@ const getLanguageCoverPreset = (lang: string) => {
   }
   if (l.includes("engl") || l.includes("eng")) {
     return {
-      gradient: "from-indigo-600 via-blue-600 to-sky-850",
+      gradient: "from-indigo-600 via-blue-600 to-sky-800",
       accent: "bg-blue-100 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200",
       emoji: "🇬🇧",
       character: "E",
@@ -100,7 +100,7 @@ const getLanguageCoverPreset = (lang: string) => {
   }
   if (l.includes("ital")) {
     return {
-      gradient: "from-emerald-600 via-teal-600 to-teal-850",
+      gradient: "from-emerald-600 via-teal-600 to-teal-800",
       accent: "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/45 dark:text-emerald-300",
       emoji: "🇮🇹",
       character: "é",
@@ -141,7 +141,7 @@ export const renderCircularFlag = (flagEmoji: string, isAll = false) => {
     );
   }
   return (
-    <span className="w-5 h-5 rounded-full bg-white dark:bg-zinc-850 border border-zinc-200/80 dark:border-zinc-700/80 overflow-hidden inline-flex items-center justify-center text-[11px] leading-none select-none shrink-0 shadow-xs">
+    <span className="w-5 h-5 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700/80 overflow-hidden inline-flex items-center justify-center text-[11px] leading-none select-none shrink-0 shadow-xs">
       <span className={`${isAll ? "scale-[1.1]" : "scale-[1.45]"} origin-center inline-block`}>
         {isAll ? "🌐" : flagEmoji}
       </span>
@@ -479,11 +479,11 @@ export default function LibraryHome({
               </div>
 
               {todayCreatedCount >= dailyGoal ? (
-                <p className="text-[9px] text-amber-350 font-black animate-pulse flex items-center gap-1">
+                <p className="text-[9px] text-amber-300 font-black animate-pulse flex items-center gap-1">
                   🎉 Великое достижение! Дневная цель выполнена!
                 </p>
               ) : (
-                <p className="text-[9px] text-teal-150/80 font-medium leading-none">
+                <p className="text-[9px] text-teal-100/80 font-medium leading-none">
                   Разметьте ещё {dailyGoal - todayCreatedCount} слов для завершения сегодняшней нормы.
                 </p>
               )}
@@ -554,13 +554,13 @@ export default function LibraryHome({
           onClick={() => setShowArchived(false)}
           className={`pb-3 px-2 text-sm font-black uppercase tracking-wider transition-all relative ${
             !showArchived
-              ? "text-teal-650 dark:text-teal-400 font-extrabold"
+              ? "text-teal-600 dark:text-teal-400 font-extrabold"
               : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
           }`}
         >
           Активные книги ({activeCount})
           {!showArchived && (
-            <span className="absolute bottom-0 left-0 right-0 h-1 bg-teal-650 dark:bg-teal-400 rounded-t-lg" />
+            <span className="absolute bottom-0 left-0 right-0 h-1 bg-teal-600 dark:bg-teal-400 rounded-t-lg" />
           )}
         </button>
 
@@ -568,19 +568,19 @@ export default function LibraryHome({
           onClick={() => setShowArchived(true)}
           className={`pb-3 px-2 text-sm font-black uppercase tracking-wider transition-all relative flex items-center gap-1.5 ${
             showArchived
-              ? "text-teal-650 dark:text-teal-400 font-extrabold"
+              ? "text-teal-600 dark:text-teal-400 font-extrabold"
               : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
           }`}
         >
           📁 Архив ({archivedCount})
           {showArchived && (
-            <span className="absolute bottom-0 left-0 right-0 h-1 bg-teal-650 dark:bg-teal-400 rounded-t-lg" />
+            <span className="absolute bottom-0 left-0 right-0 h-1 bg-teal-600 dark:bg-teal-400 rounded-t-lg" />
           )}
         </button>
       </div>
 
       {/* Advanced Search & Filtering Console */}
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-150 dark:border-zinc-800 p-5 space-y-4 shadow-xs">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-5 space-y-4 shadow-xs">
         <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
           
           {/* Main search input */}
@@ -603,7 +603,7 @@ export default function LibraryHome({
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 filterType === "all"
                   ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xs"
-                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-650 dark:text-zinc-455 hover:bg-zinc-100 dark:hover:bg-zinc-850 border border-zinc-200 dark:border-zinc-800"
+                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
               }`}
             >
               Все источники
@@ -613,7 +613,7 @@ export default function LibraryHome({
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 filterType === "builtin"
                   ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xs"
-                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-650 dark:text-zinc-455 hover:bg-zinc-100 dark:hover:bg-zinc-850 border border-zinc-200 dark:border-zinc-800"
+                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
               }`}
             >
               Встроенные
@@ -623,7 +623,7 @@ export default function LibraryHome({
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 filterType === "custom"
                   ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xs"
-                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-650 dark:text-zinc-455 hover:bg-zinc-100 dark:hover:bg-zinc-850 border border-zinc-200 dark:border-zinc-800"
+                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
               }`}
             >
               Импортированные
@@ -658,7 +658,7 @@ export default function LibraryHome({
                     className={`flex items-center gap-2 pl-1.5 pr-3.5 py-1 rounded-full text-[11px] font-extrabold transition-all border ${
                       isActive
                         ? "bg-white text-teal-700 border-teal-300 dark:bg-zinc-900 dark:text-teal-400 dark:border-teal-800 shadow-sm"
-                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-850 dark:text-zinc-400 dark:hover:text-zinc-200 border-transparent"
+                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-transparent"
                     }`}
                   >
                     {lang === "All" ? (
@@ -690,7 +690,7 @@ export default function LibraryHome({
               className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
                 selectedLessonType === "All"
                   ? "bg-teal-50/95 text-teal-700 border-teal-300 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-900 shadow-xs"
-                  : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-transparent"
+                  : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-transparent"
               }`}
             >
               🔍 Все
@@ -706,7 +706,7 @@ export default function LibraryHome({
                   className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
                     isSelected
                       ? "bg-teal-50/95 text-teal-700 border-teal-300 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-900 shadow-xs"
-                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-transparent"
+                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-transparent"
                   }`}
                 >
                   <IconComponent className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
@@ -718,14 +718,14 @@ export default function LibraryHome({
         </div>
 
         {/* Books per row setting / Grid Column Selector */}
-        <div className="border-t border-zinc-100 dark:border-zinc-805 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
+        <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
               📐 Вид сетки:
             </span>
             <span className="text-xs text-zinc-500 font-medium">Количество книг в ряду</span>
           </div>
-          <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl shrink-0 border border-zinc-200/50 dark:border-zinc-805/50">
+          <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl shrink-0 border border-zinc-200/50 dark:border-zinc-800/50">
             {[2, 3, 4, 5, 6].map((num) => {
               const isActive = booksPerRow === num;
               return (
@@ -735,7 +735,7 @@ export default function LibraryHome({
                   onClick={() => handleBooksPerRowChange(num)}
                   className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                     isActive
-                      ? "bg-white dark:bg-zinc-900 text-teal-650 dark:text-teal-400 shadow-sm"
+                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm"
                       : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                   }`}
                 >
@@ -843,7 +843,7 @@ export default function LibraryHome({
                 onClick={() => onSelectLesson(lesson.id)}
                 className={`group relative bg-white dark:bg-zinc-900 rounded-2xl border ${
                   lesson.pinned
-                    ? "border-amber-400 dark:border-amber-500/55 shadow-sm shadow-amber-150/10 ring-1 ring-amber-400/20"
+                    ? "border-amber-400 dark:border-amber-500/55 shadow-sm shadow-amber-100/10 ring-1 ring-amber-400/20"
                     : "border-zinc-200 dark:border-zinc-800"
                 } hover:border-teal-200 dark:hover:border-teal-950 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden`}
               >
@@ -860,8 +860,8 @@ export default function LibraryHome({
                         <Trash2 className="w-6 h-6 animate-pulse" />
                       </div>
                       <div className="space-y-1.5 px-1">
-                        <h4 className="text-xs font-black uppercase tracking-wider text-rose-455">Удалить книгу?</h4>
-                        <p className="text-[11px] text-zinc-350 leading-normal font-sans">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-rose-400">Удалить книгу?</h4>
+                        <p className="text-[11px] text-zinc-300 leading-normal font-sans">
                           Все сохранённые слова и прогресс для книги <strong className="text-zinc-100 font-bold font-serif italic">"{lesson.title}"</strong> будут безвозвратно удалены.
                         </p>
                       </div>
@@ -885,7 +885,7 @@ export default function LibraryHome({
                           e.stopPropagation();
                           setDeletingLessonId(null);
                         }}
-                        className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-750 active:scale-97 text-zinc-300 border border-zinc-700/60 font-black text-[11px] rounded-xl transition-all cursor-pointer"
+                        className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-97 text-zinc-300 border border-zinc-700/60 font-black text-[11px] rounded-xl transition-all cursor-pointer"
                       >
                         Отмена
                       </button>
@@ -1030,7 +1030,7 @@ export default function LibraryHome({
                           </span>
                           <span 
                             title={`Процент уникального словаря: ${bookStats.knownVocabularyPct}% (${bookStats.uniqueKnownCount} уникальных лемм)`}
-                            className="text-emerald-500 dark:text-emerald-450 hover:underline cursor-help animate-none mt-0.5"
+                            className="text-emerald-500 dark:text-emerald-400 hover:underline cursor-help animate-none mt-0.5"
                           >
                             • Словарь: {bookStats.knownVocabularyPct}% ({bookStats.uniqueKnownCount} уник.)
                           </span>
@@ -1147,7 +1147,7 @@ export default function LibraryHome({
               <div className="p-4 rounded-full bg-linear-to-tr from-teal-500 to-emerald-50 dark:from-zinc-800 dark:to-zinc-900 text-teal-600 dark:text-zinc-400 group-hover:scale-110 shadow-sm transition-all duration-300">
                 <Plus className="w-6 h-6" />
               </div>
-              <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-350 uppercase tracking-widest mt-4">
+              <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-300 uppercase tracking-widest mt-4">
                 Добавить книгу
               </h4>
               <p className="text-[11px] text-zinc-500 max-w-xs mt-1.5 leading-normal">

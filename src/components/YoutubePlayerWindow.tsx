@@ -441,13 +441,13 @@ export default function YoutubePlayerWindow({
       <div
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
-        className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-150 dark:border-zinc-850 flex items-center justify-between select-none shrink-0 ${
+        className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between select-none shrink-0 ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
         title="Перетащите плеер удерживая левую кнопку мыши"
       >
         <div className="flex items-center gap-2 max-w-[50%]">
-          <GripHorizontal className="w-4 h-4 text-zinc-400 dark:text-zinc-650" />
+          <GripHorizontal className="w-4 h-4 text-zinc-400 dark:text-zinc-600" />
           <Tv className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
           <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200 truncate" title={lesson.title}>
             {lesson.title}
@@ -490,7 +490,7 @@ export default function YoutubePlayerWindow({
           <button
             type="button"
             onClick={() => setIframeKey((prev) => prev + 1)}
-            className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-850 transition-colors cursor-pointer"
+            className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             title="Обновить видео"
           >
             <RefreshCw className="w-3 h-3" />
@@ -500,7 +500,7 @@ export default function YoutubePlayerWindow({
           <button
             type="button"
             onClick={() => setIsMinimized((prev) => !prev)}
-            className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-850 transition-colors cursor-pointer"
+            className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             title={isMinimized ? "Развернуть" : "Свернуть в панель"}
           >
             {isMinimized ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

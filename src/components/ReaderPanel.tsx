@@ -565,7 +565,7 @@ export default function ReaderPanel({
       case "4": return "border-[#204bf4] dark:border-blue-400";
       case "5": return "border-[#a882dd] dark:border-purple-400";
       case "known": return "border-zinc-400 dark:border-zinc-500";
-      case "ignored": return "border-zinc-400/70 dark:border-zinc-605/70";
+      case "ignored": return "border-zinc-400/70 dark:border-zinc-600/70";
       default: return "border-sky-300 dark:border-sky-500";
     }
   };
@@ -601,16 +601,16 @@ export default function ReaderPanel({
       >
         {hoveredWordObj.phraseText ? (
           <div className="flex flex-col gap-1.5 pb-1">
-            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-850/60 pb-1.5">
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 pb-1.5">
               <div className="flex items-baseline gap-1 min-w-0">
                 <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 capitalize truncate">
                   📖 {hoveredWordObj.phraseText}
                 </span>
               </div>
               <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 ${
-                hoveredWordObj.phraseStatus === "1" ? "bg-rose-50 text-rose-700 dark:bg-rose-955/40 dark:text-rose-400 border border-rose-100/50 dark:border-rose-900/40" :
-                hoveredWordObj.phraseStatus === "2" ? "bg-amber-50 text-amber-700 dark:bg-amber-955/30 dark:text-amber-400 border border-amber-100/50 dark:border-amber-900/40" :
-                hoveredWordObj.phraseStatus === "3" || (hoveredWordObj.phraseStatus as any) === "learning" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-955/30 dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-900/40" :
+                hoveredWordObj.phraseStatus === "1" ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-100/50 dark:border-rose-900/40" :
+                hoveredWordObj.phraseStatus === "2" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-100/50 dark:border-amber-900/40" :
+                hoveredWordObj.phraseStatus === "3" || (hoveredWordObj.phraseStatus as any) === "learning" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-900/40" :
                 hoveredWordObj.phraseStatus === "4" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 border border-blue-100/50 dark:border-blue-900/40" :
                 hoveredWordObj.phraseStatus === "5" ? "bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40" :
                 "bg-zinc-50 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
@@ -628,18 +628,18 @@ export default function ReaderPanel({
 
         {hoveredWordObj.detectedPhraseText ? (
           <div className="flex flex-col gap-1.5 pb-1">
-            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-850/60 pb-1.5">
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 pb-1.5">
               <div className="flex items-baseline gap-1 min-w-0">
-                <span className="text-xs font-extrabold text-purple-650 dark:text-purple-400 capitalize truncate">
+                <span className="text-xs font-extrabold text-purple-600 dark:text-purple-400 capitalize truncate">
                   ✨ {hoveredWordObj.detectedPhraseText}
                 </span>
               </div>
-              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-955/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40 animate-pulse">
+              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40 animate-pulse">
                 {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType)} (ИИ)
               </span>
             </div>
             {hoveredWordObj.detectedPhraseTranslation && (
-              <div className="text-[11px] text-zinc-700 dark:text-zinc-205 leading-snug break-words font-semibold bg-purple-500/5 dark:bg-purple-450/5 p-2 rounded-lg border border-purple-500/15 dark:border-purple-400/15">
+              <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words font-semibold bg-purple-500/5 dark:bg-purple-400/5 p-2 rounded-lg border border-purple-500/15 dark:border-purple-400/15">
                 {hoveredWordObj.detectedPhraseTranslation}
               </div>
             )}
@@ -652,14 +652,14 @@ export default function ReaderPanel({
         ) : null}
 
         {(hoveredWordObj.translation || hoveredWordObj.parentWord || hoveredWordObj.imageUrl) ? (
-          <div className={`flex flex-col gap-1.5 ${(hoveredWordObj.phraseText || hoveredWordObj.detectedPhraseText) ? "mt-1 pt-2 border-t border-dashed border-zinc-150 dark:border-zinc-800/80" : ""}`}>
+          <div className={`flex flex-col gap-1.5 ${(hoveredWordObj.phraseText || hoveredWordObj.detectedPhraseText) ? "mt-1 pt-2 border-t border-dashed border-zinc-100 dark:border-zinc-800/80" : ""}`}>
             <div className="flex items-center justify-between gap-2 pb-1.5">
               <div className="flex items-baseline gap-1 min-w-0">
-                <span className="text-xs font-extrabold text-zinc-900 dark:text-zinc-550 capitalize truncate">
+                <span className="text-xs font-extrabold text-zinc-900 dark:text-zinc-500 capitalize truncate">
                   {hoveredWordObj.word}
                 </span>
                 {hoveredWordObj.parentWord && (
-                  <span className="text-[10px] text-zinc-405 dark:text-zinc-550 font-medium lowercase italic">
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium lowercase italic">
                     ({hoveredWordObj.parentWord})
                   </span>
                 )}
@@ -671,13 +671,13 @@ export default function ReaderPanel({
                     hoveredWordObj.tags.slice(0, 2).map((tag) => (
                       <span
                         key={tag}
-                        className="text-[9px] bg-teal-50 dark:bg-teal-955/40 text-teal-700 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none"
+                        className="text-[9px] bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none"
                       >
                         {tag}
                       </span>
                     ))
                   ) : (
-                    <span className="text-[9px] bg-teal-50 dark:bg-teal-955/40 text-teal-750 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none">
+                    <span className="text-[9px] bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none">
                       {hoveredWordObj.grammar}
                     </span>
                   )}
@@ -686,7 +686,7 @@ export default function ReaderPanel({
             </div>
 
             {hoveredWordObj.imageUrl && (
-              <div className="w-full h-32 overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-805 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center shrink-0">
+              <div className="w-full h-32 overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center shrink-0">
                 <img
                   src={hoveredWordObj.imageUrl}
                   alt={hoveredWordObj.word}
@@ -697,7 +697,7 @@ export default function ReaderPanel({
             )}
 
             {hoveredWordObj.translation && (
-              <div className="text-[11px] text-zinc-650 dark:text-zinc-350 leading-snug break-words font-medium">
+              <div className="text-[11px] text-zinc-600 dark:text-zinc-300 leading-snug break-words font-medium">
                 {hoveredWordObj.translation}
               </div>
             )}
@@ -722,17 +722,17 @@ export default function ReaderPanel({
                 type="button"
                 id="btn-edit-active-lesson"
                 onClick={onEditClick}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 hover:bg-teal-150 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
               >
                 ✏️ ред.
               </button>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-150/40 dark:bg-zinc-800/50 text-zinc-650 dark:text-zinc-400">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100/40 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
               Target: {lesson.targetLanguage}
             </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-650 dark:text-teal-400">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
               Lingo To: {lesson.translationLanguage}
             </span>
             {lesson.difficulty && (
@@ -1131,7 +1131,7 @@ export default function ReaderPanel({
                 const borderClass = `border-b-2 border-dashed ${getPhraseBorderColorClass(status)}`;
 
                 if (status === "ignored" || status === "known") {
-                  styleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-1 transition-colors font-normal ${borderClass}`;
+                  styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-1 transition-colors font-normal ${borderClass}`;
                 } else if (status === "1") {
                   styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "2") {
@@ -1139,7 +1139,7 @@ export default function ReaderPanel({
                 } else if (status === "3" || (status as any) === "learning") {
                   styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/30 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "4") {
-                  styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-205 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "5") {
                   styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 }
@@ -1261,7 +1261,7 @@ export default function ReaderPanel({
                 let isIconStyle = false;
 
                 if (idiomStyle === "badge") {
-                  styleClass = "bg-purple-100/70 border border-purple-250 dark:bg-purple-955/40 dark:border-purple-800 text-purple-950 dark:text-purple-300 font-semibold hover:bg-purple-200/80 dark:hover:bg-purple-900/50 cursor-pointer rounded-lg px-1.5 py-0.5 mx-0.5 transition-all";
+                  styleClass = "bg-purple-100/70 border border-purple-200 dark:bg-purple-950/40 dark:border-purple-800 text-purple-950 dark:text-purple-300 font-semibold hover:bg-purple-200/80 dark:hover:bg-purple-900/50 cursor-pointer rounded-lg px-1.5 py-0.5 mx-0.5 transition-all";
                 } else if (idiomStyle === "underline") {
                   styleClass = "border-b-2 border-dotted border-purple-500 dark:border-purple-400 pb-[3px] cursor-pointer rounded px-0.5 transition-all";
                 } else if (idiomStyle === "icon") {
@@ -1312,17 +1312,17 @@ export default function ReaderPanel({
                           const hasIdiomUnderline = idiomStyle === "underline" || idiomStyle === "hover";
                           let tokenStyleClass = "";
                           if (wordStatus === "ignored" || wordStatus === "known") {
-                            tokenStyleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
+                            tokenStyleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
                           } else if (wordStatus === "1") {
-                            tokenStyleClass = `bg-[#f3a4b0]/45 dark:bg-rose-955/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-250 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f3a4b0]"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f3a4b0]"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "2") {
-                            tokenStyleClass = `bg-[#f0d46d]/45 dark:bg-amber-955/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-250 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f0d46d]"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f0d46d]"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "3" || (wordStatus as any) === "learning") {
-                            tokenStyleClass = `bg-[#a6d896]/45 dark:bg-emerald-955/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-250 rounded px-1 font-medium ${hasIdiomUnderline ? "" : "border-b-2 border-[#a6d896]"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1 font-medium ${hasIdiomUnderline ? "" : "border-b-2 border-[#a6d896]"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "4") {
-                            tokenStyleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-955 dark:text-blue-100 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "5") {
-                            tokenStyleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-955 dark:text-purple-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
                           } else {
                             tokenStyleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 cursor-pointer transition-colors`;
                           }
@@ -1347,7 +1347,7 @@ export default function ReaderPanel({
                         })
                       )}
                       {isIconStyle && (
-                        <span className="inline-flex items-center justify-center w-3.5 h-3.5 ml-0.5 text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-955 dark:text-purple-300 border border-purple-250 dark:border-purple-800 rounded-full font-bold shadow-xs select-none animate-pulse" title="Идиома (ИИ)">
+                        <span className="inline-flex items-center justify-center w-3.5 h-3.5 ml-0.5 text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-full font-bold shadow-xs select-none animate-pulse" title="Идиома (ИИ)">
                           ✨
                         </span>
                       )}
@@ -1413,17 +1413,17 @@ export default function ReaderPanel({
 
               let styleClass = "";
               if (status === "ignored" || status === "known") {
-                styleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
+                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
               } else if (status === "1") {
-                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-955/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-250 rounded px-1 font-semibold border-b-2 border-[#f3a4b0] cursor-pointer transition-colors`;
+                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1 font-semibold border-b-2 border-[#f3a4b0] cursor-pointer transition-colors`;
               } else if (status === "2") {
-                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-955/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-250 rounded px-1 font-semibold border-b-2 border-[#f0d46d] cursor-pointer transition-colors`;
+                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1 font-semibold border-b-2 border-[#f0d46d] cursor-pointer transition-colors`;
               } else if (status === "3" || (status as any) === "learning") {
-                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-955/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-250 rounded px-1 font-medium border-b-2 border-[#a6d896] cursor-pointer transition-colors`;
+                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1 font-medium border-b-2 border-[#a6d896] cursor-pointer transition-colors`;
               } else if (status === "4") {
-                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-955 dark:text-blue-100 rounded px-1 font-semibold border-b-2 border-[#204bf4] dark:border-blue-400 cursor-pointer transition-colors`;
+                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded px-1 font-semibold border-b-2 border-[#204bf4] dark:border-blue-400 cursor-pointer transition-colors`;
               } else if (status === "5") {
-                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-955 dark:text-purple-200 rounded px-1 font-semibold border-b-2 border-[#a882dd] dark:border-purple-400 cursor-pointer transition-colors`;
+                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1 font-semibold border-b-2 border-[#a882dd] dark:border-purple-400 cursor-pointer transition-colors`;
               } else {
                 styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 cursor-pointer transition-colors`;
               }
@@ -1567,7 +1567,7 @@ export default function ReaderPanel({
 
         {/* Active saved Phrases and Idioms shelf */}
         {activePhrasesInLesson.length > 0 && (
-          <div className="pt-4 border-t border-zinc-150 dark:border-zinc-800/80 mt-6 space-y-2">
+          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 mt-6 space-y-2">
             <h4 className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
               Выделенные идиомы и фразы в главе / Idioms In Chapter ({activePhrasesInLesson.length})
             </h4>
@@ -1577,7 +1577,7 @@ export default function ReaderPanel({
                   key={pq.word}
                   type="button"
                   onClick={() => onWordClick(pq.word, lesson.text)}
-                  className="px-2.5 py-1 text-xs font-semibold rounded-xl cursor-pointer transition-all border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-955/20 dark:text-amber-400 hover:brightness-95 active:scale-97 flex items-center gap-1 shrink-0"
+                  className="px-2.5 py-1 text-xs font-semibold rounded-xl cursor-pointer transition-all border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-400 hover:brightness-95 active:scale-97 flex items-center gap-1 shrink-0"
                 >
                   📖 {pq.word}
                 </button>
@@ -1588,8 +1588,8 @@ export default function ReaderPanel({
 
         {/* Auto-detected Phrases and Idioms shelf */}
         {lesson.detectedPhrases && Object.keys(lesson.detectedPhrases).length > 0 && (
-          <div className="pt-4 border-t border-zinc-150 dark:border-zinc-800/80 mt-4 space-y-2">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-purple-650 dark:text-purple-400">
+          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 mt-4 space-y-2">
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
               Найденные ИИ фразовые глаголы и идиомы / AI Detected Idioms ({Object.keys(lesson.detectedPhrases).length})
             </h4>
             <div className="flex flex-wrap gap-1.5 animate-in fade-in duration-200">
@@ -1606,7 +1606,7 @@ export default function ReaderPanel({
                     onClick={() => onWordClick(phrase, lesson.text)}
                     className={`px-2.5 py-1 text-xs font-semibold rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shrink-0 active:scale-97 hover:brightness-95 ${
                       isSaved
-                        ? "border border-amber-200 bg-amber-50 text-amber-850 dark:border-amber-900/30 dark:bg-amber-955/10 dark:text-amber-400"
+                        ? "border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/10 dark:text-amber-400"
                         : "border border-purple-200 bg-purple-55 text-purple-800 dark:border-purple-900/40 dark:bg-purple-950/20 dark:text-purple-400"
                     }`}
                     title={`[${getPhraseTypeLabel(details.type)}] ${details.translation}: ${details.explanation}`}
@@ -1626,7 +1626,7 @@ export default function ReaderPanel({
         {pages.length > 1 && (
           <div className="border-t border-zinc-200/60 dark:border-zinc-800/80 pt-5 mt-6 space-y-4">
             {/* Quick jump timeline slider row */}
-            <div className="flex items-center justify-between gap-3 bg-zinc-50/50 dark:bg-zinc-950/20 p-2.5 rounded-xl border border-zinc-150 dark:border-zinc-850/40">
+            <div className="flex items-center justify-between gap-3 bg-zinc-50/50 dark:bg-zinc-950/20 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800/40">
               <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 shrink-0">
                 Быстрый переход / Fast Jump:
               </span>
@@ -1642,7 +1642,7 @@ export default function ReaderPanel({
                     className={`min-w-[28px] h-7 px-1.5 text-[10px] font-black font-mono rounded-lg transition-all cursor-pointer ${
                       i === clampedPageIdx
                         ? "bg-teal-600 text-white shadow-sm ring-1 ring-teal-400 scale-105"
-                        : "bg-white dark:bg-zinc-900 text-zinc-505 dark:text-zinc-450 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        : "bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     }`}
                   >
                     {i + 1}
@@ -1660,12 +1660,12 @@ export default function ReaderPanel({
                   setCurrentPageIdx(prev => Math.max(0, prev - 1));
                   document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
                 }}
-                className="w-full sm:w-auto px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-800 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 border border-zinc-200/50 dark:border-zinc-700/60"
+                className="w-full sm:w-auto px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 border border-zinc-200/50 dark:border-zinc-700/60"
               >
                 ← Предыдущая (Prev)
               </button>
 
-              <div className="flex items-center gap-2 bg-zinc-150/40 dark:bg-zinc-950/40 px-3 py-1.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800/80">
+              <div className="flex items-center gap-2 bg-zinc-100/40 dark:bg-zinc-950/40 px-3 py-1.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800/80">
                 <span className="text-xs font-mono font-bold tracking-tight text-zinc-500">
                   Страница / Page
                 </span>
@@ -1685,7 +1685,7 @@ export default function ReaderPanel({
                     </option>
                   ))}
                 </select>
-                <span className="text-xs font-mono font-bold tracking-tight text-zinc-450 dark:text-zinc-500">
+                <span className="text-xs font-mono font-bold tracking-tight text-zinc-400 dark:text-zinc-500">
                   из {pages.length}
                 </span>
               </div>
@@ -1709,11 +1709,11 @@ export default function ReaderPanel({
         {lesson.translationText && (
           <div className="border-t border-zinc-200/60 dark:border-zinc-800/80 pt-5 mt-6">
             <details className="group select-text">
-              <summary className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-teal-605 dark:text-teal-400 hover:text-teal-750 cursor-pointer list-none select-none">
+              <summary className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 hover:text-teal-700 cursor-pointer list-none select-none">
                 <span className="transition-transform duration-200 group-open:rotate-90 inline-block">▶</span>
                 <span>Показать перевод истории (Russian Translation)</span>
               </summary>
-              <div className="mt-4 p-4 rounded-xl bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-150 dark:border-zinc-850/40 text-sm leading-relaxed text-zinc-700 dark:text-zinc-350 space-y-4 antialiased whitespace-pre-line font-medium select-text">
+              <div className="mt-4 p-4 rounded-xl bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-100 dark:border-zinc-800/40 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 space-y-4 antialiased whitespace-pre-line font-medium select-text">
                 {lesson.translationText}
               </div>
             </details>
