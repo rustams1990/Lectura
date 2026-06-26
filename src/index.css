@@ -8,7 +8,7 @@
 }
 
 /* ============================================
-   PREMIUM DARK MODE DESIGN SYSTEM
+   PREMIUM DARK MODE DESIGN SYSTEM (EDGE-STYLE NEUTRAL)
    ============================================ */
 
 /* Dark mode root-level color tokens */
@@ -16,31 +16,34 @@
   color-scheme: dark;
 }
 
-/* Override zinc-950 (default dark bg) to a warmer, richer dark tone */
+/* Override zinc-950 (default dark bg) to a classic neutral dark background */
 .dark .bg-zinc-950 {
-  background-color: #0f0f12;
+  background-color: #111111;
 }
 
+/* Card surfaces */
 .dark .bg-zinc-900 {
-  background-color: #18181c;
+  background-color: #1e1e1e;
 }
 
+/* Elevated surfaces or hovers */
 .dark .bg-zinc-800 {
-  background-color: #252529;
+  background-color: #2d2d2d;
 }
 
+/* Borders */
 .dark .border-zinc-800 {
-  border-color: #2c2c32;
+  border-color: #333333;
 }
 
 .dark .border-zinc-700 {
-  border-color: #38383f;
+  border-color: #444444;
 }
 
 /* Improved dark background for the main page */
 .dark .bg-stone-950,
 .dark .bg-zinc-950 {
-  background-color: #0f0f12;
+  background-color: #111111;
 }
 
 /* Dark mode glow accent for interactive elements */
@@ -91,7 +94,7 @@
 
 /* Ensure dark backgrounds don't show pure black - use deep charcoal */
 .dark body {
-  background-color: #0f0f12;
+  background-color: #111111;
 }
 
 /* Premium dark selection color */
