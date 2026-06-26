@@ -46,7 +46,7 @@ import {
   removeLessonImages,
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
-import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2 } from "lucide-react";
+import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun } from "lucide-react";
 import { safeJsonParse, safeLocalStorageSetItem } from "./utils";
 
 const readerThemes = {
@@ -499,6 +499,23 @@ export default function App() {
       console.error("Zoom layout adjustment not supported:", e);
     }
   }, [zoomScale]);
+
+  // Dark mode toggle state (manual, persists to localStorage)
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem("vocab_clone_dark_mode");
+    if (saved !== null) return saved === "true";
+    // Default to system preference
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDarkMode]);
 
   // Firebase Auth & Cloud Sync States
   const [user, setUser] = useState<any>(null);
@@ -2537,6 +2554,19 @@ export default function App() {
 
             {/* Right side: Sync State & Login/Logout HUD */}
             <div className="flex items-center gap-2">
+              {/* Dark Mode Toggle Button */}
+              <button
+                id="btn-toggle-dark-mode"
+                onClick={() => setIsDarkMode(prev => !prev)}
+                className="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95
+                  bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800
+                  text-amber-500 dark:text-indigo-400
+                  border-zinc-200/60 dark:border-zinc-800/80"
+                title={isDarkMode ? "Светлая тема (Light Mode)" : "Тёмная тема (Dark Mode)"}
+                aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {isDarkMode ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+              </button>
               {isAuthLoading ? (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 shadow-3xs">
                   <div className="w-3.5 h-3.5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
