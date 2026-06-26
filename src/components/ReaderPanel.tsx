@@ -595,7 +595,7 @@ export default function ReaderPanel({
     
     return (
       <div
-        className={`absolute left-1/2 z-[9999] pointer-events-none p-3 bg-white dark:bg-zinc-955 border border-zinc-200/90 dark:border-zinc-805 text-zinc-850 dark:text-zinc-100 rounded-xl shadow-xl max-w-xs min-w-[220px] flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left -translate-x-1/2 ${
+        className={`absolute left-1/2 z-[9999] pointer-events-none p-3 bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl shadow-xl max-w-xs min-w-[220px] flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left -translate-x-1/2 ${
           hoveredWordObj.position === "below" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"
         }`}
       >
@@ -1131,17 +1131,17 @@ export default function ReaderPanel({
                 const borderClass = `border-b-2 border-dashed ${getPhraseBorderColorClass(status)}`;
 
                 if (status === "ignored" || status === "known") {
-                  styleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-zinc-850 dark:text-zinc-200 cursor-pointer rounded px-1 transition-colors font-normal ${borderClass}`;
+                  styleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-1 transition-colors font-normal ${borderClass}`;
                 } else if (status === "1") {
-                  styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-955/50 hover:bg-[#f3a4b0]/70 text-rose-955 dark:text-rose-100 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "2") {
-                  styleClass = `bg-[#f0d46d]/45 dark:bg-amber-955/40 hover:bg-[#f0d46d]/70 text-amber-955 dark:text-amber-100 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/30 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "3" || (status as any) === "learning") {
-                  styleClass = `bg-[#a6d896]/45 dark:bg-emerald-955/40 hover:bg-[#a6d896]/70 text-emerald-955 dark:text-emerald-100 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/30 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "4") {
-                  styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-zinc-900 dark:text-zinc-550 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-205 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "5") {
-                  styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-zinc-900 dark:text-zinc-550 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 }
 
                 if (isPhraseActive) {
@@ -1312,19 +1312,19 @@ export default function ReaderPanel({
                           const hasIdiomUnderline = idiomStyle === "underline" || idiomStyle === "hover";
                           let tokenStyleClass = "";
                           if (wordStatus === "ignored" || wordStatus === "known") {
-                            tokenStyleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-zinc-850 dark:text-zinc-200 cursor-pointer rounded px-0.5 transition-colors font-normal`;
+                            tokenStyleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
                           } else if (wordStatus === "1") {
-                            tokenStyleClass = `bg-[#f3a4b0]/45 dark:bg-rose-955/50 hover:bg-[#f3a4b0]/70 text-rose-955 dark:text-rose-100 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f3a4b0]"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#f3a4b0]/45 dark:bg-rose-955/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-250 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f3a4b0]"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "2") {
-                            tokenStyleClass = `bg-[#f0d46d]/45 dark:bg-amber-955/40 hover:bg-[#f0d46d]/70 text-amber-955 dark:text-amber-100 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f0d46d]"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#f0d46d]/45 dark:bg-amber-955/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-250 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f0d46d]"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "3" || (wordStatus as any) === "learning") {
-                            tokenStyleClass = `bg-[#a6d896]/45 dark:bg-emerald-955/40 hover:bg-[#a6d896]/70 text-emerald-955 dark:text-emerald-100 rounded px-1 font-medium ${hasIdiomUnderline ? "" : "border-b-2 border-[#a6d896]"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#a6d896]/45 dark:bg-emerald-955/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-250 rounded px-1 font-medium ${hasIdiomUnderline ? "" : "border-b-2 border-[#a6d896]"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "4") {
-                            tokenStyleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-zinc-900 dark:text-zinc-50 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-955 dark:text-blue-100 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
                           } else if (wordStatus === "5") {
-                            tokenStyleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-zinc-900 dark:text-zinc-550 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-955 dark:text-purple-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
                           } else {
-                            tokenStyleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-955 dark:text-sky-100 rounded px-1 cursor-pointer transition-colors`;
+                            tokenStyleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 cursor-pointer transition-colors`;
                           }
                           
                           if (isWordActive) {
@@ -1413,19 +1413,19 @@ export default function ReaderPanel({
 
               let styleClass = "";
               if (status === "ignored" || status === "known") {
-                styleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-zinc-850 dark:text-zinc-200 cursor-pointer rounded px-0.5 transition-colors font-normal`;
+                styleClass = `hover:bg-zinc-150/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
               } else if (status === "1") {
-                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-955/50 hover:bg-[#f3a4b0]/70 text-rose-955 dark:text-rose-100 rounded px-1 font-semibold border-b-2 border-[#f3a4b0] cursor-pointer transition-colors`;
+                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-955/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-250 rounded px-1 font-semibold border-b-2 border-[#f3a4b0] cursor-pointer transition-colors`;
               } else if (status === "2") {
-                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-955/40 hover:bg-[#f0d46d]/70 text-amber-955 dark:text-amber-100 rounded px-1 font-semibold border-b-2 border-[#f0d46d] cursor-pointer transition-colors`;
+                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-955/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-250 rounded px-1 font-semibold border-b-2 border-[#f0d46d] cursor-pointer transition-colors`;
               } else if (status === "3" || (status as any) === "learning") {
-                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-955/40 hover:bg-[#a6d896]/70 text-emerald-955 dark:text-emerald-100 rounded px-1 font-medium border-b-2 border-[#a6d896] cursor-pointer transition-colors`;
+                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-955/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-250 rounded px-1 font-medium border-b-2 border-[#a6d896] cursor-pointer transition-colors`;
               } else if (status === "4") {
-                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-zinc-900 dark:text-zinc-50 rounded px-1 font-semibold border-b-2 border-[#204bf4] dark:border-blue-400 cursor-pointer transition-colors`;
+                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-955 dark:text-blue-100 rounded px-1 font-semibold border-b-2 border-[#204bf4] dark:border-blue-400 cursor-pointer transition-colors`;
               } else if (status === "5") {
-                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-zinc-900 dark:text-zinc-550 rounded px-1 font-semibold border-b-2 border-[#a882dd] dark:border-purple-400 cursor-pointer transition-colors`;
+                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-955 dark:text-purple-200 rounded px-1 font-semibold border-b-2 border-[#a882dd] dark:border-purple-400 cursor-pointer transition-colors`;
               } else {
-                styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-955 dark:text-sky-100 rounded px-1 cursor-pointer transition-colors`;
+                styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 cursor-pointer transition-colors`;
               }
 
               if (isWordActive) {
@@ -1541,7 +1541,7 @@ export default function ReaderPanel({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="m-0 text-left antialiased text-zinc-800 dark:text-zinc-200 selection:bg-teal-200 dark:selection:bg-teal-900 leading-relaxed text-sm sm:text-base">
+                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 leading-relaxed text-sm sm:text-base">
                     {renderParagraphContent()}
                   </p>
                 </div>

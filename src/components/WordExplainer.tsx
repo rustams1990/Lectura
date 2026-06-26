@@ -215,6 +215,16 @@ export default function WordExplainer({
   currentLessonId,
   onOpenLesson,
 }: WordExplainerProps) {
+  const activeSettings = settings || { readerTheme: "default" };
+  const explainerThemeMap = {
+    default: "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-900 dark:text-zinc-100",
+    cream: "bg-[#fcf8f2] border-[#eddcb9] text-[#3d2c16]",
+    sepia: "bg-[#f5ebd0] border-[#ebdcb3] text-[#4d3319]",
+    slate: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100",
+    charcoal: "bg-zinc-950 border-zinc-900 text-[#eaeaea]",
+  };
+  const themeClasses = explainerThemeMap[activeSettings.readerTheme || "default"] || explainerThemeMap.default;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ttsWarning, setTtsWarning] = useState<string | null>(null);
@@ -1123,13 +1133,13 @@ export default function WordExplainer({
 
   if (!word) {
     return (
-      <div className="bg-zinc-50 dark:bg-zinc-900/40 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 p-8 text-center flex flex-col items-center justify-center space-y-3 h-full min-h-[320px]">
-        <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-full text-zinc-400 dark:text-zinc-650">
+      <div className={`${themeClasses} rounded-2xl border-2 border-dashed p-8 text-center flex flex-col items-center justify-center space-y-3 h-full min-h-[320px]`}>
+        <div className="p-3 bg-zinc-100/50 dark:bg-zinc-800/40 rounded-full text-zinc-400 dark:text-zinc-500">
           <BookOpen className="w-8 h-8" />
         </div>
         <div className="max-w-xs">
-          <h3 className="font-semibold text-zinc-700 dark:text-zinc-300">No Word Selected</h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-1 leading-normal block">
+          <h3 className="font-semibold text-inherit">No Word Selected</h3>
+          <p className="text-sm opacity-70 mt-1 leading-normal block">
             Click on any word inside the reader pane to view its translations, pronunciation, and dictionary definitions.
           </p>
         </div>
@@ -1204,15 +1214,7 @@ export default function WordExplainer({
     onSaveVocab(updatedVocab);
   };
 
-  const activeSettings = settings || { readerTheme: "default" };
-  const explainerThemeMap = {
-    default: "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-900 dark:text-zinc-100",
-    cream: "bg-[#fcf8f2] border-[#eddcb9] text-[#3d2c16]",
-    sepia: "bg-[#f5ebd0] border-[#ebdcb3] text-[#4d3319]",
-    slate: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100",
-    charcoal: "bg-zinc-950 border-zinc-900 text-[#eaeaea]",
-  };
-  const themeClasses = explainerThemeMap[activeSettings.readerTheme || "default"] || explainerThemeMap.default;
+
 
   return (
     <div className={`${themeClasses} rounded-2xl border shadow-md p-3.5 space-y-2.5 flex flex-col h-full transition-all duration-200 max-w-full overflow-hidden select-none`}>
