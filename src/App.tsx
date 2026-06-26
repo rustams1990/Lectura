@@ -1143,11 +1143,22 @@ export default function App() {
     return () => clearTimeout(delayDebounceFn);
   }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, storageMode, localSyncKey, localSyncError]);
 
-  // Dynamic automatic syncing of tablet/PC changes over local network (polls every 8s when tab is visible)
+  // Dynamic automatic syncing of tablet/PC changes over local network (polls on mount, tab changes, focus, and every 8s when visible)
   useEffect(() => {
     if (storageMode !== "server") return;
+    if (isAuthLoading) return;
 
-    loadDataFromLocalServer(); // Poll on mount/mode/key change
+    loadDataFromLocalServer(); // Poll on mount/mode/key/tab change
+
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === "visible") {
+        console.log("Tab became visible/focused. Syncing from server...");
+        loadDataFromLocalServer();
+      }
+    };
+
+    window.addEventListener("visibilitychange", handleFocusOrVisible);
+    window.addEventListener("focus", handleFocusOrVisible);
 
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
@@ -1155,8 +1166,12 @@ export default function App() {
       }
     }, 8000);
 
-    return () => clearInterval(interval);
-  }, [storageMode, localSyncKey, localSyncError, serverToken]);
+    return () => {
+      window.removeEventListener("visibilitychange", handleFocusOrVisible);
+      window.removeEventListener("focus", handleFocusOrVisible);
+      clearInterval(interval);
+    };
+  }, [storageMode, localSyncKey, localSyncError, serverToken, isAuthLoading, activeTab]);
 
   // Active word translate helpers
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
