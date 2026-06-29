@@ -7,9 +7,10 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import dotenv from "dotenv";
 import AdmZip from "adm-zip";
 import crypto from "crypto";
-// import { extractImagesFromPDFBuffer } from "./src/pdfImageExtractor.js";
 import Database from "better-sqlite3";
 import os from "os";
+import ytdlp from "yt-dlp-exec";
+import WebVTT from "node-webvtt";
 
 dotenv.config();
 
@@ -1193,7 +1194,6 @@ app.post("/api/youtube-subtitles", async (req, res) => {
       title = title.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
     }
 
-    // 3. YouTube Subtitle Downloader & Metadata Parser using youtube-transcript
     let langCode = "es";
     const targetLower = (targetLanguage || "spanish").toLowerCase();
     if (targetLower.startsWith("span") || targetLower === "es") langCode = "es";
@@ -1207,35 +1207,100 @@ app.post("/api/youtube-subtitles", async (req, res) => {
     else if (targetLower.startsWith("arab") || targetLower === "ar") langCode = "ar";
     else langCode = targetLower.substring(0, 2);
 
-    let transcriptData: any[] = [];
     let isSuccessful = false;
+    let lines: string[] = [];
+
+    // Helper to download and parse subtitles with yt-dlp
+    const downloadSubs = async (lang: string) => {
+      const tempDir = os.tmpdir();
+      const tempBaseName = `yt_sub_${videoId}_${Date.now()}`;
+      const tempBasePath = path.join(tempDir, tempBaseName);
+      
+      try {
+        console.log(`[YouTube Subtitles] Downloading with yt-dlp-exec. Lang: ${lang}, Video: ${videoId}`);
+        await ytdlp(`https://www.youtube.com/watch?v=${videoId}`, {
+          writeSub: true,
+          writeAutoSub: true,
+          subLang: lang,
+          subFormat: 'vtt',
+          output: tempBasePath,
+          skipDownload: true,
+        });
+
+        // Search for generated subtitle file matching the prefix and ending with .vtt
+        const files = fs.readdirSync(tempDir);
+        const matchingFile = files.find(f => f.startsWith(tempBaseName) && f.endsWith(".vtt"));
+        
+        if (matchingFile) {
+          const fullPath = path.join(tempDir, matchingFile);
+          const rawContent = fs.readFileSync(fullPath, "utf-8");
+          
+          // Sanitise VTT content to bypass strict node-webvtt signature checks
+          const rawLines = rawContent.split(/\r?\n/);
+          const sanitizedLines: string[] = ["WEBVTT", ""];
+          let inHeader = true;
+          for (let i = 0; i < rawLines.length; i++) {
+            const line = rawLines[i].trim();
+            if (line.startsWith("WEBVTT")) continue;
+            if (inHeader) {
+              if (line.includes("-->")) {
+                inHeader = false;
+              } else {
+                continue;
+              }
+            }
+            sanitizedLines.push(rawLines[i]);
+          }
+          const sanitizedContent = sanitizedLines.join("\n");
+          const parsed = WebVTT.parse(sanitizedContent);
+          
+          if (parsed?.cues && parsed.cues.length > 0) {
+            lines = parsed.cues.map(cue => {
+              let t = cue.text || "";
+              // Strip inline timing tags (<00:00:00.123>) and other WebVTT formatting tags (<c>, etc.)
+              t = t.replace(/<[^>]+>/g, "");
+              t = t
+                .replace(/&amp;/g, "&")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&#10;/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+              const offsetSec = Math.floor(cue.start);
+              return t ? `${offsetSec}s\t${t}` : "";
+            }).filter(Boolean);
+          }
+          
+          // Cleanup
+          try {
+            fs.unlinkSync(fullPath);
+          } catch (e) {
+            // ignore cleanup errors
+          }
+          
+          if (lines.length > 0) {
+            return true;
+          }
+        }
+      } catch (err: any) {
+        console.log(`[YouTube Subtitles] yt-dlp-exec failed for lang ${lang}:`, err.message);
+      }
+      return false;
+    };
 
     // 1. Try fetching with preferred language
-    try {
-      console.log(`[YouTube Subtitles] Method: youtube-transcript package. Lang: ${langCode}, Video: ${videoId}`);
-      transcriptData = await YoutubeTranscript.fetchTranscript(videoId, { lang: langCode });
-      if (transcriptData && transcriptData.length > 0) {
-        isSuccessful = true;
-      }
-    } catch (errLang: any) {
-      console.log(`[YouTube Subtitles] Preferred code "${langCode}" not retrieved. Proceeding to fallback.`);
-    }
+    isSuccessful = await downloadSubs(langCode);
 
-    // 2. Try fetching with default language
+    // 2. Try fetching with default language (English fallback)
     if (!isSuccessful) {
-      try {
-        console.log(`[YouTube Subtitles] Retrying with default video language...`);
-        transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
-        if (transcriptData && transcriptData.length > 0) {
-          isSuccessful = true;
-        }
-      } catch (errDefault: any) {
-        console.log(`[YouTube Subtitles] Default video caption track not retrieved. Proceeding with generator option.`);
-      }
+      console.log(`[YouTube Subtitles] Preferred code "${langCode}" not retrieved. Retrying with "en"...`);
+      isSuccessful = await downloadSubs("en");
     }
 
     // 3. Fallback to Gemini AI Generation if we could not retrieve any transcripts
-    if (!isSuccessful || transcriptData.length === 0) {
+    if (!isSuccessful || lines.length === 0) {
       console.log(`[YouTube Subtitles] Transcripts unavailable for ${videoId} (${title}). Falling back to Gemini...`);
       
       const ai = getGeminiClient();
@@ -1275,49 +1340,6 @@ IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provi
         youtubeId: videoId,
         isFallback: true
       });
-    }
-
-    // Clean up transcript text
-    const lines: string[] = [];
-    for (const item of transcriptData) {
-      let t = item.text || "";
-      // HTML entity decode for basic punctuation
-      t = t
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&#10;/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      
-      let isSeconds = false;
-      if (item.duration && item.duration < 100) {
-        // If duration is less than 100, it's likely in seconds (usually subtitles duration is ~2-10 seconds)
-        isSeconds = true;
-      } else if (item.offset !== 0 && item.offset < 1000) {
-        // If offset is non-zero but < 1000 (1 second), but isn't milliseconds? Actually < 1000 ms is perfectly valid.
-        // It's safer to rely on duration or just fraction:
-      }
-      
-      if (!isSeconds && item.offset.toString().includes(".")) {
-        isSeconds = true;
-      }
-
-      // But to be completely bulletproof: youtube-transcript standard JSON offset is ms, XML fallback is sec.
-      // Easiest is checking duration length etc. Let's just check if start includes fraction
-      // But wait, the most robust check: 
-      const isMs = item.duration ? item.duration > 200 : item.offset > 20000;
-      const offsetSec = Math.floor(isMs ? item.offset / 1000 : item.offset);
-      
-      if (t) {
-        lines.push(`${offsetSec}s\t${t}`);
-      }
-    }
-
-    if (lines.length === 0) {
-      throw new Error("No text segments found in the parsed subtitle track");
     }
 
     // Join lines with double newline as requested
