@@ -19,10 +19,11 @@ RUN npm prune --omit=dev
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
-# Install python3, python-is-python3 and ffmpeg for yt-dlp support
+# Install python3, python-is-python3, ca-certificates and ffmpeg for yt-dlp support
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python-is-python3 \
+    ca-certificates \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 

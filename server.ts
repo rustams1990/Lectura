@@ -1225,6 +1225,7 @@ app.post("/api/youtube-subtitles", async (req, res) => {
           subFormat: 'vtt',
           output: tempBasePath,
           skipDownload: true,
+          noCheckCertificate: true,
         });
 
         // Search for generated subtitle file matching the prefix and ending with .vtt
