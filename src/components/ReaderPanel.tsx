@@ -1520,7 +1520,7 @@ export default function ReaderPanel({
               <div 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`flex items-baseline gap-3 py-2 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-all duration-300 ${
+                className={`relative hover:z-20 flex items-baseline gap-3 py-2 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-all duration-300 ${
                   isSegmentActive 
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-amber-500 shadow-xs scale-[1.008]" 
                     : "border-transparent hover:bg-zinc-100/30 dark:hover:bg-zinc-800/10"
@@ -1564,7 +1564,7 @@ export default function ReaderPanel({
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`paragraph-block text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${
+                className={`paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${
                   isSegmentActive
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 py-2 scale-[1.005]"
                     : "border-l-0 pl-0 py-0"
