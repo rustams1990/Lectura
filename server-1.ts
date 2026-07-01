@@ -759,7 +759,15 @@ app.post("/api/youtube-subtitles", async (req, res) => {
     if (titleMatch) {
       title = titleMatch[1].replace(" - YouTube", "");
       // HTML entity decode title simple
-      title = title.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+      title = title
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&#160;/g, " ");
     }
 
     // 3. YouTube Subtitle Downloader & Metadata Parser using youtube-transcript
@@ -852,9 +860,12 @@ IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provi
       let t = item.text || "";
       // HTML entity decode for basic punctuation
       t = t
+        .replace(/&nbsp;/g, " ")
+        .replace(/&#160;/g, " ")
         .replace(/&amp;/g, "&")
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")
         .replace(/&#10;/g, " ")

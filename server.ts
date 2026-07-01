@@ -1191,7 +1191,15 @@ app.post("/api/youtube-subtitles", async (req, res) => {
     if (titleMatch) {
       title = titleMatch[1].replace(" - YouTube", "");
       // HTML entity decode title simple
-      title = title.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+      title = title
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&#160;/g, " ");
     }
 
     let langCode = "es";
@@ -1301,9 +1309,12 @@ app.post("/api/youtube-subtitles", async (req, res) => {
               // Strip inline timing tags (<00:00:00.123>) and other WebVTT formatting tags (<c>, etc.)
               t = t.replace(/<[^>]+>/g, "");
               t = t
+                .replace(/&nbsp;/g, " ")
+                .replace(/&#160;/g, " ")
                 .replace(/&amp;/g, "&")
                 .replace(/&quot;/g, '"')
                 .replace(/&#39;/g, "'")
+                .replace(/&apos;/g, "'")
                 .replace(/&lt;/g, "<")
                 .replace(/&gt;/g, ">")
                 .replace(/&#10;/g, " ")
@@ -2149,6 +2160,7 @@ function parseEpub(buffer: Buffer, includeImages: boolean = false): EpubParseRes
         // HTML Entities normalizers
         const decodedChunk = plainText
           .replace(/&nbsp;/g, " ")
+          .replace(/&#160;/g, " ")
           .replace(/&mdash;/g, "—")
           .replace(/&ndash;/g, "–")
           .replace(/&ldquo;/g, "“")
@@ -2156,6 +2168,7 @@ function parseEpub(buffer: Buffer, includeImages: boolean = false): EpubParseRes
           .replace(/&lsquo;/g, "‘")
           .replace(/&rsquo;/g, "’")
           .replace(/&amp;/g, "&")
+          .replace(/&apos;/g, "'")
           .replace(/&lt;/g, "<")
           .replace(/&gt;/g, ">")
           .replace(/&quot;/g, '"')
@@ -2462,7 +2475,9 @@ Output your result as a JSON object matching this schema:
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<[^>]+>/g, "")
       .replace(/&nbsp;/g, " ")
+      .replace(/&#160;/g, " ")
       .replace(/&amp;/g, "&")
+      .replace(/&apos;/g, "'")
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
       .replace(/\n{3,}/g, "\n\n")
