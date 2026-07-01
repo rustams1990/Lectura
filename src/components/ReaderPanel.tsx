@@ -430,8 +430,15 @@ export default function ReaderPanel({
     return -1;
   }, [segments, currentYoutubeTime]);
 
+  const lastActiveSegmentIndexRef = useRef(activeSegmentIndex);
+
   // Automatically switch page if playback moves to a segment on a different page
   useEffect(() => {
+    const activeSegmentChanged = lastActiveSegmentIndexRef.current !== activeSegmentIndex;
+    lastActiveSegmentIndexRef.current = activeSegmentIndex;
+
+    if (!activeSegmentChanged) return;
+
     if (activeSegmentIndex >= 0 && pages.length > 1) {
       let foundPageIdx = -1;
       for (let pIdx = 0; pIdx < pages.length; pIdx++) {
