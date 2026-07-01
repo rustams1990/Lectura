@@ -94,13 +94,18 @@ export default function YoutubePlayerWindow({
               start: startSeconds > 0 ? startSeconds : undefined,
             },
             events: {
-              onReady: () => {
+              onReady: (event: any) => {
                 if (isUnmounted) return;
                 console.log("YouTube Player is ready");
                 
+                const player = event.target;
                 // Prioritize explicit seekToSeconds (from timestamp clicks in text)
-                if (seekToSeconds !== null && seekToSeconds !== undefined) {
-                  playerRef.current.seekTo(seekToSeconds, true);
+                if (seekToSeconds !== null && seekToSeconds !== undefined && player && typeof player.seekTo === "function") {
+                  try {
+                    player.seekTo(seekToSeconds, true);
+                  } catch (e) {
+                    console.error("Error seeking player on ready:", e);
+                  }
                 }
               },
               onStateChange: (event: any) => {

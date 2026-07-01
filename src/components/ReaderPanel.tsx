@@ -430,32 +430,50 @@ export default function ReaderPanel({
     return -1;
   }, [segments, currentYoutubeTime]);
 
-  const lastActiveSegmentIndexRef = useRef(activeSegmentIndex);
+  // Find which page the active segment belongs to initially
+  const initialActivePageIdx = useMemo(() => {
+    if (activeSegmentIndex < 0 || pages.length <= 1) return -1;
+    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+      const page = pages[pIdx];
+      const hasActive = page.some((seg) => segments.indexOf(seg) === activeSegmentIndex);
+      if (hasActive) return pIdx;
+    }
+    return -1;
+  }, [activeSegmentIndex, pages, segments]);
+
+  const lastActivePageIdxRef = useRef<number>(initialActivePageIdx);
 
   // Automatically switch page if playback moves to a segment on a different page
   useEffect(() => {
-    const activeSegmentChanged = lastActiveSegmentIndexRef.current !== activeSegmentIndex;
-    lastActiveSegmentIndexRef.current = activeSegmentIndex;
+    if (activeSegmentIndex < 0 || pages.length <= 1) {
+      lastActivePageIdxRef.current = -1;
+      return;
+    }
 
-    if (!activeSegmentChanged) return;
+    let newActivePageIdx = -1;
+    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+      const page = pages[pIdx];
+      const hasActive = page.some((seg) => {
+        const globalIdx = segments.indexOf(seg);
+        return globalIdx === activeSegmentIndex;
+      });
+      if (hasActive) {
+        newActivePageIdx = pIdx;
+        break;
+      }
+    }
 
-    if (activeSegmentIndex >= 0 && pages.length > 1) {
-      let foundPageIdx = -1;
-      for (let pIdx = 0; pIdx < pages.length; pIdx++) {
-        const page = pages[pIdx];
-        const hasActive = page.some((seg) => {
-          const globalIdx = segments.indexOf(seg);
-          return globalIdx === activeSegmentIndex;
-        });
-        if (hasActive) {
-          foundPageIdx = pIdx;
-          break;
-        }
-      }
-      
-      if (foundPageIdx >= 0 && foundPageIdx !== currentPageIdx) {
-        setCurrentPageIdx(foundPageIdx);
-      }
+    const prevActivePageIdx = lastActivePageIdxRef.current;
+    lastActivePageIdxRef.current = newActivePageIdx;
+
+    // Only switch page automatically if the playback itself crossed a page boundary
+    // (i.e. newActivePageIdx differs from the page index of the previously tracked active segment)
+    // or when we transition from no active segment to an active segment
+    const shouldSwitch = (newActivePageIdx >= 0 && prevActivePageIdx >= 0 && newActivePageIdx !== prevActivePageIdx) ||
+                         (newActivePageIdx >= 0 && prevActivePageIdx === -1);
+
+    if (shouldSwitch && newActivePageIdx !== currentPageIdx) {
+      setCurrentPageIdx(newActivePageIdx);
     }
   }, [activeSegmentIndex, pages, segments, currentPageIdx]);
 
