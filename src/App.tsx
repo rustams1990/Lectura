@@ -46,7 +46,7 @@ import {
   removeLessonImages,
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
-import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun } from "lucide-react";
+import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff } from "lucide-react";
 import { safeJsonParse, safeLocalStorageSetItem, normalizeContraction } from "./utils";
 
 const readerThemes = {
@@ -434,6 +434,7 @@ export default function App() {
     const saved = localStorage.getItem("vocab_clone_focus_mode");
     return saved !== null ? saved === "true" : true;
   });
+  const [showOnlyUnknown, setShowOnlyUnknown] = useState<boolean>(false);
 
   const [layoutWidthMode, setLayoutWidthMode] = useState<"standard" | "wide" | "ultra" | "full">(() => {
     const saved = localStorage.getItem("vocab_clone_layout_width");
@@ -2141,6 +2142,19 @@ export default function App() {
 
             {/* Typography controls */}
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowOnlyUnknown(prev => !prev)}
+                className={`flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  showOnlyUnknown
+                    ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm scale-102"
+                    : `${focusTheme.cardBg} ${focusTheme.border} text-inherit hover:opacity-90`
+                }`}
+                title="Показать только неизвестные слова в уроке"
+              >
+                {showOnlyUnknown ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                <span>Только неизвестные</span>
+              </button>
+
               {activeLesson?.youtubeId && (
                 <button
                   onClick={() => setShowYoutubePlayer((prev) => !prev)}
@@ -2235,6 +2249,7 @@ export default function App() {
               onEditClick={() => setEditingLesson(activeLesson)}
               currentYoutubeTime={youtubePlayTime}
               onTimestampClick={(seconds) => setYoutubeSeekToTime(seconds)}
+              showOnlyUnknown={showOnlyUnknown}
             />
           </div>
 
@@ -2857,6 +2872,19 @@ export default function App() {
                           )}
                         </button>
 
+                        <button
+                          onClick={() => setShowOnlyUnknown(prev => !prev)}
+                          className={`flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            showOnlyUnknown
+                              ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm scale-102"
+                              : "bg-white hover:bg-zinc-55 hover:text-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+                          }`}
+                          title="Показать только неизвестные слова в уроке"
+                        >
+                          {showOnlyUnknown ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                          <span>Только неизвестные</span>
+                        </button>
+
                         {activeLesson?.youtubeId && (
                           <button
                             onClick={() => setShowYoutubePlayer((prev) => !prev)}
@@ -2960,6 +2988,7 @@ export default function App() {
                       onEditClick={() => setEditingLesson(activeLesson)}
                       currentYoutubeTime={youtubePlayTime}
                       onTimestampClick={(seconds) => setYoutubeSeekToTime(seconds)}
+                      showOnlyUnknown={showOnlyUnknown}
                     />
                   </>
                 ) : (
