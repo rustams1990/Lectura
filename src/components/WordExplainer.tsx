@@ -342,6 +342,8 @@ export default function WordExplainer({
   const [examplesValue, setExamplesValue] = useState<ExampleSentence[]>([]);
   const [status, setStatus] = useState<WordStatus>("new");
   const internalStatusUpdateRef = useRef(false);
+  const lastWordRef = useRef<string | null>(null);
+  const prevVocabRef = useRef<VocabItem | null>(null);
   const [translationSource, setTranslationSource] = useState<"ai" | "google" | "free_dictionary" | "wiktionary" | "hybrid">(HTML_SELECTOR_INITIAL_VALUE);
   
   function HTML_SELECTOR_INITIAL_VALUE(): "ai" | "google" | "free_dictionary" | "wiktionary" | "hybrid" {
@@ -599,6 +601,31 @@ export default function WordExplainer({
       return;
     }
 
+    const wordChanged = lastWordRef.current !== word;
+    lastWordRef.current = word;
+
+    const prevVocab = prevVocabRef.current;
+    prevVocabRef.current = existingVocab || null;
+
+    const vocabContentChanged =
+      wordChanged ||
+      (existingVocab === null) !== (prevVocab === null) ||
+      (existingVocab && prevVocab && (
+        existingVocab.word !== prevVocab.word ||
+        existingVocab.translation !== prevVocab.translation ||
+        existingVocab.status !== prevVocab.status ||
+        existingVocab.ipa !== prevVocab.ipa ||
+        existingVocab.grammar !== prevVocab.grammar ||
+        existingVocab.contextRelation !== prevVocab.contextRelation ||
+        JSON.stringify(existingVocab.examples) !== JSON.stringify(prevVocab.examples) ||
+        JSON.stringify(existingVocab.tags) !== JSON.stringify(prevVocab.tags) ||
+        existingVocab.imageUrl !== prevVocab.imageUrl
+      ));
+
+    if (!vocabContentChanged) {
+      return;
+    }
+
     if (existingVocab) {
       setTranslationValue(existingVocab.translation);
       setIpaValue(existingVocab.ipa);
@@ -664,14 +691,17 @@ export default function WordExplainer({
       }
       internalStatusUpdateRef.current = false;
     }
-    setImageSearchKeyword(word);
-    setImagesList([]);
-    setImageSearchError(null);
-    handleSearchImages(word);
-    setError(null);
-    setCustomQuestion("");
-    setCustomAiError(null);
-    setCustomAiLoading(false);
+
+    if (wordChanged) {
+      setImageSearchKeyword(word);
+      setImagesList([]);
+      setImageSearchError(null);
+      handleSearchImages(word);
+      setError(null);
+      setCustomQuestion("");
+      setCustomAiError(null);
+      setCustomAiLoading(false);
+    }
   }, [word, existingVocab, detectedPhrases]);
 
   // Request word translation & expansion from server API

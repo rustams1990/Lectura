@@ -722,6 +722,11 @@ export default function App() {
       }
       if (res.ok) {
         const body = await safeJsonParse(res);
+        if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
+          console.log("Skipping server database poll update to avoid overwriting pending local changes (post-fetch check).");
+          setIsSyncing(false);
+          return;
+        }
         if (body.status === "ok" && body.data) {
           const d = body.data;
           const normalizedCloudVocab = normalizeVocabRecord(d.vocab);
