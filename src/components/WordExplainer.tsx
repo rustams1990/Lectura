@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { VocabItem, WordStatus, ExampleSentence, Dictionary, ReaderSettings, Lesson } from "../types";
-import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect } from "../utils";
+import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
 import { getSuggestedLemmas } from "../morphology";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
@@ -356,7 +356,7 @@ export default function WordExplainer({
 
   const handleSetTranslationSource = (src: "ai" | "google" | "free_dictionary" | "wiktionary" | "hybrid") => {
     setTranslationSource(src);
-    localStorage.setItem("vocab_clone_translation_source", src);
+    safeLocalStorageSetItem("vocab_clone_translation_source", src);
   };
 
   // Floating popup dictionary state
@@ -445,7 +445,7 @@ export default function WordExplainer({
     }
 
     setDictionaries(updated);
-    localStorage.setItem(activeStorageKey, JSON.stringify(updated));
+    safeLocalStorageSetItem(activeStorageKey, JSON.stringify(updated));
 
     // Reset/close form
     setEditingDict(null);
@@ -474,7 +474,7 @@ export default function WordExplainer({
   const handleDeleteDictionary = (id: string) => {
     const updated = dictionaries.filter((d) => d.id !== id);
     setDictionaries(updated);
-    localStorage.setItem(activeStorageKey, JSON.stringify(updated));
+    safeLocalStorageSetItem(activeStorageKey, JSON.stringify(updated));
     if (editingDict?.id === id) {
       handleCancelEditDict();
     }
@@ -1100,7 +1100,7 @@ export default function WordExplainer({
     if (!customTags.includes(capitalized) && !STANDARD_TAGS.includes(capitalized)) {
       const updated = [...customTags, capitalized];
       setCustomTags(updated);
-      localStorage.setItem("vocab_clone_custom_tags", JSON.stringify(updated));
+      safeLocalStorageSetItem("vocab_clone_custom_tags", JSON.stringify(updated));
     }
     
     const updatedTags = selectedTags.includes(capitalized)
@@ -1135,7 +1135,7 @@ export default function WordExplainer({
     e.stopPropagation();
     const updated = customTags.filter((t) => t !== tag);
     setCustomTags(updated);
-    localStorage.setItem("vocab_clone_custom_tags", JSON.stringify(updated));
+    safeLocalStorageSetItem("vocab_clone_custom_tags", JSON.stringify(updated));
     
     const updatedTags = selectedTags.filter((t) => t !== tag);
     setSelectedTags(updatedTags);
@@ -2532,7 +2532,7 @@ export default function WordExplainer({
                       if (window.confirm("Вы уверены, что хотите сбросить список словарей на значения по умолчанию для текущего языка?")) {
                         const defaults = getDefaultDictionaries(targetLanguage, translationLanguage);
                         setDictionaries(defaults);
-                        localStorage.setItem(activeStorageKey, JSON.stringify(defaults));
+                        safeLocalStorageSetItem(activeStorageKey, JSON.stringify(defaults));
                       }
                     }}
                     className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"

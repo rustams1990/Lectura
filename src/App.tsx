@@ -489,7 +489,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem("vocab_clone_interface_zoom", zoomScale.toString());
+    safeLocalStorageSetItem("vocab_clone_interface_zoom", zoomScale.toString());
     const val = `${zoomScale}%`;
     try {
       (document.documentElement.style as any).zoom = "";
@@ -510,7 +510,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
+    safeLocalStorageSetItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
     } else {
@@ -617,11 +617,11 @@ export default function App() {
   const serverInitialLoadComplete = useRef<boolean>(false);
 
   useEffect(() => {
-    localStorage.setItem("vocab_clone_storage_mode", storageMode);
+    safeLocalStorageSetItem("vocab_clone_storage_mode", storageMode);
   }, [storageMode]);
 
   useEffect(() => {
-    localStorage.setItem("vocab_clone_local_sync_key", localSyncKey);
+    safeLocalStorageSetItem("vocab_clone_local_sync_key", localSyncKey);
     setLocalSyncError(false); // Reset error status when key is edited
   }, [localSyncKey]);
 

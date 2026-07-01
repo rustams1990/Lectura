@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3 } from "lucide-react";
-import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect } from "../utils";
+import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
 import WordExplainer from "./WordExplainer";
 import { LANGUAGES_SUPPORTED } from "../data";
 
@@ -1154,7 +1154,7 @@ export default function VocabularyPractice({
                     onChange={(e) => {
                       const newLang = e.target.value;
                       setModalTranslationLang(newLang);
-                      localStorage.setItem("vocab_default_translation_language", newLang);
+                      safeLocalStorageSetItem("vocab_default_translation_language", newLang);
                     }}
                     className="px-2.5 py-1 text-xs font-bold bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/50 cursor-pointer"
                   >

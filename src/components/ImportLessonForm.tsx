@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Lesson, LessonType, ReaderSettings } from "../types";
-import { safeJsonParse } from "../utils";
+import { safeJsonParse, safeLocalStorageSetItem } from "../utils";
 import { LANGUAGES_SUPPORTED } from "../data";
 import {
   PlusCircle,
@@ -115,12 +115,12 @@ export default function ImportLessonForm({
   const isTranslationLanguageRemembered = translationLanguage === savedTranslationLang;
 
   const handleRememberTargetLanguage = () => {
-    localStorage.setItem("vocab_default_target_language", targetLanguage);
+    safeLocalStorageSetItem("vocab_default_target_language", targetLanguage);
     setSavedTargetLang(targetLanguage);
   };
 
   const handleRememberTranslationLanguage = () => {
-    localStorage.setItem("vocab_default_translation_language", translationLanguage);
+    safeLocalStorageSetItem("vocab_default_translation_language", translationLanguage);
     setSavedTranslationLang(translationLanguage);
   };
   

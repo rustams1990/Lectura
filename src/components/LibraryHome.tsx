@@ -7,7 +7,7 @@ import React, { useState, useMemo } from "react";
 import { Lesson, LessonType, AppStats, ReaderSettings } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2 } from "lucide-react";
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
-import { normalizeContraction } from "../utils";
+import { normalizeContraction, safeLocalStorageSetItem } from "../utils";
 
 export function getDifficultyBadgeStyles(level: string) {
   const lvl = (level || "").toUpperCase();
@@ -198,7 +198,7 @@ export default function LibraryHome({
     const nextIndex = (currentIndex + 1) % goals.length;
     const nextGoal = goals[nextIndex === -1 ? 0 : nextIndex];
     setDailyGoal(nextGoal);
-    localStorage.setItem("vocab_clone_daily_word_goal", nextGoal.toString());
+    safeLocalStorageSetItem("vocab_clone_daily_word_goal", nextGoal.toString());
   };
 
   const handleNextTip = (e: React.MouseEvent) => {
@@ -287,7 +287,7 @@ export default function LibraryHome({
 
   const handleBooksPerRowChange = (cols: number) => {
     setBooksPerRow(cols);
-    localStorage.setItem("vocab_books_per_row", cols.toString());
+    safeLocalStorageSetItem("vocab_books_per_row", cols.toString());
   };
 
   const gridColsClass = useMemo(() => {

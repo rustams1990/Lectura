@@ -6,7 +6,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Lesson, VocabItem, WordStatus, ReaderSettings } from "../types";
-import { formatTime, normalizeContraction } from "../utils";
+import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
 import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 
@@ -369,7 +369,7 @@ export default function ReaderPanel({
   useEffect(() => {
     if (lesson.id && pages.length > 0) {
       const valid = Math.min(Math.max(0, currentPageIdx), pages.length - 1);
-      localStorage.setItem(`vocab_progress_${lesson.id}`, valid.toString());
+      safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, valid.toString());
     }
   }, [currentPageIdx, pages.length, lesson.id]);
 
