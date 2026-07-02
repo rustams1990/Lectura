@@ -1207,9 +1207,14 @@ export default function WordExplainer({
     // Split current translated value if any
     if (translationValue && translationValue !== "Pending translation" && !translationValue.startsWith("[")) {
       const splitItems = translationValue
-        .split(/[;,\n]+/)
+        .split(/[;\n]+/)
         .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !list.includes(s) && !s.includes("Pending translation") && !s.includes("[Demo Translation]"));
+        .filter((s) => {
+          if (!s) return false;
+          // Filter out grammatical placeholders that have no real explanation characters
+          const clean = s.replace(/\([^)]*\)/g, "").replace(/\b(noun|verb|adj|adjective|adv|adverb|pronoun|prep|conjunction|countable|uncountable)\b/gi, "").trim();
+          return clean.length >= 2 && !list.includes(s) && !s.includes("Pending translation") && !s.includes("[Demo Translation]");
+        });
       list.push(...splitItems);
     }
 
@@ -1231,9 +1236,9 @@ export default function WordExplainer({
     if (!newTranslation || newTranslation === "Pending translation" || newTranslation.startsWith("[")) {
       newTranslation = meaning;
     } else {
-      const parts = newTranslation.split(/[;,\n]+/).map((s) => s.trim().toLowerCase());
+      const parts = newTranslation.split(/[;\n]+/).map((s) => s.trim().toLowerCase());
       if (!parts.includes(meaning.toLowerCase())) {
-        newTranslation = `${newTranslation}, ${meaning}`;
+        newTranslation = `${newTranslation}; ${meaning}`;
       }
     }
     
@@ -1785,15 +1790,16 @@ export default function WordExplainer({
                       <div
                         key={idx}
                         onClick={() => handleSelectPopularMeaning(meaning)}
-                        className={`flex items-center justify-between p-1.5 rounded-lg text-[11px] font-medium transition-all group/row cursor-pointer ${
+                        title={meaning}
+                        className={`flex items-start justify-between p-2 rounded-lg text-[11px] font-medium transition-all group/row cursor-pointer ${
                           isSelected
                             ? "bg-teal-50/80 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-900 text-teal-800 dark:text-teal-300 font-bold shadow-3xs"
                             : "bg-white dark:bg-zinc-900 border border-zinc-100/40 dark:border-zinc-800/40 hover:bg-zinc-100/50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                         }`}
                       >
-                        <span className="leading-tight truncate pr-1 capitalize">{meaning}</span>
+                        <span className="leading-normal break-words pr-2 capitalize flex-1">{meaning}</span>
                         <button
-                          className={`w-4 h-4 rounded flex items-center justify-center transition-colors shadow-3xs group-hover/row:scale-105 shrink-0 ${
+                          className={`w-4 h-4 rounded flex items-center justify-center transition-colors shadow-3xs group-hover/row:scale-105 shrink-0 self-center ${
                             isSelected
                               ? "bg-teal-600 text-white"
                               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-teal-600 hover:text-white"
