@@ -848,7 +848,7 @@ export default function ReaderPanel({
         className={`absolute left-1/2 z-[9999] pointer-events-none p-3 bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl shadow-xl flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left -translate-x-1/2 ${
           hoveredWordObj.position === "below" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"
         }`}
-        style={{ minWidth: "220px", maxWidth: "min(520px, 90vw)" }}
+        style={{ minWidth: "220px", maxWidth: "min(520px, 90vw)", width: "max-content" }}
       >
         {hoveredWordObj.phraseText ? (
           <div className="flex flex-col gap-1.5 pb-1">
