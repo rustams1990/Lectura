@@ -845,7 +845,7 @@ export default function ReaderPanel({
     
     return (
       <div
-        className={`absolute left-1/2 z-[9999] pointer-events-none p-3 bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl shadow-xl max-w-xs min-w-[220px] flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left -translate-x-1/2 ${
+        className={`absolute left-1/2 z-[9999] pointer-events-none p-3 bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl shadow-xl max-w-[min(460px,85vw)] min-w-[220px] flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left -translate-x-1/2 ${
           hoveredWordObj.position === "below" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"
         }`}
       >
