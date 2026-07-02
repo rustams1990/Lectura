@@ -211,6 +211,15 @@ const TooltipPortal = ({
   );
 };
 
+const normalizeTranslationSemicolons = (text: string): string => {
+  if (!text) return "";
+  // 1. Replace semicolons that separate different part of speech definitions with double newlines (\n\n)
+  let result = text.replace(/;\s*(\((?:noun|verb|adj|adjective|adv|adverb|pronoun|prep|conjunction|interjection|participle|article)[^)]*\))/gi, "\n\n$1");
+  // 2. Replace remaining internal semicolons within a single meaning block with a space
+  result = result.replace(/;\s*/g, " ");
+  return result.trim();
+};
+
 export default function ReaderPanel({
   lesson,
   lessonImagesMap,
@@ -2063,7 +2072,7 @@ export default function ReaderPanel({
               </div>
               {hoveredWordObj.phraseTranslation && (
                 <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words whitespace-pre-wrap font-semibold bg-amber-500/5 dark:bg-amber-400/5 p-2 rounded-lg border border-amber-500/15 dark:border-amber-400/15">
-                  {hoveredWordObj.phraseTranslation}
+                  {normalizeTranslationSemicolons(hoveredWordObj.phraseTranslation)}
                 </div>
               )}
             </div>
@@ -2083,7 +2092,7 @@ export default function ReaderPanel({
               </div>
               {hoveredWordObj.detectedPhraseTranslation && (
                 <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words whitespace-pre-wrap font-semibold bg-purple-500/5 dark:bg-purple-400/5 p-2 rounded-lg border border-purple-500/15 dark:border-purple-400/15">
-                  {hoveredWordObj.detectedPhraseTranslation}
+                  {normalizeTranslationSemicolons(hoveredWordObj.detectedPhraseTranslation)}
                 </div>
               )}
               {hoveredWordObj.detectedPhraseExplanation && (
@@ -2141,7 +2150,7 @@ export default function ReaderPanel({
 
               {hoveredWordObj.translation && (
                 <div className="text-[11px] text-zinc-650 dark:text-zinc-300 leading-snug break-words whitespace-pre-wrap font-medium">
-                  {hoveredWordObj.translation}
+                  {normalizeTranslationSemicolons(hoveredWordObj.translation)}
                 </div>
               )}
             </div>
