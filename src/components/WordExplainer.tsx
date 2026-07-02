@@ -195,7 +195,11 @@ interface WordExplainerProps {
 
 const normalizeTranslationSemicolons = (text: string): string => {
   if (!text) return "";
-  return text.replace(/;\s*/g, "\n").trim();
+  // 1. Replace semicolons that separate different part of speech definitions with double newlines (\n\n)
+  let result = text.replace(/;\s*(\((?:noun|verb|adj|adjective|adv|adverb|pronoun|prep|conjunction|interjection|participle|article)[^)]*\))/gi, "\n\n$1");
+  // 2. Replace remaining internal semicolons within a single meaning block with a space
+  result = result.replace(/;\s*/g, " ");
+  return result.trim();
 };
 
 export default function WordExplainer({
