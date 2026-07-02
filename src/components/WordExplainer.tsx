@@ -344,6 +344,7 @@ export default function WordExplainer({
   const internalStatusUpdateRef = useRef(false);
   const lastWordRef = useRef<string | null>(null);
   const prevVocabRef = useRef<VocabItem | null>(null);
+  const meaningTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [translationSource, setTranslationSource] = useState<"ai" | "google" | "free_dictionary" | "wiktionary" | "hybrid">(HTML_SELECTOR_INITIAL_VALUE);
   
   function HTML_SELECTOR_INITIAL_VALUE(): "ai" | "google" | "free_dictionary" | "wiktionary" | "hybrid" {
@@ -384,6 +385,15 @@ export default function WordExplainer({
   const activeStorageKey = useMemo(() => {
     return `vocab_clone_dicts_${(targetLanguage || "unknown").toLowerCase()}_${(translationLanguage || "unknown").toLowerCase()}`;
   }, [targetLanguage, translationLanguage]);
+
+  // Auto-adjust height of saved meaning textarea
+  useEffect(() => {
+    const tx = meaningTextareaRef.current;
+    if (tx) {
+      tx.style.height = "auto";
+      tx.style.height = `${tx.scrollHeight}px`;
+    }
+  }, [translationValue, savedMeaningOpen]);
 
   // Load dictionaries when target Language or translation Language changes
   useEffect(() => {
@@ -1579,12 +1589,20 @@ export default function WordExplainer({
             <div className="p-2.5 pt-0 border-t border-zinc-100/70 dark:border-zinc-800 space-y-2">
               <div className="flex items-start gap-1.5 mt-1.5">
                 <textarea
+                  ref={meaningTextareaRef}
                   value={translationValue}
                   onChange={(e) => setTranslationValue(e.target.value)}
                   onBlur={handleSaveCustom}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                      e.preventDefault();
+                      handleSaveCustom();
+                      e.currentTarget.blur();
+                    }
+                  }}
                   placeholder="Type a new meaning here..."
                   rows={1}
-                  className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[34px]"
+                  className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[34px] overflow-hidden"
                 />
                 {translationValue && translationValue !== "Pending translation" && !translationValue.startsWith("[") && (
                   <button

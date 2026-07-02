@@ -2062,7 +2062,7 @@ export default function ReaderPanel({
                 </span>
               </div>
               {hoveredWordObj.phraseTranslation && (
-                <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words font-semibold bg-amber-500/5 dark:bg-amber-400/5 p-2 rounded-lg border border-amber-500/15 dark:border-amber-400/15">
+                <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words whitespace-pre-wrap font-semibold bg-amber-500/5 dark:bg-amber-400/5 p-2 rounded-lg border border-amber-500/15 dark:border-amber-400/15">
                   {hoveredWordObj.phraseTranslation}
                 </div>
               )}
@@ -2082,7 +2082,7 @@ export default function ReaderPanel({
                 </span>
               </div>
               {hoveredWordObj.detectedPhraseTranslation && (
-                <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words font-semibold bg-purple-500/5 dark:bg-purple-400/5 p-2 rounded-lg border border-purple-500/15 dark:border-purple-400/15">
+                <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words whitespace-pre-wrap font-semibold bg-purple-500/5 dark:bg-purple-400/5 p-2 rounded-lg border border-purple-500/15 dark:border-purple-400/15">
                   {hoveredWordObj.detectedPhraseTranslation}
                 </div>
               )}
@@ -2140,7 +2140,7 @@ export default function ReaderPanel({
               )}
 
               {hoveredWordObj.translation && (
-                <div className="text-[11px] text-zinc-650 dark:text-zinc-300 leading-snug break-words font-medium">
+                <div className="text-[11px] text-zinc-650 dark:text-zinc-300 leading-snug break-words whitespace-pre-wrap font-medium">
                   {hoveredWordObj.translation}
                 </div>
               )}
