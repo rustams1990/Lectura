@@ -193,6 +193,11 @@ interface WordExplainerProps {
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
 }
 
+const normalizeTranslationSemicolons = (text: string): string => {
+  if (!text) return "";
+  return text.replace(/;\s*/g, "\n").trim();
+};
+
 export default function WordExplainer({
   word,
   sentence,
@@ -637,7 +642,7 @@ export default function WordExplainer({
     }
 
     if (existingVocab) {
-      setTranslationValue(existingVocab.translation);
+      setTranslationValue(normalizeTranslationSemicolons(existingVocab.translation));
       setIpaValue(existingVocab.ipa);
       const cleanGrammar = sanitizeGrammarTag(existingVocab.grammar);
       setGrammarValue(cleanGrammar);
@@ -659,7 +664,7 @@ export default function WordExplainer({
       const detectedInfo = detectedPhrases ? (detectedPhrases[cleanWord] || detectedPhrases[word]) : null;
 
       if (detectedInfo) {
-        setTranslationValue(detectedInfo.translation);
+        setTranslationValue(normalizeTranslationSemicolons(detectedInfo.translation));
         setIpaValue("");
         
         let grammarLabel = "Idiom";
@@ -758,7 +763,7 @@ export default function WordExplainer({
       }
 
       const data = await safeJsonParse(response);
-      setTranslationValue(data.translation || "");
+      setTranslationValue(normalizeTranslationSemicolons(data.translation || ""));
       setIpaValue(data.ipa || "");
       setGrammarValue(data.grammar || "");
       setContextRelationValue(data.contextRelation || "");
@@ -833,8 +838,8 @@ export default function WordExplainer({
       let currentTranslation = translationValue;
       if (!currentTranslation || currentTranslation === "Pending translation" || currentTranslation.startsWith("[")) {
         if (data.translation) {
-          currentTranslation = data.translation;
-          setTranslationValue(data.translation);
+          currentTranslation = normalizeTranslationSemicolons(data.translation);
+          setTranslationValue(currentTranslation);
         }
       }
       let currentIpa = ipaValue;
