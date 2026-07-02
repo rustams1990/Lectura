@@ -524,6 +524,152 @@ export default function ReaderPanel({
       .map((key) => vocab[key]);
   }, [vocab, textForSearch, lesson.targetLanguage]);
 
+  // Precompute tokens and phrase matches for the active segments on this page
+  const { allPageTokens, pagePhraseMatches, pageDetectedMatches, sentenceTokenRanges } = useMemo(() => {
+    // 1. Tokenize everything on the page first, keeping track of segment index (pIdx) and sentence index (sIdx)
+    const allPageTokens: {
+      raw: string;
+      clean: string;
+      isWord: boolean;
+      segIdx: number;
+      sIdx: number;
+      localIdx: number;
+      globalIdx: number;
+    }[] = [];
+
+    const sentenceTokenRanges: {
+      segIdx: number;
+      sIdx: number;
+      startIdx: number;
+      endIdx: number;
+    }[] = [];
+
+    let globalIdx = 0;
+
+    activeSegmentsForPage.forEach((seg, segIdx) => {
+      const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
+        ? splitIntoSentences(seg.text)
+        : [seg.text];
+
+      sentenceStrings.forEach((sentText, sIdx) => {
+        let tokens: { raw: string; clean: string; isWord: boolean }[] = [];
+        if (isCjk) {
+          tokens = sentText.split("").map((char) => {
+            const isPunct = /[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n]/g.test(char);
+            const isDigit = /^\d+$/.test(char);
+            return {
+              raw: char,
+              clean: (isPunct || isDigit) ? "" : char,
+              isWord: !isPunct && !isDigit,
+            };
+          });
+        } else {
+          const parts = sentText.split(/(\s+)/);
+          tokens = parts.map((part) => {
+            if (/^\s+$/.test(part)) {
+              return { raw: part, clean: "", isWord: false };
+            }
+            const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "");
+            const isNumericOrTimestamp = (str: string): boolean => {
+              if (/\d/.test(str)) {
+                if (/\d+:\d+/.test(str)) return true;
+                if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
+                if (/^\d+[a-zA-Z]+$/.test(str)) return true;
+                if (!/\p{L}/u.test(str)) return true;
+              }
+              return false;
+            };
+            const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
+            return {
+              raw: part,
+              clean: clean.toLowerCase(),
+              isWord: clean.length > 0 && !isNumeric,
+            };
+          });
+        }
+
+        const startIdx = globalIdx;
+        tokens.forEach((t, localIdx) => {
+          allPageTokens.push({
+            ...t,
+            segIdx: segIdx,
+            sIdx: sIdx,
+            localIdx: localIdx,
+            globalIdx: globalIdx,
+          });
+          globalIdx++;
+        });
+        const endIdx = globalIdx - 1;
+        sentenceTokenRanges.push({
+          segIdx: segIdx,
+          sIdx: sIdx,
+          startIdx,
+          endIdx,
+        });
+      });
+    });
+
+    // 2. Perform phrase matching on the flat list of word tokens
+    const wordTokens = allPageTokens.filter(t => t.isWord);
+    const pagePhraseMatches: { phrase: string; vocabItem: VocabItem; tokenIndices: number[] }[] = [];
+    const pageDetectedMatches: { phrase: string; translation: string; explanation: string; type?: string; tokenIndices: number[] }[] = [];
+    const lang = lesson.targetLanguage.toLowerCase();
+    const detectedPhrases = lesson.detectedPhrases || {};
+
+    let wIdx = 0;
+    while (wIdx < wordTokens.length) {
+      let matched = false;
+      
+      // Try matching user-saved phrase first (takes priority)
+      for (let len = Math.min(10, wordTokens.length - wIdx); len >= 2; len--) {
+        const candidateWords = wordTokens.slice(wIdx, wIdx + len).map((t) => t.clean);
+        const candidatePhrase = candidateWords.join(" ");
+        const langKey = `${lang}_${candidatePhrase}`;
+        const lq = vocab[langKey] || vocab[candidatePhrase];
+        if (lq) {
+          const matchedTokenIndices = wordTokens.slice(wIdx, wIdx + len).map((t) => t.globalIdx);
+          pagePhraseMatches.push({
+            phrase: candidatePhrase,
+            vocabItem: lq,
+            tokenIndices: matchedTokenIndices,
+          });
+          wIdx += len;
+          matched = true;
+          break;
+        }
+      }
+      
+      if (matched) continue;
+      
+      // Try matching auto-detected phrase
+      for (let len = Math.min(10, wordTokens.length - wIdx); len >= 2; len--) {
+        const candidateWords = wordTokens.slice(wIdx, wIdx + len).map((t) => t.clean);
+        const candidatePhrase = candidateWords.join(" ");
+        const cleanCandidate = candidatePhrase.toLowerCase();
+        const details = detectedPhrases[cleanCandidate] || detectedPhrases[candidatePhrase];
+        if (details) {
+          const matchedTokenIndices = wordTokens.slice(wIdx, wIdx + len).map((t) => t.globalIdx);
+          pageDetectedMatches.push({
+            phrase: candidatePhrase,
+            translation: details.translation,
+            explanation: details.explanation,
+            type: details.type,
+            tokenIndices: matchedTokenIndices,
+          });
+          wIdx += len;
+          matched = true;
+          break;
+        }
+      }
+      
+      if (!matched) {
+        wIdx++;
+      }
+    }
+
+    return { allPageTokens, pagePhraseMatches, pageDetectedMatches, sentenceTokenRanges };
+  }, [activeSegmentsForPage, vocab, lesson, isCjk, activeSettings.sentenceSpacing]);
+
   // Handle multi-word text drag selection (phrases & idioms)
   const handleTextSelection = (e: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -1160,107 +1306,39 @@ export default function ReaderPanel({
           };
 
           const renderSentenceTokens = (sentText: string, sIdx: number) => {
-            // Tokenize the sentence string
-            let tokens: { raw: string; clean: string; isWord: boolean }[] = [];
+            const range = sentenceTokenRanges.find((r) => r.segIdx === pIdx && r.sIdx === sIdx);
+            if (!range) return [];
+            const tokens = allPageTokens.slice(range.startIdx, range.endIdx + 1);
 
-            if (isCjk) {
-              // CJK split by character
-              tokens = sentText.split("").map((char) => {
-                const isPunct = /[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n]/g.test(char);
-                const isDigit = /^\d+$/.test(char);
-                return {
-                  raw: char,
-                  clean: (isPunct || isDigit) ? "" : char,
-                  isWord: !isPunct && !isDigit,
-                };
-              });
-            } else {
-              // Spaced split
-              const parts = sentText.split(/(\s+)/);
-              tokens = parts.map((part) => {
-                if (/^\s+$/.test(part)) {
-                  return { raw: part, clean: "", isWord: false };
-                }
-                const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "");
-                
-                const isNumericOrTimestamp = (str: string): boolean => {
-                  if (/\d/.test(str)) {
-                    if (/\d+:\d+/.test(str)) return true;
-                    if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
-                    if (/^\d+[a-zA-Z]+$/.test(str)) return true;
-                    if (!/\p{L}/u.test(str)) return true;
-                  }
-                  return false;
-                };
-
-                const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
-                return {
-                  raw: part,
-                  clean: clean.toLowerCase(),
-                  isWord: clean.length > 0 && !isNumeric,
-                };
-              });
-            }
-
-            // Precompute phrase matches in this sentence
+            // Map page-level phrase matches to sentence-local token indices
             const phraseMatches: { phrase: string; vocabItem: VocabItem; tokenIndices: number[] }[] = [];
             const detectedMatches: { phrase: string; translation: string; explanation: string; type?: string; tokenIndices: number[] }[] = [];
-            const wordTokens = tokens
-              .map((t, idx) => ({ ...t, originalIndex: idx }))
-              .filter((t) => t.isWord);
-            const lang = lesson.targetLanguage.toLowerCase();
-            const detectedPhrases = lesson.detectedPhrases || {};
 
-            let wIdx = 0;
-            while (wIdx < wordTokens.length) {
-              let matched = false;
-              
-              // 1. Try matching user-saved phrase first (takes priority)
-              for (let len = Math.min(10, wordTokens.length - wIdx); len >= 2; len--) {
-                const candidateWords = wordTokens.slice(wIdx, wIdx + len).map((t) => t.clean);
-                const candidatePhrase = candidateWords.join(" ");
-                const langKey = `${lang}_${candidatePhrase}`;
-                const lq = vocab[langKey] || vocab[candidatePhrase];
-                if (lq) {
-                   const matchedTokenIndices = wordTokens.slice(wIdx, wIdx + len).map((t) => t.originalIndex);
-                  phraseMatches.push({
-                    phrase: candidatePhrase,
-                    vocabItem: lq,
-                    tokenIndices: matchedTokenIndices,
-                  });
-                  wIdx += len;
-                  matched = true;
-                  break;
-                }
+            pagePhraseMatches.forEach((m) => {
+              const sentenceIndices = m.tokenIndices.filter((idx) => idx >= range.startIdx && idx <= range.endIdx);
+              if (sentenceIndices.length > 0) {
+                const localIndices = sentenceIndices.map((idx) => idx - range.startIdx);
+                phraseMatches.push({
+                  phrase: m.phrase,
+                  vocabItem: m.vocabItem,
+                  tokenIndices: localIndices,
+                });
               }
-              
-              if (matched) continue;
-              
-              // 2. Try matching auto-detected phrase
-              for (let len = Math.min(10, wordTokens.length - wIdx); len >= 2; len--) {
-                const candidateWords = wordTokens.slice(wIdx, wIdx + len).map((t) => t.clean);
-                const candidatePhrase = candidateWords.join(" ");
-                const cleanCandidate = candidatePhrase.toLowerCase();
-                const details = detectedPhrases[cleanCandidate] || detectedPhrases[candidatePhrase];
-                if (details) {
-                  const matchedTokenIndices = wordTokens.slice(wIdx, wIdx + len).map((t) => t.originalIndex);
-                  detectedMatches.push({
-                    phrase: candidatePhrase,
-                    translation: details.translation,
-                    explanation: details.explanation,
-                    type: details.type,
-                    tokenIndices: matchedTokenIndices,
-                  });
-                  wIdx += len;
-                  matched = true;
-                  break;
-                }
+            });
+
+            pageDetectedMatches.forEach((m) => {
+              const sentenceIndices = m.tokenIndices.filter((idx) => idx >= range.startIdx && idx <= range.endIdx);
+              if (sentenceIndices.length > 0) {
+                const localIndices = sentenceIndices.map((idx) => idx - range.startIdx);
+                detectedMatches.push({
+                  phrase: m.phrase,
+                  translation: m.translation,
+                  explanation: m.explanation,
+                  type: m.type,
+                  tokenIndices: localIndices,
+                });
               }
-              
-              if (!matched) {
-                wIdx++;
-              }
-            }
+            });
 
             const elements: React.ReactNode[] = [];
             let tIdx = 0;
