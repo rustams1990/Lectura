@@ -1365,15 +1365,19 @@ export default function App() {
 
   // Event handlers
   const handleWordClick = (word: string, context: string) => {
-    setSelectedWord(word);
-    setSelectedContext(context);
+    const normalizedWord = word.replace(/\s+/g, " ").trim();
+    const normalizedContext = context.replace(/\s+/g, " ").trim();
+    setSelectedWord(normalizedWord);
+    setSelectedContext(normalizedContext);
     setActiveTab("read"); // Force return to reader screen
   };
 
   const handleOpenLesson = (lessonId: string, word: string, sentence: string) => {
+    const normalizedWord = word.replace(/\s+/g, " ").trim();
+    const normalizedContext = sentence.replace(/\s+/g, " ").trim();
     setActiveLessonId(lessonId);
-    setSelectedWord(word);
-    setSelectedContext(sentence);
+    setSelectedWord(normalizedWord);
+    setSelectedContext(normalizedContext);
     setActiveTab("read");
   };
 

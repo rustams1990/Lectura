@@ -674,7 +674,7 @@ export default function ReaderPanel({
   const handleTextSelection = (e: React.MouseEvent) => {
     const selection = window.getSelection();
     if (!selection) return;
-    const selectedText = selection.toString().trim();
+    const selectedText = selection.toString().replace(/\s+/g, " ").trim();
     
     // Validate bounds
     if (!selectedText) return;

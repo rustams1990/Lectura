@@ -35,7 +35,7 @@ const sanitizeGrammarTag = (tag: string) => {
   return cleaned;
 };
 
-const STANDARD_TAGS = ["Noun", "Verb", "Adjective", "Adverb", "Pronoun", "Preposition", "Conjunction"];
+const STANDARD_TAGS = ["Noun", "Verb", "Adjective", "Adverb", "Pronoun", "Preposition", "Conjunction", "Idiom", "Phrasal Verb", "Phrase"];
 
 const PRESET_POPULAR_MEANINGS: Record<string, string[]> = {
   preocupacion: [
@@ -679,14 +679,18 @@ export default function WordExplainer({
         // Clear form for a brand new word translation
         setTranslationValue("");
         setIpaValue("");
-        setGrammarValue("");
+        
+        // If it's a multi-word phrase, default to Idiom
+        const isPhrase = word.trim().includes(" ");
+        setGrammarValue(isPhrase ? "Idiom" : "");
+        
         setContextRelationValue("");
         setCustomAnswer("");
         setExamplesValue([]);
         if (!internalStatusUpdateRef.current) {
           setStatus("new");
         }
-        setSelectedTags([]);
+        setSelectedTags(isPhrase ? ["Idiom"] : []);
         setImageUrlValue(null);
       }
       internalStatusUpdateRef.current = false;
