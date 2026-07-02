@@ -122,6 +122,95 @@ function getZoomScale(): number {
   return 1;
 }
 
+const getPhraseTypeLabel = (type?: string) => {
+  if (!type) return "Идиома";
+  switch (type.toLowerCase()) {
+    case "phrasal_verb": return "Фразовый глагол";
+    case "idiom": return "Идиома";
+    case "saying": return "Пословица / поговорка";
+    case "set_expression": return "Устойчивое выражение";
+    default: return "Идиома";
+  }
+};
+
+const TooltipPortal = ({
+  children,
+  x,
+  y,
+  position
+}: {
+  children: React.ReactNode;
+  x: number;
+  y: number;
+  position: "above" | "below";
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState({ left: x, top: y });
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    
+    // Zoom factor correction if browser zoom is used
+    const scale = getZoomScale();
+    const zoomedX = x / scale;
+    const zoomedY = y / scale;
+    const zoomedWidth = width / scale;
+    const zoomedHeight = height / scale;
+
+    const viewportWidth = window.innerWidth / scale;
+    const viewportHeight = window.innerHeight / scale;
+
+    const margin = 12;
+    
+    let left = zoomedX - zoomedWidth / 2;
+    let right = zoomedX + zoomedWidth / 2;
+    
+    if (left < margin) {
+      left = margin;
+    } else if (right > viewportWidth - margin) {
+      left = viewportWidth - margin - zoomedWidth;
+    }
+    
+    let top = zoomedY;
+    if (position === "above") {
+      top = zoomedY - zoomedHeight - 4; // minor adjustment to sit nicely above
+    } else {
+      top = zoomedY + 4; // minor adjustment to sit nicely below
+    }
+    
+    // Clamp vertical position so it doesn't overflow top of page
+    if (top < margin) {
+      top = margin;
+    } else if (top + zoomedHeight > viewportHeight - margin) {
+      top = viewportHeight - margin - zoomedHeight;
+    }
+
+    setCoords({ left, top });
+  }, [x, y, position]);
+
+  return createPortal(
+    <div
+      ref={ref}
+      style={{
+        position: "fixed",
+        left: `${coords.left}px`,
+        top: `${coords.top}px`,
+        minWidth: "220px",
+        maxWidth: "min(520px, 90vw)",
+        width: "max-content",
+        zIndex: 99999,
+      }}
+      className="pointer-events-none p-3 bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl shadow-xl flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left"
+    >
+      {children}
+    </div>,
+    document.body
+  );
+};
+
 export default function ReaderPanel({
   lesson,
   lessonImagesMap,
@@ -820,17 +909,6 @@ export default function ReaderPanel({
     }
   };
 
-  const getPhraseTypeLabel = (type?: string) => {
-    if (!type) return "Идиома";
-    switch (type.toLowerCase()) {
-      case "phrasal_verb": return "Фразовый глагол";
-      case "idiom": return "Идиома";
-      case "saying": return "Пословица / поговорка";
-      case "set_expression": return "Устойчивое выражение";
-      default: return "Идиома";
-    }
-  };
-
   const handleWordSelect = (rawToken: string, cleanWord: string, fullPara: string) => {
     const key = resolveWord(cleanWord);
     const sentences = splitIntoSentences(fullPara);
@@ -838,124 +916,6 @@ export default function ReaderPanel({
     setHoveredWordObj(null);
     setHoveredWordId(null);
     onWordClick(cleanWord, associatedSentence.trim());
-  };
-
-  const renderTooltip = (wordId: string) => {
-    if (!hoveredWordObj || hoveredWordId !== wordId) return null;
-    
-    return (
-      <div
-        className={`absolute left-1/2 z-[9999] pointer-events-none p-3 bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl shadow-xl flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left -translate-x-1/2 ${
-          hoveredWordObj.position === "below" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"
-        }`}
-        style={{ minWidth: "220px", maxWidth: "min(520px, 90vw)", width: "max-content" }}
-      >
-        {hoveredWordObj.phraseText ? (
-          <div className="flex flex-col gap-1.5 pb-1">
-            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 pb-1.5">
-              <div className="flex items-baseline gap-1 min-w-0">
-                <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 capitalize truncate">
-                  📖 {hoveredWordObj.phraseText}
-                </span>
-              </div>
-              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 ${
-                hoveredWordObj.phraseStatus === "1" ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-100/50 dark:border-rose-900/40" :
-                hoveredWordObj.phraseStatus === "2" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-100/50 dark:border-amber-900/40" :
-                hoveredWordObj.phraseStatus === "3" || (hoveredWordObj.phraseStatus as any) === "learning" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-900/40" :
-                hoveredWordObj.phraseStatus === "4" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 border border-blue-100/50 dark:border-blue-900/40" :
-                hoveredWordObj.phraseStatus === "5" ? "bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40" :
-                "bg-zinc-50 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              }`}>
-                Статус: {hoveredWordObj.phraseStatus || "new"}
-              </span>
-            </div>
-            {hoveredWordObj.phraseTranslation && (
-              <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words font-semibold bg-amber-500/5 dark:bg-amber-400/5 p-2 rounded-lg border border-amber-500/15 dark:border-amber-400/15">
-                {hoveredWordObj.phraseTranslation}
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {hoveredWordObj.detectedPhraseText ? (
-          <div className="flex flex-col gap-1.5 pb-1">
-            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 pb-1.5">
-              <div className="flex items-baseline gap-1 min-w-0">
-                <span className="text-xs font-extrabold text-purple-600 dark:text-purple-400 capitalize truncate">
-                  ✨ {hoveredWordObj.detectedPhraseText}
-                </span>
-              </div>
-              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40 animate-pulse">
-                {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType)} (ИИ)
-              </span>
-            </div>
-            {hoveredWordObj.detectedPhraseTranslation && (
-              <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words font-semibold bg-purple-500/5 dark:bg-purple-400/5 p-2 rounded-lg border border-purple-500/15 dark:border-purple-400/15">
-                {hoveredWordObj.detectedPhraseTranslation}
-              </div>
-            )}
-            {hoveredWordObj.detectedPhraseExplanation && (
-              <div className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal italic px-1">
-                {hoveredWordObj.detectedPhraseExplanation}
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {(hoveredWordObj.translation || hoveredWordObj.parentWord || hoveredWordObj.imageUrl) ? (
-          <div className={`flex flex-col gap-1.5 ${(hoveredWordObj.phraseText || hoveredWordObj.detectedPhraseText) ? "mt-1 pt-2 border-t border-dashed border-zinc-100 dark:border-zinc-800/80" : ""}`}>
-            <div className="flex items-center justify-between gap-2 pb-1.5">
-              <div className="flex items-baseline gap-1 min-w-0">
-                <span className="text-xs font-extrabold text-zinc-900 dark:text-zinc-500 capitalize truncate">
-                  {hoveredWordObj.word}
-                </span>
-                {hoveredWordObj.parentWord && (
-                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium lowercase italic">
-                    ({hoveredWordObj.parentWord})
-                  </span>
-                )}
-              </div>
-              
-              {((hoveredWordObj.tags && hoveredWordObj.tags.length > 0) || hoveredWordObj.grammar) && (
-                <div className="flex gap-1 shrink-0">
-                  {hoveredWordObj.tags && hoveredWordObj.tags.length > 0 ? (
-                    hoveredWordObj.tags.slice(0, 2).map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-[9px] bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none"
-                      >
-                        {tag}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-[9px] bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none">
-                      {hoveredWordObj.grammar}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {hoveredWordObj.imageUrl && (
-              <div className="w-full h-32 overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center shrink-0">
-                <img
-                  src={hoveredWordObj.imageUrl}
-                  alt={hoveredWordObj.word}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            )}
-
-            {hoveredWordObj.translation && (
-              <div className="text-[11px] text-zinc-600 dark:text-zinc-300 leading-snug break-words font-medium">
-                {hoveredWordObj.translation}
-              </div>
-            )}
-          </div>
-        ) : null}
-      </div>
-    );
   };
 
   const currentTheme = themeMap[activeSettings.readerTheme] || themeMap.default;
@@ -1518,7 +1478,6 @@ export default function ReaderPanel({
                       {phraseDisplay}
                     </button>
                     {suffix && <span className="opacity-80">{suffix}</span>}
-                    {renderTooltip(wordId)}
                   </span>
                 );
 
@@ -1708,7 +1667,6 @@ export default function ReaderPanel({
                       )}
                     </button>
                     {suffix && <span className="opacity-80">{suffix}</span>}
-                    {renderTooltip(wordId)}
                   </span>
                 );
 
@@ -1840,7 +1798,6 @@ export default function ReaderPanel({
                     {isCjk ? rawString : rawString.substring(prefix.length, rawString.length - suffix.length)}
                   </button>
                   {suffix && <span className="opacity-80">{suffix}</span>}
-                  {renderTooltip(wordId)}
                 </span>
               );
 
@@ -2079,7 +2036,118 @@ export default function ReaderPanel({
         )}
       </div>
 
+      {hoveredWordObj && (
+        <TooltipPortal
+          x={hoveredWordObj.x}
+          y={hoveredWordObj.y}
+          position={hoveredWordObj.position || "above"}
+        >
+          {hoveredWordObj.phraseText ? (
+            <div className="flex flex-col gap-1.5 pb-1">
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 pb-1.5">
+                <div className="flex items-baseline gap-1 min-w-0">
+                  <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 capitalize truncate">
+                    📖 {hoveredWordObj.phraseText}
+                  </span>
+                </div>
+                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 ${
+                  hoveredWordObj.phraseStatus === "1" ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-100/50 dark:border-rose-900/40" :
+                  hoveredWordObj.phraseStatus === "2" ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-100/50 dark:border-amber-900/40" :
+                  hoveredWordObj.phraseStatus === "3" || (hoveredWordObj.phraseStatus as any) === "learning" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-900/40" :
+                  hoveredWordObj.phraseStatus === "4" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 border border-blue-100/50 dark:border-blue-900/40" :
+                  hoveredWordObj.phraseStatus === "5" ? "bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40" :
+                  "bg-zinc-50 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                }`}>
+                  Статус: {hoveredWordObj.phraseStatus || "new"}
+                </span>
+              </div>
+              {hoveredWordObj.phraseTranslation && (
+                <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words font-semibold bg-amber-500/5 dark:bg-amber-400/5 p-2 rounded-lg border border-amber-500/15 dark:border-amber-400/15">
+                  {hoveredWordObj.phraseTranslation}
+                </div>
+              )}
+            </div>
+          ) : null}
 
+          {hoveredWordObj.detectedPhraseText ? (
+            <div className="flex flex-col gap-1.5 pb-1">
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/60 pb-1.5">
+                <div className="flex items-baseline gap-1 min-w-0">
+                  <span className="text-xs font-extrabold text-purple-600 dark:text-purple-400 capitalize truncate">
+                    ✨ {hoveredWordObj.detectedPhraseText}
+                  </span>
+                </div>
+                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40 animate-pulse">
+                  {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType)} (ИИ)
+                </span>
+              </div>
+              {hoveredWordObj.detectedPhraseTranslation && (
+                <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words font-semibold bg-purple-500/5 dark:bg-purple-400/5 p-2 rounded-lg border border-purple-500/15 dark:border-purple-400/15">
+                  {hoveredWordObj.detectedPhraseTranslation}
+                </div>
+              )}
+              {hoveredWordObj.detectedPhraseExplanation && (
+                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal italic px-1">
+                  {hoveredWordObj.detectedPhraseExplanation}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {(hoveredWordObj.translation || hoveredWordObj.parentWord || hoveredWordObj.imageUrl) ? (
+            <div className={`flex flex-col gap-1.5 ${(hoveredWordObj.phraseText || hoveredWordObj.detectedPhraseText) ? "mt-1 pt-2 border-t border-dashed border-zinc-100 dark:border-zinc-800/80" : ""}`}>
+              <div className="flex items-center justify-between gap-2 pb-1.5">
+                <div className="flex items-baseline gap-1 min-w-0">
+                  <span className="text-xs font-extrabold text-zinc-900 dark:text-zinc-100 capitalize truncate">
+                    {hoveredWordObj.word}
+                  </span>
+                  {hoveredWordObj.parentWord && (
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium lowercase italic">
+                      ({hoveredWordObj.parentWord})
+                    </span>
+                  )}
+                </div>
+                
+                {((hoveredWordObj.tags && hoveredWordObj.tags.length > 0) || hoveredWordObj.grammar) && (
+                  <div className="flex gap-1 shrink-0">
+                    {hoveredWordObj.tags && hoveredWordObj.tags.length > 0 ? (
+                      hoveredWordObj.tags.slice(0, 2).map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-[9px] bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none"
+                        >
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[9px] bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 font-extrabold px-1.5 py-0.5 rounded border border-teal-100/50 dark:border-teal-900/40 leading-none">
+                        {hoveredWordObj.grammar}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {hoveredWordObj.imageUrl && (
+                <div className="w-full h-32 overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center shrink-0">
+                  <img
+                    src={hoveredWordObj.imageUrl}
+                    alt={hoveredWordObj.word}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              )}
+
+              {hoveredWordObj.translation && (
+                <div className="text-[11px] text-zinc-650 dark:text-zinc-300 leading-snug break-words font-medium">
+                  {hoveredWordObj.translation}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </TooltipPortal>
+      )}
     </div>
   );
 }
