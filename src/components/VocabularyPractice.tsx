@@ -391,6 +391,14 @@ export default function VocabularyPractice({
   useEffect(() => {
     if (!currentLq || !currentLq.word) return;
 
+    // In spelling mode: always auto-play on card change (currentIndex)
+    if (studyMode === "spelling") {
+      const timer = setTimeout(() => {
+        playSpeech(currentLq.word);
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+
     const shouldPlay = (studyDirection === "forward" && !isFlipped) || (studyDirection === "reverse" && isFlipped);
     if (shouldPlay) {
       const timer = setTimeout(() => {
@@ -398,7 +406,8 @@ export default function VocabularyPractice({
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [currentIndex, selectedPracticeLang, isFlipped, studyDirection]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, selectedPracticeLang, isFlipped, studyDirection, studyMode]);
 
   // Keep currentIndex in bounds when deck size or language changes
   useEffect(() => {
@@ -525,10 +534,13 @@ export default function VocabularyPractice({
     if (targetClean === typedClean) {
       isCorrect = true;
       setSpellingStatus("correct");
+      // Ensure the ref matches target so playSpeech closure guard doesn't block feedback audio
+      currentWordRef.current = target;
       playSpeech(target);
     } else if (targetNoAccents === typedNoAccents) {
       isAccentWarning = true;
       setSpellingStatus("accent-warning");
+      currentWordRef.current = target;
       playSpeech(target);
     } else {
       setSpellingStatus("incorrect");
@@ -666,7 +678,14 @@ export default function VocabularyPractice({
   const isCardWithImage = studyMode === "image" && currentLq && !!currentLq.imageUrl;
 
   const handleNext = () => {
+    // Reset spelling state immediately before changing card
+    resetSpellingState();
     setIsFlipped(false);
+
+    // Update currentWordRef immediately to an empty sentinel so any inflight
+    // TTS requests for the old word know to abort once they resolve.
+    currentWordRef.current = "";
+
     setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % learningList.length);
     }, 150);
