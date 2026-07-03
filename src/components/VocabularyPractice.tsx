@@ -68,7 +68,7 @@ export default function VocabularyPractice({
   });
 
   const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
-  const [deckTypeFilter, setDeckTypeFilter] = useState<"learning" | "all" | "spelling-problems" | "spelling-correct">("learning");
+  const [deckTypeFilter, setDeckTypeFilter] = useState<"learning" | "all" | "spelling-problems" | "spelling-accents" | "spelling-correct">("learning");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyMode, setStudyMode] = useState<"word" | "image" | "spelling">("word");
@@ -97,11 +97,17 @@ export default function VocabularyPractice({
           if (!isActive) return false;
           if (studyMode === "spelling" && (lq.lastSpelledCorrectly === true || lq.spellingExclude === true)) return false;
         } else if (deckTypeFilter === "spelling-problems") {
-          if (lq.lastSpelledCorrectly !== false) return false;
+          // General spelling errors (complete incorrects, not accent warnings)
+          if (lq.lastSpelledCorrectly !== false || lq.lastSpelledWithAccentError === true) return false;
+          if (studyMode === "spelling" && lq.spellingExclude === true) return false;
+        } else if (deckTypeFilter === "spelling-accents") {
+          // Accent errors only
+          if (!lq.lastSpelledWithAccentError) return false;
           if (studyMode === "spelling" && lq.spellingExclude === true) return false;
         } else if (deckTypeFilter === "spelling-correct") {
           // Words that were spelled correctly OR marked as "Точно знаю" both belong here
           if (lq.lastSpelledCorrectly !== true && lq.spellingExclude !== true) return false;
+          if (lq.lastSpelledWithAccentError === true) return false;
         } else {
           // "all" - anything that isn't ignored
           if (lq.status === "ignored") return false;
@@ -161,7 +167,9 @@ export default function VocabularyPractice({
       imageUrl: typeof lq.imageUrl === "string" ? lq.imageUrl : null,
       spellingCorrectCount: typeof lq.spellingCorrectCount === "number" ? lq.spellingCorrectCount : 0,
       spellingIncorrectCount: typeof lq.spellingIncorrectCount === "number" ? lq.spellingIncorrectCount : 0,
+      spellingAccentCount: typeof lq.spellingAccentCount === "number" ? lq.spellingAccentCount : 0,
       lastSpelledCorrectly: lq.lastSpelledCorrectly !== undefined ? lq.lastSpelledCorrectly : null,
+      lastSpelledWithAccentError: !!lq.lastSpelledWithAccentError,
       spellingExclude: !!lq.spellingExclude,
     }));
   }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter, studyMode]);
@@ -529,14 +537,13 @@ export default function VocabularyPractice({
     }
     setHasCheckedSpelling(true);
 
-    // Store the result — save is deferred to handleNext so that learningList
-    // does NOT recompute immediately (which would cause the current word to
-    // disappear before the feedback is shown, triggering an unwanted card jump).
     pendingSpellSaveRef.current = {
       ...currentLq,
-      spellingCorrectCount: (currentLq.spellingCorrectCount || 0) + (isCorrect || isAccentWarning ? 1 : 0),
-      spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + (isCorrect || isAccentWarning ? 0 : 1),
-      lastSpelledCorrectly: isCorrect || isAccentWarning,
+      spellingCorrectCount: (currentLq.spellingCorrectCount || 0) + (isCorrect ? 1 : 0),
+      spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + (!isCorrect && !isAccentWarning ? 1 : 0),
+      spellingAccentCount: (currentLq.spellingAccentCount || 0) + (isAccentWarning ? 1 : 0),
+      lastSpelledCorrectly: isCorrect,
+      lastSpelledWithAccentError: isAccentWarning,
     };
   };
 
@@ -550,7 +557,8 @@ export default function VocabularyPractice({
     const updatedLq: VocabItem = {
       ...currentLq,
       spellingExclude: true,
-      lastSpelledCorrectly: true, // "Точно знаю" also counts as correctly known
+      lastSpelledCorrectly: true,
+      lastSpelledWithAccentError: false,
     };
     handleSaveVocabWrapped(updatedLq);
 
@@ -575,6 +583,7 @@ export default function VocabularyPractice({
       ...currentLq,
       spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + 1,
       lastSpelledCorrectly: false,
+      lastSpelledWithAccentError: false,
     };
   };
 
@@ -730,6 +739,7 @@ export default function VocabularyPractice({
             { id: "learning", label: "Изучаемые 🎯" },
             { id: "all", label: "Все слова 📖" },
             { id: "spelling-problems", label: "С ошибками ❌" },
+            { id: "spelling-accents", label: "С ударением ⚠️" },
             { id: "spelling-correct", label: "Пишу правильно ✅" }
           ].map((item) => (
             <button
@@ -822,6 +832,7 @@ export default function VocabularyPractice({
           { id: "learning", label: "Изучаемые 🎯" },
           { id: "all", label: "Все слова 📖" },
           { id: "spelling-problems", label: "С ошибками ❌" },
+          { id: "spelling-accents", label: "С ударением ⚠️" },
           { id: "spelling-correct", label: "Пишу правильно ✅" }
         ].map((item) => (
           <button
@@ -1464,6 +1475,11 @@ export default function VocabularyPractice({
                 spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title="Исключено (Точно знаю)">⭐</span>;
                 if (!isActive) {
                   itemBgClass = "opacity-50 bg-stone-100/30 dark:bg-zinc-900/10 text-zinc-400 dark:text-zinc-500 border-zinc-200/40 line-through decoration-zinc-400/40";
+                }
+              } else if (item.lastSpelledWithAccentError === true) {
+                spellingStatusIcon = <span className="text-amber-500 font-black ml-1.5" title="Ошибка в ударении">⚠️</span>;
+                if (!isActive) {
+                  itemBgClass = "bg-amber-50/35 hover:bg-amber-100/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-100/50 dark:border-amber-950/30";
                 }
               } else if (item.lastSpelledCorrectly === true) {
                 spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title="Написано верно">✓</span>;

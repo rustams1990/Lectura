@@ -23,7 +23,9 @@ export interface VocabItem {
   imageUrl?: string | null;
   spellingCorrectCount?: number;
   spellingIncorrectCount?: number;
+  spellingAccentCount?: number;
   lastSpelledCorrectly?: boolean | null;
+  lastSpelledWithAccentError?: boolean | null;
   spellingExclude?: boolean | null;
 }
 

@@ -245,7 +245,9 @@ function normalizeVocabRecord(record: Record<string, VocabItem> | any[] | undefi
       imageUrl: typeof value.imageUrl === "string" ? value.imageUrl : null,
       spellingCorrectCount: typeof value.spellingCorrectCount === "number" ? value.spellingCorrectCount : 0,
       spellingIncorrectCount: typeof value.spellingIncorrectCount === "number" ? value.spellingIncorrectCount : 0,
+      spellingAccentCount: typeof value.spellingAccentCount === "number" ? value.spellingAccentCount : 0,
       lastSpelledCorrectly: value.lastSpelledCorrectly !== undefined ? (value.lastSpelledCorrectly === true ? true : (value.lastSpelledCorrectly === false ? false : null)) : null,
+      lastSpelledWithAccentError: !!value.lastSpelledWithAccentError,
       spellingExclude: !!value.spellingExclude,
     };
   }
@@ -1580,7 +1582,9 @@ export default function App() {
           imageUrl: newVocabItem.imageUrl !== undefined ? newVocabItem.imageUrl : (existing && existing.imageUrl ? existing.imageUrl : null),
           spellingCorrectCount: newVocabItem.spellingCorrectCount !== undefined ? newVocabItem.spellingCorrectCount : (existing ? existing.spellingCorrectCount : 0),
           spellingIncorrectCount: newVocabItem.spellingIncorrectCount !== undefined ? newVocabItem.spellingIncorrectCount : (existing ? existing.spellingIncorrectCount : 0),
+          spellingAccentCount: newVocabItem.spellingAccentCount !== undefined ? newVocabItem.spellingAccentCount : (existing ? existing.spellingAccentCount : 0),
           lastSpelledCorrectly: newVocabItem.lastSpelledCorrectly !== undefined ? newVocabItem.lastSpelledCorrectly : (existing ? existing.lastSpelledCorrectly : null),
+          lastSpelledWithAccentError: newVocabItem.lastSpelledWithAccentError !== undefined ? newVocabItem.lastSpelledWithAccentError : (existing ? existing.lastSpelledWithAccentError : null),
           spellingExclude: newVocabItem.spellingExclude !== undefined ? newVocabItem.spellingExclude : (existing ? existing.spellingExclude : false),
         };
 
@@ -1657,7 +1661,9 @@ export default function App() {
             imageUrl: newVocabItem.imageUrl !== undefined ? newVocabItem.imageUrl : (existing && existing.imageUrl ? existing.imageUrl : null),
             spellingCorrectCount: newVocabItem.spellingCorrectCount !== undefined ? newVocabItem.spellingCorrectCount : (existing ? existing.spellingCorrectCount : 0),
             spellingIncorrectCount: newVocabItem.spellingIncorrectCount !== undefined ? newVocabItem.spellingIncorrectCount : (existing ? existing.spellingIncorrectCount : 0),
+            spellingAccentCount: newVocabItem.spellingAccentCount !== undefined ? newVocabItem.spellingAccentCount : (existing ? existing.spellingAccentCount : 0),
             lastSpelledCorrectly: newVocabItem.lastSpelledCorrectly !== undefined ? newVocabItem.lastSpelledCorrectly : (existing ? existing.lastSpelledCorrectly : null),
+            lastSpelledWithAccentError: newVocabItem.lastSpelledWithAccentError !== undefined ? newVocabItem.lastSpelledWithAccentError : (existing ? existing.lastSpelledWithAccentError : null),
             spellingExclude: newVocabItem.spellingExclude !== undefined ? newVocabItem.spellingExclude : (existing ? existing.spellingExclude : false),
           };
 
@@ -1925,7 +1931,9 @@ export default function App() {
           imageUrl: existing ? (existing.imageUrl || null) : null,
           spellingCorrectCount: existing ? (existing.spellingCorrectCount || 0) : 0,
           spellingIncorrectCount: existing ? (existing.spellingIncorrectCount || 0) : 0,
+          spellingAccentCount: existing ? (existing.spellingAccentCount || 0) : 0,
           lastSpelledCorrectly: existing ? existing.lastSpelledCorrectly : null,
+          lastSpelledWithAccentError: existing ? existing.lastSpelledWithAccentError : null,
           spellingExclude: existing ? existing.spellingExclude : false,
         };
 
