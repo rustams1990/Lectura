@@ -1574,6 +1574,9 @@ export default function App() {
           createdAt: newVocabItem.createdAt !== undefined ? newVocabItem.createdAt : (existing ? existing.createdAt : Date.now()),
           tags: newVocabItem.tags !== undefined ? newVocabItem.tags : (existing ? existing.tags : []),
           imageUrl: newVocabItem.imageUrl !== undefined ? newVocabItem.imageUrl : (existing && existing.imageUrl ? existing.imageUrl : null),
+          spellingCorrectCount: newVocabItem.spellingCorrectCount !== undefined ? newVocabItem.spellingCorrectCount : (existing ? existing.spellingCorrectCount : 0),
+          spellingIncorrectCount: newVocabItem.spellingIncorrectCount !== undefined ? newVocabItem.spellingIncorrectCount : (existing ? existing.spellingIncorrectCount : 0),
+          lastSpelledCorrectly: newVocabItem.lastSpelledCorrectly !== undefined ? newVocabItem.lastSpelledCorrectly : (existing ? existing.lastSpelledCorrectly : null),
         };
 
         // Clean up legacy non-prefixed key or case variations from local state

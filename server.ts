@@ -2558,6 +2558,9 @@ function getDbConnection(userId: string = "default") {
         tags TEXT,
         imageUrl TEXT,
         examples TEXT,
+        spellingCorrectCount INTEGER DEFAULT 0,
+        spellingIncorrectCount INTEGER DEFAULT 0,
+        lastSpelledCorrectly INTEGER,
         FOREIGN KEY(language_code) REFERENCES languages(code) ON DELETE CASCADE,
         UNIQUE(language_code, word)
       );
@@ -2616,6 +2619,17 @@ function getDbConnection(userId: string = "default") {
       `);
     }
 
+    // Ensure spelling statistics columns exist in words table (safe migration)
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN spellingCorrectCount INTEGER DEFAULT 0;`);
+    } catch (_) {}
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN spellingIncorrectCount INTEGER DEFAULT 0;`);
+    } catch (_) {}
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN lastSpelledCorrectly INTEGER;`);
+    } catch (_) {}
+
     dbConns.set(safeUserId, conn);
   }
   return conn;
@@ -2648,8 +2662,8 @@ function migrateJsonToSqliteIfNeeded() {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples, spellingCorrectCount, spellingIncorrectCount, lastSpelledCorrectly
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -2700,7 +2714,10 @@ function migrateJsonToSqliteIfNeeded() {
           val.createdAt || Date.now(),
           JSON.stringify(val.tags || []),
           val.imageUrl || null,
-          JSON.stringify(val.examples || [])
+          JSON.stringify(val.examples || []),
+          val.spellingCorrectCount || 0,
+          val.spellingIncorrectCount || 0,
+          val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null
         );
       }
 
@@ -2856,6 +2873,9 @@ function getLocalServerDb(userId: string = "default") {
         tags: w.tags ? JSON.parse(w.tags) : [],
         imageUrl: w.imageUrl,
         examples: w.examples ? JSON.parse(w.examples) : [],
+        spellingCorrectCount: w.spellingCorrectCount || 0,
+        spellingIncorrectCount: w.spellingIncorrectCount || 0,
+        lastSpelledCorrectly: w.lastSpelledCorrectly === 1 ? true : (w.lastSpelledCorrectly === 0 ? false : null),
       };
     }
 
@@ -2902,8 +2922,8 @@ function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples, spellingCorrectCount, spellingIncorrectCount, lastSpelledCorrectly
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -2962,7 +2982,10 @@ function saveLocalServerDb(userId: string = "default", data: any) {
           val.createdAt || Date.now(),
           JSON.stringify(val.tags || []),
           val.imageUrl || null,
-          JSON.stringify(val.examples || [])
+          JSON.stringify(val.examples || []),
+          val.spellingCorrectCount || 0,
+          val.spellingIncorrectCount || 0,
+          val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null
         );
       }
 

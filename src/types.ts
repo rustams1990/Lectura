@@ -21,6 +21,9 @@ export interface VocabItem {
   createdAt: number;
   tags?: string[];
   imageUrl?: string | null;
+  spellingCorrectCount?: number;
+  spellingIncorrectCount?: number;
+  lastSpelledCorrectly?: boolean | null;
 }
 
 export interface Lesson {

@@ -68,6 +68,15 @@ export default function VocabularyPractice({
   });
 
   const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [deckTypeFilter, setDeckTypeFilter] = useState<"learning" | "all" | "spelling-problems">("learning");
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  // Reset card index when deck filter changes to avoid index errors
+  useEffect(() => {
+    setCurrentIndex(0);
+    setIsFlipped(false);
+  }, [deckTypeFilter]);
 
   // Extract all learning status words for the selected language, resolving them to parents if they exist
   const learningList = useMemo(() => {
@@ -76,12 +85,21 @@ export default function VocabularyPractice({
     Object.entries(vocab)
       .filter(([key, lq]) => {
         if (!lq) return false;
-        const isActive = lq.status && ["1", "2", "3", "4", "5", "learning"].includes(lq.status);
-        if (!isActive) return false;
 
         const parts = key.split("_");
         const itemLang = parts.length > 1 ? parts[0] : "spanish";
         if (itemLang.toLowerCase() !== selectedPracticeLang.toLowerCase()) return false;
+
+        // Apply deck filter
+        if (deckTypeFilter === "learning") {
+          const isActive = lq.status && ["1", "2", "3", "4", "5", "learning"].includes(lq.status);
+          if (!isActive) return false;
+        } else if (deckTypeFilter === "spelling-problems") {
+          if (lq.lastSpelledCorrectly !== false) return false;
+        } else {
+          // "all" - anything that isn't ignored
+          if (lq.status === "ignored") return false;
+        }
 
         // Apply timeframe filter
         if (timeframeFilter !== "all") {
@@ -134,11 +152,14 @@ export default function VocabularyPractice({
       tags: Array.isArray(lq.tags) ? lq.tags.filter(t => typeof t === "string") : [],
       examples: Array.isArray(lq.examples) ? lq.examples : [],
       imageUrl: typeof lq.imageUrl === "string" ? lq.imageUrl : null,
+      spellingCorrectCount: typeof lq.spellingCorrectCount === "number" ? lq.spellingCorrectCount : 0,
+      spellingIncorrectCount: typeof lq.spellingIncorrectCount === "number" ? lq.spellingIncorrectCount : 0,
+      lastSpelledCorrectly: lq.lastSpelledCorrectly !== undefined ? lq.lastSpelledCorrectly : null,
     }));
-  }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter]);
+  }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter]);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
+
+
   const [studyMode, setStudyMode] = useState<"word" | "image" | "spelling">("word");
   const [spellingInput, setSpellingInput] = useState("");
   const [spellingStatus, setSpellingStatus] = useState<"unchecked" | "correct" | "incorrect" | "accent-warning">("unchecked");
@@ -416,16 +437,30 @@ export default function VocabularyPractice({
     const targetNoAccents = stripAccents(targetClean);
     const typedNoAccents = stripAccents(typedClean);
 
+    let isCorrect = false;
+    let isAccentWarning = false;
+
     if (targetClean === typedClean) {
+      isCorrect = true;
       setSpellingStatus("correct");
       playSpeech(target);
     } else if (targetNoAccents === typedNoAccents) {
+      isAccentWarning = true;
       setSpellingStatus("accent-warning");
       playSpeech(target);
     } else {
       setSpellingStatus("incorrect");
     }
     setHasCheckedSpelling(true);
+
+    // Save statistics back to client state and SQLite
+    const updatedLq: VocabItem = {
+      ...currentLq,
+      spellingCorrectCount: (currentLq.spellingCorrectCount || 0) + (isCorrect || isAccentWarning ? 1 : 0),
+      spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + (isCorrect || isAccentWarning ? 0 : 1),
+      lastSpelledCorrectly: isCorrect || isAccentWarning,
+    };
+    handleSaveVocabWrapped(updatedLq);
   };
 
   const getClozeSentence = (sentenceText: string, targetWord: string) => {
@@ -566,6 +601,28 @@ export default function VocabularyPractice({
           </div>
         )}
 
+        {/* Deck Type Filter (Empty state) */}
+        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
+          {[
+            { id: "learning", label: "Изучаемые 🎯" },
+            { id: "all", label: "Все слова 📖" },
+            { id: "spelling-problems", label: "С ошибками ❌" }
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setDeckTypeFilter(item.id as any)}
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                deckTypeFilter === item.id
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         {/* Timeframe Filter Selector (Empty state) */}
         <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
           {[
@@ -634,6 +691,28 @@ export default function VocabularyPractice({
           ))}
         </div>
       )}
+
+      {/* Deck Type Filter Selector */}
+      <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
+        {[
+          { id: "learning", label: "Изучаемые 🎯" },
+          { id: "all", label: "Все слова 📖" },
+          { id: "spelling-problems", label: "С ошибками ❌" }
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setDeckTypeFilter(item.id as any)}
+            className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+              deckTypeFilter === item.id
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       {/* Timeframe Filter Selector */}
       <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
