@@ -243,6 +243,10 @@ function normalizeVocabRecord(record: Record<string, VocabItem> | any[] | undefi
       tags: Array.isArray(value.tags) ? value.tags.filter((t) => typeof t === "string") : [],
       examples: Array.isArray(value.examples) ? value.examples : [],
       imageUrl: typeof value.imageUrl === "string" ? value.imageUrl : null,
+      spellingCorrectCount: typeof value.spellingCorrectCount === "number" ? value.spellingCorrectCount : 0,
+      spellingIncorrectCount: typeof value.spellingIncorrectCount === "number" ? value.spellingIncorrectCount : 0,
+      lastSpelledCorrectly: value.lastSpelledCorrectly !== undefined ? (value.lastSpelledCorrectly === true ? true : (value.lastSpelledCorrectly === false ? false : null)) : null,
+      spellingExclude: !!value.spellingExclude,
     };
   }
   return normalized;
@@ -1651,6 +1655,10 @@ export default function App() {
             createdAt: newVocabItem.createdAt !== undefined ? newVocabItem.createdAt : (existing ? existing.createdAt : Date.now()),
             tags: newVocabItem.tags !== undefined ? newVocabItem.tags : (existing ? existing.tags : []),
             imageUrl: newVocabItem.imageUrl !== undefined ? newVocabItem.imageUrl : (existing && existing.imageUrl ? existing.imageUrl : null),
+            spellingCorrectCount: newVocabItem.spellingCorrectCount !== undefined ? newVocabItem.spellingCorrectCount : (existing ? existing.spellingCorrectCount : 0),
+            spellingIncorrectCount: newVocabItem.spellingIncorrectCount !== undefined ? newVocabItem.spellingIncorrectCount : (existing ? existing.spellingIncorrectCount : 0),
+            lastSpelledCorrectly: newVocabItem.lastSpelledCorrectly !== undefined ? newVocabItem.lastSpelledCorrectly : (existing ? existing.lastSpelledCorrectly : null),
+            spellingExclude: newVocabItem.spellingExclude !== undefined ? newVocabItem.spellingExclude : (existing ? existing.spellingExclude : false),
           };
 
           // Clean up legacy non-prefixed key or case variations from local state
@@ -1915,6 +1923,10 @@ export default function App() {
           createdAt: existing ? (existing.createdAt || Date.now()) : Date.now(),
           tags: existing ? existing.tags : [],
           imageUrl: existing ? (existing.imageUrl || null) : null,
+          spellingCorrectCount: existing ? (existing.spellingCorrectCount || 0) : 0,
+          spellingIncorrectCount: existing ? (existing.spellingIncorrectCount || 0) : 0,
+          lastSpelledCorrectly: existing ? existing.lastSpelledCorrectly : null,
+          spellingExclude: existing ? existing.spellingExclude : false,
         };
 
         // Clean up legacy non-prefixed key or case variations from local state
