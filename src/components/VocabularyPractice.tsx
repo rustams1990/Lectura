@@ -139,7 +139,17 @@ export default function VocabularyPractice({
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [studyMode, setStudyMode] = useState<"word" | "image">("word");
+  const [studyMode, setStudyMode] = useState<"word" | "image" | "spelling">("word");
+  const [spellingInput, setSpellingInput] = useState("");
+  const [spellingStatus, setSpellingStatus] = useState<"unchecked" | "correct" | "incorrect" | "accent-warning">("unchecked");
+  const [hasCheckedSpelling, setHasCheckedSpelling] = useState(false);
+  const spellingInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const resetSpellingState = () => {
+    setSpellingInput("");
+    setSpellingStatus("unchecked");
+    setHasCheckedSpelling(false);
+  };
   const [studyDirection, setStudyDirection] = useState<"forward" | "reverse">("forward");
   const [isEditingWord, setIsEditingWord] = useState<string | null>(null);
   const [showList, setShowList] = useState(false);
@@ -387,6 +397,113 @@ export default function VocabularyPractice({
 
   const currentLq = learningList[currentIndex];
 
+  const checkSpelling = () => {
+    if (!currentLq || !currentLq.word) return;
+
+    const target = currentLq.word.trim();
+    const typed = spellingInput.trim();
+
+    if (!typed) return;
+
+    // Normalizations for comparison
+    const targetClean = target.toLowerCase();
+    const typedClean = typed.toLowerCase();
+
+    // Accent-insensitive normalization
+    const stripAccents = (str: string) =>
+      str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const targetNoAccents = stripAccents(targetClean);
+    const typedNoAccents = stripAccents(typedClean);
+
+    if (targetClean === typedClean) {
+      setSpellingStatus("correct");
+      playSpeech(target);
+    } else if (targetNoAccents === typedNoAccents) {
+      setSpellingStatus("accent-warning");
+      playSpeech(target);
+    } else {
+      setSpellingStatus("incorrect");
+    }
+    setHasCheckedSpelling(true);
+  };
+
+  const getClozeSentence = (sentenceText: string, targetWord: string) => {
+    if (!sentenceText || !targetWord) return "";
+    const escapedWord = targetWord.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    
+    const regex = new RegExp(`\\b${escapedWord}\\b`, "gi");
+    if (regex.test(sentenceText)) {
+      return sentenceText.replace(regex, "_______");
+    }
+
+    const index = sentenceText.toLowerCase().indexOf(targetWord.toLowerCase());
+    if (index !== -1) {
+      const before = sentenceText.substring(0, index);
+      const after = sentenceText.substring(index + targetWord.length);
+      return before + "_______" + after;
+    }
+
+    return sentenceText;
+  };
+
+  const handleSpellingKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!hasCheckedSpelling) {
+        if (spellingInput.trim()) {
+          checkSpelling();
+        }
+      } else {
+        if (spellingStatus === "correct" || spellingStatus === "accent-warning") {
+          handleNext();
+        } else {
+          resetSpellingState();
+          setTimeout(() => {
+            spellingInputRef.current?.focus();
+          }, 50);
+        }
+      }
+    }
+  };
+
+  // Autofocus input when index, mode, or selected practice language changes
+  useEffect(() => {
+    resetSpellingState();
+    if (studyMode === "spelling") {
+      const timer = setTimeout(() => {
+        spellingInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [currentIndex, studyMode, selectedPracticeLang]);
+
+  // Global key listener for next card when flipped
+  useEffect(() => {
+    if (studyMode !== "spelling") return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === "INPUT" && document.activeElement !== spellingInputRef.current) {
+        return;
+      }
+      if (document.activeElement?.tagName === "TEXTAREA") {
+        return;
+      }
+
+      if (isFlipped && e.key === "Enter") {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [studyMode, isFlipped, currentIndex]);
+
+  const hasAnyImages = useMemo(() => {
+    return learningList.some((lq) => !!lq.imageUrl);
+  }, [learningList]);
+
   // Safeguard against temporary out-of-bound index renders during state updates
   if (learningList.length > 0 && !currentLq) {
     return (
@@ -395,10 +512,6 @@ export default function VocabularyPractice({
       </div>
     );
   }
-
-  const hasAnyImages = useMemo(() => {
-    return learningList.some((lq) => !!lq.imageUrl);
-  }, [learningList]);
 
   const isCardWithImage = studyMode === "image" && currentLq && !!currentLq.imageUrl;
 
@@ -575,24 +688,24 @@ export default function VocabularyPractice({
       {/* Controls Bar (Mode & Direction) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
         {/* Practice Mode Selector */}
-        {hasAnyImages ? (
-          <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
-            <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Режим:</span>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setStudyMode("word");
-                  setIsFlipped(false);
-                }}
-                className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                  studyMode === "word"
-                    ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
-                    : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
-              >
-                Слово 🔤
-              </button>
+        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Режим:</span>
+          <div className="flex gap-1 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setStudyMode("word");
+                setIsFlipped(false);
+              }}
+              className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                studyMode === "word"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              Слово 🔤
+            </button>
+            {hasAnyImages && (
               <button
                 type="button"
                 onClick={() => {
@@ -607,11 +720,23 @@ export default function VocabularyPractice({
               >
                 Картинка 🖼️
               </button>
-            </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setStudyMode("spelling");
+                setIsFlipped(false);
+              }}
+              className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                studyMode === "spelling"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              Правописание ✍️
+            </button>
           </div>
-        ) : (
-          <div className="hidden sm:block" />
-        )}
+        </div>
 
         {/* Direction Selector */}
         <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
@@ -652,7 +777,14 @@ export default function VocabularyPractice({
       </div>
 
       {/* Main Flashcard wrapper */}
-      <div className="relative min-h-[365px] cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
+      <div 
+        className={`relative min-h-[365px] ${studyMode !== "spelling" ? "cursor-pointer" : "cursor-default"}`} 
+        onClick={() => {
+          if (studyMode !== "spelling") {
+            setIsFlipped(!isFlipped);
+          }
+        }}
+      >
         <AnimatePresence mode="wait">
           {!isFlipped ? (
             /* Front side of the card */
@@ -664,7 +796,178 @@ export default function VocabularyPractice({
               transition={{ duration: 0.25 }}
               className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-800 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[365px]"
             >
-              {isCardWithImage ? (
+              {studyMode === "spelling" ? (
+                <>
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
+                      Правописание / Spelling Check
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playSpeech(currentLq.word);
+                        }}
+                        disabled={playingSpeech}
+                        className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
+                          playingSpeech ? "animate-pulse" : ""
+                        }`}
+                        title="Прослушать слово (TTS)"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsEditingWord(currentLq.word);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
+                        title="Редактировать слово / Edit word"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-center py-6 flex-grow flex flex-col justify-center items-center space-y-4">
+                    {/* The Translation Prompt */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
+                        Перевод / Translation
+                      </span>
+                      <h2 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize">
+                        {currentLq.translation}
+                      </h2>
+                    </div>
+
+                    {/* Cloze Sentence Context if exists */}
+                    {currentLq.examples && currentLq.examples.length > 0 && (
+                      <div className="max-w-md w-full bg-zinc-50/50 dark:bg-zinc-950/30 p-3 rounded-xl border border-zinc-100/50 dark:border-zinc-800/40">
+                        <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
+                          Контекст / Context clue
+                        </span>
+                        <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed italic">
+                          "{getClozeSentence(currentLq.examples[0].text, currentLq.word)}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Input Field Container */}
+                    <div className="w-full max-w-sm space-y-2 pt-2">
+                      <div className="relative">
+                        <input
+                          ref={spellingInputRef}
+                          type="text"
+                          value={spellingInput}
+                          onChange={(e) => setSpellingInput(e.target.value)}
+                          onKeyDown={handleSpellingKeyDown}
+                          disabled={hasCheckedSpelling}
+                          placeholder="Введите слово..."
+                          className={`w-full px-4 py-2.5 rounded-xl border text-base font-medium transition-all outline-none text-center ${
+                            spellingStatus === "correct"
+                              ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-900 dark:text-emerald-300"
+                              : spellingStatus === "incorrect"
+                              ? "bg-rose-50/50 dark:bg-rose-950/20 border-rose-500 text-rose-900 dark:text-rose-300"
+                              : spellingStatus === "accent-warning"
+                              ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-500 text-amber-900 dark:text-amber-300"
+                              : "bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-50 focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                          }`}
+                        />
+                      </div>
+
+                      {/* Feedback messages and buttons */}
+                      {hasCheckedSpelling && (
+                        <div className="p-3 rounded-xl space-y-2 animate-fade-in text-xs font-medium text-center">
+                          {spellingStatus === "correct" && (
+                            <div className="text-emerald-600 dark:text-emerald-400 font-bold text-center flex items-center justify-center gap-1">
+                              <CheckCircle className="w-4 h-4" />
+                              Правильно! / Correct!
+                            </div>
+                          )}
+                          
+                          {spellingStatus === "accent-warning" && (
+                            <div className="space-y-1 text-center">
+                              <div className="text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center gap-1">
+                                <Sparkles className="w-4 h-4" />
+                                Почти верно! Обратите внимание на ударение.
+                              </div>
+                              <div className="text-zinc-500 dark:text-zinc-400 font-mono text-center">
+                                Вы написали: <span className="text-rose-500 line-through">{spellingInput}</span> | Ожидалось: <span className="text-emerald-500 font-bold">{currentLq.word}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {spellingStatus === "incorrect" && (
+                            <div className="space-y-1.5 text-center">
+                              <div className="text-rose-600 dark:text-rose-400 font-bold flex items-center justify-center gap-1">
+                                <X className="w-4 h-4" />
+                                Ошибка в написании / Spelling mistake
+                              </div>
+                              <div className="text-zinc-500 dark:text-zinc-400 font-mono text-center">
+                                Вы написали: <span className="text-rose-500 line-through">{spellingInput || "пусто"}</span>
+                              </div>
+                              <div className="text-zinc-600 dark:text-zinc-300 font-mono text-center">
+                                Правильно: <span className="text-emerald-500 font-bold">{currentLq.word}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Action controls below feedback */}
+                          <div className="flex gap-2 justify-center pt-1.5">
+                            {spellingStatus === "incorrect" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  resetSpellingState();
+                                  setTimeout(() => spellingInputRef.current?.focus(), 50);
+                                }}
+                                className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg font-bold transition-all cursor-pointer"
+                              >
+                                Повторить 🔄
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleNext();
+                              }}
+                              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              {spellingStatus === "correct" || spellingStatus === "accent-warning" ? "Далее" : "Пропустить"}
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsFlipped(true)}
+                              className="px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-950 text-zinc-600 dark:text-zinc-400 rounded-lg font-bold transition-all cursor-pointer"
+                              title="Посмотреть обратную сторону карточки"
+                            >
+                              Карточка 📋
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!hasCheckedSpelling && (
+                        <button
+                          type="button"
+                          onClick={checkSpelling}
+                          disabled={!spellingInput.trim()}
+                          className="w-full py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-sm cursor-pointer"
+                        >
+                          Проверить (Enter)
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 font-medium">
+                    Прослушайте слово и введите его правильное написание
+                  </div>
+                </>
+              ) : isCardWithImage ? (
                 <>
                   <div className="flex justify-between items-start">
                     <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
