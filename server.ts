@@ -2561,6 +2561,7 @@ function getDbConnection(userId: string = "default") {
         spellingCorrectCount INTEGER DEFAULT 0,
         spellingIncorrectCount INTEGER DEFAULT 0,
         lastSpelledCorrectly INTEGER,
+        spellingExclude INTEGER DEFAULT 0,
         FOREIGN KEY(language_code) REFERENCES languages(code) ON DELETE CASCADE,
         UNIQUE(language_code, word)
       );
@@ -2629,6 +2630,9 @@ function getDbConnection(userId: string = "default") {
     try {
       conn.exec(`ALTER TABLE words ADD COLUMN lastSpelledCorrectly INTEGER;`);
     } catch (_) {}
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`);
+    } catch (_) {}
 
     dbConns.set(safeUserId, conn);
   }
@@ -2662,8 +2666,8 @@ function migrateJsonToSqliteIfNeeded() {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples, spellingCorrectCount, spellingIncorrectCount, lastSpelledCorrectly
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples, spellingCorrectCount, spellingIncorrectCount, lastSpelledCorrectly, spellingExclude
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -2717,7 +2721,8 @@ function migrateJsonToSqliteIfNeeded() {
           JSON.stringify(val.examples || []),
           val.spellingCorrectCount || 0,
           val.spellingIncorrectCount || 0,
-          val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null
+          val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null,
+          val.spellingExclude ? 1 : 0
         );
       }
 
@@ -2876,6 +2881,7 @@ function getLocalServerDb(userId: string = "default") {
         spellingCorrectCount: w.spellingCorrectCount || 0,
         spellingIncorrectCount: w.spellingIncorrectCount || 0,
         lastSpelledCorrectly: w.lastSpelledCorrectly === 1 ? true : (w.lastSpelledCorrectly === 0 ? false : null),
+        spellingExclude: w.spellingExclude === 1,
       };
     }
 
@@ -2922,8 +2928,8 @@ function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples, spellingCorrectCount, spellingIncorrectCount, lastSpelledCorrectly
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples, spellingCorrectCount, spellingIncorrectCount, lastSpelledCorrectly, spellingExclude
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -2985,7 +2991,8 @@ function saveLocalServerDb(userId: string = "default", data: any) {
           JSON.stringify(val.examples || []),
           val.spellingCorrectCount || 0,
           val.spellingIncorrectCount || 0,
-          val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null
+          val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null,
+          val.spellingExclude ? 1 : 0
         );
       }
 

@@ -1577,6 +1577,7 @@ export default function App() {
           spellingCorrectCount: newVocabItem.spellingCorrectCount !== undefined ? newVocabItem.spellingCorrectCount : (existing ? existing.spellingCorrectCount : 0),
           spellingIncorrectCount: newVocabItem.spellingIncorrectCount !== undefined ? newVocabItem.spellingIncorrectCount : (existing ? existing.spellingIncorrectCount : 0),
           lastSpelledCorrectly: newVocabItem.lastSpelledCorrectly !== undefined ? newVocabItem.lastSpelledCorrectly : (existing ? existing.lastSpelledCorrectly : null),
+          spellingExclude: newVocabItem.spellingExclude !== undefined ? newVocabItem.spellingExclude : (existing ? existing.spellingExclude : false),
         };
 
         // Clean up legacy non-prefixed key or case variations from local state

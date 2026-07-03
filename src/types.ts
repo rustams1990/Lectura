@@ -24,6 +24,7 @@ export interface VocabItem {
   spellingCorrectCount?: number;
   spellingIncorrectCount?: number;
   lastSpelledCorrectly?: boolean | null;
+  spellingExclude?: boolean | null;
 }
 
 export interface Lesson {
