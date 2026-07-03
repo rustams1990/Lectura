@@ -104,6 +104,7 @@ export default function VocabularyPractice({
         } else {
           // "all" - anything that isn't ignored
           if (lq.status === "ignored") return false;
+          if (studyMode === "spelling" && (lq.lastSpelledCorrectly === true || lq.spellingExclude === true)) return false;
         }
 
         // Apply timeframe filter
@@ -171,6 +172,7 @@ export default function VocabularyPractice({
   const [spellingStatus, setSpellingStatus] = useState<"unchecked" | "correct" | "incorrect" | "accent-warning">("unchecked");
   const [hasCheckedSpelling, setHasCheckedSpelling] = useState(false);
   const spellingInputRef = React.useRef<HTMLInputElement | null>(null);
+  const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
   const resetSpellingState = () => {
     setSpellingInput("");
@@ -211,7 +213,27 @@ export default function VocabularyPractice({
   const [playingSpeech, setPlayingSpeech] = useState(false);
 
   const playSpeech = async (wordToPlay: string) => {
-    if (!wordToPlay || playingSpeech) return;
+    if (!wordToPlay) return;
+
+    // 1. Immediately cancel local browser SpeechSynthesis to stop overlapping
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {
+        console.error("speechSynthesis cancel error:", e);
+      }
+    }
+
+    // 2. Stop any active HTML5 Audio playback (Google TTS / Gemini TTS)
+    if (activeAudioRef.current) {
+      try {
+        activeAudioRef.current.pause();
+      } catch (e) {
+        console.error("Audio pause error:", e);
+      }
+      activeAudioRef.current = null;
+    }
+
     setPlayingSpeech(true);
 
     const currentTtsEngine = settings?.ttsEngine || "google";
@@ -238,8 +260,17 @@ export default function VocabularyPractice({
 
         if (audioUrl) {
           const audio = new Audio(audioUrl);
-          audio.onended = () => { URL.revokeObjectURL(audioUrl!); setPlayingSpeech(false); };
-          audio.onerror = () => { URL.revokeObjectURL(audioUrl!); setPlayingSpeech(false); };
+          activeAudioRef.current = audio;
+          audio.onended = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            URL.revokeObjectURL(audioUrl!);
+            setPlayingSpeech(false);
+          };
+          audio.onerror = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            URL.revokeObjectURL(audioUrl!);
+            setPlayingSpeech(false);
+          };
           await audio.play();
           return;
         }
@@ -269,7 +300,15 @@ export default function VocabularyPractice({
         const data = await safeJsonParse(response);
         if (data.audioBase64) {
           const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
-          audio.onended = () => setPlayingSpeech(false);
+          activeAudioRef.current = audio;
+          audio.onended = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            setPlayingSpeech(false);
+          };
+          audio.onerror = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            setPlayingSpeech(false);
+          };
           await audio.play();
           return; // successfully played AI audio
         } else {
@@ -284,6 +323,12 @@ export default function VocabularyPractice({
     try {
       const utterance = new SpeechSynthesisUtterance(wordToPlay);
       utterance.lang = ttsLang;
+      utterance.onend = () => {
+        setPlayingSpeech(false);
+      };
+      utterance.onerror = () => {
+        setPlayingSpeech(false);
+      };
       
       if (typeof window !== "undefined" && window.speechSynthesis) {
         const voices = window.speechSynthesis.getVoices();
@@ -310,7 +355,6 @@ export default function VocabularyPractice({
       window.speechSynthesis.speak(utterance);
     } catch (browserErr) {
       console.error("Audio playback error:", browserErr);
-    } finally {
       setPlayingSpeech(false);
     }
   };
