@@ -87,9 +87,6 @@ export default function VocabularyPractice({
       .filter(([key, lq]) => {
         if (!lq) return false;
 
-        // Exclude if marked as excluded from spelling, ONLY when in spelling mode
-        if (studyMode === "spelling" && lq.spellingExclude === true) return false;
-
         const parts = key.split("_");
         const itemLang = parts.length > 1 ? parts[0] : "spanish";
         if (itemLang.toLowerCase() !== selectedPracticeLang.toLowerCase()) return false;
@@ -98,15 +95,15 @@ export default function VocabularyPractice({
         if (deckTypeFilter === "learning") {
           const isActive = lq.status && ["1", "2", "3", "4", "5", "learning"].includes(lq.status);
           if (!isActive) return false;
-          if (studyMode === "spelling" && lq.lastSpelledCorrectly === true) return false;
+          if (studyMode === "spelling" && (lq.lastSpelledCorrectly === true || lq.spellingExclude === true)) return false;
         } else if (deckTypeFilter === "spelling-problems") {
           if (lq.lastSpelledCorrectly !== false) return false;
+          if (studyMode === "spelling" && lq.spellingExclude === true) return false;
         } else if (deckTypeFilter === "spelling-correct") {
           if (lq.lastSpelledCorrectly !== true) return false;
         } else {
           // "all" - anything that isn't ignored
           if (lq.status === "ignored") return false;
-          if (studyMode === "spelling" && lq.lastSpelledCorrectly === true) return false;
         }
 
         // Apply timeframe filter
