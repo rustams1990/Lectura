@@ -1369,6 +1369,31 @@ export default function VocabularyPractice({
             const isActive = idx === currentIndex;
             const displayLabel = studyDirection === "reverse" ? item.translation : item.word;
 
+            // Spelling status visual treatment
+            let spellingStatusIcon = null;
+            let itemBgClass = isActive
+              ? "bg-teal-50 dark:bg-teal-950/35 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900 shadow-3xs"
+              : "bg-zinc-50/50 hover:bg-zinc-100 dark:bg-zinc-950/20 dark:hover:bg-zinc-800/30 text-zinc-700 dark:text-zinc-300 border-zinc-100/50 dark:border-zinc-800/60";
+
+            if (studyMode === "spelling") {
+              if (item.spellingExclude) {
+                spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title="Исключено (Точно знаю)">⭐</span>;
+                if (!isActive) {
+                  itemBgClass = "opacity-50 bg-stone-100/30 dark:bg-zinc-900/10 text-zinc-400 dark:text-zinc-500 border-zinc-200/40 line-through decoration-zinc-400/40";
+                }
+              } else if (item.lastSpelledCorrectly === true) {
+                spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title="Написано верно">✓</span>;
+                if (!isActive) {
+                  itemBgClass = "bg-emerald-50/35 hover:bg-emerald-100/50 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border-emerald-100/50 dark:border-emerald-950/30";
+                }
+              } else if (item.lastSpelledCorrectly === false) {
+                spellingStatusIcon = <span className="text-rose-500 font-black ml-1.5" title="Написано с ошибкой">✗</span>;
+                if (!isActive) {
+                  itemBgClass = "bg-rose-50/35 hover:bg-rose-100/50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-rose-800 dark:text-rose-300 border-rose-100/50 dark:border-rose-950/30";
+                }
+              }
+            }
+
             return (
               <button
                 key={item.word + "_" + idx}
@@ -1377,13 +1402,12 @@ export default function VocabularyPractice({
                   setCurrentIndex(idx);
                   setIsFlipped(false);
                 }}
-                className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${
-                  isActive
-                    ? "bg-teal-50 dark:bg-teal-950/35 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900 shadow-3xs"
-                    : "bg-zinc-50/50 hover:bg-zinc-100 dark:bg-zinc-950/20 dark:hover:bg-zinc-800/30 text-zinc-700 dark:text-zinc-300 border-zinc-100/50 dark:border-zinc-800/60"
-                }`}
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${itemBgClass}`}
               >
-                <span className="capitalize truncate max-w-[160px]">{displayLabel}</span>
+                <span className="capitalize truncate max-w-[160px] flex items-center">
+                  {displayLabel}
+                  {spellingStatusIcon}
+                </span>
                 <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
                   {idx + 1}
                 </span>
