@@ -2634,6 +2634,16 @@ function getDbConnection(userId: string = "default") {
       conn.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`);
     } catch (_) {}
 
+    // Backfill: words marked "Точно знаю" (spellingExclude=1) should also be considered
+    // correctly spelled so they appear in the "Пишу правильно" deck.
+    try {
+      conn.exec(`
+        UPDATE words
+        SET lastSpelledCorrectly = 1
+        WHERE spellingExclude = 1 AND (lastSpelledCorrectly IS NULL OR lastSpelledCorrectly = 0);
+      `);
+    } catch (_) {}
+
     dbConns.set(safeUserId, conn);
   }
   return conn;

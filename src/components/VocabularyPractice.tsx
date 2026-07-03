@@ -100,7 +100,8 @@ export default function VocabularyPractice({
           if (lq.lastSpelledCorrectly !== false) return false;
           if (studyMode === "spelling" && lq.spellingExclude === true) return false;
         } else if (deckTypeFilter === "spelling-correct") {
-          if (lq.lastSpelledCorrectly !== true) return false;
+          // Words that were spelled correctly OR marked as "Точно знаю" both belong here
+          if (lq.lastSpelledCorrectly !== true && lq.spellingExclude !== true) return false;
         } else {
           // "all" - anything that isn't ignored
           if (lq.status === "ignored") return false;
@@ -549,6 +550,7 @@ export default function VocabularyPractice({
     const updatedLq: VocabItem = {
       ...currentLq,
       spellingExclude: true,
+      lastSpelledCorrectly: true, // "Точно знаю" also counts as correctly known
     };
     handleSaveVocabWrapped(updatedLq);
 
