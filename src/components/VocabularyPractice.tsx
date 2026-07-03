@@ -173,6 +173,7 @@ export default function VocabularyPractice({
   const [hasCheckedSpelling, setHasCheckedSpelling] = useState(false);
   const spellingInputRef = React.useRef<HTMLInputElement | null>(null);
   const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const currentWordRef = React.useRef<string>("");
 
   const resetSpellingState = () => {
     setSpellingInput("");
@@ -247,15 +248,27 @@ export default function VocabularyPractice({
         let audioUrl: string | null = null;
         let blob = await getTtsAudioFromCache(cacheKey);
 
+        if (currentWordRef.current !== wordToPlay) {
+          setPlayingSpeech(false);
+          return;
+        }
+
         if (blob) {
           audioUrl = URL.createObjectURL(blob);
         } else {
           const params = new URLSearchParams({ text: wordToPlay, lang: ttsLang });
           const response = await fetch(`/api/google-tts?${params.toString()}`);
+          if (currentWordRef.current !== wordToPlay) return;
           if (!response.ok) throw new Error(`Google TTS ${response.status}`);
           blob = await response.blob();
           await saveTtsAudioToCache(cacheKey, blob);
           audioUrl = URL.createObjectURL(blob);
+        }
+
+        if (currentWordRef.current !== wordToPlay) {
+          if (audioUrl) URL.revokeObjectURL(audioUrl);
+          setPlayingSpeech(false);
+          return;
         }
 
         if (audioUrl) {
@@ -292,12 +305,22 @@ export default function VocabularyPractice({
           }),
         });
 
+        if (currentWordRef.current !== wordToPlay) {
+          setPlayingSpeech(false);
+          return;
+        }
+
         if (!response.ok) {
           const errData = await safeJsonParse(response);
           throw new Error(errData?.error || `Ошибка сервера (${response.status})`);
         }
 
         const data = await safeJsonParse(response);
+        if (currentWordRef.current !== wordToPlay) {
+          setPlayingSpeech(false);
+          return;
+        }
+
         if (data.audioBase64) {
           const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
           activeAudioRef.current = audio;
@@ -321,6 +344,11 @@ export default function VocabularyPractice({
 
     // --- Default flow: local browser HTML5 SpeechSynthesis API ---
     try {
+      if (currentWordRef.current !== wordToPlay) {
+        setPlayingSpeech(false);
+        return;
+      }
+
       const utterance = new SpeechSynthesisUtterance(wordToPlay);
       utterance.lang = ttsLang;
       utterance.onend = () => {
@@ -467,6 +495,10 @@ export default function VocabularyPractice({
   };
 
   const currentLq = learningList[currentIndex];
+
+  useEffect(() => {
+    currentWordRef.current = currentLq?.word || "";
+  }, [currentLq]);
 
   const checkSpelling = () => {
     if (!currentLq || !currentLq.word) return;
