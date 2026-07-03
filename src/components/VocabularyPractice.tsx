@@ -175,6 +175,8 @@ export default function VocabularyPractice({
   const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
   // Generation counter: incremented on every card navigation so stale async TTS requests can be discarded
   const ttsGenerationRef = React.useRef<number>(0);
+  // Pending spell result to be saved when user navigates (prevents immediate list recomputation)
+  const pendingSpellSaveRef = React.useRef<VocabItem | null>(null);
 
   const resetSpellingState = () => {
     setSpellingInput("");
@@ -526,19 +528,24 @@ export default function VocabularyPractice({
     }
     setHasCheckedSpelling(true);
 
-    // Save statistics back to client state and SQLite
-    const updatedLq: VocabItem = {
+    // Store the result — save is deferred to handleNext so that learningList
+    // does NOT recompute immediately (which would cause the current word to
+    // disappear before the feedback is shown, triggering an unwanted card jump).
+    pendingSpellSaveRef.current = {
       ...currentLq,
       spellingCorrectCount: (currentLq.spellingCorrectCount || 0) + (isCorrect || isAccentWarning ? 1 : 0),
       spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + (isCorrect || isAccentWarning ? 0 : 1),
       lastSpelledCorrectly: isCorrect || isAccentWarning,
     };
-    handleSaveVocabWrapped(updatedLq);
   };
 
   const handleExcludeSpelling = () => {
     if (!currentLq) return;
-    
+    // Flush any pending spell result first
+    if (pendingSpellSaveRef.current) {
+      handleSaveVocabWrapped(pendingSpellSaveRef.current);
+      pendingSpellSaveRef.current = null;
+    }
     const updatedLq: VocabItem = {
       ...currentLq,
       spellingExclude: true,
@@ -561,12 +568,12 @@ export default function VocabularyPractice({
     setSpellingStatus("incorrect");
     setHasCheckedSpelling(true);
 
-    const updatedLq: VocabItem = {
+    // Store result; save deferred to handleNext for consistency
+    pendingSpellSaveRef.current = {
       ...currentLq,
       spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + 1,
       lastSpelledCorrectly: false,
     };
-    handleSaveVocabWrapped(updatedLq);
   };
 
   const getClozeSentence = (sentenceText: string, targetWord: string) => {
@@ -657,7 +664,13 @@ export default function VocabularyPractice({
   const isCardWithImage = studyMode === "image" && currentLq && !!currentLq.imageUrl;
 
   const handleNext = () => {
-    // Reset spelling state immediately before changing card
+    // Flush any pending spell save BEFORE resetting state/changing card
+    // This ensures lastSpelledCorrectly is persisted, and the list recomputation
+    // happens together with the card change (not while feedback is still visible).
+    if (pendingSpellSaveRef.current) {
+      handleSaveVocabWrapped(pendingSpellSaveRef.current);
+      pendingSpellSaveRef.current = null;
+    }
     resetSpellingState();
     setIsFlipped(false);
     setTimeout(() => {
