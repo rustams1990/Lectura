@@ -186,6 +186,21 @@ export default function VocabularyPractice({
   const ttsGenerationRef = React.useRef<number>(0);
   // Pending spell result to be saved when user navigates (prevents immediate list recomputation)
   const pendingSpellSaveRef = React.useRef<VocabItem | null>(null);
+  // Target next word to preserve index alignment when elements are dynamically filtered out of learningList
+  const nextWordTargetRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (nextWordTargetRef.current) {
+      const targetWord = nextWordTargetRef.current;
+      nextWordTargetRef.current = null;
+      const newIdx = learningList.findIndex(item => item.word === targetWord);
+      if (newIdx !== -1) {
+        setCurrentIndex(newIdx);
+      } else {
+        setCurrentIndex(0);
+      }
+    }
+  }, [learningList]);
 
   const resetSpellingState = () => {
     setSpellingInput("");
@@ -549,11 +564,18 @@ export default function VocabularyPractice({
 
   const handleExcludeSpelling = () => {
     if (!currentLq) return;
-    // Flush any pending spell result first
+
+    // 1. Determine target next word before list changes
+    const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
+    nextWordTargetRef.current = targetWord;
+
+    // 2. Flush any pending spell result first
     if (pendingSpellSaveRef.current) {
       handleSaveVocabWrapped(pendingSpellSaveRef.current);
       pendingSpellSaveRef.current = null;
     }
+    
+    // 3. Exclude current word
     const updatedLq: VocabItem = {
       ...currentLq,
       spellingExclude: true,
@@ -564,12 +586,6 @@ export default function VocabularyPractice({
 
     setIsFlipped(false);
     resetSpellingState();
-
-    if (learningList.length <= 1) {
-      setCurrentIndex(0);
-    } else if (currentIndex >= learningList.length - 1) {
-      setCurrentIndex(0);
-    }
   };
 
   const handleDontKnow = () => {
@@ -675,30 +691,35 @@ export default function VocabularyPractice({
   const isCardWithImage = studyMode === "image" && currentLq && !!currentLq.imageUrl;
 
   const handleNext = () => {
-    // Flush any pending spell save BEFORE resetting state/changing card
-    // This ensures lastSpelledCorrectly is persisted, and the list recomputation
-    // happens together with the card change (not while feedback is still visible).
-    if (pendingSpellSaveRef.current) {
-      handleSaveVocabWrapped(pendingSpellSaveRef.current);
-      pendingSpellSaveRef.current = null;
-    }
+    // 1. Determine target next word before list changes
+    const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
+    nextWordTargetRef.current = targetWord;
+
     resetSpellingState();
     setIsFlipped(false);
+
     setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % learningList.length);
+      if (pendingSpellSaveRef.current) {
+        handleSaveVocabWrapped(pendingSpellSaveRef.current);
+        pendingSpellSaveRef.current = null;
+      } else {
+        const newIdx = learningList.findIndex(item => item.word === targetWord);
+        if (newIdx !== -1) {
+          setCurrentIndex(newIdx);
+        }
+        nextWordTargetRef.current = null;
+      }
     }, 150);
   };
 
   const handleMarkKnown = () => {
     if (!currentLq) return;
+
+    // 1. Determine target next word before list changes
+    const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
+    nextWordTargetRef.current = targetWord;
+
     onUpdateStatus(currentLq.word, "known", selectedPracticeLang);
-    
-    // If we are on the last card, decrease index or reset
-    if (learningList.length <= 1) {
-      setCurrentIndex(0);
-    } else if (currentIndex >= learningList.length - 1) {
-      setCurrentIndex(0);
-    }
     setIsFlipped(false);
   };
 
