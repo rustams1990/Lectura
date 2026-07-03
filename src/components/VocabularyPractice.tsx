@@ -173,7 +173,8 @@ export default function VocabularyPractice({
   const [hasCheckedSpelling, setHasCheckedSpelling] = useState(false);
   const spellingInputRef = React.useRef<HTMLInputElement | null>(null);
   const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
-  const currentWordRef = React.useRef<string>("");
+  // Generation counter: incremented on every card navigation so stale async TTS requests can be discarded
+  const ttsGenerationRef = React.useRef<number>(0);
 
   const resetSpellingState = () => {
     setSpellingInput("");
@@ -216,6 +217,11 @@ export default function VocabularyPractice({
   const playSpeech = async (wordToPlay: string) => {
     if (!wordToPlay) return;
 
+    // Snapshot the current generation and increment for the next caller.
+    // Any awaited operation that sees a different generation should abort.
+    const myGeneration = ttsGenerationRef.current + 1;
+    ttsGenerationRef.current = myGeneration;
+
     // 1. Immediately cancel local browser SpeechSynthesis to stop overlapping
     if (typeof window !== "undefined" && window.speechSynthesis) {
       try {
@@ -241,6 +247,8 @@ export default function VocabularyPractice({
     const targetLanguage = selectedPracticeLang;
     const ttsLang = getEffectiveTtsLocale(targetLanguage, settings);
 
+    const isStale = () => ttsGenerationRef.current !== myGeneration;
+
     // --- Google Translate TTS (with local caching) ---
     if (currentTtsEngine === "google") {
       try {
@@ -248,24 +256,21 @@ export default function VocabularyPractice({
         let audioUrl: string | null = null;
         let blob = await getTtsAudioFromCache(cacheKey);
 
-        if (currentWordRef.current !== wordToPlay) {
-          setPlayingSpeech(false);
-          return;
-        }
+        if (isStale()) { setPlayingSpeech(false); return; }
 
         if (blob) {
           audioUrl = URL.createObjectURL(blob);
         } else {
           const params = new URLSearchParams({ text: wordToPlay, lang: ttsLang });
           const response = await fetch(`/api/google-tts?${params.toString()}`);
-          if (currentWordRef.current !== wordToPlay) return;
+          if (isStale()) { setPlayingSpeech(false); return; }
           if (!response.ok) throw new Error(`Google TTS ${response.status}`);
           blob = await response.blob();
           await saveTtsAudioToCache(cacheKey, blob);
           audioUrl = URL.createObjectURL(blob);
         }
 
-        if (currentWordRef.current !== wordToPlay) {
+        if (isStale()) {
           if (audioUrl) URL.revokeObjectURL(audioUrl);
           setPlayingSpeech(false);
           return;
@@ -305,10 +310,7 @@ export default function VocabularyPractice({
           }),
         });
 
-        if (currentWordRef.current !== wordToPlay) {
-          setPlayingSpeech(false);
-          return;
-        }
+        if (isStale()) { setPlayingSpeech(false); return; }
 
         if (!response.ok) {
           const errData = await safeJsonParse(response);
@@ -316,10 +318,7 @@ export default function VocabularyPractice({
         }
 
         const data = await safeJsonParse(response);
-        if (currentWordRef.current !== wordToPlay) {
-          setPlayingSpeech(false);
-          return;
-        }
+        if (isStale()) { setPlayingSpeech(false); return; }
 
         if (data.audioBase64) {
           const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
@@ -333,7 +332,7 @@ export default function VocabularyPractice({
             setPlayingSpeech(false);
           };
           await audio.play();
-          return; // successfully played AI audio
+          return;
         } else {
           throw new Error("No audio base64 payload");
         }
@@ -344,30 +343,19 @@ export default function VocabularyPractice({
 
     // --- Default flow: local browser HTML5 SpeechSynthesis API ---
     try {
-      if (currentWordRef.current !== wordToPlay) {
-        setPlayingSpeech(false);
-        return;
-      }
+      if (isStale()) { setPlayingSpeech(false); return; }
 
       const utterance = new SpeechSynthesisUtterance(wordToPlay);
       utterance.lang = ttsLang;
-      utterance.onend = () => {
-        setPlayingSpeech(false);
-      };
-      utterance.onerror = () => {
-        setPlayingSpeech(false);
-      };
+      utterance.onend = () => { setPlayingSpeech(false); };
+      utterance.onerror = () => { setPlayingSpeech(false); };
       
       if (typeof window !== "undefined" && window.speechSynthesis) {
         const voices = window.speechSynthesis.getVoices();
-        
-        // 1. Try exact match first (e.g. "es-US" or "en-GB")
         let matchingVoice = voices.find(v => {
           const vLang = v.lang.toLowerCase().replace("_", "-");
           return vLang === ttsLang.toLowerCase();
         });
-        
-        // 2. Fall back to main language prefix matching (e.g. "es", "en")
         if (!matchingVoice) {
           const mainLang = ttsLang.toLowerCase().split("-")[0];
           matchingVoice = voices.find(v => {
@@ -375,10 +363,7 @@ export default function VocabularyPractice({
             return vLang.startsWith(mainLang);
           });
         }
-        
-        if (matchingVoice) {
-          utterance.voice = matchingVoice;
-        }
+        if (matchingVoice) utterance.voice = matchingVoice;
       }
       window.speechSynthesis.speak(utterance);
     } catch (browserErr) {
@@ -505,9 +490,6 @@ export default function VocabularyPractice({
 
   const currentLq = learningList[currentIndex];
 
-  useEffect(() => {
-    currentWordRef.current = currentLq?.word || "";
-  }, [currentLq]);
 
   const checkSpelling = () => {
     if (!currentLq || !currentLq.word) return;
@@ -534,13 +516,10 @@ export default function VocabularyPractice({
     if (targetClean === typedClean) {
       isCorrect = true;
       setSpellingStatus("correct");
-      // Ensure the ref matches target so playSpeech closure guard doesn't block feedback audio
-      currentWordRef.current = target;
       playSpeech(target);
     } else if (targetNoAccents === typedNoAccents) {
       isAccentWarning = true;
       setSpellingStatus("accent-warning");
-      currentWordRef.current = target;
       playSpeech(target);
     } else {
       setSpellingStatus("incorrect");
@@ -681,11 +660,6 @@ export default function VocabularyPractice({
     // Reset spelling state immediately before changing card
     resetSpellingState();
     setIsFlipped(false);
-
-    // Update currentWordRef immediately to an empty sentinel so any inflight
-    // TTS requests for the old word know to abort once they resolve.
-    currentWordRef.current = "";
-
     setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % learningList.length);
     }, 150);
