@@ -879,7 +879,7 @@ export default function ReaderPanel({
         return !isPunct && !isDigit;
       });
     } else {
-      const words = cleanText.match(/[\p{L}\p{M}]+/gu) || [];
+      const words = cleanText.match(/[\p{L}\p{M}'’]+/gu) || [];
       candidates = words.map(w => w.toLowerCase());
     }
 

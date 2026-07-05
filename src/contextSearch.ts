@@ -107,7 +107,7 @@ function buildMatchPatterns(terms: string[]): RegExp[] {
     if (trimmed.includes(" ")) {
       patterns.push(new RegExp(escaped, "iu"));
     } else {
-      patterns.push(new RegExp(`(?<![\\p{L}\\p{M}])${escaped}(?![\\p{L}\\p{M}])`, "iu"));
+      patterns.push(new RegExp(`(?<![\\p{L}\\p{M}'’])${escaped}(?![\\p{L}\\p{M}'’])`, "iu"));
     }
   }
 

@@ -114,6 +114,7 @@ export function getLanguageCode(languageName: string): string {
   if (norm.startsWith("ja") || norm.startsWith("jap") || norm === "японский") return "ja";
   if (norm.startsWith("zh") || norm.startsWith("chi") || norm === "китайский") return "zh";
   if (norm.startsWith("ar") || norm === "арабский") return "ar";
+  if (norm.startsWith("uk") || norm.startsWith("ukr") || norm === "украинский" || norm === "українська" || norm === "український") return "uk";
   if (norm.length >= 2 && /^[a-z]+$/.test(norm.substring(0, 2))) {
     return norm.substring(0, 2);
   }
@@ -133,7 +134,8 @@ export function getBCP47LanguageTag(languageName: string): string {
     tr: "tr-TR",
     ja: "ja-JP",
     zh: "zh-CN",
-    ar: "ar-SA"
+    ar: "ar-SA",
+    uk: "uk-UA"
   };
   return tags[code] || `${code}-${code.toUpperCase()}`;
 }
@@ -160,6 +162,7 @@ export const TTS_LOCALE_DESCRIPTIONS: Record<string, string> = {
   "ko-KR": "Korean",
   "tr-TR": "Turkish",
   "ar-SA": "Arabic",
+  "uk-UA": "Ukrainian",
 };
 
 export function getEffectiveTtsLocale(languageName: string, settings?: any): string {

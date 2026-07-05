@@ -1065,6 +1065,124 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
     }
   }
 
+  // 6. Ukrainian Lemmatization
+  else if (lang.startsWith("uk") || lang.startsWith("ukr") || lang === "украинский" || lang === "українська" || lang === "український") {
+    // Handle reflexive verbs ending in -ся / -сь
+    let base = w;
+    let isReflexive = false;
+    if (w.endsWith("ся") && w.length > 3) {
+      base = w.slice(0, -2);
+      isReflexive = true;
+    } else if (w.endsWith("сь") && w.length > 2) {
+      base = w.slice(0, -1);
+      isReflexive = true;
+    }
+
+    const baseSuggestions: string[] = [];
+    const addSugg = (s: string) => {
+      if (!s || s.length <= 1) return;
+      baseSuggestions.push(s);
+      if (isReflexive) {
+        baseSuggestions.push(s + "ся");
+      }
+    };
+
+    // Add original base itself (without reflexive)
+    addSugg(base);
+
+    // Adjectives: Oblique case endings -> change to -ий or -ій
+    const adjEndings = ["ого", "ому", "им", "ім", "ої", "ій", "ою", "ею", "єю", "их", "ми", "ими", "а", "я", "е", "є", "і"];
+    for (const ending of adjEndings) {
+      if (base.endsWith(ending) && base.length > ending.length) {
+        const stem = base.slice(0, -ending.length);
+        addSugg(stem + "ий");
+        addSugg(stem + "ій");
+      }
+    }
+
+    // Verbs: Past tense
+    if (base.endsWith("ла") && base.length > 3) {
+      addSugg(base.slice(0, -2) + "ти");
+    } else if (base.endsWith("ло") && base.length > 3) {
+      addSugg(base.slice(0, -2) + "ти");
+    } else if (base.endsWith("ли") && base.length > 3) {
+      addSugg(base.slice(0, -2) + "ти");
+    } else if (base.endsWith("в") && base.length > 2) {
+      addSugg(base.slice(0, -1) + "ти");
+    }
+
+    // Verbs: Present/Future tense personal endings
+    const verbEndings = [
+      { ending: "ємо", repl: ["ти"] },
+      { ending: "ете", repl: ["ти"] },
+      { ending: "ють", repl: ["ти"] },
+      { ending: "емо", repl: ["ти", "ати", "ити"] },
+      { ending: "ете", repl: ["ти", "ати", "ити"] },
+      { ending: "уть", repl: ["ти", "ати", "ити"] },
+      { ending: "єш", repl: ["ти"] },
+      { ending: "еш", repl: ["ти", "ати", "ити"] },
+      { ending: "є", repl: ["ти"] },
+      { ending: "е", repl: ["ти", "ати", "ити"] },
+      { ending: "иш", repl: ["ити", "ти"] },
+      { ending: "ить", repl: ["ити", "ти"] },
+      { ending: "имо", repl: ["ити", "ти"] },
+      { ending: "ите", repl: ["ити", "ти"] },
+      { ending: "ять", repl: ["ити", "яти", "ти"] },
+      { ending: "ать", repl: ["ати", "ити", "ти"] }
+    ];
+
+    for (const rule of verbEndings) {
+      if (base.endsWith(rule.ending) && base.length > rule.ending.length) {
+        const stem = base.slice(0, -rule.ending.length);
+        for (const r of rule.repl) {
+          addSugg(stem + r);
+        }
+      }
+    }
+
+    // Nouns: Common oblique/plural endings
+    const nounEndings = [
+      "ові", "еві", "єві", 
+      "ом", "ем", "єм", 
+      "ами", "ями", "ах", "ях", 
+      "ів", "ей", "ам", "ям", 
+      "у", "ю", "а", "я", "е", "є", "и", "і"
+    ];
+    for (const ending of nounEndings) {
+      if (base.endsWith(ending) && base.length > ending.length) {
+        const stem = base.slice(0, -ending.length);
+        
+        // Suggest basic nominative candidates
+        addSugg(stem);
+        addSugg(stem + "ь");
+        addSugg(stem + "я");
+        addSugg(stem + "о");
+        addSugg(stem + "е");
+
+        // Special exceptions (fill vowels)
+        if (stem === "дн") addSugg("день");
+        if (stem === "льв") addSugg("лев");
+        if (stem === "отц") addSugg("отець");
+        if (stem === "вс") addSugg("весь");
+
+        // Vowel alternation: o/e -> i in closed syllables
+        // e.g. стола -> stem "стол" -> "стіл"
+        // e.g. коня -> stem "кон" -> "кін" + "ь" = "кінь"
+        // e.g. ночі -> stem "ноч" -> "ніч"
+        const match = stem.match(/([ое])([^аеєиіїоуюяь' ]{1,2})$/i);
+        if (match) {
+          const vowel = match[1];
+          const idx = stem.lastIndexOf(vowel);
+          const alternated = stem.substring(0, idx) + "і" + stem.substring(idx + 1);
+          addSugg(alternated);
+          addSugg(alternated + "ь");
+        }
+      }
+    }
+
+    suggestions.push(...baseSuggestions);
+  }
+
   // Post-process: unique values, filter out target word, strip empty values, normalize length
   const unique = Array.from(new Set(suggestions))
     .map((s) => s.trim())

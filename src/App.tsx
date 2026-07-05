@@ -1274,7 +1274,7 @@ export default function App() {
 
   const activeLessonWords = useMemo(() => {
     if (!activeLesson) return [];
-    const regex = /[\p{L}\p{M}]+/gu;
+    const regex = /[\p{L}\p{M}'’]+/gu;
     const tokens = activeLesson.text.toLowerCase().match(regex) || [];
     
     const lang = activeLesson.targetLanguage.toLowerCase();

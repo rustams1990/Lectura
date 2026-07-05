@@ -1153,7 +1153,7 @@ export default function StatisticsPage({
         });
 
         // 2. Tokenize the corpus
-        const tokens = rawCorpus.toLowerCase().match(/[\p{L}\p{M}]+/gu) || [];
+        const tokens = rawCorpus.toLowerCase().match(/[\p{L}\p{M}'’]+/gu) || [];
         
         // 3. Count frequencies
         const frequencyMap: Record<string, number> = {};

@@ -47,9 +47,18 @@ export const BUILT_IN_LESSONS: Lesson[] = [
     translationLanguage: "Russian",
     isBuiltIn: true,
     lessonType: "book"
+  },
+  {
+    id: "builtin-uk",
+    title: "🇺🇦 Пригода маленького їжачка (The Adventure of the Little Hedgehog)",
+    text: "Маленький їжачок на ім'я Колька жив у великому зеленому лісі. Кожного вечора він виходив на прогулянку, щоб знайти солодкі лісові ягоди та гриби. Сьогодні небо було чистим, а на траві блищала срібна роса. Раптом під старою яблунею Колька побачив велике червоне яблуко. Воно пахло медом і осіннім сонцем. Їжачок спробував підштовхнути яблуко носом, але воно було надто важким. Тоді він обережно наколов його на свої гострі голки і щасливий покотився додому, мріючи про смачну вечерю.",
+    targetLanguage: "Ukrainian",
+    translationLanguage: "Russian",
+    isBuiltIn: true,
+    lessonType: "book"
   }
 ];
 
 export const LANGUAGES_SUPPORTED = [
-  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic"
+  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic", "Ukrainian"
 ];

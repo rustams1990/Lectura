@@ -75,6 +75,7 @@ const getLanguageReversoName = (languageName: string): string => {
   if (norm.startsWith("ja") || norm.startsWith("jap") || norm === "japanese") return "japanese";
   if (norm.startsWith("zh") || norm.startsWith("chi") || norm === "chinese") return "chinese";
   if (norm.startsWith("ar") || norm === "arabic") return "arabic";
+  if (norm.startsWith("uk") || norm.startsWith("ukr") || norm === "украинский" || norm === "українська" || norm === "український") return "ukrainian";
   return norm || "english";
 };
 
@@ -144,6 +145,41 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
         name: "Reverso Context (EN-RU)",
         urlTemplate: "https://context.reverso.net/translation/english-russian/{word}",
         displayType: "window_popup"
+      }
+    ];
+  }
+
+  if (sourceCode === "uk") {
+    return [
+      {
+        id: "gtrans-uk",
+        name: `Google Translate (${targetCode.toUpperCase()})`,
+        urlTemplate: `https://translate.google.com/?sl=uk&tl=${targetCode}&text={word}`,
+        displayType: "window_popup"
+      },
+      {
+        id: "goroh-declension",
+        name: "Горох (Словозміна)",
+        urlTemplate: "https://goroh.pp.ua/Словозміна/{word}",
+        displayType: "window_popup"
+      },
+      {
+        id: "goroh-definition",
+        name: "Горох (Тлумачення)",
+        urlTemplate: "https://goroh.pp.ua/Тлумачення/{word}",
+        displayType: "window_popup"
+      },
+      {
+        id: "reverso-uk",
+        name: "Reverso Context",
+        urlTemplate: `https://context.reverso.net/translation/ukrainian-${targetReverso}/{word}`,
+        displayType: "window_popup"
+      },
+      {
+        id: "wiktionary-uk",
+        name: "Wiktionary (UK)",
+        urlTemplate: "https://uk.wiktionary.org/wiki/{word}",
+        displayType: "popup"
       }
     ];
   }
@@ -548,7 +584,7 @@ export default function WordExplainer({
       });
     }
 
-    const regex = /[\p{L}\p{M}]+/gu;
+    const regex = /[\p{L}\p{M}'’]+/gu;
 
     if (lessonText) {
       const tokens = lessonText.match(regex) || [];

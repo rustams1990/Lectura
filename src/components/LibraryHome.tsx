@@ -107,6 +107,14 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "é",
     };
   }
+  if (l.includes("ukra")) {
+    return {
+      gradient: "from-blue-600 via-sky-500 to-yellow-500",
+      accent: "bg-blue-100 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200",
+      emoji: "🇺🇦",
+      character: "Ї",
+    };
+  }
   // Fallbacks for other languages
   return {
     gradient: "from-teal-600 via-teal-700 to-slate-800",

@@ -100,6 +100,8 @@ const DEFAULT_FALLBACK_FLAGS: Record<string, string> = {
   japanese: "🇯🇵",
   russian: "🇷🇺",
   italian: "🇮🇹",
+  ukrainian: "🇺🇦",
+  ukrainsk: "🇺🇦",
 };
 
 export default function SettingsModal({
