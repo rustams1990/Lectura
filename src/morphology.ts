@@ -437,6 +437,13 @@ const SPANISH_HIGH_CONFIDENCE_ENDINGS = new Set([
   "ieran", "iesen", "ieras", "ieses", "iera", "iese"
 ]);
 
+const ACCENTED_VERBS_MAP: Record<string, string> = {
+  "sonreir": "sonreír",
+  "reir": "reír",
+  "freir": "freír",
+  "oir": "oír"
+};
+
 const SPANISH_VERB_ENDINGS: VerbEndingRule[] = [
   // 8 chars
   { ending: "iésemos", infinitives: ["er", "ir"] },
@@ -633,7 +640,7 @@ const SPANISH_COMMON_VERBS = new Set([
   "enojar", "enseñar", "entender", "enterar", "entrar", "entregar", "entrevistar", "enviar", "equivocar", "escoger",
   "escribir", "escuchar", "esforzar", "esperar", "establecer", "estar", "estimar", "estudiar", "evitar", "exigir",
   "existir", "explicar", "expresar", "extender", "extrañar", "fallecer", "faltar", "felicitar", "fijar", "firmar",
-  "flotan", "formar", "freír", "fumar", "funcionar", "ganar", "gastar", "girar", "gobernar", "gozar",
+  "flotan", "formar", "freír", "freir", "fumar", "funcionar", "ganar", "gastar", "girar", "gobernar", "gozar",
   "gritar", "gustar", "haber", "hablar", "hacer", "hallar", "heredar", "herir", "hervir", "huir",
   "ilustrar", "importar", "imprimir", "incluir", "indicar", "influir", "informar", "iniciar", "insistir", "instalar",
   "intentar", "interesar", "introducir", "invitar", "ir", "jugar", "juntar", "jurar", "juzgar", "lanzar",
@@ -647,11 +654,11 @@ const SPANISH_COMMON_VERBS = new Set([
   "poner", "poseer", "practicar", "preferir", "preguntar", "preocupar", "preparar", "presentar", "prestar", "probar",
   "producir", "prohibir", "prometer", "proponer", "proteger", "proveer", "provocar", "publicar", "pudrir", "quemar",
   "querer", "quitar", "reaccionar", "realizar", "recibir", "recoger", "recomendar", "reconocer", "recordar", "recuperar",
-  "redactar", "reducir", "referir", "regalar", "registrar", "regresar", "reír", "relacionar", "relajar", "reparar",
+  "redactar", "reducir", "referir", "regalar", "registrar", "regresar", "reír", "reir", "relacionar", "relajar", "reparar",
   "repetir", "representar", "requerir", "resolver", "respetar", "responder", "resultar", "reunir", "revelar", "revisar",
   "robar", "rogar", "romper", "saber", "sacar", "sacrificar", "sacudir", "salir", "saltar", "saludar",
   "salvar", "satisfacer", "secar", "seguir", "seleccionar", "sembrar", "sentar", "sentir", "señalar", "ser",
-  "servir", "silbar", "soler", "solicitar", "solucionar", "sonar", "soñar", "soplar", "soportar", "sorprender",
+  "servir", "silbar", "soler", "solicitar", "solucionar", "sonar", "sonreír", "sonreir", "soñar", "soplar", "soportar", "sorprender",
   "subir", "suceder", "sufrir", "sugerir", "suponer", "surgir", "suspirar", "sustituir", "tardar", "temer",
   "tener", "tentar", "terminar", "tirar", "tocar", "tolerar", "tomar", "tosser", "trabajar", "traducir",
   "traer", "tragar", "tratar", "triunfar", "unir", "usar", "utilizar", "vaciar", "valer", "variar",
@@ -791,7 +798,9 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
     const candidates = encliticBases.length > 0 ? encliticBases : [w];
 
     // Process each candidate
-    for (const cand of Array.from(new Set(candidates))) {
+    for (let cand of Array.from(new Set(candidates))) {
+      cand = normalizeAccents(cand);
+
       // Direct infinitive check: if cand is already a valid common infinitive
       if ((cand.endsWith("ar") || cand.endsWith("er") || cand.endsWith("ir")) && SPANISH_COMMON_VERBS.has(cand)) {
         verbSuggestions.push(cand);
@@ -853,21 +862,32 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
             }
           }
 
+          const pushVerbSuggestion = (verb: string) => {
+            verbSuggestions.push(verb);
+            if (ACCENTED_VERBS_MAP[verb]) {
+              verbSuggestions.push(ACCENTED_VERBS_MAP[verb]);
+            }
+          };
+
           // Filter generated verbs against the common verbs list
           const validVerbs = generatedVerbs.filter(v => SPANISH_COMMON_VERBS.has(v));
           if (validVerbs.length > 0) {
-            verbSuggestions.push(...validVerbs);
+            for (const v of validVerbs) {
+              pushVerbSuggestion(v);
+            }
           } else if (SPANISH_HIGH_CONFIDENCE_ENDINGS.has(rule.ending)) {
             // High-confidence tense suffix matches are allowed even if not in common verbs list
-            verbSuggestions.push(...generatedVerbs);
+            for (const v of generatedVerbs) {
+              pushVerbSuggestion(v);
+            }
           } else if (!foundIrregular && nounAdjSuggestions.length === 0) {
             // Fallback: if no common verbs matched, suggest only the most probable regular endings
             // to avoid listing all combinations of -ar, -er, -ir.
             if (rule.ending === "a") {
-              verbSuggestions.push(stem + "ar");
+              pushVerbSuggestion(stem + "ar");
             } else {
               for (const inf of rule.infinitives) {
-                verbSuggestions.push(stem + inf);
+                pushVerbSuggestion(stem + inf);
               }
             }
           }
