@@ -23,6 +23,20 @@ const testCases = [
   { word: "sonrío", expected: "sonreír", excluded: ["sonriar", "sonrier", "sonrir"] },
   { word: "atiendo", expected: "atender", excluded: ["ater", "atir"] },
   { word: "utilices", expected: "utilizar" },
+  { word: "renovarla", expected: "renovar" },
+  { word: "entretenerlo", expected: "entretener" },
+  { word: "entendían", expected: "entender" },
+  { word: "dolió", expected: "doler" },
+  { word: "significaría", expected: "significar" },
+  { word: "separarlo", expected: "separar" },
+  { word: "molestarme", expected: "molestar" },
+  { word: "llegarías", expected: "llegar" },
+  { word: "funcionaría", expected: "funcionar" },
+  { word: "enferme", expected: "enfermar" },
+  { word: "amantes", expected: "amante" },
+  { word: "ayudanos", expected: "ayudar" },
+  { word: "guardas", expected: "guardar" },
+  { word: "sabida", expected: "saber" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova
