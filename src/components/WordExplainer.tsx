@@ -1366,6 +1366,7 @@ export default function WordExplainer({
                   { code: "de-DE", label: "🇩🇪 Немецкий" },
                   { code: "it-IT", label: "🇮🇹 Итальянский" },
                   { code: "ru-RU", label: "🇷🇺 Русский" },
+                  { code: "uk-UA", label: "🇺🇦 Украинский" },
                   { code: "ja-JP", label: "🇯🇵 Японский" },
                   { code: "ko-KR", label: "🇰🇷 Корейский" },
                   { code: "zh-CN", label: "🇨🇳 Китайский" },

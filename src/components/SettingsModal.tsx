@@ -762,6 +762,7 @@ export default function SettingsModal({
                         { code: "de-DE", label: "🇩🇪 Немецкий (de-DE)" },
                         { code: "it-IT", label: "🇮🇹 Итальянский (it-IT)" },
                         { code: "ru-RU", label: "🇷🇺 Русский (ru-RU)" },
+                        { code: "uk-UA", label: "🇺🇦 Украинский (uk-UA)" },
                         { code: "ja-JP", label: "🇯🇵 Японский (ja-JP)" },
                         { code: "ko-KR", label: "🇰🇷 Корейский (ko-KR)" },
                         { code: "tr-TR", label: "🇹🇷 Турецкий (tr-TR)" },
