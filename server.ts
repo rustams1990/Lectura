@@ -338,6 +338,7 @@ function getLangCode(langName: string): string {
   if (norm.startsWith("ja") || norm.startsWith("jap") || norm === "японский") return "ja";
   if (norm.startsWith("zh") || norm.startsWith("chi") || norm === "китайский") return "zh";
   if (norm.startsWith("ar") || norm === "арабский") return "ar";
+  if (norm.startsWith("uk") || norm.startsWith("ukr") || norm === "украинский" || norm === "українська" || norm === "український") return "uk";
   return "en";
 }
 
