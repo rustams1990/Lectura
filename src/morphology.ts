@@ -841,18 +841,29 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
       }
 
       // 3. Verb Ending Rules (run on each candidate)
+      const pushVerbSuggestion = (verb: string) => {
+        verbSuggestions.push(verb);
+        if (ACCENTED_VERBS_MAP[verb]) {
+          verbSuggestions.push(ACCENTED_VERBS_MAP[verb]);
+        }
+      };
+
+      const matchedRulesData: {
+        rule: typeof SPANISH_VERB_ENDINGS[number];
+        stem: string;
+        foundIrregular: boolean;
+        generatedVerbs: string[];
+      }[] = [];
+
       for (const rule of SPANISH_VERB_ENDINGS) {
         if (cand.endsWith(rule.ending) && cand.length > rule.ending.length + 1) {
           const stem = cand.slice(0, -rule.ending.length);
           
           let foundIrregular = false;
-          // If the stem is an irregular future/conditional stem, add its infinitives
           if (SPANISH_FUTURE_STEMS[stem]) {
-            verbSuggestions.push(...SPANISH_FUTURE_STEMS[stem]);
             foundIrregular = true;
           }
 
-          // Apply stem change reversion only if matched a verb ending
           const stemVars = getSpanishStemVariations(stem, rule.ending);
           const generatedVerbs: string[] = [];
 
@@ -862,37 +873,50 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
             }
           }
 
-          const pushVerbSuggestion = (verb: string) => {
-            verbSuggestions.push(verb);
-            if (ACCENTED_VERBS_MAP[verb]) {
-              verbSuggestions.push(ACCENTED_VERBS_MAP[verb]);
-            }
-          };
+          matchedRulesData.push({
+            rule,
+            stem,
+            foundIrregular,
+            generatedVerbs
+          });
+        }
+      }
 
-          // Filter generated verbs against the common verbs list
-          const validVerbs = generatedVerbs.filter(v => SPANISH_COMMON_VERBS.has(v));
-          if (validVerbs.length > 0) {
-            for (const v of validVerbs) {
-              pushVerbSuggestion(v);
-            }
-          } else if (SPANISH_HIGH_CONFIDENCE_ENDINGS.has(rule.ending)) {
-            // High-confidence tense suffix matches are allowed even if not in common verbs list
-            for (const v of generatedVerbs) {
-              pushVerbSuggestion(v);
-            }
-          } else if (!foundIrregular && nounAdjSuggestions.length === 0) {
-            // Fallback: if no common verbs matched, suggest only the most probable regular endings
-            // to avoid listing all combinations of -ar, -er, -ir.
-            if (rule.ending === "a") {
-              pushVerbSuggestion(stem + "ar");
-            } else {
-              for (const inf of rule.infinitives) {
-                pushVerbSuggestion(stem + inf);
-              }
+      let foundCommonVerb = false;
+      for (const data of matchedRulesData) {
+        if (data.foundIrregular) {
+          const stem = data.stem;
+          for (const v of SPANISH_FUTURE_STEMS[stem]) {
+            pushVerbSuggestion(v);
+            foundCommonVerb = true;
+          }
+        }
+        const validVerbs = data.generatedVerbs.filter(v => SPANISH_COMMON_VERBS.has(v));
+        if (validVerbs.length > 0) {
+          foundCommonVerb = true;
+          for (const v of validVerbs) {
+            pushVerbSuggestion(v);
+          }
+        }
+      }
+
+      if (!foundCommonVerb && matchedRulesData.length > 0) {
+        const primaryMatch = matchedRulesData[0];
+        const rule = primaryMatch.rule;
+        const stem = primaryMatch.stem;
+
+        if (SPANISH_HIGH_CONFIDENCE_ENDINGS.has(rule.ending)) {
+          for (const v of primaryMatch.generatedVerbs) {
+            pushVerbSuggestion(v);
+          }
+        } else if (!primaryMatch.foundIrregular && nounAdjSuggestions.length === 0) {
+          if (rule.ending === "a") {
+            pushVerbSuggestion(stem + "ar");
+          } else {
+            for (const inf of rule.infinitives) {
+              pushVerbSuggestion(stem + inf);
             }
           }
-          // We can break after finding the longest matching verb ending to avoid matching shorter subsets
-          break;
         }
       }
     }
