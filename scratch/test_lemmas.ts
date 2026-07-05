@@ -48,6 +48,21 @@ const testCases = [
   { word: "estuviste", expected: "estar" },
   { word: "caíste", expected: "caer" },
   { word: "sigamos", expected: "seguir" },
+  { word: "ambientes", expected: "ambientar" },
+  { word: "frustres", expected: "frustrar" },
+  { word: "procesas", expected: "procesar" },
+  { word: "quedas", expected: "quedar" },
+  { word: "enchufas", expected: "enchufar" },
+  { word: "incluyen", expected: "incluir" },
+  { word: "transfiere", expected: "transferir" },
+  { word: "implica", expected: "implicar" },
+  { word: "manejo", expected: "manejar" },
+  { word: "oxidas", expected: "oxidar" },
+  { word: "pagarías", expected: "pagar" },
+  { word: "nací", expected: "nacer" },
+  { word: "manejó", expected: "manejar" },
+  { word: "manejarla", expected: "manejar" },
+  { word: "manejada", expected: "manejar" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova
