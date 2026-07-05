@@ -12,6 +12,8 @@ const testCases = [
   { word: "hecho", expected: "hacer" },
   { word: "conozco", expected: "conocer", excluded: ["conocir"] },
   { word: "caigas", expected: "caer", excluded: ["caigar"] },
+  { word: "caras", expected: "cara", excluded: ["carar", "carer", "carir"] },
+  { word: "cantas", expected: "cantar" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova

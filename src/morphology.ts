@@ -820,7 +820,7 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
           const validVerbs = generatedVerbs.filter(v => SPANISH_COMMON_VERBS.has(v));
           if (validVerbs.length > 0) {
             verbSuggestions.push(...validVerbs);
-          } else if (!foundIrregular) {
+          } else if (!foundIrregular && nounAdjSuggestions.length === 0) {
             // Fallback: if no common verbs matched, suggest only the most probable regular endings
             // to avoid listing all combinations of -ar, -er, -ir.
             if (rule.ending === "a") {
