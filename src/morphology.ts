@@ -453,15 +453,30 @@ function stripSpanishEnclitics(w: string): string[] {
   const candidates: string[] = [];
   const hasAccent = /[áéíóú]/.test(w);
 
+  const checkValidBase = (stripped: string): boolean => {
+    const deAccented = removeSpanishAccents(stripped).toLowerCase();
+    if (deAccented.endsWith("ar") || deAccented.endsWith("er") || deAccented.endsWith("ir")) {
+      return true;
+    }
+    if (deAccented.endsWith("ando") || deAccented.endsWith("iendo") || deAccented.endsWith("yendo")) {
+      return true;
+    }
+    if (hasAccent) {
+      return true;
+    }
+    const shortBases = new Set(["di", "da", "haz", "pon", "ten", "ve", "sal", "ven", "val", "trae", "oye", "se", "sé"]);
+    if (shortBases.has(deAccented)) {
+      return true;
+    }
+    return false;
+  };
+
   // 1. Try double enclitics
   for (const pronoun of SPANISH_DOUBLE_ENCLITICS) {
     if (w.endsWith(pronoun)) {
       const stripped = w.slice(0, -pronoun.length);
-      if (stripped.length >= 2) {
+      if (stripped.length >= 2 && checkValidBase(stripped)) {
         candidates.push(removeSpanishAccents(stripped));
-        if (hasAccent) {
-          candidates.push(stripped);
-        }
       }
     }
   }
@@ -470,17 +485,12 @@ function stripSpanishEnclitics(w: string): string[] {
   for (const pronoun of SPANISH_SINGLE_ENCLITICS) {
     if (w.endsWith(pronoun)) {
       const stripped = w.slice(0, -pronoun.length);
-      if (stripped.length >= 2) {
+      if (stripped.length >= 2 && checkValidBase(stripped)) {
         if ((pronoun === "nos" || pronoun === "se") && stripped.endsWith("mo")) {
           const restored = stripped + "s";
           candidates.push(removeSpanishAccents(restored));
-          if (hasAccent) {
-            candidates.push(restored);
-          }
-        }
-        candidates.push(removeSpanishAccents(stripped));
-        if (hasAccent) {
-          candidates.push(stripped);
+        } else {
+          candidates.push(removeSpanishAccents(stripped));
         }
       }
     }
@@ -489,7 +499,61 @@ function stripSpanishEnclitics(w: string): string[] {
   return Array.from(new Set(candidates));
 }
 
-function getSpanishStemVariations(stem: string): string[] {
+
+const SPANISH_PAST_GERUND_ENDINGS = new Set([
+  "iendo", "yendo", "ió", "ieron",
+  "iera", "ieras", "iéramos", "ierais", "ieran",
+  "iese", "ieses", "iésemos", "ieseis", "iesen"
+]);
+
+const SPANISH_COMMON_VERBS = new Set([
+  "abrir", "acabar", "aceptar", "acercar", "acompañar", "aconsejar", "acordar", "acostar", "actuar", "admitir",
+  "adoptar", "adorar", "afectar", "afirmar", "afeitar", "agarrar", "agradecer", "aguantar", "ahorrar", "alcanzar",
+  "alegrar", "alimentar", "almorzar", "alquilar", "alterar", "amar", "amenazar", "añadir", "andar", "anunciar",
+  "aparecer", "apetecer", "aplicar", "apoyar", "apreciar", "aprender", "aprobar", "aprovechar", "apresurar", "apuntar",
+  "arrastrar", "arreglar", "arrepentir", "arrojar", "asistir", "asociar", "asumir", "asustar", "atacar", "atender",
+  "atraer", "atravesar", "atrever", "ayudar", "bailar", "bajar", "bastar", "beber", "besar", "buscar",
+  "caber", "caer", "calentar", "callar", "cambiar", "caminar", "cantar", "cargar", "casar", "causar",
+  "celebrar", "cenar", "cerrar", "chocar", "cobrar", "cocinar", "coger", "colocar", "comenzar", "comer",
+  "compartir", "comprar", "comprender", "comprobar", "conducir", "confesar", "confiar", "confirmar", "conectar", "conocer",
+  "conseguir", "conservar", "considerar", "consistir", "constituir", "construir", "contar", "contener", "contestar", "continuar",
+  "controlar", "convenir", "conversar", "convertir", "corregir", "correr", "cortar", "costar", "crear", "crecer",
+  "creer", "criar", "cruzar", "cubrir", "cuidar", "cumplir", "dar", "deber", "decidir", "decir",
+  "declarar", "dedicar", "defender", "definir", "dejar", "demostrar", "depender", "desaparecer", "desarrollar", "desayunar",
+  "descansar", "describir", "descubrir", "desear", "despedir", "destacar", "destruir", "detener", "determinar", "devolver",
+  "dibujar", "diferenciar", "dirigir", "discutir", "diseñar", "disfrutar", "disponer", "distinguir", "divertir", "dividir",
+  "doler", "dormir", "dudar", "durar", "echar", "edificar", "editar", "educar", "efectuar", "ejercer",
+  "elegir", "eliminar", "empezar", "emplear", "empujar", "encantar", "encender", "encontrar", "enfrentar", "engañar",
+  "enojar", "enseñar", "entender", "enterar", "entrar", "entregar", "entrevistar", "enviar", "equivocar", "escoger",
+  "escribir", "escuchar", "esforzar", "esperar", "establecer", "estar", "estimar", "estudiar", "evitar", "exigir",
+  "existir", "explicar", "expresar", "extender", "extrañar", "fallecer", "faltar", "felicitar", "fijar", "firmar",
+  "flotan", "formar", "freír", "fumar", "funcionar", "ganar", "gastar", "girar", "gobernar", "gozar",
+  "gritar", "gustar", "haber", "hablar", "hacer", "hallar", "heredar", "herir", "hervir", "huir",
+  "ilustrar", "importar", "imprimir", "incluir", "indicar", "influir", "informar", "iniciar", "insistir", "instalar",
+  "intentar", "interesar", "introducir", "invitar", "ir", "jugar", "juntar", "jurar", "juzgar", "lanzar",
+  "lavar", "leer", "levantar", "limpiar", "llamar", "llegar", "llenar", "llevar", "llorar", "llover",
+  "lograr", "luchar", "madurar", "mandar", "mantener", "maquillar", "marcar", "masticar", "matar", "medir",
+  "mentir", "merecer", "meter", "mezclar", "mirar", "morir", "mostrar", "mover", "mudarse", "nacer",
+  "nadar", "necesitar", "negar", "negociar", "nevar", "notar", "obedecer", "obligar", "observar", "obtener",
+  "ocultar", "ocupar", "ocurrir", "odiar", "ofrecer", "oír", "olvidar", "opinar", "organizar", "pagar",
+  "parar", "parecer", "partir", "pasar", "pasear", "pedir", "pegar", "peinar", "pensar", "perder",
+  "perdonar", "permanecer", "permitir", "pertenecer", "pescar", "pesar", "pintar", "planchar", "planear", "poder",
+  "poner", "poseer", "practicar", "preferir", "preguntar", "preocupar", "preparar", "presentar", "prestar", "probar",
+  "producir", "prohibir", "prometer", "proponer", "proteger", "proveer", "provocar", "publicar", "pudrir", "quemar",
+  "querer", "quitar", "reaccionar", "realizar", "recibir", "recoger", "recomendar", "reconocer", "recordar", "recuperar",
+  "redactar", "reducir", "referir", "regalar", "registrar", "regresar", "reír", "relacionar", "relajar", "reparar",
+  "repetir", "representar", "requerir", "resolver", "respetar", "responder", "resultar", "reunir", "revelar", "revisar",
+  "robar", "rogar", "romper", "saber", "sacar", "sacrificar", "sacudir", "salir", "saltar", "saludar",
+  "salvar", "satisfacer", "secar", "seguir", "seleccionar", "sembrar", "sentar", "sentir", "señalar", "ser",
+  "servir", "silbar", "soler", "solicitar", "solucionar", "sonar", "soñar", "soplar", "soportar", "sorprender",
+  "subir", "suceder", "sufrir", "sugerir", "suponer", "surgir", "suspirar", "sustituir", "tardar", "temer",
+  "tener", "tentar", "terminar", "tirar", "tocar", "tolerar", "tomar", "tosser", "trabajar", "traducir",
+  "traer", "tragar", "tratar", "triunfar", "unir", "usar", "utilizar", "vaciar", "valer", "variar",
+  "vencer", "vender", "venir", "ver", "verificar", "vestir", "viajar", "visitar", "vivir", "volar",
+  "volver", "votar", "yacer"
+]);
+
+function getSpanishStemVariations(stem: string, ending: string): string[] {
   const variations = [stem];
 
   if (stem.includes("ie")) {
@@ -507,7 +571,8 @@ function getSpanishStemVariations(stem: string): string[] {
     variations.push(withE);
   }
 
-  if (stem.includes("u")) {
+  // ONLY past/gerund: u -> o (e.g. durm -> dorm)
+  if (SPANISH_PAST_GERUND_ENDINGS.has(ending) && stem.includes("u")) {
     const lastIndex = stem.lastIndexOf("u");
     const withO = stem.slice(0, lastIndex) + "o" + stem.slice(lastIndex + 1);
     variations.push(withO);
@@ -597,9 +662,9 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
       verbSuggestions.push(...SPANISH_IRREGULARS[w]);
     }
 
-    // Generate candidates: either the word itself, or base forms after stripping enclitic pronouns
-    const candidates = [w];
-    candidates.push(...stripSpanishEnclitics(w));
+    // Generate candidates: only process enclitics-stripped bases if enclitics are found
+    const encliticBases = stripSpanishEnclitics(w);
+    const candidates = encliticBases.length > 0 ? encliticBases : [w];
 
     // Process each candidate
     for (const cand of Array.from(new Set(candidates))) {
@@ -624,7 +689,7 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
       if (cand.endsWith("as") && cand.length > 3) {
         nounAdjSuggestions.push(cand.slice(0, -2) + "o");
         nounAdjSuggestions.push(cand.slice(0, -2) + "a");
-      } else if (cand.endsWith("os") && cand.length > 3) {
+      } else if (cand.endsWith("os") && cand.length > 3 && !cand.endsWith("mos")) {
         nounAdjSuggestions.push(cand.slice(0, -2) + "o");
       } else if (cand.endsWith("a") && cand.length > 2) {
         nounAdjSuggestions.push(cand.slice(0, -1) + "o");
@@ -632,7 +697,7 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
         nounAdjSuggestions.push(cand.slice(0, -3) + "z"); // e.g. felices -> feliz
       } else if (cand.endsWith("es") && cand.length > 3) {
         nounAdjSuggestions.push(cand.slice(0, -2)); // e.g. flores -> flor
-      } else if (cand.endsWith("s") && cand.length > 2) {
+      } else if (cand.endsWith("s") && cand.length > 2 && !cand.endsWith("mos")) {
         nounAdjSuggestions.push(cand.slice(0, -1)); // e.g. libros -> libro
       }
 
@@ -641,16 +706,39 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
         if (cand.endsWith(rule.ending) && cand.length > rule.ending.length + 1) {
           const stem = cand.slice(0, -rule.ending.length);
           
+          let foundIrregular = false;
           // If the stem is an irregular future/conditional stem, add its infinitives
           if (SPANISH_FUTURE_STEMS[stem]) {
             verbSuggestions.push(...SPANISH_FUTURE_STEMS[stem]);
+            foundIrregular = true;
           }
 
           // Apply stem change reversion only if matched a verb ending
-          const stemVars = getSpanishStemVariations(stem);
+          const stemVars = getSpanishStemVariations(stem, rule.ending);
+          const generatedVerbs: string[] = [];
+
           for (const sVar of stemVars) {
             for (const inf of rule.infinitives) {
-              verbSuggestions.push(sVar + inf);
+              generatedVerbs.push(sVar + inf);
+            }
+          }
+
+          // Filter generated verbs against the common verbs list
+          const validVerbs = generatedVerbs.filter(v => SPANISH_COMMON_VERBS.has(v));
+          if (validVerbs.length > 0) {
+            verbSuggestions.push(...validVerbs);
+          } else if (!foundIrregular) {
+            // Fallback: if no common verbs matched, suggest only the most probable regular endings
+            // to avoid listing all combinations of -ar, -er, -ir.
+            if (rule.ending === "a") {
+              verbSuggestions.push(stem + "ar");
+            } else if (rule.ending === "e") {
+              verbSuggestions.push(stem + "er");
+              verbSuggestions.push(stem + "ir");
+            } else {
+              for (const inf of rule.infinitives) {
+                verbSuggestions.push(stem + inf);
+              }
             }
           }
           // We can break after finding the longest matching verb ending to avoid matching shorter subsets

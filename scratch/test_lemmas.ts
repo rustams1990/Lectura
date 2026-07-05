@@ -1,16 +1,16 @@
 import { getSuggestedLemmas } from "../src/morphology";
 
 const testCases = [
-  { word: "aprendemos", expected: "aprender" },
+  { word: "aprendemos", expected: "aprender", excluded: ["aprendemo"] }, // wait, 'aprendemo' was regular noun plural guess, which is fine, but let's see. Actually, let's keep it.
   { word: "aparece", expected: "aparecer" },
-  { word: "ayúdanos", expected: "ayudar" },
-  { word: "bésame", expected: "besar" },
+  { word: "ayúdanos", expected: "ayudar", excluded: ["ayuder", "ayudir", "ayodar", "ayoder", "ayodir", "ayúdar", "ayúder", "ayúdir"] },
+  { word: "bésame", expected: "besar", excluded: ["bésamar", "beser", "besir", "bésar", "béser", "bésir"] },
   { word: "dámelo", expected: "dar" },
-  { word: "durmiendo", expected: "dormir" },
-  { word: "pido", expected: "pedir" },
-  { word: "tendré", expected: "tener" },
+  { word: "durmiendo", expected: "dormir", excluded: ["durmer", "durmir", "dormer"] }, // dormer is not a word
+  { word: "pido", expected: "pedir", excluded: ["pidar", "pider", "pidir", "pedar", "peder"] },
+  { word: "tendré", expected: "tener", excluded: ["tendrar"] },
   { word: "hecho", expected: "hacer" },
-  { word: "conozco", expected: "conocer" },
+  { word: "conozco", expected: "conocer", excluded: ["conocir"] },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova
@@ -33,13 +33,22 @@ for (const tc of testCases) {
     }
   } else {
     const hasExpected = suggestions.includes(tc.expected);
-    if (hasExpected) {
-      console.log(`  [PASS] Found expected lemma "${tc.expected}"`);
+    const hasAnyExcluded = tc.excluded ? tc.excluded.some(ex => suggestions.includes(ex)) : false;
+    
+    if (hasExpected && !hasAnyExcluded) {
+      console.log(`  [PASS] Found expected lemma "${tc.expected}" and avoided excluded ones`);
       passed++;
     } else {
-      console.log(`  [FAIL] Missing expected lemma "${tc.expected}"`);
+      if (!hasExpected) {
+        console.log(`  [FAIL] Missing expected lemma "${tc.expected}"`);
+      }
+      if (hasAnyExcluded) {
+        const foundExcluded = tc.excluded?.filter(ex => suggestions.includes(ex));
+        console.log(`  [FAIL] Incorrectly included excluded lemmas:`, foundExcluded);
+      }
     }
   }
 }
 
 console.log(`\nPassed: ${passed}/${testCases.length}`);
+
