@@ -37,6 +37,17 @@ const testCases = [
   { word: "ayudanos", expected: "ayudar" },
   { word: "guardas", expected: "guardar" },
   { word: "sabida", expected: "saber" },
+  { word: "estirarse", expected: "estirar" },
+  { word: "comprenderé", expected: "comprender" },
+  { word: "esperarías", expected: "esperar" },
+  { word: "comías", expected: "comer" },
+  { word: "abrazas", expected: "abrazar" },
+  { word: "acostumbras", expected: "acostumbrar" },
+  { word: "accedes", expected: "acceder" },
+  { word: "mamás", expected: "mamar" },
+  { word: "estuviste", expected: "estar" },
+  { word: "caíste", expected: "caer" },
+  { word: "sigamos", expected: "seguir" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova

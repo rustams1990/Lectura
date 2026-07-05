@@ -398,6 +398,7 @@ const SPANISH_SHORT_IMPERATIVES: Record<string, string[]> = {
 };
 
 const SPANISH_FUTURE_STEMS: Record<string, string[]> = {
+  // Future/Conditional irregular stems
   tendr: ["tener"],
   har: ["hacer"],
   dir: ["decir"],
@@ -409,7 +410,22 @@ const SPANISH_FUTURE_STEMS: Record<string, string[]> = {
   saldr: ["salir"],
   habr: ["haber"],
   vendr: ["venir"],
-  cabr: ["caber"]
+  cabr: ["caber"],
+  // Preterite irregular stems
+  estuv: ["estar"],
+  tuv: ["tener"],
+  anduv: ["andar"],
+  pud: ["poder"],
+  pus: ["poner"],
+  sup: ["saber"],
+  quis: ["querer"],
+  vin: ["venir"],
+  hic: ["hacer"],
+  traj: ["traer"],
+  dij: ["decir"],
+  conduj: ["conducir"],
+  produj: ["producir"],
+  traduj: ["traducir"]
 };
 
 interface VerbEndingRule {
@@ -545,6 +561,9 @@ const SPANISH_VERB_ENDINGS: VerbEndingRule[] = [
   { ending: "es", infinitives: ["ar", "er", "ir"] },
   { ending: "ís", infinitives: ["ir"] },
   { ending: "ió", infinitives: ["er", "ir"] },
+  { ending: "aré", infinitives: ["ar"] },
+  { ending: "eré", infinitives: ["er"] },
+  { ending: "iré", infinitives: ["ir"] },
 
   // 2 chars
   { ending: "ó", infinitives: ["ar"] },
@@ -579,9 +598,6 @@ function stripSpanishEnclitics(w: string): string[] {
       return SPANISH_COMMON_VERBS.has(deAccented);
     }
     if (deAccented.endsWith("ando") || deAccented.endsWith("iendo") || deAccented.endsWith("yendo")) {
-      return true;
-    }
-    if (hasAccent) {
       return true;
     }
     if (/[aeiou]$/.test(deAccented)) {
@@ -630,7 +646,7 @@ const SPANISH_PAST_GERUND_ENDINGS = new Set([
 ]);
 
 const SPANISH_COMMON_VERBS = new Set([
-  "abrir", "acabar", "aceptar", "acercar", "acompañar", "aconsejar", "acordar", "acostar", "actuar", "admitir",
+  "abrazar", "abrir", "acabar", "acceder", "aceptar", "acercar", "acompañar", "aconsejar", "acordar", "acostar", "acostumbrar", "actuar", "admitir",
   "adoptar", "adorar", "afectar", "afirmar", "afeitar", "agarrar", "agradecer", "aguantar", "ahorrar", "alcanzar",
   "alegrar", "alimentar", "almorzar", "alquilar", "alterar", "amar", "amenazar", "añadir", "andar", "anunciar",
   "aparecer", "apetecer", "aplicar", "apoyar", "apreciar", "aprender", "aprobar", "aprovechar", "apresurar", "apuntar",
@@ -648,14 +664,14 @@ const SPANISH_COMMON_VERBS = new Set([
   "doler", "dormir", "dudar", "durar", "echar", "edificar", "editar", "educar", "efectuar", "ejercer",
   "elegir", "eliminar", "empezar", "emplear", "empujar", "encantar", "encender", "encontrar", "enfrentar", "engañar",
   "enojar", "enseñar", "entender", "enterar", "entrar", "entregar", "entretener", "entrevistar", "enviar", "equivocar", "escoger",
-  "escribir", "escuchar", "esforzar", "esperar", "establecer", "estar", "estimar", "estudiar", "evitar", "exigir",
+  "escribir", "escuchar", "esforzar", "esperar", "establecer", "estar", "estimar", "estirar", "estudiar", "evitar", "exigir",
   "existir", "explicar", "expresar", "extender", "extrañar", "fallecer", "faltar", "felicitar", "fijar", "firmar",
   "flotan", "formar", "freír", "freir", "fumar", "funcionar", "ganar", "gastar", "girar", "gobernar", "gozar",
   "gritar", "guardar", "gustar", "haber", "hablar", "hacer", "hallar", "heredar", "herir", "hervir", "huir",
   "ilustrar", "importar", "imprimir", "incluir", "indicar", "influir", "informar", "iniciar", "insistir", "instalar",
   "intentar", "interesar", "introducir", "invitar", "ir", "jugar", "juntar", "jurar", "juzgar", "lanzar",
   "lavar", "leer", "levantar", "limpiar", "llamar", "llegar", "llenar", "llevar", "llorar", "llover",
-  "lograr", "luchar", "madurar", "mandar", "mantener", "maquillar", "marcar", "masticar", "matar", "medir",
+  "lograr", "luchar", "madurar", "mamar", "mandar", "mantener", "maquillar", "marcar", "masticar", "matar", "medir",
   "mentir", "merecer", "meter", "mezclar", "mirar", "molestar", "morir", "mostrar", "mover", "mudarse", "nacer",
   "nadar", "necesitar", "negar", "negociar", "nevar", "notar", "obedecer", "obligar", "observar", "obtener",
   "ocultar", "ocupar", "ocurrir", "odiar", "ofrecer", "oír", "olvidar", "opinar", "organizar", "pagar",
@@ -701,28 +717,36 @@ function getSpanishStemVariations(stem: string, ending: string): string[] {
     variations.push(withO);
   }
 
-  // g-verbs present / subjunctive stem changes
-  if (stem.endsWith("ig")) {
-    variations.push(stem.slice(0, -2)); // caig -> ca, traig -> tra, oig -> o
-  } else if (stem.endsWith("g")) {
-    variations.push(stem.slice(0, -1)); // pong -> pon, salg -> sal, veng -> ven, teng -> ten
+  const finalVars = new Set<string>();
+  for (const v of variations) {
+    finalVars.add(v);
+
+    // g-verbs present / subjunctive stem changes
+    if (v.endsWith("aig") || v.endsWith("oig")) {
+      finalVars.add(v.slice(0, -2)); // caig -> ca, traig -> tra, oig -> o
+    } else if (v.endsWith("g")) {
+      finalVars.add(v.slice(0, -1)); // pong -> pon, salg -> sal, veng -> ven, teng -> ten
+    }
+
+    // Spelling change rules for subjunctives/commands
+    if (v.endsWith("qu")) {
+      finalVars.add(v.slice(0, -2) + "c"); // e.g. busqu -> busc
+    }
+    if (v.endsWith("gu")) {
+      finalVars.add(v.slice(0, -2) + "g"); // e.g. llegu -> lleg
+    }
+    if (v.endsWith("z")) {
+      finalVars.add(v.slice(0, -1) + "c"); // e.g. venz -> venc
+    }
+    if (v.endsWith("c")) {
+      finalVars.add(v.slice(0, -1) + "z"); // e.g. utilic -> utiliz
+    }
+    if (v.endsWith("g")) {
+      finalVars.add(v + "u"); // e.g. seg -> segu, sig -> sigu
+    }
   }
 
-  // Spelling change rules for subjunctives/commands
-  if (stem.endsWith("qu")) {
-    variations.push(stem.slice(0, -2) + "c"); // e.g. busqu -> busc
-  }
-  if (stem.endsWith("gu")) {
-    variations.push(stem.slice(0, -2) + "g"); // e.g. llegu -> lleg
-  }
-  if (stem.endsWith("z")) {
-    variations.push(stem.slice(0, -1) + "c"); // e.g. venz -> venc
-  }
-  if (stem.endsWith("c")) {
-    variations.push(stem.slice(0, -1) + "z"); // e.g. utilic -> utiliz
-  }
-
-  return Array.from(new Set(variations));
+  return Array.from(finalVars);
 }
 
 function handleDoubledConsonant(base: string, doubledChar: string): string[] {
