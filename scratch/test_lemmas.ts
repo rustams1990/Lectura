@@ -16,6 +16,8 @@ const testCases = [
   { word: "cantas", expected: "cantar" },
   { word: "compartirlos", expected: "compartir" },
   { word: "comerse", expected: "comer" },
+  { word: "discúlpeme", expected: "disculpar" },
+  { word: "búsqueme", expected: "buscar", excluded: ["busquer", "busquir", "busquar"] },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova

@@ -525,7 +525,7 @@ const SPANISH_VERB_ENDINGS: VerbEndingRule[] = [
   { ending: "o", infinitives: ["ar", "er", "ir"] }
 ];
 
-function removeSpanishAccents(str: string): string {
+function normalizeAccents(str: string): string {
   return str
     .replace(/á/g, "a")
     .replace(/é/g, "e")
@@ -540,7 +540,7 @@ function stripSpanishEnclitics(w: string): string[] {
   const hasAccent = /[áéíóú]/.test(w);
 
   const checkValidBase = (stripped: string): boolean => {
-    const deAccented = removeSpanishAccents(stripped).toLowerCase();
+    const deAccented = normalizeAccents(stripped).toLowerCase();
     if (deAccented.endsWith("ar") || deAccented.endsWith("er") || deAccented.endsWith("ir")) {
       return true;
     }
@@ -562,7 +562,7 @@ function stripSpanishEnclitics(w: string): string[] {
     if (w.endsWith(pronoun)) {
       const stripped = w.slice(0, -pronoun.length);
       if (stripped.length >= 2 && checkValidBase(stripped)) {
-        candidates.push(removeSpanishAccents(stripped));
+        candidates.push(normalizeAccents(stripped));
       }
     }
   }
@@ -574,9 +574,9 @@ function stripSpanishEnclitics(w: string): string[] {
       if (stripped.length >= 2 && checkValidBase(stripped)) {
         if ((pronoun === "nos" || pronoun === "se") && stripped.endsWith("mo")) {
           const restored = stripped + "s";
-          candidates.push(removeSpanishAccents(restored));
+          candidates.push(normalizeAccents(restored));
         } else {
-          candidates.push(removeSpanishAccents(stripped));
+          candidates.push(normalizeAccents(stripped));
         }
       }
     }
@@ -669,6 +669,17 @@ function getSpanishStemVariations(stem: string, ending: string): string[] {
     variations.push(stem.slice(0, -2)); // caig -> ca, traig -> tra, oig -> o
   } else if (stem.endsWith("g")) {
     variations.push(stem.slice(0, -1)); // pong -> pon, salg -> sal, veng -> ven, teng -> ten
+  }
+
+  // Spelling change rules for subjunctives/commands
+  if (stem.endsWith("qu")) {
+    variations.push(stem.slice(0, -2) + "c"); // e.g. busqu -> busc
+  }
+  if (stem.endsWith("gu")) {
+    variations.push(stem.slice(0, -2) + "g"); // e.g. llegu -> lleg
+  }
+  if (stem.endsWith("z")) {
+    variations.push(stem.slice(0, -1) + "c"); // e.g. venz -> venc
   }
 
   return Array.from(new Set(variations));
@@ -831,9 +842,6 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
             // to avoid listing all combinations of -ar, -er, -ir.
             if (rule.ending === "a") {
               verbSuggestions.push(stem + "ar");
-            } else if (rule.ending === "e") {
-              verbSuggestions.push(stem + "er");
-              verbSuggestions.push(stem + "ir");
             } else {
               for (const inf of rule.infinitives) {
                 verbSuggestions.push(stem + inf);
