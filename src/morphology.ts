@@ -417,6 +417,25 @@ interface VerbEndingRule {
   infinitives: string[];
 }
 
+const SPANISH_HIGH_CONFIDENCE_ENDINGS = new Set([
+  // Imperfect indicative
+  "aba", "abas", "aban", "ábamos", "abais",
+  "ía", "ías", "ían", "íamos", "íais",
+  // Gerunds
+  "ando", "iendo", "yendo",
+  // Preterite
+  "aste", "iste", "isteis", "aron", "ieron",
+  // Future
+  "aré", "arás", "ará", "aremos", "aréis", "arán",
+  "eré", "erás", "erá", "eremos", "eréis", "erán",
+  "iré", "irás", "irá", "iremos", "iréis", "irán",
+  // Conditional
+  "aríais", "eríais", "iríais", "arían", "erían", "irían",
+  "arías", "erías", "irías",
+  // Subjunctive
+  "iésemos", "iéramos", "ásemos", "áramos", "ierais", "ieseis",
+  "ieran", "iesen", "ieras", "ieses", "iera", "iese"
+]);
 
 const SPANISH_VERB_ENDINGS: VerbEndingRule[] = [
   // 8 chars
@@ -459,6 +478,7 @@ const SPANISH_VERB_ENDINGS: VerbEndingRule[] = [
   { ending: "íais", infinitives: ["er", "ir"] },
 
   // 5 chars
+  { ending: "íamos", infinitives: ["er", "ir"] },
   { ending: "aste", infinitives: ["ar"] },
   { ending: "iste", infinitives: ["er", "ir"] },
   { ending: "amos", infinitives: ["ar", "er", "ir"] },
@@ -837,6 +857,9 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
           const validVerbs = generatedVerbs.filter(v => SPANISH_COMMON_VERBS.has(v));
           if (validVerbs.length > 0) {
             verbSuggestions.push(...validVerbs);
+          } else if (SPANISH_HIGH_CONFIDENCE_ENDINGS.has(rule.ending)) {
+            // High-confidence tense suffix matches are allowed even if not in common verbs list
+            verbSuggestions.push(...generatedVerbs);
           } else if (!foundIrregular && nounAdjSuggestions.length === 0) {
             // Fallback: if no common verbs matched, suggest only the most probable regular endings
             // to avoid listing all combinations of -ar, -er, -ir.
