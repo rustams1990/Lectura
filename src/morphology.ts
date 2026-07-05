@@ -646,15 +646,15 @@ const SPANISH_PAST_GERUND_ENDINGS = new Set([
 ]);
 
 const SPANISH_COMMON_VERBS = new Set([
-  "abrazar", "abrir", "acabar", "acceder", "aceptar", "acercar", "acompañar", "aconsejar", "acordar", "acostar", "acostumbrar", "actuar", "admitir",
+  "abrazar", "abrir", "acabar", "acceder", "aceptar", "acercar", "acompañar", "aconsejar", "acordar", "acostar", "acostumbrar", "actuar", "admitir", "adquirir",
   "adoptar", "adorar", "afectar", "afirmar", "afeitar", "agarrar", "agradecer", "aguantar", "ahorrar", "alcanzar",
-  "alegrar", "alimentar", "almorzar", "alquilar", "alterar", "amar", "ambientar", "amenazar", "añadir", "andar", "anunciar",
+  "alegrar", "alimentar", "almorzar", "alquilar", "alterar", "amar", "amarrar", "ambientar", "amenazar", "añadir", "andar", "anunciar",
   "aparecer", "apetecer", "aplicar", "apoyar", "apreciar", "aprender", "aprobar", "aprovechar", "apresurar", "apuntar",
   "arrastrar", "arreglar", "arrepentir", "arrojar", "asistir", "asociar", "asumir", "asustar", "atacar", "atender",
-  "atraer", "atravesar", "atrever", "ayudar", "bailar", "bajar", "bastar", "beber", "besar", "buscar",
+  "atraer", "atravesar", "atrever", "ayudar", "avanzar", "bailar", "bajar", "bastar", "beber", "besar", "buscar",
   "caber", "caer", "calentar", "callar", "cambiar", "caminar", "cantar", "cargar", "casar", "causar",
   "celebrar", "cenar", "cerrar", "chocar", "cobrar", "cocinar", "coger", "colocar", "comenzar", "comer",
-  "compartir", "comprar", "comprender", "comprobar", "conducir", "confesar", "confiar", "confirmar", "conectar", "conocer",
+  "compartir", "comprar", "comprender", "comprobar", "comunicar", "conducir", "confesar", "confiar", "confirmar", "conectar", "conocer",
   "conseguir", "conservar", "considerar", "consistir", "constituir", "construir", "contar", "contener", "contestar", "continuar",
   "controlar", "convenir", "conversar", "convertir", "corregir", "correr", "cortar", "costar", "crear", "crecer",
   "creer", "criar", "cruzar", "cubrir", "cuidar", "cumplir", "dar", "deber", "decidir", "decir",
@@ -662,11 +662,11 @@ const SPANISH_COMMON_VERBS = new Set([
   "descansar", "describir", "descubrir", "desear", "despedir", "destacar", "destruir", "detener", "determinar", "devolver",
   "dibujar", "diferenciar", "dirigir", "discutir", "diseñar", "disfrutar", "disponer", "distinguir", "divertir", "dividir",
   "doler", "dormir", "dudar", "durar", "echar", "edificar", "editar", "educar", "efectuar", "ejercer",
-  "elegir", "eliminar", "empezar", "emplear", "empujar", "enchufar", "encantar", "encender", "encontrar", "enfrentar", "engañar",
+  "elegir", "eliminar", "empezar", "emplear", "empujar", "enchufar", "encantar", "encender", "encerrar", "encontrar", "enfrentar", "engañar",
   "enojar", "enseñar", "entender", "enterar", "entrar", "entregar", "entretener", "entrevistar", "enviar", "equivocar", "escoger",
   "escribir", "escuchar", "esforzar", "esperar", "establecer", "estar", "estimar", "estirar", "estudiar", "evitar", "exigir",
   "existir", "explicar", "expresar", "extender", "extrañar", "fallecer", "faltar", "felicitar", "fijar", "firmar",
-  "flotan", "formar", "freír", "freir", "frustrar", "fumar", "funcionar", "ganar", "gastar", "girar", "gobernar", "gozar",
+  "flotan", "formar", "freír", "freir", "frustrar", "fumar", "funcionar", "ganar", "gastar", "girar", "gobernar", "googlear", "gozar",
   "gritar", "guardar", "gustar", "haber", "hablar", "hacer", "hallar", "heredar", "herir", "hervir", "huir",
   "ilustrar", "implicar", "importar", "imprimir", "incluir", "indicar", "influir", "informar", "iniciar", "insistir", "instalar",
   "intentar", "interesar", "introducir", "invitar", "ir", "jugar", "juntar", "jurar", "juzgar", "lanzar",
@@ -676,8 +676,8 @@ const SPANISH_COMMON_VERBS = new Set([
   "nadar", "necesitar", "negar", "negociar", "nevar", "notar", "obedecer", "obligar", "observar", "obtener",
   "ocultar", "ocupar", "ocurrir", "odiar", "ofrecer", "oír", "olvidar", "opinar", "organizar", "oxidar", "pagar",
   "parar", "parecer", "partir", "pasar", "pasear", "pedir", "pegar", "peinar", "pensar", "perder",
-  "perdonar", "permanecer", "permitir", "pertenecer", "pescar", "pesar", "pintar", "planchar", "planear", "poder",
-  "poner", "poseer", "practicar", "preferir", "preguntar", "preocupar", "preparar", "presentar", "prestar", "probar",
+  "perdonar", "permanecer", "permitir", "pertenecer", "pescar", "pesar", "pintar", "planchar", "planear", "platicar", "poder",
+  "poner", "poseer", "practicar", "preferir", "preguntar", "preocupar", "prender", "preparar", "presentar", "prestar", "probar",
   "procesar", "producir", "prohibir", "prometer", "proponer", "proteger", "proveer", "provocar", "publicar", "pudrir", "quedar", "quemar",
   "querer", "quitar", "reaccionar", "realizar", "recibir", "recoger", "recomendar", "reconocer", "recordar", "recuperar",
   "redactar", "reducir", "referir", "regalar", "registrar", "regresar", "reír", "reir", "relacionar", "relajar", "renovar", "reparar",
@@ -697,6 +697,7 @@ function getSpanishStemVariations(stem: string, ending: string): string[] {
 
   if (stem.includes("ie")) {
     variations.push(stem.replace("ie", "e"));
+    variations.push(stem.replace("ie", "i")); // e.g. adquier -> adquirir
   }
 
   if (stem.includes("ue")) {

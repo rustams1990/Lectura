@@ -63,6 +63,15 @@ const testCases = [
   { word: "manejó", expected: "manejar" },
   { word: "manejarla", expected: "manejar" },
   { word: "manejada", expected: "manejar" },
+  { word: "adquieran", expected: "adquirir" },
+  { word: "avances", expected: "avanzar" },
+  { word: "avanza", expected: "avanzar" },
+  { word: "encierran", expected: "encerrar" },
+  { word: "comunicarme", expected: "comunicar" },
+  { word: "amarrarse", expected: "amarrar" },
+  { word: "googleas", expected: "googlear" },
+  { word: "platicaras", expected: "platicar" },
+  { word: "prende", expected: "prender" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova
