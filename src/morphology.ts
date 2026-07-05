@@ -761,6 +761,12 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
 
     // Process each candidate
     for (const cand of Array.from(new Set(candidates))) {
+      // Direct infinitive check: if cand is already a valid common infinitive
+      if ((cand.endsWith("ar") || cand.endsWith("er") || cand.endsWith("ir")) && SPANISH_COMMON_VERBS.has(cand)) {
+        verbSuggestions.push(cand);
+        continue;
+      }
+
       // 1. Irregular checks for this candidate
       if (SPANISH_IRREGULARS[cand]) {
         verbSuggestions.push(...SPANISH_IRREGULARS[cand]);
