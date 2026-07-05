@@ -766,6 +766,35 @@ function handleDoubledConsonant(base: string, doubledChar: string): string[] {
   return res;
 }
 
+function getPortugueseEncliticCandidates(word: string): string[] {
+  if (!word.includes("-")) return [word];
+  const parts = word.split("-");
+  const verbPart = parts[0];
+  const candidates = [verbPart];
+
+  // Direct object pronouns: lo, la, los, las
+  const nextPart = parts[1];
+  if (nextPart && (nextPart === "lo" || nextPart === "la" || nextPart === "los" || nextPart === "las")) {
+    candidates.push(verbPart + "r");
+    candidates.push(verbPart + "s");
+    candidates.push(verbPart + "z");
+
+    const unaccented = verbPart
+      .replace(/[áàâã]/g, "a")
+      .replace(/[éê]/g, "e")
+      .replace(/[íî]/g, "i")
+      .replace(/[óôõ]/g, "o")
+      .replace(/[úû]/g, "u");
+    candidates.push(unaccented + "r");
+
+    if (verbPart === "pô") candidates.push("pôr");
+    if (verbPart === "quê") candidates.push("querer");
+    if (verbPart === "di") candidates.push("dizer");
+    if (verbPart === "fa") candidates.push("fazer");
+  }
+  return candidates;
+}
+
 export function getSuggestedLemmas(word: string, targetLanguage: string): string[] {
   if (!word) return [];
   const w = word.trim().toLowerCase();
@@ -1181,6 +1210,144 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
     }
 
     suggestions.push(...baseSuggestions);
+  }
+
+  // 7. Portuguese Lemmatization
+  else if (lang.startsWith("pt") || lang.startsWith("por") || lang === "португальский" || lang === "portuguese") {
+    const verbSuggestions: string[] = [];
+    const nounAdjSuggestions: string[] = [];
+
+    const candidates = getPortugueseEncliticCandidates(w);
+
+    for (let cand of Array.from(new Set(candidates))) {
+      if (cand.endsWith("ar") || cand.endsWith("er") || cand.endsWith("ir") || cand.endsWith("or")) {
+        verbSuggestions.push(cand);
+      }
+
+      // 1. Plural / Gender nouns & adjectives
+      if (cand.endsWith("s") && cand.length > 2) {
+        if (cand.endsWith("ões")) {
+          nounAdjSuggestions.push(cand.slice(0, -3) + "ão");
+        } else if (cand.endsWith("ães")) {
+          nounAdjSuggestions.push(cand.slice(0, -3) + "ão");
+          nounAdjSuggestions.push(cand.slice(0, -3) + "ã");
+        } else if (cand.endsWith("ãos")) {
+          nounAdjSuggestions.push(cand.slice(0, -3) + "ão");
+        } else if (cand.endsWith("ns")) {
+          nounAdjSuggestions.push(cand.slice(0, -2) + "m");
+        } else if (cand.endsWith("es")) {
+          nounAdjSuggestions.push(cand.slice(0, -2));
+          nounAdjSuggestions.push(cand.slice(0, -2) + "z");
+          nounAdjSuggestions.push(cand.slice(0, -2) + "s");
+        } else if (cand.endsWith("is")) {
+          if (cand.endsWith("ais")) {
+            nounAdjSuggestions.push(cand.slice(0, -2) + "l");
+          } else if (cand.endsWith("éis") || cand.endsWith("eis")) {
+            nounAdjSuggestions.push(cand.slice(0, -3) + "el");
+          } else if (cand.endsWith("óis") || cand.endsWith("ois")) {
+            nounAdjSuggestions.push(cand.slice(0, -3) + "ol");
+          } else if (cand.endsWith("uis") || cand.endsWith("úis")) {
+            nounAdjSuggestions.push(cand.slice(0, -2) + "l");
+          } else {
+            nounAdjSuggestions.push(cand.slice(0, -1));
+          }
+        } else {
+          nounAdjSuggestions.push(cand.slice(0, -1));
+        }
+      }
+
+      // Gender inflection
+      if (cand.endsWith("a") && cand.length > 2) {
+        nounAdjSuggestions.push(cand.slice(0, -1) + "o");
+        if (cand.endsWith("ora")) {
+          nounAdjSuggestions.push(cand.slice(0, -1));
+        } else if (cand.endsWith("ola")) {
+          nounAdjSuggestions.push(cand.slice(0, -2) + "l");
+        } else if (cand.endsWith("esa")) {
+          nounAdjSuggestions.push(cand.slice(0, -3) + "ês");
+        }
+      }
+
+      // 2. Verb conjugations (regular suffix guessing)
+      if (cand.endsWith("ando") && cand.length > 4) {
+        verbSuggestions.push(cand.slice(0, -4) + "ar");
+      } else if (cand.endsWith("endo") && cand.length > 4) {
+        verbSuggestions.push(cand.slice(0, -4) + "er");
+        verbSuggestions.push(cand.slice(0, -4) + "ir");
+      } else if (cand.endsWith("indo") && cand.length > 4) {
+        verbSuggestions.push(cand.slice(0, -4) + "ir");
+        verbSuggestions.push(cand.slice(0, -4) + "er");
+      }
+
+      if (cand.endsWith("ado") && cand.length > 3) {
+        verbSuggestions.push(cand.slice(0, -3) + "ar");
+      } else if (cand.endsWith("ido") && cand.length > 3) {
+        verbSuggestions.push(cand.slice(0, -3) + "er");
+        verbSuggestions.push(cand.slice(0, -3) + "ir");
+      } else if (cand.endsWith("ada") && cand.length > 3) {
+        verbSuggestions.push(cand.slice(0, -3) + "ar");
+      } else if (cand.endsWith("ida") && cand.length > 3) {
+        verbSuggestions.push(cand.slice(0, -3) + "er");
+        verbSuggestions.push(cand.slice(0, -3) + "ir");
+      }
+
+      if (cand.endsWith("ava") || cand.endsWith("avam") || cand.endsWith("avas") || cand.endsWith("ávamos")) {
+        verbSuggestions.push(cand.replace(/á|a(va|vam|vas|vamos)$/, "") + "ar");
+      }
+      if (cand.endsWith("ia") || cand.endsWith("iam") || cand.endsWith("ias") || cand.endsWith("íamos")) {
+        verbSuggestions.push(cand.replace(/í|i(a|am|as|amos)$/, "") + "er");
+        verbSuggestions.push(cand.replace(/í|i(a|am|as|amos)$/, "") + "ir");
+      }
+
+      if (cand.endsWith("ou") || cand.endsWith("ei") || cand.endsWith("ámos") || cand.endsWith("aram") || cand.endsWith("ara")) {
+        verbSuggestions.push(cand.replace(/(ou|ei|ámos|amos|aram|ara)$/, "") + "ar");
+      }
+      if (cand.endsWith("eu") || cand.endsWith("emos") || cand.endsWith("eram") || cand.endsWith("era")) {
+        verbSuggestions.push(cand.replace(/(eu|emos|eram|era)$/, "") + "er");
+      }
+      if (cand.endsWith("iu") || cand.endsWith("imos") || cand.endsWith("iram") || cand.endsWith("ira")) {
+        verbSuggestions.push(cand.replace(/(iu|imos|iram|ira)$/, "") + "ir");
+      }
+
+      if (cand.endsWith("o") && cand.length > 2) {
+        verbSuggestions.push(cand.slice(0, -1) + "ar");
+        verbSuggestions.push(cand.slice(0, -1) + "er");
+        verbSuggestions.push(cand.slice(0, -1) + "ir");
+      }
+      if (cand.endsWith("as") || cand.endsWith("a") || cand.endsWith("am")) {
+        verbSuggestions.push(cand.replace(/(as|a|am)$/, "") + "ar");
+      }
+      if (cand.endsWith("es") || cand.endsWith("e") || cand.endsWith("em")) {
+        verbSuggestions.push(cand.replace(/(es|e|em)$/, "") + "er");
+        verbSuggestions.push(cand.replace(/(es|e|em)$/, "") + "ir");
+      }
+
+      if (cand.includes("ar") && (cand.endsWith("á") || cand.endsWith("ão") || cand.endsWith("ei") || cand.endsWith("emos") || cand.endsWith("ia") || cand.endsWith("iam") || cand.endsWith("as"))) {
+        const idx = cand.lastIndexOf("ar");
+        verbSuggestions.push(cand.substring(0, idx + 2));
+      }
+      if (cand.includes("er") && (cand.endsWith("á") || cand.endsWith("ão") || cand.endsWith("ei") || cand.endsWith("emos") || cand.endsWith("ia") || cand.endsWith("iam") || cand.endsWith("as"))) {
+        const idx = cand.lastIndexOf("er");
+        verbSuggestions.push(cand.substring(0, idx + 2));
+      }
+      if (cand.includes("ir") && (cand.endsWith("á") || cand.endsWith("ão") || cand.endsWith("ei") || cand.endsWith("emos") || cand.endsWith("ia") || cand.endsWith("iam") || cand.endsWith("as"))) {
+        const idx = cand.lastIndexOf("ir");
+        verbSuggestions.push(cand.substring(0, idx + 2));
+      }
+
+      if (cand.endsWith("asse") || cand.endsWith("assem") || cand.endsWith("asses") || cand.endsWith("ássemos")) {
+        verbSuggestions.push(cand.replace(/á|a(sse|ssem|sses|ssemos)$/, "") + "ar");
+      }
+      if (cand.endsWith("esse") || cand.endsWith("essem") || cand.endsWith("esses") || cand.endsWith("êssemos")) {
+        verbSuggestions.push(cand.replace(/ê|e(sse|ssem|sses|ssemos)$/, "") + "er");
+      }
+      if (cand.endsWith("isse") || cand.endsWith("issem") || cand.endsWith("isses") || cand.endsWith("íssemos")) {
+        verbSuggestions.push(cand.replace(/í|i(sse|ssem|sses|ssemos)$/, "") + "ir");
+      }
+    }
+
+    suggestions.push(...verbSuggestions);
+    suggestions.push(...nounAdjSuggestions);
   }
 
   // Post-process: unique values, filter out target word, strip empty values, normalize length

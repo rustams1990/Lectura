@@ -184,6 +184,41 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
     ];
   }
 
+  if (sourceCode === "pt") {
+    return [
+      {
+        id: "gtrans-pt",
+        name: `Google Translate (${targetCode.toUpperCase()})`,
+        urlTemplate: `https://translate.google.com/?sl=pt&tl=${targetCode}&text={word}`,
+        displayType: "window_popup"
+      },
+      {
+        id: "reverso-pt",
+        name: "Reverso Context",
+        urlTemplate: `https://context.reverso.net/translation/portuguese-${targetReverso}/{word}`,
+        displayType: "window_popup"
+      },
+      {
+        id: "priberam",
+        name: "Priberam (PT-PT)",
+        urlTemplate: "https://dicionario.priberam.org/{word}",
+        displayType: "window_popup"
+      },
+      {
+        id: "dicio",
+        name: "Dicio (PT-BR)",
+        urlTemplate: "https://www.dicio.com.br/{word}",
+        displayType: "window_popup"
+      },
+      {
+        id: "collins-pt-en",
+        name: "Collins",
+        urlTemplate: "https://www.collinsdictionary.com/dictionary/portuguese-english/{word}",
+        displayType: "window_popup"
+      }
+    ];
+  }
+
   return [
     {
       id: "gtrans",

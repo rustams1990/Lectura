@@ -56,9 +56,18 @@ export const BUILT_IN_LESSONS: Lesson[] = [
     translationLanguage: "Russian",
     isBuiltIn: true,
     lessonType: "book"
+  },
+  {
+    id: "builtin-pt",
+    title: "🇵🇹 A Raposa e as Uvas (The Fox and the Grapes)",
+    text: "Uma raposa faminta caminhava pela floresta. De repente, ela viu um cacho de uvas bonitas e maduras que pendiam de uma videira alta. As uvas pareciam doces e suculentas, e a raposa queria muito comê-las. Ela saltou com todas as suas forças, mas não conseguiu alcançá-las porque estavam muito altas. Tentou várias vezes sem sucesso. Cansada e frustrada, a raposa olhou para as uvas com desdém e disse: 'Não as quero, de qualquer forma estão verdes'. E afastou-se resignada, consolando-se com uma mentira.",
+    targetLanguage: "Portuguese",
+    translationLanguage: "Russian",
+    isBuiltIn: true,
+    lessonType: "book"
   }
 ];
 
 export const LANGUAGES_SUPPORTED = [
-  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic", "Ukrainian"
+  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic", "Ukrainian", "Portuguese"
 ];

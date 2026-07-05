@@ -1174,11 +1174,13 @@ export default function StatisticsPage({
         const commonHighFreqFrench = ["le", "la", "les", "un", "une", "des", "et", "en", "que", "de", "être", "avoir", "faire", "aller", "dire", "pouvoir", "vouloir", "savoir", "voir", "avec", "pour", "sur", "dans", "ce", "ma", "mon", "ta", "ton", "sa", "son", "se", "me", "te", "nous", "vous", "ils", "elles", "qui"];
         const commonHighFreqEnglish = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their"];
         const commonHighFreqGerman = ["der", "die", "das", "ein", "eine", "und", "in", "zu", "haben", "sein", "werden", "von", "mit", "nicht", "es", "ich", "er", "sie", "wir", "ihr", "zu", "auf", "für", "an", "nach", "aus", "bei", "durch", "ohne", "gegen"];
+        const commonHighFreqPortuguese = ["o", "a", "os", "as", "um", "uma", "uns", "umas", "e", "em", "que", "de", "do", "da", "dos", "das", "no", "na", "nos", "nas", "ser", "estar", "ter", "haver", "fazer", "ir", "com", "para", "por", "seu", "sua", "este", "esta", "meu", "minha", "teu", "tua", "como", "se", "mais", "mas", "todo", "toda", "todos", "todas", "lhe", "lhes", "me", "te", "nos", "vos", "ele", "ela", "eles", "elas", "não", "sim", "bem", "muito", "outro", "outra", "este", "esse", "aquele"];
 
         let isSpanish = langLower.includes("span");
         let isFrench = langLower.includes("fren") || langLower.includes("fran");
         let isEnglish = langLower.includes("eng");
         let isGerman = langLower.includes("ger") || langLower.includes("deut");
+        let isPortuguese = langLower.includes("port") || langLower.includes("pt");
 
         const isCoreCommonBackup = (w: string) => {
           const wl = w.toLowerCase();
@@ -1186,6 +1188,7 @@ export default function StatisticsPage({
           if (isFrench && commonHighFreqFrench.includes(wl)) return "A1";
           if (isEnglish && commonHighFreqEnglish.includes(wl)) return "A1";
           if (isGerman && commonHighFreqGerman.includes(wl)) return "A1";
+          if (isPortuguese && commonHighFreqPortuguese.includes(wl)) return "A1";
           return null;
         };
 
