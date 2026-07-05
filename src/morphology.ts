@@ -201,7 +201,320 @@ const SPANISH_IRREGULARS: Record<string, string[]> = {
   dio: ["dar"],
   dimos: ["dar"],
   dieron: ["dar"],
+  // Poner
+  pongo: ["poner"],
+  pones: ["poner"],
+  pone: ["poner"],
+  ponemos: ["poner"],
+  ponéis: ["poner"],
+  ponen: ["poner"],
+  puse: ["poner"],
+  pusiste: ["poner"],
+  puso: ["poner"],
+  pusimos: ["poner"],
+  pusieron: ["poner"],
+  ponía: ["poner"],
+  // Salir
+  salgo: ["salir"],
+  sales: ["salir"],
+  sale: ["salir"],
+  salimos: ["salir"],
+  salís: ["salir"],
+  salen: ["salir"],
+  // Venir
+  vengo: ["venir"],
+  vienes: ["venir"],
+  viene: ["venir"],
+  venimos: ["venir"],
+  venís: ["venir"],
+  vienen: ["venir"],
+  vine: ["venir"],
+  viniste: ["venir"],
+  vino: ["venir"],
+  vinimos: ["venir"],
+  vinieron: ["venir"],
+  venía: ["venir"],
+  // Traer
+  traigo: ["traer"],
+  traes: ["traer"],
+  trae: ["traer"],
+  traemos: ["traer"],
+  traéis: ["traer"],
+  traen: ["traer"],
+  traje: ["traer"],
+  trajiste: ["traer"],
+  trajo: ["traer"],
+  trajimos: ["traer"],
+  trajeron: ["traer"],
+  traía: ["traer"],
+  // Caer
+  caigo: ["caer"],
+  caes: ["caer"],
+  cae: ["caer"],
+  caemos: ["caer"],
+  caéis: ["caer"],
+  caen: ["caer"],
+  caí: ["caer"],
+  cayó: ["caer"],
+  cayeron: ["caer"],
+  caía: ["caer"],
+  // Oír
+  oigo: ["oír"],
+  oyes: ["oír"],
+  oye: ["oír"],
+  oímos: ["oír"],
+  oís: ["oír"],
+  oyen: ["oír"],
+  oyó: ["oír"],
+  oyeron: ["oír"],
+  oía: ["oír"],
+  // Irregular Participles
+  abierto: ["abrir"],
+  cubierto: ["cubrir"],
+  dicho: ["decir"],
+  escrito: ["escribir"],
+  hecho: ["hacer"],
+  muerto: ["morir"],
+  puesto: ["poner"],
+  roto: ["romper"],
+  visto: ["ver"],
+  vuelto: ["volver"],
+  resuelto: ["resolver"],
+  devuelto: ["devolver"],
 };
+
+const SPANISH_DOUBLE_ENCLITICS = [
+  "melo", "mela", "melos", "melas",
+  "telo", "tela", "telos", "telas",
+  "selo", "sela", "selos", "selas",
+  "noslo", "nosla", "noslos", "noslas",
+  "oslo", "osla", "oslos", "oslas"
+];
+
+const SPANISH_SINGLE_ENCLITICS = [
+  "me", "te", "se", "nos", "os", "le", "les", "lo", "la", "los", "las"
+];
+
+const SPANISH_SHORT_IMPERATIVES: Record<string, string[]> = {
+  di: ["decir"],
+  haz: ["hacer"],
+  ve: ["ir", "ver"],
+  pon: ["poner"],
+  ten: ["tener"],
+  sal: ["salir"],
+  ven: ["venir"],
+  val: ["valer"],
+  da: ["dar"],
+  trae: ["traer"],
+  oye: ["oír"],
+  sé: ["ser", "saber"],
+  se: ["ser", "saber"],
+};
+
+const SPANISH_FUTURE_STEMS: Record<string, string[]> = {
+  tendr: ["tener"],
+  har: ["hacer"],
+  dir: ["decir"],
+  podr: ["poder"],
+  sabr: ["saber"],
+  quer: ["querer"],
+  pondr: ["poner"],
+  valdr: ["valer"],
+  saldr: ["salir"],
+  habr: ["haber"],
+  vendr: ["venir"],
+  cabr: ["caber"]
+};
+
+interface VerbEndingRule {
+  ending: string;
+  infinitives: string[];
+}
+
+
+const SPANISH_VERB_ENDINGS: VerbEndingRule[] = [
+  // 8 chars
+  { ending: "iésemos", infinitives: ["er", "ir"] },
+  { ending: "iéramos", infinitives: ["er", "ir"] },
+  { ending: "aríamos", infinitives: ["ar"] },
+  { ending: "eríamos", infinitives: ["er"] },
+  { ending: "iríamos", infinitives: ["ir"] },
+
+  // 7 chars
+  { ending: "ásemos", infinitives: ["ar"] },
+  { ending: "áramos", infinitives: ["ar"] },
+  { ending: "isteis", infinitives: ["ar", "er", "ir"] },
+  { ending: "ierais", infinitives: ["er", "ir"] },
+  { ending: "ieseis", infinitives: ["er", "ir"] },
+  { ending: "aremos", infinitives: ["ar"] },
+  { ending: "eremos", infinitives: ["er"] },
+  { ending: "iremos", infinitives: ["ir"] },
+  { ending: "aríais", infinitives: ["ar"] },
+  { ending: "eríais", infinitives: ["er"] },
+  { ending: "iríais", infinitives: ["ir"] },
+
+  // 6 chars
+  { ending: "ábamos", infinitives: ["ar"] },
+  { ending: "aron", infinitives: ["ar"] },
+  { ending: "ieron", infinitives: ["er", "ir"] },
+  { ending: "ieran", infinitives: ["er", "ir"] },
+  { ending: "iesen", infinitives: ["er", "ir"] },
+  { ending: "ieras", infinitives: ["er", "ir"] },
+  { ending: "ieses", infinitives: ["er", "ir"] },
+  { ending: "yendo", infinitives: ["er", "ir"] },
+  { ending: "iendo", infinitives: ["er", "ir"] },
+  { ending: "arían", infinitives: ["ar"] },
+  { ending: "erían", infinitives: ["er"] },
+  { ending: "irían", infinitives: ["ir"] },
+  { ending: "arías", infinitives: ["ar"] },
+  { ending: "erías", infinitives: ["er"] },
+  { ending: "irías", infinitives: ["ir"] },
+  { ending: "abais", infinitives: ["ar"] },
+  { ending: "íais", infinitives: ["er", "ir"] },
+
+  // 5 chars
+  { ending: "aste", infinitives: ["ar"] },
+  { ending: "iste", infinitives: ["er", "ir"] },
+  { ending: "amos", infinitives: ["ar", "er", "ir"] },
+  { ending: "emos", infinitives: ["ar", "er"] },
+  { ending: "imos", infinitives: ["er", "ir"] },
+  { ending: "aran", infinitives: ["ar"] },
+  { ending: "asen", infinitives: ["ar"] },
+  { ending: "aras", infinitives: ["ar"] },
+  { ending: "ases", infinitives: ["ar"] },
+  { ending: "iera", infinitives: ["er", "ir"] },
+  { ending: "iese", infinitives: ["er", "ir"] },
+  { ending: "arán", infinitives: ["ar"] },
+  { ending: "erán", infinitives: ["er"] },
+  { ending: "irán", infinitives: ["ir"] },
+  { ending: "arás", infinitives: ["ar"] },
+  { ending: "erás", infinitives: ["er"] },
+  { ending: "irás", infinitives: ["ir"] },
+
+  // 4 chars
+  { ending: "abas", infinitives: ["ar"] },
+  { ending: "aban", infinitives: ["ar"] },
+  { ending: "ías", infinitives: ["er", "ir"] },
+  { ending: "ían", infinitives: ["er", "ir"] },
+  { ending: "ará", infinitives: ["ar"] },
+  { ending: "erá", infinitives: ["er"] },
+  { ending: "irá", infinitives: ["ir"] },
+  { ending: "ando", infinitives: ["ar"] },
+  { ending: "ador", infinitives: ["ar"] },
+  { ending: "ados", infinitives: ["ar"] },
+  { ending: "adas", infinitives: ["ar"] },
+  { ending: "idos", infinitives: ["er", "ir"] },
+  { ending: "idas", infinitives: ["er", "ir"] },
+  { ending: "ara", infinitives: ["ar"] },
+  { ending: "ase", infinitives: ["ar"] },
+  { ending: "áis", infinitives: ["ar", "er", "ir"] },
+  { ending: "éis", infinitives: ["ar", "er", "ir"] },
+  { ending: "zco", infinitives: ["cer", "cir"] },
+  { ending: "zca", infinitives: ["cer", "cir"] },
+  { ending: "zcas", infinitives: ["cer", "cir"] },
+  { ending: "zcan", infinitives: ["cer", "cir"] },
+
+  // 3 chars
+  { ending: "aba", infinitives: ["ar"] },
+  { ending: "ía", infinitives: ["er", "ir"] },
+  { ending: "ado", infinitives: ["ar"] },
+  { ending: "ido", infinitives: ["er", "ir"] },
+  { ending: "an", infinitives: ["ar"] },
+  { ending: "en", infinitives: ["ar", "er", "ir"] },
+  { ending: "as", infinitives: ["ar"] },
+  { ending: "es", infinitives: ["ar", "er", "ir"] },
+  { ending: "ís", infinitives: ["ir"] },
+  { ending: "ió", infinitives: ["er", "ir"] },
+
+  // 2 chars
+  { ending: "ó", infinitives: ["ar"] },
+  { ending: "é", infinitives: ["ar"] },
+  { ending: "í", infinitives: ["er", "ir"] },
+  { ending: "ad", infinitives: ["ar"] },
+  { ending: "ed", infinitives: ["er"] },
+  { ending: "id", infinitives: ["ir"] },
+  { ending: "jo", infinitives: ["ger", "gir"] },
+  { ending: "a", infinitives: ["ar", "er", "ir"] },
+  { ending: "e", infinitives: ["ar", "er", "ir"] },
+  { ending: "o", infinitives: ["ar", "er", "ir"] }
+];
+
+function removeSpanishAccents(str: string): string {
+  return str
+    .replace(/á/g, "a")
+    .replace(/é/g, "e")
+    .replace(/í/g, "i")
+    .replace(/ó/g, "o")
+    .replace(/ú/g, "u")
+    .replace(/ü/g, "u");
+}
+
+function stripSpanishEnclitics(w: string): string[] {
+  const candidates: string[] = [];
+  const hasAccent = /[áéíóú]/.test(w);
+
+  // 1. Try double enclitics
+  for (const pronoun of SPANISH_DOUBLE_ENCLITICS) {
+    if (w.endsWith(pronoun)) {
+      const stripped = w.slice(0, -pronoun.length);
+      if (stripped.length >= 2) {
+        candidates.push(removeSpanishAccents(stripped));
+        if (hasAccent) {
+          candidates.push(stripped);
+        }
+      }
+    }
+  }
+
+  // 2. Try single enclitics
+  for (const pronoun of SPANISH_SINGLE_ENCLITICS) {
+    if (w.endsWith(pronoun)) {
+      const stripped = w.slice(0, -pronoun.length);
+      if (stripped.length >= 2) {
+        if ((pronoun === "nos" || pronoun === "se") && stripped.endsWith("mo")) {
+          const restored = stripped + "s";
+          candidates.push(removeSpanishAccents(restored));
+          if (hasAccent) {
+            candidates.push(restored);
+          }
+        }
+        candidates.push(removeSpanishAccents(stripped));
+        if (hasAccent) {
+          candidates.push(stripped);
+        }
+      }
+    }
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function getSpanishStemVariations(stem: string): string[] {
+  const variations = [stem];
+
+  if (stem.includes("ie")) {
+    variations.push(stem.replace("ie", "e"));
+  }
+
+  if (stem.includes("ue")) {
+    variations.push(stem.replace("ue", "o"));
+    variations.push(stem.replace("ue", "u"));
+  }
+
+  if (stem.includes("i")) {
+    const lastIndex = stem.lastIndexOf("i");
+    const withE = stem.slice(0, lastIndex) + "e" + stem.slice(lastIndex + 1);
+    variations.push(withE);
+  }
+
+  if (stem.includes("u")) {
+    const lastIndex = stem.lastIndexOf("u");
+    const withO = stem.slice(0, lastIndex) + "o" + stem.slice(lastIndex + 1);
+    variations.push(withO);
+  }
+
+  return Array.from(new Set(variations));
+}
 
 function handleDoubledConsonant(base: string, doubledChar: string): string[] {
   const res: string[] = [];
@@ -276,78 +589,79 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
 
   // 2. Spanish Lemmatization
   else if (lang.startsWith("es") || lang.startsWith("spa") || lang === "испанский" || lang === "spanish") {
+    const verbSuggestions: string[] = [];
+    const nounAdjSuggestions: string[] = [];
+
+    // Direct lookup in irregulars first
     if (SPANISH_IRREGULARS[w]) {
-      suggestions.push(...SPANISH_IRREGULARS[w]);
+      verbSuggestions.push(...SPANISH_IRREGULARS[w]);
     }
 
-    // Adjective and Noun Gender/Plural Reversion
-    if (w.endsWith("as") && w.length > 3) {
-      suggestions.push(w.slice(0, -2) + "o");
-      suggestions.push(w.slice(0, -2) + "a");
-    } else if (w.endsWith("os") && w.length > 3) {
-      suggestions.push(w.slice(0, -2) + "o");
-    } else if (w.endsWith("a") && w.length > 2) {
-      suggestions.push(w.slice(0, -1) + "o");
-    } else if (w.endsWith("ces") && w.length > 4) {
-      suggestions.push(w.slice(0, -3) + "z"); // e.g. felices -> feliz
-    } else if (w.endsWith("es") && w.length > 3) {
-      suggestions.push(w.slice(0, -2)); // e.g. flores -> flor
-    } else if (w.endsWith("s") && w.length > 2) {
-      suggestions.push(w.slice(0, -1)); // e.g. libros -> libro
-    }
+    // Generate candidates: either the word itself, or base forms after stripping enclitic pronouns
+    const candidates = [w];
+    candidates.push(...stripSpanishEnclitics(w));
 
-    // Verbs (Gerunds)
-    if (w.endsWith("ando") && w.length > 5) {
-      suggestions.push(w.slice(0, -4) + "ar");
-    } else if ((w.endsWith("iendo") || w.endsWith("yendo")) && w.length > 6) {
-      suggestions.push(w.slice(0, -5) + "er");
-      suggestions.push(w.slice(0, -5) + "ir");
-      if (w.endsWith("yendo")) {
-        suggestions.push(w.slice(0, -5) + "er"); // e.g. leyendo -> leer
+    // Process each candidate
+    for (const cand of Array.from(new Set(candidates))) {
+      // 1. Irregular checks for this candidate
+      if (SPANISH_IRREGULARS[cand]) {
+        verbSuggestions.push(...SPANISH_IRREGULARS[cand]);
+      }
+
+      // Check short irregular imperative forms
+      if (SPANISH_SHORT_IMPERATIVES[cand]) {
+        verbSuggestions.push(...SPANISH_SHORT_IMPERATIVES[cand]);
+      }
+
+      // Check irregular future stems
+      for (const [fStem, infinitives] of Object.entries(SPANISH_FUTURE_STEMS)) {
+        if (cand === fStem) {
+          verbSuggestions.push(...infinitives);
+        }
+      }
+
+      // 2. Noun and Adjective Rules (run on each candidate)
+      if (cand.endsWith("as") && cand.length > 3) {
+        nounAdjSuggestions.push(cand.slice(0, -2) + "o");
+        nounAdjSuggestions.push(cand.slice(0, -2) + "a");
+      } else if (cand.endsWith("os") && cand.length > 3) {
+        nounAdjSuggestions.push(cand.slice(0, -2) + "o");
+      } else if (cand.endsWith("a") && cand.length > 2) {
+        nounAdjSuggestions.push(cand.slice(0, -1) + "o");
+      } else if (cand.endsWith("ces") && cand.length > 4) {
+        nounAdjSuggestions.push(cand.slice(0, -3) + "z"); // e.g. felices -> feliz
+      } else if (cand.endsWith("es") && cand.length > 3) {
+        nounAdjSuggestions.push(cand.slice(0, -2)); // e.g. flores -> flor
+      } else if (cand.endsWith("s") && cand.length > 2) {
+        nounAdjSuggestions.push(cand.slice(0, -1)); // e.g. libros -> libro
+      }
+
+      // 3. Verb Ending Rules (run on each candidate)
+      for (const rule of SPANISH_VERB_ENDINGS) {
+        if (cand.endsWith(rule.ending) && cand.length > rule.ending.length + 1) {
+          const stem = cand.slice(0, -rule.ending.length);
+          
+          // If the stem is an irregular future/conditional stem, add its infinitives
+          if (SPANISH_FUTURE_STEMS[stem]) {
+            verbSuggestions.push(...SPANISH_FUTURE_STEMS[stem]);
+          }
+
+          // Apply stem change reversion only if matched a verb ending
+          const stemVars = getSpanishStemVariations(stem);
+          for (const sVar of stemVars) {
+            for (const inf of rule.infinitives) {
+              verbSuggestions.push(sVar + inf);
+            }
+          }
+          // We can break after finding the longest matching verb ending to avoid matching shorter subsets
+          break;
+        }
       }
     }
 
-    // Verbs (Common conjugated endings)
-    // Imperfecto: -aba, -abas, -ábamos, -aban
-    if (w.endsWith("aba") || w.endsWith("abas") || w.endsWith("aban")) {
-      suggestions.push(w.slice(0, -3) + "ar");
-    } else if (w.endsWith("ábamos")) {
-      suggestions.push(w.slice(0, -6) + "ar");
-    }
-    // Pretérito/Presente: -aron, -ieron, -iste, -imos
-    else if (w.endsWith("aron") && w.length > 5) {
-      suggestions.push(w.slice(0, -4) + "ar");
-    } else if (w.endsWith("ieron") && w.length > 6) {
-      suggestions.push(w.slice(0, -5) + "er");
-      suggestions.push(w.slice(0, -5) + "ir");
-    } else if (w.endsWith("iste") && w.length > 5) {
-      suggestions.push(w.slice(0, -4) + "ar");
-      suggestions.push(w.slice(0, -4) + "er");
-      suggestions.push(w.slice(0, -4) + "ir");
-    } else if (w.endsWith("imos") && w.length > 5) {
-      suggestions.push(w.slice(0, -4) + "ar");
-      suggestions.push(w.slice(0, -4) + "er");
-      suggestions.push(w.slice(0, -4) + "ir");
-    }
-    // Condicional/Futuro: -aría, -erías, -iría, -arás, -ará, -erá, -irá
-    else if (w.endsWith("aría") || w.endsWith("arás") || w.endsWith("ará")) {
-      suggestions.push(w.slice(0, -4) + "ar");
-    } else if (w.endsWith("ería") || w.endsWith("erás") || w.endsWith("erá")) {
-      suggestions.push(w.slice(0, -4) + "er");
-    } else if (w.endsWith("iría") || w.endsWith("irás") || w.endsWith("irá")) {
-      suggestions.push(w.slice(0, -4) + "ir");
-    } else if (w.endsWith("arán")) {
-      suggestions.push(w.slice(0, -4) + "ar");
-    } else if (w.endsWith("erán")) {
-      suggestions.push(w.slice(0, -4) + "er");
-    } else if (w.endsWith("irán")) {
-      suggestions.push(w.slice(0, -4) + "ir");
-    } else if (w.endsWith("ó") && w.length > 2) {
-      suggestions.push(w.slice(0, -1) + "ar");
-    } else if (w.endsWith("ió") && w.length > 3) {
-      suggestions.push(w.slice(0, -2) + "er");
-      suggestions.push(w.slice(0, -2) + "ir");
-    }
+    // Merge suggestions, placing verbs first
+    suggestions.push(...verbSuggestions);
+    suggestions.push(...nounAdjSuggestions);
   }
 
   // 3. French Lemmatization
