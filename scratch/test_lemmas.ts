@@ -22,6 +22,7 @@ const testCases = [
   { word: "interrumpiendo", expected: "interrumpir" },
   { word: "sonrío", expected: "sonreír", excluded: ["sonriar", "sonrier", "sonrir"] },
   { word: "atiendo", expected: "atender", excluded: ["ater", "atir"] },
+  { word: "utilices", expected: "utilizar" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova

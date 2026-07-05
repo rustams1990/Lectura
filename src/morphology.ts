@@ -708,6 +708,9 @@ function getSpanishStemVariations(stem: string, ending: string): string[] {
   if (stem.endsWith("z")) {
     variations.push(stem.slice(0, -1) + "c"); // e.g. venz -> venc
   }
+  if (stem.endsWith("c")) {
+    variations.push(stem.slice(0, -1) + "z"); // e.g. utilic -> utiliz
+  }
 
   return Array.from(new Set(variations));
 }
