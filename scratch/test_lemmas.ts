@@ -72,6 +72,8 @@ const testCases = [
   { word: "googleas", expected: "googlear" },
   { word: "platicaras", expected: "platicar" },
   { word: "prende", expected: "prender" },
+  { word: "alcohólicas", expected: "alcohólica" },
+  { word: "alcohólicas", expected: "alcohólico" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova

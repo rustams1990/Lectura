@@ -795,6 +795,76 @@ function getPortugueseEncliticCandidates(word: string): string[] {
   return candidates;
 }
 
+function restoreSpanishAccents(suggestion: string, original: string): string {
+  const originalLower = original.toLowerCase();
+  
+  const accentMap: { [key: string]: string } = {
+    "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u"
+  };
+  
+  const reverseAccentMap: { [key: string]: string } = {
+    "a": "á", "e": "é", "i": "í", "o": "ó", "u": "ú", "ü": "ü"
+  };
+
+  // Find where the accent is in the original word
+  let accentedChar: string | null = null;
+  let accentedIndex: number = -1;
+  for (let i = 0; i < originalLower.length; i++) {
+    const char = originalLower[i];
+    if (accentMap[char]) {
+      accentedChar = char;
+      accentedIndex = i;
+      break;
+    }
+  }
+
+  if (accentedIndex === -1 || !accentedChar) {
+    return suggestion;
+  }
+
+  // De-accented original character
+  const cleanOrigAccented = accentMap[accentedChar];
+
+  let restored = "";
+  for (let i = 0; i < suggestion.length; i++) {
+    const sugChar = suggestion[i];
+    const sugCharLower = sugChar.toLowerCase();
+
+    // Direct index match
+    if (i === accentedIndex && sugCharLower === cleanOrigAccented) {
+      const accentedLower = reverseAccentMap[sugCharLower] || sugCharLower;
+      const finalChar = sugChar === sugChar.toUpperCase() ? accentedLower.toUpperCase() : accentedLower;
+      restored += finalChar;
+    } else {
+      restored += sugChar;
+    }
+  }
+
+  // Fallback specifically for -ico / -ica:
+  const cleanRestoredLower = normalizeAccents(restored).toLowerCase();
+  if ((cleanRestoredLower.endsWith("ico") || cleanRestoredLower.endsWith("ica")) && !/[áéíóú]/.test(restored)) {
+    let vowelIndex = -1;
+    for (let i = restored.length - 4; i >= 0; i--) {
+      const charLower = restored[i].toLowerCase();
+      if (["a", "e", "i", "o", "u"].includes(charLower)) {
+        vowelIndex = i;
+        break;
+      }
+    }
+    if (vowelIndex !== -1) {
+      const sugChar = restored[vowelIndex];
+      const sugCharLower = sugChar.toLowerCase();
+      if (reverseAccentMap[sugCharLower]) {
+        const accentedLower = reverseAccentMap[sugCharLower];
+        const finalChar = sugChar === sugChar.toUpperCase() ? accentedLower.toUpperCase() : accentedLower;
+        restored = restored.slice(0, vowelIndex) + finalChar + restored.slice(vowelIndex + 1);
+      }
+    }
+  }
+
+  return restored;
+}
+
 export function getSuggestedLemmas(word: string, targetLanguage: string): string[] {
   if (!word) return [];
   const w = word.trim().toLowerCase();
@@ -995,7 +1065,7 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
 
     // Merge suggestions, placing verbs first
     suggestions.push(...verbSuggestions);
-    suggestions.push(...nounAdjSuggestions);
+    suggestions.push(...nounAdjSuggestions.map(s => restoreSpanishAccents(s, w)));
   }
 
   // 3. French Lemmatization
