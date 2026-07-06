@@ -1042,10 +1042,15 @@ export default function WordExplainer({
         }
       } catch (e: any) {
         console.warn("Google TTS failed, falling back to browser TTS:", e);
-        setTtsWarning(`Озвучка Google не удалась (${e.message || "ошибка"}). Переключено на голос браузера.`);
+        const isKazakh = (targetLanguage || "").toLowerCase().includes("kaza") || (targetLanguage || "").toLowerCase().includes("қаза");
+        if (isKazakh) {
+          setTtsWarning("Движок Google TTS не поддерживает казахский язык. Выберите 'Gemini AI' или 'Браузерный' в настройках.");
+        } else {
+          setTtsWarning(`Озвучка Google не удалась (${e.message || "ошибка"}). Переключено на голос браузера.`);
+        }
         setTimeout(() => {
-          setTtsWarning(prev => prev && prev.includes("Google") ? null : prev);
-        }, 6000);
+          setTtsWarning(prev => prev && (prev.includes("Google") || prev.includes("казахский")) ? null : prev);
+        }, 8000);
       }
     }
 

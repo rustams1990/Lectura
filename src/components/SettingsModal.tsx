@@ -699,6 +699,15 @@ export default function SettingsModal({
                   })}
                 </div>
 
+                {lessons.some(l => (l.targetLanguage || "").toLowerCase().includes("kaza") || (l.targetLanguage || "").toLowerCase().includes("қаза")) && (
+                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 rounded-2xl text-[11px] text-amber-800 dark:text-amber-300 flex gap-2.5">
+                    <span className="shrink-0 text-base leading-none">💡</span>
+                    <div className="leading-relaxed">
+                      <strong>Казахский язык (TTS):</strong> Бесплатный движок Google Translate TTS не поддерживает озвучку казахских слов (возвращает ошибку 400). Пожалуйста, выберите <strong>Gemini AI (Neural)</strong> (требуется настроенный API-ключ Gemini) или установите казахский голос в настройках ОС для работы <strong>Браузерной озвучки</strong> (например, Microsoft Aigul/Madi в Windows).
+                    </div>
+                  </div>
+                )}
+
                 {/* Accent / Locale Picker — always visible */}
                 {(() => {
                   const currentLocale = settings?.ttsLocale || "en-US";
