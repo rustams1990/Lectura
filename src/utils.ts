@@ -101,6 +101,15 @@ export async function saveTtsAudioToCache(key: string, blob: Blob): Promise<void
   }
 }
 
+export const FLAG_EMOJI_TO_CODE: Record<string, string> = {
+  "🇺🇸": "us", "🇬🇧": "gb", "🇪🇸": "es", "🇲🇽": "mx", "🇨🇴": "co", "🇦🇷": "ar",
+  "🇨🇱": "cl", "🇵🇪": "pe", "🇻🇪": "ve", "🇩🇪": "de", "🇦🇹": "at", "🇨🇭": "ch",
+  "🇫🇷": "fr", "🇨🇦": "ca", "🇷🇺": "ru", "🇯🇵": "jp", "🇮🇹": "it", "🇵🇹": "pt",
+  "🇧🇷": "br", "🇨🇳": "cn", "🇹🇼": "tw", "🇰🇷": "kr", "🇹🇷": "tr", "🇸🇦": "sa",
+  "🇪🇬": "eg", "🇮🇳": "in", "🇺🇦": "ua", "🇰🇿": "kz", "🇵🇱": "pl", "🇸🇪": "se", "🇳🇱": "nl",
+  "🇧🇪": "be", "🇬🇷": "gr", "🇮🇪": "ie",
+};
+
 export function getLanguageCode(languageName: string): string {
   const norm = (languageName || "").toLowerCase().trim();
   if (norm.startsWith("en") || norm === "английский") return "en";
@@ -115,6 +124,7 @@ export function getLanguageCode(languageName: string): string {
   if (norm.startsWith("zh") || norm.startsWith("chi") || norm === "китайский") return "zh";
   if (norm.startsWith("ar") || norm === "арабский") return "ar";
   if (norm.startsWith("uk") || norm.startsWith("ukr") || norm === "украинский" || norm === "українська" || norm === "український") return "uk";
+  if (norm.startsWith("kk") || norm.startsWith("kaz") || norm === "казахский" || norm === "қазақша" || norm === "қазақ тілі") return "kk";
   if (norm.length >= 2 && /^[a-z]+$/.test(norm.substring(0, 2))) {
     return norm.substring(0, 2);
   }
@@ -135,7 +145,8 @@ export function getBCP47LanguageTag(languageName: string): string {
     ja: "ja-JP",
     zh: "zh-CN",
     ar: "ar-SA",
-    uk: "uk-UA"
+    uk: "uk-UA",
+    kk: "kk-KZ"
   };
   return tags[code] || `${code}-${code.toUpperCase()}`;
 }
@@ -163,6 +174,7 @@ export const TTS_LOCALE_DESCRIPTIONS: Record<string, string> = {
   "tr-TR": "Turkish",
   "ar-SA": "Arabic",
   "uk-UA": "Ukrainian",
+  "kk-KZ": "Kazakh (Kazakhstan)",
 };
 
 export function getEffectiveTtsLocale(languageName: string, settings?: any): string {

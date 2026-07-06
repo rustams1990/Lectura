@@ -1212,6 +1212,151 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
     suggestions.push(...baseSuggestions);
   }
 
+  // 6. Kazakh Lemmatization
+  else if (lang.startsWith("kk") || lang.startsWith("kaz") || lang === "казахский" || lang === "қазақша" || lang === "қазақ тілі") {
+    const baseSuggestions: string[] = [];
+
+    const makeKazakhInfinitive = (stem: string): string => {
+      if (!stem || stem.length <= 1) return "";
+      if (stem.endsWith("йы") || stem.endsWith("йі")) {
+        return stem.slice(0, -2) + "ю";
+      }
+      if (stem.endsWith("ы") || stem.endsWith("і")) {
+        return stem.slice(0, -1) + "у";
+      }
+      return stem + "у";
+    };
+
+    const addSugg = (s: string) => {
+      if (!s || s.length <= 1) return;
+      if (!baseSuggestions.includes(s)) {
+        baseSuggestions.push(s);
+      }
+
+      // Consonant alternation (restoring voiceless stops):
+      // If a suffix starting with a vowel is added, final (қ, к, п) becomes voiced (ғ, г, б).
+      // We suggest both the original stem and the alternate with restored voiceless consonant.
+      if (s.endsWith("ғ")) {
+        const alt = s.slice(0, -1) + "қ";
+        if (!baseSuggestions.includes(alt)) baseSuggestions.push(alt);
+      } else if (s.endsWith("г")) {
+        const alt = s.slice(0, -1) + "к";
+        if (!baseSuggestions.includes(alt)) baseSuggestions.push(alt);
+      } else if (s.endsWith("б")) {
+        const alt = s.slice(0, -1) + "п";
+        if (!baseSuggestions.includes(alt)) baseSuggestions.push(alt);
+      }
+    };
+
+    // Strip suffixes sequentially from right to left
+    let current = w;
+    addSugg(current);
+
+    // Pass 1: Personal (predicative) endings
+    const personalEndings = [
+      "сыздар", "сіздер", "сыңдар", "сіңдер",
+      "мын", "мін", "бын", "бін", "пын", "пін",
+      "сыз", "сіз", "сың", "сің",
+      "мыз", "міз", "быз", "біз", "пыз", "піз"
+    ];
+    for (const end of personalEndings) {
+      if (current.endsWith(end) && current.length > end.length) {
+        current = current.slice(0, -end.length);
+        addSugg(current);
+        break;
+      }
+    }
+
+    // Pass 2: Case endings
+    const caseEndings = [
+      "менен", "бенен", "пенен",
+      "дың", "дің", "тың", "тің", "ның", "нің",
+      "дан", "ден", "тан", "тен", "нан", "нен",
+      "мен", "бен", "пен",
+      "нда", "нде",
+      "ға", "ге", "қа", "ке", "на", "не",
+      "да", "де", "та", "те",
+      "ды", "ді", "ты", "ті", "ны", "ні", "н", "а", "е"
+    ];
+    for (const end of caseEndings) {
+      if (current.endsWith(end) && current.length > end.length) {
+        current = current.slice(0, -end.length);
+        addSugg(current);
+        break;
+      }
+    }
+
+    // Pass 3: Possessive endings
+    const possessiveEndings = [
+      "ымыздар", "іміздер", "ыңыздар", "іңіздер",
+      "ыңыз", "іңіз", "ыңдар", "іңдер",
+      "ымыз", "іміз",
+      "ым", "ім", "ың", "ің",
+      "сы", "сі", "ы", "і", "м"
+    ];
+    for (const end of possessiveEndings) {
+      if (current.endsWith(end) && current.length > end.length) {
+        current = current.slice(0, -end.length);
+        addSugg(current);
+        break;
+      }
+    }
+
+    // Pass 4: Plural endings
+    const pluralEndings = ["лар", "лер", "дар", "дер", "тар", "тер"];
+    for (const end of pluralEndings) {
+      if (current.endsWith(end) && current.length > end.length) {
+        current = current.slice(0, -end.length);
+        addSugg(current);
+        break;
+      }
+    }
+
+    // Pass 5: Verb tense, voice and participle suffixes
+    const verbSuffixes = [
+      "атын", "етін", "йтін",
+      "ған", "ген", "қан", "кен",
+      "мақ", "мек", "бақ", "бек", "пақ", "пек",
+      "ар", "ер", "ып", "іп", "са", "се",
+      "ма", "ме", "ба", "бе", "па", "пе", "р", "п"
+    ];
+    for (const end of verbSuffixes) {
+      if (current.endsWith(end) && current.length > end.length) {
+        current = current.slice(0, -end.length);
+        addSugg(current);
+        break;
+      }
+    }
+
+    // Suggest infinitives for all generated stems
+    const infinitiveSuggestions: string[] = [];
+    for (const stem of baseSuggestions) {
+      const inf = makeKazakhInfinitive(stem);
+      if (inf) {
+        infinitiveSuggestions.push(inf);
+        // Restored voiceless consonant infs:
+        if (stem.endsWith("ғ")) {
+          const infAlt = makeKazakhInfinitive(stem.slice(0, -1) + "қ");
+          if (infAlt && !infinitiveSuggestions.includes(infAlt)) infinitiveSuggestions.push(infAlt);
+        } else if (stem.endsWith("г")) {
+          const infAlt = makeKazakhInfinitive(stem.slice(0, -1) + "к");
+          if (infAlt && !infinitiveSuggestions.includes(infAlt)) infinitiveSuggestions.push(infAlt);
+        } else if (stem.endsWith("б")) {
+          const infAlt = makeKazakhInfinitive(stem.slice(0, -1) + "п");
+          if (infAlt && !infinitiveSuggestions.includes(infAlt)) infinitiveSuggestions.push(infAlt);
+        }
+      }
+    }
+
+    for (const inf of infinitiveSuggestions) {
+      if (!baseSuggestions.includes(inf)) {
+        baseSuggestions.push(inf);
+      }
+    }
+
+    suggestions.push(...baseSuggestions);
+  }
+
   // 7. Portuguese Lemmatization
   else if (lang.startsWith("pt") || lang.startsWith("por") || lang === "португальский" || lang === "portuguese") {
     const verbSuggestions: string[] = [];

@@ -76,6 +76,7 @@ const getLanguageReversoName = (languageName: string): string => {
   if (norm.startsWith("zh") || norm.startsWith("chi") || norm === "chinese") return "chinese";
   if (norm.startsWith("ar") || norm === "arabic") return "arabic";
   if (norm.startsWith("uk") || norm.startsWith("ukr") || norm === "украинский" || norm === "українська" || norm === "український") return "ukrainian";
+  if (norm.startsWith("kk") || norm.startsWith("kaz") || norm === "казахский" || norm === "қазақша" || norm === "қазақ тілі") return "kazakh";
   return norm || "english";
 };
 
@@ -215,6 +216,29 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
         name: "Collins",
         urlTemplate: "https://www.collinsdictionary.com/dictionary/portuguese-english/{word}",
         displayType: "window_popup"
+      }
+    ];
+  }
+
+  if (sourceCode === "kk") {
+    return [
+      {
+        id: "gtrans-kk",
+        name: `Google Translate (${targetCode.toUpperCase()})`,
+        urlTemplate: `https://translate.google.com/?sl=kk&tl=${targetCode}&text={word}`,
+        displayType: "window_popup"
+      },
+      {
+        id: "sozdik-kk",
+        name: "Sozdik.kz",
+        urlTemplate: `https://sozdik.kz/${targetCode === "ru" ? "ru" : "en"}/dictionary/translate/kk/${targetCode === "ru" ? "ru" : "en"}/{word}`,
+        displayType: "window_popup"
+      },
+      {
+        id: "wiktionary-kk",
+        name: "Wiktionary (KK)",
+        urlTemplate: "https://kk.wiktionary.org/wiki/{word}",
+        displayType: "popup"
       }
     ];
   }

@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useRef } from "react";
 import { Lesson } from "../types";
-import { safeJsonParse, getBCP47LanguageTag } from "../utils";
+import { safeJsonParse, getBCP47LanguageTag, FLAG_EMOJI_TO_CODE } from "../utils";
 import { 
   X, Check, Globe, HelpCircle, Save, RotateCcw, Trash2, Link, 
   Maximize2, Sparkles, Database, HardDrive, Download, Upload, ShieldAlert,
@@ -57,19 +57,9 @@ interface SettingsModalProps {
 const FLAG_PRESETS = [
   "🇺🇸", "🇬🇧", "🇪🇸", "🇲🇽", "🇨🇴", "🇦🇷", "🇨🇱", "🇵🇪", "🇻🇪", "🇩🇪", 
   "🇦🇹", "🇨🇭", "🇫🇷", "🇨🇦", "🇷🇺", "🇯🇵", "🇮🇹", "🇵🇹", "🇧🇷", "🇨🇳", 
-  "🇹🇼", "🇰🇷", "🇹🇷", "🇸🇦", "🇪🇬", "🇮🇳", "🇺🇦", "🇵🇱", "🇸🇪", "🇳🇱", 
+  "🇹🇼", "🇰🇷", "🇹🇷", "🇸🇦", "🇪🇬", "🇮🇳", "🇺🇦", "🇰🇿", "🇵🇱", "🇸🇪", "🇳🇱", 
   "🇧🇪", "🇬🇷", "🇮🇪", "📖", "📜", "🪐", "🌟", "🚩"
 ];
-
-// Map flag emoji to ISO country code for image-based rendering (Windows doesn't show flag emojis)
-const FLAG_EMOJI_TO_CODE: Record<string, string> = {
-  "🇺🇸": "us", "🇬🇧": "gb", "🇪🇸": "es", "🇲🇽": "mx", "🇨🇴": "co", "🇦🇷": "ar",
-  "🇨🇱": "cl", "🇵🇪": "pe", "🇻🇪": "ve", "🇩🇪": "de", "🇦🇹": "at", "🇨🇭": "ch",
-  "🇫🇷": "fr", "🇨🇦": "ca", "🇷🇺": "ru", "🇯🇵": "jp", "🇮🇹": "it", "🇵🇹": "pt",
-  "🇧🇷": "br", "🇨🇳": "cn", "🇹🇼": "tw", "🇰🇷": "kr", "🇹🇷": "tr", "🇸🇦": "sa",
-  "🇪🇬": "eg", "🇮🇳": "in", "🇺🇦": "ua", "🇵🇱": "pl", "🇸🇪": "se", "🇳🇱": "nl",
-  "🇧🇪": "be", "🇬🇷": "gr", "🇮🇪": "ie",
-};
 
 const renderFlagImg = (emoji: string, size = 24) => {
   const code = FLAG_EMOJI_TO_CODE[emoji];
@@ -106,6 +96,10 @@ const DEFAULT_FALLBACK_FLAGS: Record<string, string> = {
   portugues: "🇵🇹",
   brazil: "🇧🇷",
   brazilian: "🇧🇷",
+  kazakh: "🇰🇿",
+  kazakhstan: "🇰🇿",
+  "қазақ": "🇰🇿",
+  kazakh_kir: "🇰🇿",
 };
 
 export default function SettingsModal({
@@ -336,7 +330,7 @@ export default function SettingsModal({
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.9.0</span>
+                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.10.0</span>
               </h3>
               <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed">
                 Настройте масштаб интерфейса, управляйте связями слов и визуальным оформлением флагов.
@@ -1516,7 +1510,7 @@ export default function SettingsModal({
             )}
 
             <div className="text-[9px] bg-zinc-100/80 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono">
-              v2.9.0
+              v2.10.0
             </div>
           </div>
           

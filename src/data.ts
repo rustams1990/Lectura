@@ -65,9 +65,18 @@ export const BUILT_IN_LESSONS: Lesson[] = [
     translationLanguage: "Russian",
     isBuiltIn: true,
     lessonType: "book"
+  },
+  {
+    id: "builtin-kk",
+    title: "🇰🇿 Алтын Күз (Golden Autumn)",
+    text: "Күз келді. Далада күн салқындай бастады. Жапырақтар сарғайып, жерге түсіп жатыр. Күн қысқарып, түн ұзарды. Құстар жылы жаққа ұшып кетті. Егіншілер егін жинап, қамбаға төкті. Балалар мектепке барады, олар жаңа оқу жылына қуанады. Күз мезгілі өте тамаша және берекелі уақыт.",
+    targetLanguage: "Kazakh",
+    translationLanguage: "Russian",
+    isBuiltIn: true,
+    lessonType: "book"
   }
 ];
 
 export const LANGUAGES_SUPPORTED = [
-  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic", "Ukrainian", "Portuguese"
+  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic", "Ukrainian", "Portuguese", "Kazakh"
 ];

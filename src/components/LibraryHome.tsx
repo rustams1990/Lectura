@@ -7,7 +7,7 @@ import React, { useState, useMemo } from "react";
 import { Lesson, LessonType, AppStats, ReaderSettings } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2 } from "lucide-react";
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
-import { normalizeContraction, safeLocalStorageSetItem } from "../utils";
+import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE } from "../utils";
 
 export function getDifficultyBadgeStyles(level: string) {
   const lvl = (level || "").toUpperCase();
@@ -115,6 +115,14 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "Ї",
     };
   }
+  if (l.includes("kaza") || l.includes("қаза")) {
+    return {
+      gradient: "from-sky-500 via-sky-400 to-amber-400",
+      accent: "bg-sky-100 text-sky-950 dark:bg-sky-950/45 dark:text-sky-300",
+      emoji: "🇰🇿",
+      character: "Қ",
+    };
+  }
   // Fallbacks for other languages
   return {
     gradient: "from-teal-600 via-teal-700 to-slate-800",
@@ -122,16 +130,6 @@ const getLanguageCoverPreset = (lang: string) => {
     emoji: "📖",
     character: "A",
   };
-};
-
-// Map flag emoji to ISO 3166-1 alpha-2 country code for image-based rendering
-const FLAG_EMOJI_TO_CODE: Record<string, string> = {
-  "🇺🇸": "us", "🇬🇧": "gb", "🇪🇸": "es", "🇲🇽": "mx", "🇨🇴": "co", "🇦🇷": "ar",
-  "🇨🇱": "cl", "🇵🇪": "pe", "🇻🇪": "ve", "🇩🇪": "de", "🇦🇹": "at", "🇨🇭": "ch",
-  "🇫🇷": "fr", "🇨🇦": "ca", "🇷🇺": "ru", "🇯🇵": "jp", "🇮🇹": "it", "🇵🇹": "pt",
-  "🇧🇷": "br", "🇨🇳": "cn", "🇹🇼": "tw", "🇰🇷": "kr", "🇹🇷": "tr", "🇸🇦": "sa",
-  "🇪🇬": "eg", "🇮🇳": "in", "🇺🇦": "ua", "🇵🇱": "pl", "🇸🇪": "se", "🇳🇱": "nl",
-  "🇧🇪": "be", "🇬🇷": "gr", "🇮🇪": "ie",
 };
 
 export const renderCircularFlag = (flagEmoji: string, isAll = false) => {
