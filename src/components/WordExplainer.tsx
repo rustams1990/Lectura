@@ -337,7 +337,12 @@ export default function WordExplainer({
   const [accentOpen, setAccentOpen] = useState(false);
   const [savedMeaningOpen, setSavedMeaningOpen] = useState(true);
   const [dictionariesOpen, setDictionariesOpen] = useState(true);
-  const [relatedPhrasesOpen, setRelatedPhrasesOpen] = useState(true);
+  const [relatedPhrasesOpen, setRelatedPhrasesOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("vocab_related_phrases_open") !== "false";
+    }
+    return true;
+  });
   const [tagsOpen, setTagsOpen] = useState(false);
 
   // Compute component words for phrase/idiom detection
@@ -2366,7 +2371,11 @@ export default function WordExplainer({
         {!imageOpen && !bookOpen && !aiTabOpen && sentence && (
           <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-50/40 dark:bg-zinc-950/20">
             <button
-              onClick={() => setRelatedPhrasesOpen(!relatedPhrasesOpen)}
+              onClick={() => {
+                const nextVal = !relatedPhrasesOpen;
+                setRelatedPhrasesOpen(nextVal);
+                localStorage.setItem("vocab_related_phrases_open", String(nextVal));
+              }}
               className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
             >
               <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-500 font-extrabold font-sans">Context Sentence</span>
