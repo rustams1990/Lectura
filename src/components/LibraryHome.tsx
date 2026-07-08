@@ -1138,7 +1138,7 @@ export default function LibraryHome({
                       📚 {wordCount} слов
                     </span>
                     {isYoutube && youtubeDurationVal ? (
-                      <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-extrabold" title="Длительность YouTube видео">
+                      <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Длительность YouTube видео">
                         ⏱️ {formatDuration(youtubeDurationVal)}
                       </span>
                     ) : (
