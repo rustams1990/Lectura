@@ -2863,7 +2863,7 @@ export default function App() {
                 {activeLesson ? (
                   <>
                     {/* Quiet minimal inline toolbar */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => {
@@ -2881,7 +2881,7 @@ export default function App() {
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                      <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
                         <button
                           onClick={() => setIsFocusMode(true)}
                           className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
