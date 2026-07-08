@@ -1176,6 +1176,7 @@ app.post("/api/youtube-subtitles", async (req, res) => {
   const videoId = match[1];
   let title = "YouTube Video";
   const thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  let videoLengthSeconds: number | null = null;
 
   try {
     const resPage = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -1186,6 +1187,24 @@ app.post("/api/youtube-subtitles", async (req, res) => {
       }
     });
     const html = await resPage.text();
+
+    const playerResponseMatch = html.match(/ytInitialPlayerResponse\s*=\s*(.*?);<\/script>/);
+    if (playerResponseMatch) {
+      try {
+        const parsed = JSON.parse(playerResponseMatch[1]);
+        if (parsed?.videoDetails?.lengthSeconds) {
+          videoLengthSeconds = parseInt(parsed.videoDetails.lengthSeconds, 10);
+        }
+      } catch (e) {
+        console.error("Failed to parse ytInitialPlayerResponse", e);
+      }
+    }
+    if (!videoLengthSeconds) {
+      const lengthMatch = html.match(/"lengthSeconds"\s*:\s*"(\d+)"/i) || html.match(/\\?"lengthSeconds\\?"\s*:\s*\\?"(\d+)\\?"/i);
+      if (lengthMatch) {
+        videoLengthSeconds = parseInt(lengthMatch[1], 10);
+      }
+    }
 
     // Title parsing
     const titleMatch = html.match(/<meta name="title" content="([^"]*)"/i) || html.match(/<title>([^<]*)<\/title>/i);
@@ -1419,6 +1438,7 @@ IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provi
               text: aiText.trim(),
               coverUrl: thumbnail,
               youtubeId: videoId,
+              youtubeDuration: videoLengthSeconds,
               isFallback: true
             });
           }
@@ -1433,6 +1453,7 @@ IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provi
         text: `Questo è un testo di studio alternativo preparato per il video: "${title}".\n\nPer favore, per questo video attiva i sottotitoli (CC) oppure inserisci manualmente l'articolo che desideri studiare nel pannello 'Testo normale'.`,
         coverUrl: thumbnail,
         youtubeId: videoId,
+        youtubeDuration: videoLengthSeconds,
         isFallback: true
       });
     }
@@ -1444,7 +1465,8 @@ IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provi
       title: title,
       text: formattedText,
       coverUrl: thumbnail,
-      youtubeId: videoId
+      youtubeId: videoId,
+      youtubeDuration: videoLengthSeconds
     });
   } catch (err: any) {
     console.error("YouTube importing subtitle error:", err);
@@ -1452,7 +1474,8 @@ IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provi
       error: `Could not parse subtitles: ${err.message || "Unknown error"}. Clean YouTube transcription blocks may be geo-restricted or unavailable.`,
       videoTitle: title || "YouTube Study Lesson",
       coverUrl: thumbnail,
-      youtubeId: videoId
+      youtubeId: videoId,
+      youtubeDuration: videoLengthSeconds
     });
   }
 });

@@ -354,6 +354,50 @@ export default function LibraryHome({
     return Math.max(1, Math.round(wc / 120)); // ~120 words per minute for learners
   };
 
+  const getYoutubeDurationFromText = (text: string): number | null => {
+    if (!text) return null;
+    const lines = text.split("\n");
+    const timestampRegex = /^\[?((?:\d{1,2}:){1,2}\d{2}|\d+(?:h|m|s))\]?\s*/i;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const trimmed = lines[i].trim();
+      const match = trimmed.match(timestampRegex);
+      if (match) {
+        const ts = match[1].replace(/[\[\]]/g, "");
+        let seconds = 0;
+        const clean = ts.trim().toLowerCase();
+        if (clean.endsWith("s") || clean.endsWith("m") || clean.endsWith("h")) {
+          const hMatch = clean.match(/(\d+)h/);
+          const mMatch = clean.match(/(\d+)m/);
+          const sMatch = clean.match(/(\d+)s/);
+          if (hMatch) seconds += parseInt(hMatch[1], 10) * 3600;
+          if (mMatch) seconds += parseInt(mMatch[1], 10) * 60;
+          if (sMatch) seconds += parseInt(sMatch[1], 10);
+        } else {
+          const parts = clean.split(":");
+          if (parts.length === 2) {
+            seconds += parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+          } else if (parts.length === 3) {
+            seconds += parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+          }
+        }
+        if (seconds > 0) {
+          return seconds + 5;
+        }
+      }
+    }
+    return null;
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Filter lessons based on search, type, and archive state
   const filteredLessons = useMemo(() => {
     const list = lessons.filter((lesson) => {
@@ -772,6 +816,8 @@ export default function LibraryHome({
               const cover = getLanguageCoverPreset(lesson.targetLanguage);
             const wordCount = getWordCount(lesson.text || "");
             const readTime = getReadingTime(lesson.text || "");
+            const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
+            const youtubeDurationVal = isYoutube ? (lesson.youtubeDuration || getYoutubeDurationFromText(lesson.text || "")) : null;
 
             const bookStats = (() => {
               if (typeof lesson.text !== "string") {
@@ -1091,9 +1137,15 @@ export default function LibraryHome({
                     <span className="flex items-center gap-1">
                       📚 {wordCount} слов
                     </span>
-                    <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400">
-                      ⏱️ ~{readTime} мин
-                    </span>
+                    {isYoutube && youtubeDurationVal ? (
+                      <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-extrabold" title="Длительность YouTube видео">
+                        ⏱️ {formatDuration(youtubeDurationVal)}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400">
+                        ⏱️ ~{readTime} мин
+                      </span>
+                    )}
                   </div>
 
                   {/* Actions buttons row */}

@@ -141,6 +141,7 @@ export default function ImportLessonForm({
   const [isCoverLoading, setIsCoverLoading] = useState(false);
   const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
   const [youtubeId, setYoutubeId] = useState<string | null>(editingLesson?.youtubeId || null);
+  const [youtubeDuration, setYoutubeDuration] = useState<number | null>(editingLesson?.youtubeDuration || null);
   const [webScreenshotAsCover, setWebScreenshotAsCover] = useState(true);
 
   // File import states
@@ -384,7 +385,7 @@ export default function ImportLessonForm({
 
   // Fallback state when YouTube lacks subtitles or restricts access
   const [canGenerateFallback, setCanGenerateFallback] = useState(false);
-  const [fallbackData, setFallbackData] = useState<{ title: string; coverUrl: string; youtubeId: string | null } | null>(null);
+  const [fallbackData, setFallbackData] = useState<{ title: string; coverUrl: string; youtubeId: string | null; youtubeDuration?: number | null } | null>(null);
   const [isGeneratingFallback, setIsGeneratingFallback] = useState(false);
 
   const PRESET_COVERS = [
@@ -431,10 +432,14 @@ export default function ImportLessonForm({
           if (data.youtubeId) {
             setYoutubeId(data.youtubeId);
           }
+          if (data.youtubeDuration) {
+            setYoutubeDuration(data.youtubeDuration);
+          }
           setFallbackData({
             title: data.videoTitle,
             coverUrl: data.coverUrl || "",
-            youtubeId: data.youtubeId || null
+            youtubeId: data.youtubeId || null,
+            youtubeDuration: data.youtubeDuration || null
           });
           setCanGenerateFallback(true);
         }
@@ -449,6 +454,9 @@ export default function ImportLessonForm({
       }
       if (data.youtubeId) {
         setYoutubeId(data.youtubeId);
+      }
+      if (data.youtubeDuration) {
+        setYoutubeDuration(data.youtubeDuration);
       }
       setSelectedType("youtube");
       
@@ -495,6 +503,9 @@ export default function ImportLessonForm({
       }
       if (fallbackData.youtubeId) {
         setYoutubeId(fallbackData.youtubeId);
+      }
+      if (fallbackData.youtubeDuration) {
+        setYoutubeDuration(fallbackData.youtubeDuration);
       }
       setSelectedType("youtube");
       setCanGenerateFallback(false);
@@ -654,6 +665,7 @@ export default function ImportLessonForm({
       audioBase64,
       coverUrl: coverUrl || null,
       youtubeId,
+      youtubeDuration,
       lessonType: selectedType,
       isBuiltIn: editingLesson?.isBuiltIn || false,
       isArchived: editingLesson?.isArchived || false,

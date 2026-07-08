@@ -41,6 +41,7 @@ export interface Lesson {
   isArchived?: boolean;
   coverUrl?: string | null;
   youtubeId?: string | null;
+  youtubeDuration?: number | null;
   lessonType?: string; // e.g. "youtube" | "book" | "article" or custom string
   pinned?: boolean;
   translationText?: string | null;
