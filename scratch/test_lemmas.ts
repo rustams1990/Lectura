@@ -74,6 +74,16 @@ const testCases = [
   { word: "prende", expected: "prender" },
   { word: "alcohólicas", expected: "alcohólica" },
   { word: "alcohólicas", expected: "alcohólico" },
+  { word: "memorizarlo", expected: "memorizar" },
+  { word: "memorizarlas", expected: "memorizar" },
+  { word: "memorizarla", expected: "memorizar" },
+  { word: "memorizas", expected: "memorizar" },
+  { word: "veamos", expected: "ver" },
+  { word: "consume", expected: "consumir" },
+  { word: "comenta", expected: "comentar" },
+  { word: "reseñas", expected: "reseñar" },
+  { word: "checa", expected: "checar" },
+  { word: "confusiones", expected: "confusión" },
   { word: "bueno", expected: "bono" }, // we should NOT suggest bono
   { word: "fiesta", expected: "festa" }, // we should NOT suggest festa
   { word: "cueva", expected: "cova" } // we should NOT suggest cova

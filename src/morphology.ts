@@ -183,6 +183,11 @@ const SPANISH_IRREGULARS: Record<string, string[]> = {
   vemos: ["ver"],
   veis: ["ver"],
   ven: ["ver"],
+  vea: ["ver"],
+  veas: ["ver"],
+  veamos: ["ver"],
+  veáis: ["ver"],
+  vean: ["ver"],
   vi: ["ver"],
   viste: ["ver"],
   vio: ["ver"],
@@ -600,7 +605,7 @@ function stripSpanishEnclitics(w: string): string[] {
     if (deAccented.endsWith("ando") || deAccented.endsWith("iendo") || deAccented.endsWith("yendo")) {
       return true;
     }
-    if (/[aeiou]$/.test(deAccented)) {
+    if (/[aeio]$/.test(deAccented)) {
       return true;
     }
     const shortBases = new Set(["di", "da", "haz", "pon", "ten", "ve", "sal", "ven", "val", "trae", "oye", "se", "sé"]);
@@ -653,9 +658,9 @@ const SPANISH_COMMON_VERBS = new Set([
   "arrastrar", "arreglar", "arrepentir", "arrojar", "asistir", "asociar", "asumir", "asustar", "atacar", "atender",
   "atraer", "atravesar", "atrever", "ayudar", "avanzar", "bailar", "bajar", "bastar", "beber", "besar", "buscar",
   "caber", "caer", "calentar", "callar", "cambiar", "caminar", "cantar", "cargar", "casar", "causar",
-  "celebrar", "cenar", "cerrar", "chocar", "cobrar", "cocinar", "coger", "colocar", "comenzar", "comer",
+  "celebrar", "cenar", "cerrar", "checar", "chocar", "cobrar", "cocinar", "coger", "colocar", "comenzar", "comer", "comentar",
   "compartir", "comprar", "comprender", "comprobar", "comunicar", "conducir", "confesar", "confiar", "confirmar", "conectar", "conocer",
-  "conseguir", "conservar", "considerar", "consistir", "constituir", "construir", "contar", "contener", "contestar", "continuar",
+  "conseguir", "conservar", "considerar", "consistir", "constituir", "construir", "consumir", "contar", "contener", "contestar", "continuar",
   "controlar", "convenir", "conversar", "convertir", "corregir", "correr", "cortar", "costar", "crear", "crecer",
   "creer", "criar", "cruzar", "cubrir", "cuidar", "cumplir", "dar", "deber", "decidir", "decir",
   "declarar", "dedicar", "defender", "definir", "dejar", "demostrar", "depender", "desaparecer", "desarrollar", "desayunar",
@@ -671,7 +676,7 @@ const SPANISH_COMMON_VERBS = new Set([
   "ilustrar", "implicar", "importar", "imprimir", "incluir", "indicar", "influir", "informar", "iniciar", "insistir", "instalar",
   "intentar", "interesar", "introducir", "invitar", "ir", "jugar", "juntar", "jurar", "juzgar", "lanzar",
   "lavar", "leer", "levantar", "limpiar", "llamar", "llegar", "llenar", "llevar", "llorar", "llover",
-  "lograr", "luchar", "madurar", "mamar", "mandar", "manejar", "mantener", "maquillar", "marcar", "masticar", "matar", "medir",
+  "lograr", "luchar", "madurar", "mamar", "mandar", "manejar", "mantener", "maquillar", "marcar", "masticar", "matar", "medir", "memorizar",
   "mentir", "merecer", "meter", "mezclar", "mirar", "molestar", "morir", "mostrar", "mover", "mudarse", "nacer",
   "nadar", "necesitar", "negar", "negociar", "nevar", "notar", "obedecer", "obligar", "observar", "obtener",
   "ocultar", "ocupar", "ocurrir", "odiar", "ofrecer", "oír", "olvidar", "opinar", "organizar", "oxidar", "pagar",
@@ -681,7 +686,7 @@ const SPANISH_COMMON_VERBS = new Set([
   "procesar", "producir", "prohibir", "prometer", "proponer", "proteger", "proveer", "provocar", "publicar", "pudrir", "quedar", "quemar",
   "querer", "quitar", "reaccionar", "realizar", "recibir", "recoger", "recomendar", "reconocer", "recordar", "recuperar",
   "redactar", "reducir", "referir", "regalar", "registrar", "regresar", "reír", "reir", "relacionar", "relajar", "renovar", "reparar",
-  "repetir", "representar", "requerir", "resolver", "respetar", "responder", "resultar", "reunir", "revelar", "revisar",
+  "repetir", "representar", "requerir", "reseñar", "resolver", "respetar", "responder", "resultar", "reunir", "revelar", "revisar",
   "robar", "rogar", "romper", "saber", "sacar", "sacrificar", "sacudir", "salir", "saltar", "saludar",
   "salvar", "satisfacer", "secar", "seguir", "seleccionar", "sembrar", "sentar", "sentir", "señalar", "separar", "ser",
   "servir", "silbar", "soler", "solicitar", "solucionar", "sonar", "sonreír", "sonreir", "soñar", "soplar", "soportar", "sorprender",
@@ -797,6 +802,27 @@ function getPortugueseEncliticCandidates(word: string): string[] {
 
 function restoreSpanishAccents(suggestion: string, original: string): string {
   const originalLower = original.toLowerCase();
+
+  // Special plural-to-singular accent restoration for -án/-anes, -én/-enes, -ín/-ines, -ón/-ones, -ún/-unes:
+  const sugLower = suggestion.toLowerCase();
+  const pluralsMap: { [key: string]: { plurSuffix: string; singSuffix: string; accentedSing: string } } = {
+    "an": { plurSuffix: "anes", singSuffix: "an", accentedSing: "án" },
+    "en": { plurSuffix: "enes", singSuffix: "en", accentedSing: "én" },
+    "in": { plurSuffix: "ines", singSuffix: "in", accentedSing: "ín" },
+    "on": { plurSuffix: "ones", singSuffix: "on", accentedSing: "ón" },
+    "un": { plurSuffix: "unes", singSuffix: "un", accentedSing: "ún" }
+  };
+
+  for (const [key, val] of Object.entries(pluralsMap)) {
+    if (originalLower.endsWith(val.plurSuffix) && sugLower.endsWith(val.singSuffix)) {
+      const base = suggestion.slice(0, -val.singSuffix.length);
+      const suffix = suggestion.slice(-val.singSuffix.length);
+      const lastVowel = suffix[0];
+      const isUpper = lastVowel === lastVowel.toUpperCase();
+      const restoredSuffix = isUpper ? val.accentedSing.toUpperCase() : val.accentedSing.toLowerCase();
+      return base + restoredSuffix;
+    }
+  }
   
   const accentMap: { [key: string]: string } = {
     "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u"
