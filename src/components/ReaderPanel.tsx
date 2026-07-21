@@ -1835,13 +1835,33 @@ export default function ReaderPanel({
             });
           };
 
+          const getSegmentSpacingClass = () => {
+            switch (activeSettings.segmentSpacing) {
+              case "compact": return "py-0.5 my-0.5";
+              case "relaxed": return "py-4 my-2";
+              case "loose": return "py-6 my-4";
+              case "normal":
+              default: return "py-2 my-1";
+            }
+          };
+
+          const getBookParagraphSpacingClass = () => {
+            switch (activeSettings.segmentSpacing) {
+              case "compact": return "mb-2 mt-0";
+              case "relaxed": return "mb-8 mt-4";
+              case "loose": return "mb-12 mt-6";
+              case "normal":
+              default: return "mb-5 mt-2";
+            }
+          };
+
           if (hasTimestamps) {
             // Render beautiful unified line-by-line subtitle transcript layout exactly like screenshot 1
             return (
               <div 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`relative hover:z-20 flex items-baseline gap-3 py-2 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-all duration-300 ${
+                className={`relative hover:z-20 flex items-baseline gap-3 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-all duration-300 ${getSegmentSpacingClass()} ${
                   isSegmentActive 
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-amber-500 shadow-xs scale-[1.008]" 
                     : "border-transparent hover:bg-zinc-100/30 dark:hover:bg-zinc-800/10"
@@ -1885,9 +1905,9 @@ export default function ReaderPanel({
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${
+                className={`paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${
                   isSegmentActive
-                    ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 py-2 scale-[1.005]"
+                    ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"
                 }`}
               >

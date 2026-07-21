@@ -219,6 +219,21 @@ export default function TextSettingsControls({
               </select>
             </div>
 
+            {/* Segment Spacing config */}
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Расстояние между абзацами/блоками (Paragraph Spacing)</span>
+              <select
+                value={settings.segmentSpacing || "normal"}
+                onChange={(e) => updateKey("segmentSpacing", e.target.value as any)}
+                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+              >
+                <option value="compact">🔽 Компактное (Compact)</option>
+                <option value="normal">↕️ Стандартное (Normal)</option>
+                <option value="relaxed">⏬ Просторное (Relaxed)</option>
+                <option value="loose">⬇️ Очень широкое (Loose)</option>
+              </select>
+            </div>
+
             {/* Page Size config */}
             <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Размер страницы (Page Size)</span>

@@ -481,6 +481,7 @@ export default function App() {
       maxWidth: "medium",
       pageSize: "auto",
       sentenceSpacing: "normal",
+      segmentSpacing: "normal",
       ttsEngine: "google",
       ttsLocale: "en-US",
       aiProvider: "gemini",
