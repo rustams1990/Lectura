@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { GripHorizontal, X, ChevronDown, ChevronUp, Maximize2, Minimize2, Tv, RefreshCw } from "lucide-react";
 import { Lesson } from "../types";
+import { useLesson } from "../context/LessonContext";
 
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
@@ -17,6 +18,7 @@ export default function YoutubePlayerWindow({
   seekToSeconds,
   onSeekComplete,
 }: YoutubePlayerWindowProps) {
+  const { setCurrentTime, seekToTime, setSeekToTime } = useLesson();
   const { youtubeId } = lesson;
   if (!youtubeId) return null;
 
@@ -138,6 +140,7 @@ export default function YoutubePlayerWindow({
           try {
             const currentTime = playerRef.current.getCurrentTime();
             if (currentTime !== undefined) {
+              setCurrentTime(currentTime);
               if (onTimeUpdate) {
                 onTimeUpdate(currentTime);
               }
@@ -191,23 +194,28 @@ export default function YoutubePlayerWindow({
   }, [youtubeId, iframeKey, lesson.id]);
 
   // Handle outside seek instructions matching timing jumps
+  const effectiveSeek = seekToTime ?? seekToSeconds;
+
   useEffect(() => {
-    if (seekToSeconds !== null && seekToSeconds !== undefined && playerRef.current) {
+    if (effectiveSeek !== null && effectiveSeek !== undefined && playerRef.current) {
       if (typeof playerRef.current.seekTo === "function") {
         try {
-          playerRef.current.seekTo(seekToSeconds, true);
+          playerRef.current.seekTo(effectiveSeek, true);
           if (typeof playerRef.current.playVideo === "function") {
             playerRef.current.playVideo();
           }
         } catch (e) {
           console.error("Seeking YouTube video failed:", e);
         }
+        if (seekToTime !== null && seekToTime !== undefined) {
+          setSeekToTime(null);
+        }
         if (onSeekComplete) {
           onSeekComplete();
         }
       }
     }
-  }, [seekToSeconds, onSeekComplete]);
+  }, [effectiveSeek, seekToTime, setSeekToTime, onSeekComplete]);
 
   // Helper to read the current interface zoom factor
   const getZoomFactor = (): number => {

@@ -24,6 +24,7 @@ export default function AudioPlayerBar({
     playbackRate,
     setPlaybackRate,
     seekToTime,
+    setSeekToTime,
   } = useLesson();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -34,8 +35,9 @@ export default function AudioPlayerBar({
     if (seekToTime !== null && seekToTime !== undefined && audioRef.current) {
       audioRef.current.currentTime = seekToTime;
       setCurrentTime(seekToTime);
+      setSeekToTime(null);
     }
-  }, [seekToTime, setCurrentTime]);
+  }, [seekToTime, setCurrentTime, setSeekToTime]);
 
   useEffect(() => {
     let tickInterval: NodeJS.Timeout;
