@@ -31,6 +31,10 @@ import {
 import ReaderPanel from "./components/ReaderPanel";
 import WordExplainer from "./components/WordExplainer";
 import AudioPlayer from "./components/AudioPlayer";
+import AudioPlayerBar from "./components/AudioPlayerBar";
+import ReaderView from "./components/ReaderView";
+import { useLesson } from "./context/LessonContext";
+import { useAuth } from "./context/AuthContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
 import VocabularyPractice from "./components/VocabularyPractice";
@@ -548,7 +552,6 @@ export default function App() {
   const [localServerPassword, setLocalServerPassword] = useState<string>("");
   const [localServerName, setLocalServerName] = useState<string>("");
   const [isLocalServerAuthLoading, setIsLocalServerAuthLoading] = useState<boolean>(false);
-  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [cloudOfflineWarning, setCloudOfflineWarning] = useState<boolean>(false);
   const [cloudOfflineError, setCloudOfflineError] = useState<string | null>(null);
@@ -556,79 +559,25 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState<string>("");
   const [isEmailRegister, setIsEmailRegister] = useState<boolean>(false);
   const [emailAuthLoading, setEmailAuthLoading] = useState<boolean>(false);
-  const [storageMode, setStorageMode] = useState<"cloud" | "local" | "server">(() => {
-    const saved = localStorage.getItem("vocab_clone_storage_mode");
-    if (saved === "cloud" || saved === "local" || saved === "server") {
-      return saved;
-    }
-    return isLocalHostname() ? "server" : "cloud";
-  });
+  const {
+    user: activeUser,
+    serverToken,
+    storageMode,
+    setStorageMode,
+    localSyncKey,
+    setLocalSyncKey,
+    localSyncError,
+    setLocalSyncError,
+    isAuthLoading,
+    isAuthenticated,
+    loginLocalServer,
+    registerLocalServer,
+    logout,
+  } = useAuth();
 
   const [authModalTab, setAuthModalTab] = useState<"local" | "cloud">(() => {
     return isLocalHostname() ? "local" : "cloud";
   });
-
-  const [localSyncKey, setLocalSyncKey] = useState<string>(() => {
-    return localStorage.getItem("vocab_clone_local_sync_key") || "";
-  });
-
-  const [localSyncError, setLocalSyncError] = useState<boolean>(false);
-
-  const [serverToken, setServerToken] = useState<string>(() => {
-    return localStorage.getItem("vocab_clone_server_token") || "";
-  });
-
-  useEffect(() => {
-    if (serverToken) {
-      localStorage.setItem("vocab_clone_server_token", serverToken);
-    } else {
-      localStorage.removeItem("vocab_clone_server_token");
-    }
-  }, [serverToken]);
-
-  // Check self-hosted session on mount
-  useEffect(() => {
-    const checkServerSession = async () => {
-      const savedToken = localStorage.getItem("vocab_clone_server_token");
-      if (!savedToken) {
-        setIsAuthLoading(false);
-        return;
-      }
-      try {
-        const res = await fetch("/api/auth/me", {
-          headers: {
-            "Authorization": `Bearer ${savedToken}`
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) {
-            setLocalUser(data.user);
-            setStorageMode("server");
-            localStorage.setItem("vocab_clone_storage_mode", "server");
-            setLocalSyncError(false);
-          }
-        } else {
-          console.warn("Server session token invalid or expired, logging out.");
-          localStorage.removeItem("vocab_clone_server_token");
-          setServerToken("");
-          setLocalUser(null);
-        }
-      } catch (err) {
-        console.error("Failed to verify server session:", err);
-      } finally {
-        setIsAuthLoading(false);
-      }
-    };
-
-    if (storageMode === "server") {
-      checkServerSession();
-    } else {
-      setIsAuthLoading(false);
-    }
-  }, [storageMode, serverToken]);
-
-  const activeUser = storageMode === "cloud" ? user : storageMode === "server" ? localUser : null;
 
   const serverInitialLoadComplete = useRef<boolean>(false);
 
@@ -667,39 +616,20 @@ export default function App() {
         await signOut(auth);
       }
 
-      // 2. Perform server authentication request
-      const url = isRegisterVal ? "/api/auth/register" : "/api/auth/login";
-      const body = isRegisterVal 
-        ? { email, password, name }
-        : { email, password };
+      // 2. Perform
+      const result = isRegisterVal
+        ? await registerLocalServer(email || name, password)
+        : await loginLocalServer(email, password);
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Ошибка авторизации");
+      if (!result.success) {
+        throw new Error(result.error || "Ошибка авторизации");
       }
 
-      if (data.token && data.user) {
-        localStorage.setItem("vocab_clone_server_token", data.token);
-        localStorage.setItem("vocab_clone_local_user", JSON.stringify(data.user));
-        localStorage.setItem("vocab_clone_storage_mode", "server");
-        setServerToken(data.token);
-        setLocalUser(data.user);
-        serverInitialLoadComplete.current = false;
-        setStorageMode("server");
-        setLocalSyncError(false);
-
-        // Reset fields
-        setLocalServerEmail("");
-        setLocalServerPassword("");
-        setLocalServerName("");
-        setShowLocalLoginModal(false);
-      }
+      serverInitialLoadComplete.current = false;
+      setLocalServerEmail("");
+      setLocalServerPassword("");
+      setLocalServerName("");
+      setShowLocalLoginModal(false);
     } catch (err: any) {
       console.error("Local server auth error:", err);
       setAuthError(err.message || String(err));
@@ -899,16 +829,8 @@ export default function App() {
       }
 
       if (storageMode === "cloud") {
-        const savedToken = localStorage.getItem("vocab_clone_server_token");
-        if (savedToken) {
-          fetch("/api/auth/logout", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${savedToken}` }
-          }).catch(err => console.error("Server logout request failed:", err));
-          setLocalUser(null);
-          localStorage.removeItem("vocab_clone_local_user");
-          localStorage.removeItem("vocab_clone_server_token");
-          setServerToken("");
+        if (serverToken) {
+          logout().catch(err => console.error("Server logout request failed:", err));
         }
       }
 
@@ -1149,7 +1071,6 @@ export default function App() {
           setLanguageFlags(safeParse(localFlagsStr, {}));
         }
       }
-      setIsAuthLoading(false);
     });
 
     return () => {
@@ -1268,6 +1189,11 @@ export default function App() {
   const activeLesson = useMemo(() => {
     return lessons.find((l) => l.id === activeLessonId) || lessons[0];
   }, [lessons, activeLessonId]);
+
+  const { setActiveLesson } = useLesson();
+  useEffect(() => {
+    setActiveLesson(activeLesson || null);
+  }, [activeLesson, setActiveLesson]);
 
   const activeLessonWords = useMemo(() => {
     if (!activeLesson) return [];
@@ -2257,28 +2183,18 @@ export default function App() {
           {/* Middle Main - Reader and Audio player only */}
           <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4">
             {(activeLesson.audioUrl || activeLesson.audioBase64) && (
-              <AudioPlayer
-                lesson={activeLesson}
+              <AudioPlayerBar
                 onAudioUpload={handleAudioUploaded}
                 onListeningTick={handleListeningTick}
                 onTimeUpdate={(seconds) => setYoutubePlayTime(seconds)}
-                seekToTime={youtubeSeekToTime}
               />
             )}
 
-            <ReaderPanel
+            <ReaderView
               key={activeLesson.id}
-              lesson={activeLesson}
               lessonImagesMap={activeLessonImagesMap}
-              vocab={vocab}
-              activeWord={selectedWord}
-              wordLinks={wordLinks}
-              onWordClick={handleWordClick}
-              onMarkKnown={(w) => handleUpdateStatusDirect(w, "known")}
               settings={readerSettings}
               onEditClick={() => setEditingLesson(activeLesson)}
-              currentYoutubeTime={youtubePlayTime}
-              onTimestampClick={(seconds) => setYoutubeSeekToTime(seconds)}
               showOnlyUnknown={showOnlyUnknown}
             />
           </div>
@@ -2654,24 +2570,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => {
-                      if (storageMode === "cloud") {
-                        signOut(auth).catch(err => console.error(err));
-                      } else if (storageMode === "server") {
-                        if (serverToken) {
-                          fetch("/api/auth/logout", {
-                            method: "POST",
-                            headers: {
-                              "Authorization": `Bearer ${serverToken}`
-                            }
-                          }).catch(err => console.error("Server logout request failed:", err));
-                        }
-                        setLocalUser(null);
-                        localStorage.removeItem("vocab_clone_local_user");
-                        localStorage.removeItem("vocab_clone_server_token");
-                        setServerToken("");
-                        setStorageMode("local");
-                        localStorage.setItem("vocab_clone_storage_mode", "local");
-                      }
+                      logout().catch(err => console.error(err));
                     }}
                     className="text-[9px] font-bold text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-1.5 py-0.5 rounded transition cursor-pointer"
                     title="Выйти (Logout)"
@@ -2994,30 +2893,18 @@ export default function App() {
 
                     {/* Interactive Audio Player */}
                     {(activeLesson.audioUrl || activeLesson.audioBase64) && (
-                      <AudioPlayer
-                        lesson={activeLesson}
+                      <AudioPlayerBar
                         onAudioUpload={handleAudioUploaded}
                         onListeningTick={handleListeningTick}
                         onTimeUpdate={(seconds) => setYoutubePlayTime(seconds)}
-                        seekToTime={youtubeSeekToTime}
                       />
                     )}
 
-
-
-                    <ReaderPanel
+                    <ReaderView
                       key={activeLesson.id}
-                      lesson={activeLesson}
                       lessonImagesMap={activeLessonImagesMap}
-                      vocab={vocab}
-                      activeWord={selectedWord}
-                      wordLinks={wordLinks}
-                      onWordClick={handleWordClick}
-                      onMarkKnown={(w) => handleUpdateStatusDirect(w, "known")}
                       settings={readerSettings}
                       onEditClick={() => setEditingLesson(activeLesson)}
-                      currentYoutubeTime={youtubePlayTime}
-                      onTimestampClick={(seconds) => setYoutubeSeekToTime(seconds)}
                       showOnlyUnknown={showOnlyUnknown}
                     />
                   </>

@@ -12,9 +12,19 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error("Global captured unhandled promise rejection:", event.reason);
 });
 
+import { AuthProvider } from './context/AuthContext';
+import { LessonProvider } from './context/LessonContext';
+import { VocabProvider } from './context/VocabContext';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AuthProvider>
+      <VocabProvider>
+        <LessonProvider>
+          <App />
+        </LessonProvider>
+      </VocabProvider>
+    </AuthProvider>
   </StrictMode>,
 );
 
