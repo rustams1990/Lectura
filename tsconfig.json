@@ -23,6 +23,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "server.ts"],
+  "include": ["src/**/*", "routes/**/*", "server.ts"],
   "exclude": ["node_modules", "dist", "15,06 16-11", "Резервы"]
 }

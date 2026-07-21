@@ -424,10 +424,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const importUrl = params.get("import_url");
-    console.log("DEBUG [App]: window.location.search =", window.location.search);
-    console.log("DEBUG [App]: parsed import_url =", importUrl);
     if (importUrl) {
-      console.log("DEBUG [App]: Setting initialImportUrl and opening import form");
       setInitialImportUrl(importUrl);
       setShowImportForm(true);
       // Clean query parameters from URL without reloading
@@ -713,7 +710,6 @@ export default function App() {
 
   const loadDataFromLocalServer = async () => {
     if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
-      console.log("Skipping server database poll to avoid overwriting pending local changes.");
       return;
     }
     if (isAuthLoading) return;
@@ -742,7 +738,6 @@ export default function App() {
       if (res.ok) {
         const body = await safeJsonParse(res);
         if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
-          console.log("Skipping server database poll update to avoid overwriting pending local changes (post-fetch check).");
           setIsSyncing(false);
           return;
         }
@@ -887,7 +882,6 @@ export default function App() {
       unsubscribes = [];
 
       if (firebaseUser && storageMode === "server") {
-        console.log("Firebase user detected while in Server mode. Signing out of Firebase.");
         signOut(auth).catch(err => console.error("Firebase signout failed:", err));
         setUser(null);
         return;
@@ -898,7 +892,6 @@ export default function App() {
       if (firebaseUser) {
         // Automatically align storageMode to "cloud" when logged in via Firebase
         if (storageMode !== "cloud") {
-          console.log("Firebase user authenticated. Forcing storageMode to 'cloud' for proper sync.");
           setStorageMode("cloud");
           localStorage.setItem("vocab_clone_storage_mode", "cloud");
           return; // The change in storageMode will trigger a re-run of this useEffect
@@ -908,7 +901,6 @@ export default function App() {
       if (storageMode === "cloud") {
         const savedToken = localStorage.getItem("vocab_clone_server_token");
         if (savedToken) {
-          console.log("Local server session detected while in Cloud mode. Clearing local server session.");
           fetch("/api/auth/logout", {
             method: "POST",
             headers: { "Authorization": `Bearer ${savedToken}` }
@@ -973,12 +965,6 @@ export default function App() {
             Object.keys(missingLinks).length > 0;
 
           if (needsUpload) {
-            console.log("Merging local data into cloud...", {
-              lessonsCount: missingLessons.length,
-              typesCount: missingTypes.length,
-              wordsCount: Object.keys(missingWords).length,
-              linksCount: Object.keys(missingLinks).length
-            });
             await uploadLocalToCloud(
               firebaseUser.uid,
               missingLessons,
@@ -1011,7 +997,6 @@ export default function App() {
                   for (const lesson of lessonsToFetchImagesFor) {
                     // Guard: Check if the user is still of the same identity and is authenticated before running subcollection getDocs
                     if (!auth.currentUser || auth.currentUser.uid !== firebaseUser.uid) {
-                      console.log("Auth session changed or user signed out; aborting image loading.");
                       return;
                     }
                     try {
@@ -1194,7 +1179,6 @@ export default function App() {
 
     const handleFocusOrVisible = () => {
       if (document.visibilityState === "visible") {
-        console.log("Tab became visible/focused. Syncing from server...");
         loadDataFromLocalServer();
       }
     };
