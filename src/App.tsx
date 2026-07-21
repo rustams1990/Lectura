@@ -35,6 +35,7 @@ import AudioPlayerBar from "./components/AudioPlayerBar";
 import ReaderView from "./components/ReaderView";
 import { useLesson } from "./context/LessonContext";
 import { useAuth } from "./context/AuthContext";
+import { useVocab } from "./context/VocabContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
 import VocabularyPractice from "./components/VocabularyPractice";
@@ -308,17 +309,20 @@ export default function App() {
     return DEFAULT_LESSON_TYPES;
   });
 
-  const [vocab, setVocab] = useState<Record<string, VocabItem>>(() => {
-    const saved = localStorage.getItem("vocab_clone_words");
-    if (saved) {
-      try {
-        return normalizeVocabRecord(JSON.parse(saved));
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    return {};
-  });
+  const {
+    vocab,
+    setVocab,
+    wordLinks,
+    setWordLinks,
+    selectedWord,
+    setSelectedWord,
+    contextSentence: selectedContext,
+    setContextSentence: setSelectedContext,
+    getLinkedWordsFor,
+    handleUpdateStatusDirect,
+    handleDeleteMultipleVocabItems,
+    handleWordClick,
+  } = useVocab();
 
   const [listeningSeconds, setListeningSeconds] = useState<number>(() => {
     const saved = localStorage.getItem("vocab_clone_listening");
@@ -327,19 +331,6 @@ export default function App() {
       return isNaN(num) ? 0 : num;
     }
     return 0;
-  });
-
-  // Word plural/singular mapping rules state (e.g. zorros -> zorro)
-  const [wordLinks, setWordLinks] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem("vocab_clone_aliases");
-    if (saved) {
-      try {
-        return normalizeWordLinksRecord(JSON.parse(saved));
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    return {};
   });
 
   const [activeLessonId, setActiveLessonId] = useState<string>(() => {
@@ -1120,9 +1111,7 @@ export default function App() {
     };
   }, [storageMode, localSyncKey, localSyncError, serverToken, isAuthLoading, activeTab]);
 
-  // Active word translate helpers
-  const [selectedWord, setSelectedWord] = useState<string | null>(null);
-  const [selectedContext, setSelectedContext] = useState<string | null>(null);
+
 
   // Sync state to local storage
   useEffect(() => {
@@ -1292,15 +1281,6 @@ export default function App() {
     };
   }, [vocab, listeningSeconds]);
 
-  // Event handlers
-  const handleWordClick = (word: string, context: string) => {
-    const normalizedWord = word.replace(/\s+/g, " ").trim();
-    const normalizedContext = context.replace(/\s+/g, " ").trim();
-    setSelectedWord(normalizedWord);
-    setSelectedContext(normalizedContext);
-    setActiveTab("read"); // Force return to reader screen
-  };
-
   const handleOpenLesson = (lessonId: string, word: string, sentence: string) => {
     const normalizedWord = word.replace(/\s+/g, " ").trim();
     const normalizedContext = sentence.replace(/\s+/g, " ").trim();
@@ -1308,48 +1288,6 @@ export default function App() {
     setSelectedWord(normalizedWord);
     setSelectedContext(normalizedContext);
     setActiveTab("read");
-  };
-
-  // Helper to find all linked words for a root pattern or a word form
-  const getLinkedWordsFor = (word: string, lang: string): string[] => {
-    const list = new Set<string>();
-    const lowerWord = word.toLowerCase();
-    list.add(lowerWord);
-
-    const visited = new Set<string>();
-    const queue = [lowerWord];
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (visited.has(current)) continue;
-      visited.add(current);
-      list.add(current);
-
-      for (const [key, val] of Object.entries(wordLinks)) {
-        const valStr = val as string;
-        const extractRaw = (str: string) => {
-          const idx = str.indexOf("_");
-          return idx !== -1 ? str.substring(idx + 1).toLowerCase() : str.toLowerCase();
-        };
-        const keyLang = key.includes("_") ? key.substring(0, key.indexOf("_")).toLowerCase() : "";
-        const valLang = valStr.includes("_") ? valStr.substring(0, valStr.indexOf("_")).toLowerCase() : "";
-
-        if (keyLang && keyLang !== lang.toLowerCase()) continue;
-        if (valLang && valLang !== lang.toLowerCase()) continue;
-
-        const rawKey = extractRaw(key);
-        const rawVal = extractRaw(valStr);
-
-        if (rawKey === current && !visited.has(rawVal)) {
-          queue.push(rawVal);
-        }
-        if (rawVal === current && !visited.has(rawKey)) {
-          queue.push(rawKey);
-        }
-      }
-    }
-
-    return Array.from(list);
   };
 
   const handleSaveWordLink = (from: string, to: string, lang?: string) => {
@@ -1772,123 +1710,7 @@ export default function App() {
     });
   };
 
-  const handleDeleteMultipleVocabItems = (words: string[], lang?: string) => {
-    lastLocalChangeTime.current = Date.now();
-    if (!words || words.length === 0) return;
-    const activeLang = (lang || activeLesson?.targetLanguage || "spanish").toLowerCase();
-    setVocab((prev) => {
-      const copy = { ...prev };
-      const allKeysToDrop = new Set<string>();
 
-      // Build a lookup map of lowercase keys to original keys to avoid O(N^2) search
-      const keyLookup = new Map<string, string[]>();
-      Object.keys(copy).forEach((k) => {
-        const kLower = k.trim().toLowerCase();
-        if (!keyLookup.has(kLower)) {
-          keyLookup.set(kLower, []);
-        }
-        keyLookup.get(kLower)!.push(k);
-      });
-
-      words.forEach((word) => {
-        if (!word || !word.trim()) return;
-        const cleanWord = word.trim().toLowerCase().replace(/^[a-zA-Z]+_/, "");
-        if (!cleanWord) return;
-
-        const targetLangKey = `${activeLang}_${cleanWord}`;
-        allKeysToDrop.add(targetLangKey);
-        allKeysToDrop.add(cleanWord);
-
-        const targetLangKeyLower = targetLangKey.toLowerCase();
-        const cleanWordLower = cleanWord.toLowerCase();
-
-        const matchingKeys1 = keyLookup.get(targetLangKeyLower) || [];
-        const matchingKeys2 = keyLookup.get(cleanWordLower) || [];
-
-        matchingKeys1.forEach((k) => allKeysToDrop.add(k));
-        matchingKeys2.forEach((k) => allKeysToDrop.add(k));
-      });
-
-      const cleanKeys = Array.from(allKeysToDrop).filter(k => k && k.trim() !== "");
-
-      cleanKeys.forEach((k) => {
-        delete copy[k];
-      });
-
-      if (cleanKeys.length > 0) {
-        if (auth.currentUser && storageMode === "cloud") {
-          deleteMultipleVocabs(auth.currentUser.uid, cleanKeys).catch((err) => console.error(err));
-        } else if (storageMode === "server") {
-          syncDataToLocalServer(lessons, lessonTypes, copy, wordLinks).catch((err) => console.error(err));
-        }
-      }
-
-      return copy;
-    });
-  };
-
-  const handleUpdateStatusDirect = (word: string, newStatus: WordStatus, lang?: string) => {
-    lastLocalChangeTime.current = Date.now();
-    const activeLang = (lang || activeLesson?.targetLanguage || "spanish").toLowerCase();
-    const cleanWord = word.toLowerCase().replace(/^[a-zA-Z]+_/, "");
-    const linkedWords = getLinkedWordsFor(cleanWord, activeLang);
-
-    setVocab((prev) => {
-      const nextVocab = { ...prev };
-      const keysToDelete: string[] = [];
-
-      linkedWords.forEach((linkedWord) => {
-        const targetLangKey = `${activeLang}_${linkedWord}`;
-        const existing = prev[targetLangKey] || prev[linkedWord];
-
-        const updated: VocabItem = {
-          word: linkedWord,
-          status: newStatus,
-          translation: existing ? existing.translation : "[Known]",
-          ipa: existing ? existing.ipa : "",
-          grammar: existing ? existing.grammar : "",
-          contextRelation: existing ? existing.contextRelation : "",
-          examples: existing ? existing.examples : [],
-          createdAt: existing ? (existing.createdAt || Date.now()) : Date.now(),
-          tags: existing ? existing.tags : [],
-          imageUrl: existing ? (existing.imageUrl || null) : null,
-          spellingCorrectCount: existing ? (existing.spellingCorrectCount || 0) : 0,
-          spellingIncorrectCount: existing ? (existing.spellingIncorrectCount || 0) : 0,
-          spellingAccentCount: existing ? (existing.spellingAccentCount || 0) : 0,
-          lastSpelledCorrectly: existing ? existing.lastSpelledCorrectly : null,
-          lastSpelledWithAccentError: existing ? existing.lastSpelledWithAccentError : null,
-          spellingExclude: existing ? existing.spellingExclude : false,
-        };
-
-        // Clean up legacy non-prefixed key or case variations from local state
-        Object.keys(nextVocab).forEach((k) => {
-          const kLower = k.trim().toLowerCase();
-          if (kLower === linkedWord.toLowerCase() && k !== targetLangKey) {
-            keysToDelete.push(k);
-            delete nextVocab[k];
-          }
-        });
-
-        nextVocab[targetLangKey] = updated;
-
-        if (auth.currentUser && storageMode === "cloud") {
-          saveVocab(auth.currentUser.uid, targetLangKey, updated).catch((err) => console.error(err));
-        }
-      });
-
-      if (auth.currentUser && storageMode === "cloud" && keysToDelete.length > 0) {
-        deleteMultipleVocabs(auth.currentUser.uid, keysToDelete).catch((err) =>
-          console.error("Failed to delete legacy keys from cloud during status update:", err)
-        );
-      }
-
-      if (storageMode === "server") {
-        syncDataToLocalServer(lessons, lessonTypes, nextVocab, wordLinks).catch((err) => console.error(err));
-      }
-
-      return nextVocab;
-    });
-  };
 
   const handleAddLesson = (newL: Lesson, images?: Record<string, { dataUrl: string; width: string; height: string }>) => {
     lastLocalChangeTime.current = Date.now();

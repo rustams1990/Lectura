@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { VocabItem, WordStatus } from "../types";
+import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
 
 interface VocabContextType {
   vocab: Record<string, VocabItem>;
@@ -19,8 +20,32 @@ interface VocabContextType {
 const VocabContext = createContext<VocabContextType | undefined>(undefined);
 
 export function VocabProvider({ children }: { children: ReactNode }) {
-  const [vocab, setVocab] = useState<Record<string, VocabItem>>({});
-  const [wordLinks, setWordLinks] = useState<Record<string, string>>({});
+  const [vocab, setVocab] = useState<Record<string, VocabItem>>(() => {
+    if (typeof localStorage === "undefined") return {};
+    const saved = localStorage.getItem("vocab_clone_words");
+    if (saved) {
+      try {
+        return normalizeVocabRecord(JSON.parse(saved));
+      } catch (err) {
+        console.error("VocabProvider parse words error:", err);
+      }
+    }
+    return {};
+  });
+
+  const [wordLinks, setWordLinks] = useState<Record<string, string>>(() => {
+    if (typeof localStorage === "undefined") return {};
+    const saved = localStorage.getItem("vocab_clone_aliases");
+    if (saved) {
+      try {
+        return normalizeWordLinksRecord(JSON.parse(saved));
+      } catch (err) {
+        console.error("VocabProvider parse aliases error:", err);
+      }
+    }
+    return {};
+  });
+
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [contextSentence, setContextSentence] = useState<string>("");
 
