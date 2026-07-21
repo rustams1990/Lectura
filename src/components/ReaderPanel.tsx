@@ -341,6 +341,7 @@ export default function ReaderPanel({
       maxWidth: settings?.maxWidth || "wide",
       pageSize: settings?.pageSize || "auto",
       sentenceSpacing: settings?.sentenceSpacing || "normal",
+      segmentSpacing: settings?.segmentSpacing || "normal",
       ttsEngine: settings?.ttsEngine || "browser",
       wordHighlight: settings?.wordHighlight !== false,
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
