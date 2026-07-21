@@ -1,0 +1,12 @@
+{
+  "double": [
+    "melo", "mela", "melos", "melas",
+    "telo", "tela", "telos", "telas",
+    "selo", "sela", "selos", "selas",
+    "noslo", "nosla", "noslos", "noslas",
+    "oslo", "osla", "oslos", "oslas"
+  ],
+  "single": [
+    "me", "te", "se", "nos", "os", "le", "les", "lo", "la", "los", "las"
+  ]
+}
