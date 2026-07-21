@@ -1742,7 +1742,7 @@ export default function ReaderPanel({
 
               let styleClass = "";
               if (status === "ignored" || status === "known") {
-                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal ${hasWordLink ? "border-b border-dotted border-amber-500/80 dark:border-amber-400/80 pb-[1px]" : ""}`;
+                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
                 if (showOnlyUnknown && unknownViewMode === "text") {
                   styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
                 }
