@@ -1,0 +1,17 @@
+{
+  "_comment": "Homonym control dictionary. 'priority' reorders/filters suggestions for ambiguous verb forms. 'exclude' suppresses verb suggestions for pure function words that accidentally match verb patterns.",
+  "priority": {
+    "ve":   ["ver", "ir"],
+    "fue":  ["ser", "ir"],
+    "sea":  ["ser"],
+    "vino": ["venir"],
+    "era":  ["ser"],
+    "vale": ["valer"]
+  },
+  "exclude": [
+    "ya",
+    "sin",
+    "aun",
+    "ni"
+  ]
+}

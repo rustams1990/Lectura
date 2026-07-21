@@ -91,9 +91,11 @@ const testCases = [
 
 console.log("=== RUNNING SPANISH LEMMATIZATION TESTS ===");
 let passed = 0;
+let total = 0;
 for (const tc of testCases) {
   const suggestions = getSuggestedLemmas(tc.word, "spanish");
   console.log(`Word: "${tc.word}" -> Suggestions:`, suggestions);
+  total++;
   
   if (tc.word === "bueno" || tc.word === "fiesta" || tc.word === "cueva") {
     // For these, we want to make sure they do NOT contain the incorrect stem-change reversion
@@ -123,5 +125,50 @@ for (const tc of testCases) {
   }
 }
 
-console.log(`\nPassed: ${passed}/${testCases.length}`);
+console.log(`\nSpanish Passed: ${passed}/${total}`);
 
+// ===== ENGLISH TESTS (using compromise engine) =====
+const englishTests = [
+  // Verbs - gerunds
+  { word: "running", expected: "run" },
+  { word: "walking", expected: "walk" },
+  { word: "making", expected: "make" },
+  { word: "swimming", expected: "swim" },
+  { word: "dying", expected: "die" },
+  // Verbs - past tense (regular)
+  { word: "walked", expected: "walk" },
+  { word: "stopped", expected: "stop" },
+  { word: "loved", expected: "love" },
+  { word: "tried", expected: "try" },
+  // Verbs - irregular (ENGLISH_IRREGULARS override)
+  { word: "went", expected: "go" },
+  { word: "taught", expected: "teach" },
+  { word: "brought", expected: "bring" },
+  { word: "spoken", expected: "speak" },
+  { word: "written", expected: "write" },
+  { word: "children", expected: "child" },
+  // Nouns - plural
+  { word: "cities", expected: "city" },
+  { word: "flies", expected: "fly" },
+  { word: "teeth", expected: "tooth" },
+  // Adjectives - comparative
+  { word: "better", expected: "good" },
+  { word: "faster", expected: "fast" },
+];
+
+console.log("\n=== RUNNING ENGLISH LEMMATIZATION TESTS (compromise engine) ===");
+let enPassed = 0;
+for (const tc of englishTests) {
+  const suggestions = getSuggestedLemmas(tc.word, "english");
+  const hasExpected = suggestions.includes(tc.expected);
+  console.log(`Word: "${tc.word}" -> Suggestions:`, suggestions);
+  if (hasExpected) {
+    console.log(`  [PASS] Found expected lemma "${tc.expected}"`);
+    enPassed++;
+  } else {
+    console.log(`  [FAIL] Missing expected lemma "${tc.expected}"`);
+  }
+}
+
+console.log(`\nEnglish Passed: ${enPassed}/${englishTests.length}`);
+console.log(`\nTotal Passed: ${passed + enPassed}/${total + englishTests.length}`);

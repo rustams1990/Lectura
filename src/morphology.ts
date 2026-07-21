@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import nlp from "compromise";
 import englishIrregularsJson from "./data/dictionaries/english_irregulars.json";
 import spanishIrregularsJson from "./data/dictionaries/spanish_irregulars.json";
 import spanishEncliticsJson from "./data/dictionaries/spanish_enclitics.json";
@@ -12,6 +13,7 @@ import spanishHighConfidenceEndingsJson from "./data/dictionaries/spanish_high_c
 import spanishAccentedVerbsJson from "./data/dictionaries/spanish_accented_verbs.json";
 import spanishVerbEndingsJson from "./data/dictionaries/spanish_verb_endings.json";
 import spanishCommonVerbsJson from "./data/dictionaries/spanish_common_verbs.json";
+import spanishHomonymsJson from "./data/dictionaries/spanish_homonyms.json";
 
 interface VerbEndingRule {
   ending: string;
@@ -28,6 +30,8 @@ const SPANISH_HIGH_CONFIDENCE_ENDINGS = new Set<string>(spanishHighConfidenceEnd
 const ACCENTED_VERBS_MAP: Record<string, string> = spanishAccentedVerbsJson;
 const SPANISH_VERB_ENDINGS: VerbEndingRule[] = spanishVerbEndingsJson;
 const SPANISH_COMMON_VERBS = new Set<string>(spanishCommonVerbsJson);
+const SPANISH_HOMONYM_PRIORITY: Record<string, string[]> = spanishHomonymsJson.priority;
+const SPANISH_HOMONYM_EXCLUDE = new Set<string>(spanishHomonymsJson.exclude);
 
 function normalizeAccents(str: string): string {
   return str
@@ -298,52 +302,34 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
   const lang = (targetLanguage || "").toLowerCase().trim();
   const suggestions: string[] = [];
 
-  // 1. English Lemmatization
+  // 1. English Lemmatization (via compromise + ENGLISH_IRREGULARS override)
   if (lang.startsWith("en") || lang === "английский" || lang === "english") {
+    // Priority 1: our hand-curated irregulars dictionary (covers edge-cases compromise misses)
     if (ENGLISH_IRREGULARS[w]) {
       suggestions.push(...ENGLISH_IRREGULARS[w]);
     }
 
-    // Rules for Plurals
-    if (w.endsWith("s")) {
-      if (w.endsWith("ies") && w.length > 4) {
-        suggestions.push(w.slice(0, -3) + "y");
-      } else if (w.endsWith("ves") && w.length > 4) {
-        suggestions.push(w.slice(0, -3) + "f");
-        suggestions.push(w.slice(0, -3) + "fe");
-      } else if (w.endsWith("es") && w.length > 3) {
-        suggestions.push(w.slice(0, -2));
-      } else if (w.length > 2) {
-        suggestions.push(w.slice(0, -1));
+    // Priority 2: compromise open-source engine (handles thousands of verbs, nouns, adjectives automatically)
+    try {
+      const doc = nlp(w);
+      doc.compute("root");
+      const root: string = doc.json()[0]?.terms?.[0]?.root || "";
+      if (root && root !== w && !suggestions.includes(root)) {
+        suggestions.push(root);
       }
+    } catch {
+      // Silently fall through if compromise fails
     }
 
-    // Rules for Verbs (Past tense and Gerunds)
-    if (w.endsWith("ed")) {
-      if (w.endsWith("ied") && w.length > 4) {
-        suggestions.push(w.slice(0, -3) + "y");
-      } else if (/(.)\1ed$/.test(w) && w.length > 4) {
-        // e.g. stopped -> stop, spelled -> spell
-        const doubledChar = w[w.length - 3];
-        const base = w.slice(0, -3);
-        suggestions.push(...handleDoubledConsonant(base, doubledChar));
-      } else if (w.length > 3) {
-        suggestions.push(w.slice(0, -2));
-        suggestions.push(w.slice(0, -1)); // e.g. loved -> love
-      }
-    }
-
-    if (w.endsWith("ing")) {
-      if (w.endsWith("ying") && w.length > 5) {
-        suggestions.push(w.slice(0, -4) + "ie"); // e.g. dying -> die
-      } else if (/(.)\1ing$/.test(w) && w.length > 4) {
-        // e.g. running -> run, telling -> tell
-        const doubledChar = w[w.length - 4];
-        const base = w.slice(0, -4);
-        suggestions.push(...handleDoubledConsonant(base, doubledChar));
-      } else if (w.length > 4) {
-        suggestions.push(w.slice(0, -3));
-        suggestions.push(w.slice(0, -3) + "e"); // e.g. making -> make
+    // Priority 3: minimal fallback for -ed/-ing when compromise returns no root
+    // (happens when compromise tags word as adjective instead of verb, e.g. "loved")
+    if (suggestions.length === 0) {
+      if (w.endsWith("ed") && w.length > 3) {
+        suggestions.push(w.slice(0, -2));       // walked -> walk
+        suggestions.push(w.slice(0, -1));       // loved -> love
+      } else if (w.endsWith("ing") && w.length > 4) {
+        suggestions.push(w.slice(0, -3));       // making -> mak (not great but fallback)
+        suggestions.push(w.slice(0, -3) + "e"); // making -> make
       }
     }
   }
@@ -991,9 +977,23 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
   }
 
   // Post-process: unique values, filter out target word, strip empty values, normalize length
-  const unique = Array.from(new Set(suggestions))
+  let unique = Array.from(new Set(suggestions))
     .map((s) => s.trim())
     .filter((s) => s.length > 1 && s !== w);
+
+  // Level 3 — Homonym control (Spanish only)
+  if (lang.startsWith("es") || lang.startsWith("spa") || lang === "испанский" || lang === "spanish") {
+    // Exclude: function words that accidentally match verb patterns (ya→ir, sin→ser, etc.)
+    if (SPANISH_HOMONYM_EXCLUDE.has(w)) {
+      return [];
+    }
+    // Priority: reorder/deduplicate suggestions for ambiguous verb forms (ve → [ver, ir])
+    if (SPANISH_HOMONYM_PRIORITY[w]) {
+      const prioritized = SPANISH_HOMONYM_PRIORITY[w].filter((p) => unique.includes(p));
+      const rest = unique.filter((u) => !SPANISH_HOMONYM_PRIORITY[w].includes(u));
+      unique = [...prioritized, ...rest];
+    }
+  }
 
   return unique;
 }

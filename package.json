@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "2.11.2",
+  "version": "2.12.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -16,6 +16,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "adm-zip": "^0.5.17",
     "better-sqlite3": "^12.11.1",
+    "compromise": "^14.16.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^12.14.0",
