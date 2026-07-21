@@ -25,6 +25,7 @@ export default function ReaderView({
 
   return (
     <ReaderPanel
+      key={activeLesson.id}
       lesson={activeLesson}
       lessonImagesMap={lessonImagesMap}
       vocab={vocab}

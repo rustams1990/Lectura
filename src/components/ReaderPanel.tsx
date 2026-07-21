@@ -452,7 +452,7 @@ export default function ReaderPanel({
   const [currentPageIdx, setCurrentPageIdx] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(`vocab_progress_${lesson.id}`);
-      if (saved) {
+      if (saved !== null) {
         const parsed = parseInt(saved, 10);
         if (!isNaN(parsed) && parsed >= 0) {
           return parsed;
@@ -463,6 +463,21 @@ export default function ReaderPanel({
     }
     return 0;
   });
+
+  // Re-sync progress if lesson.id changes while component is mounted
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`vocab_progress_${lesson.id}`);
+      if (saved !== null) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          setCurrentPageIdx(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
+    setCurrentPageIdx(0);
+  }, [lesson.id]);
 
   // Save progress when valid page index changes
   useEffect(() => {
@@ -529,20 +544,10 @@ export default function ReaderPanel({
     return -1;
   }, [segments, currentYoutubeTime]);
 
-  // Find which page the active segment belongs to initially
-  const initialActivePageIdx = useMemo(() => {
-    if (activeSegmentIndex < 0 || pages.length <= 1) return -1;
-    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
-      const page = pages[pIdx];
-      const hasActive = page.some((seg) => segments.indexOf(seg) === activeSegmentIndex);
-      if (hasActive) return pIdx;
-    }
-    return -1;
-  }, [activeSegmentIndex, pages, segments]);
+  // Track last active page index for playback page boundary crossings
+  const lastActivePageIdxRef = useRef<number>(-1);
 
-  const lastActivePageIdxRef = useRef<number>(initialActivePageIdx);
-
-  // Automatically switch page if playback moves to a segment on a different page
+  // Automatically switch page ONLY when playback crosses page boundaries
   useEffect(() => {
     if (activeSegmentIndex < 0 || pages.length <= 1) {
       lastActivePageIdxRef.current = -1;
@@ -565,11 +570,8 @@ export default function ReaderPanel({
     const prevActivePageIdx = lastActivePageIdxRef.current;
     lastActivePageIdxRef.current = newActivePageIdx;
 
-    // Only switch page automatically if the playback itself crossed a page boundary
-    // (i.e. newActivePageIdx differs from the page index of the previously tracked active segment)
-    // or when we transition from no active segment to an active segment
-    const shouldSwitch = (newActivePageIdx >= 0 && prevActivePageIdx >= 0 && newActivePageIdx !== prevActivePageIdx) ||
-                         (newActivePageIdx >= 0 && prevActivePageIdx === -1);
+    // Only switch page automatically if the playback itself crossed a page boundary while playing
+    const shouldSwitch = (newActivePageIdx >= 0 && prevActivePageIdx >= 0 && newActivePageIdx !== prevActivePageIdx);
 
     if (shouldSwitch && newActivePageIdx !== currentPageIdx) {
       setCurrentPageIdx(newActivePageIdx);
