@@ -343,8 +343,6 @@ export default function App() {
   const [showImportForm, setShowImportForm] = useState(false);
   const [initialImportUrl, setInitialImportUrl] = useState<string | null>(null);
   const [showYoutubePlayer, setShowYoutubePlayer] = useState<boolean>(true);
-  const [youtubePlayTime, setYoutubePlayTime] = useState<number | null>(null);
-  const [youtubeSeekToTime, setYoutubeSeekToTime] = useState<number | null>(null);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [showMatchPairsModal, setShowMatchPairsModal] = useState<boolean>(false);
   const [isDetectingIdioms, setIsDetectingIdioms] = useState<boolean>(false);
@@ -2008,7 +2006,6 @@ export default function App() {
               <AudioPlayerBar
                 onAudioUpload={handleAudioUploaded}
                 onListeningTick={handleListeningTick}
-                onTimeUpdate={(seconds) => setYoutubePlayTime(seconds)}
               />
             )}
 
@@ -2718,7 +2715,6 @@ export default function App() {
                       <AudioPlayerBar
                         onAudioUpload={handleAudioUploaded}
                         onListeningTick={handleListeningTick}
-                        onTimeUpdate={(seconds) => setYoutubePlayTime(seconds)}
                       />
                     )}
 
@@ -3265,9 +3261,6 @@ export default function App() {
         <YoutubePlayerWindow
           lesson={activeLesson}
           onClose={() => setShowYoutubePlayer(false)}
-          onTimeUpdate={(seconds) => setYoutubePlayTime(seconds)}
-          seekToSeconds={youtubeSeekToTime}
-          onSeekComplete={() => setYoutubeSeekToTime(null)}
         />
       )}
 

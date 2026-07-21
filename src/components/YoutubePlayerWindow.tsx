@@ -6,17 +6,11 @@ import { useLesson } from "../context/LessonContext";
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
   onClose: () => void;
-  onTimeUpdate?: (seconds: number) => void;
-  seekToSeconds?: number | null;
-  onSeekComplete?: () => void;
 }
 
 export default function YoutubePlayerWindow({
   lesson,
   onClose,
-  onTimeUpdate,
-  seekToSeconds,
-  onSeekComplete,
 }: YoutubePlayerWindowProps) {
   const { setCurrentTime, seekToTime, setSeekToTime } = useLesson();
   const { youtubeId } = lesson;
@@ -101,10 +95,10 @@ export default function YoutubePlayerWindow({
                 console.log("YouTube Player is ready");
                 
                 const player = event.target;
-                // Prioritize explicit seekToSeconds (from timestamp clicks in text)
-                if (seekToSeconds !== null && seekToSeconds !== undefined && player && typeof player.seekTo === "function") {
+                // Prioritize explicit seekToTime (from timestamp clicks in text)
+                if (seekToTime !== null && seekToTime !== undefined && player && typeof player.seekTo === "function") {
                   try {
-                    player.seekTo(seekToSeconds, true);
+                    player.seekTo(seekToTime, true);
                   } catch (e) {
                     console.error("Error seeking player on ready:", e);
                   }
@@ -141,9 +135,6 @@ export default function YoutubePlayerWindow({
             const currentTime = playerRef.current.getCurrentTime();
             if (currentTime !== undefined) {
               setCurrentTime(currentTime);
-              if (onTimeUpdate) {
-                onTimeUpdate(currentTime);
-              }
               // Save progress to localStorage
               localStorage.setItem(`youtube_progress_${lesson.id}`, currentTime.toString());
             }
@@ -194,7 +185,7 @@ export default function YoutubePlayerWindow({
   }, [youtubeId, iframeKey, lesson.id]);
 
   // Handle outside seek instructions matching timing jumps
-  const effectiveSeek = seekToTime ?? seekToSeconds;
+  const effectiveSeek = seekToTime;
 
   useEffect(() => {
     if (effectiveSeek !== null && effectiveSeek !== undefined && playerRef.current) {
@@ -210,12 +201,9 @@ export default function YoutubePlayerWindow({
         if (seekToTime !== null && seekToTime !== undefined) {
           setSeekToTime(null);
         }
-        if (onSeekComplete) {
-          onSeekComplete();
-        }
       }
     }
-  }, [effectiveSeek, seekToTime, setSeekToTime, onSeekComplete]);
+  }, [effectiveSeek, seekToTime, setSeekToTime]);
 
   // Helper to read the current interface zoom factor
   const getZoomFactor = (): number => {
