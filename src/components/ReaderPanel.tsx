@@ -464,27 +464,21 @@ export default function ReaderPanel({
     return 0;
   });
 
-  // Re-sync progress if lesson.id changes while component is mounted
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(`vocab_progress_${lesson.id}`);
-      if (saved !== null) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-          setCurrentPageIdx(parsed);
-          return;
-        }
-      }
-    } catch (e) {}
-    setCurrentPageIdx(0);
-  }, [lesson.id]);
+  // Track if the user manually navigated (to distinguish from initial auto-page detection)
+  const didUserNavigateRef = useRef(false);
 
-  // Save progress when valid page index changes
+  // Save progress ONLY when the user has actually navigated or the page is non-zero
   useEffect(() => {
-    if (lesson.id && pages.length > 0) {
-      const valid = Math.min(Math.max(0, currentPageIdx), pages.length - 1);
-      safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, valid.toString());
+    if (!lesson.id || pages.length === 0) return;
+    // Never overwrite a saved non-zero progress with 0 on initial mount
+    const savedRaw = localStorage.getItem(`vocab_progress_${lesson.id}`);
+    const savedPage = savedRaw !== null ? parseInt(savedRaw, 10) : 0;
+    if (currentPageIdx === 0 && savedPage > 0 && !didUserNavigateRef.current) {
+      // Still initializing — don't overwrite real saved value with 0
+      return;
     }
+    const valid = Math.min(Math.max(0, currentPageIdx), pages.length - 1);
+    safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, valid.toString());
   }, [currentPageIdx, pages.length, lesson.id]);
 
   // Reset hover states on page or lesson change
@@ -574,6 +568,7 @@ export default function ReaderPanel({
     const shouldSwitch = (newActivePageIdx >= 0 && prevActivePageIdx >= 0 && newActivePageIdx !== prevActivePageIdx);
 
     if (shouldSwitch && newActivePageIdx !== currentPageIdx) {
+      didUserNavigateRef.current = true;
       setCurrentPageIdx(newActivePageIdx);
     }
   }, [activeSegmentIndex, pages, segments, currentPageIdx]);
@@ -1991,6 +1986,7 @@ export default function ReaderPanel({
                     key={i}
                     type="button"
                     onClick={() => {
+                      didUserNavigateRef.current = true;
                       setCurrentPageIdx(i);
                       document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
                     }}
@@ -2012,6 +2008,7 @@ export default function ReaderPanel({
                 id="reader-prev-page-btn"
                 disabled={clampedPageIdx === 0}
                 onClick={() => {
+                  didUserNavigateRef.current = true;
                   setCurrentPageIdx(prev => Math.max(0, prev - 1));
                   document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
                 }}
@@ -2029,6 +2026,7 @@ export default function ReaderPanel({
                   value={clampedPageIdx}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
+                    didUserNavigateRef.current = true;
                     setCurrentPageIdx(val);
                     document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
                   }}
@@ -2050,6 +2048,7 @@ export default function ReaderPanel({
                 id="reader-next-page-btn"
                 disabled={clampedPageIdx === pages.length - 1}
                 onClick={() => {
+                  didUserNavigateRef.current = true;
                   setCurrentPageIdx(prev => Math.min(pages.length - 1, prev + 1));
                   document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
                 }}
