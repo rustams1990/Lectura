@@ -918,7 +918,11 @@ export default function ReaderPanel({
     }
   };
 
-  const handleWordSelect = (rawToken: string, cleanWord: string, fullPara: string) => {
+  const handleWordSelect = (e: React.MouseEvent | undefined, rawToken: string, cleanWord: string, fullPara: string) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     const key = resolveWord(cleanWord);
     const sentences = splitIntoSentences(fullPara);
     const associatedSentence = sentences.find((s) => s.includes(rawToken)) || fullPara;
@@ -1470,7 +1474,7 @@ export default function ReaderPanel({
                     {prefix && <span className="opacity-80">{prefix}</span>}
                     <button
                       id={`word-phrase-${matchedPhrase.phrase}-${tIdx}`}
-                      onClick={() => handleWordSelect(matchedPhrase.phrase, matchedPhrase.phrase, sentText)}
+                      onClick={(e) => handleWordSelect(e, matchedPhrase.phrase, matchedPhrase.phrase, sentText)}
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         setHoveredWordId(wordId);
@@ -1607,7 +1611,7 @@ export default function ReaderPanel({
                     {prefix && <span className="opacity-80">{prefix}</span>}
                     <button
                       id={`word-detected-${matchedDetected.phrase}-${tIdx}`}
-                      onClick={() => handleWordSelect(matchedDetected.phrase, matchedDetected.phrase, sentText)}
+                      onClick={(e) => handleWordSelect(e, matchedDetected.phrase, matchedDetected.phrase, sentText)}
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         setHoveredWordId(wordId);
@@ -1733,24 +1737,27 @@ export default function ReaderPanel({
                 isWordActive = currentYoutubeTime >= wordStart && currentYoutubeTime < wordEnd;
               }
 
+              const lang = lesson.targetLanguage.toLowerCase();
+              const hasWordLink = !!wordLinks[`${lang}_${cleanWord.toLowerCase()}`];
+
               let styleClass = "";
               if (status === "ignored" || status === "known") {
-                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
+                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal ${hasWordLink ? "border-b border-dotted border-amber-500/80 dark:border-amber-400/80 pb-[1px]" : ""}`;
                 if (showOnlyUnknown && unknownViewMode === "text") {
                   styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
                 }
               } else if (status === "1") {
-                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1 font-semibold border-b-2 border-[#f3a4b0] cursor-pointer transition-colors`;
+                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#f3a4b0]"} cursor-pointer transition-colors`;
               } else if (status === "2") {
-                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1 font-semibold border-b-2 border-[#f0d46d] cursor-pointer transition-colors`;
+                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-700 dark:border-amber-300" : "border-[#f0d46d]"} cursor-pointer transition-colors`;
               } else if (status === "3" || (status as any) === "learning") {
-                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1 font-medium border-b-2 border-[#a6d896] cursor-pointer transition-colors`;
+                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1 font-medium border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a6d896]"} cursor-pointer transition-colors`;
               } else if (status === "4") {
-                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded px-1 font-semibold border-b-2 border-[#204bf4] dark:border-blue-400 cursor-pointer transition-colors`;
+                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
               } else if (status === "5") {
-                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1 font-semibold border-b-2 border-[#a882dd] dark:border-purple-400 cursor-pointer transition-colors`;
+                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
               } else {
-                styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 cursor-pointer transition-colors`;
+                styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 ${hasWordLink ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400" : ""} cursor-pointer transition-colors`;
               }
 
               if (isWordActive) {
@@ -1765,8 +1772,9 @@ export default function ReaderPanel({
                 <span key={tIdx} className={`inline-block relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
                   {prefix && <span className="opacity-80">{prefix}</span>}
                   <button
+                    type="button"
                     id={`word-${cleanWord}-${tIdx}`}
-                    onClick={() => handleWordSelect(rawString, cleanWord, sentText)}
+                    onClick={(e) => handleWordSelect(e, rawString, cleanWord, sentText)}
                     onMouseEnter={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       setHoveredWordId(wordId);

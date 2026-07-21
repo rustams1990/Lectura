@@ -174,8 +174,10 @@ export function VocabProvider({ children }: { children: ReactNode }) {
   };
 
   const handleWordClick = (word: string, context: string) => {
-    setSelectedWord(word);
-    setContextSentence(context);
+    const normalizedWord = word.replace(/\s+/g, " ").trim();
+    const normalizedContext = context.replace(/\s+/g, " ").trim();
+    setSelectedWord(normalizedWord);
+    setContextSentence(normalizedContext);
   };
 
   return (
