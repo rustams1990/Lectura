@@ -30,7 +30,6 @@ import {
 } from "./firebaseService";
 import ReaderPanel from "./components/ReaderPanel";
 import WordExplainer from "./components/WordExplainer";
-import AudioPlayer from "./components/AudioPlayer";
 import AudioPlayerBar from "./components/AudioPlayerBar";
 import ReaderView from "./components/ReaderView";
 import { useLesson } from "./context/LessonContext";
@@ -529,11 +528,6 @@ export default function App() {
   }, [isDarkMode]);
 
   // Firebase Auth & Cloud Sync States
-  const [user, setUser] = useState<any>(null);
-  const [localUser, setLocalUser] = useState<any>(() => {
-    const saved = localStorage.getItem("vocab_clone_local_user");
-    return safeParse(saved, null);
-  });
   const [authError, setAuthError] = useState<string | null>(null);
   const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
   const [localNameInput, setLocalNameInput] = useState<string>("");
@@ -803,11 +797,8 @@ export default function App() {
 
       if (firebaseUser && storageMode === "server") {
         signOut(auth).catch(err => console.error("Firebase signout failed:", err));
-        setUser(null);
         return;
       }
-
-      setUser(firebaseUser);
 
       if (firebaseUser) {
         // Automatically align storageMode to "cloud" when logged in via Firebase
@@ -2273,9 +2264,9 @@ export default function App() {
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-zinc-800 dark:text-zinc-200 truncate">{activeUser.displayName || activeUser.email}</p>
                     <div className="flex items-center justify-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${user ? "bg-teal-500 animate-pulse" : "bg-teal-500"}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeUser ? "bg-teal-500 animate-pulse" : "bg-teal-500"}`} />
                       <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-                        {user ? "Synced to Cloud" : "Local Guest Profile"}
+                        {activeUser ? "Synced to Cloud" : "Local Guest Profile"}
                       </span>
                     </div>
                   </div>
@@ -2859,7 +2850,7 @@ export default function App() {
         localSyncKey={localSyncKey}
         onLocalSyncKeyChange={setLocalSyncKey}
         localSyncError={localSyncError}
-        firebaseUser={user}
+        firebaseUser={activeUser}
         activeUser={activeUser}
         vocab={vocab}
         lessonTypes={lessonTypes}
@@ -2914,9 +2905,9 @@ export default function App() {
           }
 
           // Upload to cloud if logged in and cloud sync is active
-          if (storageMode === "cloud" && user) {
+          if (storageMode === "cloud" && activeUser) {
             uploadLocalToCloud(
-              user.uid,
+              activeUser.uid,
               parsedLessons,
               parsedLessonTypes,
               parsedVocab,
@@ -2944,10 +2935,10 @@ export default function App() {
           localStorage.removeItem("vocab_clone_language_flags");
 
           // Clear Cloud Firestore database if in Cloud Mode
-          if (storageMode === "cloud" && user) {
+          if (storageMode === "cloud" && activeUser) {
             try {
               setIsSyncing(true);
-              await clearAllUserDataOnFirestore(user.uid);
+              await clearAllUserDataOnFirestore(activeUser.uid);
             } catch (err) {
               console.error("Failed to clear Cloud database:", err);
             } finally {
@@ -2979,10 +2970,10 @@ export default function App() {
           }
         }}
         onManualSync={async () => {
-          if (user) {
+          if (activeUser) {
             try {
               await uploadLocalToCloud(
-                user.uid,
+                activeUser.uid,
                 lessons,
                 lessonTypes,
                 vocab,

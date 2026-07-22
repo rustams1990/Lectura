@@ -5,13 +5,11 @@ import { Play, Pause, RotateCcw, Volume2, FastForward } from "lucide-react";
 interface AudioPlayerBarProps {
   onAudioUpload: (audioUrl: string, base64: string | null) => void;
   onListeningTick: (seconds: number) => void;
-  onTimeUpdate?: (seconds: number) => void;
 }
 
 export default function AudioPlayerBar({
   onAudioUpload,
   onListeningTick,
-  onTimeUpdate,
 }: AudioPlayerBarProps) {
   const {
     activeLesson,
@@ -100,9 +98,6 @@ export default function AudioPlayerBar({
     if (audioRef.current) {
       const cur = audioRef.current.currentTime;
       setCurrentTime(cur);
-      if (onTimeUpdate) {
-        onTimeUpdate(cur);
-      }
     }
   };
 
