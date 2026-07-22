@@ -7,7 +7,7 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Lesson, VocabItem, WordStatus, ReaderSettings } from "../types";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
-import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft } from "lucide-react";
+import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 
 interface ReaderPanelProps {
@@ -2041,6 +2041,19 @@ export default function ReaderPanel({
                 <span className="text-xs font-mono font-bold tracking-tight text-zinc-400 dark:text-zinc-500">
                   из {pages.length}
                 </span>
+                <button
+                  type="button"
+                  title="Сбросить на 1-ю страницу / Reset to Page 1"
+                  onClick={() => {
+                    didUserNavigateRef.current = true;
+                    setCurrentPageIdx(0);
+                    safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "0");
+                    document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-md transition cursor-pointer ml-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               <button

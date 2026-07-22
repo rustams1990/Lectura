@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { VocabItem, WordStatus } from "../types";
-import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
+import { normalizeVocabRecord, normalizeWordLinksRecord, safeLocalStorageSetItem } from "../utils";
 
 interface VocabContextType {
   vocab: Record<string, VocabItem>;
@@ -48,6 +48,16 @@ export function VocabProvider({ children }: { children: ReactNode }) {
 
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [contextSentence, setContextSentence] = useState<string>("");
+
+  // Auto-save vocab changes to local storage safely
+  useEffect(() => {
+    safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(vocab));
+  }, [vocab]);
+
+  // Auto-save wordLinks changes to local storage safely
+  useEffect(() => {
+    safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(wordLinks));
+  }, [wordLinks]);
 
   const getLinkedWordsFor = (word: string, lang = "spanish"): string[] => {
     if (!word) return [];

@@ -38,6 +38,12 @@ export default function AudioPlayerBar({
   }, [seekToTime, setCurrentTime, setSeekToTime]);
 
   useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
+  useEffect(() => {
     let tickInterval: NodeJS.Timeout;
     if (isPlaying) {
       lastTickTimeRef.current = Date.now();
