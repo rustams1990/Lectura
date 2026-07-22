@@ -85,15 +85,16 @@ export function requireLocalSyncKey(req: Request, res: Response, next: NextFunct
 
 // 1. User Registration
 router.post("/register", (req: Request, res: Response) => {
-  const { email, password, name } = req.body;
-  if (!email || !password) {
+  const emailInput = req.body.email || req.body.username;
+  const { password, name } = req.body;
+  if (!emailInput || !password) {
     return res.status(400).json({ error: "Email и пароль обязательны" });
   }
   if (password.length < 6) {
     return res.status(400).json({ error: "Пароль должен быть не менее 6 символов" });
   }
 
-  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanEmail = String(emailInput).trim().toLowerCase();
   const cleanName = name ? String(name).trim() : cleanEmail.split("@")[0];
 
   const db = getDbConnection("default");
@@ -132,12 +133,13 @@ router.post("/register", (req: Request, res: Response) => {
 
 // 2. User Login
 router.post("/login", (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
+  const emailInput = req.body.email || req.body.username;
+  const { password } = req.body;
+  if (!emailInput || !password) {
     return res.status(400).json({ error: "Email и пароль обязательны" });
   }
 
-  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanEmail = String(emailInput).trim().toLowerCase();
 
   const db = getDbConnection("default");
 
