@@ -398,10 +398,21 @@ export default function App() {
     }
   }, [zoomScale]);
 
-  // Dark mode toggle state (manual, persists to localStorage)
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
+  // Dark mode toggle state (manual, persists to localStorage & IndexedDB)
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("vocab_clone_dark_mode");
+      if (saved !== null) {
+        return saved === "true";
+      }
+    } catch (_) {}
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
 
   useEffect(() => {
+    try {
+      localStorage.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
+    } catch (_) {}
     settingsStore.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
