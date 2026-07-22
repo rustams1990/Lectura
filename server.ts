@@ -36,6 +36,11 @@ async function startServer() {
   app.use(express.json({ limit: "20mb" }));
   app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
+  // Health check endpoint for monitoring & Docker
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime(), timestamp: Date.now() });
+  });
+
   // ============================================================
   // Express Routers
   // ============================================================

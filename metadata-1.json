@@ -1,6 +1,0 @@
-{
-  "name": "Smart Language Learner",
-  "description": "An interactive language reader. Import texts and audio, click words for context-aware translations, generate AI audio narration, and practice vocabulary with flashcards.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

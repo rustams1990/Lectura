@@ -47,5 +47,9 @@ RUN mkdir -p /app/data
 # Expose server port
 EXPOSE 3000
 
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
 # Start server
 CMD ["node", "dist/server.cjs"]
