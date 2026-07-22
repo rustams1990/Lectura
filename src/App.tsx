@@ -1175,11 +1175,11 @@ export default function App() {
   }, [activeLesson, setActiveLesson]);
 
   const activeLessonWords = useMemo(() => {
-    if (!activeLesson) return [];
+    if (!activeLesson || typeof activeLesson.text !== "string") return [];
     const regex = /[\p{L}\p{M}'’]+/gu;
     const tokens = activeLesson.text.toLowerCase().match(regex) || [];
     
-    const lang = activeLesson.targetLanguage.toLowerCase();
+    const lang = (activeLesson.targetLanguage || "spanish").toLowerCase();
     const uniqueKeys = new Set<string>();
     
     tokens.forEach((t) => {
