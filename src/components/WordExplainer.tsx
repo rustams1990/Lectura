@@ -1058,6 +1058,51 @@ export default function WordExplainer({
       }
     }
 
+    // --- Kokoro-82M / Local TTS ---
+    if (currentTtsEngine === "kokoro" || currentTtsEngine === "local_tts") {
+      try {
+        const cacheKey = `local-tts:${settings?.localTtsVoice || "af_sarah"}:${word.toLowerCase().trim()}`;
+        let audioUrl: string | null = null;
+        let blob = await getTtsAudioFromCache(cacheKey);
+
+        if (blob) {
+          audioUrl = URL.createObjectURL(blob);
+        } else {
+          const response = await fetch("/api/local-tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: word,
+              voice: settings?.localTtsVoice || "af_sarah",
+              language: targetLanguage,
+              localTtsUrl: settings?.localTtsUrl || "http://localhost:8880/v1/audio/speech"
+            }),
+          });
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData?.error || `Сервер локального TTS вернул ${response.status}`);
+          }
+          blob = await response.blob();
+          await saveTtsAudioToCache(cacheKey, blob);
+          audioUrl = URL.createObjectURL(blob);
+        }
+
+        if (audioUrl) {
+          const audio = new Audio(audioUrl);
+          audio.onended = () => { URL.revokeObjectURL(audioUrl!); setPlayingSpeech(false); };
+          audio.onerror = () => { URL.revokeObjectURL(audioUrl!); setPlayingSpeech(false); };
+          await audio.play();
+          return;
+        }
+      } catch (e: any) {
+        console.warn("Local Kokoro TTS failed, falling back to browser TTS:", e);
+        setTtsWarning(`Локальная озвучка не удалась (${e.message || "сервер недоступен"}). Переключено на голос браузера.`);
+        setTimeout(() => {
+          setTtsWarning(prev => prev && prev.includes("Локальная") ? null : prev);
+        }, 8000);
+      }
+    }
+
     // --- Gemini neural TTS ---
     if (currentTtsEngine === "gemini") {
       try {

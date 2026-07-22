@@ -148,4 +148,80 @@ router.get("/google-tts", async (req, res) => {
   }
 });
 
+// 3. Local Kokoro-82M / Piper TTS Proxy (disk cached)
+router.post("/local-tts", ttsRateLimit, async (req, res) => {
+  const { text, voice, language, speed, localTtsUrl } = req.body;
+
+  if (!text) {
+    return res.status(400).json({ error: "Text is required" });
+  }
+
+  const cleanUrl = (localTtsUrl || "http://localhost:8880/v1/audio/speech").trim();
+  const cleanVoice = (voice || "af_sarah").trim();
+  const cleanSpeed = typeof speed === "number" ? speed : 1.0;
+
+  const textHash = crypto.createHash("md5").update(`${cleanVoice}_${text.toLowerCase().trim()}`).digest("hex");
+  const cacheFilename = `local_${cleanVoice}_${textHash}.mp3`;
+  const cacheFilePath = path.join(AUDIO_CACHE_DIR, cacheFilename);
+
+  // Return cached audio if available
+  if (fs.existsSync(cacheFilePath)) {
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Cache-Control", "public, max-age=31536000");
+    return res.sendFile(cacheFilePath);
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 sec timeout
+
+  try {
+    // Standard OpenAI-compatible format (used by kokoro-fastapi, kokoro-onnx, etc.)
+    const bodyPayload = {
+      model: "kokoro",
+      input: text,
+      voice: cleanVoice,
+      response_format: "mp3",
+      speed: cleanSpeed
+    };
+
+    const response = await fetch(cleanUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyPayload),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new Error(`Локальный сервер TTS вернул статус ${response.status}: ${errorText || response.statusText}`);
+    }
+
+    const contentType = response.headers.get("content-type") || "audio/mpeg";
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Save to disk cache
+    await fs.promises.writeFile(cacheFilePath, buffer);
+
+    res.set("Content-Type", contentType);
+    res.set("Cache-Control", "public, max-age=31536000");
+    return res.send(buffer);
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    console.error("Local TTS proxy error:", err);
+
+    if (err.name === 'AbortError') {
+      return res.status(504).json({ error: "Запрос к локальному серверу TTS превысил лимит времени (20 секунд)." });
+    }
+    if (err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed') || err.message?.includes('ECONNREFUSED')) {
+      return res.status(503).json({
+        error: `Локальный TTS сервер недоступен (${cleanUrl}). Убедитесь, что Kokoro или Piper запущен на вашем сервере.`
+      });
+    }
+    return res.status(500).json({ error: err.message || "Ошибка генерации речи через локальный TTS" });
+  }
+});
+
 export default router;

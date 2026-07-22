@@ -342,6 +342,10 @@ export default function ReaderPanel({
       sentenceSpacing: settings?.sentenceSpacing || "normal",
       segmentSpacing: settings?.segmentSpacing || "normal",
       ttsEngine: settings?.ttsEngine || "browser",
+      ttsLocale: settings?.ttsLocale || "",
+      ttsLocales: settings?.ttsLocales || {},
+      localTtsUrl: settings?.localTtsUrl || "http://localhost:8880/v1/audio/speech",
+      localTtsVoice: settings?.localTtsVoice || "af_sarah",
       wordHighlight: settings?.wordHighlight !== false,
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
     };
