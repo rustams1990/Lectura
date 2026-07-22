@@ -2299,7 +2299,38 @@ export default function StatisticsPage({
           </div>
 
           {/* Filtering tabs replaced with a dynamic word counter badge + Advanced filter toggle */}
-          <div className="flex items-center gap-2 shrink-0 select-none">
+          <div className="flex items-center gap-2 shrink-0 select-none flex-wrap">
+            <button
+              onClick={() => {
+                if (!statsArray || statsArray.length === 0) return;
+                const header = ["Word", "Translation", "Context", "Status", "Tags"].join("\t");
+                const rows = statsArray.map((item) => {
+                  const cleanWord = (item.word || "").replace(/\t/g, " ");
+                  const cleanTranslation = (item.translation || "").replace(/\t/g, " ");
+                  const cleanContext = (item.contextSentence || item.sentence || "").replace(/\t/g, " ");
+                  const statusLabel = `L${item.status || 1}`;
+                  const tags = (item.tags || []).join(" ") || "lectura";
+                  return `${cleanWord}\t${cleanTranslation}\t${cleanContext}\t${statusLabel}\t${tags}`;
+                });
+
+                const csvContent = [header, ...rows].join("\n");
+                const blob = new Blob(["\uFEFF" + csvContent], { type: "text/tab-separated-values;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                const filename = `lectura_anki_${selectedStatsLang.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.txt`;
+                link.setAttribute("download", filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/60 flex items-center gap-1.5 cursor-pointer shadow-3xs"
+              title="Экспортировать отфильтрованные слова в Anki (.txt)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Anki (.txt)</span>
+            </button>
             <button
               onClick={() => setShowMigrationTools(!showMigrationTools)}
               className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border flex items-center gap-1.5 cursor-pointer ${

@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../types";
 import { motion, AnimatePresence } from "motion/react";
-import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3 } from "lucide-react";
+import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download } from "lucide-react";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
 import WordExplainer from "./WordExplainer";
 import { LANGUAGES_SUPPORTED } from "../data";
@@ -213,6 +213,33 @@ export default function VocabularyPractice({
   const [modalTranslationLang, setModalTranslationLang] = useState(() => {
     return localStorage.getItem("vocab_default_translation_language") || "Russian";
   });
+
+  const handleExportAnki = () => {
+    if (!learningList || learningList.length === 0) return;
+
+    const header = ["Word", "Translation", "Context", "Status", "Tags"].join("\t");
+    const rows = learningList.map((item) => {
+      const cleanWord = (item.word || "").replace(/\t/g, " ");
+      const cleanTranslation = (item.translation || "").replace(/\t/g, " ");
+      const cleanContext = (item.contextSentence || item.sentence || "").replace(/\t/g, " ");
+      const statusLabel = `L${item.status || 1}`;
+      const tags = (item.tags || []).join(" ") || "lectura";
+
+      return `${cleanWord}\t${cleanTranslation}\t${cleanContext}\t${statusLabel}\t${tags}`;
+    });
+
+    const csvContent = [header, ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/tab-separated-values;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const filename = `lectura_anki_${selectedPracticeLang.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.txt`;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const handleSaveVocabWrapped = (item: VocabItem) => {
     if (onSaveVocab) {
@@ -903,7 +930,16 @@ export default function VocabularyPractice({
           {/* Deck progress meter */}
           <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
             <span className="uppercase tracking-wider">Vocabulary Deck</span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportAnki}
+                className="px-2 py-1 rounded-lg border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 text-[10px] uppercase font-bold tracking-wider hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                title="Экспортировать выбранные слова для импорта в Anki"
+              >
+                <Download className="w-3 h-3" />
+                <span>Anki (.txt)</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowList(!showList)}
