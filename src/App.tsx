@@ -52,6 +52,7 @@ import {
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff } from "lucide-react";
 import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction } from "./utils";
+import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage } from "./db";
 
 const readerThemes = {
   default: {
@@ -283,30 +284,12 @@ const isLocalHostname = (): boolean => {
 };
 
 export default function App() {
-  // Durable browser persistence states
-  const [lessons, setLessons] = useState<Lesson[]>(() => {
-    const saved = localStorage.getItem("vocab_clone_lessons");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    return BUILT_IN_LESSONS;
-  });
+  const [isAppLoaded, setIsAppLoaded] = useState(false);
 
-  const [lessonTypes, setLessonTypes] = useState<LessonType[]>(() => {
-    const saved = localStorage.getItem("vocab_clone_lessontypes");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    return DEFAULT_LESSON_TYPES;
-  });
+  // Durable browser persistence states
+  const [lessons, setLessons] = useState<Lesson[]>(BUILT_IN_LESSONS);
+
+  const [lessonTypes, setLessonTypes] = useState<LessonType[]>(DEFAULT_LESSON_TYPES);
 
   const {
     vocab,
@@ -323,14 +306,7 @@ export default function App() {
     handleWordClick,
   } = useVocab();
 
-  const [listeningSeconds, setListeningSeconds] = useState<number>(() => {
-    const saved = localStorage.getItem("vocab_clone_listening");
-    if (saved) {
-      const num = parseFloat(saved);
-      return isNaN(num) ? 0 : num;
-    }
-    return 0;
-  });
+  const [listeningSeconds, setListeningSeconds] = useState<number>(0);
 
   const [activeLessonId, setActiveLessonId] = useState<string>(() => {
     return lessons[0]?.id || "";
@@ -348,6 +324,52 @@ export default function App() {
   const lastLocalChangeTime = useRef<number>(0);
   const [showIosInstallBanner, setShowIosInstallBanner] = useState<boolean>(false);
 
+
+  useEffect(() => {
+    async function initDb() {
+      try {
+        await migrateFromLocalStorage();
+        
+        const savedLessons = await lessonsStore.getItem('lessons');
+        if (savedLessons) setLessons(savedLessons as Lesson[]);
+        
+        const savedLessonTypes = await lessonsStore.getItem('lessontypes');
+        if (savedLessonTypes) setLessonTypes(savedLessonTypes as LessonType[]);
+
+        const ls = await settingsStore.getItem('vocab_clone_listening');
+        if (ls !== null) setListeningSeconds(parseFloat(ls as string) || 0);
+
+        const lf = await settingsStore.getItem('vocab_clone_language_flags');
+        if (lf) setLanguageFlags(typeof lf === 'string' ? JSON.parse(lf) : lf);
+
+        const fm = await settingsStore.getItem('vocab_clone_focus_mode');
+        if (fm !== null) setIsFocusMode(fm === 'true' || fm === true);
+
+        const lw = await settingsStore.getItem('vocab_clone_layout_width');
+        if (lw) setLayoutWidthMode((lw === 'standard' ? 'full' : lw) as any);
+
+        const rs = await settingsStore.getItem('vocab_clone_reader_settings');
+        if (rs) {
+          try {
+             const parsed = typeof rs === 'string' ? JSON.parse(rs) : rs;
+             setReaderSettings(prev => ({...prev, ...parsed}));
+          } catch(e) {}
+        }
+
+        const zs = await settingsStore.getItem('vocab_clone_interface_zoom');
+        if (zs !== null) setZoomScale(parseInt(zs as string, 10));
+
+        const dm = await settingsStore.getItem('vocab_clone_dark_mode');
+        if (dm !== null) setIsDarkMode(dm === 'true' || dm === true);
+
+      } catch (e) {
+        console.error("App DB load error:", e);
+      } finally {
+        setIsAppLoaded(true);
+      }
+    }
+    initDb();
+  }, []);
 
   // Synchronize URL Hash with Tab Navigation and Browser Back/Forward buttons
   useEffect(() => {
@@ -427,53 +449,15 @@ export default function App() {
   }, []);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
-  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem("vocab_clone_language_flags");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    return {};
-  });
-  const [isFocusMode, setIsFocusMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem("vocab_clone_focus_mode");
-    return saved !== null ? saved === "true" : true;
-  });
+  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>({});
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(true);
   const [showOnlyUnknown, setShowOnlyUnknown] = useState<boolean>(false);
 
-  const [layoutWidthMode, setLayoutWidthMode] = useState<"standard" | "wide" | "ultra" | "full">(() => {
-    const saved = localStorage.getItem("vocab_clone_layout_width");
-    // Migrate 'standard' to 'full' — full-width looks better especially at zoom > 100%
-    if (!saved || saved === "standard") {
-      safeLocalStorageSetItem("vocab_clone_layout_width", "full");
-      return "full";
-    }
-    return (saved as "standard" | "wide" | "ultra" | "full");
-  });
+  const [layoutWidthMode, setLayoutWidthMode] = useState<"standard" | "wide" | "ultra" | "full">("full");
 
   // Customizable reader options (Fonts family, background tone, size, spacing, container width)
-  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
-    const saved = localStorage.getItem("vocab_clone_reader_settings");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          aiProvider: "gemini",
-          localAiUrl: "http://localhost:11434/api/generate",
-          localAiModel: "phi3.5",
-          showDetailedVocabularyStats: true,
-          mainStatsMetric: "comprehension",
-          ...parsed
-        };
-      } catch (err) {
-        console.error("Failed to parse reader settings:", err);
-      }
-    }
-    return {
-      fontSize: "xl", // default cozy legible font size
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>({
+      fontSize: "xl",
       lineHeight: "loose",
       fontFamily: "sans",
       readerTheme: "default",
@@ -488,17 +472,13 @@ export default function App() {
       localAiModel: "phi3.5",
       showDetailedVocabularyStats: true,
       mainStatsMetric: "comprehension",
-    };
   });
 
   // Zoom level state (default is 100 representing 100%)
-  const [zoomScale, setZoomScale] = useState<number>(() => {
-    const saved = localStorage.getItem("vocab_clone_interface_zoom");
-    return saved ? parseInt(saved, 10) : 100;
-  });
+  const [zoomScale, setZoomScale] = useState<number>(100);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_interface_zoom", zoomScale.toString());
+    settingsStore.setItem("vocab_clone_interface_zoom", zoomScale.toString());
     const val = `${zoomScale}%`;
     try {
       (document.documentElement.style as any).zoom = "";
@@ -511,15 +491,10 @@ export default function App() {
   }, [zoomScale]);
 
   // Dark mode toggle state (manual, persists to localStorage)
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem("vocab_clone_dark_mode");
-    if (saved !== null) return saved === "true";
-    // Default to system preference
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
-  });
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
+    settingsStore.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
     } else {
@@ -569,11 +544,11 @@ export default function App() {
   });
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_storage_mode", storageMode);
+    settingsStore.setItem("vocab_clone_storage_mode", storageMode);
   }, [storageMode]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_local_sync_key", localSyncKey);
+    settingsStore.setItem("vocab_clone_local_sync_key", localSyncKey);
     setLocalSyncError(false); // Reset error status when key is edited
   }, [localSyncKey]);
 
@@ -674,8 +649,8 @@ export default function App() {
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
           // Sync into localStorage as fallback buffer (sanitizing heavy base64 fields)
-          if (d.lessons) safeLocalStorageSetItem("vocab_clone_lessons", sanitizeLessonsForLocalStorage(d.lessons));
-          if (d.lessonTypes) safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(d.lessonTypes));
+          if (d.lessons) lessonsStore.setItem("lessons", d.lessons);
+          if (d.lessonTypes) lessonsStore.setItem("lessontypes", d.lessonTypes);
           safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(normalizedCloudVocab));
           safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizedCloudWordLinks));
           if (d.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", d.listeningSeconds.toString());
@@ -1112,11 +1087,11 @@ export default function App() {
 
   // Sync state to local storage (sanitizing heavy base64 fields to prevent quota overflow)
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_lessons", sanitizeLessonsForLocalStorage(lessons));
+    lessonsStore.setItem("lessons", lessons);
   }, [lessons]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(lessonTypes));
+    lessonsStore.setItem("lessontypes", lessonTypes);
   }, [lessonTypes]);
 
   const handleCreateLessonType = (newType: LessonType) => {
@@ -1144,31 +1119,31 @@ export default function App() {
   };
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(vocab));
+    vocabStore.setItem("words", vocab);
   }, [vocab]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_listening", listeningSeconds.toString());
+    settingsStore.setItem("vocab_clone_listening", listeningSeconds.toString());
   }, [listeningSeconds]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(wordLinks));
+    vocabStore.setItem("aliases", wordLinks);
   }, [wordLinks]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
+    settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
   }, [readerSettings]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(languageFlags));
+    settingsStore.setItem("vocab_clone_language_flags", JSON.stringify(languageFlags));
   }, [languageFlags]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_focus_mode", isFocusMode ? "true" : "false");
+    settingsStore.setItem("vocab_clone_focus_mode", isFocusMode ? "true" : "false");
   }, [isFocusMode]);
 
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_layout_width", layoutWidthMode);
+    settingsStore.setItem("vocab_clone_layout_width", layoutWidthMode);
   }, [layoutWidthMode]);
 
   // Derive current active objects
@@ -1761,7 +1736,7 @@ export default function App() {
         };
         setLessons((prev) => {
           const next = prev.map((l) => (l.id === activeLesson.id ? updatedLesson : l));
-          safeLocalStorageSetItem("vocab_clone_lessons", sanitizeLessonsForLocalStorage(next));
+          lessonsStore.setItem("lessons", next);
           return next;
         });
         if (auth.currentUser && storageMode === "cloud") {
@@ -2091,6 +2066,10 @@ export default function App() {
   const currentReaderTheme = (activeTab === "read" && activeLesson)
     ? (readerThemes[readerSettings.readerTheme] || readerThemes.default)
     : readerThemes.default;
+
+  if (!isAppLoaded) {
+    return <div className="flex h-screen items-center justify-center bg-stone-50 dark:bg-zinc-950"><Loader2 className="w-10 h-10 animate-spin text-teal-600" /></div>;
+  }
 
   return (
     <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200`}>

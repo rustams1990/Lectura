@@ -217,23 +217,26 @@ export default function VocabularyPractice({
   const handleExportAnki = () => {
     if (!learningList || learningList.length === 0) return;
 
-    const header = ["Word", "Translation", "Context", "Status", "Tags"].join("\t");
+    // Специфичный формат для Anki: Слово ; Перевод ; Контекст
+    const header = ["Слово", "Перевод", "Контекст"].join(";");
     const rows = learningList.map((item) => {
-      const cleanWord = (item.word || "").replace(/\t/g, " ");
-      const cleanTranslation = (item.translation || "").replace(/\t/g, " ");
-      const cleanContext = (item.contextSentence || item.sentence || "").replace(/\t/g, " ");
-      const statusLabel = `L${item.status || 1}`;
-      const tags = (item.tags || []).join(" ") || "lectura";
+      const cleanWord = (item.word || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
+      const cleanTranslation = (item.translation || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
+      
+      // Some properties might not be strongly typed, so we use type assertion safely
+      const rawContext = item.contextRelation || (item as any).contextSentence || (item as any).sentence || "";
+      const cleanContext = rawContext.replace(/;/g, ",").replace(/\n/g, " ").trim();
 
-      return `${cleanWord}\t${cleanTranslation}\t${cleanContext}\t${statusLabel}\t${tags}`;
+      return `${cleanWord};${cleanTranslation};${cleanContext}`;
     });
 
     const csvContent = [header, ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/tab-separated-values;charset=utf-8;" });
+    // UTF-8 BOM helps Excel/Anki recognize UTF-8 characters correctly
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    const filename = `lectura_anki_${selectedPracticeLang.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.txt`;
+    const filename = `lectura_anki_${selectedPracticeLang.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`;
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
@@ -938,7 +941,7 @@ export default function VocabularyPractice({
                 title="Экспортировать выбранные слова для импорта в Anki"
               >
                 <Download className="w-3 h-3" />
-                <span>Anki (.txt)</span>
+                <span>Anki (.csv)</span>
               </button>
               <button
                 type="button"

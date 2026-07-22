@@ -1,0 +1,74 @@
+import localforage from 'localforage';
+
+// Configure stores
+const storeOptions = {
+  name: 'LecturaDB',
+  version: 1.0,
+};
+
+export const lessonsStore = localforage.createInstance({ ...storeOptions, storeName: 'lessons' });
+export const vocabStore = localforage.createInstance({ ...storeOptions, storeName: 'vocab' });
+export const settingsStore = localforage.createInstance({ ...storeOptions, storeName: 'settings' });
+
+export async function migrateFromLocalStorage() {
+  const isMigrated = await settingsStore.getItem('vocab_clone_migrated_v1');
+  if (isMigrated) return;
+
+  console.log("Migrating data from localStorage to IndexedDB...");
+
+  // Migrate lessons
+  const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
+  if (localLessonsStr) {
+    try {
+      const parsed = JSON.parse(localLessonsStr);
+      await lessonsStore.setItem('lessons', parsed);
+    } catch (e) { console.error("Error migrating lessons", e); }
+  }
+
+  const localLessonTypesStr = localStorage.getItem("vocab_clone_lessontypes");
+  if (localLessonTypesStr) {
+    try {
+      const parsed = JSON.parse(localLessonTypesStr);
+      await lessonsStore.setItem('lessontypes', parsed);
+    } catch (e) { console.error("Error migrating lessontypes", e); }
+  }
+
+  // Migrate vocab
+  const localWordsStr = localStorage.getItem("vocab_clone_words");
+  if (localWordsStr) {
+    try {
+      const parsed = JSON.parse(localWordsStr);
+      await vocabStore.setItem('words', parsed);
+    } catch (e) { console.error("Error migrating words", e); }
+  }
+  
+  const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
+  if (localAliasesStr) {
+    try {
+      const parsed = JSON.parse(localAliasesStr);
+      await vocabStore.setItem('aliases', parsed);
+    } catch (e) { console.error("Error migrating aliases", e); }
+  }
+
+  // Migrate settings (we store them as raw strings in IndexedDB to match how App.tsx previously handled them, or parsed if we refactor)
+  const keysToMigrate = [
+    "vocab_clone_listening",
+    "vocab_clone_language_flags",
+    "vocab_clone_focus_mode",
+    "vocab_clone_layout_width",
+    "vocab_clone_reader_settings",
+    "vocab_clone_interface_zoom",
+    "vocab_clone_dark_mode",
+    "vocab_clone_storage_mode"
+  ];
+
+  for (const key of keysToMigrate) {
+    const val = localStorage.getItem(key);
+    if (val !== null) {
+      await settingsStore.setItem(key, val);
+    }
+  }
+
+  await settingsStore.setItem('vocab_clone_migrated_v1', true);
+  console.log("Migration complete!");
+}

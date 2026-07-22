@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { VocabItem, WordStatus } from "../types";
-import { normalizeVocabRecord, normalizeWordLinksRecord, safeLocalStorageSetItem } from "../utils";
-
+import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
+import { vocabStore } from "../db";
 interface VocabContextType {
   vocab: Record<string, VocabItem>;
   setVocab: React.Dispatch<React.SetStateAction<Record<string, VocabItem>>>;
@@ -20,44 +20,54 @@ interface VocabContextType {
 const VocabContext = createContext<VocabContextType | undefined>(undefined);
 
 export function VocabProvider({ children }: { children: ReactNode }) {
-  const [vocab, setVocab] = useState<Record<string, VocabItem>>(() => {
-    if (typeof localStorage === "undefined") return {};
-    const saved = localStorage.getItem("vocab_clone_words");
-    if (saved) {
-      try {
-        return normalizeVocabRecord(JSON.parse(saved));
-      } catch (err) {
-        console.error("VocabProvider parse words error:", err);
-      }
-    }
-    return {};
-  });
-
-  const [wordLinks, setWordLinks] = useState<Record<string, string>>(() => {
-    if (typeof localStorage === "undefined") return {};
-    const saved = localStorage.getItem("vocab_clone_aliases");
-    if (saved) {
-      try {
-        return normalizeWordLinksRecord(JSON.parse(saved));
-      } catch (err) {
-        console.error("VocabProvider parse aliases error:", err);
-      }
-    }
-    return {};
-  });
+  const [vocab, setVocab] = useState<Record<string, VocabItem>>({});
+  const [wordLinks, setWordLinks] = useState<Record<string, string>>({});
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [contextSentence, setContextSentence] = useState<string>("");
 
-  // Auto-save vocab changes to local storage safely
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(vocab));
-  }, [vocab]);
+    async function loadVocab() {
+      try {
+        const savedVocab = await vocabStore.getItem('words');
+        if (savedVocab) {
+          setVocab(normalizeVocabRecord(savedVocab));
+        } else {
+          // Fallback to localStorage in case migration hasn't happened yet
+          const localWordsStr = localStorage.getItem("vocab_clone_words");
+          if (localWordsStr) setVocab(normalizeVocabRecord(JSON.parse(localWordsStr)));
+        }
 
-  // Auto-save wordLinks changes to local storage safely
+        const savedLinks = await vocabStore.getItem('aliases');
+        if (savedLinks) {
+          setWordLinks(normalizeWordLinksRecord(savedLinks as Record<string, string>));
+        } else {
+          const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
+          if (localAliasesStr) setWordLinks(normalizeWordLinksRecord(JSON.parse(localAliasesStr)));
+        }
+      } catch (e) {
+        console.error("Failed to load vocab from IndexedDB", e);
+      } finally {
+        setIsLoaded(true);
+      }
+    }
+    loadVocab();
+  }, []);
+
+  // Auto-save vocab changes to IndexedDB safely
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(wordLinks));
-  }, [wordLinks]);
+    if (isLoaded) {
+      vocabStore.setItem('words', vocab).catch(console.error);
+    }
+  }, [vocab, isLoaded]);
+
+  // Auto-save wordLinks changes to IndexedDB safely
+  useEffect(() => {
+    if (isLoaded) {
+      vocabStore.setItem('aliases', wordLinks).catch(console.error);
+    }
+  }, [wordLinks, isLoaded]);
 
   const getLinkedWordsFor = (word: string, lang = "spanish"): string[] => {
     if (!word) return [];
