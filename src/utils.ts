@@ -52,14 +52,22 @@ const DB_NAME = "TtsCacheDB";
 const STORE_NAME = "audioCache";
 const DB_VERSION = 1;
 
+let cachedDbPromise: Promise<IDBDatabase> | null = null;
+
 function openCacheDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (cachedDbPromise) return cachedDbPromise;
+
+  cachedDbPromise = new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
+      cachedDbPromise = null;
       reject(new Error("IndexedDB is not supported in this environment"));
       return;
     }
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      cachedDbPromise = null;
+      reject(request.error);
+    };
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -68,6 +76,7 @@ function openCacheDb(): Promise<IDBDatabase> {
       }
     };
   });
+  return cachedDbPromise;
 }
 
 export async function getTtsAudioFromCache(key: string): Promise<Blob | null> {

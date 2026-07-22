@@ -33,6 +33,7 @@ export default function YoutubePlayerWindow({
   const containerRef = useRef<HTMLDivElement>(null);
   const initTimeoutRef = useRef<any>(null);
   const trackingIntervalRef = useRef<any>(null);
+  const lastContextTimeRef = useRef<number>(0);
 
   // Load YouTube Player API script
   useEffect(() => {
@@ -79,7 +80,10 @@ export default function YoutubePlayerWindow({
           try {
             const time = playerRef.current.getCurrentTime();
             if (time !== undefined) {
-              setCurrentTime(time);
+              if (Math.abs(time - lastContextTimeRef.current) >= 0.5) {
+                lastContextTimeRef.current = time;
+                setCurrentTime(time);
+              }
               // Throttled save: write to localStorage at most once every 3 seconds during playback
               if (Date.now() - lastStorageSaveTime >= 3000) {
                 saveProgressNow(time);

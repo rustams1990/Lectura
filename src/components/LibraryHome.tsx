@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from "react";
-import { Lesson, LessonType, AppStats, ReaderSettings } from "../types";
+import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE } from "../utils";
@@ -47,6 +47,94 @@ interface LibraryHomeProps {
   languageFlags: Record<string, string>;
   settings?: ReaderSettings;
   isLoading?: boolean;
+}
+
+function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>) {
+  if (typeof lesson.text !== "string") {
+    return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
+  }
+  const rawParts = lesson.text.split(/\s+/);
+  const processedWords = rawParts.map(part => {
+    if (!part) return "";
+    const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "").toLowerCase();
+    
+    const isNumericOrTimestamp = (str: string): boolean => {
+      if (/\d/.test(str)) {
+        if (/\d+:\d+/.test(str)) return true;
+        if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
+        if (/^\d+[a-zA-Z]+$/.test(str)) return true;
+        if (!/\p{L}/u.test(str)) return true;
+      }
+      return false;
+    };
+    const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
+    if (clean.length > 0 && !isNumeric) {
+      return clean;
+    }
+    return "";
+  }).filter(w => w.length > 0);
+
+  if (processedWords.length === 0) {
+    return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
+  }
+
+  let knownCount = 0;
+  let unknownCount = 0;
+  const lang = (lesson.targetLanguage || "spanish").toLowerCase();
+
+  const uniqueUnknownWords = new Set<string>();
+  const uniqueKnownWords = new Set<string>();
+  const uniqueTotalWords = new Set<string>();
+
+  processedWords.forEach(word => {
+    const key = word.toLowerCase();
+    const langKey = `${lang}_${key}`;
+    const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
+    const langKeyForResolved = `${lang}_${resolvedKey}`;
+    
+    let item = vocab[langKeyForResolved] || vocab[resolvedKey];
+    
+    if (!item) {
+      const normalized = normalizeContraction(resolvedKey, lang);
+      if (normalized !== resolvedKey) {
+        const normLangKey = `${lang}_${normalized}`;
+        item = vocab[normLangKey] || vocab[normalized];
+      }
+    }
+
+    uniqueTotalWords.add(resolvedKey);
+    if (item && (item.status === "known" || item.status === "ignored")) {
+      knownCount++;
+      uniqueKnownWords.add(resolvedKey);
+    } else {
+      unknownCount++;
+      uniqueUnknownWords.add(resolvedKey);
+    }
+  });
+
+  const total = processedWords.length;
+  const knownPct = Math.round((knownCount / total) * 100);
+
+  const uniqueUnknownCount = Array.from(uniqueUnknownWords).filter(w => !uniqueKnownWords.has(w)).length;
+  const uniqueKnownCount = uniqueKnownWords.size;
+  const uniqueTotal = uniqueTotalWords.size;
+
+  const uniqueTotalLemmas = uniqueKnownCount + uniqueUnknownCount;
+  const knownVocabularyPct = uniqueTotalLemmas > 0 ? Math.round((uniqueKnownCount / uniqueTotalLemmas) * 100) : 0;
+  const unknownVocabularyPct = 100 - knownVocabularyPct;
+
+  return {
+    knownPct,
+    unknownPct: 100 - knownPct,
+    knownCount,
+    unknownCount,
+    uniqueKnownCount,
+    uniqueUnknownCount,
+    uniqueTotal,
+    total,
+    knownVocabularyPct,
+    unknownVocabularyPct
+  };
 }
 
 // Map language to a spectacular cover style
@@ -462,6 +550,14 @@ export default function LibraryHome({
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  const computedStatsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    paginatedLessons.forEach((lesson) => {
+      map.set(lesson.id, calculateBookStats(lesson, vocab, wordLinks));
+    });
+    return map;
+  }, [paginatedLessons, vocab, wordLinks]);
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -880,95 +976,7 @@ export default function LibraryHome({
             const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
             const youtubeDurationVal = isYoutube ? (lesson.youtubeDuration || getYoutubeDurationFromText(lesson.text || "")) : null;
 
-            const bookStats = (() => {
-              if (typeof lesson.text !== "string") {
-                return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
-              }
-              const rawParts = lesson.text.split(/\s+/);
-              const processedWords = rawParts.map(part => {
-                if (!part) return "";
-                const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "").toLowerCase();
-                
-                const isNumericOrTimestamp = (str: string): boolean => {
-                  if (/\d/.test(str)) {
-                    if (/\d+:\d+/.test(str)) return true;
-                    if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
-                    if (/^\d+[a-zA-Z]+$/.test(str)) return true;
-                    if (!/\p{L}/u.test(str)) return true;
-                  }
-                  return false;
-                };
-                const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
-                if (clean.length > 0 && !isNumeric) {
-                  return clean;
-                }
-                return "";
-              }).filter(w => w.length > 0);
-
-              if (processedWords.length === 0) {
-                return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
-              }
-
-              let knownCount = 0;
-              let unknownCount = 0;
-              const lang = (lesson.targetLanguage || "spanish").toLowerCase();
-
-              const uniqueUnknownWords = new Set<string>();
-              const uniqueKnownWords = new Set<string>();
-              const uniqueTotalWords = new Set<string>();
-
-              // Track counts
-              processedWords.forEach(word => {
-                const key = word.toLowerCase();
-                const langKey = `${lang}_${key}`;
-                const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
-                const langKeyForResolved = `${lang}_${resolvedKey}`;
-                
-                let item = vocab[langKeyForResolved] || vocab[resolvedKey];
-                
-                // Contraction status inheritance
-                if (!item) {
-                  const normalized = normalizeContraction(resolvedKey, lang);
-                  if (normalized !== resolvedKey) {
-                    const normLangKey = `${lang}_${normalized}`;
-                    item = vocab[normLangKey] || vocab[normalized];
-                  }
-                }
-
-                uniqueTotalWords.add(resolvedKey);
-                if (item && (item.status === "known" || item.status === "ignored")) {
-                  knownCount++;
-                  uniqueKnownWords.add(resolvedKey);
-                } else {
-                  unknownCount++;
-                  uniqueUnknownWords.add(resolvedKey);
-                }
-              });
-
-              const total = processedWords.length;
-              const knownPct = Math.round((knownCount / total) * 100);
-
-              const uniqueUnknownCount = Array.from(uniqueUnknownWords).filter(w => !uniqueKnownWords.has(w)).length;
-              const uniqueKnownCount = uniqueKnownWords.size;
-              const uniqueTotal = uniqueTotalWords.size;
-
-              const uniqueTotalLemmas = uniqueKnownCount + uniqueUnknownCount;
-              const knownVocabularyPct = uniqueTotalLemmas > 0 ? Math.round((uniqueKnownCount / uniqueTotalLemmas) * 100) : 0;
-              const unknownVocabularyPct = 100 - knownVocabularyPct;
-
-              return {
-                knownPct,
-                unknownPct: 100 - knownPct,
-                knownCount,
-                unknownCount,
-                uniqueKnownCount,
-                uniqueUnknownCount,
-                uniqueTotal,
-                total,
-                knownVocabularyPct,
-                unknownVocabularyPct
-              };
-            })();
+            const bookStats = computedStatsMap.get(lesson.id) || calculateBookStats(lesson, vocab, wordLinks);
 
             return (
               <div

@@ -4,6 +4,9 @@ import fs from "fs";
 import crypto from "crypto";
 import AdmZip from "adm-zip";
 import { Type } from "@google/genai";
+import { createRequire } from "module";
+const requireFn = createRequire(import.meta.url);
+const pdfParse = requireFn("pdf-parse");
 import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
 
 const router = Router();
@@ -440,39 +443,15 @@ router.post("/import-file", async (req: Request, res: Response) => {
 
   try {
     if (fileType === "application/pdf" || extension === "pdf") {
-      let PDFParseClass: any;
+      let pdfResult: any;
       try {
-        const pdfModule = await import("pdf-parse") as any;
-        PDFParseClass = pdfModule.PDFParse || (pdfModule.default && pdfModule.default.PDFParse) || pdfModule.default;
-      } catch (importErr) {
-        console.warn("Dynamic import of 'pdf-parse' failed, trying require fallback:", importErr);
-        try {
-          const { createRequire } = await import("module");
-          const requireFn = createRequire(import.meta.url);
-          const requiredModule = requireFn("pdf-parse");
-          PDFParseClass = requiredModule.PDFParse || (requiredModule.default && requiredModule.default.PDFParse) || requiredModule;
-        } catch (err) {
-          console.error("Fallback require of pdf-parse failed:", err);
-        }
+        pdfResult = await pdfParse(buffer);
+      } catch (err) {
+        console.error("PDF parsing failed:", err);
+        throw err;
       }
 
-      if (!PDFParseClass) {
-        throw new Error("Could not resolve PDFParse constructor from pdf-parse. Please check dependency installation.");
-      }
-
-      const parser = new PDFParseClass({ data: buffer });
-      let text = "";
-
-      try {
-        const textResult = await parser.getText();
-        text = textResult?.text || "";
-      } finally {
-        try {
-          await parser.destroy();
-        } catch (destroyErr) {
-          console.warn("Failed to destroy PDFParse parser instance:", destroyErr);
-        }
-      }
+      let text = typeof pdfResult === "string" ? pdfResult : (pdfResult?.text || "");
 
       text = text.replace(/(\w+)-\s*\n\s*(\w+)/g, "$1$2");
       text = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();

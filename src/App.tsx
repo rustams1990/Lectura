@@ -51,7 +51,7 @@ import {
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff } from "lucide-react";
-import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction } from "./utils";
+import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord } from "./utils";
 import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage } from "./db";
 
 const readerThemes = {
@@ -177,98 +177,6 @@ function normalizeLanguagePrefixedKey(key: string): string {
     k = k.replace(/^([a-zA-Z]+)_\1_/i, "$1_");
   }
   return k;
-}
-
-function normalizeVocabRecord(record: Record<string, VocabItem> | any[] | undefined): Record<string, VocabItem> {
-  if (!record || typeof record !== "object") return {};
-  const normalized: Record<string, VocabItem> = {};
-
-  const entries = Array.isArray(record)
-    ? record.map((val, idx) => [String(idx), val] as [string, any])
-    : Object.entries(record);
-
-  for (const [key, value] of entries) {
-    if (!value || typeof value !== "object") continue;
-
-    // Detect numeric/array key
-    const isNumericKey = /^\d+$/.test(key);
-
-    // Determine language prefix
-    let lang = "";
-    if (!isNumericKey) {
-      const parts = key.split("_");
-      if (parts.length > 1) {
-        lang = parts[0].toLowerCase();
-      }
-    }
-
-    // Fallback: search in properties
-    if (!lang) {
-      const valLang = value.language_code || value.language || value.targetLanguage;
-      if (typeof valLang === "string") {
-        lang = valLang.toLowerCase();
-      }
-    }
-
-    // Default fallback
-    if (!lang) {
-      lang = "english";
-    }
-
-    const rawWord = typeof value.word === "string" ? value.word : "";
-    const cleanWord = rawWord.replace(/^[a-zA-Z]+_/, "");
-    if (!cleanWord) continue;
-
-    const cleanKey = `${lang}_${cleanWord.toLowerCase()}`;
-
-    // Handle string/number status values
-    let cleanStatus: WordStatus = "known";
-    const rawStatus = typeof value.status === "string"
-      ? value.status
-      : typeof value.status === "number"
-        ? String(value.status)
-        : "";
-
-    if (rawStatus === "1" || rawStatus === "2" || rawStatus === "3" || rawStatus === "4" || rawStatus === "5" || rawStatus === "known" || rawStatus === "ignored" || rawStatus === "new") {
-      cleanStatus = rawStatus as WordStatus;
-    } else if (rawStatus === "learning") {
-      cleanStatus = "1";
-    } else {
-      cleanStatus = "known";
-    }
-
-    normalized[cleanKey] = {
-      word: cleanWord,
-      translation: typeof value.translation === "string" ? value.translation : "",
-      grammar: typeof value.grammar === "string" ? value.grammar : "",
-      ipa: typeof value.ipa === "string" ? value.ipa : "",
-      contextRelation: typeof value.contextRelation === "string" ? value.contextRelation : "",
-      status: cleanStatus,
-      createdAt: typeof value.createdAt === "number" && !isNaN(value.createdAt) ? value.createdAt : Date.now(),
-      tags: Array.isArray(value.tags) ? value.tags.filter((t) => typeof t === "string") : [],
-      examples: Array.isArray(value.examples) ? value.examples : [],
-      imageUrl: typeof value.imageUrl === "string" ? value.imageUrl : null,
-      spellingCorrectCount: typeof value.spellingCorrectCount === "number" ? value.spellingCorrectCount : 0,
-      spellingIncorrectCount: typeof value.spellingIncorrectCount === "number" ? value.spellingIncorrectCount : 0,
-      spellingAccentCount: typeof value.spellingAccentCount === "number" ? value.spellingAccentCount : 0,
-      lastSpelledCorrectly: value.lastSpelledCorrectly !== undefined ? (value.lastSpelledCorrectly === true ? true : (value.lastSpelledCorrectly === false ? false : null)) : null,
-      lastSpelledWithAccentError: !!value.lastSpelledWithAccentError,
-      spellingExclude: !!value.spellingExclude,
-    };
-  }
-  return normalized;
-}
-
-function normalizeWordLinksRecord(record: Record<string, string> | undefined): Record<string, string> {
-  if (!record || typeof record !== "object") return {};
-  const normalized: Record<string, string> = {};
-  for (const [key, val] of Object.entries(record)) {
-    if (typeof key !== "string" || typeof val !== "string") continue;
-    const cleanKey = normalizeLanguagePrefixedKey(key);
-    const cleanVal = normalizeLanguagePrefixedKey(val);
-    normalized[cleanKey] = cleanVal;
-  }
-  return normalized;
 }
 
 const isLocalHostname = (): boolean => {

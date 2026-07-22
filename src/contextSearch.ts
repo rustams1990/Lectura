@@ -88,6 +88,20 @@ function buildLinkAdjacency(wordLinks: Record<string, string>, targetLang: strin
   return adj;
 }
 
+let lastWordLinksRef: Record<string, string> | null = null;
+let lastLang: string = "";
+let cachedAdjMap: Map<string, Set<string>> | null = null;
+
+function getCachedLinkAdjacency(wordLinks: Record<string, string>, targetLang: string): Map<string, Set<string>> {
+  if (cachedAdjMap && lastWordLinksRef === wordLinks && lastLang === targetLang) {
+    return cachedAdjMap;
+  }
+  cachedAdjMap = buildLinkAdjacency(wordLinks, targetLang);
+  lastWordLinksRef = wordLinks;
+  lastLang = targetLang;
+  return cachedAdjMap;
+}
+
 function getLinkedForms(word: string, lang: string, wordLinks: Record<string, string>): string[] {
   const list = new Set<string>();
   const lowerWord = word.toLowerCase();
@@ -97,7 +111,7 @@ function getLinkedForms(word: string, lang: string, wordLinks: Record<string, st
     return Array.from(list);
   }
 
-  const adj = buildLinkAdjacency(wordLinks, lang);
+  const adj = getCachedLinkAdjacency(wordLinks, lang);
   const visited = new Set<string>();
   const queue = [lowerWord];
 
