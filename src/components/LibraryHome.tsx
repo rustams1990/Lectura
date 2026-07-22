@@ -46,6 +46,7 @@ interface LibraryHomeProps {
   wordLinks: Record<string, string>;
   languageFlags: Record<string, string>;
   settings?: ReaderSettings;
+  isLoading?: boolean;
 }
 
 // Map language to a spectacular cover style
@@ -170,6 +171,7 @@ export default function LibraryHome({
   wordLinks,
   languageFlags,
   settings,
+  isLoading = false,
 }: LibraryHomeProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("All");
@@ -809,7 +811,20 @@ export default function LibraryHome({
       </div>
 
       {/* Visual Book Grid */}
-      {filteredLessons.length > 0 ? (
+      {isLoading ? (
+        <div className={`grid ${gridColsClass} gap-6 md:gap-8`}>
+          {Array.from({ length: booksPerRow * 2 }).map((_, idx) => (
+            <div key={idx} className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-4 space-y-4 animate-pulse shadow-sm">
+              <div className="w-full h-40 bg-zinc-200/80 dark:bg-zinc-800/80 rounded-2xl" />
+              <div className="space-y-2">
+                <div className="h-4 bg-zinc-200/80 dark:bg-zinc-800/80 rounded-lg w-3/4" />
+                <div className="h-3 bg-zinc-200/80 dark:bg-zinc-800/80 rounded-lg w-1/2" />
+              </div>
+              <div className="h-9 bg-zinc-200/80 dark:bg-zinc-800/80 rounded-xl" />
+            </div>
+          ))}
+        </div>
+      ) : filteredLessons.length > 0 ? (
         <>
           <div className={`grid ${gridColsClass} gap-6 md:gap-8`}>
             {paginatedLessons.map((lesson) => {

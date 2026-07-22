@@ -564,6 +564,9 @@ export default function App() {
   });
 
   const serverInitialLoadComplete = useRef<boolean>(false);
+  const [isInitialServerLoading, setIsInitialServerLoading] = useState<boolean>(() => {
+    return storageMode === "server" && !serverInitialLoadComplete.current;
+  });
 
   useEffect(() => {
     safeLocalStorageSetItem("vocab_clone_storage_mode", storageMode);
@@ -629,6 +632,9 @@ export default function App() {
     if (isAuthLoading) return;
     if (localSyncError) return;
     setIsSyncing(true);
+    if (!serverInitialLoadComplete.current) {
+      setIsInitialServerLoading(true);
+    }
     try {
       const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
       const savedUserStr = localStorage.getItem("vocab_clone_local_user");
@@ -731,6 +737,7 @@ export default function App() {
       console.error("Failed to load or seed dataset from local server:", e);
     } finally {
       setIsSyncing(false);
+      setIsInitialServerLoading(false);
     }
   };
 
@@ -2508,6 +2515,7 @@ export default function App() {
               wordLinks={wordLinks}
               languageFlags={languageFlags}
               settings={readerSettings}
+              isLoading={isInitialServerLoading}
             />
           </div>
         ) : activeTab === "statistics" ? (
