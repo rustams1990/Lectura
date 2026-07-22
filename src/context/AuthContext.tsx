@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { auth } from "../firebase";
+import { safeLocalStorageSetItem } from "../utils";
 
 export interface LocalUser {
   id: string;
@@ -58,19 +59,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setStorageMode = (mode: "cloud" | "local" | "server") => {
     setStorageModeState(mode);
-    localStorage.setItem("vocab_clone_storage_mode", mode);
+    safeLocalStorageSetItem("vocab_clone_storage_mode", mode);
   };
 
   const setLocalSyncKey = (key: string) => {
     setLocalSyncKeyState(key);
-    localStorage.setItem("vocab_clone_local_sync_key", key);
+    safeLocalStorageSetItem("vocab_clone_local_sync_key", key);
     setLocalSyncError(false);
   };
 
-  // Synchronize serverToken to localStorage
+  // Synchronize serverToken to localStorage safely
   useEffect(() => {
     if (serverToken) {
-      localStorage.setItem("vocab_clone_server_token", serverToken);
+      safeLocalStorageSetItem("vocab_clone_server_token", serverToken);
     } else {
       localStorage.removeItem("vocab_clone_server_token");
     }

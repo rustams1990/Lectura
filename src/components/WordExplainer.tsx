@@ -2374,7 +2374,7 @@ export default function WordExplainer({
               onClick={() => {
                 const nextVal = !relatedPhrasesOpen;
                 setRelatedPhrasesOpen(nextVal);
-                localStorage.setItem("vocab_related_phrases_open", String(nextVal));
+                safeLocalStorageSetItem("vocab_related_phrases_open", String(nextVal));
               }}
               className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
             >

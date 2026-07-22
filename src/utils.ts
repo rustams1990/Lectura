@@ -214,6 +214,20 @@ export function safeLocalStorageSetItem(key: string, value: string): void {
 }
 
 /**
+ * Strips heavy fields (like audioBase64) from lessons before saving to browser localStorage fallback
+ * to prevent exceeding the browser 5MB storage quota.
+ */
+export function sanitizeLessonsForLocalStorage(lessons: any[]): string {
+  if (!Array.isArray(lessons)) return "[]";
+  const sanitized = lessons.map(l => {
+    if (!l) return l;
+    const { audioBase64, ...rest } = l;
+    return rest;
+  });
+  return JSON.stringify(sanitized);
+}
+
+/**
  * Normalizes contractions and possessives to their base forms for status inheritance
  */
 export function normalizeContraction(w: string, targetLanguage: string): string {

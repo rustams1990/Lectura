@@ -51,7 +51,7 @@ import {
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff } from "lucide-react";
-import { safeJsonParse, safeLocalStorageSetItem, normalizeContraction } from "./utils";
+import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction } from "./utils";
 
 const readerThemes = {
   default: {
@@ -448,7 +448,7 @@ export default function App() {
     const saved = localStorage.getItem("vocab_clone_layout_width");
     // Migrate 'standard' to 'full' — full-width looks better especially at zoom > 100%
     if (!saved || saved === "standard") {
-      localStorage.setItem("vocab_clone_layout_width", "full");
+      safeLocalStorageSetItem("vocab_clone_layout_width", "full");
       return "full";
     }
     return (saved as "standard" | "wide" | "ultra" | "full");
@@ -667,8 +667,8 @@ export default function App() {
           if (d.listeningSeconds !== undefined) setListeningSeconds(d.listeningSeconds);
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
-          // Sync into localStorage as fallback buffer
-          if (d.lessons) safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(d.lessons));
+          // Sync into localStorage as fallback buffer (sanitizing heavy base64 fields)
+          if (d.lessons) safeLocalStorageSetItem("vocab_clone_lessons", sanitizeLessonsForLocalStorage(d.lessons));
           if (d.lessonTypes) safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(d.lessonTypes));
           safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(normalizedCloudVocab));
           safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizedCloudWordLinks));
@@ -804,7 +804,7 @@ export default function App() {
         // Automatically align storageMode to "cloud" when logged in via Firebase
         if (storageMode !== "cloud") {
           setStorageMode("cloud");
-          localStorage.setItem("vocab_clone_storage_mode", "cloud");
+          safeLocalStorageSetItem("vocab_clone_storage_mode", "cloud");
           return; // The change in storageMode will trigger a re-run of this useEffect
         }
       }
@@ -1103,9 +1103,9 @@ export default function App() {
 
 
 
-  // Sync state to local storage
+  // Sync state to local storage (sanitizing heavy base64 fields to prevent quota overflow)
   useEffect(() => {
-    safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(lessons));
+    safeLocalStorageSetItem("vocab_clone_lessons", sanitizeLessonsForLocalStorage(lessons));
   }, [lessons]);
 
   useEffect(() => {
@@ -1754,7 +1754,7 @@ export default function App() {
         };
         setLessons((prev) => {
           const next = prev.map((l) => (l.id === activeLesson.id ? updatedLesson : l));
-          safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
+          safeLocalStorageSetItem("vocab_clone_lessons", sanitizeLessonsForLocalStorage(next));
           return next;
         });
         if (auth.currentUser && storageMode === "cloud") {
@@ -3275,7 +3275,7 @@ export default function App() {
           <button 
             onClick={() => {
               setShowIosInstallBanner(false);
-              localStorage.setItem('ios_pwa_banner_dismissed', 'true');
+              safeLocalStorageSetItem('ios_pwa_banner_dismissed', 'true');
             }}
             className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
             title="Закрыть"
