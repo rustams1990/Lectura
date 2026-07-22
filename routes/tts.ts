@@ -174,13 +174,13 @@ router.post("/local-tts", ttsRateLimit, async (req, res) => {
 
   // Auto-switch English default voice to native language voice if processing non-English text
   if (!cleanVoice || cleanVoice === "af_sarah" || cleanVoice === "am_adam") {
-    if (langLower.includes("span") || langLower.includes("españ") || langLower.startsWith("es")) cleanVoice = "es_es";
+    if (langLower.includes("span") || langLower.includes("españ") || langLower.startsWith("es")) cleanVoice = "ef_dora";
     else if (langLower.includes("fren") || langLower.includes("fran") || langLower.startsWith("fr")) cleanVoice = "ff_siwis";
-    else if (langLower.includes("ital") || langLower.startsWith("it")) cleanVoice = "it_it";
+    else if (langLower.includes("ital") || langLower.startsWith("it")) cleanVoice = "it_sara";
     else if (langLower.includes("germ") || langLower.includes("deut") || langLower.startsWith("de")) cleanVoice = "de_de";
     else if (langLower.includes("japa") || langLower.startsWith("ja")) cleanVoice = "jf_alpha";
     else if (langLower.includes("chin") || langLower.startsWith("zh")) cleanVoice = "zf_xiaobei";
-    else if (langLower.includes("port") || langLower.startsWith("pt")) cleanVoice = "pt_br";
+    else if (langLower.includes("port") || langLower.startsWith("pt")) cleanVoice = "pf_dora";
     else if (langLower.includes("russ") || langLower.startsWith("ru")) cleanVoice = "ru_dmitri";
     else if (!cleanVoice) cleanVoice = "af_sarah";
   }

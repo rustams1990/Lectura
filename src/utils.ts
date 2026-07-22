@@ -221,13 +221,13 @@ export function getEffectiveLocalTtsVoice(languageName: string, settings?: any):
 
   // Default native Kokoro / Piper voice mapping per language
   const DEFAULT_LANG_VOICES: Record<string, string> = {
-    es: "es_es",     // Spanish
+    es: "ef_dora",    // Spanish (Kokoro: ef_dora / em_alex)
     fr: "ff_siwis",   // French
-    it: "it_it",      // Italian
+    it: "it_sara",    // Italian
     de: "de_de",      // German
     ja: "jf_alpha",   // Japanese
     zh: "zf_xiaobei", // Chinese
-    pt: "pt_br",      // Portuguese
+    pt: "pf_dora",    // Portuguese
     ru: "ru_dmitri",  // Russian
     hi: "hf_alpha",   // Hindi
     en: settings?.localTtsVoice || "af_sarah", // English
