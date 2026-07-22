@@ -568,19 +568,21 @@ export default function LibraryHome({
       
       {/* Visual welcome bookshelf header */}
       {isBannerCollapsed ? (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-950 to-zinc-950 px-4 py-3 text-white flex items-center justify-between border border-teal-800/30 shadow-md">
+        <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gradient-to-r dark:from-emerald-950 dark:via-teal-950 dark:to-zinc-950 px-4 py-2.5 text-zinc-800 dark:text-white flex items-center justify-between border border-zinc-200/80 dark:border-teal-800/30 shadow-xs dark:shadow-md transition-all">
           <div className="flex items-center gap-3 text-xs font-bold truncate">
-            <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-            <span className="truncate">Ваша умная библиотека / Smart Bookshelf</span>
-            <div className="hidden sm:flex items-center gap-2 text-[10px] text-teal-200">
-              <span>• Всего: <strong className="text-white">{lessons.length}</strong></span>
-              <span>• Активных: <strong className="text-amber-300">{activeCount}</strong></span>
-              <span>• В архиве: <strong className="text-teal-300">{archivedCount}</strong></span>
+            <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-amber-300 border border-teal-200/60 dark:border-teal-800/40">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <span className="truncate text-zinc-800 dark:text-white font-extrabold">Ваша умная библиотека / Smart Bookshelf</span>
+            <div className="hidden sm:flex items-center gap-2.5 text-[11px] text-zinc-500 dark:text-teal-200 ml-2 font-medium">
+              <span>• Всего: <strong className="text-zinc-800 dark:text-white font-bold">{lessons.length}</strong></span>
+              <span>• Активных: <strong className="text-teal-700 dark:text-amber-300 font-bold">{activeCount}</strong></span>
+              <span>• В архиве: <strong className="text-zinc-600 dark:text-teal-300 font-bold">{archivedCount}</strong></span>
             </div>
           </div>
           <button
             onClick={toggleBannerCollapse}
-            className="flex items-center gap-1.5 text-[11px] font-bold text-teal-200 hover:text-white px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-white/10"
+            className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-600 dark:text-teal-200 hover:text-zinc-900 dark:hover:text-white px-3 py-1 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-zinc-200/80 dark:border-white/10"
             title="Развернуть баннер библиотеки"
           >
             <span>Развернуть</span>
@@ -588,7 +590,7 @@ export default function LibraryHome({
           </button>
         </div>
       ) : (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-teal-900 to-zinc-950 p-4 sm:p-6 text-white shadow-xl shadow-teal-950/40 flex flex-col justify-between border border-teal-800/20">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-800 via-teal-900 to-zinc-950 dark:from-emerald-950 dark:via-teal-950 dark:to-zinc-950 p-4 sm:p-6 text-white shadow-lg flex flex-col justify-between border border-teal-700/40 dark:border-teal-800/20">
           
           {/* Ambient floating elements */}
           <div className="absolute right-0 top-0 opacity-10 translate-x-10 -translate-y-10 transform scale-150 select-none pointer-events-none">
