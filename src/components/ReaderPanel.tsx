@@ -500,6 +500,77 @@ export default function ReaderPanel({
     };
   }, []);
 
+  // Touch Swipe Gesture State for Mobile / Tablet Page Navigation
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    if (e.changedTouches.length === 0) return;
+
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+      if (deltaX < 0) {
+        // Swipe Left -> Next Page
+        if (currentPageIdx < pages.length - 1) {
+          didUserNavigateRef.current = true;
+          setCurrentPageIdx(prev => Math.min(pages.length - 1, prev + 1));
+          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
+        }
+      } else {
+        // Swipe Right -> Prev Page
+        if (currentPageIdx > 0) {
+          didUserNavigateRef.current = true;
+          setCurrentPageIdx(prev => Math.max(0, prev - 1));
+          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    }
+  };
+
+  // Keyboard Shortcuts (ArrowLeft, ArrowRight, Escape)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        if (currentPageIdx > 0) {
+          didUserNavigateRef.current = true;
+          setCurrentPageIdx(prev => Math.max(0, prev - 1));
+          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
+        }
+      } else if (e.key === "ArrowRight") {
+        if (currentPageIdx < pages.length - 1) {
+          didUserNavigateRef.current = true;
+          setCurrentPageIdx(prev => Math.min(pages.length - 1, prev + 1));
+          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
+        }
+      } else if (e.key === "Escape") {
+        if (activeWord) {
+          onWordClick("", "");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentPageIdx, pages.length, activeWord, onWordClick]);
+
   const clampedPageIdx = useMemo(() => {
     return Math.min(Math.max(0, currentPageIdx), pages.length - 1);
   }, [currentPageIdx, pages]);
@@ -1008,6 +1079,8 @@ export default function ReaderPanel({
 
       <div 
         onMouseUp={handleTextSelection}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className={`prose max-w-none space-y-6 ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
       >
         {showOnlyUnknown && unknownViewMode === "list" && (
