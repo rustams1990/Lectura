@@ -15,6 +15,7 @@ export async function migrateFromLocalStorage() {
   if (isMigrated) return;
 
   console.log("Migrating data from localStorage to IndexedDB...");
+  let hasErrors = false;
 
   // Migrate lessons
   const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
@@ -22,7 +23,10 @@ export async function migrateFromLocalStorage() {
     try {
       const parsed = JSON.parse(localLessonsStr);
       await lessonsStore.setItem('lessons', parsed);
-    } catch (e) { console.error("Error migrating lessons", e); }
+    } catch (e) {
+      hasErrors = true;
+      console.error("Error migrating lessons", e);
+    }
   }
 
   const localLessonTypesStr = localStorage.getItem("vocab_clone_lessontypes");
@@ -30,7 +34,10 @@ export async function migrateFromLocalStorage() {
     try {
       const parsed = JSON.parse(localLessonTypesStr);
       await lessonsStore.setItem('lessontypes', parsed);
-    } catch (e) { console.error("Error migrating lessontypes", e); }
+    } catch (e) {
+      hasErrors = true;
+      console.error("Error migrating lessontypes", e);
+    }
   }
 
   // Migrate vocab
@@ -39,7 +46,10 @@ export async function migrateFromLocalStorage() {
     try {
       const parsed = JSON.parse(localWordsStr);
       await vocabStore.setItem('words', parsed);
-    } catch (e) { console.error("Error migrating words", e); }
+    } catch (e) {
+      hasErrors = true;
+      console.error("Error migrating words", e);
+    }
   }
   
   const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
@@ -47,7 +57,10 @@ export async function migrateFromLocalStorage() {
     try {
       const parsed = JSON.parse(localAliasesStr);
       await vocabStore.setItem('aliases', parsed);
-    } catch (e) { console.error("Error migrating aliases", e); }
+    } catch (e) {
+      hasErrors = true;
+      console.error("Error migrating aliases", e);
+    }
   }
 
   // Migrate settings (we store them as raw strings in IndexedDB to match how App.tsx previously handled them, or parsed if we refactor)
@@ -65,10 +78,19 @@ export async function migrateFromLocalStorage() {
   for (const key of keysToMigrate) {
     const val = localStorage.getItem(key);
     if (val !== null) {
-      await settingsStore.setItem(key, val);
+      try {
+        await settingsStore.setItem(key, val);
+      } catch (e) {
+        hasErrors = true;
+        console.error(`Error migrating setting key ${key}`, e);
+      }
     }
   }
 
-  await settingsStore.setItem('vocab_clone_migrated_v1', true);
-  console.log("Migration complete!");
+  if (!hasErrors) {
+    await settingsStore.setItem('vocab_clone_migrated_v1', true);
+    console.log("Migration complete!");
+  } else {
+    console.warn("Migration completed with errors; flag 'vocab_clone_migrated_v1' not set so migration can retry.");
+  }
 }

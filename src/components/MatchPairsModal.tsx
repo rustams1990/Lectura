@@ -129,6 +129,18 @@ export default function MatchPairsModal({
     }
   };
 
+  // Handle Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Check match when both are selected
   useEffect(() => {
     if (selectedWordCard && selectedTransCard) {
@@ -136,6 +148,21 @@ export default function MatchPairsModal({
         // Correct match!
         const matchKey = selectedWordCard.wordKey;
         
+        // Trigger SRS Status upgrade callback
+        if (onUpdateStatus) {
+          const matchedItem = currentPairs.find((p) => p.word.toLowerCase() === matchKey);
+          if (matchedItem) {
+            const curStatus = matchedItem.status;
+            let nextStatus: WordStatus = "1";
+            if (curStatus === "1") nextStatus = "2";
+            else if (curStatus === "2") nextStatus = "3";
+            else if (curStatus === "3") nextStatus = "4";
+            else if (curStatus === "4") nextStatus = "5";
+            else if (curStatus === "5") nextStatus = "known";
+            onUpdateStatus(matchedItem.word, nextStatus);
+          }
+        }
+
         // Timeout to let animations sync
         setTimeout(() => {
           setMatchedKeys((prev) => {
@@ -165,13 +192,20 @@ export default function MatchPairsModal({
         }, 1000);
       }
     }
-  }, [selectedWordCard, selectedTransCard, currentPairs]);
+  }, [selectedWordCard, selectedTransCard, currentPairs, onUpdateStatus]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/65 backdrop-blur-xs font-sans">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/65 backdrop-blur-xs font-sans"
+      onClick={onClose}
+    >
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="match-pairs-modal-title"
+        onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -184,7 +218,7 @@ export default function MatchPairsModal({
               <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-zinc-800 dark:text-zinc-100 tracking-tight">
+              <h3 id="match-pairs-modal-title" className="font-extrabold text-sm text-zinc-800 dark:text-zinc-100 tracking-tight">
                 Сопоставление пар (Match Pairs)
               </h3>
               <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mt-0.5">
@@ -199,6 +233,7 @@ export default function MatchPairsModal({
             </span>
             <button
               onClick={onClose}
+              aria-label="Закрыть"
               className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-400 rounded-xl transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -344,7 +379,7 @@ export default function MatchPairsModal({
                       if (isMatched) {
                         cardStyle = "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 cursor-default opacity-60";
                       } else if (isWrong) {
-                        cardStyle = "bg-red-50 dark:bg-red-955/40 border-red-250 dark:border-red-900/40 text-red-700 dark:text-red-400 animate-shake";
+                        cardStyle = "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-400 animate-shake";
                       } else if (isSelected) {
                         cardStyle = "bg-teal-50/50 dark:bg-teal-950/20 border-teal-500 text-teal-700 dark:text-teal-400 shadow-sm shadow-teal-100 dark:shadow-none";
                       }
@@ -376,7 +411,7 @@ export default function MatchPairsModal({
                       if (isMatched) {
                         cardStyle = "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 cursor-default opacity-60";
                       } else if (isWrong) {
-                        cardStyle = "bg-red-50 dark:bg-red-955/40 border-red-250 dark:border-red-900/40 text-red-700 dark:text-red-400 animate-shake";
+                        cardStyle = "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-400 animate-shake";
                       } else if (isSelected) {
                         cardStyle = "bg-teal-50/50 dark:bg-teal-950/20 border-teal-500 text-teal-700 dark:text-teal-400 shadow-sm shadow-teal-100 dark:shadow-none";
                       }

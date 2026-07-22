@@ -127,16 +127,27 @@ export default function YoutubePlayerWindow({
       }
     };
 
+    let lastStorageSaveTime = 0;
+
+    const saveProgressNow = (time: number) => {
+      try {
+        localStorage.setItem(`youtube_progress_${lesson.id}`, time.toString());
+        lastStorageSaveTime = Date.now();
+      } catch (e) {}
+    };
+
     const startTrackingTime = () => {
       if (timer) clearInterval(timer);
       timer = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
           try {
-            const currentTime = playerRef.current.getCurrentTime();
-            if (currentTime !== undefined) {
-              setCurrentTime(currentTime);
-              // Save progress to localStorage
-              localStorage.setItem(`youtube_progress_${lesson.id}`, currentTime.toString());
+            const time = playerRef.current.getCurrentTime();
+            if (time !== undefined) {
+              setCurrentTime(time);
+              // Throttled save: write to localStorage at most once every 3 seconds during playback
+              if (Date.now() - lastStorageSaveTime >= 3000) {
+                saveProgressNow(time);
+              }
             }
           } catch (e) {
             // ignore temporary access issues
@@ -147,11 +158,12 @@ export default function YoutubePlayerWindow({
 
     const stopTrackingTime = () => {
       if (timer) clearInterval(timer);
+      // Instant save on pause / stop
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {
-          const currentTime = playerRef.current.getCurrentTime();
-          if (currentTime !== undefined) {
-            localStorage.setItem(`youtube_progress_${lesson.id}`, currentTime.toString());
+          const time = playerRef.current.getCurrentTime();
+          if (time !== undefined) {
+            saveProgressNow(time);
           }
         } catch (e) {}
       }
@@ -163,12 +175,12 @@ export default function YoutubePlayerWindow({
       isUnmounted = true;
       if (timer) clearInterval(timer);
       
-      // Save progress on cleanup/unmount
+      // Instant save on unmount
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {
-          const currentTime = playerRef.current.getCurrentTime();
-          if (currentTime !== undefined) {
-            localStorage.setItem(`youtube_progress_${lesson.id}`, currentTime.toString());
+          const time = playerRef.current.getCurrentTime();
+          if (time !== undefined) {
+            localStorage.setItem(`youtube_progress_${lesson.id}`, time.toString());
           }
         } catch (err) {}
       }

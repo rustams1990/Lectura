@@ -374,8 +374,16 @@ export async function loadUserData(userId: string) {
   }
 
   try {
+    // Execute all top-level collection queries in parallel
+    const [profileSnap, lingqsSnap, lessonsSnap, typesSnap, linksSnap] = await Promise.all([
+      getDoc(doc(db, "users", userId)),
+      getDocs(collection(db, "users", userId, "lingqs")),
+      getDocs(collection(db, "users", userId, "lessons")),
+      getDocs(collection(db, "users", userId, "lessonTypes")),
+      getDocs(collection(db, "users", userId, "wordLinks"))
+    ]);
+
     // 1. Profile metadata
-    const profileSnap = await getDoc(doc(db, "users", userId));
     if (profileSnap.exists()) {
       const data = profileSnap.data();
       infoLoad.listeningSeconds = data.listeningSeconds || 0;
@@ -383,7 +391,6 @@ export async function loadUserData(userId: string) {
     }
 
     // 2. Vocab (Words stored in "lingqs" collection)
-    const lingqsSnap = await getDocs(collection(db, "users", userId, "lingqs"));
     lingqsSnap.forEach(doc => {
       const data = doc.data() as VocabItem;
       if (data.word) {
@@ -392,9 +399,8 @@ export async function loadUserData(userId: string) {
       infoLoad.vocab[decodeDocId(doc.id)] = data;
     });
 
-    // 3. Lessons
-    const lessonsSnap = await getDocs(collection(db, "users", userId, "lessons"));
-    for (const d of lessonsSnap.docs) {
+    // 3. Lessons (hydrating images in parallel)
+    const lessonPromises = lessonsSnap.docs.map(async (d) => {
       const lesson = d.data() as Lesson;
       if (lesson.text && lesson.text.includes("[IMG_REF:")) {
         try {
@@ -408,17 +414,16 @@ export async function loadUserData(userId: string) {
           console.error("Failed to load images for lesson", lesson.id, err);
         }
       }
-      infoLoad.lessons.push(lesson);
-    }
+      return lesson;
+    });
+    infoLoad.lessons = await Promise.all(lessonPromises);
 
     // 4. Custom lesson categories
-    const typesSnap = await getDocs(collection(db, "users", userId, "lessonTypes"));
     typesSnap.forEach(doc => {
       infoLoad.lessonTypes.push(doc.data() as LessonType);
     });
 
     // 5. Morphological word associations
-    const linksSnap = await getDocs(collection(db, "users", userId, "wordLinks"));
     linksSnap.forEach(doc => {
       const data = doc.data();
       if (data.sourceWord && data.targetWord) {
@@ -465,7 +470,7 @@ export async function uploadLocalToCloud(
   let batch = writeBatch(db);
   let opCount = 0;
 
-  // Let's flush batches in blocks of 100 to stay safely below 500 entity limits
+  // Flush batches in blocks of 200 to stay safely below Firestore 500 limits
   const commitBatchIfNeeded = async () => {
     opCount++;
     if (opCount >= 200) {
@@ -483,11 +488,13 @@ export async function uploadLocalToCloud(
     await commitBatchIfNeeded();
 
     for (const img of images) {
-      await setDoc(doc(db, "users", userId, "lessons", lesson.id, "images", img.id), {
+      const imgRef = doc(db, "users", userId, "lessons", lesson.id, "images", img.id);
+      batch.set(imgRef, {
         dataUrl: img.dataUrl,
         width: img.width,
         height: img.height
       });
+      await commitBatchIfNeeded();
     }
   }
 

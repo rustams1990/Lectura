@@ -53,6 +53,14 @@
 }
 
 /* Custom scrollbar adjustments for a clean, non-intrusive scroll layout */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.dark * {
+  scrollbar-color: #2e2e35 transparent;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

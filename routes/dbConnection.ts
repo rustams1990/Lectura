@@ -2,7 +2,11 @@ import path from "path";
 import fs from "fs";
 import Database from "better-sqlite3";
 
-const DATA_DIR = process.env.DATA_DIR || process.cwd();
+const RAW_DATA_DIR = process.env.DATA_DIR;
+const DATA_DIR = RAW_DATA_DIR ? RAW_DATA_DIR : path.join(process.cwd(), "data");
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 export const SQLITE_DB_PATH = path.join(DATA_DIR, "local_server_db.sqlite");
 
 const dbConns = new Map<string, Database.Database>();
@@ -14,22 +18,6 @@ export function getDbConnection(userId: string = "default"): Database.Database {
     const userDbPath = safeUserId === "default"
       ? SQLITE_DB_PATH
       : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
-
-    // Migrate existing main SQLite database to 'rustam' user profile if they connect for the first time
-    if ((safeUserId === "local_rustam" || safeUserId === "local-rustam") && !fs.existsSync(userDbPath) && fs.existsSync(SQLITE_DB_PATH)) {
-      console.log("Migrating main SQLite database to user profile 'local-rustam'...");
-      try {
-        fs.copyFileSync(SQLITE_DB_PATH, userDbPath);
-        if (fs.existsSync(SQLITE_DB_PATH + "-wal")) {
-          fs.copyFileSync(SQLITE_DB_PATH + "-wal", userDbPath + "-wal");
-        }
-        if (fs.existsSync(SQLITE_DB_PATH + "-shm")) {
-          fs.copyFileSync(SQLITE_DB_PATH + "-shm", userDbPath + "-shm");
-        }
-      } catch (err) {
-        console.error("Failed to copy default SQLite database to local-rustam profile:", err);
-      }
-    }
 
     conn = new Database(userDbPath);
     conn.pragma("journal_mode = WAL");

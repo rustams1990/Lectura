@@ -146,7 +146,37 @@
   color: white;
 }
 
-/* Dark mode support */
+/* Dark mode support (.dark class & prefers-color-scheme media query) */
+.dark .pdf-container {
+  background: #1f2937;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .pdf-page {
+  background: #1f2937;
+}
+
+.dark .pdf-text-layer {
+  color: #e5e7eb;
+}
+
+.dark .pdf-image--loading {
+  background: #374151;
+}
+
+.dark .pdf-image--loading::after {
+  color: #6b7280;
+}
+
+.dark .pdf-image--error {
+  background: #450a0a;
+  border-color: #7f1d1d;
+}
+
+.dark .pdf-image--error::after {
+  color: #fca5a5;
+}
+
 @media (prefers-color-scheme: dark) {
   .pdf-container {
     background: #1f2937;

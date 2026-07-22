@@ -1,8 +1,25 @@
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 import { getDbConnection } from "./dbConnection.ts";
 
 const router = Router();
+
+// Rate limiter for authentication endpoints (login & register)
+export const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // max 15 requests per IP per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Слишком много попыток входа или регистрации. Пожалуйста, подождите 15 минут.",
+    retryAfter: 900
+  },
+  keyGenerator: (req) =>
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+    || req.socket.remoteAddress
+    || "unknown",
+});
 
 // ============================================================
 // Password Hashing and Verification (pbkdf2)
@@ -10,16 +27,28 @@ const router = Router();
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
-  return `${salt}:${hash}`;
+  const iterations = 310000;
+  const hash = crypto.pbkdf2Sync(password, salt, iterations, 64, "sha512").toString("hex");
+  return `${iterations}:${salt}:${hash}`;
 }
 
 export function verifyPassword(password: string, storedHash: string): boolean {
   const parts = storedHash.split(":");
-  if (parts.length !== 2) return false;
-  const [salt, originalHash] = parts;
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
-  return hash === originalHash;
+  if (parts.length === 2) {
+    // Legacy format: salt:hash (1000 iterations)
+    const [salt, originalHash] = parts;
+    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+    return hash === originalHash;
+  }
+  if (parts.length === 3) {
+    // Modern format: iterations:salt:hash
+    const [iterationsStr, salt, originalHash] = parts;
+    const iterations = parseInt(iterationsStr, 10);
+    if (isNaN(iterations) || iterations < 1000) return false;
+    const hash = crypto.pbkdf2Sync(password, salt, iterations, 64, "sha512").toString("hex");
+    return hash === originalHash;
+  }
+  return false;
 }
 
 // ============================================================
@@ -84,7 +113,7 @@ export function requireLocalSyncKey(req: Request, res: Response, next: NextFunct
 // ============================================================
 
 // 1. User Registration
-router.post("/register", (req: Request, res: Response) => {
+router.post("/register", authRateLimit, (req: Request, res: Response) => {
   const emailInput = req.body.email || req.body.username;
   const { password, name } = req.body;
   if (!emailInput || !password) {
@@ -132,7 +161,7 @@ router.post("/register", (req: Request, res: Response) => {
 });
 
 // 2. User Login
-router.post("/login", (req: Request, res: Response) => {
+router.post("/login", authRateLimit, (req: Request, res: Response) => {
   const emailInput = req.body.email || req.body.username;
   const { password } = req.body;
   if (!emailInput || !password) {

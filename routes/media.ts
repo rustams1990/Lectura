@@ -424,7 +424,18 @@ router.post("/import-file", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "File data base64 is required" });
   }
 
+  const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024; // 30 MB
+  // Check length of base64 payload first
+  const estimatedSize = Math.ceil((fileBase64.length * 3) / 4);
+  if (estimatedSize > MAX_FILE_SIZE_BYTES + 1024) {
+    return res.status(413).json({ error: "Размер файла превышает максимально допустимый лимит 30 МБ (Payload Too Large)" });
+  }
+
   const buffer = Buffer.from(fileBase64, "base64");
+  if (buffer.length > MAX_FILE_SIZE_BYTES) {
+    return res.status(413).json({ error: "Размер файла превышает максимально допустимый лимит 30 МБ (Payload Too Large)" });
+  }
+
   const extension = filename ? filename.split(".").pop().toLowerCase() : "";
 
   try {

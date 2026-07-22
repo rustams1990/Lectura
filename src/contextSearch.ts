@@ -60,14 +60,46 @@ function extractRawWord(key: string): string {
   return (idx !== -1 ? key.substring(idx + 1) : key).toLowerCase();
 }
 
+function buildLinkAdjacency(wordLinks: Record<string, string>, targetLang: string): Map<string, Set<string>> {
+  const adj = new Map<string, Set<string>>();
+  const langLower = targetLang.toLowerCase();
+
+  const addEdge = (u: string, v: string) => {
+    if (!adj.has(u)) adj.set(u, new Set());
+    adj.get(u)!.add(v);
+  };
+
+  for (const [key, val] of Object.entries(wordLinks)) {
+    const valStr = val as string;
+    const keyLang = key.includes("_") ? key.substring(0, key.indexOf("_")).toLowerCase() : "";
+    const valLang = valStr.includes("_") ? valStr.substring(0, valStr.indexOf("_")).toLowerCase() : "";
+
+    if (keyLang && keyLang !== langLower) continue;
+    if (valLang && valLang !== langLower) continue;
+
+    const rawKey = extractRawWord(key);
+    const rawVal = extractRawWord(valStr);
+    if (rawKey && rawVal) {
+      addEdge(rawKey, rawVal);
+      addEdge(rawVal, rawKey);
+    }
+  }
+
+  return adj;
+}
+
 function getLinkedForms(word: string, lang: string, wordLinks: Record<string, string>): string[] {
   const list = new Set<string>();
   const lowerWord = word.toLowerCase();
   list.add(lowerWord);
 
+  if (!wordLinks || Object.keys(wordLinks).length === 0) {
+    return Array.from(list);
+  }
+
+  const adj = buildLinkAdjacency(wordLinks, lang);
   const visited = new Set<string>();
   const queue = [lowerWord];
-  const langLower = lang.toLowerCase();
 
   while (queue.length > 0) {
     const current = queue.shift()!;
@@ -75,19 +107,13 @@ function getLinkedForms(word: string, lang: string, wordLinks: Record<string, st
     visited.add(current);
     list.add(current);
 
-    for (const [key, val] of Object.entries(wordLinks)) {
-      const valStr = val as string;
-      const keyLang = key.includes("_") ? key.substring(0, key.indexOf("_")).toLowerCase() : "";
-      const valLang = valStr.includes("_") ? valStr.substring(0, valStr.indexOf("_")).toLowerCase() : "";
-
-      if (keyLang && keyLang !== langLower) continue;
-      if (valLang && valLang !== langLower) continue;
-
-      const rawKey = extractRawWord(key);
-      const rawVal = extractRawWord(valStr);
-
-      if (rawKey === current && !visited.has(rawVal)) queue.push(rawVal);
-      if (rawVal === current && !visited.has(rawKey)) queue.push(rawKey);
+    const neighbors = adj.get(current);
+    if (neighbors) {
+      for (const neighbor of neighbors) {
+        if (!visited.has(neighbor)) {
+          queue.push(neighbor);
+        }
+      }
     }
   }
 
