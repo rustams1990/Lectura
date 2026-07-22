@@ -4,9 +4,7 @@ import fs from "fs";
 import crypto from "crypto";
 import AdmZip from "adm-zip";
 import { Type } from "@google/genai";
-import { createRequire } from "module";
-const requireFn = createRequire(import.meta.url);
-const pdfParse = requireFn("pdf-parse");
+import pdfParse from "pdf-parse";
 import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
 
 const router = Router();
