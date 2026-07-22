@@ -63,6 +63,16 @@ export default function MatchPairsModal({
   const [wordCards, setWordCards] = useState<CardItem[]>([]);
   const [transCards, setTransCards] = useState<CardItem[]>([]);
 
+  // Fisher-Yates shuffle algorithm for uniform randomness
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
   // Initialize/reshuffle cards for the round
   const setupRound = () => {
     if (filteredWords.length < 2) {
@@ -73,26 +83,26 @@ export default function MatchPairsModal({
       return;
     }
 
-    // Pick up to 5 random words from the filtered list
-    const shuffledPool = [...filteredWords].sort(() => 0.5 - Math.random());
+    // Pick up to 5 random words from the filtered list using Fisher-Yates
+    const shuffledPool = shuffleArray(filteredWords);
     const selectedPairs = shuffledPool.slice(0, Math.min(5, filteredWords.length));
     
     setCurrentPairs(selectedPairs);
 
-    // Create cards
-    const words = selectedPairs.map((p) => ({
-      id: `word_${p.word}`,
+    // Create cards with index-augmented unique IDs to avoid key collisions
+    const words = shuffleArray(selectedPairs.map((p: VocabItem, idx) => ({
+      id: `word_${p.word}_${idx}`,
       text: p.word,
       wordKey: p.word.toLowerCase(),
       type: "word" as const
-    })).sort(() => 0.5 - Math.random());
+    })));
 
-    const translations = selectedPairs.map((p) => ({
-      id: `trans_${p.word}`,
+    const translations = shuffleArray(selectedPairs.map((p: VocabItem, idx) => ({
+      id: `trans_${p.word}_${idx}`,
       text: p.translation,
       wordKey: p.word.toLowerCase(),
       type: "translation" as const
-    })).sort(() => 0.5 - Math.random());
+    })));
 
     setWordCards(words);
     setTransCards(translations);

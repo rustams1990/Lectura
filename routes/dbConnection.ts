@@ -133,6 +133,17 @@ export function getDbConnection(userId: string = "default"): Database.Database {
       conn.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`);
     } catch (_) {}
 
+    // Evict oldest connections if pool size exceeds max limit (20 connections)
+    if (dbConns.size >= 20) {
+      for (const [k, oldConn] of dbConns.entries()) {
+        if (k !== "default" && k !== safeUserId) {
+          try { oldConn.close(); } catch (_) {}
+          dbConns.delete(k);
+          if (dbConns.size < 20) break;
+        }
+      }
+    }
+
     dbConns.set(safeUserId, conn);
   }
   return conn;

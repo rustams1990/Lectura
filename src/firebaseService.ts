@@ -474,9 +474,10 @@ export async function uploadLocalToCloud(
   const commitBatchIfNeeded = async () => {
     opCount++;
     if (opCount >= 200) {
-      await batch.commit();
+      const batchToCommit = batch;
       batch = writeBatch(db);
       opCount = 0;
+      await batchToCommit.commit();
     }
   };
 
@@ -553,9 +554,10 @@ export async function clearAllUserDataOnFirestore(userId: string) {
     const commitBatchIfNeeded = async () => {
       opCount++;
       if (opCount >= 200) {
-        await batch.commit();
+        const batchToCommit = batch;
         batch = writeBatch(db);
         opCount = 0;
+        await batchToCommit.commit();
       }
     };
 

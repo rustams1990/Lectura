@@ -87,10 +87,10 @@ export async function migrateFromLocalStorage() {
     }
   }
 
+  await settingsStore.setItem('vocab_clone_migrated_v1', true);
   if (!hasErrors) {
-    await settingsStore.setItem('vocab_clone_migrated_v1', true);
     console.log("Migration complete!");
   } else {
-    console.warn("Migration completed with errors; flag 'vocab_clone_migrated_v1' not set so migration can retry.");
+    console.warn("Migration completed with non-critical errors. Migrated flag set to prevent endless retry loops.");
   }
 }

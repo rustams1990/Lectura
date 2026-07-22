@@ -31,6 +31,8 @@ export default function YoutubePlayerWindow({
   const windowRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const initTimeoutRef = useRef<any>(null);
+  const trackingIntervalRef = useRef<any>(null);
 
   // Load YouTube Player API script
   useEffect(() => {
@@ -48,7 +50,6 @@ export default function YoutubePlayerWindow({
 
   // Initialize YT Player on dynamic placeholder once DOM is ready and API loaded
   useEffect(() => {
-    let timer: any;
     let isUnmounted = false;
 
     const container = containerRef.current;
@@ -58,74 +59,9 @@ export default function YoutubePlayerWindow({
     container.innerHTML = "";
 
     // Create a fresh placeholder div for YT to replace
-    const playerDiv = document.createElement("div");
-    container.appendChild(playerDiv);
-
-    const initPlayer = () => {
-      if (isUnmounted) return;
-
-      const YT = (window as any).YT;
-
-      // Get saved progress for this specific lesson to start from, without autoplaying
-      let startSeconds = 0;
-      const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
-      if (savedProgress) {
-        const seconds = parseFloat(savedProgress);
-        if (!isNaN(seconds) && seconds > 0) {
-          startSeconds = Math.floor(seconds);
-        }
-      }
-
-      if (YT && YT.Player) {
-        try {
-          playerRef.current = new YT.Player(playerDiv, {
-            width: "100%",
-            height: "100%",
-            videoId: youtubeId,
-            playerVars: {
-              enablejsapi: 1,
-              rel: 0,
-              autoplay: 0,
-              playsinline: 1,
-              start: startSeconds > 0 ? startSeconds : undefined,
-            },
-            events: {
-              onReady: (event: any) => {
-                if (isUnmounted) return;
-                console.log("YouTube Player is ready");
-                
-                const player = event.target;
-                // Prioritize explicit seekToTime (from timestamp clicks in text)
-                if (seekToTime !== null && seekToTime !== undefined && player && typeof player.seekTo === "function") {
-                  try {
-                    player.seekTo(seekToTime, true);
-                  } catch (e) {
-                    console.error("Error seeking player on ready:", e);
-                  }
-                }
-              },
-              onStateChange: (event: any) => {
-                // event.data === 1 (YT.PlayerState.PLAYING)
-                if (event.data === 1) {
-                  startTrackingTime();
-                } else {
-                  stopTrackingTime();
-                }
-
-                // If video ended (event.data === 0), clear saved progress
-                if (event.data === 0) {
-                  localStorage.removeItem(`youtube_progress_${lesson.id}`);
-                }
-              },
-            },
-          });
-        } catch (error) {
-          console.error("Failed to construct YouTube Player:", error);
-        }
-      } else {
-        timer = setTimeout(initPlayer, 300);
-      }
-    };
+    const placeholder = document.createElement("div");
+    placeholder.id = `yt-player-iframe-${lesson.id}`;
+    container.appendChild(placeholder);
 
     let lastStorageSaveTime = 0;
 
@@ -137,8 +73,8 @@ export default function YoutubePlayerWindow({
     };
 
     const startTrackingTime = () => {
-      if (timer) clearInterval(timer);
-      timer = setInterval(() => {
+      if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
+      trackingIntervalRef.current = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
           try {
             const time = playerRef.current.getCurrentTime();
@@ -157,7 +93,10 @@ export default function YoutubePlayerWindow({
     };
 
     const stopTrackingTime = () => {
-      if (timer) clearInterval(timer);
+      if (trackingIntervalRef.current) {
+        clearInterval(trackingIntervalRef.current);
+        trackingIntervalRef.current = null;
+      }
       // Instant save on pause / stop
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {
@@ -169,20 +108,88 @@ export default function YoutubePlayerWindow({
       }
     };
 
+    const initPlayer = () => {
+      if (isUnmounted) return;
+
+      const YT = (window as any).YT;
+
+      // Get saved progress for this specific lesson to start from, without autoplaying
+      let startSeconds = 0;
+      const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
+      if (savedProgress) {
+        const seconds = parseFloat(savedProgress);
+        if (!isNaN(seconds) && seconds > 0) {
+          startSeconds = Math.floor(seconds);
+        }
+      }
+
+      if (YT && YT.Player) {
+        try {
+          playerRef.current = new YT.Player(placeholder, {
+            width: "100%",
+            height: "100%",
+            videoId: youtubeId,
+            playerVars: {
+              enablejsapi: 1,
+              rel: 0,
+              autoplay: 0,
+              playsinline: 1,
+              start: startSeconds > 0 ? startSeconds : undefined,
+            },
+            events: {
+              onReady: (event: any) => {
+                if (isUnmounted) return;
+                const player = event.target;
+                if (seekToTime !== null && seekToTime !== undefined && player && typeof player.seekTo === "function") {
+                  try {
+                    player.seekTo(seekToTime, true);
+                  } catch (e) {
+                    console.error("Error seeking player on ready:", e);
+                  }
+                }
+              },
+              onStateChange: (event: any) => {
+                if (isUnmounted) return;
+                if (event.data === 1) {
+                  startTrackingTime();
+                } else {
+                  stopTrackingTime();
+                }
+                if (event.data === 0) {
+                  localStorage.removeItem(`youtube_progress_${lesson.id}`);
+                }
+              },
+            },
+          });
+        } catch (error) {
+          console.error("Failed to construct YouTube Player:", error);
+        }
+      } else {
+        initTimeoutRef.current = setTimeout(initPlayer, 300);
+      }
+    };
+
     initPlayer();
 
     return () => {
       isUnmounted = true;
-      if (timer) clearInterval(timer);
-      
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+        initTimeoutRef.current = null;
+      }
+      if (trackingIntervalRef.current) {
+        clearInterval(trackingIntervalRef.current);
+        trackingIntervalRef.current = null;
+      }
+
       // Instant save on unmount
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {
           const time = playerRef.current.getCurrentTime();
-          if (time !== undefined) {
-            localStorage.setItem(`youtube_progress_${lesson.id}`, time.toString());
+          if (time !== undefined && !isNaN(time)) {
+            saveProgressNow(time);
           }
-        } catch (err) {}
+        } catch (e) {}
       }
 
       try {

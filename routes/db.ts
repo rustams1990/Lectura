@@ -308,13 +308,6 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
     `);
 
     db.transaction(() => {
-      db.prepare("DELETE FROM metadata").run();
-      db.prepare("DELETE FROM lesson_types").run();
-      db.prepare("DELETE FROM lessons").run();
-      db.prepare("DELETE FROM words").run();
-      db.prepare("DELETE FROM word_links").run();
-      db.prepare("DELETE FROM languages").run();
-
       const flags = data.languageFlags || {};
       for (const [lang, flag] of Object.entries(flags)) {
         const name = lang.charAt(0).toUpperCase() + lang.slice(1);

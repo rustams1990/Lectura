@@ -22,31 +22,35 @@ export const authRateLimit = rateLimit({
 });
 
 // ============================================================
-// Password Hashing and Verification (pbkdf2)
+import util from "util";
+
+const pbkdf2Async = util.promisify(crypto.pbkdf2);
+
+// Password Hashing and Verification (pbkdf2 async)
 // ============================================================
 
-export function hashPassword(password: string): string {
+export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16).toString("hex");
   const iterations = 310000;
-  const hash = crypto.pbkdf2Sync(password, salt, iterations, 64, "sha512").toString("hex");
-  return `${iterations}:${salt}:${hash}`;
+  const hashBuffer = await pbkdf2Async(password, salt, iterations, 64, "sha512");
+  return `${iterations}:${salt}:${hashBuffer.toString("hex")}`;
 }
 
-export function verifyPassword(password: string, storedHash: string): boolean {
+export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   const parts = storedHash.split(":");
   if (parts.length === 2) {
     // Legacy format: salt:hash (1000 iterations)
     const [salt, originalHash] = parts;
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
-    return hash === originalHash;
+    const hashBuffer = await pbkdf2Async(password, salt, 1000, 64, "sha512");
+    return hashBuffer.toString("hex") === originalHash;
   }
   if (parts.length === 3) {
     // Modern format: iterations:salt:hash
     const [iterationsStr, salt, originalHash] = parts;
     const iterations = parseInt(iterationsStr, 10);
     if (isNaN(iterations) || iterations < 1000) return false;
-    const hash = crypto.pbkdf2Sync(password, salt, iterations, 64, "sha512").toString("hex");
-    return hash === originalHash;
+    const hashBuffer = await pbkdf2Async(password, salt, iterations, 64, "sha512");
+    return hashBuffer.toString("hex") === originalHash;
   }
   return false;
 }
@@ -113,7 +117,7 @@ export function requireLocalSyncKey(req: Request, res: Response, next: NextFunct
 // ============================================================
 
 // 1. User Registration
-router.post("/register", authRateLimit, (req: Request, res: Response) => {
+router.post("/register", authRateLimit, async (req: Request, res: Response) => {
   const emailInput = req.body.email || req.body.username;
   const { password, name } = req.body;
   if (!emailInput || !password) {
@@ -134,7 +138,7 @@ router.post("/register", authRateLimit, (req: Request, res: Response) => {
     }
 
     const userId = "usr_" + crypto.randomBytes(16).toString("hex");
-    const pwdHash = hashPassword(password);
+    const pwdHash = await hashPassword(password);
     const createdAt = Date.now();
 
     db.prepare("INSERT INTO server_users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)")
@@ -161,7 +165,7 @@ router.post("/register", authRateLimit, (req: Request, res: Response) => {
 });
 
 // 2. User Login
-router.post("/login", authRateLimit, (req: Request, res: Response) => {
+router.post("/login", authRateLimit, async (req: Request, res: Response) => {
   const emailInput = req.body.email || req.body.username;
   const { password } = req.body;
   if (!emailInput || !password) {
@@ -178,7 +182,7 @@ router.post("/login", authRateLimit, (req: Request, res: Response) => {
       return res.status(400).json({ error: "Неверный логин или пароль" });
     }
 
-    const isValid = verifyPassword(password, user.password_hash);
+    const isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
       return res.status(400).json({ error: "Неверный логин или пароль" });
     }

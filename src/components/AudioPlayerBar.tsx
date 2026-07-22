@@ -84,7 +84,9 @@ export default function AudioPlayerBar({
   const hasAudio = isValidUrl(activeLesson.audioUrl) || isValidUrl(activeLesson.audioBase64);
   const audioSrc = isValidUrl(activeLesson.audioUrl)
     ? activeLesson.audioUrl!.trim()
-    : (isValidUrl(activeLesson.audioBase64) ? `data:audio/mp3;base64,${activeLesson.audioBase64!.trim()}` : "");
+    : (isValidUrl(activeLesson.audioBase64) 
+        ? (activeLesson.audioBase64!.trim().startsWith("data:") ? activeLesson.audioBase64!.trim() : `data:audio/mp3;base64,${activeLesson.audioBase64!.trim()}`)
+        : "");
 
   const handlePlayPause = () => {
     if (!audioRef.current || !hasAudio) return;
