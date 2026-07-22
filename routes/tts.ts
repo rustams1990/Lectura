@@ -148,6 +148,17 @@ router.get("/google-tts", async (req, res) => {
   }
 });
 
+// Helper to generate fallback URLs for Docker environment
+function getCandidateUrls(inputUrl: string): string[] {
+  const clean = inputUrl.trim();
+  const urls = [clean];
+  if (clean.includes("localhost") || clean.includes("127.0.0.1")) {
+    urls.push(clean.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal"));
+    urls.push(clean.replace("localhost", "172.17.0.1").replace("127.0.0.1", "172.17.0.1"));
+  }
+  return Array.from(new Set(urls));
+}
+
 // 3. Local Kokoro-82M / Piper TTS Proxy (disk cached)
 router.post("/local-tts", ttsRateLimit, async (req, res) => {
   const { text, voice, language, speed, localTtsUrl } = req.body;
@@ -171,57 +182,71 @@ router.post("/local-tts", ttsRateLimit, async (req, res) => {
     return res.sendFile(cacheFilePath);
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 sec timeout
+  const candidateUrls = getCandidateUrls(cleanUrl);
+  let lastError: any = null;
 
-  try {
-    // Standard OpenAI-compatible format (used by kokoro-fastapi, kokoro-onnx, etc.)
-    const bodyPayload = {
-      model: "kokoro",
-      input: text,
-      voice: cleanVoice,
-      response_format: "mp3",
-      speed: cleanSpeed
-    };
+  for (const urlToTry of candidateUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 sec timeout per candidate
 
-    const response = await fetch(cleanUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyPayload),
-      signal: controller.signal
-    });
+    try {
+      const bodyPayload = {
+        model: "kokoro",
+        input: text,
+        voice: cleanVoice,
+        response_format: "mp3",
+        speed: cleanSpeed
+      };
 
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      throw new Error(`Локальный сервер TTS вернул статус ${response.status}: ${errorText || response.statusText}`);
-    }
-
-    const contentType = response.headers.get("content-type") || "audio/mpeg";
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Save to disk cache
-    await fs.promises.writeFile(cacheFilePath, buffer);
-
-    res.set("Content-Type", contentType);
-    res.set("Cache-Control", "public, max-age=31536000");
-    return res.send(buffer);
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    console.error("Local TTS proxy error:", err);
-
-    if (err.name === 'AbortError') {
-      return res.status(504).json({ error: "Запрос к локальному серверу TTS превысил лимит времени (20 секунд)." });
-    }
-    if (err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed') || err.message?.includes('ECONNREFUSED')) {
-      return res.status(503).json({
-        error: `Локальный TTS сервер недоступен (${cleanUrl}). Убедитесь, что Kokoro или Piper запущен на вашем сервере.`
+      const response = await fetch(urlToTry, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyPayload),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(`Сервер TTS (${urlToTry}) вернул статус ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const contentType = response.headers.get("content-type") || "audio/mpeg";
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // Save to disk cache
+      await fs.promises.writeFile(cacheFilePath, buffer);
+
+      res.set("Content-Type", contentType);
+      res.set("Cache-Control", "public, max-age=31536000");
+      return res.send(buffer);
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastError = err;
+      if (err.name === 'AbortError') {
+        continue;
+      }
+      if (err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed') || err.message?.includes('ECONNREFUSED')) {
+        // Try next candidate URL (e.g. host.docker.internal or 172.17.0.1)
+        continue;
+      }
+      // If it's another non-network error, stop trying
+      break;
     }
-    return res.status(500).json({ error: err.message || "Ошибка генерации речи через локальный TTS" });
   }
+
+  console.error("Local TTS proxy error:", lastError);
+  if (lastError?.name === 'AbortError') {
+    return res.status(504).json({ error: "Запрос к локальному серверу TTS превысил лимит времени (15 секунд)." });
+  }
+  if (lastError?.code === 'ECONNREFUSED' || lastError?.message?.includes('fetch failed') || lastError?.message?.includes('ECONNREFUSED')) {
+    return res.status(503).json({
+      error: `Локальный TTS сервер недоступен по адресу ${cleanUrl}. Убедитесь, что контейнер Kokoro или Piper запущен на вашем сервере (порт 8880 или 5000).`
+    });
+  }
+  return res.status(500).json({ error: lastError?.message || "Ошибка генерации речи через локальный TTS" });
 });
 
 export default router;
