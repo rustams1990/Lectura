@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Lesson, LessonType, AppStats, ReaderSettings } from "../types";
-import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2 } from "lucide-react";
+import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE } from "../utils";
 
@@ -182,6 +182,18 @@ export default function LibraryHome({
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Smart Banner Dashboard state & helpers
+  const [isBannerCollapsed, setIsBannerCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem("vocab_clone_hero_collapsed") === "true";
+  });
+
+  const toggleBannerCollapse = () => {
+    setIsBannerCollapsed(prev => {
+      const next = !prev;
+      safeLocalStorageSetItem("vocab_clone_hero_collapsed", String(next));
+      return next;
+    });
+  };
+
   const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * 8));
   const [dailyGoal, setDailyGoal] = useState<number>(() => {
     const saved = localStorage.getItem("vocab_clone_daily_word_goal");
@@ -459,29 +471,62 @@ export default function LibraryHome({
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
       
       {/* Visual welcome bookshelf header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-teal-900 to-zinc-950 p-6 sm:p-8 text-white shadow-xl shadow-teal-950/40 min-h-[240px] flex flex-col justify-between border border-teal-800/20">
-        
-        {/* Ambient floating elements */}
-        <div className="absolute right-0 top-0 opacity-10 translate-x-10 -translate-y-10 transform scale-150 select-none pointer-events-none">
-          <BookMarked className="w-96 h-96" />
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch relative z-10 w-full">
-          
-          {/* Column 1: Info & Welcome Narrative */}
-          <div className="lg:col-span-7 xl:col-span-8 flex flex-col justify-between space-y-4">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-950/60 text-xs font-semibold tracking-wide text-white border border-teal-800/30 shadow-xs">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                <span>Ваша умная библиотека / Smart Bookshelf</span>
-              </div>
-              <h2 className="text-2xl sm:text-4xl font-black tracking-tight mt-3 max-w-xl leading-tight text-white drop-shadow-sm">
-                Какую историю вы изучите сегодня?
-              </h2>
-              <p className="text-xs sm:text-sm font-medium text-teal-100 max-w-md mt-2 opacity-95 leading-relaxed font-sans">
-                Интерактивный метод чтения: нажимайте на любые незнакомые слова, скачивайте переводы и слушайте озвучку!
-              </p>
+      {isBannerCollapsed ? (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-950 to-zinc-950 px-4 py-3 text-white flex items-center justify-between border border-teal-800/30 shadow-md">
+          <div className="flex items-center gap-3 text-xs font-bold truncate">
+            <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+            <span className="truncate">Ваша умная библиотека / Smart Bookshelf</span>
+            <div className="hidden sm:flex items-center gap-2 text-[10px] text-teal-200">
+              <span>• Всего: <strong className="text-white">{lessons.length}</strong></span>
+              <span>• Активных: <strong className="text-amber-300">{activeCount}</strong></span>
+              <span>• В архиве: <strong className="text-teal-300">{archivedCount}</strong></span>
             </div>
+          </div>
+          <button
+            onClick={toggleBannerCollapse}
+            className="flex items-center gap-1.5 text-[11px] font-bold text-teal-200 hover:text-white px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-white/10"
+            title="Развернуть баннер библиотеки"
+          >
+            <span>Развернуть</span>
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-teal-900 to-zinc-950 p-4 sm:p-6 text-white shadow-xl shadow-teal-950/40 flex flex-col justify-between border border-teal-800/20">
+          
+          {/* Ambient floating elements */}
+          <div className="absolute right-0 top-0 opacity-10 translate-x-10 -translate-y-10 transform scale-150 select-none pointer-events-none">
+            <BookMarked className="w-96 h-96" />
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch relative z-10 w-full">
+            
+            {/* Column 1: Info & Welcome Narrative */}
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-950/60 text-xs font-semibold tracking-wide text-white border border-teal-800/30 shadow-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                    <span>Ваша умная библиотека / Smart Bookshelf</span>
+                  </div>
+                  
+                  <button
+                    onClick={toggleBannerCollapse}
+                    className="flex items-center gap-1 text-[11px] font-bold text-teal-200 hover:text-white px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-white/10"
+                    title="Свернуть баннер библиотеки"
+                  >
+                    <span>Свернуть</span>
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <h2 className="text-xl sm:text-3xl font-black tracking-tight mt-2 max-w-xl leading-tight text-white drop-shadow-sm">
+                  Какую историю вы изучите сегодня?
+                </h2>
+                <p className="text-xs sm:text-sm font-medium text-teal-100 max-w-md mt-1.5 opacity-95 leading-relaxed font-sans hidden sm:block">
+                  Интерактивный метод чтения: нажимайте на любые незнакомые слова, скачивайте переводы и слушайте озвучку!
+                </p>
+              </div>
 
             <div className="flex flex-wrap items-center gap-4 mt-2 sm:mt-6 border-t border-white/10 pt-4">
               <div className="flex items-center gap-2">
@@ -610,6 +655,7 @@ export default function LibraryHome({
 
         </div>
       </div>
+      )}
 
       {/* Main Shelves Navigation Tabs */}
       <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-px">
