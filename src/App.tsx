@@ -450,7 +450,7 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [languageFlags, setLanguageFlags] = useState<Record<string, string>>({});
-  const [isFocusMode, setIsFocusMode] = useState<boolean>(true);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [showOnlyUnknown, setShowOnlyUnknown] = useState<boolean>(false);
 
   const [layoutWidthMode, setLayoutWidthMode] = useState<"standard" | "wide" | "ultra" | "full">("full");
@@ -1862,7 +1862,7 @@ export default function App() {
   };
 
   // Full-Screen Isolated Focused Reading Room
-  if (isFocusMode && activeLesson) {
+  if (isFocusMode && activeTab === "read" && activeLesson) {
     const focusTheme = readerThemes[readerSettings.readerTheme] || readerThemes.default;
     return (
       <div className={`min-h-screen ${focusTheme.pageBg} ${focusTheme.text} flex flex-col font-sans transition-colors duration-200`}>
@@ -1874,7 +1874,10 @@ export default function App() {
             {/* Back Button */}
             <button
               id="focus-exit-btn"
-              onClick={() => setIsFocusMode(false)}
+              onClick={() => {
+                setIsFocusMode(false);
+                setActiveTab("library");
+              }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-95 text-inherit font-bold text-xs rounded-xl transition-all active:scale-98 cursor-pointer shadow-xs`}
             >
               ← Back to Dashboard (Выйти из фокуса)
