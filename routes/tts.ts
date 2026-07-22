@@ -168,8 +168,22 @@ router.post("/local-tts", ttsRateLimit, async (req, res) => {
   }
 
   const cleanUrl = (localTtsUrl || "http://localhost:8880/v1/audio/speech").trim();
-  const cleanVoice = (voice || "af_sarah").trim();
+  let cleanVoice = (voice || "").trim();
   const cleanSpeed = typeof speed === "number" ? speed : 1.0;
+  const langLower = (language || "").toLowerCase().trim();
+
+  // Auto-switch English default voice to native language voice if processing non-English text
+  if (!cleanVoice || cleanVoice === "af_sarah" || cleanVoice === "am_adam") {
+    if (langLower.includes("span") || langLower.includes("españ") || langLower.startsWith("es")) cleanVoice = "es_es";
+    else if (langLower.includes("fren") || langLower.includes("fran") || langLower.startsWith("fr")) cleanVoice = "ff_siwis";
+    else if (langLower.includes("ital") || langLower.startsWith("it")) cleanVoice = "it_it";
+    else if (langLower.includes("germ") || langLower.includes("deut") || langLower.startsWith("de")) cleanVoice = "de_de";
+    else if (langLower.includes("japa") || langLower.startsWith("ja")) cleanVoice = "jf_alpha";
+    else if (langLower.includes("chin") || langLower.startsWith("zh")) cleanVoice = "zf_xiaobei";
+    else if (langLower.includes("port") || langLower.startsWith("pt")) cleanVoice = "pt_br";
+    else if (langLower.includes("russ") || langLower.startsWith("ru")) cleanVoice = "ru_dmitri";
+    else if (!cleanVoice) cleanVoice = "af_sarah";
+  }
 
   const textHash = crypto.createHash("md5").update(`${cleanVoice}_${text.toLowerCase().trim()}`).digest("hex");
   const cacheFilename = `local_${cleanVoice}_${textHash}.mp3`;

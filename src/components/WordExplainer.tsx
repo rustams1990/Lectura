@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { VocabItem, WordStatus, ExampleSentence, Dictionary, ReaderSettings, Lesson } from "../types";
-import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
+import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getEffectiveLocalTtsVoice, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
 import { getSuggestedLemmas } from "../morphology";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
@@ -1061,7 +1061,8 @@ export default function WordExplainer({
     // --- Kokoro-82M / Local TTS ---
     if (currentTtsEngine === "kokoro" || currentTtsEngine === "local_tts") {
       try {
-        const cacheKey = `local-tts:${settings?.localTtsVoice || "af_sarah"}:${word.toLowerCase().trim()}`;
+        const effectiveVoice = getEffectiveLocalTtsVoice(targetLanguage, settings);
+        const cacheKey = `local-tts:${effectiveVoice}:${word.toLowerCase().trim()}`;
         let audioUrl: string | null = null;
         let blob = await getTtsAudioFromCache(cacheKey);
 
@@ -1073,7 +1074,7 @@ export default function WordExplainer({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               text: word,
-              voice: settings?.localTtsVoice || "af_sarah",
+              voice: effectiveVoice,
               language: targetLanguage,
               localTtsUrl: settings?.localTtsUrl || "http://localhost:8880/v1/audio/speech"
             }),

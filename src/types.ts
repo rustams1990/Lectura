@@ -76,6 +76,7 @@ export interface ReaderSettings {
   ttsLocales?: Record<string, string>; // Maps language code (e.g. "es", "en") to specific BCP-47 locale
   localTtsUrl?: string; // Local TTS server endpoint (e.g. http://localhost:8880/v1/audio/speech)
   localTtsVoice?: string; // Voice name for Kokoro/Local TTS (e.g. af_sarah, am_adam, bf_emma)
+  localTtsVoices?: Record<string, string>; // Maps language code (e.g. "es", "fr", "en") to specific local TTS voice
   wordHighlight?: boolean;
   idiomHighlightStyle?: "badge" | "underline" | "icon" | "hover";
   aiProvider?: "gemini" | "local";

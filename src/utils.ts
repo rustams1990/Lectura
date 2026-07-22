@@ -211,6 +211,35 @@ export function getLanguageNameWithDialect(languageName: string, settings?: any)
   return desc || languageName;
 }
 
+export function getEffectiveLocalTtsVoice(languageName: string, settings?: any): string {
+  const baseLangCode = getLanguageCode(languageName); // e.g. "es", "en", "fr"
+
+  // 1. Check if there is an explicit voice override for this specific language in settings
+  if (settings?.localTtsVoices?.[baseLangCode]) {
+    return settings.localTtsVoices[baseLangCode];
+  }
+
+  // Default native Kokoro / Piper voice mapping per language
+  const DEFAULT_LANG_VOICES: Record<string, string> = {
+    es: "es_es",     // Spanish
+    fr: "ff_siwis",   // French
+    it: "it_it",      // Italian
+    de: "de_de",      // German
+    ja: "jf_alpha",   // Japanese
+    zh: "zf_xiaobei", // Chinese
+    pt: "pt_br",      // Portuguese
+    ru: "ru_dmitri",  // Russian
+    hi: "hf_alpha",   // Hindi
+    en: settings?.localTtsVoice || "af_sarah", // English
+  };
+
+  if (baseLangCode !== "en" && DEFAULT_LANG_VOICES[baseLangCode]) {
+    return DEFAULT_LANG_VOICES[baseLangCode];
+  }
+
+  return settings?.localTtsVoice || DEFAULT_LANG_VOICES[baseLangCode] || "af_sarah";
+}
+
 /**
  * Safely writes to localStorage wrapping it in a try-catch to prevent crashes if quota is exceeded
  */
