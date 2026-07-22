@@ -1732,7 +1732,7 @@ export default function StatisticsPage({
             <div className="h-3 w-full rounded-full bg-zinc-100 dark:bg-zinc-950 overflow-hidden flex border border-zinc-200 dark:border-zinc-800">
               <div 
                 style={{ width: `${stats.cefr.progress}%` }}
-                className="h-full bg-linear-to-r from-teal-500 to-teal-700 rounded-full transition-all duration-300"
+                className="h-full bg-gradient-to-r from-teal-500 to-teal-700 rounded-full transition-all duration-300"
               />
             </div>
 
@@ -2077,7 +2077,7 @@ export default function StatisticsPage({
                         </div>
 
                         {/* Bar graphics column */}
-                        <div className="w-full max-w-[28px] bg-linear-to-t from-teal-50 to-teal-100 dark:from-teal-950/20 dark:to-teal-900/60 rounded-t-lg border border-teal-200/30 hover:border-teal-500/50 hover:from-teal-500 hover:to-teal-600 dark:hover:from-teal-500 dark:hover:to-teal-400 transition-all select-none cursor-help overflow-hidden relative flex flex-col justify-end" style={{ height: `${heightPercent}%` }}>
+                        <div className="w-full max-w-[28px] bg-gradient-to-t from-teal-50 to-teal-100 dark:from-teal-950/20 dark:to-teal-900/60 rounded-t-lg border border-teal-200/30 hover:border-teal-500/50 hover:from-teal-500 hover:to-teal-600 dark:hover:from-teal-500 dark:hover:to-teal-400 transition-all select-none cursor-help overflow-hidden relative flex flex-col justify-end" style={{ height: `${heightPercent}%` }}>
                           
                           {/* Inner gradient filler bar */}
                           <div className="w-full bg-teal-500 dark:bg-teal-400 rounded-t-sm h-1.5 opacity-80" />

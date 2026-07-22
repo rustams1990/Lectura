@@ -990,7 +990,7 @@ export default function LibraryHome({
                 } hover:border-teal-200 dark:hover:border-teal-950 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden`}
               >
                 {/* Book spine decorative border */}
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-linear-to-b from-black/20 via-transparent to-black/20 z-10"></div>
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-black/20 via-transparent to-black/20 z-10"></div>
 
                 {deletingLessonId === lesson.id && (
                   <div 
@@ -1017,7 +1017,7 @@ export default function LibraryHome({
                           onDeleteLesson(lesson.id, e);
                           setDeletingLessonId(null);
                         }}
-                        className="flex-1 py-2 bg-red-650 hover:bg-red-600 active:scale-97 text-white font-black text-[11px] rounded-xl transition-all cursor-pointer shadow-md"
+                        className="flex-1 py-2 bg-red-600 hover:bg-red-700 active:scale-97 text-white font-black text-[11px] rounded-xl transition-all cursor-pointer shadow-md"
                       >
                         Да, удалить
                       </button>
@@ -1037,7 +1037,7 @@ export default function LibraryHome({
                 
                 {/* Book Cover Banner */}
                 <div 
-                  className={`relative aspect-video bg-linear-to-br ${cover.gradient} p-4 text-white flex flex-col justify-between overflow-hidden select-none bg-cover bg-center`}
+                  className={`relative aspect-video bg-gradient-to-br ${cover.gradient} p-4 text-white flex flex-col justify-between overflow-hidden select-none bg-cover bg-center`}
                   style={lesson.coverUrl ? { backgroundImage: `url("${lesson.coverUrl}")` } : undefined}
                 >
                   {/* Overlay shadow for text contrast when using images */}
@@ -1046,7 +1046,7 @@ export default function LibraryHome({
                   )}
 
                   {/* Spine inner shade overlay */}
-                  <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-linear-to-r from-black/25 via-black/10 to-transparent"></div>
+                  <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent"></div>
                   
                   {/* Decorative background monogram text (only shown on gradients) */}
                   {!lesson.coverUrl && (
@@ -1284,7 +1284,7 @@ export default function LibraryHome({
               onClick={onOpenImportForm}
               className="group min-h-[300px] rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-900 bg-zinc-50/30 hover:bg-teal-50/5 dark:bg-transparent dark:hover:bg-zinc-900/10 cursor-pointer flex flex-col items-center justify-center p-6 text-center transition-all duration-200"
             >
-              <div className="p-4 rounded-full bg-linear-to-tr from-teal-500 to-emerald-50 dark:from-zinc-800 dark:to-zinc-900 text-teal-600 dark:text-zinc-400 group-hover:scale-110 shadow-sm transition-all duration-300">
+              <div className="p-4 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-50 dark:from-zinc-800 dark:to-zinc-900 text-teal-600 dark:text-zinc-400 group-hover:scale-110 shadow-sm transition-all duration-300">
                 <Plus className="w-6 h-6" />
               </div>
               <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-300 uppercase tracking-widest mt-4">

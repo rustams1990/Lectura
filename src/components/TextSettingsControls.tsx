@@ -111,7 +111,7 @@ export default function TextSettingsControls({
                   <Minus className="w-3 h-3" />
                 </button>
                 <span className="text-xs font-mono font-bold uppercase text-zinc-600 dark:text-zinc-400 select-none">
-                  Arial {settings.fontSize.toUpperCase()}
+                  {(settings.fontFamily === "serif" ? "Serif" : (settings.fontFamily === "mono" ? "Mono" : "Sans"))} {settings.fontSize.toUpperCase()}
                 </span>
                 <button
                   type="button"

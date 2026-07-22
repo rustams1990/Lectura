@@ -203,6 +203,10 @@ export default function AudioPlayerBar({
               step="0.05"
               value={currentTime}
               onChange={handleAudioSeek}
+              aria-label="Аудио дорожка урока"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(duration || 100)}
+              aria-valuenow={Math.round(currentTime)}
               className="flex-1 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800 accent-teal-600 cursor-pointer focus:outline-none"
             />
             <span>{formatTime(duration)}</span>
