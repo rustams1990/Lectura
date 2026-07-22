@@ -66,7 +66,7 @@ export interface ReaderSettings {
   fontSize: "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   lineHeight: "normal" | "relaxed" | "loose" | "extra-loose";
   fontFamily: "sans" | "serif" | "mono";
-  readerTheme: "default" | "cream" | "sepia" | "slate" | "charcoal";
+  readerTheme: "default" | "cream" | "sepia" | "slate";
   maxWidth: "narrow" | "medium" | "wide";
   pageSize?: "auto" | "all" | "p1" | "p2" | "p3" | "p5" | "p10" | "p15" | "p20" | "w50" | "w100" | "w250" | "w500" | "w1000" | "s5" | "s10" | "s20" | "s30" | "c250" | "c500" | "c1000" | "c2000";
   sentenceSpacing?: "normal" | "spaced" | "wide" | "newline" | "double-newline";

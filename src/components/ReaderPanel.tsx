@@ -98,7 +98,6 @@ const themeMap = {
   cream: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8]",
   sepia: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3]",
   slate: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
-  charcoal: "bg-zinc-950 text-zinc-100 border-zinc-900",
 };
 
 const widthMap = {

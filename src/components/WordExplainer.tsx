@@ -325,7 +325,6 @@ export default function WordExplainer({
     cream: "bg-[#fcf8f2] border-[#eddcb9] text-[#3d2c16]",
     sepia: "bg-[#f5ebd0] border-[#ebdcb3] text-[#4d3319]",
     slate: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100",
-    charcoal: "bg-zinc-950 border-zinc-900 text-[#eaeaea]",
   };
   const themeClasses = explainerThemeMap[activeSettings.readerTheme || "default"] || explainerThemeMap.default;
 

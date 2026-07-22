@@ -83,13 +83,6 @@ const readerThemes = {
     cardBg: "bg-slate-50 dark:bg-slate-900",
     border: "border-slate-200 dark:border-slate-800",
   },
-  charcoal: {
-    pageBg: "bg-zinc-900",
-    text: "text-[#eaeaea]",
-    headerBg: "bg-zinc-950/90 border-zinc-800",
-    cardBg: "bg-zinc-950",
-    border: "border-zinc-800",
-  },
 };
 
 

@@ -30,7 +30,6 @@ export default function TextSettingsControls({
     { id: "cream", name: "Cream", bg: "bg-[#faf5eb]", text: "text-[#3d2c16]", border: "border-[#eddcb9]" },
     { id: "sepia", name: "Sepia", bg: "bg-[#f5edd0]", text: "text-[#4d3319]", border: "border-[#e0cea1]" },
     { id: "slate", name: "Slate", bg: "bg-slate-100/90 dark:bg-slate-900", text: "text-slate-800 dark:text-slate-100", border: "border-slate-300 dark:border-slate-800" },
-    { id: "charcoal", name: "Charcoal", bg: "bg-zinc-950", text: "text-zinc-200", border: "border-zinc-800" },
   ];
 
   const lineHeights: { id: ReaderSettings["lineHeight"]; name: string }[] = [
@@ -150,7 +149,7 @@ export default function TextSettingsControls({
             {/* Color Readers Palette Settings */}
             <div className="space-y-1.5">
               <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">Background Tone</span>
-              <div className="grid grid-cols-5 gap-1.5">
+              <div className="grid grid-cols-4 gap-1.5">
                 {themes.map((t) => (
                   <button
                     key={t.id}
@@ -161,7 +160,7 @@ export default function TextSettingsControls({
                     title={t.name}
                   >
                     {settings.readerTheme === t.id && (
-                      <Check className={`w-3.5 h-3.5 ${t.id === "charcoal" ? "text-white" : "text-teal-600"}`} />
+                      <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                     )}
                   </button>
                 ))}
