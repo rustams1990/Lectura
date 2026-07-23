@@ -380,7 +380,7 @@ Note for grammar: The grammar classification must be strictly in English, maximu
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -461,7 +461,7 @@ Structure the text into 4 to 6 clean, engaging paragraphs with a double line bre
 IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provide titles, introductory explanations, ending summaries, translation notes, bracketed remarks, or markdown headers. Provide only the article body paragraphs in ${targetLanguage}.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
     });
 
@@ -529,7 +529,7 @@ IMPORTANT: You must return a JSON object with three fields:
 Return ONLY a valid JSON object matching this schema.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -623,7 +623,7 @@ IMPORTANT: Do not wrap your response in markdown formatting or add any pre/post 
     const combinedPrompt = `${systemPrompt}\n\nHere is the text to analyze:\n---\n${text.substring(0, 15000)}\n---`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: combinedPrompt,
       config: {
         responseMimeType: "application/json",
