@@ -13,6 +13,71 @@ const router = Router();
 // YouTube Subtitle Downloader & Metadata Parser Route
 // ============================================================
 
+export function formatGeminiTranscript(rawText: string): string {
+  if (!rawText) return "";
+
+  let text = rawText;
+
+  // Convert XmYs or Xm Ys (e.g. 1m3s -> 63s, 1m17s -> 77s)
+  text = text.replace(/(\d+)\s*m\s*(\d+)\s*s?/gi, (_, m, s) => {
+    const totalSec = parseInt(m, 10) * 60 + parseInt(s, 10);
+    return `${totalSec}s`;
+  });
+
+  // Convert Xm (e.g. 2m -> 120s)
+  text = text.replace(/(\d+)\s*m(?!\w)/gi, (_, m) => {
+    const totalSec = parseInt(m, 10) * 60;
+    return `${totalSec}s`;
+  });
+
+  const timestampPattern = /(?:^|\s+)(?:\b(\d{1,2}:\d{2}(?::\d{2})?)\b|\b(\d+)s\b)\s*/gi;
+
+  const lines: string[] = [];
+  let lastIndex = 0;
+  let currentSec: number | null = null;
+
+  const matches = Array.from(text.matchAll(timestampPattern));
+  if (matches.length === 0) return rawText;
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const matchStart = match.index!;
+    const matchEnd = matchStart + match[0].length;
+
+    if (i > 0) {
+      const chunk = text.substring(lastIndex, matchStart).trim();
+      if (chunk && currentSec !== null) {
+        const mins = Math.floor(currentSec / 60);
+        const secs = Math.floor(currentSec % 60);
+        const formattedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
+        lines.push(`${formattedTime} ${chunk}`);
+      }
+    }
+
+    if (match[1]) {
+      const parts = match[1].split(':').map(n => parseInt(n, 10));
+      if (parts.length === 2) currentSec = parts[0] * 60 + parts[1];
+      else if (parts.length === 3) currentSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (match[2]) {
+      currentSec = parseInt(match[2], 10);
+    }
+
+    lastIndex = matchEnd;
+  }
+
+  if (lastIndex < text.length && currentSec !== null) {
+    const chunk = text.substring(lastIndex).trim();
+    if (chunk) {
+      const mins = Math.floor(currentSec / 60);
+      const secs = Math.floor(currentSec % 60);
+      const formattedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
+      lines.push(`${formattedTime} ${chunk}`);
+    }
+  }
+
+  return lines.join("\n\n");
+}
+
 router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
   const { url } = req.body;
   const targetLanguage = sanitizeLang(req.body.targetLanguage, "English");
@@ -317,8 +382,7 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
 
             const aiText = response.text || "";
             if (aiText.trim()) {
-              const cleanLines = aiText.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
-              const formattedAiText = cleanLines.join("\n\n");
+              const formattedAiText = formatGeminiTranscript(aiText);
 
               return res.json({
                 title: `${title} (Gemini AI Transcription)`,
