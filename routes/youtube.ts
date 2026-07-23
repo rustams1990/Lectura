@@ -307,7 +307,12 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
             const response = await ai.models.generateContent({
               model: "gemini-2.5-flash",
               contents: [
-                uploadedGeminiFile,
+                {
+                  fileData: {
+                    fileUri: uploadedGeminiFile.uri,
+                    mimeType: uploadedGeminiFile.mimeType || "audio/mp3"
+                  }
+                },
                 prompt
               ]
             });
