@@ -36,7 +36,17 @@ function isLocalHostname(): boolean {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [localUser, setLocalUser] = useState<LocalUser | null>(null);
+  const [localUser, setLocalUser] = useState<LocalUser | null>(() => {
+    const saved = localStorage.getItem("vocab_clone_local_user");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved local user:", e);
+      }
+    }
+    return null;
+  });
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
   const [storageMode, setStorageModeState] = useState<"cloud" | "local" | "server">(() => {
@@ -68,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLocalSyncError(false);
   };
 
-  // Synchronize serverToken to localStorage safely
+  // Synchronize serverToken & localUser to localStorage safely
   useEffect(() => {
     if (serverToken) {
       safeLocalStorageSetItem("vocab_clone_server_token", serverToken);
@@ -77,6 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [serverToken]);
 
+  useEffect(() => {
+    if (localUser) {
+      safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(localUser));
+    } else {
+      localStorage.removeItem("vocab_clone_local_user");
+    }
+  }, [localUser]);
+
   // Handle Firebase Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -84,18 +102,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user && storageMode !== "cloud") {
         setStorageMode("cloud");
       }
-      setIsAuthLoading(false);
+      if (storageMode === "cloud") {
+        setIsAuthLoading(false);
+      }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [storageMode]);
 
   // Check self-hosted server session on mount
   useEffect(() => {
     const checkServerSession = async () => {
       const savedToken = localStorage.getItem("vocab_clone_server_token");
       if (!savedToken) {
-        setIsAuthLoading(false);
+        if (storageMode === "server") {
+          setIsAuthLoading(false);
+        }
         return;
       }
       try {
@@ -114,13 +136,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           console.warn("Server session expired or invalid.");
           localStorage.removeItem("vocab_clone_server_token");
+          localStorage.removeItem("vocab_clone_local_user");
           setServerToken("");
           setLocalUser(null);
         }
       } catch (err) {
         console.error("Failed to verify server session:", err);
       } finally {
-        setIsAuthLoading(false);
+        if (storageMode === "server") {
+          setIsAuthLoading(false);
+        }
       }
     };
 
@@ -144,6 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setServerToken(data.token);
       setLocalUser(data.user);
+      safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(data.user));
+      safeLocalStorageSetItem("vocab_clone_server_token", data.token);
       setStorageMode("server");
       return { success: true };
     } catch (e: any) {
@@ -164,6 +191,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setServerToken(data.token);
       setLocalUser(data.user);
+      safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(data.user));
+      safeLocalStorageSetItem("vocab_clone_server_token", data.token);
       setStorageMode("server");
       return { success: true };
     } catch (e: any) {
@@ -184,6 +213,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error("Server logout call failed:", err);
       }
+      localStorage.removeItem("vocab_clone_server_token");
+      localStorage.removeItem("vocab_clone_local_user");
       setServerToken("");
       setLocalUser(null);
     }
