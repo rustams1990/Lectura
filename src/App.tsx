@@ -253,7 +253,11 @@ export default function App() {
         if (rs) {
           try {
              const parsed = typeof rs === 'string' ? JSON.parse(rs) : rs;
-             setReaderSettings(prev => ({...prev, ...parsed}));
+             setReaderSettings(prev => {
+               const updated = { ...prev, ...parsed };
+               safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(updated));
+               return updated;
+             });
           } catch(e) {}
         }
 
@@ -357,7 +361,8 @@ export default function App() {
   const [layoutWidthMode, setLayoutWidthMode] = useState<"standard" | "wide" | "ultra" | "full">("full");
 
   // Customizable reader options (Fonts family, background tone, size, spacing, container width)
-  const [readerSettings, setReaderSettings] = useState<ReaderSettings>({
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
+    const defaults: ReaderSettings = {
       fontSize: "xl",
       lineHeight: "loose",
       fontFamily: "sans",
@@ -373,6 +378,16 @@ export default function App() {
       localAiModel: "phi3.5",
       showDetailedVocabularyStats: true,
       mainStatsMetric: "comprehension",
+    };
+    try {
+      const saved = localStorage.getItem("vocab_clone_reader_settings");
+      if (saved) {
+        return { ...defaults, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.error("Failed to parse saved reader settings:", e);
+    }
+    return defaults;
   });
 
   // Zoom level state (default is 100 representing 100%)
@@ -1043,6 +1058,7 @@ export default function App() {
   }, [wordLinks]);
 
   useEffect(() => {
+    safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
     settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
   }, [readerSettings]);
 
