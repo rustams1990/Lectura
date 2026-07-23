@@ -2475,8 +2475,8 @@ export default function App() {
                 {activeLesson ? (
                   <>
                     {/* Quiet minimal inline toolbar */}
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => {
                             setActiveTab("library");
@@ -2488,12 +2488,12 @@ export default function App() {
                           Библиотека (Library)
                         </button>
                         <span className="text-zinc-300 dark:text-zinc-600 text-xs hidden sm:inline">/</span>
-                        <span className="text-zinc-700 dark:text-zinc-300 text-xs font-bold truncate max-w-[200px]" title={activeLesson.title}>
+                        <span className="text-zinc-700 dark:text-zinc-300 text-xs font-bold truncate max-w-[140px] sm:max-w-[200px]" title={activeLesson.title}>
                           {activeLesson.title}
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar xl:flex-wrap xl:overflow-visible xl:pb-0 shrink-0">
                         <button
                           onClick={() => setIsFocusMode(true)}
                           className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
