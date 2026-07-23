@@ -263,35 +263,78 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
       isSuccessful = await downloadSubs("en");
     }
 
-    // 3. Fallback to Gemini AI Generation if we could not retrieve any transcripts
+    // 3. Fallback to Gemini AI Audio Transcription if we could not retrieve any subtitles
     if (!isSuccessful || lines.length === 0) {
       const ai = getGeminiClient();
       if (ai) {
+        let tempAudioPath: string | null = null;
+        let uploadedGeminiFile: any = null;
         try {
-          const prompt = `You are an expert language teacher.
-Create a detailed, beautiful and comprehensive educational study text, narrative or transcript fully written in the target language: "${targetLanguage}", inspired by the YouTube video titled: "${title}".
-Let the text expand on this topic naturally using standard, common vocabulary of ${targetLanguage} suitable for study.
-Structure the text into 4 to 6 clean, engaging paragraphs with a double line break between them.
-IMPORTANT: Output ONLY the raw paragraph text in ${targetLanguage}. Do not provide titles, introductory explanations, ending summaries, translation notes, bracketed remarks, or markdown headers. Provide only the article body paragraphs in ${targetLanguage}.`;
-
-          const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: prompt,
+          console.log(`[YouTube] No captions found for video ${videoId}. Attempting Gemini Audio Speech-to-Text...`);
+          const tempAudioDir = os.tmpdir();
+          const tempAudioBase = path.join(tempAudioDir, `yt_audio_${videoId}_${Date.now()}`);
+          
+          await ytdlp(`https://www.youtube.com/watch?v=${videoId}`, {
+            extractAudio: true,
+            audioFormat: 'mp3',
+            audioQuality: 5,
+            output: `${tempAudioBase}.%(ext)s`,
+            noCheckCertificate: true,
           });
 
-          const aiText = response.text || "";
-          if (aiText.trim()) {
-            return res.json({
-              title: `${title} (AI Study Text)`,
-              text: aiText.trim(),
-              coverUrl: thumbnail,
-              youtubeId: videoId,
-              youtubeDuration: videoLengthSeconds,
-              isFallback: true
+          const tempFiles = fs.readdirSync(tempAudioDir);
+          const downloadedFile = tempFiles.find(f => f.startsWith(path.basename(tempAudioBase)));
+
+          if (downloadedFile) {
+            tempAudioPath = path.join(tempAudioDir, downloadedFile);
+
+            // Upload audio to Gemini File API
+            uploadedGeminiFile = await (ai.files as any).upload({
+              file: tempAudioPath,
+              mimeType: "audio/mp3",
             });
+
+            const prompt = `Listen carefully to this audio track from a YouTube video titled: "${title}".
+Transcribe all spoken words accurately in the original spoken language (preferably target study language: "${targetLanguage}").
+Format the transcript line-by-line with timestamps in seconds, e.g.:
+0s\tFirst spoken sentence or phrase
+6s\tSecond spoken sentence or phrase
+14s\tThird spoken sentence or phrase
+
+IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not provide titles, introductory explanations, translation notes, bracketed remarks, or markdown code blocks.`;
+
+            const response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: [
+                uploadedGeminiFile,
+                prompt
+              ]
+            });
+
+            const aiText = response.text || "";
+            if (aiText.trim()) {
+              const cleanLines = aiText.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+              const formattedAiText = cleanLines.join("\n\n");
+
+              return res.json({
+                title: `${title} (Gemini AI Transcription)`,
+                text: formattedAiText,
+                coverUrl: thumbnail,
+                youtubeId: videoId,
+                youtubeDuration: videoLengthSeconds,
+                isFallback: false
+              });
+            }
           }
         } catch (gErr: any) {
-          console.error("Auto Fallback Gemini generation failed:", gErr);
+          console.error("Gemini AI Audio Speech-to-Text failed:", gErr);
+        } finally {
+          if (tempAudioPath) {
+            try { fs.unlinkSync(tempAudioPath); } catch (e) {}
+          }
+          if (uploadedGeminiFile?.name) {
+            try { await ai.files.delete({ name: uploadedGeminiFile.name }); } catch (e) {}
+          }
         }
       }
 
