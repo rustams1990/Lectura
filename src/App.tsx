@@ -2470,8 +2470,8 @@ export default function App() {
           <>
             <div className="grid grid-cols-12 gap-6 items-start">
 
-              {/* Middle Main - Reader and Audio player - Full-width like Focus Room */}
-              <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4 animate-in fade-in duration-150">
+              {/* Middle Main - Reader and Audio player - Full-width on mobile/tablets, 8 cols on XL screens */}
+              <div className="col-span-12 xl:col-span-8 space-y-4 animate-in fade-in duration-150">
                 {activeLesson ? (
                   <>
                     {/* Quiet minimal inline toolbar */}
@@ -2645,7 +2645,7 @@ export default function App() {
               </div>
 
               {/* Right Sidebar - Active Word Explainer definitions */}
-              <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[24px] max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-25">
+              <div className="hidden xl:block xl:col-span-4 xl:sticky xl:top-[24px] max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-25">
                 <div className="h-full">
                   {activeLesson ? (
                     <WordExplainer

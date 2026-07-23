@@ -81,9 +81,9 @@ export default function TextSettingsControls({
       {isOpen && (
         <>
           {/* Backdrop closer */}
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 z-[9998]" onClick={() => setIsOpen(false)} />
           
-          <div className="fixed inset-x-3 top-14 max-h-[82vh] overflow-y-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2.5 sm:w-85 sm:max-h-[80vh] bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-4 sm:p-5 z-50 space-y-4 animate-in fade-in slide-in-from-top-3 duration-150 scrollbar-thin">
+          <div className="fixed inset-x-3 top-14 max-h-[85vh] overflow-y-auto xl:absolute xl:inset-x-auto xl:right-0 xl:top-full xl:mt-2.5 xl:w-85 xl:max-h-[80vh] bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-4 sm:p-5 z-[9999] space-y-4 animate-in fade-in slide-in-from-top-3 duration-150 scrollbar-thin">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
               <span className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5" /> Text Appearance
