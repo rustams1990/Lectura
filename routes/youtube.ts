@@ -296,11 +296,9 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
             });
 
             const prompt = `Listen carefully to this audio track from a YouTube video titled: "${title}".
-Transcribe all spoken words accurately in the original spoken language (preferably target study language: "${targetLanguage}").
-Format the transcript line-by-line with timestamps in seconds, e.g.:
-0s\tFirst spoken sentence or phrase
-6s\tSecond spoken sentence or phrase
-14s\tThird spoken sentence or phrase
+Transcribe all spoken words accurately into short, sentence-by-sentence entries in the original spoken language (preferably target study language: "${targetLanguage}").
+For EVERY single spoken sentence or dialogue turn, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 20s\t..., 47s\t..., 1m3s\t..., 1m17s\t...).
+Do NOT group multiple sentences or long paragraphs into a single timestamp entry. Break the transcript into short, individual spoken sentences so that every line has an accurate timestamp matching when it is actually spoken in the audio.
 
 IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not provide titles, introductory explanations, translation notes, bracketed remarks, or markdown code blocks.`;
 
