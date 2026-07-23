@@ -2471,32 +2471,46 @@ export default function App() {
             <div className="grid grid-cols-12 gap-6 items-start">
 
               {/* Middle Main - Reader and Audio player - 8 cols on tablets and desktops */}
-              <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4 animate-in fade-in duration-150">
+              <div className="col-span-12 md:col-span-8 lg:col-span-8 min-w-0 space-y-4 animate-in fade-in duration-150">
                 {activeLesson ? (
                   <>
                     {/* Quiet minimal inline toolbar */}
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => {
-                            setActiveTab("library");
-                            setSelectedWord(null);
-                          }}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                          Библиотека (Library)
-                        </button>
-                        <span className="text-zinc-300 dark:text-zinc-600 text-xs hidden sm:inline">/</span>
-                        <span className="text-zinc-700 dark:text-zinc-300 text-xs font-bold truncate max-w-[140px] sm:max-w-[200px]" title={activeLesson.title}>
-                          {activeLesson.title}
-                        </span>
+                    <div className="flex flex-col gap-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 shrink">
+                          <button
+                            onClick={() => {
+                              setActiveTab("library");
+                              setSelectedWord(null);
+                            }}
+                            className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                            Библиотека
+                          </button>
+                          <span className="text-zinc-300 dark:text-zinc-600 text-xs hidden sm:inline">/</span>
+                          <span className="text-zinc-700 dark:text-zinc-300 text-xs font-bold truncate max-w-[120px] sm:max-w-[200px]" title={activeLesson.title}>
+                            {activeLesson.title}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
+                          <button
+                            onClick={() => setShowSettingsModal(true)}
+                            className="flex items-center justify-center gap-1.5 h-8 px-2.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all cursor-pointer"
+                            title="Language settings"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Settings</span>
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar xl:flex-wrap xl:overflow-visible xl:pb-0 shrink-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar min-w-0">
                         <button
                           onClick={() => setIsFocusMode(true)}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           Focus Mode
@@ -2504,7 +2518,7 @@ export default function App() {
 
                         <button
                           onClick={() => setShowMatchPairsModal(true)}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap bg-indigo-50 hover:bg-indigo-100/80 dark:bg-indigo-950/20 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-indigo-50 hover:bg-indigo-100/80 dark:bg-indigo-950/20 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
                           title="Игра: сопоставление слов и перевода"
                         >
                           <Trophy className="w-3.5 h-3.5 animate-pulse" />
@@ -2514,7 +2528,7 @@ export default function App() {
                         <button
                           onClick={handleDetectIdioms}
                           disabled={isDetectingIdioms}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/20 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/20 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
                           title="Автоматически найти идиомы и фразовые глаголы с помощью ИИ"
                         >
                           {isDetectingIdioms ? (
@@ -2532,9 +2546,9 @@ export default function App() {
 
                         <button
                           onClick={() => setShowOnlyUnknown(prev => !prev)}
-                          className={`flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
                             showOnlyUnknown
-                              ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm scale-102"
+                              ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm"
                               : "bg-white hover:bg-zinc-55 hover:text-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
                           }`}
                           title="Показать только неизвестные слова в уроке"
@@ -2546,7 +2560,7 @@ export default function App() {
                         {activeLesson?.youtubeId && (
                           <button
                             onClick={() => setShowYoutubePlayer((prev) => !prev)}
-                            className={`flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
                               showYoutubePlayer
                                 ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
                                 : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
@@ -2558,14 +2572,12 @@ export default function App() {
                           </button>
                         )}
 
-                        <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
-
                         {/* Width Selector */}
-                        <div className="flex items-center gap-1 bg-stone-100/50 dark:bg-zinc-900/55 p-1 h-9 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
+                        <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
                           <button
                             type="button"
                             onClick={() => setLayoutWidthMode("standard")}
-                            className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            className={`h-6 px-1.5 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                               layoutWidthMode === "standard"
                                 ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
@@ -2577,7 +2589,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setLayoutWidthMode("wide")}
-                            className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            className={`h-6 px-1.5 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                               layoutWidthMode === "wide"
                                 ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
@@ -2589,7 +2601,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setLayoutWidthMode("full")}
-                            className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            className={`h-6 px-1.5 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                               layoutWidthMode === "full"
                                 ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
@@ -2601,17 +2613,8 @@ export default function App() {
                         </div>
 
                         <button
-                          onClick={() => setShowSettingsModal(true)}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/55 dark:hover:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all active:scale-95 cursor-pointer"
-                          title="Language settings"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                          Settings
-                        </button>
-
-                        <button
                           onClick={() => setEditingLesson(activeLesson)}
-                          className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/55 dark:hover:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all active:scale-95 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all cursor-pointer"
                           title="Edit lesson details"
                         >
                           <Pencil className="w-3.5 h-3.5" />
