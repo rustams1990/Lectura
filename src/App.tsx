@@ -1906,7 +1906,7 @@ export default function App() {
         }`}>
           
           {/* Middle Main - Reader and Audio player only */}
-          <div className="col-span-12 xl:col-span-8 space-y-4">
+          <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4">
             {(activeLesson.audioUrl || activeLesson.audioBase64) && (
               <AudioPlayerBar
                 onAudioUpload={handleAudioUploaded}
@@ -1924,7 +1924,7 @@ export default function App() {
           </div>
 
           {/* Right Sidebar - Active Word dictionary */}
-          <div className="hidden xl:block xl:col-span-4 xl:sticky xl:top-[85px] max-h-[calc(100vh-110px)] overflow-y-auto pr-1 z-25">
+          <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[85px] max-h-[calc(100vh-110px)] overflow-y-auto pr-1 z-25">
             <WordExplainer
               word={selectedWord}
               sentence={selectedContext}
@@ -1950,10 +1950,10 @@ export default function App() {
 
         </main>
 
-        {/* On small/medium screens (< xl), if a word is selected, show it in a sliding bottom sheet with overlay */}
+        {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet with overlay */}
         {selectedWord && (
           <div 
-            className="fixed inset-0 z-50 xl:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+            className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
             onClick={() => setSelectedWord(null)}
           >
             <div 
@@ -2470,8 +2470,8 @@ export default function App() {
           <>
             <div className="grid grid-cols-12 gap-6 items-start">
 
-              {/* Middle Main - Reader and Audio player - Full-width on mobile/tablets, 8 cols on XL screens */}
-              <div className="col-span-12 xl:col-span-8 space-y-4 animate-in fade-in duration-150">
+              {/* Middle Main - Reader and Audio player - 8 cols on tablets and desktops */}
+              <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4 animate-in fade-in duration-150">
                 {activeLesson ? (
                   <>
                     {/* Quiet minimal inline toolbar */}
@@ -2645,7 +2645,7 @@ export default function App() {
               </div>
 
               {/* Right Sidebar - Active Word Explainer definitions */}
-              <div className="hidden xl:block xl:col-span-4 xl:sticky xl:top-[24px] max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-25">
+              <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[24px] max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-25">
                 <div className="h-full">
                   {activeLesson ? (
                     <WordExplainer
@@ -2678,10 +2678,10 @@ export default function App() {
 
             </div>
             
-            {/* On small/medium screens (< xl), if a word is selected, show it in a sliding bottom sheet with overlay */}
+            {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet with overlay */}
             {selectedWord && activeLesson && (
               <div 
-                className="fixed inset-0 z-50 xl:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+                className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
                 onClick={() => setSelectedWord(null)}
               >
                 <div 
