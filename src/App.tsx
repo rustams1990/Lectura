@@ -1693,6 +1693,9 @@ export default function App() {
     setLessonImagesVersion((v) => v + 1);
     const remaining = lessons.filter((l) => l.id !== idToDelete);
     setLessons(remaining);
+    lessonsStore.setItem("lessons", remaining);
+    safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(remaining));
+
     // Switch active lesson if necessary
     if (activeLessonId === idToDelete && remaining.length > 0) {
       setActiveLessonId(remaining[0].id);

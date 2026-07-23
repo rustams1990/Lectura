@@ -363,6 +363,16 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       const lessons = data.lessons || [];
+      if (Array.isArray(data.lessons)) {
+        const currentLessonIds = lessons.map((l: any) => l.id).filter(Boolean);
+        if (currentLessonIds.length > 0) {
+          const placeholders = currentLessonIds.map(() => "?").join(",");
+          db.prepare(`DELETE FROM lessons WHERE id NOT IN (${placeholders})`).run(...currentLessonIds);
+        } else {
+          db.prepare(`DELETE FROM lessons`).run();
+        }
+      }
+
       for (const l of lessons) {
         insertLesson.run(
           l.id,
@@ -386,6 +396,16 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       const types = data.lessonTypes || [];
+      if (Array.isArray(data.lessonTypes)) {
+        const currentTypeIds = types.map((t: any) => t.id).filter(Boolean);
+        if (currentTypeIds.length > 0) {
+          const placeholders = currentTypeIds.map(() => "?").join(",");
+          db.prepare(`DELETE FROM lesson_types WHERE id NOT IN (${placeholders})`).run(...currentTypeIds);
+        } else {
+          db.prepare(`DELETE FROM lesson_types`).run();
+        }
+      }
+
       for (const t of types) {
         insertLessonType.run(t.id, t.name, t.icon);
       }
