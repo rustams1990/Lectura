@@ -5,21 +5,37 @@ let aiClient: GoogleGenAI | null = null;
 /**
  * Lazy initialization of GoogleGenAI client
  */
-export function getGeminiClient(): GoogleGenAI | null {
-  if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
-    if (key && key !== "MY_GEMINI_API_KEY") {
-      aiClient = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-    }
+export function sanitizeGeminiKey(rawKey?: string): string | null {
+  if (!rawKey) return null;
+  const clean = rawKey.trim().replace(/^["']|["']$/g, '');
+  // Filter non-ASCII characters to prevent ByteString crash
+  const ascii = clean.replace(/[^\x00-\x7F]/g, '');
+  if (!ascii || ascii === "MY_GEMINI_API_KEY" || ascii.includes("ваш_ключ") || ascii.length < 10) {
+    return null;
   }
-  return aiClient;
+  return ascii;
+}
+
+/**
+ * Lazy initialization of GoogleGenAI client with key validation
+ */
+export function getGeminiClient(customKey?: string): GoogleGenAI | null {
+  const key = sanitizeGeminiKey(customKey || process.env.GEMINI_API_KEY);
+  if (!key) return null;
+
+  try {
+    return new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Failed to initialize GoogleGenAI client:", err);
+    return null;
+  }
 }
 
 function getCandidateUrls(inputUrl: string): string[] {

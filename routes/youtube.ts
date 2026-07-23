@@ -265,7 +265,8 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
 
     // 3. Fallback to Gemini AI Audio Transcription if we could not retrieve any subtitles
     if (!isSuccessful || lines.length === 0) {
-      const ai = getGeminiClient();
+      const userApiKey = (req.headers["x-gemini-key"] as string) || req.body.geminiApiKey;
+      const ai = getGeminiClient(userApiKey);
       if (ai) {
         let tempAudioPath: string | null = null;
         let uploadedGeminiFile: any = null;
@@ -338,10 +339,10 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
         }
       }
 
-      // If no AI key set or AI generation fails, return a simulated lesson structured nicely so that it doesn't fail
+      // If no AI key set or AI generation fails, return a clear, informative Russian error response
       return res.json({
-        title: `${title} (No Captions)`,
-        text: `Questo è un testo di studio alternativo preparato per il video: "${title}".\n\nPer favore, per questo video attiva i sottotitoli (CC) oppure inserisci manualmente l'articolo che desideri studiare nel pannello 'Testo normale'.`,
+        title: `${title} (Субтитры отсутствуют)`,
+        text: `У этого видео на YouTube отсутствуют готовые субтитры.\n\nДля включения автоматического распознавания речи ИИ укажите ваш рабочий Gemini API Key (начинается на AIza...) при запуске Docker контейнера (-e GEMINI_API_KEY="AIzaSy...") или в настройках приложения.`,
         coverUrl: thumbnail,
         youtubeId: videoId,
         youtubeDuration: videoLengthSeconds,
