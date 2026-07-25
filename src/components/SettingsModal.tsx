@@ -55,12 +55,179 @@ interface SettingsModalProps {
 }
 
 // Popular flag symbols & emoji presets
-const FLAG_PRESETS = [
-  "🇺🇸", "🇬🇧", "🇪🇸", "🇲🇽", "🇨🇴", "🇦🇷", "🇨🇱", "🇵🇪", "🇻🇪", "🇩🇪", 
-  "🇦🇹", "🇨🇭", "🇫🇷", "🇨🇦", "🇷🇺", "🇯🇵", "🇮🇹", "🇵🇹", "🇧🇷", "🇨🇳", 
-  "🇹🇼", "🇰🇷", "🇹🇷", "🇸🇦", "🇪🇬", "🇮🇳", "🇺🇦", "🇰🇿", "🇵🇱", "🇸🇪", "🇳🇱", 
-  "🇧🇪", "🇬🇷", "🇮🇪", "📖", "📜", "🪐", "🌟", "🚩"
+const ALL_WORLD_FLAGS = [
+  "🇺🇸", "🇬🇧", "🇪🇸", "🇲🇽", "🇨🇴", "🇦🇷", "🇨🇱", "🇵🇪", "🇻🇪", "🇪🇨", 
+  "🇬🇹", "🇨🇺", "🇩🇴", "🇭🇳", "🇵🇾", "🇸🇻", "🇳🇮", "🇨🇷", "🇵🇦", "🇺🇾", 
+  "🇧🇴", "🇪🇶", "🇩🇪", "🇦🇹", "🇨🇭", "🇱🇮", "🇱🇺", "🇫🇷", "🇨🇦", "🇧🇪", 
+  "🇲🇨", "🇸🇳", "🇨🇮", "🇨🇲", "🇲🇬", "🇨🇩", "🇭🇹", "🇷🇺", "🇧🇾", "🇰🇿", 
+  "🇰🇬", "🇯🇵", "🇮🇹", "🇸🇲", "🇻🇦", "🇵🇹", "🇧🇷", "🇦🇴", "🇲🇿", "🇨🇻", 
+  "🇬🇼", "🇸🇹", "🇹🇱", "🇲🇴", "🇨🇳", "🇹🇼", "🇭🇰", "🇸🇬", "🇰🇷", "🇰🇵", 
+  "🇹🇷", "🇸🇦", "🇦🇪", "🇪🇬", "🇮🇶", "🇯🇴", "🇱🇧", "🇲🇦", "🇩🇿", "🇹🇳", 
+  "🇶🇦", "🇰🇼", "🇴🇲", "🇧🇭", "🇮🇳", "🇺🇦", "🇵🇱", "🇸🇪", "🇫🇮", "🇳🇱", 
+  "🇸🇷", "🇬🇷", "🇨🇾", "🇮🇪", "🇿🇦", "🇯🇲", "📖", "📜", "🪐", "🌟", "🚩"
 ];
+
+function getFlagsForLanguage(langName: string): { presets: string[]; label: string } {
+  const norm = (langName || "").toLowerCase().trim();
+
+  // Spanish / Español
+  if (norm.includes("spanish") || norm.includes("испан") || norm.includes("español") || norm.includes("espanol") || norm === "es") {
+    return {
+      presets: ["🇪🇸", "🇲🇽", "🇨🇴", "🇦🇷", "🇨🇱", "🇵🇪", "🇻🇪", "🇪🇨", "🇬🇹", "🇨🇺", "🇩🇴", "🇭🇳", "🇵🇾", "🇸🇻", "🇳🇮", "🇨🇷", "🇵🇦", "🇺🇾", "🇧🇴", "🇪🇶", "🇺🇸"],
+      label: "Страны, где говорят на испанском:"
+    };
+  }
+
+  // English
+  if (norm.includes("english") || norm.includes("англ") || norm === "en") {
+    return {
+      presets: ["🇺🇸", "🇬🇧", "🇨🇦", "🇦🇺", "🇳🇿", "🇮🇪", "🇿🇦", "🇯🇲", "🇸🇬", "🇮🇳"],
+      label: "Англоязычные страны:"
+    };
+  }
+
+  // German / Deutsch
+  if (norm.includes("german") || norm.includes("немец") || norm.includes("deutsch") || norm === "de") {
+    return {
+      presets: ["🇩🇪", "🇦🇹", "🇨🇭", "🇱🇮", "🇱🇺", "🇧🇪"],
+      label: "Немецкоязычные страны:"
+    };
+  }
+
+  // French / Français
+  if (norm.includes("french") || norm.includes("франц") || norm.includes("français") || norm.includes("francais") || norm === "fr") {
+    return {
+      presets: ["🇫🇷", "🇨🇦", "🇧🇪", "🇨🇭", "🇲🇨", "🇸🇳", "🇨🇮", "🇨🇲", "🇲🇬", "🇨🇩", "🇭🇹"],
+      label: "Франкоязычные страны:"
+    };
+  }
+
+  // Portuguese / Português
+  if (norm.includes("portuguese") || norm.includes("португал") || norm.includes("português") || norm.includes("portugues") || norm === "pt") {
+    return {
+      presets: ["🇵🇹", "🇧🇷", "🇦🇴", "🇲🇿", "🇨🇻", "🇬🇼", "🇸🇹", "🇹🇱", "🇲🇴"],
+      label: "Португалоязычные страны:"
+    };
+  }
+
+  // Russian / Русский
+  if (norm.includes("russian") || norm.includes("русский") || norm.includes("русск") || norm === "ru") {
+    return {
+      presets: ["🇷🇺", "🇧🇾", "🇰🇿", "🇰🇬"],
+      label: "Русскоязычные регионы:"
+    };
+  }
+
+  // Italian / Italiano
+  if (norm.includes("italian") || norm.includes("итальян") || norm.includes("italiano") || norm === "it") {
+    return {
+      presets: ["🇮🇹", "🇨🇭", "🇸🇲", "🇻🇦"],
+      label: "Италоязычные страны:"
+    };
+  }
+
+  // Chinese / 中文
+  if (norm.includes("chinese") || norm.includes("китай") || norm.includes("中文") || norm === "zh") {
+    return {
+      presets: ["🇨🇳", "🇹🇼", "🇭🇰", "🇸🇬", "🇲🇴"],
+      label: "Китайскоязычные регионы:"
+    };
+  }
+
+  // Japanese / 日本語
+  if (norm.includes("japanese") || norm.includes("япон") || norm.includes("日本語") || norm === "ja") {
+    return {
+      presets: ["🇯🇵"],
+      label: "Япония:"
+    };
+  }
+
+  // Korean / 한국어
+  if (norm.includes("korean") || norm.includes("корей") || norm.includes("한국어") || norm === "ko") {
+    return {
+      presets: ["🇰🇷", "🇰🇵"],
+      label: "Корейские регионы:"
+    };
+  }
+
+  // Arabic / العربية
+  if (norm.includes("arabic") || norm.includes("араб") || norm === "ar") {
+    return {
+      presets: ["🇸🇦", "🇦🇪", "🇪🇬", "🇮🇶", "🇯🇴", "🇱🇧", "🇲🇦", "🇩🇿", "🇹🇳", "🇶🇦", "🇰🇼", "🇴🇲", "🇧🇭"],
+      label: "Арабоязычные страны:"
+    };
+  }
+
+  // Turkish / Türkçe
+  if (norm.includes("turkish") || norm.includes("турец") || norm === "tr") {
+    return {
+      presets: ["🇹🇷", "🇨🇾"],
+      label: "Туркоязычные регионы:"
+    };
+  }
+
+  // Ukrainian / Українська
+  if (norm.includes("ukrainian") || norm.includes("украин") || norm === "uk") {
+    return {
+      presets: ["🇺🇦"],
+      label: "Украина:"
+    };
+  }
+
+  // Kazakh / Қазақ
+  if (norm.includes("kazakh") || norm.includes("казах") || norm.includes("қазақ") || norm === "kk") {
+    return {
+      presets: ["🇰🇿"],
+      label: "Казахстан:"
+    };
+  }
+
+  // Polish / Polski
+  if (norm.includes("polish") || norm.includes("польск") || norm === "pl") {
+    return {
+      presets: ["🇵🇱"],
+      label: "Польша:"
+    };
+  }
+
+  // Dutch / Nederlands
+  if (norm.includes("dutch") || norm.includes("голланд") || norm.includes("нидерланд") || norm === "nl") {
+    return {
+      presets: ["🇳🇱", "🇧🇪", "🇸🇷"],
+      label: "Нидерландоязычные страны:"
+    };
+  }
+
+  // Swedish / Svenska
+  if (norm.includes("swedish") || norm.includes("швед") || norm === "sv") {
+    return {
+      presets: ["🇸🇪", "🇫🇮"],
+      label: "Швеция и Финляндия:"
+    };
+  }
+
+  // Greek / Ελληνικά
+  if (norm.includes("greek") || norm.includes("греч") || norm === "el") {
+    return {
+      presets: ["🇬🇷", "🇨🇾"],
+      label: "Греция и Кипр:"
+    };
+  }
+
+  // Hindi
+  if (norm.includes("hindi") || norm.includes("хинди") || norm === "hi") {
+    return {
+      presets: ["🇮🇳"],
+      label: "Индия:"
+    };
+  }
+
+  // Default fallback flags list
+  return {
+    presets: ALL_WORLD_FLAGS.slice(0, 24),
+    label: "Выберите подходящий флаг:"
+  };
+}
 
 const renderFlagImg = (emoji: string, size = 24) => {
   const code = FLAG_EMOJI_TO_CODE[emoji];
@@ -143,6 +310,7 @@ export default function SettingsModal({
 
   const [listeningMinsInput, setListeningMinsInput] = useState<string>(Math.round((listeningSeconds || 0) / 60).toString());
   const [listeningSaveMsg, setListeningSaveMsg] = useState<string | null>(null);
+  const [showAllFlagsMap, setShowAllFlagsMap] = useState<Record<string, boolean>>({});
 
   // States for local Wi-Fi Peer-to-Peer Transfer
   const [wifiSyncPin, setWifiSyncPin] = useState<string | null>(null);
@@ -335,7 +503,7 @@ export default function SettingsModal({
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.38.0</span>
+                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">v2.39.0</span>
               </h3>
               <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed">
                 Настройте масштаб интерфейса, управляйте связями слов и визуальным оформлением флагов.
@@ -414,6 +582,9 @@ export default function SettingsModal({
                   const langLower = lang.toLowerCase();
                   const currentFlag = languageFlags[langLower] || DEFAULT_FALLBACK_FLAGS[langLower] || "📖";
                   const customValue = customInputs[langLower] !== undefined ? customInputs[langLower] : "";
+                  const flagConfig = getFlagsForLanguage(lang);
+                  const isShowingAll = !!showAllFlagsMap[langLower];
+                  const activePresets = isShowingAll ? ALL_WORLD_FLAGS : flagConfig.presets;
 
                   return (
                     <div 
@@ -439,11 +610,20 @@ export default function SettingsModal({
                       <div className="flex-1 space-y-3">
                         {/* Presets Grid */}
                         <div>
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
-                            Выберите быстрый пресет флага:
-                          </span>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                              {isShowingAll ? "Все флаги мира:" : flagConfig.label}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowAllFlagsMap(prev => ({ ...prev, [langLower]: !isShowingAll }))}
+                              className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+                            >
+                              {isShowingAll ? "Показать только подходящие" : "🌐 Все флаги"}
+                            </button>
+                          </div>
                           <div className="flex flex-wrap gap-1.5 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/50 dark:border-zinc-800/60 max-h-[110px] overflow-y-auto">
-                            {FLAG_PRESETS.map((preset) => {
+                            {activePresets.map((preset) => {
                               const isSelected = currentFlag === preset;
                               return (
                                 <button

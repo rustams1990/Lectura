@@ -111,12 +111,29 @@ export async function saveTtsAudioToCache(key: string, blob: Blob): Promise<void
 }
 
 export const FLAG_EMOJI_TO_CODE: Record<string, string> = {
-  "🇺🇸": "us", "🇬🇧": "gb", "🇪🇸": "es", "🇲🇽": "mx", "🇨🇴": "co", "🇦🇷": "ar",
-  "🇨🇱": "cl", "🇵🇪": "pe", "🇻🇪": "ve", "🇩🇪": "de", "🇦🇹": "at", "🇨🇭": "ch",
-  "🇫🇷": "fr", "🇨🇦": "ca", "🇷🇺": "ru", "🇯🇵": "jp", "🇮🇹": "it", "🇵🇹": "pt",
-  "🇧🇷": "br", "🇨🇳": "cn", "🇹🇼": "tw", "🇰🇷": "kr", "🇹🇷": "tr", "🇸🇦": "sa",
-  "🇪🇬": "eg", "🇮🇳": "in", "🇺🇦": "ua", "🇰🇿": "kz", "🇵🇱": "pl", "🇸🇪": "se", "🇳🇱": "nl",
-  "🇧🇪": "be", "🇬🇷": "gr", "🇮🇪": "ie",
+  // North America / South America / Caribbean
+  "🇺🇸": "us", "🇨🇦": "ca", "🇲🇽": "mx", "🇨🇴": "co", "🇦🇷": "ar", "🇨🇱": "cl",
+  "🇵🇪": "pe", "🇻🇪": "ve", "🇪🇨": "ec", "🇬🇹": "gt", "🇨🇺": "cu", "🇩🇴": "do",
+  "🇭🇳": "hn", "🇵🇾": "py", "🇸🇻": "sv", "🇳🇮": "ni", "🇨🇷": "cr", "🇵🇦": "pa",
+  "🇺🇾": "uy", "🇧🇴": "bo", "🇧🇷": "br", "🇯🇲": "jm", "🇭🇹": "ht", "🇸🇷": "sr",
+  
+  // Europe
+  "🇬🇧": "gb", "🇪🇸": "es", "🇩🇪": "de", "🇦🇹": "at", "🇨🇭": "ch",
+  "🇫🇷": "fr", "🇷🇺": "ru", "🇮🇹": "it", "🇵🇹": "pt", "🇺🇦": "ua", "🇵🇱": "pl",
+  "🇸🇪": "se", "🇳🇱": "nl", "🇧🇪": "be", "🇬🇷": "gr", "🇮🇪": "ie", "🇧🇾": "by",
+  "🇸🇲": "sm", "🇻🇦": "va", "🇲🇨": "mc", "🇱🇮": "li", "🇱🇺": "lu", "🇫🇮": "fi",
+  "🇨🇾": "cy",
+
+  // Asia / Middle East / Pacific
+  "🇯🇵": "jp", "🇨🇳": "cn", "🇹🇼": "tw", "🇰🇷": "kr", "🇰🇵": "kp", "🇹🇷": "tr",
+  "🇸🇦": "sa", "🇦🇪": "ae", "🇪🇬": "eg", "🇮🇶": "iq", "🇯🇴": "jo", "🇱🇧": "lb",
+  "🇲🇦": "ma", "🇩🇿": "dz", "🇹🇳": "tn", "🇶🇦": "qa", "🇰🇼": "kw", "🇴🇲": "om",
+  "🇧🇭": "bh", "🇮🇳": "in", "🇰🇿": "kz", "🇰🇬": "kg", "🇦🇺": "au", "🇳🇿": "nz",
+  "🇸🇬": "sg", "🇲🇴": "mo", "🇭🇰": "hk", "🇹🇱": "tl",
+
+  // Africa
+  "🇿🇦": "za", "🇸🇳": "sn", "🇨🇮": "ci", "🇨🇲": "cm", "🇲🇬": "mg", "🇨🇩": "cd",
+  "🇦🇴": "ao", "🇲🇿": "mz", "🇨🇻": "cv", "🇬🇼": "gw", "🇸🇹": "st", "🇪🇶": "gq"
 };
 
 export function getLanguageCode(languageName: string): string {
