@@ -9,7 +9,7 @@ import { safeJsonParse, getBCP47LanguageTag, FLAG_EMOJI_TO_CODE } from "../utils
 import { 
   X, Check, Globe, HelpCircle, Save, RotateCcw, Trash2, Link, 
   Maximize2, Sparkles, Database, HardDrive, Download, Upload, ShieldAlert,
-  Wifi, Copy, RefreshCw, TrendingUp
+  Wifi, Copy, RefreshCw, TrendingUp, Headphones
 } from "lucide-react";
 
 interface SettingsModalProps {
@@ -38,6 +38,7 @@ interface SettingsModalProps {
   vocab: Record<string, any>;
   lessonTypes: any[];
   listeningSeconds: number;
+  onListeningSecondsChange?: (seconds: number) => void;
   onImportData: (imported: {
     lessons: Lesson[];
     lessonTypes: any[];
@@ -126,6 +127,7 @@ export default function SettingsModal({
   vocab,
   lessonTypes,
   listeningSeconds,
+  onListeningSecondsChange,
   onImportData,
   onClearAllData,
   onManualSync,
@@ -138,6 +140,9 @@ export default function SettingsModal({
   const [importStatus, setImportStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [listeningMinsInput, setListeningMinsInput] = useState<string>(Math.round((listeningSeconds || 0) / 60).toString());
+  const [listeningSaveMsg, setListeningSaveMsg] = useState<string | null>(null);
 
   // States for local Wi-Fi Peer-to-Peer Transfer
   const [wifiSyncPin, setWifiSyncPin] = useState<string | null>(null);
@@ -625,6 +630,58 @@ export default function SettingsModal({
                   <button className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-black text-[11px] rounded-xl shadow-xs cursor-pointer select-none">
                     Демонстрационная Кнопка!
                   </button>
+                </div>
+              </div>
+
+              {/* Listening Time Adjustment Card */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-sky-50 dark:bg-sky-950/40 rounded-xl text-sky-600 dark:text-sky-400 shrink-0">
+                    <Headphones className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                      Время прослушивания (Listening Time)
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
+                      Автоматически учитывает время прослушивания YouTube видео и аудио уроков. Вы также можете указать время вручную:
+                    </p>
+
+                    <div className="mt-3.5 flex items-center gap-3">
+                      <div className="relative flex-1 max-w-[180px]">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={listeningMinsInput}
+                          onChange={(e) => setListeningMinsInput(e.target.value)}
+                          className="w-full h-9 px-3 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-sky-500"
+                          placeholder="Минуты"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-400">мин</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const mins = parseFloat(listeningMinsInput);
+                          if (!isNaN(mins) && mins >= 0 && onListeningSecondsChange) {
+                            onListeningSecondsChange(Math.round(mins * 60));
+                            setListeningSaveMsg("✓ Время прослушивания успешно обновлено!");
+                            setTimeout(() => setListeningSaveMsg(null), 3000);
+                          }
+                        }}
+                        className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs"
+                      >
+                        Сохранить
+                      </button>
+                    </div>
+                    {listeningSaveMsg && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block mt-2 animate-in fade-in duration-200">
+                        {listeningSaveMsg}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -6,14 +6,17 @@ import { useLesson } from "../context/LessonContext";
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
   onClose: () => void;
+  onListeningTick?: (seconds: number) => void;
 }
 
 export default function YoutubePlayerWindow({
   lesson,
   onClose,
+  onListeningTick,
 }: YoutubePlayerWindowProps) {
   const { setCurrentTime, seekToTime, setSeekToTime } = useLesson();
   const { youtubeId } = lesson;
+  const lastTickTimeRef = useRef<number | null>(null);
   if (!youtubeId) return null;
 
   // Track minimized (rolled up) state
@@ -74,6 +77,7 @@ export default function YoutubePlayerWindow({
     };
 
     const startTrackingTime = () => {
+      lastTickTimeRef.current = Date.now();
       if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
       trackingIntervalRef.current = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
@@ -93,10 +97,21 @@ export default function YoutubePlayerWindow({
             // ignore temporary access issues
           }
         }
+
+        // Track listening time
+        if (lastTickTimeRef.current) {
+          const now = Date.now();
+          const delta = (now - lastTickTimeRef.current) / 1000;
+          if (delta > 0 && delta < 5 && onListeningTick) {
+            onListeningTick(delta);
+          }
+          lastTickTimeRef.current = now;
+        }
       }, 250);
     };
 
     const stopTrackingTime = () => {
+      lastTickTimeRef.current = null;
       if (trackingIntervalRef.current) {
         clearInterval(trackingIntervalRef.current);
         trackingIntervalRef.current = null;

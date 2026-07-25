@@ -13,12 +13,17 @@ interface StatsWidgetProps {
 
 export default function StatsWidget({ stats }: StatsWidgetProps) {
   const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
+    if (!totalSeconds || totalSeconds <= 0) return "0с";
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = Math.floor(totalSeconds % 60);
-    if (mins === 0) {
-      return `${secs}s`;
+    if (hrs > 0) {
+      return mins > 0 ? `${hrs}ч ${mins}мин` : `${hrs}ч`;
     }
-    return `${mins}m ${secs}s`;
+    if (mins > 0) {
+      return secs > 0 ? `${mins}мин ${secs}с` : `${mins}мин`;
+    }
+    return `${secs}с`;
   };
 
   return (

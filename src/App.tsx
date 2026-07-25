@@ -1784,10 +1784,12 @@ export default function App() {
 
   const handleListeningTick = (seconds: number) => {
     setListeningSeconds((prev) => {
-      const nextVal = prev + seconds;
+      const nextVal = Math.round((prev + seconds) * 10) / 10;
       if (auth.currentUser && storageMode === "cloud") {
         saveProfileStats(auth.currentUser.uid, nextVal).catch((err) => console.error(err));
       }
+      safeLocalStorageSetItem("vocab_clone_listening", nextVal.toString());
+      settingsStore.setItem("vocab_clone_listening", nextVal.toString());
       return nextVal;
     });
   };
@@ -2775,6 +2777,17 @@ export default function App() {
         vocab={vocab}
         lessonTypes={lessonTypes}
         listeningSeconds={listeningSeconds}
+        onListeningSecondsChange={(seconds) => {
+          setListeningSeconds(seconds);
+          safeLocalStorageSetItem("vocab_clone_listening", seconds.toString());
+          settingsStore.setItem("vocab_clone_listening", seconds.toString());
+          if (auth.currentUser && storageMode === "cloud") {
+            saveProfileStats(auth.currentUser.uid, seconds).catch((err) => console.error(err));
+          }
+          if (storageMode === "server") {
+            syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, seconds, languageFlags).catch((err) => console.error(err));
+          }
+        }}
         onImportData={(imported: any) => {
           const importedVocab = imported.vocab || imported.lingqs || imported.lingq;
           const parsedVocab = importedVocab ? normalizeVocabRecord(importedVocab) : vocab;
@@ -3173,6 +3186,7 @@ export default function App() {
         <YoutubePlayerWindow
           lesson={activeLesson}
           onClose={() => setShowYoutubePlayer(false)}
+          onListeningTick={handleListeningTick}
         />
       )}
 
