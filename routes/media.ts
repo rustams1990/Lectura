@@ -405,19 +405,69 @@ router.get("/image-search", async (req: Request, res: Response) => {
     }
 
     const data = await apiResponse.json();
-    const results = (data.results || []).slice(0, 16).map((item: any) => ({
-      image: item.image,
-      thumbnail: item.thumbnail,
-      title: item.title,
-      source: item.source
-    }));
+    let results = (data.results || []).slice(0, 16).map((item: any, idx: number) => {
+      const imgUrl = item.image || item.thumbnail || "";
+      const thumbUrl = item.thumbnail || item.image || "";
+      return {
+        id: `ddg_${idx}_${Date.now()}`,
+        url: imgUrl,
+        thumb: thumbUrl,
+        image: imgUrl,
+        thumbnail: thumbUrl,
+        author: item.source || "DuckDuckGo",
+        source: item.source || "DuckDuckGo",
+        description: item.title || "",
+        title: item.title || ""
+      };
+    });
+
+    if (!results || results.length === 0) {
+      results = await searchWikimedia(query as string);
+    }
 
     return res.json({ results });
   } catch (err: any) {
-    console.error("DuckDuckGo Image search error:", err);
-    return res.status(500).json({ error: err.message || "Failed to search images via DuckDuckGo" });
+    console.error("DuckDuckGo Image search error, trying Wikimedia fallback:", err);
+    try {
+      const wikiResults = await searchWikimedia(query as string);
+      if (wikiResults.length > 0) {
+        return res.json({ results: wikiResults });
+      }
+    } catch (wikiErr) {
+      console.error("Wikimedia fallback error:", wikiErr);
+    }
+    return res.status(500).json({ error: err.message || "Failed to search images" });
   }
 });
+
+async function searchWikimedia(query: string) {
+  try {
+    const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=16&prop=imageinfo&iiprop=url|mime&format=json`;
+    const resp = await fetch(wikiUrl, {
+      headers: { "User-Agent": "LecturaApp/1.0 (https://lectura.app)" }
+    });
+    if (!resp.ok) return [];
+    const json = await resp.json();
+    const pages = json.query?.pages || {};
+    return Object.values(pages).map((page: any, idx: number) => {
+      const ii = page.imageinfo?.[0];
+      const imgUrl = ii?.url || "";
+      return {
+        id: `wiki_${page.pageid || idx}`,
+        url: imgUrl,
+        thumb: imgUrl,
+        image: imgUrl,
+        thumbnail: imgUrl,
+        author: "Wikimedia Commons",
+        source: "Wikimedia Commons",
+        description: page.title || query,
+        title: page.title || query
+      };
+    }).filter((item: any) => item.url);
+  } catch (err) {
+    return [];
+  }
+}
 
 // 3. Document Import (EPUB & PDF)
 router.post("/import-file", async (req: Request, res: Response) => {

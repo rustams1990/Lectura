@@ -2491,10 +2491,6 @@ export default function App() {
                             <ChevronLeft className="w-4 h-4" />
                             Библиотека
                           </button>
-                          <span className="text-zinc-300 dark:text-zinc-600 text-xs hidden sm:inline">/</span>
-                          <span className="text-zinc-700 dark:text-zinc-300 text-xs font-bold truncate max-w-[120px] sm:max-w-[200px]" title={activeLesson.title}>
-                            {activeLesson.title}
-                          </span>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">

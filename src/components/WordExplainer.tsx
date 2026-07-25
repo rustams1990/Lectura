@@ -1827,13 +1827,6 @@ export default function WordExplainer({
                         className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 px-2 py-0.5 rounded-md text-[9px] font-bold text-zinc-600 dark:text-zinc-300 transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <span>{dict.name}</span>
-                        {dict.displayType === "popup" ? (
-                          <span className="text-[7px] text-teal-600 dark:text-teal-400 font-extrabold uppercase bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-100/50 dark:border-teal-900/10 font-sans">pop</span>
-                        ) : dict.displayType === "window_popup" ? (
-                          <span className="text-[7px] text-amber-600 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">окно ⧉</span>
-                        ) : (
-                          <span className="text-[7px] text-blue-600 dark:text-blue-400 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">tab ↗</span>
-                        )}
                       </button>
                     ))}
                   </div>
@@ -2356,14 +2349,20 @@ export default function WordExplainer({
                 </div>
               ) : imagesList.length > 0 ? (
                 <div className="grid grid-cols-4 gap-1 max-h-[140px] overflow-y-auto scrollbar-thin rounded-lg p-0.5">
-                  {imagesList.map((img) => {
-                    const isSelected = imageUrlValue === img.url;
+                  {imagesList.map((img, idx) => {
+                    const imgUrl = img.url || (img as any).image || "";
+                    const rawThumb = img.thumb || (img as any).thumbnail || imgUrl;
+                    const imgThumb = rawThumb.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(rawThumb)}` : rawThumb;
+                    const imgAuthor = img.author || (img as any).source || "";
+                    const imgDesc = img.description || (img as any).title || "";
+                    const imgId = img.id || imgUrl || `img_${idx}`;
+                    const isSelected = imageUrlValue === imgUrl;
                     return (
                       <button
-                        key={img.id}
+                        key={imgId}
                         type="button"
-                        onClick={() => handleSelectImage(img.url)}
-                        title={`${img.description} by ${img.author}`}
+                        onClick={() => handleSelectImage(imgUrl)}
+                        title={`${imgDesc} by ${imgAuthor}`}
                         className={`relative aspect-square w-full rounded-md overflow-hidden border transition-all cursor-pointer hover:scale-103 group ${
                           isSelected
                             ? "ring-2 ring-teal-500 border-transparent shadow-xs"
@@ -2371,13 +2370,13 @@ export default function WordExplainer({
                         }`}
                       >
                         <img
-                          src={img.thumb}
-                          alt={img.description}
+                          src={imgThumb}
+                          alt={imgDesc}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
                         <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[6.5px] px-0.5 py-0.25 truncate opacity-0 group-hover:opacity-100 transition-opacity leading-none">
-                          {img.author}
+                          {imgAuthor}
                         </span>
                       </button>
                     );
@@ -2765,7 +2764,7 @@ export default function WordExplainer({
                             </span>
                           ) : dict.displayType === "window_popup" ? (
                             <span className="text-[7.5px] text-amber-600 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">
-                              окно ⧉
+                              окно
                             </span>
                           ) : (
                             <span className="text-[7.5px] text-blue-600 dark:text-blue-400 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">
