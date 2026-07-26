@@ -40,6 +40,7 @@ COPY --from=builder /app/dist ./dist
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV DATA_DIR=/app/data
+ENV NODE_OPTIONS="--max-old-space-size=256 --optimize_for_size --expose-gc"
 
 # Create data directory for SQLite database and media caches
 RUN mkdir -p /app/data

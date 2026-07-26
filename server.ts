@@ -42,6 +42,31 @@ async function startServer() {
     res.json({ status: "ok", uptime: process.uptime(), timestamp: Date.now() });
   });
 
+  // Static Audio Storage route (serves audio files directly from disk to keep RAM usage minimal)
+  const AUDIO_STORAGE_DIR = path.join(DATA_DIR, "audio_files");
+  if (!fs.existsSync(AUDIO_STORAGE_DIR)) {
+    fs.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
+  }
+
+  app.get("/api/audio-files/:filename", (req, res) => {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(AUDIO_STORAGE_DIR, filename);
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).json({ error: "Audio file not found" });
+    }
+  });
+
+  // Periodic Garbage Collection sweep (every 3 minutes) if --expose-gc is enabled
+  setInterval(() => {
+    if (global.gc) {
+      try {
+        global.gc();
+      } catch (e) {}
+    }
+  }, 3 * 60 * 1000);
+
   // ============================================================
   // Express Routers
   // ============================================================

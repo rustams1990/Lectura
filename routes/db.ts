@@ -7,6 +7,33 @@ import { resolveUserId, requireLocalSyncKey, requireAuth } from "./auth.ts";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
+const AUDIO_STORAGE_DIR = path.join(DATA_DIR, "audio_files");
+
+// Helper to offload heavy base64 audio payload from DB/RAM into static MP3 files on disk
+function saveAudioBase64ToDisk(lessonId: string, base64OrDataUrl: string): string | null {
+  try {
+    if (!fs.existsSync(AUDIO_STORAGE_DIR)) {
+      fs.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
+    }
+    const cleanBase64 = base64OrDataUrl.replace(/^data:[^;]+;base64,/, "");
+    const buffer = Buffer.from(cleanBase64, "base64");
+    if (buffer.length === 0) return null;
+
+    let ext = "mp3";
+    if (base64OrDataUrl.startsWith("data:audio/wav")) ext = "wav";
+    else if (base64OrDataUrl.startsWith("data:audio/ogg")) ext = "ogg";
+    else if (base64OrDataUrl.startsWith("data:audio/m4a") || base64OrDataUrl.startsWith("data:audio/mp4")) ext = "m4a";
+
+    const fileName = `${lessonId}.${ext}`;
+    const filePath = path.join(AUDIO_STORAGE_DIR, fileName);
+    fs.writeFileSync(filePath, buffer);
+
+    return `/api/audio-files/${fileName}`;
+  } catch (err) {
+    console.error(`[saveAudioBase64ToDisk] Failed to save audio for lesson ${lessonId}:`, err);
+    return null;
+  }
+}
 
 // Helper to clean word prefix (e.g. 'spanish_hola' -> 'hola')
 function cleanWordPrefix(word: string): string {
@@ -198,25 +225,44 @@ export function getLocalServerDb(userId: string = "default") {
     }
 
     const lessonsRows = db.prepare("SELECT * FROM lessons").all() as any[];
-    const lessons = lessonsRows.map((l) => ({
-      id: l.id,
-      title: l.title,
-      text: l.text,
-      audioUrl: l.audioUrl,
-      audioBase64: l.audioBase64,
-      targetLanguage: l.targetLanguage,
-      translationLanguage: l.translationLanguage,
-      isBuiltIn: l.isBuiltIn === 1,
-      isArchived: l.isArchived === 1,
-      coverUrl: l.coverUrl,
-      youtubeId: l.youtubeId,
-      lessonType: l.lessonType,
-      pinned: l.pinned === 1,
-      translationText: l.translationText,
-      detectedPhrases: l.detectedPhrases ? JSON.parse(l.detectedPhrases) : {},
-      difficulty: l.difficulty,
-      difficultyExplanation: l.difficultyExplanation,
-    }));
+    const updateAudioStmt = db.prepare("UPDATE lessons SET audioUrl = ?, audioBase64 = NULL WHERE id = ?");
+
+    const lessons = lessonsRows.map((l) => {
+      let currentAudioUrl = l.audioUrl;
+      let currentAudioBase64 = l.audioBase64;
+
+      // Automatic Migration: If SQLite contains legacy base64 string, offload to disk file and clear base64 from DB/RAM
+      if (currentAudioBase64 && typeof currentAudioBase64 === "string" && currentAudioBase64.length > 50) {
+        const savedFileUrl = saveAudioBase64ToDisk(l.id, currentAudioBase64);
+        if (savedFileUrl) {
+          currentAudioUrl = savedFileUrl;
+          currentAudioBase64 = null;
+          try {
+            updateAudioStmt.run(savedFileUrl, l.id);
+          } catch (e) {}
+        }
+      }
+
+      return {
+        id: l.id,
+        title: l.title,
+        text: l.text,
+        audioUrl: currentAudioUrl,
+        audioBase64: null, // Never send giant Base64 strings to frontend to save RAM!
+        targetLanguage: l.targetLanguage,
+        translationLanguage: l.translationLanguage,
+        isBuiltIn: l.isBuiltIn === 1,
+        isArchived: l.isArchived === 1,
+        coverUrl: l.coverUrl,
+        youtubeId: l.youtubeId,
+        lessonType: l.lessonType,
+        pinned: l.pinned === 1,
+        translationText: l.translationText,
+        detectedPhrases: l.detectedPhrases ? JSON.parse(l.detectedPhrases) : {},
+        difficulty: l.difficulty,
+        difficultyExplanation: l.difficultyExplanation,
+      };
+    });
 
     const lessonTypes = db.prepare("SELECT * FROM lesson_types").all() as any[];
 
@@ -374,12 +420,22 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       for (const l of lessons) {
+        let finalAudioUrl = l.audioUrl || null;
+        let finalAudioBase64 = null; // Clear base64 from RAM & DB
+
+        if (l.audioBase64 && typeof l.audioBase64 === "string" && l.audioBase64.length > 50) {
+          const savedUrl = saveAudioBase64ToDisk(l.id, l.audioBase64);
+          if (savedUrl) {
+            finalAudioUrl = savedUrl;
+          }
+        }
+
         insertLesson.run(
           l.id,
           l.title,
           l.text,
-          l.audioUrl || null,
-          l.audioBase64 || null,
+          finalAudioUrl,
+          finalAudioBase64,
           l.targetLanguage,
           l.translationLanguage,
           l.isBuiltIn ? 1 : 0,
