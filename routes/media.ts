@@ -567,6 +567,120 @@ router.post("/import-url", async (req: Request, res: Response) => {
       }
     }
 
+    // Special handler for Apple Podcasts & Podcast URLs with audio enclosure / stream
+    const isPodcastUrl = url.toLowerCase().includes("podcasts.apple.com") ||
+                         url.toLowerCase().includes("podcast") ||
+                         html.includes("schema:episode") ||
+                         html.includes('"assetUrl"');
+
+    if (isPodcastUrl) {
+      console.log(`[Import URL] Podcast URL detected: ${url}`);
+
+      // 1. Extract Title
+      let podcastTitle = "Podcast Episode";
+      const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+                            html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i) ||
+                            html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (ogTitleMatch) {
+        podcastTitle = ogTitleMatch[1].replace(/<[^>]+>/g, "").replace(/\s*-\s*Apple Podcasts.*$/i, "").trim();
+      }
+
+      // 2. Extract Direct MP3 Audio URL
+      let directAudioUrl: string | null = null;
+      const assetUrlMatch = html.match(/"assetUrl"\s*:\s*"(https?:\/\/[^"]+)"/i);
+      if (assetUrlMatch) {
+        directAudioUrl = assetUrlMatch[1];
+      } else {
+        const audioMatches = html.match(/https?:\/\/[^\s"']+\.(?:mp3|m4a|aac)[^\s"']*/gi);
+        if (audioMatches && audioMatches.length > 0) {
+          directAudioUrl = audioMatches[0];
+        }
+      }
+
+      console.log(`[Import URL] Direct audio URL found: ${directAudioUrl}`);
+
+      let audioBase64: string | null = null;
+      let audioUrl: string | null = directAudioUrl;
+      let transcriptText = "";
+
+      if (directAudioUrl) {
+        try {
+          console.log(`[Import URL] Downloading audio stream from ${directAudioUrl}...`);
+          const audioFetch = await fetch(directAudioUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+            }
+          });
+
+          if (audioFetch.ok) {
+            const arrayBuf = await audioFetch.arrayBuffer();
+            const buf = Buffer.from(arrayBuf);
+            audioBase64 = buf.toString("base64");
+            audioUrl = `data:audio/mp3;base64,${audioBase64}`;
+
+            // Auto transcribe with Gemini AI Speech-to-Text
+            const userApiKey = (req.headers["x-gemini-key"] as string) || req.body.geminiApiKey;
+            const ai = getGeminiClient(userApiKey);
+            if (ai && buf.length > 0) {
+              console.log(`[Import URL] Running Gemini Speech-to-Text on ${buf.length} bytes of podcast audio...`);
+              const tempAudioDir = os.tmpdir();
+              const tempAudioPath = path.join(tempAudioDir, `podcast_${Date.now()}.mp3`);
+              fs.writeFileSync(tempAudioPath, buf);
+
+              let uploadedFile: any = null;
+              try {
+                uploadedFile = await (ai.files as any).upload({
+                  file: tempAudioPath,
+                  mimeType: "audio/mp3"
+                });
+
+                const prompt = `Listen carefully to this podcast episode titled "${podcastTitle}".
+Transcribe all spoken words accurately into short, sentence-by-sentence entries in the original spoken language.
+For EVERY single spoken sentence or dialogue turn, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 15s\t..., 47s\t..., 1m3s\t..., 1m17s\t...).
+Do NOT group multiple sentences or long paragraphs into a single timestamp entry. Break the transcript into short, individual spoken sentences so that every line has an accurate timestamp matching when it is actually spoken in the audio.
+
+IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not provide titles, introductory explanations, translation notes, bracketed remarks, or markdown code blocks.`;
+
+                const aiRes = await ai.models.generateContent({
+                  model: "gemini-2.5-flash",
+                  contents: [
+                    { fileData: { fileUri: uploadedFile.uri, mimeType: uploadedFile.mimeType || "audio/mp3" } },
+                    prompt
+                  ]
+                });
+
+                if (aiRes.text) {
+                  transcriptText = formatGeminiTranscript(aiRes.text);
+                }
+              } catch (tErr) {
+                console.error("[Import URL] Podcast Gemini transcription error:", tErr);
+              } finally {
+                if (fs.existsSync(tempAudioPath)) { try { fs.unlinkSync(tempAudioPath); } catch (e) {} }
+                if (uploadedFile?.name) { try { await ai.files.delete({ name: uploadedFile.name }); } catch (e) {} }
+              }
+            }
+          }
+        } catch (aErr) {
+          console.error("[Import URL] Failed to fetch podcast MP3 stream:", aErr);
+        }
+      }
+
+      // Fallback description if transcript is empty
+      if (!transcriptText.trim()) {
+        const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+                          html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+        transcriptText = descMatch ? descMatch[1].trim() : "Подкаст импортирован. Нажмите 'Создать субтитры' для автоматического распознавания текста речи.";
+      }
+
+      return res.json({
+        title: podcastTitle,
+        text: transcriptText,
+        coverUrl: extractedCoverUrl || null,
+        audioUrl: audioUrl || directAudioUrl || null,
+        audioBase64: audioBase64 || null
+      });
+    }
+
     if (aiProvider === "local") {
       try {
         const prompt = `You are an automated article extraction and helper assistant.

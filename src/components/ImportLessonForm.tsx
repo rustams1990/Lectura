@@ -172,10 +172,12 @@ export default function ImportLessonForm({
     setWebSuccess(null);
 
     try {
+      const userApiKey = localStorage.getItem("vocab_clone_gemini_key") || "";
       const response = await fetch("/api/import-url", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-gemini-key": userApiKey,
         },
         body: JSON.stringify({
           url: url.trim(),
@@ -188,25 +190,34 @@ export default function ImportLessonForm({
       const data = await safeJsonParse(response);
       console.log("DEBUG [ImportLessonForm]: /api/import-url response status:", response.status, "data:", data);
       if (!response.ok) {
-        throw new Error(data.error || "Не удалось извлечь статью с указанного сайта");
+        throw new Error(data.error || "Не удалось извлечь статью/подкаст с указанного сайта");
       }
 
-      setTitle(data.title || "Статья с сайта");
+      setTitle(data.title || "Подкаст / Статья с сайта");
       setText(data.text || "");
-      setSelectedType("article"); // Select article type for website import
+      setSelectedType("article");
 
+      if (data.audioUrl) {
+        setAudioUrl(data.audioUrl);
+      }
+      if (data.audioBase64) {
+        setAudioBase64(data.audioBase64);
+      }
+      if (data.title) {
+        setAudioFileName(data.title);
+      }
 
-      // Automatically generate a web screenshot cover or use og:image metadata
-      if (webScreenshotAsCover) {
-        setCoverUrl(`https://api.microlink.io/?url=${encodeURIComponent(url.trim())}&screenshot=true&embed=screenshot.url`);
-      } else if (data.coverUrl) {
+      // Cover image assignment
+      if (data.coverUrl) {
         setCoverUrl(data.coverUrl);
+      } else if (webScreenshotAsCover) {
+        setCoverUrl(`https://api.microlink.io/?url=${encodeURIComponent(url.trim())}&screenshot=true&embed=screenshot.url`);
       } else {
         setCoverUrl("");
       }
       
       const wordCount = data.text ? data.text.split(/\s+/).filter(Boolean).length : 0;
-      setWebSuccess(`✓ Статья успешно импортирована! Извлечено ${wordCount} слов. Проверьте детали ниже.`);
+      setWebSuccess(`✓ Успешно импортировано! ${data.audioUrl ? "Аудио привязано. " : ""}Извлечено ${wordCount} слов. Проверьте детали ниже.`);
     } catch (err: any) {
       console.error("DEBUG [ImportLessonForm]: web import error:", err);
       setWebError(err.message || "Ошибка подключения или парсинга страницы. Убедитесь, что URL доступен.");
