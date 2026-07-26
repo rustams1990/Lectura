@@ -134,6 +134,7 @@ export default function ImportLessonForm({
   const [audioUrl, setAudioUrl] = useState<string | null>(editingLesson?.audioUrl || null);
   const [audioBase64, setAudioBase64] = useState<string | null>(editingLesson?.audioBase64 || null);
   const [audioFileName, setAudioFileName] = useState<string | null>(null);
+  const [audioRawFile, setAudioRawFile] = useState<File | null>(null);
   const [audioMimeType, setAudioMimeType] = useState<string>("audio/mp3");
   const [isTranscribingAudio, setIsTranscribingAudio] = useState<boolean>(false);
   const [generatingTts, setGeneratingTts] = useState(false);
@@ -526,6 +527,7 @@ export default function ImportLessonForm({
     setIsAudioLoading(true);
     setAudioUploadError(null);
     setAudioFileName(file.name);
+    setAudioRawFile(file);
     setAudioMimeType(file.type || "audio/mp3");
 
     const reader = new FileReader();
@@ -553,25 +555,42 @@ export default function ImportLessonForm({
   };
 
   const handleTranscribeAudio = async () => {
-    if (!audioBase64) return;
+    if (!audioBase64 && !audioRawFile) return;
     setIsTranscribingAudio(true);
     setAudioUploadError(null);
 
     try {
       const userApiKey = localStorage.getItem("vocab_clone_gemini_key") || "";
-      const response = await fetch("/api/transcribe-audio", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-gemini-key": userApiKey,
-        },
-        body: JSON.stringify({
-          audioBase64,
-          mimeType: audioMimeType,
-          targetLanguage: targetLanguage,
-          filename: audioFileName,
-        }),
-      });
+      let response: Response;
+
+      if (audioRawFile) {
+        // Stream raw binary File object directly over HTTP POST (saves 33% memory & prevents JSON base64 overflow)
+        response = await fetch("/api/transcribe-audio", {
+          method: "POST",
+          headers: {
+            "Content-Type": audioMimeType || "audio/mp3",
+            "x-gemini-key": userApiKey,
+            "x-target-language": targetLanguage || "",
+            "x-filename": encodeURIComponent(audioFileName || audioRawFile.name || ""),
+          },
+          body: audioRawFile,
+        });
+      } else {
+        // Fallback for base64 JSON payload
+        response = await fetch("/api/transcribe-audio", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-gemini-key": userApiKey,
+          },
+          body: JSON.stringify({
+            audioBase64,
+            mimeType: audioMimeType,
+            targetLanguage: targetLanguage,
+            filename: audioFileName,
+          }),
+        });
+      }
 
       const data = await response.json();
       if (!response.ok || data.error) {

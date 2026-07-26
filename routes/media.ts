@@ -693,11 +693,32 @@ Output your result as a JSON object matching this schema:
 // Audio Speech-to-Text Transcription via Gemini AI API
 // ============================================================
 router.post("/transcribe-audio", async (req: Request, res: Response) => {
-  try {
-    const { audioBase64, mimeType = "audio/mp3", targetLanguage, filename } = req.body;
-    const userApiKey = (req.headers["x-gemini-key"] as string) || req.body.geminiApiKey;
+  // Set 10-minute socket timeout for large audio files & Gemini processing
+  req.setTimeout(600000);
+  res.setTimeout(600000);
 
-    if (!audioBase64 || typeof audioBase64 !== "string") {
+  try {
+    const userApiKey = (req.headers["x-gemini-key"] as string) || (req.body && req.body.geminiApiKey);
+    const targetLanguage = (req.headers["x-target-language"] as string) || (req.body && req.body.targetLanguage);
+    const filenameRaw = (req.headers["x-filename"] as string) || (req.body && req.body.filename);
+    const filename = filenameRaw ? decodeURIComponent(filenameRaw) : "";
+    const mimeTypeHeader = (req.headers["content-type"] as string) || (req.body && req.body.mimeType) || "audio/mp3";
+
+    let buffer: Buffer | null = null;
+    let mimeType = mimeTypeHeader.split(";")[0].trim();
+
+    // Case A: Binary raw audio body
+    if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+      buffer = req.body;
+    } 
+    // Case B: JSON body with audioBase64 string
+    else if (req.body && typeof req.body.audioBase64 === "string") {
+      const base64Data = req.body.audioBase64.replace(/^data:[^;]+;base64,/, "");
+      buffer = Buffer.from(base64Data, "base64");
+      if (req.body.mimeType) mimeType = req.body.mimeType;
+    }
+
+    if (!buffer || buffer.length === 0) {
       return res.status(400).json({ error: "Передан пустой или некорректный аудиофайл." });
     }
 
@@ -706,14 +727,6 @@ router.post("/transcribe-audio", async (req: Request, res: Response) => {
       return res.status(400).json({
         error: "Для распознавания речи требуется Gemini API Key. Укажите ключ в настройках приложения или при запуске сервера."
       });
-    }
-
-    // Strip data URL prefix if present (e.g. data:audio/mp3;base64,...)
-    const base64Data = audioBase64.replace(/^data:[^;]+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-
-    if (buffer.length === 0) {
-      return res.status(400).json({ error: "Аудиофайл имеет нулевой размер." });
     }
 
     // Determine extension
