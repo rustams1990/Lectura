@@ -7,9 +7,21 @@ import { Lesson, LessonType } from "./types";
 
 export const DEFAULT_LESSON_TYPES: LessonType[] = [
   { id: "youtube", name: "YouTube", icon: "youtube" },
+  { id: "podcast", name: "Подкаст", icon: "podcast" },
   { id: "book", name: "Книга", icon: "book" },
   { id: "article", name: "Статья", icon: "article" }
 ];
+
+export function ensureDefaultLessonTypes(types: LessonType[]): LessonType[] {
+  if (!Array.isArray(types) || types.length === 0) return DEFAULT_LESSON_TYPES;
+  const result = [...types];
+  for (const defaultType of DEFAULT_LESSON_TYPES) {
+    if (!result.some((t) => t.id === defaultType.id)) {
+      result.push(defaultType);
+    }
+  }
+  return result;
+}
 
 export const BUILT_IN_LESSONS: Lesson[] = [
   {

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings } from "./types";
-import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES } from "./data";
+import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import { onAuthStateChanged, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, googleProvider, db } from "./firebase";
 import { onSnapshot, collection, doc, getDocs } from "firebase/firestore";
@@ -594,7 +594,7 @@ export default function App() {
           const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
 
           const lLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS);
-          const lTypes = safeParse(localTypesStr, DEFAULT_LESSON_TYPES);
+          const lTypes = ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]);
           const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
           const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
           const lWordLinks = normalizeWordLinksRecord(safeParse(localAliasesStr, {}));

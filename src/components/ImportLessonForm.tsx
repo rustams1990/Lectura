@@ -33,11 +33,17 @@ import {
   BookMarked,
   GraduationCap,
   Pencil,
-  Trash2
+  Trash2,
+  Podcast,
+  Radio,
+  Headphones
 } from "lucide-react";
 
 export const ICON_MAP: Record<string, React.ComponentType<any>> = {
   youtube: Youtube,
+  podcast: Podcast,
+  radio: Radio,
+  headphones: Headphones,
   book: Book,
   bookOpen: BookOpen,
   bookMarked: BookMarked,
@@ -58,6 +64,9 @@ export const getCategoryIcon = (iconKey: string, categoryName: string): React.Co
     return ICON_MAP[iconKey];
   }
   const name = (categoryName || "").toLowerCase();
+  if (name.includes("подкаст") || name.includes("podcast") || name.includes("аудио")) {
+    return Podcast;
+  }
   if (name.includes("lectura") || name.includes("read") || name.includes("чтение")) {
     return BookOpen;
   }
@@ -195,7 +204,6 @@ export default function ImportLessonForm({
 
       setTitle(data.title || "Подкаст / Статья с сайта");
       setText(data.text || "");
-      setSelectedType("article");
 
       if (data.audioUrl) {
         setAudioUrl(data.audioUrl);
@@ -206,6 +214,10 @@ export default function ImportLessonForm({
       if (data.title) {
         setAudioFileName(data.title);
       }
+
+      // Automatically set lesson type to "podcast" if audio is attached or returned as podcast
+      const targetType = data.lessonType || (data.audioUrl || data.audioBase64 || url.toLowerCase().includes("podcast") ? "podcast" : "article");
+      setSelectedType(targetType);
 
       // Cover image assignment
       if (data.coverUrl) {

@@ -675,6 +675,7 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
       return res.json({
         title: podcastTitle,
         text: transcriptText,
+        lessonType: "podcast",
         coverUrl: extractedCoverUrl || null,
         audioUrl: audioUrl || directAudioUrl || null,
         audioBase64: audioBase64 || null
