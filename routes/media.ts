@@ -615,22 +615,31 @@ router.post("/import-url", async (req: Request, res: Response) => {
           if (audioFetch.ok) {
             const arrayBuf = await audioFetch.arrayBuffer();
             const buf = Buffer.from(arrayBuf);
-            audioBase64 = buf.toString("base64");
-            audioUrl = `data:audio/mp3;base64,${audioBase64}`;
+
+            // Save audio file directly to static disk storage (/app/data/audio_files/...)
+            const DATA_DIR = process.env.DATA_DIR || process.cwd();
+            const audioStorageDir = path.join(DATA_DIR, "audio_files");
+            if (!fs.existsSync(audioStorageDir)) {
+              fs.mkdirSync(audioStorageDir, { recursive: true });
+            }
+
+            const audioFileName = `podcast_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp3`;
+            const diskPath = path.join(audioStorageDir, audioFileName);
+            fs.writeFileSync(diskPath, buf);
+
+            audioUrl = `/api/audio-files/${audioFileName}`;
+            audioBase64 = null; // KEEP PAYLOAD LIGHTWEIGHT (0 MB BASE64)
 
             // Auto transcribe with Gemini AI Speech-to-Text
             const userApiKey = (req.headers["x-gemini-key"] as string) || req.body.geminiApiKey;
             const ai = getGeminiClient(userApiKey);
             if (ai && buf.length > 0) {
               console.log(`[Import URL] Running Gemini Speech-to-Text on ${buf.length} bytes of podcast audio...`);
-              const tempAudioDir = os.tmpdir();
-              const tempAudioPath = path.join(tempAudioDir, `podcast_${Date.now()}.mp3`);
-              fs.writeFileSync(tempAudioPath, buf);
 
               let uploadedFile: any = null;
               try {
                 uploadedFile = await (ai.files as any).upload({
-                  file: tempAudioPath,
+                  file: diskPath,
                   mimeType: "audio/mp3"
                 });
 
@@ -655,7 +664,6 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
               } catch (tErr) {
                 console.error("[Import URL] Podcast Gemini transcription error:", tErr);
               } finally {
-                if (fs.existsSync(tempAudioPath)) { try { fs.unlinkSync(tempAudioPath); } catch (e) {} }
                 if (uploadedFile?.name) { try { await ai.files.delete({ name: uploadedFile.name }); } catch (e) {} }
               }
             }
@@ -678,7 +686,7 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
         lessonType: "podcast",
         coverUrl: extractedCoverUrl || null,
         audioUrl: audioUrl || directAudioUrl || null,
-        audioBase64: audioBase64 || null
+        audioBase64: null
       });
     }
 
