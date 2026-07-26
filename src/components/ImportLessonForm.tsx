@@ -133,6 +133,9 @@ export default function ImportLessonForm({
   // Audio states and control flags
   const [audioUrl, setAudioUrl] = useState<string | null>(editingLesson?.audioUrl || null);
   const [audioBase64, setAudioBase64] = useState<string | null>(editingLesson?.audioBase64 || null);
+  const [audioFileName, setAudioFileName] = useState<string | null>(null);
+  const [audioMimeType, setAudioMimeType] = useState<string>("audio/mp3");
+  const [isTranscribingAudio, setIsTranscribingAudio] = useState<boolean>(false);
   const [generatingTts, setGeneratingTts] = useState(false);
   const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
@@ -522,6 +525,9 @@ export default function ImportLessonForm({
   const handleAudioUpload = (file: File) => {
     setIsAudioLoading(true);
     setAudioUploadError(null);
+    setAudioFileName(file.name);
+    setAudioMimeType(file.type || "audio/mp3");
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -544,6 +550,49 @@ export default function ImportLessonForm({
       setIsAudioLoading(false);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleTranscribeAudio = async () => {
+    if (!audioBase64) return;
+    setIsTranscribingAudio(true);
+    setAudioUploadError(null);
+
+    try {
+      const userApiKey = localStorage.getItem("vocab_clone_gemini_key") || "";
+      const response = await fetch("/api/transcribe-audio", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-gemini-key": userApiKey,
+        },
+        body: JSON.stringify({
+          audioBase64,
+          mimeType: audioMimeType,
+          targetLanguage: targetLanguage,
+          filename: audioFileName,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Не удалось распознать текст из аудиофайла.");
+      }
+
+      if (data.text) {
+        setText(data.text);
+        if (!title || title === "Моя Книга" || title.trim() === "") {
+          if (audioFileName) {
+            const cleanName = audioFileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+            setTitle(cleanName);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("Audio Transcription failed:", err);
+      setAudioUploadError(err.message || "Ошибка распознавания речи из аудиофайла.");
+    } finally {
+      setIsTranscribingAudio(false);
+    }
   };
 
   const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -653,6 +702,10 @@ export default function ImportLessonForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!text.trim() && audioBase64) {
+      handleTranscribeAudio();
+      return;
+    }
     if (!title.trim() || !text.trim()) return;
 
     const lessonData: Lesson = {
@@ -1487,31 +1540,72 @@ export default function ImportLessonForm({
           </div>
 
           {audioUrl || audioBase64 ? (
-            <div className="flex items-center justify-between p-3.5 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-950/20 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 rounded-lg">
-                  <Music className="w-4 h-4" />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3.5 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-950/20 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 rounded-lg">
+                    <Music className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      ✓ Аудиофайл успешно привязан {audioFileName ? `(${audioFileName})` : ""}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      Будет доступен для воспроизведения в плеере при чтении
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    ✓ Аудиофайл успешно привязан
-                  </p>
-                  <p className="text-[10px] text-zinc-500">
-                    Будет доступен для воспроизведения в плеере при чтении
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAudioUrl(null);
+                    setAudioBase64(null);
+                    setAudioFileName(null);
+                    setAudioUploadError(null);
+                  }}
+                  className="px-3 py-1.5 border border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-red-950/30 dark:hover:bg-red-950/20 dark:hover:text-red-400 rounded-lg text-[11px] font-bold text-zinc-500 transition-colors cursor-pointer"
+                >
+                  Сбросить аудио
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setAudioUrl(null);
-                  setAudioBase64(null);
-                  setAudioUploadError(null);
-                }}
-                className="px-3 py-1.5 border border-red-200 hover:bg-red-50 hover:text-red-605 dark:border-red-950/30 dark:hover:bg-red-950/20 dark:hover:text-red-400 rounded-lg text-[11px] font-bold text-zinc-500 transition-colors cursor-pointer"
-              >
-                Сбросить аудио
-              </button>
+
+              {/* AI Speech-to-Text Action Card */}
+              <div className="p-3 bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-sky-500/10 border border-teal-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-teal-600 text-white rounded-lg shrink-0">
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-zinc-900 dark:text-white">
+                      Создать субтитры из аудио через Gemini AI
+                    </h5>
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+                      {!text.trim()
+                        ? "Текст книги пока пуст. ИИ расшифрует аудиофайл и создаст предложения с таймкодами!"
+                        : "ИИ расшифрует аудиофайл и заново создаст предложения с синхронизированными таймкодами."}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isTranscribingAudio}
+                  onClick={handleTranscribeAudio}
+                  className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:opacity-60 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer whitespace-nowrap"
+                >
+                  {isTranscribingAudio ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      Расшифровка аудио...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      Создать субтитры (Gemini AI)
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

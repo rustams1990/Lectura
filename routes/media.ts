@@ -1,12 +1,14 @@
 import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import crypto from "crypto";
 import AdmZip from "adm-zip";
 import { Type } from "@google/genai";
 import * as pdfParseModule from "pdf-parse";
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
+import { formatGeminiTranscript } from "./youtube.ts";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
@@ -684,6 +686,99 @@ Output your result as a JSON object matching this schema:
   } catch (err: any) {
     console.error("Web article parser error:", err);
     return res.status(500).json({ error: "Failed to parse website article: " + (err.message || err) });
+  }
+});
+
+// ============================================================
+// Audio Speech-to-Text Transcription via Gemini AI API
+// ============================================================
+router.post("/transcribe-audio", async (req: Request, res: Response) => {
+  try {
+    const { audioBase64, mimeType = "audio/mp3", targetLanguage, filename } = req.body;
+    const userApiKey = (req.headers["x-gemini-key"] as string) || req.body.geminiApiKey;
+
+    if (!audioBase64 || typeof audioBase64 !== "string") {
+      return res.status(400).json({ error: "Передан пустой или некорректный аудиофайл." });
+    }
+
+    const ai = getGeminiClient(userApiKey);
+    if (!ai) {
+      return res.status(400).json({
+        error: "Для распознавания речи требуется Gemini API Key. Укажите ключ в настройках приложения или при запуске сервера."
+      });
+    }
+
+    // Strip data URL prefix if present (e.g. data:audio/mp3;base64,...)
+    const base64Data = audioBase64.replace(/^data:[^;]+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    if (buffer.length === 0) {
+      return res.status(400).json({ error: "Аудиофайл имеет нулевой размер." });
+    }
+
+    // Determine extension
+    let ext = "mp3";
+    const rawType = (mimeType || "").toLowerCase();
+    if (rawType.includes("wav")) ext = "wav";
+    else if (rawType.includes("ogg")) ext = "ogg";
+    else if (rawType.includes("m4a") || rawType.includes("aac")) ext = "m4a";
+    else if (rawType.includes("webm")) ext = "webm";
+
+    const tempAudioDir = os.tmpdir();
+    const tempAudioPath = path.join(tempAudioDir, `transcribe_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`);
+
+    fs.writeFileSync(tempAudioPath, buffer);
+
+    let uploadedGeminiFile: any = null;
+    try {
+      console.log(`[Audio Transcribe] Uploading ${buffer.length} bytes to Gemini File API (${mimeType})...`);
+      uploadedGeminiFile = await (ai.files as any).upload({
+        file: tempAudioPath,
+        mimeType: mimeType || "audio/mp3"
+      });
+
+      const prompt = `Listen carefully to this audio recording${filename ? ` ("${filename}")` : ""}.
+Transcribe all spoken words accurately into short, sentence-by-sentence entries in the original spoken language${targetLanguage ? ` (target study language: "${targetLanguage}")` : ""}.
+For EVERY single spoken sentence or dialogue turn, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 15s\t..., 47s\t..., 1m3s\t..., 1m17s\t...).
+Do NOT group multiple sentences or long paragraphs into a single timestamp entry. Break the transcript into short, individual spoken sentences so that every line has an accurate timestamp matching when it is actually spoken in the audio.
+
+IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not provide titles, introductory explanations, translation notes, bracketed remarks, or markdown code blocks.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            fileData: {
+              fileUri: uploadedGeminiFile.uri,
+              mimeType: uploadedGeminiFile.mimeType || mimeType || "audio/mp3"
+            }
+          },
+          prompt
+        ]
+      });
+
+      const aiText = response.text || "";
+      if (!aiText.trim()) {
+        throw new Error("Gemini AI вернул пустой текст распознавания.");
+      }
+
+      const formattedTranscript = formatGeminiTranscript(aiText);
+
+      return res.json({
+        text: formattedTranscript,
+        success: true
+      });
+    } finally {
+      if (fs.existsSync(tempAudioPath)) {
+        try { fs.unlinkSync(tempAudioPath); } catch (e) {}
+      }
+      if (uploadedGeminiFile?.name) {
+        try { await ai.files.delete({ name: uploadedGeminiFile.name }); } catch (e) {}
+      }
+    }
+  } catch (err: any) {
+    console.error("Audio Transcription error:", err);
+    return res.status(500).json({ error: "Ошибка распознавания речи: " + (err.message || String(err)) });
   }
 });
 
