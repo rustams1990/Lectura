@@ -1667,7 +1667,8 @@ export default function ImportLessonForm({
           </div>
         </div>
 
-        {/* Companion Audio Customizer (AI narration or file upload) */}
+        {/* Companion Audio Customizer — hidden in YouTube (already has YouTube player) */}
+        {activeTab !== "youtube" && (
         <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-teal-600 dark:text-teal-400" />
@@ -1746,7 +1747,8 @@ export default function ImportLessonForm({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Option 1: AI TTS Generation */}
+              {/* Option 1: AI TTS Generation — hidden in Podcast (already has real audio) */}
+              {activeTab !== ("podcast" as any) && (
               <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3">
                 <div>
                   <h5 className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 tracking-tight uppercase">
@@ -1777,6 +1779,7 @@ export default function ImportLessonForm({
                   )}
                 </button>
               </div>
+              )}
 
               {/* Option 2: Upload local audio file */}
               <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3 relative">
@@ -1828,6 +1831,7 @@ export default function ImportLessonForm({
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Buttons panel */}
