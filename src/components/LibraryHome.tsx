@@ -8,6 +8,7 @@ import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings } from "../type
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE } from "../utils";
+import { segmentSentenceTokens } from "../tokenizer";
 
 export function getDifficultyBadgeStyles(level: string) {
   const lvl = (level || "").toUpperCase();
@@ -53,26 +54,9 @@ function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wo
   if (typeof lesson.text !== "string") {
     return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
   }
-  const rawParts = lesson.text.split(/\s+/);
-  const processedWords = rawParts.map(part => {
-    if (!part) return "";
-    const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "").toLowerCase();
-    
-    const isNumericOrTimestamp = (str: string): boolean => {
-      if (/\d/.test(str)) {
-        if (/\d+:\d+/.test(str)) return true;
-        if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
-        if (/^\d+[a-zA-Z]+$/.test(str)) return true;
-        if (!/\p{L}/u.test(str)) return true;
-      }
-      return false;
-    };
-    const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
-    if (clean.length > 0 && !isNumeric) {
-      return clean;
-    }
-    return "";
-  }).filter(w => w.length > 0);
+  const cleanText = lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ");
+  const tokens = segmentSentenceTokens(cleanText, lesson.targetLanguage || "spanish");
+  const processedWords = tokens.filter(t => t.isWord && t.clean).map(t => t.clean);
 
   if (processedWords.length === 0) {
     return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };

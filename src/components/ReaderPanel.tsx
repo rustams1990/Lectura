@@ -7,6 +7,7 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Lesson, VocabItem, WordStatus, ReaderSettings } from "../types";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
+import { segmentSentenceTokens } from "../tokenizer";
 import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 
@@ -722,41 +723,7 @@ export default function ReaderPanel({
         : [seg.text];
 
       sentenceStrings.forEach((sentText, sIdx) => {
-        let tokens: { raw: string; clean: string; isWord: boolean }[] = [];
-        if (isCjk) {
-          tokens = sentText.split("").map((char) => {
-            const isPunct = /[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n]/g.test(char);
-            const isDigit = /^\d+$/.test(char);
-            return {
-              raw: char,
-              clean: (isPunct || isDigit) ? "" : char,
-              isWord: !isPunct && !isDigit,
-            };
-          });
-        } else {
-          const parts = sentText.split(/(\s+)/);
-          tokens = parts.map((part) => {
-            if (/^\s+$/.test(part)) {
-              return { raw: part, clean: "", isWord: false };
-            }
-            const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "");
-            const isNumericOrTimestamp = (str: string): boolean => {
-              if (/\d/.test(str)) {
-                if (/\d+:\d+/.test(str)) return true;
-                if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
-                if (/^\d+[a-zA-Z]+$/.test(str)) return true;
-                if (!/\p{L}/u.test(str)) return true;
-              }
-              return false;
-            };
-            const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
-            return {
-              raw: part,
-              clean: clean.toLowerCase(),
-              isWord: clean.length > 0 && !isNumeric,
-            };
-          });
-        }
+        const tokens = segmentSentenceTokens(sentText, lesson.targetLanguage);
 
         const startIdx = globalIdx;
         tokens.forEach((t, localIdx) => {
@@ -943,17 +910,8 @@ export default function ReaderPanel({
   const allUnknownWords = useMemo(() => {
     const cleanText = lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ");
     
-    let candidates: string[] = [];
-    if (isCjk) {
-      candidates = cleanText.split("").filter(char => {
-        const isPunct = /[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n]/g.test(char);
-        const isDigit = /^\d+$/.test(char);
-        return !isPunct && !isDigit;
-      });
-    } else {
-      const words = cleanText.match(/[\p{L}\p{M}'’]+/gu) || [];
-      candidates = words.map(w => w.toLowerCase());
-    }
+    const tokens = segmentSentenceTokens(cleanText, lesson.targetLanguage);
+    const candidates = tokens.filter((t) => t.isWord && t.clean).map((t) => t.clean);
 
     const uniqueCandidates = Array.from(new Set(candidates));
     
@@ -967,7 +925,7 @@ export default function ReaderPanel({
       return [...result].sort((a, b) => a.localeCompare(b));
     }
     return result;
-  }, [lesson.text, vocab, wordLinks, isCjk, unknownSortMode]);
+  }, [lesson.text, lesson.targetLanguage, vocab, wordLinks, isCjk, unknownSortMode]);
 
   const filteredUnknownWords = useMemo(() => {
     if (!unknownSearchQuery.trim()) return allUnknownWords;
@@ -1223,33 +1181,7 @@ export default function ReaderPanel({
             if (!activeSettings.wordHighlight || !isSegmentActive) return 0;
             let count = 0;
             sentenceStrings.forEach((sentText) => {
-              let tokens: { isWord: boolean }[] = [];
-              if (isCjk) {
-                tokens = sentText.split("").map((char) => {
-                  const isPunct = /[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n]/g.test(char);
-                  const isDigit = /^\d+$/.test(char);
-                  return { isWord: !isPunct && !isDigit };
-                });
-              } else {
-                const parts = sentText.split(/(\s+)/);
-                tokens = parts.map((part) => {
-                  if (/^\s+$/.test(part)) {
-                    return { isWord: false };
-                  }
-                  const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "");
-                  const isNumericOrTimestamp = (str: string): boolean => {
-                    if (/\d/.test(str)) {
-                      if (/\d+:\d+/.test(str)) return true;
-                      if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
-                      if (/^\d+[a-zA-Z]+$/.test(str)) return true;
-                      if (!/\p{L}/u.test(str)) return true;
-                    }
-                    return false;
-                  };
-                  const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
-                  return { isWord: clean.length > 0 && !isNumeric };
-                });
-              }
+              const tokens = segmentSentenceTokens(sentText, lesson.targetLanguage);
               count += tokens.filter((t) => t.isWord).length;
             });
             return count;
