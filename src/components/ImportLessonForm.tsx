@@ -805,6 +805,7 @@ export default function ImportLessonForm({
       {/* Mode Tabs Selector */}
       {!editingLesson && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl">
+          {/* 1. YouTube */}
           <button
             type="button"
             onClick={() => {
@@ -820,21 +821,7 @@ export default function ImportLessonForm({
             <Youtube className="w-4 h-4 text-red-500" />
             Импорт с YouTube
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("podcast" as any);
-              setYtError(null);
-            }}
-            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === ("podcast" as any)
-                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-            }`}
-          >
-            <Podcast className="w-4 h-4 text-purple-500" />
-            Подкаст
-          </button>
+          {/* 2. Книга PDF / EPUB */}
           <button
             type="button"
             onClick={() => {
@@ -850,6 +837,7 @@ export default function ImportLessonForm({
             <FileUp className="w-4 h-4 text-amber-500" />
             Книга PDF / EPUB
           </button>
+          {/* 3. Импорт с Сайта */}
           <button
             type="button"
             onClick={() => {
@@ -865,6 +853,23 @@ export default function ImportLessonForm({
             <Globe className="w-4 h-4 text-emerald-500" />
             Импорт с Сайта
           </button>
+          {/* 4. Подкаст — after Site import, both are URL-based */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("podcast" as any);
+              setYtError(null);
+            }}
+            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === ("podcast" as any)
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <Podcast className="w-4 h-4 text-purple-500" />
+            Подкаст
+          </button>
+          {/* 5. Обычный текст */}
           <button
             type="button"
             onClick={() => {
