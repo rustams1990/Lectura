@@ -2480,35 +2480,21 @@ export default function App() {
                 {activeLesson ? (
                   <>
                     {/* Quiet minimal inline toolbar */}
-                    <div className="flex flex-col gap-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
-                      <div className="flex items-center justify-between gap-2 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0 shrink">
-                          <button
-                            onClick={() => {
-                              setActiveTab("library");
-                              setSelectedWord(null);
-                            }}
-                            className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
-                          >
-                            <ChevronLeft className="w-4 h-4" />
-                            Библиотека
-                          </button>
-                        </div>
+                    {/* Quiet minimal inline toolbar */}
+                    <div className="flex items-center justify-between gap-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
+                      {/* Left side actions scrollable bar */}
+                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 max-w-full no-scrollbar min-w-0 flex-1">
+                        <button
+                          onClick={() => {
+                            setActiveTab("library");
+                            setSelectedWord(null);
+                          }}
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          Библиотека
+                        </button>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
-                          <button
-                            onClick={() => setShowSettingsModal(true)}
-                            className="flex items-center justify-center gap-1.5 h-8 px-2.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all cursor-pointer"
-                            title="Language settings"
-                          >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Settings</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar min-w-0">
                         <button
                           onClick={() => setIsFocusMode(true)}
                           className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
@@ -2620,6 +2606,19 @@ export default function App() {
                         >
                           <Pencil className="w-3.5 h-3.5" />
                           Edit
+                        </button>
+                      </div>
+
+                      {/* Right side settings buttons */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
+                        <button
+                          onClick={() => setShowSettingsModal(true)}
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all cursor-pointer"
+                          title="Language settings"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Settings</span>
                         </button>
                       </div>
                     </div>
