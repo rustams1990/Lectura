@@ -93,4 +93,17 @@ export interface Dictionary {
   displayType: "popup" | "new_tab" | "window_popup";
 }
 
+export interface HistoryEntry {
+  id: string;
+  lessonId: string;
+  lessonTitle: string;
+  lessonType?: string;
+  coverUrl?: string | null;
+  targetLanguage: string;
+  timestamp: string; // ISO string date
+  actionType: "read" | "listen" | "complete";
+  durationSeconds?: number;
+  notes?: string;
+}
+
 

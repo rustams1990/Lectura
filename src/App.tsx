@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings } from "./types";
+import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import { onAuthStateChanged, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, googleProvider, db } from "./firebase";
@@ -42,6 +42,7 @@ import MatchPairsModal from "./components/MatchPairsModal";
 import TextSettingsControls from "./components/TextSettingsControls";
 import LibraryHome from "./components/LibraryHome";
 import StatisticsPage from "./components/StatisticsPage";
+import HistoryPage from "./components/HistoryPage";
 import SettingsModal from "./components/SettingsModal";
 import {
   setLessonImages,
@@ -50,7 +51,7 @@ import {
   removeLessonImages,
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
-import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff } from "lucide-react";
+import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
 import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord } from "./utils";
 import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage } from "./db";
 
@@ -215,7 +216,62 @@ export default function App() {
   const [lessonImagesVersion, setLessonImagesVersion] = useState(0);
 
   // Navigation states
-  const [activeTab, setActiveTab] = useState<"library" | "read" | "practice" | "statistics">("library");
+  const [activeTab, setActiveTab] = useState<"library" | "read" | "practice" | "statistics" | "history">("library");
+
+  // History state
+  const [history, setHistory] = useState<HistoryEntry[]>(() => {
+    const saved = localStorage.getItem("vocab_clone_reading_history");
+    return saved ? safeParse(saved, []) : [];
+  });
+
+  const handleUpdateHistory = (newHistory: HistoryEntry[]) => {
+    setHistory(newHistory);
+    safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(newHistory));
+  };
+
+  const recordHistoryActivity = (
+    targetLesson: Lesson,
+    actionType: "read" | "listen" | "complete",
+    durationSeconds?: number
+  ) => {
+    if (!targetLesson || !targetLesson.id) return;
+    setHistory((prev) => {
+      const now = new Date().toISOString();
+      const recentIdx = prev.findIndex(
+        (h) =>
+          h.lessonId === targetLesson.id &&
+          h.actionType === actionType &&
+          Date.now() - new Date(h.timestamp).getTime() < 5 * 60 * 1000
+      );
+
+      let updated: HistoryEntry[];
+      if (recentIdx !== -1) {
+        updated = [...prev];
+        const existing = updated[recentIdx];
+        updated[recentIdx] = {
+          ...existing,
+          timestamp: now,
+          durationSeconds: (existing.durationSeconds || 0) + (durationSeconds || 0),
+        };
+      } else {
+        const newEntry: HistoryEntry = {
+          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          lessonId: targetLesson.id,
+          lessonTitle: targetLesson.title,
+          lessonType: targetLesson.lessonType || "article",
+          coverUrl: targetLesson.coverUrl || null,
+          targetLanguage: targetLesson.targetLanguage,
+          timestamp: now,
+          actionType,
+          durationSeconds: durationSeconds || 0,
+        };
+        updated = [newEntry, ...prev];
+      }
+      safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(updated.slice(0, 500)));
+      return updated.slice(0, 500);
+    });
+  };
+
   const [showImportForm, setShowImportForm] = useState(false);
   const [initialImportUrl, setInitialImportUrl] = useState<string | null>(null);
   const [showYoutubePlayer, setShowYoutubePlayer] = useState<boolean>(true);
@@ -1792,7 +1848,17 @@ export default function App() {
       settingsStore.setItem("vocab_clone_listening", nextVal.toString());
       return nextVal;
     });
+
+    if (activeLesson) {
+      recordHistoryActivity(activeLesson, "listen", seconds);
+    }
   };
+
+  useEffect(() => {
+    if (activeLesson && activeTab === "read") {
+      recordHistoryActivity(activeLesson, "read");
+    }
+  }, [activeLesson?.id, activeTab]);
 
   // Full-Screen Isolated Focused Reading Room
   if (isFocusMode && activeTab === "read" && activeLesson) {
@@ -2126,6 +2192,23 @@ export default function App() {
                 >
                   <TrendingUp className="w-4 h-4 shrink-0" />
                   Статистика (Stats)
+                </button>
+
+                <button
+                  id="tab-history-mode"
+                  onClick={() => {
+                    setActiveTab("history");
+                    setShowImportForm(false);
+                    setIsSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    activeTab === "history" && !showImportForm
+                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
+                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
+                  }`}
+                >
+                  <History className="w-4 h-4 shrink-0 text-teal-600 dark:text-teal-400" />
+                  История (History)
                 </button>
               </div>
 
@@ -2468,6 +2551,20 @@ export default function App() {
               onSaveWordLink={handleSaveWordLink}
               onDeleteWordLink={handleDeleteWordLink}
               lessons={lessons}
+            />
+          </div>
+        ) : activeTab === "history" ? (
+          /* History Page */
+          <div className="py-2 animate-in fade-in duration-150">
+            <HistoryPage
+              history={history}
+              lessons={lessons}
+              onOpenLesson={(lessonId) => {
+                setActiveLessonId(lessonId);
+                setSelectedWord(null);
+                setActiveTab("read");
+              }}
+              onUpdateHistory={handleUpdateHistory}
             />
           </div>
         ) : (
