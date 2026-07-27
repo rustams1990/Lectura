@@ -2480,10 +2480,9 @@ export default function App() {
                 {activeLesson ? (
                   <>
                     {/* Quiet minimal inline toolbar */}
-                    {/* Quiet minimal inline toolbar */}
-                    <div className="flex items-center justify-between gap-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between gap-x-3 gap-y-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
                       {/* Left side actions scrollable bar */}
-                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 max-w-full no-scrollbar min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar min-w-0 flex-1 pr-1">
                         <button
                           onClick={() => {
                             setActiveTab("library");
@@ -2598,19 +2597,10 @@ export default function App() {
                             Экран
                           </button>
                         </div>
-
-                        <button
-                          onClick={() => setEditingLesson(activeLesson)}
-                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all cursor-pointer"
-                          title="Edit lesson details"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit
-                        </button>
                       </div>
 
                       {/* Right side settings buttons */}
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                         <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
                         <button
                           onClick={() => setShowSettingsModal(true)}
