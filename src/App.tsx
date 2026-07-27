@@ -742,7 +742,7 @@ export default function App() {
           const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
 
           const lLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS) as Lesson[];
-          const lTypes = safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[];
+          const lTypes = ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]);
           const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
           const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
           const lWordLinks = normalizeWordLinksRecord(safeParse(localAliasesStr, {}));

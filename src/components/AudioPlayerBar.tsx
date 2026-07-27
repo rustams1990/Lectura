@@ -27,7 +27,6 @@ export default function AudioPlayerBar({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const lastTickTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (seekToTime !== null && seekToTime !== undefined && audioRef.current) {
@@ -46,16 +45,21 @@ export default function AudioPlayerBar({
   useEffect(() => {
     let tickInterval: NodeJS.Timeout;
     if (isPlaying) {
-      lastTickTimeRef.current = Date.now();
+      // Track audio-time delta using audioRef.currentTime so playback speed is accounted for
+      let lastAudioTime = audioRef.current?.currentTime ?? null;
       tickInterval = setInterval(() => {
-        if (lastTickTimeRef.current) {
-          const delta = (Date.now() - lastTickTimeRef.current) / 1000;
-          onListeningTick(delta);
-          lastTickTimeRef.current = Date.now();
+        if (audioRef.current && lastAudioTime !== null) {
+          const nowAudioTime = audioRef.current.currentTime;
+          const delta = nowAudioTime - lastAudioTime;
+          // Positive delta means audio advanced (skip negative from seeks or reloads)
+          if (delta > 0 && delta < 10) {
+            onListeningTick(delta);
+          }
+          lastAudioTime = nowAudioTime;
+        } else if (audioRef.current) {
+          lastAudioTime = audioRef.current.currentTime;
         }
       }, 1000);
-    } else {
-      lastTickTimeRef.current = null;
     }
 
     return () => {

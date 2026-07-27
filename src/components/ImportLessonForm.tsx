@@ -802,7 +802,7 @@ export default function ImportLessonForm({
 
       {/* Mode Tabs Selector */}
       {!editingLesson && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl">
           <button
             type="button"
             onClick={() => {
@@ -817,6 +817,21 @@ export default function ImportLessonForm({
           >
             <Youtube className="w-4 h-4 text-red-500" />
             Импорт с YouTube
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("podcast" as any);
+              setYtError(null);
+            }}
+            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === ("podcast" as any)
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <Podcast className="w-4 h-4 text-purple-500" />
+            Подкаст
           </button>
           <button
             type="button"
@@ -1178,6 +1193,79 @@ export default function ImportLessonForm({
           {ytSuccessMessage && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30">
               {ytSuccessMessage}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Podcast Import Pane */}
+      {activeTab === ("podcast" as any) && (
+        <div className="space-y-4 p-4 border border-purple-100 dark:border-purple-950/30 bg-purple-50/20 dark:bg-purple-950/10 rounded-2xl animate-in fade-in duration-150">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Podcast className="w-4.5 h-4.5 text-purple-500 animate-pulse" />
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 font-sans">
+                Импорт подкаста (Podcast Import)
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-normal font-sans">
+              Вставьте ссылку на эпизод с <span className="font-bold text-purple-600 dark:text-purple-400">Apple Podcasts</span> или другого подкаст-сервиса. ИИ автоматически скачает аудио и сгенерирует субтитры с тайм-кодами.
+            </p>
+          </div>
+
+          {/* Apple Podcasts hint */}
+          <div className="flex items-start gap-3 p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/30 rounded-xl">
+            <div className="shrink-0 mt-0.5">
+              <Podcast className="w-5 h-5 text-purple-500" />
+            </div>
+            <div className="text-[11px] text-zinc-600 dark:text-zinc-400 font-sans leading-relaxed space-y-1">
+              <p className="font-bold text-zinc-800 dark:text-zinc-200">Как импортировать с Apple Podcasts?</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-zinc-500">
+                <li>Откройте <span className="font-semibold text-purple-600 dark:text-purple-400">podcasts.apple.com</span> в браузере</li>
+                <li>Перейдите к нужному эпизоду</li>
+                <li>Скопируйте ссылку из адресной строки и вставьте ниже</li>
+              </ol>
+              <p className="text-[10px] text-zinc-400 mt-1">Также поддерживаются: Spotify, Podbean, Buzzsprout, Anchor и другие</p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={webUrlInput}
+              onChange={(e) => setWebUrlInput(e.target.value)}
+              placeholder="https://podcasts.apple.com/us/podcast/..."
+              className="flex-1 px-3.5 py-2.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-purple-500/25"
+            />
+            <button
+              type="button"
+              disabled={isWebLoading}
+              onClick={handleWebImport}
+              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-heavy text-xs rounded-xl flex items-center gap-1.5 shadow-sm hover:shadow-md cursor-pointer transition-all shrink-0 active:scale-97"
+            >
+              {isWebLoading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Импортируем...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                  Импортировать
+                </>
+              )}
+            </button>
+          </div>
+
+          {webError && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 rounded-xl text-xs font-semibold leading-normal border border-red-100 dark:border-red-900/30 font-sans">
+              {webError}
+            </div>
+          )}
+
+          {webSuccess && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/45 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30 font-sans">
+              {webSuccess}
             </div>
           )}
         </div>
