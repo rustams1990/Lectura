@@ -114,8 +114,12 @@ export default function AudioPlayerBar({
   };
 
   const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration || 0);
+    if (audioRef.current && audioRef.current.duration) {
+      const durSec = Math.round(audioRef.current.duration);
+      setDuration(durSec);
+      if (activeLesson && activeLesson.audioDuration !== durSec) {
+        activeLesson.audioDuration = durSec;
+      }
     }
   };
 

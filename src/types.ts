@@ -42,6 +42,7 @@ export interface Lesson {
   coverUrl?: string | null;
   youtubeId?: string | null;
   youtubeDuration?: number | null;
+  audioDuration?: number | null;
   lessonType?: string; // e.g. "youtube" | "book" | "article" or custom string
   pinned?: boolean;
   translationText?: string | null;

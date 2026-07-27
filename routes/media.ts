@@ -643,10 +643,10 @@ router.post("/import-url", async (req: Request, res: Response) => {
                   mimeType: "audio/mp3"
                 });
 
-                const prompt = `Listen carefully to this podcast episode titled "${podcastTitle}".
-Transcribe all spoken words accurately into short, sentence-by-sentence entries in the original spoken language.
-For EVERY single spoken sentence or dialogue turn, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 15s\t..., 47s\t..., 1m3s\t..., 1m17s\t...).
-Do NOT group multiple sentences or long paragraphs into a single timestamp entry. Break the transcript into short, individual spoken sentences so that every line has an accurate timestamp matching when it is actually spoken in the audio.
+                const prompt = `Listen carefully to this entire audio recording titled "${podcastTitle}".
+Transcribe all spoken words accurately from the very beginning (0:00) ALL THE WAY TO THE VERY END of the audio file.
+For EVERY single spoken sentence or dialogue phrase, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 15s\t..., 1m15s\t..., 15m40s\t..., 25m10s\t...).
+Do NOT stop early. Continue generating timestamped entries for the entire duration of the audio recording until the final closing words.
 
 IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not provide titles, introductory explanations, translation notes, bracketed remarks, or markdown code blocks.`;
 
@@ -655,7 +655,10 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
                   contents: [
                     { fileData: { fileUri: uploadedFile.uri, mimeType: uploadedFile.mimeType || "audio/mp3" } },
                     prompt
-                  ]
+                  ],
+                  config: {
+                    maxOutputTokens: 8192
+                  }
                 });
 
                 if (aiRes.text) {
@@ -873,10 +876,10 @@ router.post("/transcribe-audio", async (req: Request, res: Response) => {
         mimeType: mimeType || "audio/mp3"
       });
 
-      const prompt = `Listen carefully to this audio recording${filename ? ` ("${filename}")` : ""}.
-Transcribe all spoken words accurately into short, sentence-by-sentence entries in the original spoken language${targetLanguage ? ` (target study language: "${targetLanguage}")` : ""}.
-For EVERY single spoken sentence or dialogue turn, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 15s\t..., 47s\t..., 1m3s\t..., 1m17s\t...).
-Do NOT group multiple sentences or long paragraphs into a single timestamp entry. Break the transcript into short, individual spoken sentences so that every line has an accurate timestamp matching when it is actually spoken in the audio.
+      const prompt = `Listen carefully to this entire audio recording${filename ? ` ("${filename}")` : ""}.
+Transcribe all spoken words accurately from the very beginning (0:00) ALL THE WAY TO THE VERY END of the audio file${targetLanguage ? ` (target study language: "${targetLanguage}")` : ""}.
+For EVERY single spoken sentence or dialogue phrase, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 15s\t..., 1m15s\t..., 15m40s\t..., 25m10s\t...).
+Do NOT stop early. Continue generating timestamped entries for the entire duration of the audio recording until the final closing words.
 
 IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not provide titles, introductory explanations, translation notes, bracketed remarks, or markdown code blocks.`;
 
@@ -890,7 +893,10 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
             }
           },
           prompt
-        ]
+        ],
+        config: {
+          maxOutputTokens: 8192
+        }
       });
 
       const aiText = response.text || "";

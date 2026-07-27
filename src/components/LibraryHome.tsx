@@ -484,6 +484,23 @@ export default function LibraryHome({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getMaxTimestampInText = (text: string): number | null => {
+    if (!text) return null;
+    const matches = Array.from(text.matchAll(/(?:^|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s|$)/g));
+    if (!matches || matches.length === 0) return null;
+    let maxSec = 0;
+    for (const m of matches) {
+      let sec = 0;
+      if (m[3]) {
+        sec = parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60 + parseInt(m[3], 10);
+      } else {
+        sec = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+      }
+      if (sec > maxSec) maxSec = sec;
+    }
+    return maxSec > 0 ? maxSec : null;
+  };
+
   // Filter lessons based on search, type, and archive state
   const filteredLessons = useMemo(() => {
     const list = lessons.filter((lesson) => {
@@ -1192,20 +1209,29 @@ export default function LibraryHome({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
-                    <span className="flex items-center gap-1">
-                      📚 {wordCount} слов
-                    </span>
-                    {isYoutube && youtubeDurationVal ? (
-                      <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Длительность YouTube видео">
-                        ⏱️ {formatDuration(youtubeDurationVal)}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400">
-                        ⏱️ ~{readTime} мин
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    const effectiveAudioDuration = lesson.audioDuration || getMaxTimestampInText(lesson.text);
+                    return (
+                      <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
+                        <span className="flex items-center gap-1">
+                          📚 {wordCount} слов
+                        </span>
+                        {isYoutube && youtubeDurationVal ? (
+                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Длительность YouTube видео">
+                            ⏱️ {formatDuration(youtubeDurationVal)}
+                          </span>
+                        ) : effectiveAudioDuration ? (
+                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Длительность аудиозаписи">
+                            ⏱️ {formatDuration(effectiveAudioDuration)}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Расчётное время чтения">
+                            ⏱️ ~{readTime} мин
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Actions buttons row */}
                   <div className="flex gap-2 items-center pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
