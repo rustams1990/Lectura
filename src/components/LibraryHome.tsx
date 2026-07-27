@@ -1092,13 +1092,17 @@ export default function LibraryHome({
                         <Pin className={`w-3 h-3 ${lesson.pinned ? "fill-white" : ""}`} />
                       </button>
                       {(() => {
-                        const lType = lesson.lessonType || "book";
+                        // If lessonType explicitly set, use it.
+                        // If not set but lesson has audio → infer "podcast".
+                        // Otherwise fall back to "book".
+                        const hasAudio = !!(lesson.audioUrl || lesson.audioBase64);
+                        const lType = lesson.lessonType || (hasAudio ? "podcast" : "book");
                         const typeInfo = lessonTypes.find((t) => t.id === lType);
-                        const IconComponent = getCategoryIcon(typeInfo?.icon || "book", typeInfo?.name || "Книга");
+                        const IconComponent = getCategoryIcon(typeInfo?.icon || (hasAudio ? "podcast" : "book"), typeInfo?.name || (hasAudio ? "Подкаст" : "Книга"));
                         return (
                           <span className="text-[10px] font-black leading-none bg-black/40 backdrop-blur-md px-2 py-1.5 rounded-lg flex items-center gap-1 select-none text-zinc-100 border border-white/5">
                             <IconComponent className="w-3 h-3 text-teal-300" />
-                            <span>{typeInfo?.name || "Книга"}</span>
+                            <span>{typeInfo?.name || (hasAudio ? "Подкаст" : "Книга")}</span>
                           </span>
                         );
                       })()}

@@ -167,7 +167,9 @@ export default function ImportLessonForm({
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
 
   const [selectedType, setSelectedType] = useState<string>(
-    editingLesson?.lessonType || (activeTab === "youtube" ? "youtube" : "book")
+    editingLesson?.lessonType ||
+    (activeTab === "youtube" ? "youtube" :
+      (editingLesson?.audioUrl || editingLesson?.audioBase64 ? "podcast" : "book"))
   );
 
   const [difficulty, setDifficulty] = useState<string>(editingLesson?.difficulty || "");
