@@ -2699,14 +2699,6 @@ export default function App() {
                       {/* Right side settings buttons */}
                       <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                         <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
-                        <button
-                          onClick={() => setShowSettingsModal(true)}
-                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all cursor-pointer"
-                          title="Language settings"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Settings</span>
-                        </button>
                       </div>
                     </div>
 
