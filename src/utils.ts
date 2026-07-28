@@ -1,3 +1,5 @@
+import { HistoryEntry } from "./types";
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -405,6 +407,51 @@ export function normalizeWordLinksRecord(record: Record<string, string> | undefi
     normalized[cleanKey] = cleanVal;
   }
   return normalized;
+}
+
+export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry[] {
+  if (!entries || !Array.isArray(entries) || entries.length === 0) return [];
+  const sorted = [...entries].sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+  const merged: HistoryEntry[] = [];
+
+  for (const item of sorted) {
+    if (!item || !item.id || !item.lessonId) continue;
+    const itemTime = new Date(item.timestamp).getTime() || 0;
+
+    const existingIdx = merged.findIndex(
+      (m) =>
+        m.lessonId === item.lessonId &&
+        Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 30 * 60 * 1000
+    );
+
+    if (existingIdx !== -1) {
+      const existing = merged[existingIdx];
+      const isListening = existing.actionType === "listen" || item.actionType === "listen";
+      const isCompleted =
+        existing.status === "completed" ||
+        item.status === "completed" ||
+        existing.actionType === "complete" ||
+        item.actionType === "complete";
+
+      merged[existingIdx] = {
+        ...existing,
+        actionType: isListening ? "listen" : (existing.actionType === "complete" ? "read" : existing.actionType),
+        status: isCompleted ? "completed" : (existing.status || "in_progress"),
+        durationSeconds: Math.max(existing.durationSeconds || 0, item.durationSeconds || 0),
+        notes: existing.notes || item.notes,
+        coverUrl: existing.coverUrl || item.coverUrl,
+        lessonTitle: existing.lessonTitle || item.lessonTitle,
+      };
+    } else {
+      merged.push({
+        ...item,
+        actionType: item.actionType === "complete" ? "read" : item.actionType,
+        status: (item.status === "completed" || item.actionType === "complete") ? "completed" : (item.status || "in_progress"),
+      });
+    }
+  }
+
+  return merged;
 }
 
 

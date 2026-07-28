@@ -52,7 +52,7 @@ import {
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
-import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord } from "./utils";
+import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory } from "./utils";
 import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage } from "./db";
 
 const readerThemes = {
@@ -227,9 +227,11 @@ export default function App() {
   });
 
   const handleUpdateHistory = (newHistory: HistoryEntry[]) => {
-    setHistory(newHistory);
-    safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(newHistory));
-    settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(newHistory)).catch(() => {});
+    const deduped = dedupeHistory(newHistory);
+    setHistory(deduped);
+    safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(deduped));
+    settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(deduped)).catch(() => {});
+    syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, deduped).catch(() => {});
   };
 
   const recordHistoryActivity = (
@@ -287,9 +289,10 @@ export default function App() {
         };
         updated = [newEntry, ...prev];
       }
-      const sliced = updated.slice(0, 500);
+      const sliced = dedupeHistory(updated).slice(0, 500);
       safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(sliced));
       settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(sliced)).catch(() => {});
+      syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, sliced).catch(() => {});
       return sliced;
     });
   };
@@ -661,6 +664,15 @@ export default function App() {
           if (d.listeningSeconds !== undefined) setListeningSeconds(d.listeningSeconds);
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
+          if (d.history && Array.isArray(d.history)) {
+            setHistory((prevLocal) => {
+              const merged = dedupeHistory([...d.history, ...prevLocal]);
+              safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(merged));
+              settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(merged)).catch(() => {});
+              return merged;
+            });
+          }
+
           // Sync into localStorage as fallback buffer (sanitizing heavy base64 fields)
           if (d.lessons) lessonsStore.setItem("lessons", d.lessons);
           if (d.lessonTypes) lessonsStore.setItem("lessontypes", d.lessonTypes);
@@ -668,6 +680,7 @@ export default function App() {
           safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizedCloudWordLinks));
           if (d.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", d.listeningSeconds.toString());
           if (d.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(d.languageFlags));
+          if (d.history) safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(d.history));
 
           serverInitialLoadComplete.current = true;
         } else if (body.status === "empty") {
@@ -678,6 +691,7 @@ export default function App() {
           const localListeningStr = localStorage.getItem("vocab_clone_listening");
           const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
           const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
+          const localHistoryStr = localStorage.getItem("vocab_clone_reading_history");
 
           const lLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS);
           const lTypes = ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]);
@@ -685,6 +699,7 @@ export default function App() {
           const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
           const lWordLinks = normalizeWordLinksRecord(safeParse(localAliasesStr, {}));
           const lLanguageFlags = safeParse(localFlagsStr, {});
+          const lHistory = dedupeHistory(safeParse(localHistoryStr, []));
 
           setLessons(lLessons);
           setLessonTypes(lTypes);
@@ -692,6 +707,7 @@ export default function App() {
           setListeningSeconds(lListening);
           setWordLinks(lWordLinks);
           setLanguageFlags(lLanguageFlags);
+          setHistory(lHistory);
 
           const postHeaders: Record<string, string> = {
             "Content-Type": "application/json",
@@ -713,6 +729,7 @@ export default function App() {
                 wordLinks: lWordLinks,
                 listeningSeconds: lListening,
                 languageFlags: lLanguageFlags,
+                history: lHistory,
               }
             })
           });
@@ -735,7 +752,8 @@ export default function App() {
     currentVocab = vocab,
     currentLinks = wordLinks,
     currentListening = listeningSeconds,
-    currentFlags = languageFlags
+    currentFlags = languageFlags,
+    currentHistory = history
   ) => {
     if (storageMode !== "server") return;
     if (isAuthLoading) return;
@@ -766,6 +784,7 @@ export default function App() {
             wordLinks: currentLinks,
             listeningSeconds: currentListening,
             languageFlags: currentFlags,
+            history: currentHistory,
           },
         }),
       });
