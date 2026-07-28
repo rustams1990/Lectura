@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { GripHorizontal, X, ChevronDown, ChevronUp, Maximize2, Minimize2, Tv, RefreshCw } from "lucide-react";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
+import { settingsStore } from "../db";
 
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
@@ -70,8 +71,11 @@ export default function YoutubePlayerWindow({
     let lastStorageSaveTime = 0;
 
     const saveProgressNow = (time: number) => {
+      if (time === undefined || isNaN(time) || time < 0) return;
       try {
-        localStorage.setItem(`youtube_progress_${lesson.id}`, time.toString());
+        const val = Math.floor(time).toString();
+        localStorage.setItem(`youtube_progress_${lesson.id}`, val);
+        settingsStore.setItem(`youtube_progress_${lesson.id}`, val).catch(() => {});
         lastStorageSaveTime = Date.now();
       } catch (e) {}
     };
@@ -165,6 +169,10 @@ export default function YoutubePlayerWindow({
                   } catch (e) {
                     console.error("Error seeking player on ready:", e);
                   }
+                } else if (startSeconds > 0 && player && typeof player.seekTo === "function") {
+                  try {
+                    player.seekTo(startSeconds, true);
+                  } catch (e) {}
                 }
               },
               onStateChange: (event: any) => {

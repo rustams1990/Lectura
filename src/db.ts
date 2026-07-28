@@ -66,6 +66,7 @@ export async function migrateFromLocalStorage() {
   // Migrate settings (we store them as raw strings in IndexedDB to match how App.tsx previously handled them, or parsed if we refactor)
   const keysToMigrate = [
     "vocab_clone_listening",
+    "vocab_clone_reading_history",
     "vocab_clone_language_flags",
     "vocab_clone_focus_mode",
     "vocab_clone_layout_width",

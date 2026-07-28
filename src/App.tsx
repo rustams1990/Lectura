@@ -219,6 +219,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"library" | "read" | "practice" | "statistics" | "history">("library");
 
   // History state
+  const listeningBufferRef = useRef<number>(0);
+
   const [history, setHistory] = useState<HistoryEntry[]>(() => {
     const saved = localStorage.getItem("vocab_clone_reading_history");
     return saved ? safeParse(saved, []) : [];
@@ -227,6 +229,7 @@ export default function App() {
   const handleUpdateHistory = (newHistory: HistoryEntry[]) => {
     setHistory(newHistory);
     safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(newHistory));
+    settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(newHistory)).catch(() => {});
   };
 
   const recordHistoryActivity = (
@@ -267,8 +270,10 @@ export default function App() {
         };
         updated = [newEntry, ...prev];
       }
-      safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(updated.slice(0, 500)));
-      return updated.slice(0, 500);
+      const sliced = updated.slice(0, 500);
+      safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(sliced));
+      settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(sliced)).catch(() => {});
+      return sliced;
     });
   };
 
@@ -295,6 +300,14 @@ export default function App() {
 
         const ls = await settingsStore.getItem('vocab_clone_listening');
         if (ls !== null) setListeningSeconds(parseFloat(ls as string) || 0);
+
+        const savedHistory = await settingsStore.getItem('vocab_clone_reading_history');
+        if (savedHistory) {
+          try {
+            const parsed = typeof savedHistory === 'string' ? JSON.parse(savedHistory) : savedHistory;
+            if (Array.isArray(parsed) && parsed.length > 0) setHistory(parsed);
+          } catch(e) {}
+        }
 
         const lf = await settingsStore.getItem('vocab_clone_language_flags');
         if (lf) setLanguageFlags(typeof lf === 'string' ? JSON.parse(lf) : lf);
@@ -1850,7 +1863,12 @@ export default function App() {
     });
 
     if (activeLesson) {
-      recordHistoryActivity(activeLesson, "listen", seconds);
+      listeningBufferRef.current += seconds;
+      if (listeningBufferRef.current >= 5) {
+        const flushSec = Math.round(listeningBufferRef.current);
+        listeningBufferRef.current = 0;
+        recordHistoryActivity(activeLesson, "listen", flushSec);
+      }
     }
   };
 
@@ -2059,6 +2077,15 @@ export default function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Floating Youtube player in Focus Mode */}
+        {activeLesson && activeLesson.youtubeId && showYoutubePlayer && (
+          <YoutubePlayerWindow
+            lesson={activeLesson}
+            onClose={() => setShowYoutubePlayer(false)}
+            onListeningTick={handleListeningTick}
+          />
         )}
 
       </div>
