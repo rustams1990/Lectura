@@ -1164,7 +1164,7 @@ export default function ImportLessonForm({
             <div className="p-4 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
               <div className="flex items-center gap-3">
                 {fallbackData.coverUrl && (
-                  <img src={fallbackData.coverUrl} className="w-10 h-14 object-cover rounded shadow-xs shrink-0" alt="Video cover" />
+                  <img src={fallbackData.coverUrl} className="w-16 h-11 object-cover rounded-lg shadow-xs shrink-0" alt="Video cover" />
                 )}
                 <div className="space-y-0.5" id="fallback-box">
                   <h5 className="font-bold text-teal-950 dark:text-teal-300 leading-snug">

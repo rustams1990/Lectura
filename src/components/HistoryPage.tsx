@@ -548,7 +548,7 @@ export default function HistoryPage({
                 {/* Left side: Cover + Title + Details */}
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
                   {/* Thumbnail Cover */}
-                  <div className="w-12 h-14 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60">
+                  <div className="w-16 h-11 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
                     {item.coverUrl ? (
                       <img
                         src={item.coverUrl}
