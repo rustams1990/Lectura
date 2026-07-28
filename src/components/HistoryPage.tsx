@@ -172,9 +172,45 @@ export default function HistoryPage({
     }
   };
 
+  // Deduplicated base history (merges duplicate read/listen entries within 30 minutes)
+  const deduplicatedHistory = useMemo(() => {
+    if (!history || history.length === 0) return [];
+    const sorted = [...history].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const merged: HistoryEntry[] = [];
+
+    for (const item of sorted) {
+      const existingIdx = merged.findIndex(
+        (m) =>
+          m.lessonId === item.lessonId &&
+          Math.abs(new Date(m.timestamp).getTime() - new Date(item.timestamp).getTime()) < 30 * 60 * 1000
+      );
+
+      if (existingIdx !== -1) {
+        const existing = merged[existingIdx];
+        const isListening = existing.actionType === "listen" || item.actionType === "listen";
+        const isCompleted =
+          existing.status === "completed" ||
+          item.status === "completed" ||
+          existing.actionType === "complete" ||
+          item.actionType === "complete";
+
+        merged[existingIdx] = {
+          ...existing,
+          actionType: isListening ? "listen" : (existing.actionType === "complete" ? "read" : existing.actionType),
+          status: isCompleted ? "completed" : existing.status,
+          durationSeconds: Math.max(existing.durationSeconds || 0, item.durationSeconds || 0),
+          notes: existing.notes || item.notes,
+        };
+      } else {
+        merged.push(item);
+      }
+    }
+    return merged;
+  }, [history]);
+
   // Filter & Sort entries (NEWEST FIRST: descending timestamp)
   const filteredHistory = useMemo(() => {
-    const list = history.filter((item) => {
+    const list = deduplicatedHistory.filter((item) => {
       const isCompleted = item.status === "completed" || item.actionType === "complete";
       if (filterType === "read" && item.actionType === "listen") {
         return false;
@@ -207,19 +243,19 @@ export default function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [history, filterType, selectedMonth, searchQuery]);
+  }, [deduplicatedHistory, filterType, selectedMonth, searchQuery]);
 
   // Aggregate stats scoped to selected month
   const scopedHistory = useMemo(() => {
-    if (selectedMonth === "all") return history;
-    return history.filter((item) => {
+    if (selectedMonth === "all") return deduplicatedHistory;
+    return deduplicatedHistory.filter((item) => {
       try {
         return new Date(item.timestamp).toISOString().slice(0, 7) === selectedMonth;
       } catch {
         return false;
       }
     });
-  }, [history, selectedMonth]);
+  }, [deduplicatedHistory, selectedMonth]);
 
   const totalSeconds = useMemo(() => {
     return scopedHistory.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);

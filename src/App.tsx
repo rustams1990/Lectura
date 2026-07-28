@@ -240,20 +240,36 @@ export default function App() {
     if (!targetLesson || !targetLesson.id) return;
     setHistory((prev) => {
       const now = new Date().toISOString();
+
+      // Find recent entry for THIS LESSON (within last 2 hours regardless of actionType)
       const recentIdx = prev.findIndex(
         (h) =>
           h.lessonId === targetLesson.id &&
-          h.actionType === actionType &&
-          Date.now() - new Date(h.timestamp).getTime() < 5 * 60 * 1000
+          Date.now() - new Date(h.timestamp).getTime() < 2 * 60 * 60 * 1000
       );
 
       let updated: HistoryEntry[];
       if (recentIdx !== -1) {
         updated = [...prev];
         const existing = updated[recentIdx];
+
+        const nextActionType =
+          actionType === "listen" || existing.actionType === "listen"
+            ? "listen"
+            : actionType === "complete"
+            ? (existing.actionType === "complete" ? "read" : existing.actionType)
+            : existing.actionType;
+
+        const nextStatus: "in_progress" | "completed" =
+          actionType === "complete" || existing.status === "completed" || existing.actionType === "complete"
+            ? "completed"
+            : existing.status || "in_progress";
+
         updated[recentIdx] = {
           ...existing,
           timestamp: now,
+          actionType: nextActionType,
+          status: nextStatus,
           durationSeconds: (existing.durationSeconds || 0) + (durationSeconds || 0),
         };
       } else {
@@ -265,7 +281,8 @@ export default function App() {
           coverUrl: targetLesson.coverUrl || null,
           targetLanguage: targetLesson.targetLanguage,
           timestamp: now,
-          actionType,
+          actionType: actionType === "complete" ? "read" : actionType,
+          status: actionType === "complete" ? "completed" : "in_progress",
           durationSeconds: durationSeconds || 0,
         };
         updated = [newEntry, ...prev];
