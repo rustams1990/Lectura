@@ -1282,12 +1282,12 @@ export default function VocabularyPractice({
                   </div>
 
                   <div className="flex flex-col items-center justify-center flex-grow py-4">
-                    <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800 shadow-md bg-white dark:bg-zinc-950 select-none pointer-events-none">
+                    <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800 shadow-md bg-white dark:bg-zinc-950 select-none pointer-events-none flex items-center justify-center p-1.5">
                       <img
                         src={currentLq.imageUrl!.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(currentLq.imageUrl!)}` : currentLq.imageUrl!}
                         alt="Visual prompt"
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
+                        className="max-h-full max-w-full object-contain rounded-xl"
                       />
                     </div>
                     <div className="mt-3.5 text-center">

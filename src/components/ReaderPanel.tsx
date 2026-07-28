@@ -2189,11 +2189,11 @@ export default function ReaderPanel({
               </div>
 
               {hoveredWordObj.imageUrl && (
-                <div className="w-full h-32 overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center shrink-0">
+                <div className="w-full max-h-40 min-h-[96px] overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-950 flex items-center justify-center p-1 shrink-0">
                   <img
                     src={hoveredWordObj.imageUrl}
                     alt={hoveredWordObj.word}
-                    className="w-full h-full object-cover"
+                    className="max-h-36 max-w-full w-auto h-auto object-contain rounded-md"
                     referrerPolicy="no-referrer"
                   />
                 </div>
