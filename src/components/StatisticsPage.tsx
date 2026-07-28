@@ -1353,13 +1353,15 @@ export default function StatisticsPage({
 
   // Formatted listening time helper
   const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds} сек`;
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    if (mins < 60) return `${mins} мин ${secs} сек`;
+    if (!seconds || seconds <= 0) return "0с";
+    const totalSecs = Math.round(seconds);
+    if (totalSecs < 60) return `${totalSecs}с`;
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    if (mins < 60) return secs > 0 ? `${mins} мин ${secs} с` : `${mins} мин`;
     const hrs = Math.floor(mins / 60);
     const remMins = mins % 60;
-    return `${hrs} ч ${remMins} мин`;
+    return remMins > 0 ? `${hrs} ч ${remMins} мин` : `${hrs} ч`;
   };
 
   // Extract all unique tags actually used inside the user's active language dictionary
