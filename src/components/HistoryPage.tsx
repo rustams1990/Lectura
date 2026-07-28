@@ -80,7 +80,9 @@ export default function HistoryPage({
   const [formStatus, setFormStatus] = useState<"in_progress" | "completed">("in_progress");
   const [formMinutes, setFormMinutes] = useState("10");
   const [formNotes, setFormNotes] = useState("");
-  const [formDate, setFormDate] = useState("");
+  const [formDateOnly, setFormDateOnly] = useState("");
+  const [formHour24, setFormHour24] = useState("12");
+  const [formMinute, setFormMinute] = useState("00");
 
   // Populate form when editing an entry
   const startEditEntry = (entry: HistoryEntry) => {
@@ -91,8 +93,24 @@ export default function HistoryPage({
     setFormStatus((entry.status === "completed" || entry.actionType === "complete") ? "completed" : "in_progress");
     setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
     setFormNotes(entry.notes || "");
+
     const d = new Date(entry.timestamp);
-    setFormDate(isNaN(d.getTime()) ? new Date().toISOString().slice(0, 16) : d.toISOString().slice(0, 16));
+    if (!isNaN(d.getTime())) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      setFormDateOnly(`${yyyy}-${mm}-${dd}`);
+      setFormHour24(String(d.getHours()).padStart(2, "0"));
+      setFormMinute(String(d.getMinutes()).padStart(2, "0"));
+    } else {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      setFormDateOnly(`${yyyy}-${mm}-${dd}`);
+      setFormHour24(String(now.getHours()).padStart(2, "0"));
+      setFormMinute(String(now.getMinutes()).padStart(2, "0"));
+    }
   };
 
   // Reset form when opening create modal
@@ -104,7 +122,14 @@ export default function HistoryPage({
     setFormStatus("in_progress");
     setFormMinutes("15");
     setFormNotes("");
-    setFormDate(new Date().toISOString().slice(0, 16));
+
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    setFormDateOnly(`${yyyy}-${mm}-${dd}`);
+    setFormHour24(String(now.getHours()).padStart(2, "0"));
+    setFormMinute(String(now.getMinutes()).padStart(2, "0"));
     setIsCreateModalOpen(true);
   };
 
@@ -116,7 +141,14 @@ export default function HistoryPage({
     const targetLang = selectedLesson ? selectedLesson.targetLanguage : "Spanish";
     const coverUrl = selectedLesson ? selectedLesson.coverUrl : null;
     const lessonType = selectedLesson ? selectedLesson.lessonType : "article";
-    const timestamp = formDate ? new Date(formDate).toISOString() : new Date().toISOString();
+
+    let timestamp = new Date().toISOString();
+    if (formDateOnly) {
+      const parsed = new Date(`${formDateOnly}T${formHour24 || "00"}:${formMinute || "00"}:00`);
+      if (!isNaN(parsed.getTime())) {
+        timestamp = parsed.toISOString();
+      }
+    }
 
     if (editingEntry) {
       // Update existing entry
@@ -714,11 +746,11 @@ export default function HistoryPage({
                 </div>
               </div>
 
-              {/* Duration & Timestamp */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Duration & Date & 24h Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Время (Минуты)
+                    Длительность (Минуты)
                   </label>
                   <input
                     type="number"
@@ -732,14 +764,47 @@ export default function HistoryPage({
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Дата и время
+                    Дата
                   </label>
                   <input
-                    type="datetime-local"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    type="date"
+                    value={formDateOnly}
+                    onChange={(e) => setFormDateOnly(e.target.value)}
+                    className="w-full px-2.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    Время 24ч (Ч : М)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={formHour24}
+                      onChange={(e) => setFormHour24(e.target.value)}
+                      className="w-full px-1.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold cursor-pointer text-center"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => (
+                        <option key={h} value={h}>
+                          {h} ч
+                        </option>
+                      ))}
+                    </select>
+
+                    <span className="font-extrabold text-zinc-400 text-xs">:</span>
+
+                    <select
+                      value={formMinute}
+                      onChange={(e) => setFormMinute(e.target.value)}
+                      className="w-full px-1.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold cursor-pointer text-center"
+                    >
+                      {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map((m) => (
+                        <option key={m} value={m}>
+                          {m} м
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
