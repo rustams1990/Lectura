@@ -103,6 +103,7 @@ export interface HistoryEntry {
   targetLanguage: string;
   timestamp: string; // ISO string date
   actionType: "read" | "listen" | "complete";
+  status?: "in_progress" | "completed";
   durationSeconds?: number;
   notes?: string;
 }

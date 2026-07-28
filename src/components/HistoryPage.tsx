@@ -76,7 +76,8 @@ export default function HistoryPage({
   // Form states for Modal
   const [formLessonId, setFormLessonId] = useState("");
   const [formCustomTitle, setFormCustomTitle] = useState("");
-  const [formActionType, setFormActionType] = useState<"read" | "listen" | "complete">("read");
+  const [formActionType, setFormActionType] = useState<"read" | "listen">("read");
+  const [formStatus, setFormStatus] = useState<"in_progress" | "completed">("in_progress");
   const [formMinutes, setFormMinutes] = useState("10");
   const [formNotes, setFormNotes] = useState("");
   const [formDate, setFormDate] = useState("");
@@ -86,7 +87,8 @@ export default function HistoryPage({
     setEditingEntry(entry);
     setFormLessonId(entry.lessonId);
     setFormCustomTitle(entry.lessonTitle);
-    setFormActionType(entry.actionType);
+    setFormActionType(entry.actionType === "listen" ? "listen" : "read");
+    setFormStatus((entry.status === "completed" || entry.actionType === "complete") ? "completed" : "in_progress");
     setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
     setFormNotes(entry.notes || "");
     const d = new Date(entry.timestamp);
@@ -99,6 +101,7 @@ export default function HistoryPage({
     setFormLessonId(lessons[0]?.id || "");
     setFormCustomTitle(lessons[0]?.title || "Занятие");
     setFormActionType("read");
+    setFormStatus("in_progress");
     setFormMinutes("15");
     setFormNotes("");
     setFormDate(new Date().toISOString().slice(0, 16));
@@ -127,6 +130,7 @@ export default function HistoryPage({
               coverUrl,
               lessonType,
               actionType: formActionType,
+              status: formStatus,
               durationSeconds,
               notes: formNotes.trim(),
               timestamp,
@@ -145,6 +149,7 @@ export default function HistoryPage({
         coverUrl,
         lessonType,
         actionType: formActionType,
+        status: formStatus,
         durationSeconds,
         notes: formNotes.trim(),
         timestamp,
@@ -170,7 +175,14 @@ export default function HistoryPage({
   // Filter & Sort entries (NEWEST FIRST: descending timestamp)
   const filteredHistory = useMemo(() => {
     const list = history.filter((item) => {
-      if (filterType !== "all" && item.actionType !== filterType) {
+      const isCompleted = item.status === "completed" || item.actionType === "complete";
+      if (filterType === "read" && item.actionType === "listen") {
+        return false;
+      }
+      if (filterType === "listen" && item.actionType !== "listen") {
+        return false;
+      }
+      if (filterType === "complete" && !isCompleted) {
         return false;
       }
       if (selectedMonth !== "all") {
@@ -213,9 +225,9 @@ export default function HistoryPage({
     return scopedHistory.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
   }, [scopedHistory]);
 
-  const readCount = useMemo(() => scopedHistory.filter((h) => h.actionType === "read").length, [scopedHistory]);
+  const readCount = useMemo(() => scopedHistory.filter((h) => h.actionType !== "listen").length, [scopedHistory]);
   const listenCount = useMemo(() => scopedHistory.filter((h) => h.actionType === "listen").length, [scopedHistory]);
-  const completeCount = useMemo(() => scopedHistory.filter((h) => h.actionType === "complete").length, [scopedHistory]);
+  const completeCount = useMemo(() => scopedHistory.filter((h) => h.status === "completed" || h.actionType === "complete").length, [scopedHistory]);
 
   const formatDuration = (secs: number) => {
     if (!secs || secs <= 0) return "0с";
@@ -451,19 +463,12 @@ export default function HistoryPage({
         <div className="space-y-3">
           {filteredHistory.map((item) => {
             const matchedLesson = lessons.find((l) => l.id === item.lessonId);
-            const IconComp =
-              item.actionType === "listen"
-                ? Headphones
-                : item.actionType === "complete"
-                ? CheckCircle2
-                : BookOpen;
+            const isCompleted = item.status === "completed" || item.actionType === "complete";
+            const isListening = item.actionType === "listen";
 
-            const badgeColor =
-              item.actionType === "listen"
-                ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
-                : item.actionType === "complete"
-                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
-                : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900";
+            const typeBadgeColor = isListening
+              ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
+              : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900";
 
             return (
               <div
@@ -489,14 +494,17 @@ export default function HistoryPage({
                   {/* Text details */}
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${badgeColor}`}>
-                        <IconComp className="w-3 h-3" />
-                        {item.actionType === "listen"
-                          ? "Прослушивание"
-                          : item.actionType === "complete"
-                          ? "Завершено"
-                          : "Чтение"}
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${typeBadgeColor}`}>
+                        {isListening ? <Headphones className="w-3 h-3" /> : <BookOpen className="w-3 h-3" />}
+                        {isListening ? "Прослушивание" : "Чтение"}
                       </span>
+
+                      {isCompleted && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Завершено
+                        </span>
+                      )}
 
                       <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md">
                         {item.targetLanguage}
@@ -638,7 +646,7 @@ export default function HistoryPage({
                 </div>
               )}
 
-              {/* Action Type & Duration */}
+              {/* Action Type & Status */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
@@ -651,10 +659,26 @@ export default function HistoryPage({
                   >
                     <option value="read">📖 Чтение (Reading)</option>
                     <option value="listen">🎧 Прослушивание (Listening)</option>
-                    <option value="complete">✅ Завершено (Complete)</option>
                   </select>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    Статус урока
+                  </label>
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                  >
+                    <option value="in_progress">⏳ В процессе (In Progress)</option>
+                    <option value="completed">✅ Завершено (Completed)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Duration & Timestamp */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
                     Время (Минуты)
@@ -668,19 +692,18 @@ export default function HistoryPage({
                     className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
                   />
                 </div>
-              </div>
 
-              {/* Date & Timestamp */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  Дата и время
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    Дата и время
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                  />
+                </div>
               </div>
 
               {/* Optional Notes */}
