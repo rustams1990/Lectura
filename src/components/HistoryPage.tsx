@@ -40,8 +40,35 @@ export default function HistoryPage({
   onUpdateHistory,
 }: HistoryPageProps) {
   const [filterType, setFilterType] = useState<"all" | "read" | "listen" | "complete">("all");
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  
+
+  // Extract unique available months from history (e.g. ["2026-07", "2026-06"])
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    history.forEach((h) => {
+      if (h.timestamp) {
+        const d = new Date(h.timestamp);
+        if (!isNaN(d.getTime())) {
+          monthsSet.add(d.toISOString().slice(0, 7));
+        }
+      }
+    });
+    return Array.from(monthsSet).sort().reverse();
+  }, [history]);
+
+  const formatMonthName = (monthKey: string) => {
+    if (monthKey === "all") return "Все месяцы";
+    try {
+      const [year, month] = monthKey.split("-");
+      const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+      const monthName = d.toLocaleString("ru-RU", { month: "long", year: "numeric" });
+      return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    } catch {
+      return monthKey;
+    }
+  };
+
   // Modal states for Editing / Creating History Entry
   const [editingEntry, setEditingEntry] = useState<HistoryEntry | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -140,11 +167,17 @@ export default function HistoryPage({
     }
   };
 
-  // Filtered entries
+  // Filter & Sort entries (NEWEST FIRST: descending timestamp)
   const filteredHistory = useMemo(() => {
-    return history.filter((item) => {
+    const list = history.filter((item) => {
       if (filterType !== "all" && item.actionType !== filterType) {
         return false;
+      }
+      if (selectedMonth !== "all") {
+        try {
+          const itemMonthKey = new Date(item.timestamp).toISOString().slice(0, 7);
+          if (itemMonthKey !== selectedMonth) return false;
+        } catch {}
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -155,16 +188,34 @@ export default function HistoryPage({
       }
       return true;
     });
-  }, [history, filterType, searchQuery]);
 
-  // Aggregate stats
+    // SORT DESCENDING (Latest timestamp at top e.g. July 28 > July 27)
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime() || 0;
+      const timeB = new Date(b.timestamp).getTime() || 0;
+      return timeB - timeA;
+    });
+  }, [history, filterType, selectedMonth, searchQuery]);
+
+  // Aggregate stats scoped to selected month
+  const scopedHistory = useMemo(() => {
+    if (selectedMonth === "all") return history;
+    return history.filter((item) => {
+      try {
+        return new Date(item.timestamp).toISOString().slice(0, 7) === selectedMonth;
+      } catch {
+        return false;
+      }
+    });
+  }, [history, selectedMonth]);
+
   const totalSeconds = useMemo(() => {
-    return history.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
-  }, [history]);
+    return scopedHistory.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
+  }, [scopedHistory]);
 
-  const readCount = useMemo(() => history.filter((h) => h.actionType === "read").length, [history]);
-  const listenCount = useMemo(() => history.filter((h) => h.actionType === "listen").length, [history]);
-  const completeCount = useMemo(() => history.filter((h) => h.actionType === "complete").length, [history]);
+  const readCount = useMemo(() => scopedHistory.filter((h) => h.actionType === "read").length, [scopedHistory]);
+  const listenCount = useMemo(() => scopedHistory.filter((h) => h.actionType === "listen").length, [scopedHistory]);
+  const completeCount = useMemo(() => scopedHistory.filter((h) => h.actionType === "complete").length, [scopedHistory]);
 
   const formatDuration = (secs: number) => {
     if (!secs || secs <= 0) return "0с";
@@ -239,8 +290,8 @@ export default function HistoryPage({
             <Clock className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
-              Всего времени
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block truncate">
+              {selectedMonth === "all" ? "Всего времени" : `Время за ${formatMonthName(selectedMonth)}`}
             </span>
             <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
               {formatDuration(totalSeconds)}
@@ -347,16 +398,37 @@ export default function HistoryPage({
           </button>
         </div>
 
-        {/* Search Input */}
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по заголовку или заметке..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-          />
+        {/* Right side: Month Selector & Search Input */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {availableMonths.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
+              <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+              >
+                <option value="all">🗓️ Все месяцы ({history.length})</option>
+                {availableMonths.map((mKey) => (
+                  <option key={mKey} value={mKey}>
+                    📅 {formatMonthName(mKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Поиск по заголовку или заметке..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+            />
+          </div>
         </div>
       </div>
 
