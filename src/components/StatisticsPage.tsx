@@ -941,7 +941,7 @@ export default function StatisticsPage({
     const dailyCounts: Record<string, { added: number; words: string[] }> = {};
     
     statsArray.forEach((item) => {
-      if (!item.createdAt) return;
+      if (!item.createdAt || item.status === "ignored") return;
       const dateObj = new Date(item.createdAt);
       if (isNaN(dateObj.getTime())) return;
       
@@ -1097,7 +1097,7 @@ export default function StatisticsPage({
       const monthLabel = d.toLocaleDateString("ru-RU", { month: "short", year: "2-digit" });
       
       const endOfMonthMax = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
-      const totalWordsByThen = statsArray.filter(item => item.createdAt && item.createdAt <= endOfMonthMax).length;
+      const totalWordsByThen = statsArray.filter(item => item.createdAt && item.createdAt <= endOfMonthMax && item.status !== "ignored").length;
       
       list.push({
         name: monthLabel,
