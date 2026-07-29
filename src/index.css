@@ -9,18 +9,11 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-/* Base Root Styling */
-html, body {
-  background-color: #fafafa;
-  color: #18181b;
-  color-scheme: light;
-}
-
+/* Base Root Dark Mode Styling */
 html.dark,
 html.dark body {
   background-color: #111111 !important;
   color: #f4f4f5;
-  color-scheme: dark;
 }
 
 /* ============================================
