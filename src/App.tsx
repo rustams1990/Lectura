@@ -470,6 +470,7 @@ export default function App() {
       localAiModel: "phi3.5",
       showDetailedVocabularyStats: true,
       mainStatsMetric: "comprehension",
+      showProgressBar: true,
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");

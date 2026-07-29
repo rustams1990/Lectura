@@ -349,6 +349,7 @@ function ReaderPanel({
       localTtsVoice: settings?.localTtsVoice || "af_sarah",
       wordHighlight: settings?.wordHighlight !== false,
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
+      showProgressBar: settings?.showProgressBar !== false,
     };
   }, [settings]);
 
@@ -989,7 +990,7 @@ function ReaderPanel({
   return (
     <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme}`}>
       {/* Top Reading Progress Line */}
-      {activeSettings.showProgressBar !== false && (
+      {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-200/50 dark:bg-zinc-800/50">
           <div 
             className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all duration-150" 
