@@ -1884,10 +1884,6 @@ export default function App() {
     }
   }, [activeLesson?.id, activeTab]);
 
-  const currentReaderTheme = (isFocusMode && activeTab === "read" && activeLesson)
-    ? (readerThemes[readerSettings.readerTheme] || readerThemes.default)
-    : readerThemes.default;
-
   // Full-Screen Isolated Focused Reading Room
   if (isFocusMode && activeTab === "read" && activeLesson) {
     const focusTheme = readerThemes[readerSettings.readerTheme] || readerThemes.default;
@@ -2057,7 +2053,7 @@ export default function App() {
             onClick={() => setSelectedWord(null)}
           >
             <div 
-              className={`font-sans max-h-[80vh] w-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} rounded-t-3xl border-t ${currentReaderTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300`}
+              className={`font-sans max-h-[80vh] w-full ${focusTheme.cardBg} ${focusTheme.text} rounded-t-3xl border-t ${focusTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-center py-2 shrink-0">
@@ -2102,6 +2098,10 @@ export default function App() {
       </div>
     );
   }
+
+  const currentReaderTheme = (isFocusMode && activeTab === "read" && activeLesson)
+    ? (readerThemes[readerSettings.readerTheme] || readerThemes.default)
+    : readerThemes.default;
 
   if (!isAppLoaded) {
     return (
