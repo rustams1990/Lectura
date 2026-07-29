@@ -18,7 +18,11 @@
     <script>
       try {
         const isDark = localStorage.getItem("vocab_clone_dark_mode") === "true";
-        if (isDark) document.documentElement.classList.add("dark");
+        if (isDark) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
       } catch (e) {}
       try {
         const saved = localStorage.getItem("vocab_clone_words");

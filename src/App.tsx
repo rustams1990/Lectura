@@ -2431,7 +2431,14 @@ export default function App() {
               {/* Dark Mode Toggle Button */}
               <button
                 id="btn-toggle-dark-mode"
-                onClick={() => setIsDarkMode(prev => !prev)}
+                onClick={() => {
+                  const next = !isDarkMode;
+                  try { localStorage.setItem("vocab_clone_dark_mode", next ? "true" : "false"); } catch (_) {}
+                  settingsStore.setItem("vocab_clone_dark_mode", next ? "true" : "false");
+                  if (next) { document.documentElement.classList.add("dark"); }
+                  else { document.documentElement.classList.remove("dark"); }
+                  setIsDarkMode(next);
+                }}
                 className="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95
                   bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800
                   text-amber-500 dark:text-indigo-400
