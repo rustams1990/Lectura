@@ -32,7 +32,6 @@ import ReaderPanel from "./components/ReaderPanel";
 import WordExplainer from "./components/WordExplainer";
 import AudioPlayerBar from "./components/AudioPlayerBar";
 import ReaderView from "./components/ReaderView";
-import { APP_VERSION } from "./version";
 import { useLesson } from "./context/LessonContext";
 import { useAuth } from "./context/AuthContext";
 import { useVocab } from "./context/VocabContext";
@@ -357,13 +356,8 @@ export default function App() {
         const zs = await settingsStore.getItem('vocab_clone_interface_zoom');
         if (zs !== null) setZoomScale(parseInt(zs as string, 10));
 
-        const localDm = localStorage.getItem('vocab_clone_dark_mode');
-        if (localDm !== null) {
-          setIsDarkMode(localDm === 'true');
-        } else {
-          const dm = await settingsStore.getItem('vocab_clone_dark_mode');
-          if (dm !== null) setIsDarkMode(dm === 'true' || dm === true);
-        }
+        const dm = await settingsStore.getItem('vocab_clone_dark_mode');
+        if (dm !== null) setIsDarkMode(dm === 'true' || dm === true);
 
       } catch (e) {
         console.error("App DB load error:", e);
@@ -2893,7 +2887,7 @@ export default function App() {
 
       <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-600 bg-stone-50 dark:bg-zinc-950/40">
         <p className="leading-relaxed">
-          Lectura {APP_VERSION} &copy; 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изучения языков.
+          Lectura &copy; 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изученая языков.
         </p>
       </footer>
 
