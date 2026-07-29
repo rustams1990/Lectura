@@ -989,12 +989,14 @@ function ReaderPanel({
   return (
     <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme}`}>
       {/* Top Reading Progress Line */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-200/50 dark:bg-zinc-800/50">
-        <div 
-          className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all duration-150" 
-          style={{ width: `${scrollProgress}%` }}
-        />
-      </div>
+      {activeSettings.showProgressBar !== false && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-200/50 dark:bg-zinc-800/50">
+          <div 
+            className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all duration-150" 
+            style={{ width: `${scrollProgress}%` }}
+          />
+        </div>
+      )}
 
       <div className="pb-4 border-b border-zinc-200/60 dark:border-zinc-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>

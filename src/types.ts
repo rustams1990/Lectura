@@ -85,6 +85,7 @@ export interface ReaderSettings {
   localAiModel?: string;
   showDetailedVocabularyStats?: boolean;
   mainStatsMetric?: "comprehension" | "vocabulary";
+  showProgressBar?: boolean;
 }
 
 export interface Dictionary {

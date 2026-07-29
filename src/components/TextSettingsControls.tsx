@@ -322,6 +322,22 @@ export default function TextSettingsControls({
               </div>
             </div>
 
+            {/* Reading Progress Bar Toggle */}
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Зелёная полоса прогресса чтения</span>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={settings.showProgressBar !== false}
+                    onChange={(e) => updateKey("showProgressBar", e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                </label>
+              </div>
+            </div>
+
           </div>
         </>
       )}
