@@ -4,7 +4,7 @@
  * Service Worker for Lectura PWA Offline Support & Cache Management
  */
 
-const CACHE_NAME = "lectura-v2.76";
+const CACHE_NAME = "lectura-v2.77";
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",

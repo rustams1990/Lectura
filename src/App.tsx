@@ -32,6 +32,7 @@ import ReaderPanel from "./components/ReaderPanel";
 import WordExplainer from "./components/WordExplainer";
 import AudioPlayerBar from "./components/AudioPlayerBar";
 import ReaderView from "./components/ReaderView";
+import { APP_VERSION } from "./version";
 import { useLesson } from "./context/LessonContext";
 import { useAuth } from "./context/AuthContext";
 import { useVocab } from "./context/VocabContext";
@@ -497,7 +498,7 @@ export default function App() {
     }
   }, [zoomScale]);
 
-  // Dark mode toggle state (manual, persists to localStorage & IndexedDB)
+  // Dark mode toggle state (manual, persists to localStorage)
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("vocab_clone_dark_mode");
@@ -506,17 +507,6 @@ export default function App() {
     } catch (_) {}
     return false;
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
-    } catch (_) {}
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDarkMode]);
 
   // Firebase Auth & Cloud Sync States
   const [authError, setAuthError] = useState<string | null>(null);
@@ -1188,6 +1178,25 @@ export default function App() {
   useEffect(() => {
     setActiveLesson(activeLesson || null);
   }, [activeLesson, setActiveLesson]);
+
+  // When Cream or Sepia background tone is selected in reader view, disable dark mode override so the full page & UI render in clean Cream / Sepia light styling
+  const isReadThemeLightOverride = (
+    activeTab === "read" && 
+    Boolean(activeLesson) && 
+    (readerSettings.readerTheme === "cream" || readerSettings.readerTheme === "sepia")
+  );
+  const shouldApplyDarkClass = isDarkMode && !isReadThemeLightOverride;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
+    } catch (_) {}
+    if (shouldApplyDarkClass) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDarkMode, shouldApplyDarkClass]);
 
   const activeLessonWords = useMemo(() => {
     if (!activeLesson || typeof activeLesson.text !== "string") return [];
@@ -2890,7 +2899,7 @@ export default function App() {
 
       <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-600 bg-stone-50 dark:bg-zinc-950/40">
         <p className="leading-relaxed">
-          Lectura &copy; 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изученая языков.
+          Lectura {APP_VERSION} &copy; 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изучения языков.
         </p>
       </footer>
 
