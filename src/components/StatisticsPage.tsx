@@ -1322,7 +1322,7 @@ function StatisticsPage({
       cefrLevel = "C1 (Продвинутый)";
       cefrTarget = 10000;
       cefrDesc = "Профессиональное владение языком, чтение оригиналов.";
-      cefrProgress = Math.min(100, Math.round(((known - 600) / 4000) * 100));
+      cefrProgress = Math.min(100, Math.round(((known - 6000) / 4000) * 100));
     } else {
       cefrLevel = "C2 (В совершенстве)";
       cefrTarget = 20000;
@@ -2906,7 +2906,15 @@ function StatisticsPage({
                             className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                           />
                         ) : (
-                          <span className="truncate block max-w-xs" title={item.translation}>{item.translation}</span>
+                          <span className="truncate block max-w-xs" title={item.translation}>
+                            {item.translation && item.translation !== "Pending translation" && !item.translation.startsWith("[") ? (
+                              item.translation
+                            ) : (
+                              <span className="italic text-zinc-400 dark:text-zinc-600 text-[11px]">
+                                {item.translation === "Pending translation" ? "— перевод не добавлен" : item.translation || "—"}
+                              </span>
+                            )}
+                          </span>
                         )}
                       </td>
 
