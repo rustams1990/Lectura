@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, memo } from "react";
 import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
@@ -229,7 +229,7 @@ export const renderCircularFlag = (flagEmoji: string, isAll = false) => {
   );
 };
 
-export default function LibraryHome({
+function LibraryHome({
   lessons,
   lessonTypes,
   onSelectLesson,
@@ -1388,3 +1388,5 @@ export default function LibraryHome({
     </div>
   );
 }
+
+export default memo(LibraryHome);

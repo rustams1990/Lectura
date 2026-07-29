@@ -15,6 +15,7 @@ window.addEventListener("unhandledrejection", (event) => {
 import { AuthProvider } from './context/AuthContext';
 import { LessonProvider } from './context/LessonContext';
 import { VocabProvider } from './context/VocabContext';
+import { ToastProvider } from './context/ToastContext';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -82,13 +83,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <AuthProvider>
-        <VocabProvider>
-          <LessonProvider>
-            <App />
-          </LessonProvider>
-        </VocabProvider>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <VocabProvider>
+            <LessonProvider>
+              <App />
+            </LessonProvider>
+          </VocabProvider>
+        </AuthProvider>
+      </ToastProvider>
     </ErrorBoundary>
   </StrictMode>,
 );

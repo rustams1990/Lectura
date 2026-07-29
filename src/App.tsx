@@ -35,6 +35,7 @@ import ReaderView from "./components/ReaderView";
 import { useLesson } from "./context/LessonContext";
 import { useAuth } from "./context/AuthContext";
 import { useVocab } from "./context/VocabContext";
+import { useToast } from "./context/ToastContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
 import VocabularyPractice from "./components/VocabularyPractice";
@@ -52,7 +53,7 @@ import {
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
-import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory } from "./utils";
+import { safeJsonParse, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
 import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage } from "./db";
 
 const readerThemes = {
@@ -207,6 +208,8 @@ export default function App() {
     handleDeleteMultipleVocabItems,
     handleWordClick,
   } = useVocab();
+
+  const { showToast } = useToast();
 
   const [listeningSeconds, setListeningSeconds] = useState<number>(0);
 
@@ -1435,24 +1438,7 @@ export default function App() {
         const targetLangKey = `${activeLang}_${linkedWord}`;
         const existing = prev[targetLangKey];
 
-        const updatedVocabItem: VocabItem = {
-          ...newVocabItem,
-          word: linkedWord,
-          translation: newVocabItem.translation !== undefined ? newVocabItem.translation : (existing ? existing.translation : ""),
-          ipa: newVocabItem.ipa !== undefined ? newVocabItem.ipa : (existing ? existing.ipa : ""),
-          grammar: newVocabItem.grammar !== undefined ? newVocabItem.grammar : (existing ? existing.grammar : ""),
-          contextRelation: newVocabItem.contextRelation !== undefined ? newVocabItem.contextRelation : (existing ? existing.contextRelation : ""),
-          examples: newVocabItem.examples !== undefined ? newVocabItem.examples : (existing ? existing.examples : []),
-          createdAt: newVocabItem.createdAt !== undefined ? newVocabItem.createdAt : (existing ? existing.createdAt : Date.now()),
-          tags: newVocabItem.tags !== undefined ? newVocabItem.tags : (existing ? existing.tags : []),
-          imageUrl: newVocabItem.imageUrl !== undefined ? newVocabItem.imageUrl : (existing && existing.imageUrl ? existing.imageUrl : null),
-          spellingCorrectCount: newVocabItem.spellingCorrectCount !== undefined ? newVocabItem.spellingCorrectCount : (existing ? existing.spellingCorrectCount : 0),
-          spellingIncorrectCount: newVocabItem.spellingIncorrectCount !== undefined ? newVocabItem.spellingIncorrectCount : (existing ? existing.spellingIncorrectCount : 0),
-          spellingAccentCount: newVocabItem.spellingAccentCount !== undefined ? newVocabItem.spellingAccentCount : (existing ? existing.spellingAccentCount : 0),
-          lastSpelledCorrectly: newVocabItem.lastSpelledCorrectly !== undefined ? newVocabItem.lastSpelledCorrectly : (existing ? existing.lastSpelledCorrectly : null),
-          lastSpelledWithAccentError: newVocabItem.lastSpelledWithAccentError !== undefined ? newVocabItem.lastSpelledWithAccentError : (existing ? existing.lastSpelledWithAccentError : null),
-          spellingExclude: newVocabItem.spellingExclude !== undefined ? newVocabItem.spellingExclude : (existing ? existing.spellingExclude : false),
-        };
+        const updatedVocabItem: VocabItem = buildVocabItem(newVocabItem, linkedWord, existing);
 
         // Clean up legacy non-prefixed key or case variations from local state
         Object.keys(nextVocab).forEach((k) => {
@@ -1514,24 +1500,7 @@ export default function App() {
           const targetLangKey = `${activeLang}_${linkedWord}`;
           const existing = prev[targetLangKey];
 
-          const updatedVocabItem: VocabItem = {
-            ...newVocabItem,
-            word: linkedWord,
-            translation: newVocabItem.translation !== undefined ? newVocabItem.translation : (existing ? existing.translation : ""),
-            ipa: newVocabItem.ipa !== undefined ? newVocabItem.ipa : (existing ? existing.ipa : ""),
-            grammar: newVocabItem.grammar !== undefined ? newVocabItem.grammar : (existing ? existing.grammar : ""),
-            contextRelation: newVocabItem.contextRelation !== undefined ? newVocabItem.contextRelation : (existing ? existing.contextRelation : ""),
-            examples: newVocabItem.examples !== undefined ? newVocabItem.examples : (existing ? existing.examples : []),
-            createdAt: newVocabItem.createdAt !== undefined ? newVocabItem.createdAt : (existing ? existing.createdAt : Date.now()),
-            tags: newVocabItem.tags !== undefined ? newVocabItem.tags : (existing ? existing.tags : []),
-            imageUrl: newVocabItem.imageUrl !== undefined ? newVocabItem.imageUrl : (existing && existing.imageUrl ? existing.imageUrl : null),
-            spellingCorrectCount: newVocabItem.spellingCorrectCount !== undefined ? newVocabItem.spellingCorrectCount : (existing ? existing.spellingCorrectCount : 0),
-            spellingIncorrectCount: newVocabItem.spellingIncorrectCount !== undefined ? newVocabItem.spellingIncorrectCount : (existing ? existing.spellingIncorrectCount : 0),
-            spellingAccentCount: newVocabItem.spellingAccentCount !== undefined ? newVocabItem.spellingAccentCount : (existing ? existing.spellingAccentCount : 0),
-            lastSpelledCorrectly: newVocabItem.lastSpelledCorrectly !== undefined ? newVocabItem.lastSpelledCorrectly : (existing ? existing.lastSpelledCorrectly : null),
-            lastSpelledWithAccentError: newVocabItem.lastSpelledWithAccentError !== undefined ? newVocabItem.lastSpelledWithAccentError : (existing ? existing.lastSpelledWithAccentError : null),
-            spellingExclude: newVocabItem.spellingExclude !== undefined ? newVocabItem.spellingExclude : (existing ? existing.spellingExclude : false),
-          };
+          const updatedVocabItem: VocabItem = buildVocabItem(newVocabItem, linkedWord, existing);
 
           // Clean up legacy non-prefixed key or case variations from local state
           const targetLower = linkedWord.toLowerCase();
@@ -1783,7 +1752,7 @@ export default function App() {
       }
     } catch (e: any) {
       console.error(e);
-      alert("Ошибка при распознавании идиом: " + (e.message || String(e)));
+      showToast("Ошибка при распознавании идиом: " + (e.message || String(e)), "error");
     } finally {
       setIsDetectingIdioms(false);
     }
@@ -2049,6 +2018,7 @@ export default function App() {
           </div>
 
           {/* Right Sidebar - Active Word dictionary */}
+          {/* Shared props for WordExplainer — desktop sidebar uses this directly */}
           <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[85px] max-h-[calc(100vh-110px)] overflow-y-auto pr-1 z-25">
             <WordExplainer
               word={selectedWord}

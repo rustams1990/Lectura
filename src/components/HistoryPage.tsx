@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, memo } from "react";
 import { HistoryEntry, Lesson } from "../types";
 import { 
   History, 
@@ -33,7 +33,7 @@ interface HistoryPageProps {
   onUpdateHistory: (updatedHistory: HistoryEntry[]) => void;
 }
 
-export default function HistoryPage({
+function HistoryPage({
   history,
   lessons,
   onOpenLesson,
@@ -849,3 +849,5 @@ export default function HistoryPage({
     </div>
   );
 }
+
+export default memo(HistoryPage);

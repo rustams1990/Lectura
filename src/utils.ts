@@ -457,3 +457,44 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
 
 
 
+/**
+ * Строит (или обновляет) запись VocabItem, объединяя новые данные с существующей записью.
+ * Используется в handleSaveVocabItem и handleSaveVocabItems, чтобы избежать дублирования кода.
+ *
+ * @param newItem   — новые данные (частичные или полные)
+ * @param word      — целевая словоформа (уже нормализованная)
+ * @param existing  — текущая запись из словаря (если есть)
+ * @returns VocabItem  готовый к сохранению
+ */
+export function buildVocabItem(
+  newItem: import("./types").VocabItem,
+  word: string,
+  existing?: import("./types").VocabItem | null
+): import("./types").VocabItem {
+  const pick = <T>(newVal: T | undefined, existingVal: T | undefined, fallback: T): T => {
+    if (newVal !== undefined) return newVal;
+    if (existingVal !== undefined) return existingVal;
+    return fallback;
+  };
+
+  return {
+    word,
+    status:                    newItem.status,
+    translation:               pick(newItem.translation,               existing?.translation,               ""),
+    ipa:                       pick(newItem.ipa,                       existing?.ipa,                       ""),
+    grammar:                   pick(newItem.grammar,                   existing?.grammar,                   ""),
+    contextRelation:           pick(newItem.contextRelation,           existing?.contextRelation,           ""),
+    examples:                  pick(newItem.examples,                  existing?.examples,                  []),
+    createdAt:                 pick(newItem.createdAt,                 existing?.createdAt,                 Date.now()),
+    tags:                      pick(newItem.tags,                      existing?.tags,                      []),
+    imageUrl:                  newItem.imageUrl !== undefined
+                                 ? newItem.imageUrl
+                                 : (existing?.imageUrl ?? null),
+    spellingCorrectCount:      pick(newItem.spellingCorrectCount,      existing?.spellingCorrectCount,      0),
+    spellingIncorrectCount:    pick(newItem.spellingIncorrectCount,    existing?.spellingIncorrectCount,    0),
+    spellingAccentCount:       pick(newItem.spellingAccentCount,       existing?.spellingAccentCount,       0),
+    lastSpelledCorrectly:      pick(newItem.lastSpelledCorrectly,      existing?.lastSpelledCorrectly,      null),
+    lastSpelledWithAccentError: pick(newItem.lastSpelledWithAccentError, existing?.lastSpelledWithAccentError, null),
+    spellingExclude:           pick(newItem.spellingExclude,           existing?.spellingExclude,           false),
+  };
+}

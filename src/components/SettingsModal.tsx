@@ -6,6 +6,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { Lesson } from "../types";
 import { safeJsonParse, getBCP47LanguageTag, FLAG_EMOJI_TO_CODE } from "../utils";
+import { useToast } from "../context/ToastContext";
 import { 
   X, Check, Globe, HelpCircle, Save, RotateCcw, Trash2, Link, 
   Maximize2, Sparkles, Database, HardDrive, Download, Upload, ShieldAlert,
@@ -302,6 +303,7 @@ export default function SettingsModal({
   settings,
   onSettingsChange,
 }: SettingsModalProps) {
+  const { showToast } = useToast();
   const [customInputs, setCustomInputs] = useState<Record<string, string>>({});
   const [activeSettingsTab, setActiveSettingsTab] = useState<"flags" | "interface" | "patterns" | "storage">("flags");
   const [importStatus, setImportStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
@@ -428,7 +430,7 @@ export default function SettingsModal({
       downloadAnchor.remove();
     } catch (e: any) {
       console.error("Failed to export backup JSON:", e);
-      alert(`Ошибка при экспорте резервной копии: ${e.message || String(e)}`);
+      showToast(`Ошибка при экспорте резервной копии: ${e.message || String(e)}`, "error");
     }
   };
 
@@ -1654,7 +1656,7 @@ export default function SettingsModal({
                           type="button"
                           onClick={() => {
                             navigator.clipboard.writeText(wifiSyncPin);
-                            alert("Код скопирован в буфер обмена!");
+                            showToast("Код скопирован в буфер обмена", "success");
                           }}
                           className="text-[9px] text-teal-600 dark:text-teal-400 underline font-bold cursor-pointer"
                         >
