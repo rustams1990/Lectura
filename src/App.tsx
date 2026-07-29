@@ -356,8 +356,13 @@ export default function App() {
         const zs = await settingsStore.getItem('vocab_clone_interface_zoom');
         if (zs !== null) setZoomScale(parseInt(zs as string, 10));
 
-        const dm = await settingsStore.getItem('vocab_clone_dark_mode');
-        if (dm !== null) setIsDarkMode(dm === 'true' || dm === true);
+        const localDm = localStorage.getItem('vocab_clone_dark_mode');
+        if (localDm !== null) {
+          setIsDarkMode(localDm === 'true');
+        } else {
+          const dm = await settingsStore.getItem('vocab_clone_dark_mode');
+          if (dm !== null) setIsDarkMode(dm === 'true' || dm === true);
+        }
 
       } catch (e) {
         console.error("App DB load error:", e);
