@@ -1689,18 +1689,28 @@ export default function App() {
 
   const handleAddLesson = (newL: Lesson, images?: Record<string, { dataUrl: string; width: string; height: string }>) => {
     lastLocalChangeTime.current = Date.now();
+    const lessonWithDate: Lesson = {
+      ...newL,
+      createdAt: newL.createdAt || Date.now(),
+    };
     if (images && Object.keys(images).length > 0) {
-      setLessonImages(newL.id, images);
+      setLessonImages(lessonWithDate.id, images);
       setLessonImagesVersion((v) => v + 1);
     }
-    setLessons((prev) => [newL, ...prev]);
-    setActiveLessonId(newL.id);
+    setLessons((prev) => {
+      const exists = prev.some((l) => l.id === lessonWithDate.id);
+      if (exists) {
+        return prev.map((l) => (l.id === lessonWithDate.id ? { ...l, ...lessonWithDate } : l));
+      }
+      return [lessonWithDate, ...prev];
+    });
+    setActiveLessonId(lessonWithDate.id);
     setShowImportForm(false);
     if (auth.currentUser && storageMode === "cloud") {
-      saveLesson(auth.currentUser.uid, newL, images).catch((err) => console.error(err));
+      saveLesson(auth.currentUser.uid, lessonWithDate, images).catch((err) => console.error(err));
     }
     if (storageMode === "server") {
-      syncDataToLocalServer([newL, ...lessons]).catch((err) => console.error(err));
+      syncDataToLocalServer([lessonWithDate, ...lessons]).catch((err) => console.error(err));
     }
   };
 

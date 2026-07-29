@@ -49,6 +49,7 @@ export interface Lesson {
   detectedPhrases?: Record<string, { translation: string; explanation: string; type?: string }>;
   difficulty?: string | null;
   difficultyExplanation?: string | null;
+  createdAt?: number;
 }
 
 export interface LessonType {

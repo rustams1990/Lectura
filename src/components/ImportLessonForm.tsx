@@ -768,6 +768,7 @@ export default function ImportLessonForm({
       isArchived: editingLesson?.isArchived || false,
       difficulty: difficulty || null,
       difficultyExplanation: difficultyExplanation || null,
+      createdAt: editingLesson?.createdAt || Date.now(),
     };
 
     onAddLesson(lessonData, Object.keys(pendingImages).length > 0 ? pendingImages : undefined);

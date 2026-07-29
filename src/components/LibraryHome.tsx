@@ -538,6 +538,20 @@ function LibraryHome({
     });
 
     // Sort: pinned always float to top, then apply the chosen sort key.
+    const lessonsLength = lessons.length;
+    const getEffectiveTimestamp = (l: Lesson) => {
+      if (typeof l.createdAt === "number" && !isNaN(l.createdAt)) {
+        return l.createdAt;
+      }
+      const parsedId = parseInt(l.id, 10);
+      if (!isNaN(parsedId) && parsedId > 1000000000000) {
+        return parsedId;
+      }
+      // Index 0 in lessons array is newest, index length-1 is oldest
+      const idx = lessons.indexOf(l);
+      return idx !== -1 ? (lessonsLength - idx) * 1000 : 0;
+    };
+
     return [...list].sort((a, b) => {
       // Pinned books always come first regardless of sort
       const aPinned = !!a.pinned;
@@ -568,15 +582,11 @@ function LibraryHome({
         return getWordCount(b.text || "") - getWordCount(a.text || "");
       }
       if (sortBy === "oldest") {
-        // original array order = oldest first (index in lessons array)
-        return lessons.indexOf(a) - lessons.indexOf(b);
+        // Oldest first = lower timestamp first
+        return getEffectiveTimestamp(a) - getEffectiveTimestamp(b);
       }
-      // default "pinned" / "newest": newest = reverse of original array order
-      if (sortBy === "newest") {
-        return lessons.indexOf(b) - lessons.indexOf(a);
-      }
-      // fallback: keep original order
-      return 0;
+      // default "pinned" / "newest": Newest first = higher timestamp first
+      return getEffectiveTimestamp(b) - getEffectiveTimestamp(a);
     });
   }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived, sortBy, vocab, wordLinks]);
 
