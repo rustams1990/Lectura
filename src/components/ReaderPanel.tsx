@@ -964,18 +964,25 @@ function ReaderPanel({
   const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
+    const totalPagesCount = pages.length || 1;
+    const validPageIdx = Math.min(Math.max(0, currentPageIdx), totalPagesCount - 1);
+    const pageWeight = 100 / totalPagesCount;
+    const baseProgress = (validPageIdx / totalPagesCount) * 100;
+
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      let currentRatio = 0;
       if (totalHeight > 0) {
-        const current = window.scrollY;
-        const pct = Math.min(100, Math.max(0, Math.round((current / totalHeight) * 100)));
-        setScrollProgress(pct);
+        currentRatio = Math.min(1, Math.max(0, window.scrollY / totalHeight));
       }
+      const totalBookPct = Math.min(100, Math.max(0, Math.round(baseProgress + currentRatio * pageWeight)));
+      setScrollProgress(totalBookPct);
     };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [currentPageIdx, pages.length]);
 
   const currentTheme = themeMap[activeSettings.readerTheme] || themeMap.default;
 
