@@ -503,11 +503,10 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("vocab_clone_dark_mode");
-      if (saved !== null) {
-        return saved === "true";
-      }
+      if (saved === "false") return false;
+      if (saved === "true") return true;
     } catch (_) {}
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+    return false;
   });
 
   useEffect(() => {
