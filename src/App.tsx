@@ -2118,7 +2118,7 @@ export default function App() {
           {/* Title & Tagline */}
           <div className="space-y-1.5">
             <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">
-              Remix Lectura
+              Lectura
             </h1>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
               Умное чтение и изучение языков с ИИ
@@ -2169,7 +2169,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="font-black text-sm text-zinc-900 dark:text-white tracking-wide">
-                    Remix Lectura
+                    Lectura
                   </h3>
                   <span className="text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest block font-mono">
                     Навигация
@@ -2405,7 +2405,7 @@ export default function App() {
                 </div>
                 <div>
                   <h1 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5 text-zinc-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                    Smart Language Learner
+                    Lectura
                   </h1>
                 </div>
               </a>
@@ -2876,7 +2876,7 @@ export default function App() {
 
       <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-600 bg-stone-50 dark:bg-zinc-950/40">
         <p className="leading-relaxed">
-          Smart Language Learner &copy; 2026. Powered by Google Gemini. Use this tool to boost reading & listening fluency.
+          Lectura &copy; 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изученая языков.
         </p>
       </footer>
 

@@ -1,10 +1,10 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- * Service Worker for Remix Lectura PWA Offline Support & Cache Management
+ * Service Worker for Lectura PWA Offline Support & Cache Management
  */
 
-const CACHE_NAME = "remix-lectura-v2.59";
+const CACHE_NAME = "lectura-v2.60";
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",

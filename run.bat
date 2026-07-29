@@ -1,6 +1,6 @@
 @echo off
 SETLOCAL EnableDelayedExpansion
-title Remix Lectura Runner
+title Lectura Runner
 
 echo [1/3] Checking environment...
 
