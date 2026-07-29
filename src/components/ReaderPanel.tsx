@@ -96,8 +96,8 @@ const fontFamilyMap = {
 
 const themeMap = {
   default: "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border-zinc-100 dark:border-zinc-800/80",
-  cream: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8] dark:bg-[#1a1917] dark:text-[#e8ded1] dark:border-[#2d2a24]",
-  sepia: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3] dark:bg-[#1c1713] dark:text-[#e6d7c3] dark:border-[#332a21]",
+  cream: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8]",
+  sepia: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3]",
   slate: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
 };
 

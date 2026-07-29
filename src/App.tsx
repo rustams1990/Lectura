@@ -65,18 +65,18 @@ const readerThemes = {
     border: "border-zinc-200 dark:border-zinc-800",
   },
   cream: {
-    pageBg: "bg-[#faf5eb] dark:bg-[#151412]",
-    text: "text-[#3d2c16] dark:text-[#e8ded1]",
-    headerBg: "bg-[#fcf8f2]/90 dark:bg-[#1a1917]/90 border-[#eddcb9] dark:border-[#2d2a24]",
-    cardBg: "bg-[#fcf8f2] dark:bg-[#1a1917]",
-    border: "border-[#eddcb9] dark:border-[#2d2a24]",
+    pageBg: "bg-[#faf5eb]",
+    text: "text-[#3d2c16]",
+    headerBg: "bg-[#fcf8f2]/90 border-[#eddcb9]",
+    cardBg: "bg-[#fcf8f2]",
+    border: "border-[#eddcb9]",
   },
   sepia: {
-    pageBg: "bg-[#f5edd0] dark:bg-[#171310]",
-    text: "text-[#4d3319] dark:text-[#e6d7c3]",
-    headerBg: "bg-[#f5ebd0]/90 dark:bg-[#1c1713]/90 border-[#e0cea1] dark:border-[#332a21]",
-    cardBg: "bg-[#f5ebd0] dark:bg-[#1c1713]",
-    border: "border-[#e0cea1] dark:border-[#332a21]",
+    pageBg: "bg-[#f5edd0]",
+    text: "text-[#4d3319]",
+    headerBg: "bg-[#f5ebd0]/90 border-[#e0cea1]",
+    cardBg: "bg-[#f5ebd0]",
+    border: "border-[#e0cea1]",
   },
   slate: {
     pageBg: "bg-slate-100/90 dark:bg-slate-950",
@@ -2099,7 +2099,7 @@ export default function App() {
     );
   }
 
-  const currentReaderTheme = (isFocusMode && activeTab === "read" && activeLesson)
+  const currentReaderTheme = (activeTab === "read" && activeLesson)
     ? (readerThemes[readerSettings.readerTheme] || readerThemes.default)
     : readerThemes.default;
 
