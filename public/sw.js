@@ -1,106 +1,96 @@
-const CACHE_NAME = 'lectura-v2.11.0';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * Service Worker for Remix Lectura PWA Offline Support & Cache Management
+ */
+
+const CACHE_NAME = "remix-lectura-v2.59";
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/favicon.svg',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  "/",
+  "/index.html",
+  "/manifest.json",
+  "/src/main.tsx",
+  "/src/index.css"
 ];
 
-// Install Event: pre-cache critical app shell files
-self.addEventListener('install', (event) => {
+// 1. Install Event: Pre-cache core shell resources
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[Service Worker] Pre-caching App Shell');
-        return cache.addAll(PRECACHE_ASSETS);
-      })
-      .then(() => self.skipWaiting()) // Activate new service worker immediately
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log("[PWA Service Worker] Pre-caching app shell assets");
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn("[PWA Service Worker] Pre-cache failed for some assets, continuing anyway:", err);
+      });
+    }).then(() => self.skipWaiting())
   );
 });
 
-// Activate Event: clean up older caches
-self.addEventListener('activate', (event) => {
+// 2. Activate Event: Clean up legacy caches
+self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting obsolete cache:', cache);
-            return caches.delete(cache);
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log("[PWA Service Worker] Removing old cache:", cacheName);
+            return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => self.clients.claim()) // Immediately take control of all open clients
+    }).then(() => self.clients.claim())
   );
 });
 
-// Fetch Event: intercept network requests
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+// 3. Fetch Event: Stale-While-Revalidate Strategy for UI shell & Cache-First for static assets
+self.addEventListener("fetch", (event) => {
+  const requestUrl = new URL(event.request.url);
 
-  // 1. Bypass cache for backend API calls
-  if (url.pathname.startsWith('/api/')) {
-    return; // Let browser fetch normally
-  }
-
-  // 2. Navigation requests (HTML pages) -> Network-First, fallback to cached App Shell
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // Cache the fresh HTML page
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-          return response;
-        })
-        .catch(() => {
-          // If offline, serve the cached index.html
-          return caches.match('/')
-            .then((cachedResponse) => {
-              if (cachedResponse) {
-                return cachedResponse;
-              }
-              // Fallback to absolute index.html just in case
-              return caches.match('/index.html');
-            });
-        })
-    );
+  // Skip non-GET requests or dynamic API endpoints (/api/...) and Firebase/Gemini external requests
+  if (
+    event.request.method !== "GET" ||
+    requestUrl.pathname.startsWith("/api/") ||
+    requestUrl.hostname.includes("firestore.googleapis.com") ||
+    requestUrl.hostname.includes("generativelanguage.googleapis.com text/html")
+  ) {
     return;
   }
 
-  // 3. Static assets & media (JS, CSS, SVGs, Fonts) -> Stale-While-Revalidate
-  // Focus on assets from the same origin or specific CDNs (like Google Fonts)
-  if (
-    url.origin === self.location.origin ||
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com')
-  ) {
-    event.respondWith(
-      caches.match(event.request)
-        .then((cachedResponse) => {
-          const fetchPromise = fetch(event.request)
-            .then((networkResponse) => {
-              // Only cache valid standard GET responses
-              if (networkResponse.ok && event.request.method === 'GET') {
-                const responseClone = networkResponse.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(event.request, responseClone);
-                });
-              }
-              return networkResponse;
-            })
-            .catch((err) => {
-              console.warn('[Service Worker] Fetch failed for:', event.request.url, err);
-              // If fetching failed, we just return whatever was in the cache or let it fail
-            });
+  // Network-First with Cache Fallback strategy
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          networkResponse.type === "basic"
+        ) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(async () => {
+        // If offline or network fails, try returning cached asset
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
 
-          // Return cached response instantly if available, else wait for network
-          return cachedResponse || fetchPromise;
-        })
-    );
-  }
+        // Fallback for navigation requests (HTML pages) when offline
+        if (event.request.mode === "navigate") {
+          const offlinePage = await caches.match("/index.html");
+          if (offlinePage) {
+            return offlinePage;
+          }
+        }
+
+        return new Response("Вы находитесь в офлайн-режиме", {
+          status: 503,
+          statusText: "Service Unavailable",
+          headers: new Headers({ "Content-Type": "text/plain; charset=utf-8" }),
+        });
+      })
+  );
 });

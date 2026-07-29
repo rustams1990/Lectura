@@ -1,31 +1,24 @@
 {
-  "name": "Lectura",
   "short_name": "Lectura",
-  "description": "Интеллектуальное приложение для чтения книг и изучения языков с мгновенным переводом.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#0d9488",
-  "orientation": "any",
-  "categories": ["education", "books"],
+  "name": "Remix Lectura — ИИ Чтение и Изучение Языков",
+  "description": "Интерактивная система чтения книг, статей и видео с мгновенным контекстным переводом, озвучкой и умным словарем на базе Google Gemini ИИ.",
   "icons": [
     {
       "src": "/icon-192.png",
-      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
+      "sizes": "192x192"
     },
     {
       "src": "/icon-512.png",
-      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "start_url": "/",
+  "background_color": "#111111",
+  "theme_color": "#0d9488",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "ru"
 }

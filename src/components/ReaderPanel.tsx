@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { Lesson, VocabItem, WordStatus, ReaderSettings } from "../types";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
@@ -220,7 +220,7 @@ const normalizeTranslationSemicolons = (text: string): string => {
   return result.trim();
 };
 
-export default function ReaderPanel({
+function ReaderPanel({
   lesson,
   lessonImagesMap,
   vocab,
@@ -2237,3 +2237,5 @@ export default function ReaderPanel({
     </div>
   );
 }
+
+export default memo(ReaderPanel);

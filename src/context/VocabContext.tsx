@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { VocabItem, WordStatus } from "../types";
 import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
 import { vocabStore } from "../db";
@@ -193,11 +193,19 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const wordClickDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleWordClick = (word: string, context: string) => {
+    if (wordClickDebounceRef.current) {
+      clearTimeout(wordClickDebounceRef.current);
+    }
     const normalizedWord = word.replace(/\s+/g, " ").trim();
     const normalizedContext = context.replace(/\s+/g, " ").trim();
-    setSelectedWord(normalizedWord);
-    setContextSentence(normalizedContext);
+
+    wordClickDebounceRef.current = setTimeout(() => {
+      setSelectedWord(normalizedWord);
+      setContextSentence(normalizedContext);
+    }, 120);
   };
 
   return (

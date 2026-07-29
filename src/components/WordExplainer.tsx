@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { VocabItem, WordStatus, ExampleSentence, Dictionary, ReaderSettings, Lesson } from "../types";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getEffectiveLocalTtsVoice, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
@@ -297,7 +297,7 @@ const normalizeTranslationSemicolons = (text: string): string => {
   return result.trim();
 };
 
-export default function WordExplainer({
+function WordExplainer({
   word,
   sentence,
   targetLanguage,
@@ -2884,3 +2884,6 @@ export default function WordExplainer({
     </div>
   );
 }
+
+export default memo(WordExplainer);
+

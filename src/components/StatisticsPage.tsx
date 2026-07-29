@@ -4,7 +4,7 @@
  * Statistics Dashboard
  */
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, memo } from "react";
 import { VocabItem, Lesson, WordStatus } from "../types";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
@@ -53,7 +53,7 @@ interface StatisticsPageProps {
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
 }
 
-export default function StatisticsPage({
+function StatisticsPage({
   vocab,
   lessons,
   listeningSeconds,
@@ -3183,3 +3183,6 @@ export default function StatisticsPage({
     </div>
   );
 }
+
+export default memo(StatisticsPage);
+
