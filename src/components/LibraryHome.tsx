@@ -252,6 +252,14 @@ function LibraryHome({
   const [showArchived, setShowArchived] = useState<boolean>(false);
   const [deletingLessonId, setDeletingLessonId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [sortBy, setSortBy] = useState<string>(() => {
+    return localStorage.getItem("vocab_library_sort") || "pinned";
+  });
+
+  const handleSortChange = (value: string) => {
+    setSortBy(value);
+    safeLocalStorageSetItem("vocab_library_sort", value);
+  };
 
   // Smart Banner Dashboard state & helpers
   const [isBannerCollapsed, setIsBannerCollapsed] = useState<boolean>(() => {
@@ -529,15 +537,48 @@ function LibraryHome({
       return matchesArchive && matchesSearch && matchesLanguage && matchesType && matchesLessonType;
     });
 
-    // Pinned books always go first. Maintain original order otherwise.
+    // Sort: pinned always float to top, then apply the chosen sort key.
     return [...list].sort((a, b) => {
+      // Pinned books always come first regardless of sort
       const aPinned = !!a.pinned;
       const bPinned = !!b.pinned;
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
+
+      if (sortBy === "title") {
+        return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+      }
+      if (sortBy === "title_desc") {
+        return b.title.localeCompare(a.title, undefined, { sensitivity: "base" });
+      }
+      if (sortBy === "comprehension_high") {
+        const sA = calculateBookStats(a, vocab, wordLinks);
+        const sB = calculateBookStats(b, vocab, wordLinks);
+        return sB.knownPct - sA.knownPct;
+      }
+      if (sortBy === "comprehension_low") {
+        const sA = calculateBookStats(a, vocab, wordLinks);
+        const sB = calculateBookStats(b, vocab, wordLinks);
+        return sA.knownPct - sB.knownPct;
+      }
+      if (sortBy === "length_short") {
+        return getWordCount(a.text || "") - getWordCount(b.text || "");
+      }
+      if (sortBy === "length_long") {
+        return getWordCount(b.text || "") - getWordCount(a.text || "");
+      }
+      if (sortBy === "oldest") {
+        // original array order = oldest first (index in lessons array)
+        return lessons.indexOf(a) - lessons.indexOf(b);
+      }
+      // default "pinned" / "newest": newest = reverse of original array order
+      if (sortBy === "newest") {
+        return lessons.indexOf(b) - lessons.indexOf(a);
+      }
+      // fallback: keep original order
       return 0;
     });
-  }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived]);
+  }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived, sortBy, vocab, wordLinks]);
 
   // Active counts
   const activeCount = lessons.filter(l => !l.isArchived).length;
@@ -836,6 +877,39 @@ function LibraryHome({
             >
               Импортированные
             </button>
+
+            {/* Sort dropdown */}
+            <div className="relative flex items-center">
+              <select
+                id="library-sort-select"
+                value={sortBy}
+                onChange={(e) => handleSortChange(e.target.value)}
+                title="Сортировка книг"
+                className={`pl-3 pr-7 py-1.5 text-xs font-bold rounded-lg transition-all appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${
+                  sortBy !== "pinned"
+                    ? "bg-teal-600 text-white border-teal-700 shadow-xs"
+                    : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                }`}
+              >
+                <option value="pinned">📌 Закреплённые</option>
+                <option value="newest">🕐 Новые сначала</option>
+                <option value="oldest">📅 Старые сначала</option>
+                <option value="title">🔤 Название А→Я</option>
+                <option value="title_desc">🔤 Название Я→А</option>
+                <option value="comprehension_high">📊 Понимание: высокое</option>
+                <option value="comprehension_low">📊 Понимание: низкое</option>
+                <option value="length_short">📖 Короткие</option>
+                <option value="length_long">📖 Длинные</option>
+              </select>
+              {/* Custom chevron icon for the select */}
+              <span className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ${
+                sortBy !== "pinned" ? "text-white" : "text-zinc-400"
+              }`}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            </div>
 
             {!showArchived && (
               <button
