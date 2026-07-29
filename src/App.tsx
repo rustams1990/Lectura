@@ -507,7 +507,7 @@ export default function App() {
         return saved === "true";
       }
     } catch (_) {}
-    return false;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   });
 
   useEffect(() => {
