@@ -523,8 +523,10 @@ export default function App() {
     settingsStore.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
+      document.documentElement.style.colorScheme = "dark";
     } else {
       document.documentElement.classList.remove("dark");
+      document.documentElement.style.colorScheme = "light";
     }
   }, [isDarkMode]);
 
@@ -2442,8 +2444,10 @@ export default function App() {
                     settingsStore.setItem("vocab_clone_dark_mode", next ? "true" : "false");
                     if (next) {
                       document.documentElement.classList.add("dark");
+                      document.documentElement.style.colorScheme = "dark";
                     } else {
                       document.documentElement.classList.remove("dark");
+                      document.documentElement.style.colorScheme = "light";
                     }
                     return next;
                   });
