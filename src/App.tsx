@@ -1902,13 +1902,13 @@ export default function App() {
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-95 text-inherit font-bold text-xs rounded-xl transition-all active:scale-98 cursor-pointer shadow-xs`}
             >
-              ← Back to Dashboard (Выйти из фокуса)
+              ← Выйти из фокуса
             </button>
 
             {/* Lesson Title Indicators */}
             <div className="text-center flex-1 max-w-xl truncate">
               <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 dark:text-teal-400 bg-teal-100/40 dark:bg-teal-950/40 px-2 py-0.5 rounded">
-                Focused Reading Room
+                Режим фокуса
               </span>
               <h2 className="text-sm font-bold text-inherit block truncate mt-1">
                 {activeLesson.title}
@@ -1938,10 +1938,10 @@ export default function App() {
                       ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
                       : `${focusTheme.cardBg} ${focusTheme.border} text-inherit hover:opacity-90`
                   }`}
-                  title="Toggle YouTube Video window"
+                  title="Переключить окно YouTube"
                 >
                   <Tv className="w-3.5 h-3.5" />
-                  <span>Видео (Video)</span>
+                  <span>Видео</span>
                 </button>
               )}
               <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
@@ -1956,7 +1956,7 @@ export default function App() {
                       ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
-                  title="Default width (1280px)"
+                  title="Стандартная ширина (1280px)"
                 >
                   Стандарт
                 </button>
@@ -1968,7 +1968,7 @@ export default function App() {
                       ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
-                  title="Wide width (1560px)"
+                  title="Широкая область (1560px)"
                 >
                   Широкий
                 </button>
@@ -1980,7 +1980,7 @@ export default function App() {
                       ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
-                  title="Full screen width"
+                  title="На весь экран"
                 >
                   Экран
                 </button>
@@ -2103,7 +2103,44 @@ export default function App() {
     : readerThemes.default;
 
   if (!isAppLoaded) {
-    return <div className="flex h-screen items-center justify-center bg-stone-50 dark:bg-zinc-950"><Loader2 className="w-10 h-10 animate-spin text-teal-600" /></div>;
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-stone-50 dark:bg-zinc-950 font-sans text-zinc-800 dark:text-zinc-100 transition-colors duration-300 relative overflow-hidden">
+        {/* Background glow circle */}
+        <div className="absolute w-[450px] h-[450px] bg-teal-500/10 dark:bg-teal-500/15 rounded-full blur-3xl animate-pulse pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col items-center max-w-sm px-6 text-center space-y-6">
+          {/* Logo Badge */}
+          <div className="relative flex items-center justify-center w-20 h-20 bg-gradient-to-br from-teal-500 to-teal-700 text-white rounded-3xl shadow-xl shadow-teal-500/20 transform hover:scale-105 transition-transform duration-300">
+            <Languages className="w-10 h-10 animate-bounce" />
+            <div className="absolute inset-0 rounded-3xl ring-1 ring-white/30" />
+          </div>
+
+          {/* Title & Tagline */}
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">
+              Remix Lectura
+            </h1>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+              Умное чтение и изучение языков с ИИ
+            </p>
+          </div>
+
+          {/* Loading bar & spinner */}
+          <div className="w-full space-y-2 pt-2">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+              <span className="flex items-center gap-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600 dark:text-teal-400" />
+                Загрузка материалов...
+              </span>
+              <span className="font-mono text-[10px] text-teal-600 dark:text-teal-400">IndexedDB</span>
+            </div>
+            <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 rounded-full w-2/3 animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -2132,10 +2169,10 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="font-black text-sm text-zinc-900 dark:text-white tracking-wide">
-                    SLL Menu
+                    Remix Lectura
                   </h3>
                   <span className="text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest block font-mono">
-                    Navigation
+                    Навигация
                   </span>
                 </div>
               </div>
@@ -2145,7 +2182,7 @@ export default function App() {
                 id="btn-close-sidebar"
                 onClick={() => setIsSidebarOpen(false)}
                 className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg cursor-pointer transition-colors"
-                title="Закрыть меню (Close Menu)"
+                title="Закрыть меню"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2156,7 +2193,7 @@ export default function App() {
               {/* Core Tabs Navigation */}
               <div className="space-y-1">
                 <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
-                  Tabs (Разделы)
+                  Разделы
                 </span>
                 
                 <button
@@ -2173,7 +2210,7 @@ export default function App() {
                   }`}
                 >
                   <BookMarked className="w-4 h-4 shrink-0" />
-                  Библиотека (Library)
+                  Библиотека
                 </button>
 
                 <button
@@ -2190,7 +2227,7 @@ export default function App() {
                   }`}
                 >
                   <BookOpen className="w-4 h-4 shrink-0" />
-                  Чтение (Reader)
+                  Чтение
                 </button>
 
                 <button
@@ -2207,7 +2244,7 @@ export default function App() {
                   }`}
                 >
                   <GraduationCap className="w-4 h-4 shrink-0" />
-                  Карточки (Study)
+                  Практика
                 </button>
 
                 <button
@@ -2224,7 +2261,7 @@ export default function App() {
                   }`}
                 >
                   <TrendingUp className="w-4 h-4 shrink-0" />
-                  Статистика (Stats)
+                  Словарь и статистика
                 </button>
 
                 <button
@@ -2241,14 +2278,14 @@ export default function App() {
                   }`}
                 >
                   <History className="w-4 h-4 shrink-0 text-teal-600 dark:text-teal-400" />
-                  История (History)
+                  История чтения
                 </button>
               </div>
 
               {/* Quick Actions separator */}
               <div className="space-y-1.5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
-                  Actions (Действия)
+                  Действия
                 </span>
 
                 {activeLesson && (
@@ -2259,10 +2296,10 @@ export default function App() {
                       setIsSidebarOpen(false);
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-teal-600 dark:text-teal-400 bg-teal-50/60 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 border border-teal-100/50 dark:border-teal-900/50 rounded-xl transition-all cursor-pointer active:scale-97"
-                    title="Enter dedicated focus mode"
+                    title="Перейти в режим фокуса"
                   >
                     <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 animate-pulse" />
-                    Focus Room (Режим фокуса)
+                    Режим фокуса
                   </button>
                 )}
 
@@ -2275,7 +2312,7 @@ export default function App() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white rounded-xl transition-all cursor-pointer"
                 >
                   <Settings className="w-4 h-4 text-zinc-400 shrink-0" />
-                  Настройки (Settings)
+                  Настройки
                 </button>
 
                 <button
@@ -2287,7 +2324,7 @@ export default function App() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:scale-95 rounded-xl transition-all cursor-pointer shadow-3xs"
                 >
                   <PlusCircle className="w-4 h-4 shrink-0 text-teal-100" />
-                  Import Lesson
+                  Импортировать материал
                 </button>
               </div>
             </div>
@@ -2296,7 +2333,7 @@ export default function App() {
             <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center">
               <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-1 font-mono">
-                  Cloud Profile
+                  Профиль синхронизации
                 </span>
                 {activeUser ? (
                   <div className="space-y-1">
@@ -2304,7 +2341,7 @@ export default function App() {
                     <div className="flex items-center justify-center gap-1">
                       <span className={`w-1.5 h-1.5 rounded-full ${activeUser ? "bg-teal-500 animate-pulse" : "bg-teal-500"}`} />
                       <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-                        {activeUser ? "Synced to Cloud" : "Local Guest Profile"}
+                        {activeUser ? "Синхронизировано" : "Локальный профиль"}
                       </span>
                     </div>
                   </div>
@@ -2316,7 +2353,7 @@ export default function App() {
                     }}
                     className="text-[9px] font-black text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
                   >
-                    🔑 Sign In and Sync
+                    🔑 Войти и синхронизировать
                   </button>
                 )}
               </div>

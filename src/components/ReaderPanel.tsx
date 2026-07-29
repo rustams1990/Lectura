@@ -961,10 +961,34 @@ export default function ReaderPanel({
     onWordClick(cleanWord, associatedSentence.trim());
   };
 
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (totalHeight > 0) {
+        const current = window.scrollY;
+        const pct = Math.min(100, Math.max(0, Math.round((current / totalHeight) * 100)));
+        setScrollProgress(pct);
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const currentTheme = themeMap[activeSettings.readerTheme] || themeMap.default;
 
   return (
-    <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 ${currentTheme}`}>
+    <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme}`}>
+      {/* Top Reading Progress Line */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-200/50 dark:bg-zinc-800/50">
+        <div 
+          className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all duration-150" 
+          style={{ width: `${scrollProgress}%` }}
+        />
+      </div>
+
       <div className="pb-4 border-b border-zinc-200/60 dark:border-zinc-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3.5">
@@ -984,10 +1008,10 @@ export default function ReaderPanel({
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100/40 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
-              Target: {lesson.targetLanguage}
+              Язык: {lesson.targetLanguage}
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
-              Lingo To: {lesson.translationLanguage}
+              Перевод: {lesson.translationLanguage}
             </span>
             {lesson.difficulty && (
               <span 
@@ -998,7 +1022,9 @@ export default function ReaderPanel({
                 Сложность: {lesson.difficulty}
               </span>
             )}
-
+            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
+              📖 Прочитано: {scrollProgress}%
+            </span>
           </div>
         </div>
       </div>
