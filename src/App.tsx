@@ -110,7 +110,8 @@ function migrateLocalStorage() {
     "local_user",
     "storage_mode",
     "daily_word_goal",
-    "last_active_lesson_id"
+    "last_active_lesson_id",
+    "reading_history"
   ];
   keys.forEach(k => {
     const oldKey = `lingq_clone_${k}`;
@@ -325,12 +326,21 @@ export default function App() {
         const ls = await settingsStore.getItem('vocab_clone_listening');
         if (ls !== null) setListeningSeconds(parseFloat(ls as string) || 0);
 
-        const savedHistory = await settingsStore.getItem('vocab_clone_reading_history');
-        if (savedHistory) {
-          try {
-            const parsed = typeof savedHistory === 'string' ? JSON.parse(savedHistory) : savedHistory;
-            if (Array.isArray(parsed) && parsed.length > 0) setHistory(parsed);
-          } catch(e) {}
+        const localHist1 = safeParse(localStorage.getItem('vocab_clone_reading_history'), []);
+        const localHist2 = safeParse(localStorage.getItem('lingq_clone_reading_history'), []);
+        let dbHist: HistoryEntry[] = [];
+        try {
+          const savedHistory = await settingsStore.getItem('vocab_clone_reading_history');
+          if (savedHistory) {
+            dbHist = typeof savedHistory === 'string' ? JSON.parse(savedHistory) : (savedHistory as any);
+          }
+        } catch(e) {}
+
+        const combinedHistory = dedupeHistory([...localHist1, ...localHist2, ...(Array.isArray(dbHist) ? dbHist : [])]);
+        if (combinedHistory.length > 0) {
+          setHistory(combinedHistory);
+          safeLocalStorageSetItem('vocab_clone_reading_history', JSON.stringify(combinedHistory));
+          settingsStore.setItem('vocab_clone_reading_history', JSON.stringify(combinedHistory)).catch(() => {});
         }
 
         const lf = await settingsStore.getItem('vocab_clone_language_flags');
@@ -1895,7 +1905,9 @@ export default function App() {
 
   useEffect(() => {
     if (activeLesson && activeTab === "read") {
-      recordHistoryActivity(activeLesson, "read");
+      const prog = localStorage.getItem(`vocab_progress_${activeLesson.id}`);
+      const isCompleted = prog ? parseFloat(prog) >= 100 : false;
+      recordHistoryActivity(activeLesson, isCompleted ? "complete" : "read");
     }
   }, [activeLesson?.id, activeTab]);
 

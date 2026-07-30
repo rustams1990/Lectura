@@ -211,6 +211,20 @@ function HistoryPage({
     const merged: HistoryEntry[] = [];
 
     for (const item of sorted) {
+      const lesson = lessons.find((l) => l.id === item.lessonId);
+      const savedProg = localStorage.getItem(`vocab_progress_${item.lessonId}`);
+      const isProg100 = savedProg ? parseFloat(savedProg) >= 100 : false;
+      const isLessonDone =
+        item.status === "completed" ||
+        item.actionType === "complete" ||
+        isProg100 ||
+        (lesson && ((lesson as any).isCompleted || (lesson as any).readCount > 0 || (lesson as any).progress >= 100));
+
+      const itemWithStatus: HistoryEntry = {
+        ...item,
+        status: isLessonDone ? "completed" : (item.status || "in_progress"),
+      };
+
       const existingIdx = merged.findIndex(
         (m) =>
           m.lessonId === item.lessonId &&
@@ -219,26 +233,26 @@ function HistoryPage({
 
       if (existingIdx !== -1) {
         const existing = merged[existingIdx];
-        const isListening = existing.actionType === "listen" || item.actionType === "listen";
+        const isListening = existing.actionType === "listen" || itemWithStatus.actionType === "listen";
         const isCompleted =
           existing.status === "completed" ||
-          item.status === "completed" ||
+          itemWithStatus.status === "completed" ||
           existing.actionType === "complete" ||
-          item.actionType === "complete";
+          itemWithStatus.actionType === "complete";
 
         merged[existingIdx] = {
           ...existing,
           actionType: isListening ? "listen" : (existing.actionType === "complete" ? "read" : existing.actionType),
-          status: isCompleted ? "completed" : existing.status,
-          durationSeconds: Math.max(existing.durationSeconds || 0, item.durationSeconds || 0),
-          notes: existing.notes || item.notes,
+          status: isCompleted ? "completed" : (existing.status || "in_progress"),
+          durationSeconds: Math.max(existing.durationSeconds || 0, itemWithStatus.durationSeconds || 0),
+          notes: existing.notes || itemWithStatus.notes,
         };
       } else {
-        merged.push(item);
+        merged.push(itemWithStatus);
       }
     }
     return merged;
-  }, [history]);
+  }, [history, lessons]);
 
   // Filter & Sort entries (NEWEST FIRST: descending timestamp)
   const filteredHistory = useMemo(() => {
