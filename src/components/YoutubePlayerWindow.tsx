@@ -138,13 +138,15 @@ export default function YoutubePlayerWindow({
 
       // Get saved progress for this specific lesson to start from, without autoplaying
       let startSeconds = 0;
-      const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
-      if (savedProgress) {
-        const seconds = parseFloat(savedProgress);
-        if (!isNaN(seconds) && seconds > 0) {
-          startSeconds = Math.floor(seconds);
+      try {
+        const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
+        if (savedProgress) {
+          const seconds = parseFloat(savedProgress);
+          if (!isNaN(seconds) && seconds > 2) {
+            startSeconds = Math.floor(seconds);
+          }
         }
-      }
+      } catch (e) {}
 
       if (YT && YT.Player) {
         try {
@@ -163,16 +165,24 @@ export default function YoutubePlayerWindow({
               onReady: (event: any) => {
                 if (isUnmounted) return;
                 const player = event.target;
-                if (seekToTime !== null && seekToTime !== undefined && player && typeof player.seekTo === "function") {
+                const targetSeek = (seekToTime !== null && seekToTime !== undefined) ? seekToTime : startSeconds;
+
+                if (targetSeek > 0 && player && typeof player.seekTo === "function") {
                   try {
-                    player.seekTo(seekToTime, true);
-                  } catch (e) {
-                    console.error("Error seeking player on ready:", e);
-                  }
-                } else if (startSeconds > 0 && player && typeof player.seekTo === "function") {
-                  try {
-                    player.seekTo(startSeconds, true);
+                    player.seekTo(targetSeek, true);
                   } catch (e) {}
+                  setTimeout(() => {
+                    if (isUnmounted) return;
+                    try {
+                      player.seekTo(targetSeek, true);
+                    } catch (e) {}
+                  }, 250);
+                  setTimeout(() => {
+                    if (isUnmounted) return;
+                    try {
+                      player.seekTo(targetSeek, true);
+                    } catch (e) {}
+                  }, 750);
                 }
               },
               onStateChange: (event: any) => {
@@ -183,7 +193,10 @@ export default function YoutubePlayerWindow({
                   stopTrackingTime();
                 }
                 if (event.data === 0) {
-                  localStorage.removeItem(`youtube_progress_${lesson.id}`);
+                  try {
+                    localStorage.removeItem(`youtube_progress_${lesson.id}`);
+                    settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
+                  } catch (e) {}
                 }
               },
             },
