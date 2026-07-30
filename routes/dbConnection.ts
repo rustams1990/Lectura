@@ -92,6 +92,20 @@ export function getDbConnection(userId: string = "default"): Database.Database {
         name TEXT NOT NULL,
         icon TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS reading_history (
+        id TEXT PRIMARY KEY,
+        lessonId TEXT NOT NULL,
+        lessonTitle TEXT NOT NULL,
+        lessonType TEXT,
+        coverUrl TEXT,
+        targetLanguage TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        actionType TEXT NOT NULL,
+        status TEXT,
+        durationSeconds INTEGER DEFAULT 0,
+        notes TEXT
+      );
     `);
 
     if (safeUserId === "default") {

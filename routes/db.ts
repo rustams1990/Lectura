@@ -298,6 +298,24 @@ export function getLocalServerDb(userId: string = "default") {
       }
     }
 
+    let history: any[] = [];
+    try {
+      const historyRows = db.prepare("SELECT * FROM reading_history ORDER BY timestamp DESC").all() as any[];
+      history = historyRows.map((h) => ({
+        id: h.id,
+        lessonId: h.lessonId,
+        lessonTitle: h.lessonTitle,
+        lessonType: h.lessonType || "article",
+        coverUrl: h.coverUrl || null,
+        targetLanguage: h.targetLanguage,
+        timestamp: h.timestamp,
+        actionType: h.actionType,
+        status: h.status || "in_progress",
+        durationSeconds: h.durationSeconds || 0,
+        notes: h.notes || undefined,
+      }));
+    } catch (_) {}
+
     return {
       lessons,
       lessonTypes,
@@ -305,6 +323,7 @@ export function getLocalServerDb(userId: string = "default") {
       wordLinks,
       listeningSeconds,
       languageFlags,
+      history,
     };
   } catch (e) {
     console.error("Error loading SQLite database data:", e);
@@ -468,6 +487,32 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       if (data.listeningSeconds !== undefined) {
         insertMetadata.run("listeningSeconds", String(data.listeningSeconds));
+      }
+
+      const insertHistory = db.prepare(`
+        INSERT OR REPLACE INTO reading_history (
+          id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const historyList = data.history || [];
+      if (Array.isArray(historyList) && historyList.length > 0) {
+        for (const h of historyList) {
+          if (!h || !h.id || !h.lessonId) continue;
+          insertHistory.run(
+            h.id,
+            h.lessonId,
+            h.lessonTitle || "Занятие",
+            h.lessonType || null,
+            h.coverUrl || null,
+            h.targetLanguage || "english",
+            h.timestamp || new Date().toISOString(),
+            h.actionType || "read",
+            h.status || "in_progress",
+            h.durationSeconds || 0,
+            h.notes || null
+          );
+        }
       }
     })();
 
