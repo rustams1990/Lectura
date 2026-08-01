@@ -336,11 +336,14 @@ export default function App() {
           }
         } catch(e) {}
 
-        const combinedHistory = dedupeHistory([...localHist1, ...localHist2, ...(Array.isArray(dbHist) ? dbHist : [])]);
+        const combinedHistory = dedupeHistory([...localHist1, ...(localHist2.length > 0 ? localHist2 : []), ...(Array.isArray(dbHist) ? dbHist : [])]);
         if (combinedHistory.length > 0) {
           setHistory(combinedHistory);
           safeLocalStorageSetItem('vocab_clone_reading_history', JSON.stringify(combinedHistory));
           settingsStore.setItem('vocab_clone_reading_history', JSON.stringify(combinedHistory)).catch(() => {});
+        }
+        if (localHist2.length > 0) {
+          try { localStorage.removeItem('lingq_clone_reading_history'); } catch(_) {}
         }
 
         const lf = await settingsStore.getItem('vocab_clone_language_flags');
@@ -665,12 +668,10 @@ export default function App() {
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
           if (d.history && Array.isArray(d.history)) {
-            setHistory((prevLocal) => {
-              const merged = dedupeHistory([...d.history, ...prevLocal]);
-              safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(merged));
-              settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(merged)).catch(() => {});
-              return merged;
-            });
+            const cleanHistory = dedupeHistory(d.history);
+            setHistory(cleanHistory);
+            safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
+            settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(cleanHistory)).catch(() => {});
           }
 
           // Sync into localStorage as fallback buffer (sanitizing heavy base64 fields)

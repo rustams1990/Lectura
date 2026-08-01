@@ -496,6 +496,16 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       `);
 
       const historyList = data.history || [];
+      if (Array.isArray(data.history)) {
+        const currentHistoryIds = historyList.map((h: any) => h?.id).filter(Boolean);
+        if (currentHistoryIds.length > 0) {
+          const placeholders = currentHistoryIds.map(() => "?").join(",");
+          db.prepare(`DELETE FROM reading_history WHERE id NOT IN (${placeholders})`).run(...currentHistoryIds);
+        } else {
+          db.prepare(`DELETE FROM reading_history`).run();
+        }
+      }
+
       if (Array.isArray(historyList) && historyList.length > 0) {
         for (const h of historyList) {
           if (!h || !h.id || !h.lessonId) continue;
