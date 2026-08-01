@@ -5,10 +5,10 @@
 
 import React, { useMemo, useState, useEffect, useRef, memo } from "react";
 import { createPortal } from "react-dom";
-import { Lesson, VocabItem, WordStatus, ReaderSettings } from "../types";
+import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
 import { segmentSentenceTokens } from "../tokenizer";
-import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw } from "lucide-react";
+import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw, Clock, CheckCircle2, Plus, X, Calendar, MessageSquare } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 
 interface ReaderPanelProps {
@@ -25,6 +25,8 @@ interface ReaderPanelProps {
   currentYoutubeTime?: number | null;
   onTimestampClick?: (seconds: number) => void;
   showOnlyUnknown?: boolean;
+  history?: HistoryEntry[];
+  onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
 }
 
 function parseTimestampToSeconds(ts: string): number {
@@ -233,10 +235,145 @@ function ReaderPanel({
   currentYoutubeTime,
   onTimestampClick,
   showOnlyUnknown = false,
+  history,
+  onUpdateHistory,
 }: ReaderPanelProps) {
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
   const [unknownSearchQuery, setUnknownSearchQuery] = useState("");
   const [unknownSortMode, setUnknownSortMode] = useState<"alpha" | "appearance">("alpha");
+
+  // Status & Reading Time Management States
+  const [isCustomTimeModalOpen, setIsCustomTimeModalOpen] = useState(false);
+  const [customMinutesInput, setCustomMinutesInput] = useState("15");
+  const [customNotesInput, setCustomNotesInput] = useState("");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  };
+
+  const currentStatus: "in_progress" | "completed" = useMemo(() => {
+    const savedProg = localStorage.getItem(`vocab_progress_${lesson.id}`);
+    const isProg100 = savedProg ? parseFloat(savedProg) >= 100 : false;
+    const histEntry = (history || []).find((h) => h.lessonId === lesson.id);
+    if (isProg100 || histEntry?.status === "completed" || histEntry?.actionType === "complete") {
+      return "completed";
+    }
+    return "in_progress";
+  }, [history, lesson.id]);
+
+  const totalLoggedSeconds = useMemo(() => {
+    return (history || [])
+      .filter((h) => h.lessonId === lesson.id)
+      .reduce((sum, h) => sum + (h.durationSeconds || 0), 0);
+  }, [history, lesson.id]);
+
+  const formatLoggedDuration = (secs: number) => {
+    if (!secs || secs <= 0) return "0м";
+    const hrs = Math.floor(secs / 3600);
+    const mins = Math.floor((secs % 3600) / 60);
+    if (hrs > 0) return `${hrs}ч ${mins > 0 ? `${mins}м` : ""}`;
+    return `${mins}м`;
+  };
+
+  const handleToggleStatus = (newStatus: "in_progress" | "completed") => {
+    if (newStatus === "completed") {
+      safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "100");
+    } else {
+      const currentProg = localStorage.getItem(`vocab_progress_${lesson.id}`);
+      if (currentProg && parseFloat(currentProg) >= 100) {
+        safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "50");
+      }
+    }
+
+    if (onUpdateHistory) {
+      const now = new Date().toISOString();
+      const existingIdx = (history || []).findIndex((h) => h.lessonId === lesson.id);
+
+      let updated: HistoryEntry[];
+      if (existingIdx !== -1) {
+        updated = [...(history || [])];
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          status: newStatus,
+          actionType: newStatus === "completed" ? "complete" : updated[existingIdx].actionType,
+          timestamp: now,
+        };
+      } else {
+        const newEntry: HistoryEntry = {
+          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          lessonType: lesson.lessonType || "article",
+          coverUrl: lesson.coverUrl || null,
+          targetLanguage: lesson.targetLanguage,
+          timestamp: now,
+          actionType: newStatus === "completed" ? "complete" : "read",
+          status: newStatus,
+          durationSeconds: 0,
+        };
+        updated = [newEntry, ...(history || [])];
+      }
+      onUpdateHistory(updated);
+    }
+
+    showToast(newStatus === "completed" ? "✅ Статус изменён на 'Завершено'" : "⏳ Статус изменён на 'В процессе'");
+  };
+
+  const handleAddMinutes = (addedMinutes: number, notes?: string) => {
+    if (addedMinutes <= 0) return;
+    const addedSeconds = addedMinutes * 60;
+    const now = new Date().toISOString();
+
+    if (onUpdateHistory) {
+      const existingIdx = (history || []).findIndex(
+        (h) => h.lessonId === lesson.id && Date.now() - new Date(h.timestamp).getTime() < 24 * 60 * 60 * 1000
+      );
+
+      let updated: HistoryEntry[];
+      if (existingIdx !== -1) {
+        updated = [...(history || [])];
+        const existing = updated[existingIdx];
+        updated[existingIdx] = {
+          ...existing,
+          timestamp: now,
+          durationSeconds: (existing.durationSeconds || 0) + addedSeconds,
+          notes: notes ? (existing.notes ? `${existing.notes}; ${notes}` : notes) : existing.notes,
+        };
+      } else {
+        const newEntry: HistoryEntry = {
+          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          lessonType: lesson.lessonType || "article",
+          coverUrl: lesson.coverUrl || null,
+          targetLanguage: lesson.targetLanguage,
+          timestamp: now,
+          actionType: "read",
+          status: currentStatus,
+          durationSeconds: addedSeconds,
+          notes: notes || undefined,
+        };
+        updated = [newEntry, ...(history || [])];
+      }
+      onUpdateHistory(updated);
+    }
+
+    showToast(`⏱️ Добавлено +${addedMinutes} мин в историю чтения!`);
+  };
+
+  const handleSaveCustomTime = (e: React.FormEvent) => {
+    e.preventDefault();
+    const mins = parseInt(customMinutesInput, 10) || 0;
+    if (mins > 0) {
+      handleAddMinutes(mins, customNotesInput.trim());
+    }
+    setIsCustomTimeModalOpen(false);
+    setCustomNotesInput("");
+  };
 
   const textForSearch = useMemo(
     () => lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " "),
@@ -1035,6 +1172,84 @@ function ReaderPanel({
             <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
               📖 Прочитано: {scrollProgress}%
             </span>
+          </div>
+        </div>
+
+        {/* Status Switcher & Quick Time Logging Bar */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0 bg-zinc-50/80 dark:bg-zinc-950/60 p-2 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/80">
+          {/* Status Toggle Button */}
+          <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
+            <button
+              type="button"
+              onClick={() => handleToggleStatus("in_progress")}
+              className={`px-2.5 py-1 text-[11px] font-black rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                currentStatus === "in_progress"
+                  ? "bg-teal-600 text-white shadow-2xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+              }`}
+              title="Установить статус: В процессе"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>В процессе</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleToggleStatus("completed")}
+              className={`px-2.5 py-1 text-[11px] font-black rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                currentStatus === "completed"
+                  ? "bg-emerald-600 text-white shadow-2xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+              }`}
+              title="Установить статус: Завершено"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Завершено</span>
+            </button>
+          </div>
+
+          {/* Time Logging Widget */}
+          <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
+            <div className="px-2 py-0.5 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-800 mr-0.5">
+              <Clock className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span>{formatLoggedDuration(totalLoggedSeconds)}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleAddMinutes(15)}
+              className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+              title="Добавить 15 минут чтения к истории"
+            >
+              +15м
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleAddMinutes(30)}
+              className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+              title="Добавить 30 минут чтения к истории"
+            >
+              +30м
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleAddMinutes(60)}
+              className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+              title="Добавить 1 час чтения к истории"
+            >
+              +1ч
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCustomTimeModalOpen(true)}
+              className="px-2 py-1 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer"
+              title="Добавить произвольное время чтения"
+            >
+              +...
+            </button>
           </div>
         </div>
       </div>
@@ -2243,6 +2458,82 @@ function ReaderPanel({
             </div>
           ) : null}
         </TooltipPortal>
+      )}
+
+      {/* Toast Notification for Status/Time updates */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-zinc-700 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-3 duration-200 font-sans">
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Modal for adding custom reading time */}
+      {isCustomTimeModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl max-w-sm w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 font-sans">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                <h3 className="text-xs font-extrabold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
+                  Добавить время чтения
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomTimeModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomTime} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                  Количество минут
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="600"
+                  required
+                  value={customMinutesInput}
+                  onChange={(e) => setCustomMinutesInput(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                  Заметка (необязательно)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Например: Глава 3..."
+                  value={customNotesInput}
+                  onChange={(e) => setCustomNotesInput(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomTimeModalOpen(false)}
+                  className="px-3 py-2 text-xs font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-97 cursor-pointer"
+                >
+                  Добавить в историю
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

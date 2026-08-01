@@ -2,7 +2,7 @@ import React from "react";
 import { useLesson } from "../context/LessonContext";
 import { useVocab } from "../context/VocabContext";
 import ReaderPanel from "./ReaderPanel";
-import { ReaderSettings } from "../types";
+import { HistoryEntry, ReaderSettings } from "../types";
 
 interface ReaderViewProps {
   key?: string;
@@ -10,6 +10,8 @@ interface ReaderViewProps {
   settings?: ReaderSettings;
   onEditClick?: () => void;
   showOnlyUnknown?: boolean;
+  history?: HistoryEntry[];
+  onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
 }
 
 export default function ReaderView({
@@ -17,6 +19,8 @@ export default function ReaderView({
   settings,
   onEditClick,
   showOnlyUnknown,
+  history,
+  onUpdateHistory,
 }: ReaderViewProps) {
   const { activeLesson, currentTime, setSeekToTime } = useLesson();
   const { vocab, selectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
@@ -38,6 +42,8 @@ export default function ReaderView({
       currentYoutubeTime={currentTime}
       onTimestampClick={(seconds) => setSeekToTime(seconds)}
       showOnlyUnknown={showOnlyUnknown}
+      history={history}
+      onUpdateHistory={onUpdateHistory}
     />
   );
 }

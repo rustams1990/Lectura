@@ -2043,6 +2043,8 @@ export default function App() {
               settings={readerSettings}
               onEditClick={() => setEditingLesson(activeLesson)}
               showOnlyUnknown={showOnlyUnknown}
+              history={history}
+              onUpdateHistory={handleUpdateHistory}
             />
           </div>
 
@@ -2822,6 +2824,8 @@ export default function App() {
                       settings={readerSettings}
                       onEditClick={() => setEditingLesson(activeLesson)}
                       showOnlyUnknown={showOnlyUnknown}
+                      history={history}
+                      onUpdateHistory={handleUpdateHistory}
                     />
                   </>
                 ) : (
