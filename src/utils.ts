@@ -418,6 +418,12 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
     if (!item || !item.id || !item.lessonId) continue;
     const itemTime = new Date(item.timestamp).getTime() || 0;
 
+    const isAudioOrVideoType =
+      item.lessonType === "youtube" ||
+      item.lessonType === "podcast" ||
+      item.lessonType === "audio" ||
+      item.actionType === "listen";
+
     const existingIdx = merged.findIndex(
       (m) =>
         m.lessonId === item.lessonId &&
@@ -426,7 +432,7 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
 
     if (existingIdx !== -1) {
       const existing = merged[existingIdx];
-      const isListening = existing.actionType === "listen" || item.actionType === "listen";
+      const isListening = existing.actionType === "listen" || item.actionType === "listen" || isAudioOrVideoType;
       const isCompleted =
         existing.status === "completed" ||
         item.status === "completed" ||
@@ -445,7 +451,7 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
     } else {
       merged.push({
         ...item,
-        actionType: item.actionType === "complete" ? "read" : item.actionType,
+        actionType: isAudioOrVideoType ? "listen" : (item.actionType === "complete" ? "read" : item.actionType),
         status: (item.status === "completed" || item.actionType === "complete") ? "completed" : (item.status || "in_progress"),
       });
     }

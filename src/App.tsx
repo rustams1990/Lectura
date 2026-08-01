@@ -248,6 +248,15 @@ export default function App() {
     setHistory((prev) => {
       const now = new Date().toISOString();
 
+      const isAudioOrVideo = !!(
+        targetLesson.youtubeId ||
+        targetLesson.audioUrl ||
+        targetLesson.audioBase64 ||
+        targetLesson.lessonType === "podcast" ||
+        targetLesson.lessonType === "youtube" ||
+        targetLesson.lessonType === "audio"
+      );
+
       // Find recent entry for THIS LESSON (within last 2 hours regardless of actionType)
       const recentIdx = prev.findIndex(
         (h) =>
@@ -261,7 +270,7 @@ export default function App() {
         const existing = updated[recentIdx];
 
         const nextActionType =
-          actionType === "listen" || existing.actionType === "listen"
+          isAudioOrVideo || actionType === "listen" || existing.actionType === "listen"
             ? "listen"
             : actionType === "complete"
             ? (existing.actionType === "complete" ? "read" : existing.actionType)
@@ -288,7 +297,7 @@ export default function App() {
           coverUrl: targetLesson.coverUrl || null,
           targetLanguage: targetLesson.targetLanguage,
           timestamp: now,
-          actionType: actionType === "complete" ? "read" : actionType,
+          actionType: isAudioOrVideo ? "listen" : (actionType === "complete" ? "read" : actionType),
           status: actionType === "complete" ? "completed" : "in_progress",
           durationSeconds: durationSeconds || 0,
         };
@@ -1904,11 +1913,25 @@ export default function App() {
     }
   };
 
+  const handleMediaEnded = (targetLesson: Lesson) => {
+    if (!targetLesson || !targetLesson.id) return;
+    safeLocalStorageSetItem(`vocab_progress_${targetLesson.id}`, "100");
+    recordHistoryActivity(targetLesson, "complete");
+  };
+
   useEffect(() => {
     if (activeLesson && activeTab === "read") {
       const prog = localStorage.getItem(`vocab_progress_${activeLesson.id}`);
       const isCompleted = prog ? parseFloat(prog) >= 100 : false;
-      recordHistoryActivity(activeLesson, isCompleted ? "complete" : "read");
+      const isAudioOrVideo = !!(
+        activeLesson.youtubeId ||
+        activeLesson.audioUrl ||
+        activeLesson.audioBase64 ||
+        activeLesson.lessonType === "podcast" ||
+        activeLesson.lessonType === "youtube" ||
+        activeLesson.lessonType === "audio"
+      );
+      recordHistoryActivity(activeLesson, isCompleted ? "complete" : (isAudioOrVideo ? "listen" : "read"));
     }
   }, [activeLesson?.id, activeTab]);
 
@@ -2034,6 +2057,7 @@ export default function App() {
               <AudioPlayerBar
                 onAudioUpload={handleAudioUploaded}
                 onListeningTick={handleListeningTick}
+                onAudioEnded={() => handleMediaEnded(activeLesson)}
               />
             )}
 
@@ -2122,6 +2146,7 @@ export default function App() {
             lesson={activeLesson}
             onClose={() => setShowYoutubePlayer(false)}
             onListeningTick={handleListeningTick}
+            onVideoEnded={() => handleMediaEnded(activeLesson)}
           />
         )}
 
@@ -2815,6 +2840,7 @@ export default function App() {
                       <AudioPlayerBar
                         onAudioUpload={handleAudioUploaded}
                         onListeningTick={handleListeningTick}
+                        onAudioEnded={() => handleMediaEnded(activeLesson)}
                       />
                     )}
 
@@ -3375,6 +3401,7 @@ export default function App() {
           lesson={activeLesson}
           onClose={() => setShowYoutubePlayer(false)}
           onListeningTick={handleListeningTick}
+          onVideoEnded={() => handleMediaEnded(activeLesson)}
         />
       )}
 

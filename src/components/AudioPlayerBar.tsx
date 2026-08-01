@@ -5,11 +5,13 @@ import { Play, Pause, RotateCcw, Volume2, FastForward } from "lucide-react";
 interface AudioPlayerBarProps {
   onAudioUpload: (audioUrl: string, base64: string | null) => void;
   onListeningTick: (seconds: number) => void;
+  onAudioEnded?: () => void;
 }
 
 export default function AudioPlayerBar({
   onAudioUpload,
   onListeningTick,
+  onAudioEnded,
 }: AudioPlayerBarProps) {
   const {
     activeLesson,
@@ -163,7 +165,10 @@ export default function AudioPlayerBar({
           src={audioSrc}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
-          onEnded={() => setIsPlaying(false)}
+          onEnded={() => {
+            setIsPlaying(false);
+            if (onAudioEnded) onAudioEnded();
+          }}
           onError={() => {
             console.error("Audio playback error occurred");
             setError("Playback error: The audio source could not be resolved. Please click 'Reset Audio File' to re-upload.");

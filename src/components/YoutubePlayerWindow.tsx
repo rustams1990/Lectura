@@ -8,12 +8,14 @@ interface YoutubePlayerWindowProps {
   lesson: Lesson;
   onClose: () => void;
   onListeningTick?: (seconds: number) => void;
+  onVideoEnded?: () => void;
 }
 
 export default function YoutubePlayerWindow({
   lesson,
   onClose,
   onListeningTick,
+  onVideoEnded,
 }: YoutubePlayerWindowProps) {
   const { setCurrentTime, seekToTime, setSeekToTime } = useLesson();
   const { youtubeId } = lesson;
@@ -197,6 +199,7 @@ export default function YoutubePlayerWindow({
                     localStorage.removeItem(`youtube_progress_${lesson.id}`);
                     settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
                   } catch (e) {}
+                  if (onVideoEnded) onVideoEnded();
                 }
               },
             },

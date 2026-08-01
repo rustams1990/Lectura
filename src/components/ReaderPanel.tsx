@@ -279,6 +279,17 @@ function ReaderPanel({
     return `${mins}м`;
   };
 
+  const isAudioOrVideoLesson = useMemo(() => {
+    return !!(
+      lesson.youtubeId ||
+      lesson.audioUrl ||
+      lesson.audioBase64 ||
+      lesson.lessonType === "podcast" ||
+      lesson.lessonType === "youtube" ||
+      lesson.lessonType === "audio"
+    );
+  }, [lesson]);
+
   const handleToggleStatus = (newStatus: "in_progress" | "completed") => {
     if (newStatus === "completed") {
       safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "100");
@@ -299,7 +310,7 @@ function ReaderPanel({
         updated[existingIdx] = {
           ...updated[existingIdx],
           status: newStatus,
-          actionType: newStatus === "completed" ? "complete" : updated[existingIdx].actionType,
+          actionType: isAudioOrVideoLesson ? "listen" : (newStatus === "completed" ? "complete" : updated[existingIdx].actionType),
           timestamp: now,
         };
       } else {
@@ -311,7 +322,7 @@ function ReaderPanel({
           coverUrl: lesson.coverUrl || null,
           targetLanguage: lesson.targetLanguage,
           timestamp: now,
-          actionType: newStatus === "completed" ? "complete" : "read",
+          actionType: isAudioOrVideoLesson ? "listen" : (newStatus === "completed" ? "complete" : "read"),
           status: newStatus,
           durationSeconds: 0,
         };
@@ -340,6 +351,7 @@ function ReaderPanel({
         updated[existingIdx] = {
           ...existing,
           timestamp: now,
+          actionType: isAudioOrVideoLesson ? "listen" : existing.actionType,
           durationSeconds: (existing.durationSeconds || 0) + addedSeconds,
           notes: notes ? (existing.notes ? `${existing.notes}; ${notes}` : notes) : existing.notes,
         };
@@ -352,7 +364,7 @@ function ReaderPanel({
           coverUrl: lesson.coverUrl || null,
           targetLanguage: lesson.targetLanguage,
           timestamp: now,
-          actionType: "read",
+          actionType: isAudioOrVideoLesson ? "listen" : "read",
           status: currentStatus,
           durationSeconds: addedSeconds,
           notes: notes || undefined,
@@ -362,7 +374,7 @@ function ReaderPanel({
       onUpdateHistory(updated);
     }
 
-    showToast(`⏱️ Добавлено +${addedMinutes} мин в историю чтения!`);
+    showToast(`⏱️ Добавлено +${addedMinutes} мин в историю!`);
   };
 
   const handleSaveCustomTime = (e: React.FormEvent) => {

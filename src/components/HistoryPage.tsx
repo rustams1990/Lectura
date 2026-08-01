@@ -220,8 +220,16 @@ function HistoryPage({
         isProg100 ||
         (lesson && ((lesson as any).isCompleted || (lesson as any).readCount > 0 || (lesson as any).progress >= 100));
 
+      const isAudioOrVideoLesson =
+        (lesson && (!!lesson.youtubeId || !!lesson.audioUrl || !!lesson.audioBase64 || lesson.lessonType === "podcast" || lesson.lessonType === "youtube" || lesson.lessonType === "audio")) ||
+        item.lessonType === "youtube" ||
+        item.lessonType === "podcast" ||
+        item.lessonType === "audio" ||
+        item.actionType === "listen";
+
       const itemWithStatus: HistoryEntry = {
         ...item,
+        actionType: isAudioOrVideoLesson ? "listen" : (item.actionType === "complete" ? "read" : item.actionType),
         status: isLessonDone ? "completed" : (item.status || "in_progress"),
       };
 
@@ -233,7 +241,7 @@ function HistoryPage({
 
       if (existingIdx !== -1) {
         const existing = merged[existingIdx];
-        const isListening = existing.actionType === "listen" || itemWithStatus.actionType === "listen";
+        const isListening = existing.actionType === "listen" || itemWithStatus.actionType === "listen" || isAudioOrVideoLesson;
         const isCompleted =
           existing.status === "completed" ||
           itemWithStatus.status === "completed" ||
