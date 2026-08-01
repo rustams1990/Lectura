@@ -2734,7 +2734,7 @@ export default function App() {
 
                         <button
                           onClick={() => setIsFocusMode(true)}
-                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-teal-50 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           Focus Mode
@@ -2742,17 +2742,17 @@ export default function App() {
 
                         <button
                           onClick={() => setShowMatchPairsModal(true)}
-                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-indigo-50 hover:bg-indigo-100/80 dark:bg-indigo-950/20 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
                           title="Игра: сопоставление слов и перевода"
                         >
-                          <Trophy className="w-3.5 h-3.5 animate-pulse" />
+                          <Trophy className="w-3.5 h-3.5" />
                           Игра: Пары
                         </button>
 
                         <button
                           onClick={handleDetectIdioms}
                           disabled={isDetectingIdioms}
-                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/20 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                          className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer disabled:opacity-50"
                           title="Автоматически найти идиомы и фразовые глаголы с помощью ИИ"
                         >
                           {isDetectingIdioms ? (
