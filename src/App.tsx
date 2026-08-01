@@ -1965,7 +1965,6 @@ export default function App() {
               id="focus-exit-btn"
               onClick={() => {
                 setIsFocusMode(false);
-                setActiveTab("library");
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-95 text-inherit font-bold text-xs rounded-xl transition-all active:scale-98 cursor-pointer shadow-xs`}
             >
