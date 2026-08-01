@@ -1943,6 +1943,13 @@ export default function App() {
     }
   }, [activeLesson?.id, activeTab]);
 
+  const layoutContainerClass =
+    layoutWidthMode === "standard"
+      ? "max-w-7xl"
+      : layoutWidthMode === "wide"
+      ? "max-w-[1560px]"
+      : "max-w-full lg:px-12 md:px-8";
+
   // Full-Screen Isolated Focused Reading Room
   if (isFocusMode && activeTab === "read" && activeLesson) {
     const focusTheme = readerThemes[readerSettings.readerTheme] || readerThemes.default;
@@ -1951,7 +1958,7 @@ export default function App() {
         
         {/* Top Focus Header bar */}
         <header className={`border-b ${focusTheme.border} ${focusTheme.headerBg} backdrop-blur-md relative z-30 px-4 sm:px-6 py-3.5`}>
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className={`mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 transition-all duration-300 ${layoutContainerClass}`}>
             
             {/* Back Button */}
             <button
@@ -2051,13 +2058,7 @@ export default function App() {
         </header>
 
         {/* Focused main container */}
-        <main className={`flex-grow w-full mx-auto p-4 sm:p-6 lg:px-8 grid grid-cols-12 gap-6 items-start transition-all duration-300 ${
-          layoutWidthMode === "standard"
-            ? "max-w-7xl"
-            : layoutWidthMode === "wide"
-            ? "max-w-[1560px]"
-            : "max-w-full lg:px-12 md:px-8"
-        }`}>
+        <main className={`flex-grow w-full mx-auto p-4 sm:p-6 lg:px-8 grid grid-cols-12 gap-6 items-start transition-all duration-300 ${layoutContainerClass}`}>
           
           {/* Middle Main - Reader and Audio player only */}
           <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4">
@@ -2430,7 +2431,7 @@ export default function App() {
       {/* Top Header HUD */}
       {!isFocusMode && (
         <header className={`border-b ${currentReaderTheme.border} ${currentReaderTheme.headerBg} backdrop-blur-md relative z-30 px-4 sm:px-6 py-3.5`}>
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className={`mx-auto flex items-center justify-between gap-4 transition-all duration-300 ${layoutContainerClass}`}>
             
             {/* Left side: Hamburger + Brand logo */}
             <div className="flex items-center gap-3">
@@ -2551,7 +2552,7 @@ export default function App() {
       )}
 
       {cloudOfflineWarning && (
-        <div id="banner-cloud-offline-warning" className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+        <div id="banner-cloud-offline-warning" className={`mx-auto px-4 sm:px-6 pt-4 transition-all duration-300 ${layoutContainerClass}`}>
           <div className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-3xs">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 animate-pulse">
@@ -2582,13 +2583,7 @@ export default function App() {
       )}
 
       {/* Main Body */}
-      <main className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${
-        layoutWidthMode === "standard"
-          ? "max-w-7xl"
-          : layoutWidthMode === "wide"
-          ? "max-w-[1560px]"
-          : "max-w-full lg:px-12 md:px-8"
-      }`}>
+      <main className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass}`}>
         
         {/* Dynamic Achievements HUD Panel */}
         {activeTab !== "read" && <StatsWidget stats={calculatedStats} />}
