@@ -515,144 +515,177 @@ function HistoryPage({
       </div>
 
       {/* Filters & Search Control Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800">
-        {/* Filter buttons */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
-          <button
-            type="button"
-            onClick={() => setFilterType("all")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-              filterType === "all"
-                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-            }`}
-          >
-            Все ({history.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType("read")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-              filterType === "read"
-                ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
-            Чтение ({readCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType("listen")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-              filterType === "listen"
-                ? "bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-            }`}
-          >
-            <Headphones className="w-3.5 h-3.5 text-purple-500" />
-            Аудио ({listenCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType("complete")}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-              filterType === "complete"
-                ? "bg-white dark:bg-zinc-900 text-amber-600 dark:text-amber-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-            }`}
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
-            Завершено ({completeCount})
-          </button>
-        </div>
-
-        {/* Right side: Language, Period / Date Selector & Search Input */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Language Selector */}
-          {availableLanguages.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
-              <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-              <select
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
-                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
-              >
-                <option value="all">🌐 Все языки</option>
-                {availableLanguages.map((lang) => (
-                  <option key={lang} value={lang}>
-                    🗣️ {lang}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Period / Day Filter Selector */}
-          <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
-            <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-            <select
-              value={selectedPeriod}
-              onChange={(e) => {
-                const val = e.target.value as any;
-                setSelectedPeriod(val);
-                if (val !== "all" && val !== "custom") {
-                  setSelectedMonth("all");
-                }
-              }}
-              className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+      <div className="p-3 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
+        {/* Row 1: Filter Type Segmented Tabs + Search Input */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          {/* Filter buttons */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setFilterType("all")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                filterType === "all"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+              }`}
             >
-              <option value="all">🗓️ За всё время ({history.length})</option>
-              <option value="today">🔥 За сегодня</option>
-              <option value="yesterday">⏳ За вчера</option>
-              <option value="last7">📅 Последние 7 дней</option>
-              <option value="thisMonth">📆 За этот месяц</option>
-              <option value="custom">📅 Выбрать дату...</option>
-            </select>
+              Все ({deduplicatedHistory.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterType("read")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                filterType === "read"
+                  ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+              Чтение ({readCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterType("listen")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                filterType === "listen"
+                  ? "bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+              }`}
+            >
+              <Headphones className="w-3.5 h-3.5 text-purple-500" />
+              Аудио ({listenCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterType("complete")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                filterType === "complete"
+                  ? "bg-white dark:bg-zinc-900 text-amber-600 dark:text-amber-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
+              Завершено ({completeCount})
+            </button>
           </div>
 
-          {/* Custom Date Input if selected */}
-          {selectedPeriod === "custom" && (
-            <input
-              type="date"
-              value={customDate}
-              onChange={(e) => setCustomDate(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20 shadow-3xs"
-            />
-          )}
-
-          {/* Month Selector if Period is all or custom */}
-          {selectedPeriod === "all" && availableMonths.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
-              >
-                <option value="all">Все месяцы</option>
-                {availableMonths.map((mKey) => (
-                  <option key={mKey} value={mKey}>
-                    📅 {formatMonthName(mKey)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Search Input */}
-          <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+          <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Поиск по заголовку или заметке..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Row 2: Language, Period & Date Selectors + Reset button */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-zinc-200/60 dark:border-zinc-800/60">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Language Selector */}
+            {availableLanguages.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
+                <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">🌐 Все языки</option>
+                  {availableLanguages.map((lang) => (
+                    <option key={lang} value={lang}>
+                      🗣️ {lang}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Period / Day Filter Selector */}
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
+              <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <select
+                value={selectedPeriod}
+                onChange={(e) => {
+                  const val = e.target.value as any;
+                  setSelectedPeriod(val);
+                  if (val !== "all" && val !== "custom") {
+                    setSelectedMonth("all");
+                  }
+                }}
+                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+              >
+                <option value="all">🗓️ За всё время</option>
+                <option value="today">🔥 За сегодня</option>
+                <option value="yesterday">⏳ За вчера</option>
+                <option value="last7">📅 Последние 7 дней</option>
+                <option value="thisMonth">📆 За этот месяц</option>
+                <option value="custom">📅 Выбрать дату...</option>
+              </select>
+            </div>
+
+            {/* Custom Date Input if selected */}
+            {selectedPeriod === "custom" && (
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                className="px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20 shadow-3xs"
+              />
+            )}
+
+            {/* Month Selector if Period is all */}
+            {selectedPeriod === "all" && availableMonths.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">Все месяцы</option>
+                  {availableMonths.map((mKey) => (
+                    <option key={mKey} value={mKey}>
+                      📅 {formatMonthName(mKey)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Reset Filters button if any filter is active */}
+          {(selectedPeriod !== "all" || selectedLanguage !== "all" || selectedMonth !== "all" || filterType !== "all" || searchQuery.trim() !== "" || customDate !== "") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPeriod("all");
+                setSelectedLanguage("all");
+                setSelectedMonth("all");
+                setFilterType("all");
+                setSearchQuery("");
+                setCustomDate("");
+              }}
+              className="px-2.5 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center gap-1 transition-all cursor-pointer ml-auto"
+            >
+              <X className="w-3.5 h-3.5" />
+              Сбросить фильтры
+            </button>
+          )}
         </div>
       </div>
 
