@@ -46,21 +46,16 @@ function HistoryPage({
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Extract unique available target languages
+  // Extract unique available target languages present in history
   const availableLanguages = useMemo(() => {
     const langsSet = new Set<string>();
     history.forEach((h) => {
-      if (h.targetLanguage) {
-        langsSet.add(h.targetLanguage);
-      }
-    });
-    lessons.forEach((l) => {
-      if (l.targetLanguage) {
-        langsSet.add(l.targetLanguage);
+      if (h && h.targetLanguage && h.targetLanguage.trim()) {
+        langsSet.add(h.targetLanguage.trim());
       }
     });
     return Array.from(langsSet).sort();
-  }, [history, lessons]);
+  }, [history]);
 
   // Extract unique available months from history (e.g. ["2026-07", "2026-06"])
   const availableMonths = useMemo(() => {
