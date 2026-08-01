@@ -1308,12 +1308,20 @@ export default function App() {
       l && l.status && ["1", "2", "3", "4", "5", "learning"].includes(l.status)
     ).length;
 
+    const dedupedHist = dedupeHistory(history);
+    const historyTotalSeconds = dedupedHist.reduce(
+      (acc, item) => acc + (item.durationSeconds || 0),
+      0
+    );
+
+    const totalSeconds = Math.max(listeningSeconds, historyTotalSeconds);
+
     return {
-      listeningSeconds: Math.round(listeningSeconds),
+      listeningSeconds: Math.round(totalSeconds),
       wordsKnownCount: known,
       wordsLearningCount: learning,
     };
-  }, [vocab, listeningSeconds]);
+  }, [vocab, listeningSeconds, history]);
 
   const handleOpenLesson = (lessonId: string, word: string, sentence: string) => {
     const normalizedWord = word.replace(/\s+/g, " ").trim();
