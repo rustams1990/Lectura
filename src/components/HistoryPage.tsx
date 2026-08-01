@@ -40,8 +40,27 @@ function HistoryPage({
   onUpdateHistory,
 }: HistoryPageProps) {
   const [filterType, setFilterType] = useState<"all" | "read" | "listen" | "complete">("all");
+  const [selectedPeriod, setSelectedPeriod] = useState<"all" | "today" | "yesterday" | "last7" | "thisMonth" | "custom">("all");
+  const [customDate, setCustomDate] = useState<string>("");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Extract unique available target languages
+  const availableLanguages = useMemo(() => {
+    const langsSet = new Set<string>();
+    history.forEach((h) => {
+      if (h.targetLanguage) {
+        langsSet.add(h.targetLanguage);
+      }
+    });
+    lessons.forEach((l) => {
+      if (l.targetLanguage) {
+        langsSet.add(l.targetLanguage);
+      }
+    });
+    return Array.from(langsSet).sort();
+  }, [history, lessons]);
 
   // Extract unique available months from history (e.g. ["2026-07", "2026-06"])
   const availableMonths = useMemo(() => {
@@ -262,9 +281,77 @@ function HistoryPage({
     return merged;
   }, [history, lessons]);
 
+  // Aggregate stats scoped to selected period, language & month
+  const scopedHistory = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString("en-CA");
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString("en-CA");
+    const currentMonthKey = new Date().toISOString().slice(0, 7);
+
+    return deduplicatedHistory.filter((item) => {
+      // Filter by language
+      if (selectedLanguage !== "all") {
+        if ((item.targetLanguage || "").toLowerCase() !== selectedLanguage.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // Filter by month selector if set
+      if (selectedMonth !== "all") {
+        try {
+          const itemMonthKey = new Date(item.timestamp).toISOString().slice(0, 7);
+          if (itemMonthKey !== selectedMonth) return false;
+        } catch {
+          return false;
+        }
+      }
+
+      // Filter by Period / Day
+      if (selectedPeriod === "today") {
+        const itemDateStr = new Date(item.timestamp).toLocaleDateString("en-CA");
+        return itemDateStr === todayStr;
+      }
+      if (selectedPeriod === "yesterday") {
+        const itemDateStr = new Date(item.timestamp).toLocaleDateString("en-CA");
+        return itemDateStr === yesterdayStr;
+      }
+      if (selectedPeriod === "last7") {
+        const itemTime = new Date(item.timestamp).getTime() || 0;
+        return Date.now() - itemTime <= 7 * 24 * 3600 * 1000;
+      }
+      if (selectedPeriod === "thisMonth") {
+        const itemMonthKey = new Date(item.timestamp).toISOString().slice(0, 7);
+        return itemMonthKey === currentMonthKey;
+      }
+      if (selectedPeriod === "custom" && customDate) {
+        const itemDateStr = new Date(item.timestamp).toLocaleDateString("en-CA");
+        return itemDateStr === customDate;
+      }
+
+      return true;
+    });
+  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth]);
+
+  // Dynamic card title
+  const timeCardTitle = useMemo(() => {
+    let periodLabel = "Всего времени";
+    if (selectedPeriod === "today") periodLabel = "Время за сегодня";
+    else if (selectedPeriod === "yesterday") periodLabel = "Время за вчера";
+    else if (selectedPeriod === "last7") periodLabel = "Время за 7 дней";
+    else if (selectedPeriod === "thisMonth") periodLabel = "Время за этот месяц";
+    else if (selectedPeriod === "custom" && customDate) periodLabel = `Время за ${customDate}`;
+    else if (selectedMonth !== "all") periodLabel = `Время за ${formatMonthName(selectedMonth)}`;
+
+    if (selectedLanguage !== "all") {
+      return `${periodLabel} (${selectedLanguage})`;
+    }
+    return periodLabel;
+  }, [selectedPeriod, customDate, selectedMonth, selectedLanguage]);
+
   // Filter & Sort entries (NEWEST FIRST: descending timestamp)
   const filteredHistory = useMemo(() => {
-    const list = deduplicatedHistory.filter((item) => {
+    const list = scopedHistory.filter((item) => {
       const isCompleted = item.status === "completed" || item.actionType === "complete";
       if (filterType === "read" && item.actionType === "listen") {
         return false;
@@ -274,12 +361,6 @@ function HistoryPage({
       }
       if (filterType === "complete" && !isCompleted) {
         return false;
-      }
-      if (selectedMonth !== "all") {
-        try {
-          const itemMonthKey = new Date(item.timestamp).toISOString().slice(0, 7);
-          if (itemMonthKey !== selectedMonth) return false;
-        } catch {}
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -297,19 +378,7 @@ function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [deduplicatedHistory, filterType, selectedMonth, searchQuery]);
-
-  // Aggregate stats scoped to selected month
-  const scopedHistory = useMemo(() => {
-    if (selectedMonth === "all") return deduplicatedHistory;
-    return deduplicatedHistory.filter((item) => {
-      try {
-        return new Date(item.timestamp).toISOString().slice(0, 7) === selectedMonth;
-      } catch {
-        return false;
-      }
-    });
-  }, [deduplicatedHistory, selectedMonth]);
+  }, [scopedHistory, filterType, searchQuery]);
 
   const totalSeconds = useMemo(() => {
     return scopedHistory.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
@@ -394,7 +463,7 @@ function HistoryPage({
           </div>
           <div>
             <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block truncate">
-              {selectedMonth === "all" ? "Всего времени" : `Время за ${formatMonthName(selectedMonth)}`}
+              {timeCardTitle}
             </span>
             <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
               {formatDuration(totalSeconds)}
@@ -501,17 +570,69 @@ function HistoryPage({
           </button>
         </div>
 
-        {/* Right side: Month Selector & Search Input */}
+        {/* Right side: Language, Period / Date Selector & Search Input */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {availableMonths.length > 0 && (
+          {/* Language Selector */}
+          {availableLanguages.length > 0 && (
             <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
-              <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+              >
+                <option value="all">🌐 Все языки</option>
+                {availableLanguages.map((lang) => (
+                  <option key={lang} value={lang}>
+                    🗣️ {lang}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Period / Day Filter Selector */}
+          <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
+            <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+            <select
+              value={selectedPeriod}
+              onChange={(e) => {
+                const val = e.target.value as any;
+                setSelectedPeriod(val);
+                if (val !== "all" && val !== "custom") {
+                  setSelectedMonth("all");
+                }
+              }}
+              className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+            >
+              <option value="all">🗓️ За всё время ({history.length})</option>
+              <option value="today">🔥 За сегодня</option>
+              <option value="yesterday">⏳ За вчера</option>
+              <option value="last7">📅 Последние 7 дней</option>
+              <option value="thisMonth">📆 За этот месяц</option>
+              <option value="custom">📅 Выбрать дату...</option>
+            </select>
+          </div>
+
+          {/* Custom Date Input if selected */}
+          {selectedPeriod === "custom" && (
+            <input
+              type="date"
+              value={customDate}
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20 shadow-3xs"
+            />
+          )}
+
+          {/* Month Selector if Period is all or custom */}
+          {selectedPeriod === "all" && availableMonths.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
               >
-                <option value="all">🗓️ Все месяцы ({history.length})</option>
+                <option value="all">Все месяцы</option>
                 {availableMonths.map((mKey) => (
                   <option key={mKey} value={mKey}>
                     📅 {formatMonthName(mKey)}
