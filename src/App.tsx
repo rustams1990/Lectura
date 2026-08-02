@@ -2582,7 +2582,7 @@ export default function App() {
       <main className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass}`}>
         
         {/* Dynamic Achievements HUD Panel */}
-        {activeTab !== "read" && activeTab !== "practice" && <StatsWidget stats={calculatedStats} />}
+        {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && <StatsWidget stats={calculatedStats} />}
 
         {showImportForm || editingLesson ? (
           /* Import customized forms screen */
