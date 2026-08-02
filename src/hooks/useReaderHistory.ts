@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { HistoryEntry, Lesson } from "../types";
 import { safeLocalStorageSetItem } from "../utils";
 

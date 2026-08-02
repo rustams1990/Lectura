@@ -363,13 +363,6 @@ function WordExplainer({
   const [imageUrlValue, setImageUrlValue] = useState<string | null>(null);
   // Ask AI state variables (only answer is kept in WordExplainer for saving)
   const [customAnswer, setCustomAnswer] = useState("");
-    } catch (err: any) {
-      console.error(err);
-      setImageSearchError("Failed to fetch images from internet");
-    } finally {
-      setImagesLoading(false);
-    }
-  };
 
   const handleSelectImage = (url: string | null) => {
     setImageUrlValue(url);
@@ -798,14 +791,7 @@ function WordExplainer({
     }
 
     if (wordChanged) {
-      setImageSearchKeyword(word);
-      setImagesList([]);
-      setImageSearchError(null);
-      handleSearchImages(word);
       setError(null);
-      setCustomQuestion("");
-      setCustomAiError(null);
-      setCustomAiLoading(false);
     }
   }, [word, existingVocab, detectedPhrases]);
 
@@ -2017,9 +2003,9 @@ function WordExplainer({
             </div>
           )}
         </div>
-        )}
+      )}
 
-        {/* Ask AI Section */}
+      {/* Ask AI Section */}
         {aiTabOpen && (
           <AiExplainerChat
             word={word}
@@ -2057,8 +2043,6 @@ function WordExplainer({
                 </div>
               </div>
             )}
-          </div>
-        )}
 
         {/* 2. Custom categorization tags panel (rendered when Tag+ is active) */}
         {!imageOpen && !bookOpen && !aiTabOpen && tagsOpen && (
@@ -2214,7 +2198,6 @@ function WordExplainer({
             </button>
           </div>
         )}
-
       </div>
 
       {/* Solid horizontal thick grey divider before actions footer */}

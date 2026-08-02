@@ -7,11 +7,11 @@ import React, { useMemo, useState, useEffect, useRef, memo } from "react";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
 import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw, Clock, CheckCircle2, Plus, X, Calendar, MessageSquare } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
-import { TooltipPortal } from "./TooltipPortal";
-import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 import { useReaderHistory } from "../hooks/useReaderHistory";
 import { TooltipPortal } from "./TooltipPortal";
 import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
+import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
+import { segmentSentenceTokens } from "../tokenizer";
 
 interface ReaderPanelProps {
   key?: string;
@@ -842,7 +842,7 @@ function ReaderPanel({
     const cleanText = lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ");
     
     const tokens = segmentSentenceTokens(cleanText, lesson.targetLanguage);
-    const candidates = tokens.filter((t) => t.isWord && t.clean).map((t) => t.clean);
+    const candidates = tokens.filter((t) => t.isWord && t.clean).map((t) => t.clean) as string[];
 
     const uniqueCandidates = Array.from(new Set(candidates));
     
