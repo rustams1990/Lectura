@@ -677,11 +677,6 @@ export default function App() {
       unsubscribes.forEach((unsub) => unsub());
       unsubscribes = [];
 
-      if (firebaseUser && storageMode === "server") {
-        signOut(auth).catch(err => console.error("Firebase signout failed:", err));
-        return;
-      }
-
       if (firebaseUser) {
         // Automatically align storageMode to "cloud" when logged in via Firebase
         if (storageMode !== "cloud") {
