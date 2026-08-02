@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../types";
 import { motion, AnimatePresence } from "motion/react";
-import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download } from "lucide-react";
+import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings } from "lucide-react";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
 import WordExplainer from "./WordExplainer";
 import { LANGUAGES_SUPPORTED } from "../data";
@@ -67,6 +67,7 @@ export default function VocabularyPractice({
     return defaultLanguage || "Spanish";
   });
 
+  const [showFilters, setShowFilters] = useState<boolean>(false);
   const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [deckTypeFilter, setDeckTypeFilter] = useState<"learning" | "all" | "spelling-problems" | "spelling-accents" | "spelling-correct">("learning");
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -854,85 +855,100 @@ export default function VocabularyPractice({
     <div className={`space-y-6 font-sans mx-auto transition-all duration-300 ${
       showList ? "max-w-3xl lg:max-w-4xl" : "max-w-md"
     }`}>
-      {/* Language selector for active decks */}
-      {activeDeckLanguages.length > 1 && (
-        <div id="deck-lang-tabs" className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
-          {activeDeckLanguages.map((lang) => (
-            <button
-              key={lang}
-              onClick={() => {
-                setSelectedPracticeLang(lang);
-                setCurrentIndex(0);
-                setIsFlipped(false);
-              }}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                selectedPracticeLang.toLowerCase() === lang.toLowerCase()
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {lang}
-            </button>
-          ))}
+      {/* Filters Toggle Button */}
+      <div className="flex justify-end px-2">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-all cursor-pointer"
+        >
+          <Settings className="w-3.5 h-3.5" />
+          Настройки фильтров {showFilters ? "▴" : "▾"}
+        </button>
+      </div>
+
+      {showFilters && (
+        <div className="space-y-4 mb-6 p-4 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm mx-auto max-w-md">
+          {/* Language selector for active decks */}
+          {activeDeckLanguages.length > 1 && (
+            <div id="deck-lang-tabs" className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
+              {activeDeckLanguages.map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => {
+                    setSelectedPracticeLang(lang);
+                    setCurrentIndex(0);
+                    setIsFlipped(false);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    selectedPracticeLang.toLowerCase() === lang.toLowerCase()
+                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  }`}
+                >
+                  {lang}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Deck Type Filter Selector */}
+          <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans flex-wrap">
+            {[
+              { id: "learning", label: "Изучаемые 🎯" },
+              { id: "all", label: "Все слова 📖" },
+              { id: "spelling-problems", label: "С ошибками ❌" },
+              { id: "spelling-accents", label: "С ударением ⚠️" },
+              { id: "spelling-correct", label: "Пишу правильно ✅" }
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setDeckTypeFilter(item.id as any)}
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                  deckTypeFilter === item.id
+                    ? "bg-zinc-100 dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Timeframe Filter Selector */}
+          <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans">
+            {[
+              { id: "all", label: "Все время 📅" },
+              { id: "today", label: "Сегодня ☀️" },
+              { id: "week", label: "Неделя 📅" },
+              { id: "month", label: "Месяц 🗓️" }
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setTimeframeFilter(item.id as any);
+                  setCurrentIndex(0);
+                  setIsFlipped(false);
+                }}
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                  timeframeFilter === item.id
+                    ? "bg-zinc-100 dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700"
+                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
-
-      {/* Deck Type Filter Selector */}
-      <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-md mx-auto flex-wrap justify-center">
-        {[
-          { id: "learning", label: "Изучаемые 🎯" },
-          { id: "all", label: "Все слова 📖" },
-          { id: "spelling-problems", label: "С ошибками ❌" },
-          { id: "spelling-accents", label: "С ударением ⚠️" },
-          { id: "spelling-correct", label: "Пишу правильно ✅" }
-        ].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setDeckTypeFilter(item.id as any)}
-            className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-              deckTypeFilter === item.id
-                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Timeframe Filter Selector */}
-      <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
-        {[
-          { id: "all", label: "Все время 📅" },
-          { id: "today", label: "Сегодня ☀️" },
-          { id: "week", label: "Неделя 📅" },
-          { id: "month", label: "Месяц 🗓️" }
-        ].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => {
-              setTimeframeFilter(item.id as any);
-              setCurrentIndex(0);
-              setIsFlipped(false);
-            }}
-            className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-              timeframeFilter === item.id
-                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
       <div className={showList ? "grid grid-cols-1 md:grid-cols-12 gap-6" : "space-y-6"}>
         {/* Left Card Column */}
         <div className={showList ? "md:col-span-7 space-y-6" : "space-y-6"}>
           {/* Deck progress meter */}
           <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
-            <span className="uppercase tracking-wider">Vocabulary Deck</span>
+            <span className="uppercase tracking-wider">Колода слов</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -955,7 +971,7 @@ export default function VocabularyPractice({
                 Список 📋
               </button>
               <span>
-                Card {currentIndex + 1} of {learningList.length}
+                Карточка {currentIndex + 1} из {learningList.length}
               </span>
             </div>
           </div>
@@ -1069,7 +1085,7 @@ export default function VocabularyPractice({
               animate={{ opacity: 1, rotateY: 0, scale: 1 }}
               exit={{ opacity: 0, rotateY: 90, scale: 0.95 }}
               transition={{ duration: 0.25 }}
-              className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-800 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[365px]"
+              className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-800 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[400px]"
             >
               {studyMode === "spelling" ? (
                 <>
@@ -1305,7 +1321,7 @@ export default function VocabularyPractice({
                 <>
                   <div className="flex justify-between items-start">
                     <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                      {studyDirection === "forward" ? "Target Word" : "Translation / Перевод"}
+                      {studyDirection === "forward" ? "Изучаемое слово" : "Перевод"}
                     </span>
                     <div className="flex items-center gap-2">
                       {studyDirection === "forward" && (
@@ -1351,7 +1367,7 @@ export default function VocabularyPractice({
                   </div>
 
                   <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 font-medium">
-                    {studyDirection === "forward" ? "Tap or click card to reveal translation" : "Нажмите для перевода / Reveal original word"}
+                    {studyDirection === "forward" ? "Нажмите или [Пробел], чтобы узнать перевод" : "Нажмите или [Пробел], чтобы увидеть слово"}
                   </div>
                 </>
               )}
@@ -1364,7 +1380,7 @@ export default function VocabularyPractice({
               animate={{ opacity: 1, rotateY: 0, scale: 1 }}
               exit={{ opacity: 0, rotateY: -90, scale: 0.95 }}
               transition={{ duration: 0.25 }}
-              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-lg h-full min-h-[365px] cursor-default"
+              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-lg h-full min-h-[400px] cursor-default"
               onClick={(e) => e.stopPropagation()} // don't flip back when clicking other buttons
             >
               <div className="space-y-4">
@@ -1454,7 +1470,7 @@ export default function VocabularyPractice({
                     onClick={handleNext}
                     className="px-4 py-2.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-950 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-400 transition-all flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    Still learning
+                    Повторить (Не помню)
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
 
@@ -1465,7 +1481,7 @@ export default function VocabularyPractice({
                     className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-sm shadow-emerald-100 dark:shadow-none cursor-pointer"
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
-                    Mastered (Known)
+                    Выучил (Знаю)
                   </button>
                 </div>
                 {studyMode === "spelling" && (
@@ -1490,12 +1506,12 @@ export default function VocabularyPractice({
           className="text-xs text-teal-600 hover:text-teal-700 font-bold uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer select-none"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Click to flip card
+          Перевернуть карточку
         </button>
 
         <button
           onClick={handleOpenStoryGen}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white font-bold text-sm rounded-2xl transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-teal-500/20 hover:border-teal-500/50 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-teal-700 dark:text-teal-400 font-bold text-sm rounded-2xl transition-all active:scale-[0.98] cursor-pointer"
         >
           <Sparkles className="w-4 h-4" />
           AI-Генератор Историй (Story Gen)
