@@ -1309,15 +1309,12 @@ export default function App() {
     ).length;
 
     const dedupedHist = dedupeHistory(history);
-    const historyTotalSeconds = dedupedHist.reduce(
-      (acc, item) => acc + (item.durationSeconds || 0),
-      0
-    );
-
-    const totalSeconds = Math.max(listeningSeconds, historyTotalSeconds);
+    const historyListeningSeconds = dedupedHist
+      .filter((item) => item.actionType === "listen")
+      .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
 
     return {
-      listeningSeconds: Math.round(totalSeconds),
+      listeningSeconds: Math.round(historyListeningSeconds),
       wordsKnownCount: known,
       wordsLearningCount: learning,
     };
