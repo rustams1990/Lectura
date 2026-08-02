@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 type TabType = 'library' | 'read' | 'practice' | 'statistics' | 'history';
+type LayoutWidthType = 'standard' | 'wide' | 'ultra' | 'full';
 
 interface UIState {
   isSidebarOpen: boolean;
@@ -12,7 +13,7 @@ interface UIState {
   isFocusMode: boolean;
   showOnlyUnknown: boolean;
   zoomScale: number;
-  layoutWidthMode: 'normal' | 'wide' | 'full';
+  layoutWidthMode: LayoutWidthType;
 
   // Actions
   setIsSidebarOpen: (isOpen: boolean) => void;
@@ -24,7 +25,7 @@ interface UIState {
   setIsFocusMode: (isFocus: boolean) => void;
   setShowOnlyUnknown: (show: boolean) => void;
   setZoomScale: (scale: number) => void;
-  setLayoutWidthMode: (mode: 'normal' | 'wide' | 'full') => void;
+  setLayoutWidthMode: (mode: LayoutWidthType) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -37,7 +38,7 @@ export const useUIStore = create<UIState>((set) => ({
   isFocusMode: false,
   showOnlyUnknown: false,
   zoomScale: 100,
-  layoutWidthMode: 'normal',
+  layoutWidthMode: 'full',
 
   setIsSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
   setActiveTab: (tab) => set({ activeTab: tab }),
