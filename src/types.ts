@@ -27,6 +27,11 @@ export interface VocabItem {
   lastSpelledCorrectly?: boolean | null;
   lastSpelledWithAccentError?: boolean | null;
   spellingExclude?: boolean | null;
+  // SRS Fields
+  srsNextReview?: number;
+  srsInterval?: number;
+  srsEaseFactor?: number;
+  srsRepetitions?: number;
 }
 
 export interface Lesson {

@@ -43,7 +43,7 @@ import { useVocab } from "./context/VocabContext";
 import { useToast } from "./context/ToastContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
-import VocabularyPractice from "./components/VocabularyPractice";
+import VocabularyPractice from "./components/practice/VocabularyPractice";
 import MatchPairsModal from "./components/MatchPairsModal";
 import TextSettingsControls from "./components/TextSettingsControls";
 import LibraryHome from "./components/LibraryHome";

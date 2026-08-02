@@ -4,12 +4,15 @@
  */
 
 import React, { useState, useMemo, useEffect } from "react";
-import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../types";
+import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../../types";
+import { calculateNextReview } from "../../utils/srsAlgorithm";
 import { motion, AnimatePresence } from "motion/react";
-import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings } from "lucide-react";
-import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
-import WordExplainer from "./WordExplainer";
-import { LANGUAGES_SUPPORTED } from "../data";
+import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit } from "lucide-react";
+import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../../utils";
+import WordExplainer from "../WordExplainer";
+import FlashcardMode from "./FlashcardMode";
+import SpellingMode from "./SpellingMode";
+import { LANGUAGES_SUPPORTED } from "../../data";
 
 
 
@@ -96,7 +99,13 @@ export default function VocabularyPractice({
         if (deckTypeFilter === "learning") {
           const isActive = lq.status && ["1", "2", "3", "4", "5", "learning"].includes(lq.status);
           if (!isActive) return false;
-          if (studyMode === "spelling" && (lq.lastSpelledCorrectly === true || lq.spellingExclude === true)) return false;
+          
+          if (studyMode !== "spelling") {
+            const isDue = !lq.srsNextReview || lq.srsNextReview <= Date.now();
+            if (!isDue) return false;
+          } else {
+            if (lq.lastSpelledCorrectly === true || lq.spellingExclude === true) return false;
+          }
         } else if (deckTypeFilter === "spelling-problems") {
           // General spelling errors (complete incorrects, not accent warnings)
           if (lq.lastSpelledCorrectly !== false || lq.lastSpelledWithAccentError === true) return false;
@@ -106,7 +115,7 @@ export default function VocabularyPractice({
           if (!lq.lastSpelledWithAccentError) return false;
           if (studyMode === "spelling" && lq.spellingExclude === true) return false;
         } else if (deckTypeFilter === "spelling-correct") {
-          // Words that were spelled correctly OR marked as "Точно знаю" both belong here
+          // Words that were spelled correctly OR marked as "╨в╨╛╤З╨╜╨╛ ╨╖╨╜╨░╤О" both belong here
           if (lq.lastSpelledCorrectly !== true && lq.spellingExclude !== true) return false;
           if (lq.lastSpelledWithAccentError === true) return false;
         } else {
@@ -218,8 +227,8 @@ export default function VocabularyPractice({
   const handleExportAnki = () => {
     if (!learningList || learningList.length === 0) return;
 
-    // Специфичный формат для Anki: Слово ; Перевод ; Контекст
-    const header = ["Слово", "Перевод", "Контекст"].join(";");
+    // ╨б╨┐╨╡╤Ж╨╕╤Д╨╕╤З╨╜╤Л╨╣ ╤Д╨╛╤А╨╝╨░╤В ╨┤╨╗╤П Anki: ╨б╨╗╨╛╨▓╨╛ ; ╨Я╨╡╤А╨╡╨▓╨╛╨┤ ; ╨Ъ╨╛╨╜╤В╨╡╨║╤Б╤В
+    const header = ["╨б╨╗╨╛╨▓╨╛", "╨Я╨╡╤А╨╡╨▓╨╛╨┤", "╨Ъ╨╛╨╜╤В╨╡╨║╤Б╤В"].join(";");
     const rows = learningList.map((item) => {
       const cleanWord = (item.word || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
       const cleanTranslation = (item.translation || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
@@ -371,7 +380,7 @@ export default function VocabularyPractice({
 
         if (!response.ok) {
           const errData = await safeJsonParse(response);
-          throw new Error(errData?.error || `Ошибка сервера (${response.status})`);
+          throw new Error(errData?.error || `╨Ю╤И╨╕╨▒╨║╨░ ╤Б╨╡╤А╨▓╨╡╤А╨░ (${response.status})`);
         }
 
         const data = await safeJsonParse(response);
@@ -480,11 +489,11 @@ export default function VocabularyPractice({
 
   const handleGenerateStory = async () => {
     if (selectedWords.length === 0) {
-      setGenError("Пожалуйста, выберите хотя бы одно слово.");
+      setGenError("╨Я╨╛╨╢╨░╨╗╤Г╨╣╤Б╤В╨░, ╨▓╤Л╨▒╨╡╤А╨╕╤В╨╡ ╤Е╨╛╤В╤П ╨▒╤Л ╨╛╨┤╨╜╨╛ ╤Б╨╗╨╛╨▓╨╛.");
       return;
     }
     if (selectedWords.length > 15) {
-      setGenError("Слишком много слов. Пожалуйста, выберите не более 15 слов.");
+      setGenError("╨б╨╗╨╕╤И╨║╨╛╨╝ ╨╝╨╜╨╛╨│╨╛ ╤Б╨╗╨╛╨▓. ╨Я╨╛╨╢╨░╨╗╤Г╨╣╤Б╤В╨░, ╨▓╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨╜╨╡ ╨▒╨╛╨╗╨╡╨╡ 15 ╤Б╨╗╨╛╨▓.");
       return;
     }
 
@@ -509,12 +518,12 @@ export default function VocabularyPractice({
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.error || "Ошибка соединения с сервером");
+        throw new Error(errData.error || "╨Ю╤И╨╕╨▒╨║╨░ ╤Б╨╛╨╡╨┤╨╕╨╜╨╡╨╜╨╕╤П ╤Б ╤Б╨╡╤А╨▓╨╡╤А╨╛╨╝");
       }
 
       const data = await response.json();
       if (!data.text || !data.title) {
-        throw new Error("Неверный формат ответа от ИИ");
+        throw new Error("╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ ╤Д╨╛╤А╨╝╨░╤В ╨╛╤В╨▓╨╡╤В╨░ ╨╛╤В ╨Ш╨Ш");
       }
 
       const newLessonId = "story_" + Date.now();
@@ -539,7 +548,7 @@ export default function VocabularyPractice({
       setShowStoryGen(false);
     } catch (err: any) {
       console.error(err);
-      setGenError(err.message || "Не удалось сгенерировать историю. Попробуйте еще раз.");
+      setGenError(err.message || "╨Э╨╡ ╤Г╨┤╨░╨╗╨╛╤Б╤М ╤Б╨│╨╡╨╜╨╡╤А╨╕╤А╨╛╨▓╨░╤В╤М ╨╕╤Б╤В╨╛╤А╨╕╤О. ╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╡╤Й╨╡ ╤А╨░╨╖.");
     } finally {
       setIsGenerating(false);
     }
@@ -714,7 +723,7 @@ export default function VocabularyPractice({
   if (learningList.length > 0 && !currentLq) {
     return (
       <div className="flex items-center justify-center p-8 text-zinc-500 font-sans">
-        Загрузка карточки... / Loading flashcard...
+        ╨Ч╨░╨│╤А╤Г╨╖╨║╨░ ╨║╨░╤А╤В╨╛╤З╨║╨╕... / Loading flashcard...
       </div>
     );
   }
@@ -754,6 +763,37 @@ export default function VocabularyPractice({
     setIsFlipped(false);
   };
 
+  const handleSrsAnswer = (quality: number) => {
+    if (!currentLq || !onSaveVocab) return;
+    
+    const nextSrs = calculateNextReview(
+      quality,
+      currentLq.srsEaseFactor || 2.5,
+      currentLq.srsInterval || 0,
+      currentLq.srsRepetitions || 0
+    );
+
+    const updatedItem = {
+      ...currentLq,
+      srsNextReview: nextSrs.nextReviewDate,
+      srsInterval: nextSrs.interval,
+      srsEaseFactor: nextSrs.easeFactor,
+      srsRepetitions: nextSrs.repetitions,
+    };
+
+    if (quality >= 3) {
+      const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
+      nextWordTargetRef.current = targetWord;
+    }
+
+    onSaveVocab(updatedItem, selectedPracticeLang);
+    setIsFlipped(false);
+    
+    if (quality < 3) {
+      setCurrentIndex((prev) => (prev + 1) % learningList.length);
+    }
+  };
+
   const resetDeck = () => {
     setCurrentIndex(0);
     setIsFlipped(false);
@@ -788,11 +828,11 @@ export default function VocabularyPractice({
         {/* Deck Type Filter (Empty state) */}
         <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-md mx-auto flex-wrap justify-center">
           {[
-            { id: "learning", label: "Изучаемые 🎯" },
-            { id: "all", label: "Все слова 📖" },
-            { id: "spelling-problems", label: "С ошибками ❌" },
-            { id: "spelling-accents", label: "С ударением ⚠️" },
-            { id: "spelling-correct", label: "Пишу правильно ✅" }
+            { id: "learning", label: "╨Ш╨╖╤Г╤З╨░╨╡╨╝╤Л╨╡ ЁЯОп" },
+            { id: "all", label: "╨Т╤Б╨╡ ╤Б╨╗╨╛╨▓╨░ ЁЯУЦ" },
+            { id: "spelling-problems", label: "╨б ╨╛╤И╨╕╨▒╨║╨░╨╝╨╕ тЭМ" },
+            { id: "spelling-accents", label: "╨б ╤Г╨┤╨░╤А╨╡╨╜╨╕╨╡╨╝ тЪая╕П" },
+            { id: "spelling-correct", label: "╨Я╨╕╤И╤Г ╨┐╤А╨░╨▓╨╕╨╗╤М╨╜╨╛ тЬЕ" }
           ].map((item) => (
             <button
               key={item.id}
@@ -812,10 +852,10 @@ export default function VocabularyPractice({
         {/* Timeframe Filter Selector (Empty state) */}
         <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
           {[
-            { id: "all", label: "Все время 📅" },
-            { id: "today", label: "Сегодня ☀️" },
-            { id: "week", label: "Неделя 📅" },
-            { id: "month", label: "Месяц 🗓️" }
+            { id: "all", label: "╨Т╤Б╨╡ ╨▓╤А╨╡╨╝╤П ЁЯУЕ" },
+            { id: "today", label: "╨б╨╡╨│╨╛╨┤╨╜╤П тШАя╕П" },
+            { id: "week", label: "╨Э╨╡╨┤╨╡╨╗╤П ЁЯУЕ" },
+            { id: "month", label: "╨Ь╨╡╤Б╤П╤Ж ЁЯЧУя╕П" }
           ].map((item) => (
             <button
               key={item.id}
@@ -841,9 +881,9 @@ export default function VocabularyPractice({
             <Bookmark className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">Ваша колода ({selectedPracticeLang}) пуста</h3>
+            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">╨Т╨░╤И╨░ ╨║╨╛╨╗╨╛╨┤╨░ ({selectedPracticeLang}) ╨┐╤Г╤Б╤В╨░</h3>
             <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
-              Слова, которые вы отмечаете желтым/зеленым/красным цветом при чтении уроков {selectedPracticeLang}, автоматически попадают сюда. Начните чтение!
+              ╨б╨╗╨╛╨▓╨░, ╨║╨╛╤В╨╛╤А╤Л╨╡ ╨▓╤Л ╨╛╤В╨╝╨╡╤З╨░╨╡╤В╨╡ ╨╢╨╡╨╗╤В╤Л╨╝/╨╖╨╡╨╗╨╡╨╜╤Л╨╝/╨║╤А╨░╤Б╨╜╤Л╨╝ ╤Ж╨▓╨╡╤В╨╛╨╝ ╨┐╤А╨╕ ╤З╤В╨╡╨╜╨╕╨╕ ╤Г╤А╨╛╨║╨╛╨▓ {selectedPracticeLang}, ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╨┐╨╛╨┐╨░╨┤╨░╤О╤В ╤Б╤О╨┤╨░. ╨Э╨░╤З╨╜╨╕╤В╨╡ ╤З╤В╨╡╨╜╨╕╨╡!
             </p>
           </div>
         </div>
@@ -862,7 +902,7 @@ export default function VocabularyPractice({
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-all cursor-pointer"
         >
           <Settings className="w-3.5 h-3.5" />
-          Настройки фильтров {showFilters ? "▴" : "▾"}
+          ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╤Д╨╕╨╗╤М╤В╤А╨╛╨▓ {showFilters ? "тЦ┤" : "тЦ╛"}
         </button>
       </div>
 
@@ -894,11 +934,11 @@ export default function VocabularyPractice({
           {/* Deck Type Filter Selector */}
           <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans flex-wrap">
             {[
-              { id: "learning", label: "Изучаемые 🎯" },
-              { id: "all", label: "Все слова 📖" },
-              { id: "spelling-problems", label: "С ошибками ❌" },
-              { id: "spelling-accents", label: "С ударением ⚠️" },
-              { id: "spelling-correct", label: "Пишу правильно ✅" }
+              { id: "learning", label: "╨Ш╨╖╤Г╤З╨░╨╡╨╝╤Л╨╡ ЁЯОп" },
+              { id: "all", label: "╨Т╤Б╨╡ ╤Б╨╗╨╛╨▓╨░ ЁЯУЦ" },
+              { id: "spelling-problems", label: "╨б ╨╛╤И╨╕╨▒╨║╨░╨╝╨╕ тЭМ" },
+              { id: "spelling-accents", label: "╨б ╤Г╨┤╨░╤А╨╡╨╜╨╕╨╡╨╝ тЪая╕П" },
+              { id: "spelling-correct", label: "╨Я╨╕╤И╤Г ╨┐╤А╨░╨▓╨╕╨╗╤М╨╜╨╛ тЬЕ" }
             ].map((item) => (
               <button
                 key={item.id}
@@ -918,10 +958,10 @@ export default function VocabularyPractice({
           {/* Timeframe Filter Selector */}
           <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans">
             {[
-              { id: "all", label: "Все время 📅" },
-              { id: "today", label: "Сегодня ☀️" },
-              { id: "week", label: "Неделя 📅" },
-              { id: "month", label: "Месяц 🗓️" }
+              { id: "all", label: "╨Т╤Б╨╡ ╨▓╤А╨╡╨╝╤П ЁЯУЕ" },
+              { id: "today", label: "╨б╨╡╨│╨╛╨┤╨╜╤П тШАя╕П" },
+              { id: "week", label: "╨Э╨╡╨┤╨╡╨╗╤П ЁЯУЕ" },
+              { id: "month", label: "╨Ь╨╡╤Б╤П╤Ж ЁЯЧУя╕П" }
             ].map((item) => (
               <button
                 key={item.id}
@@ -948,13 +988,13 @@ export default function VocabularyPractice({
         <div className={showList ? "md:col-span-7 space-y-6" : "space-y-6"}>
           {/* Deck progress meter */}
           <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
-            <span className="uppercase tracking-wider">Колода слов</span>
+            <span className="uppercase tracking-wider">╨Ъ╨╛╨╗╨╛╨┤╨░ ╤Б╨╗╨╛╨▓</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleExportAnki}
                 className="px-2 py-1 rounded-lg border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 text-[10px] uppercase font-bold tracking-wider hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                title="Экспортировать выбранные слова для импорта в Anki"
+                title="╨н╨║╤Б╨┐╨╛╤А╤В╨╕╤А╨╛╨▓╨░╤В╤М ╨▓╤Л╨▒╤А╨░╨╜╨╜╤Л╨╡ ╤Б╨╗╨╛╨▓╨░ ╨┤╨╗╤П ╨╕╨╝╨┐╨╛╤А╤В╨░ ╨▓ Anki"
               >
                 <Download className="w-3 h-3" />
                 <span>Anki (.csv)</span>
@@ -968,10 +1008,10 @@ export default function VocabularyPractice({
                     : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400"
                 }`}
               >
-                Список 📋
+                ╨б╨┐╨╕╤Б╨╛╨║ ЁЯУЛ
               </button>
               <span>
-                Карточка {currentIndex + 1} из {learningList.length}
+                ╨Ъ╨░╤А╤В╨╛╤З╨║╨░ {currentIndex + 1} ╨╕╨╖ {learningList.length}
               </span>
             </div>
           </div>
@@ -980,7 +1020,7 @@ export default function VocabularyPractice({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
         {/* Practice Mode Selector */}
         <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Режим:</span>
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">╨а╨╡╨╢╨╕╨╝:</span>
           <div className="flex gap-1 flex-wrap">
             <button
               type="button"
@@ -994,7 +1034,7 @@ export default function VocabularyPractice({
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
             >
-              Слово 🔤
+              ╨б╨╗╨╛╨▓╨╛ ЁЯФд
             </button>
             {hasAnyImages && (
               <button
@@ -1009,7 +1049,7 @@ export default function VocabularyPractice({
                     : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
                 }`}
               >
-                Картинка 🖼️
+                ╨Ъ╨░╤А╤В╨╕╨╜╨║╨░ ЁЯЦ╝я╕П
               </button>
             )}
             <button
@@ -1024,14 +1064,14 @@ export default function VocabularyPractice({
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
             >
-              Правописание ✍️
+              ╨Я╤А╨░╨▓╨╛╨┐╨╕╤Б╨░╨╜╨╕╨╡ тЬНя╕П
             </button>
           </div>
         </div>
 
         {/* Direction Selector */}
         <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Сначала:</span>
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">╨б╨╜╨░╤З╨░╨╗╨░:</span>
           <div className="flex gap-1">
             <button
               type="button"
@@ -1044,9 +1084,9 @@ export default function VocabularyPractice({
                   ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
-              title="Изучаемое слово -> Перевод"
+              title="╨Ш╨╖╤Г╤З╨░╨╡╨╝╨╛╨╡ ╤Б╨╗╨╛╨▓╨╛ -> ╨Я╨╡╤А╨╡╨▓╨╛╨┤"
             >
-              Слово 🔤
+              ╨б╨╗╨╛╨▓╨╛ ЁЯФд
             </button>
             <button
               type="button"
@@ -1059,446 +1099,44 @@ export default function VocabularyPractice({
                   ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
-              title="Перевод -> Изучаемое слово"
+              title="╨Я╨╡╤А╨╡╨▓╨╛╨┤ -> ╨Ш╨╖╤Г╤З╨░╨╡╨╝╨╛╨╡ ╤Б╨╗╨╛╨▓╨╛"
             >
-              Перевод 🔄
+              ╨Я╨╡╤А╨╡╨▓╨╛╨┤ ЁЯФД
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Flashcard wrapper */}
-      <div 
-        className={`relative min-h-[365px] ${studyMode !== "spelling" ? "cursor-pointer" : "cursor-default"}`} 
-        onClick={() => {
-          if (studyMode !== "spelling") {
-            setIsFlipped(!isFlipped);
-          }
-        }}
-      >
-        <AnimatePresence mode="wait">
-          {!isFlipped ? (
-            /* Front side of the card */
-            <motion.div
-              key="front"
-              initial={{ opacity: 0, rotateY: -90, scale: 0.95 }}
-              animate={{ opacity: 1, rotateY: 0, scale: 1 }}
-              exit={{ opacity: 0, rotateY: 90, scale: 0.95 }}
-              transition={{ duration: 0.25 }}
-              className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-800 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[400px]"
-            >
-              {studyMode === "spelling" ? (
-                <>
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                      Правописание / Spelling Check
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          playSpeech(currentLq.word);
-                        }}
-                        disabled={playingSpeech}
-                        className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
-                          playingSpeech ? "animate-pulse" : ""
-                        }`}
-                        title="Прослушать слово (TTS)"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsEditingWord(currentLq.word);
-                        }}
-                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
-                        title="Редактировать слово / Edit word"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="text-center py-6 flex-grow flex flex-col justify-center items-center space-y-4">
-                    {/* The Translation Prompt */}
-                    <div className="space-y-1">
-                      <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
-                        Перевод / Translation
-                      </span>
-                      <h2 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize">
-                        {currentLq.translation}
-                      </h2>
-                    </div>
-
-                    {/* Cloze Sentence Context if exists */}
-                    {currentLq.examples && currentLq.examples.length > 0 && (
-                      <div className="max-w-md w-full bg-zinc-50/50 dark:bg-zinc-950/30 p-3 rounded-xl border border-zinc-100/50 dark:border-zinc-800/40">
-                        <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
-                          Контекст / Context clue
-                        </span>
-                        <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed italic">
-                          "{getClozeSentence(currentLq.examples[0].text, currentLq.word)}"
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Input Field Container */}
-                    <div className="w-full max-w-sm space-y-2 pt-2">
-                      <div className="relative">
-                        <input
-                          ref={spellingInputRef}
-                          type="text"
-                          value={spellingInput}
-                          onChange={(e) => setSpellingInput(e.target.value)}
-                          onKeyDown={handleSpellingKeyDown}
-                          disabled={hasCheckedSpelling}
-                          placeholder="Введите слово..."
-                          className={`w-full px-4 py-2.5 rounded-xl border text-base font-medium transition-all outline-none text-center ${
-                            spellingStatus === "correct"
-                              ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-900 dark:text-emerald-300"
-                              : spellingStatus === "incorrect"
-                              ? "bg-rose-50/50 dark:bg-rose-950/20 border-rose-500 text-rose-900 dark:text-rose-300"
-                              : spellingStatus === "accent-warning"
-                              ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-500 text-amber-900 dark:text-amber-300"
-                              : "bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-50 focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                          }`}
-                        />
-                      </div>
-
-                      {/* Feedback messages and buttons */}
-                      {hasCheckedSpelling && (
-                        <div className="p-3 rounded-xl space-y-2 animate-fade-in text-xs font-medium text-center">
-                          {spellingStatus === "correct" && (
-                            <div className="text-emerald-600 dark:text-emerald-400 font-bold text-center flex items-center justify-center gap-1">
-                              <CheckCircle className="w-4 h-4" />
-                              Правильно! / Correct!
-                            </div>
-                          )}
-                          
-                          {spellingStatus === "accent-warning" && (
-                            <div className="space-y-1 text-center">
-                              <div className="text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center gap-1">
-                                <Sparkles className="w-4 h-4" />
-                                Почти верно! Обратите внимание на ударение.
-                              </div>
-                              <div className="text-zinc-500 dark:text-zinc-400 font-mono text-center">
-                                Вы написали: <span className="text-rose-500 line-through">{spellingInput}</span> | Ожидалось: <span className="text-emerald-500 font-bold">{currentLq.word}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          {spellingStatus === "incorrect" && (
-                            <div className="space-y-1.5 text-center">
-                              <div className="text-rose-600 dark:text-rose-400 font-bold flex items-center justify-center gap-1">
-                                <X className="w-4 h-4" />
-                                Ошибка в написании / Spelling mistake
-                              </div>
-                              <div className="text-zinc-500 dark:text-zinc-400 font-mono text-center">
-                                Вы написали: <span className="text-rose-500 line-through">{spellingInput || "пусто"}</span>
-                              </div>
-                              <div className="text-zinc-600 dark:text-zinc-300 font-mono text-center">
-                                Правильно: <span className="text-emerald-500 font-bold">{currentLq.word}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Action controls below feedback */}
-                          <div className="flex gap-1.5 justify-center pt-1.5 flex-wrap">
-                            {spellingStatus === "incorrect" && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  resetSpellingState();
-                                  setTimeout(() => spellingInputRef.current?.focus(), 50);
-                                }}
-                                className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg font-bold transition-all cursor-pointer text-xs"
-                              >
-                                Повторить 🔄
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={handleExcludeSpelling}
-                              className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-lg font-bold transition-all cursor-pointer text-xs animate-pulse"
-                              title="Исключить слово из диктантов"
-                            >
-                              Точно знаю 🌟
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleNext();
-                              }}
-                              className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer text-xs"
-                            >
-                              {spellingStatus === "correct" || spellingStatus === "accent-warning" ? "Далее" : "Пропустить"}
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setIsFlipped(true)}
-                              className="px-2.5 py-1.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-950 text-zinc-600 dark:text-zinc-400 rounded-lg font-bold transition-all cursor-pointer text-xs"
-                              title="Посмотреть обратную сторону карточки"
-                            >
-                              Карточка 📋
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {!hasCheckedSpelling && (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={handleDontKnow}
-                            className="flex-1 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-sm transition-all cursor-pointer"
-                          >
-                            Не знаю 🤷
-                          </button>
-                          <button
-                            type="button"
-                            onClick={checkSpelling}
-                            disabled={!spellingInput.trim()}
-                            className="flex-2 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm transition-all shadow-sm cursor-pointer"
-                          >
-                            Проверить (Enter)
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 font-medium">
-                    Прослушайте слово и введите его правильное написание
-                  </div>
-                </>
-              ) : isCardWithImage ? (
-                <>
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                      Что это за слово? / Visual Prompt
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsEditingWord(currentLq.word);
-                        }}
-                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
-                        title="Редактировать слово / Edit word"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center justify-center flex-grow py-4">
-                    <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-800 shadow-md bg-white dark:bg-zinc-950 select-none pointer-events-none flex items-center justify-center p-1.5">
-                      <img
-                        src={currentLq.imageUrl!.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(currentLq.imageUrl!)}` : currentLq.imageUrl!}
-                        alt="Visual prompt"
-                        referrerPolicy="no-referrer"
-                        className="max-h-full max-w-full object-contain rounded-xl"
-                      />
-                    </div>
-                    <div className="mt-3.5 text-center">
-                      <span className="text-[10.5px] font-bold px-2.5 py-1 bg-teal-50/65 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-full border border-teal-100/30 dark:border-teal-900/10">
-                        Угадайте слово на {selectedPracticeLang}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 font-medium">
-                    Нажмите на карточку, чтобы перевернуть и увидеть слово
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                      {studyDirection === "forward" ? "Изучаемое слово" : "Перевод"}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {studyDirection === "forward" && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation(); // prevent flipping the card when clicking play!
-                            playSpeech(currentLq.word);
-                          }}
-                          disabled={playingSpeech}
-                          className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
-                            playingSpeech ? "animate-pulse" : ""
-                          }`}
-                          title="Прослушать слово (TTS)"
-                        >
-                          <Volume2 className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsEditingWord(currentLq.word);
-                        }}
-                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
-                        title="Редактировать слово / Edit word"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-                    </div>
-                  </div>
-
-                  <div className="text-center py-12 flex-grow flex flex-col justify-center">
-                    <h2 className="text-4xl font-black tracking-tight text-teal-950 dark:text-zinc-50 capitalize">
-                      {studyDirection === "forward" ? currentLq.word : currentLq.translation}
-                    </h2>
-                    {studyDirection === "forward" && currentLq.ipa && (
-                      <p className="font-mono text-sm text-teal-600 dark:text-teal-400 mt-2 font-semibold">
-                        {currentLq.ipa}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 font-medium">
-                    {studyDirection === "forward" ? "Нажмите или [Пробел], чтобы узнать перевод" : "Нажмите или [Пробел], чтобы увидеть слово"}
-                  </div>
-                </>
-              )}
-            </motion.div>
-          ) : (
-            /* Back side of the card */
-            <motion.div
-              key="back"
-              initial={{ opacity: 0, rotateY: 90, scale: 0.95 }}
-              animate={{ opacity: 1, rotateY: 0, scale: 1 }}
-              exit={{ opacity: 0, rotateY: -90, scale: 0.95 }}
-              transition={{ duration: 0.25 }}
-              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-lg h-full min-h-[400px] cursor-default"
-              onClick={(e) => e.stopPropagation()} // don't flip back when clicking other buttons
-            >
-              <div className="space-y-4">
-                <div className="flex justify-between items-start pb-2.5 border-b border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-3">
-                    {currentLq.imageUrl && (
-                      <img
-                        src={currentLq.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(currentLq.imageUrl)}` : currentLq.imageUrl}
-                        alt={currentLq.word}
-                        referrerPolicy="no-referrer"
-                        className="w-12 h-12 object-cover rounded-lg border border-zinc-200 dark:border-zinc-800 shrink-0 select-none pointer-events-none"
-                      />
-                    )}
-                    <div className="flex items-center gap-2.5">
-                      <div>
-                        <h3 className="text-xl font-black text-zinc-900 dark:text-zinc-50 capitalize leading-tight">
-                          {currentLq.word}
-                        </h3>
-                        {currentLq.ipa && <p className="text-xs font-mono text-zinc-500 leading-none mt-0.5">{currentLq.ipa}</p>}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          playSpeech(currentLq.word);
-                        }}
-                        disabled={playingSpeech}
-                        className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
-                          playingSpeech ? "animate-pulse" : ""
-                        }`}
-                        title="Прослушать слово (TTS)"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsEditingWord(currentLq.word);
-                        }}
-                        className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
-                        title="Редактировать слово / Edit word"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  {currentLq.grammar && (
-                    <span className="text-[10px] font-bold uppercase py-0.5 px-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded">
-                      {currentLq.grammar}
-                    </span>
-                  )}
-                </div>
-
-                {/* Meaning & translations */}
-                <div className="space-y-1">
-                  <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
-                    Translation
-                  </span>
-                  <p className="text-base font-bold text-teal-600 dark:text-teal-400">
-                    {currentLq.translation}
-                  </p>
-                </div>
-
-                {/* Example sentence if exists */}
-                {currentLq.examples && currentLq.examples.length > 0 && (
-                  <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/75 dark:border-zinc-800">
-                    <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
-                      Context Example
-                    </span>
-                    <p className="text-xs text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed">
-                      {currentLq.examples[0].text}
-                    </p>
-                    <p className="text-[10px] text-zinc-500 italic mt-0.5">
-                      {currentLq.examples[0].translation}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Action buttons on flip side */}
-              <div className="space-y-2 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    id="btn-flashcard-keep-learning"
-                    onClick={handleNext}
-                    className="px-4 py-2.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-950 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-400 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    Повторить (Не помню)
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    id="btn-flashcard-mastered"
-                    onClick={handleMarkKnown}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-sm shadow-emerald-100 dark:shadow-none cursor-pointer"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Выучил (Знаю)
-                  </button>
-                </div>
-                {studyMode === "spelling" && (
-                  <button
-                    type="button"
-                    onClick={handleExcludeSpelling}
-                    className="w-full px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer animate-pulse"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Точно знаю (Исключить из правописания) 🌟
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            {/* Main Study wrapper */}
+      {studyMode === "spelling" ? (
+        <SpellingMode
+          item={currentLq}
+          isFlipped={isFlipped}
+          setIsFlipped={setIsFlipped}
+          playSpeech={() => playSpeech(currentLq.word)}
+          playingSpeech={playingSpeech}
+          onEditWord={() => setIsEditingWord(currentLq.word)}
+          spellingInput={spellingInput}
+          setSpellingInput={setSpellingInput}
+          spellingStatus={spellingStatus}
+          hasCheckedSpelling={hasCheckedSpelling}
+          spellingInputRef={spellingInputRef}
+          onCheckSpelling={checkSpelling}
+          onNext={handleNext}
+          onExclude={handleExcludeSpelling}
+        />
+      ) : (
+        <FlashcardMode
+          item={currentLq}
+          isFlipped={isFlipped}
+          setIsFlipped={setIsFlipped}
+          playSpeech={() => playSpeech(currentLq.word)}
+          playingSpeech={playingSpeech}
+          onEditWord={() => setIsEditingWord(currentLq.word)}
+          onAnswer={handleSrsAnswer}
+          studyDirection={studyDirection}
+        />
+      )}
 
       <div className="text-center space-y-4 pt-2">
         <button
@@ -1506,7 +1144,7 @@ export default function VocabularyPractice({
           className="text-xs text-teal-600 hover:text-teal-700 font-bold uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer select-none"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Перевернуть карточку
+          ╨Я╨╡╤А╨╡╨▓╨╡╤А╨╜╤Г╤В╤М ╨║╨░╤А╤В╨╛╤З╨║╤Г
         </button>
 
         <button
@@ -1514,7 +1152,7 @@ export default function VocabularyPractice({
           className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-teal-500/20 hover:border-teal-500/50 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-teal-700 dark:text-teal-400 font-bold text-sm rounded-2xl transition-all active:scale-[0.98] cursor-pointer"
         >
           <Sparkles className="w-4 h-4" />
-          AI-Генератор Историй (Story Gen)
+          AI-╨У╨╡╨╜╨╡╤А╨░╤В╨╛╤А ╨Ш╤Б╤В╨╛╤А╨╕╨╣ (Story Gen)
         </button>
       </div>
     </div>
@@ -1524,14 +1162,14 @@ export default function VocabularyPractice({
       <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
         <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-3">
           <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Слова в колоде ({learningList.length})
+            ╨б╨╗╨╛╨▓╨░ ╨▓ ╨║╨╛╨╗╨╛╨┤╨╡ ({learningList.length})
           </span>
           <button
             type="button"
             onClick={() => setShowList(false)}
             className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
           >
-            Скрыть ×
+            ╨б╨║╤А╤Л╤В╤М ├Ч
           </button>
         </div>
         
@@ -1548,22 +1186,22 @@ export default function VocabularyPractice({
 
             if (studyMode === "spelling") {
               if (item.spellingExclude) {
-                spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title="Исключено (Точно знаю)">⭐</span>;
+                spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title="╨Ш╤Б╨║╨╗╤О╤З╨╡╨╜╨╛ (╨в╨╛╤З╨╜╨╛ ╨╖╨╜╨░╤О)">тнР</span>;
                 if (!isActive) {
                   itemBgClass = "opacity-50 bg-stone-100/30 dark:bg-zinc-900/10 text-zinc-400 dark:text-zinc-500 border-zinc-200/40 line-through decoration-zinc-400/40";
                 }
               } else if (item.lastSpelledWithAccentError === true) {
-                spellingStatusIcon = <span className="text-amber-500 font-black ml-1.5" title="Ошибка в ударении">⚠️</span>;
+                spellingStatusIcon = <span className="text-amber-500 font-black ml-1.5" title="╨Ю╤И╨╕╨▒╨║╨░ ╨▓ ╤Г╨┤╨░╤А╨╡╨╜╨╕╨╕">тЪая╕П</span>;
                 if (!isActive) {
                   itemBgClass = "bg-amber-50/35 hover:bg-amber-100/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-100/50 dark:border-amber-950/30";
                 }
               } else if (item.lastSpelledCorrectly === true) {
-                spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title="Написано верно">✓</span>;
+                spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title="╨Э╨░╨┐╨╕╤Б╨░╨╜╨╛ ╨▓╨╡╤А╨╜╨╛">тЬУ</span>;
                 if (!isActive) {
                   itemBgClass = "bg-emerald-50/35 hover:bg-emerald-100/50 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border-emerald-100/50 dark:border-emerald-950/30";
                 }
               } else if (item.lastSpelledCorrectly === false) {
-                spellingStatusIcon = <span className="text-rose-500 font-black ml-1.5" title="Написано с ошибкой">✗</span>;
+                spellingStatusIcon = <span className="text-rose-500 font-black ml-1.5" title="╨Э╨░╨┐╨╕╤Б╨░╨╜╨╛ ╤Б ╨╛╤И╨╕╨▒╨║╨╛╨╣">тЬЧ</span>;
                 if (!isActive) {
                   itemBgClass = "bg-rose-50/35 hover:bg-rose-100/50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-rose-800 dark:text-rose-300 border-rose-100/50 dark:border-rose-950/30";
                 }
@@ -1644,10 +1282,10 @@ export default function VocabularyPractice({
                   </div>
                   <div className="text-center space-y-1.5">
                     <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 animate-pulse">
-                      ИИ сочиняет историю для вас...
+                      ╨Ш╨Ш ╤Б╨╛╤З╨╕╨╜╤П╨╡╤В ╨╕╤Б╤В╨╛╤А╨╕╤О ╨┤╨╗╤П ╨▓╨░╤Б...
                     </p>
                     <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed max-w-xs mx-auto">
-                      Интегрируем выбранные слова ({selectedWords.length}) в сюжет на языке {selectedPracticeLang}. Пожалуйста, подождите.
+                      ╨Ш╨╜╤В╨╡╨│╤А╨╕╤А╤Г╨╡╨╝ ╨▓╤Л╨▒╤А╨░╨╜╨╜╤Л╨╡ ╤Б╨╗╨╛╨▓╨░ ({selectedWords.length}) ╨▓ ╤Б╤О╨╢╨╡╤В ╨╜╨░ ╤П╨╖╤Л╨║╨╡ {selectedPracticeLang}. ╨Я╨╛╨╢╨░╨╗╤Г╨╣╤Б╤В╨░, ╨┐╨╛╨┤╨╛╨╢╨┤╨╕╤В╨╡.
                     </p>
                   </div>
                 </div>
@@ -1658,7 +1296,7 @@ export default function VocabularyPractice({
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                        Выберите слова / Select Words ({selectedWords.length})
+                        ╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡ ╤Б╨╗╨╛╨▓╨░ / Select Words ({selectedWords.length})
                       </span>
                       <button
                         onClick={() => {
@@ -1670,7 +1308,7 @@ export default function VocabularyPractice({
                         }}
                         className="text-[9px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline cursor-pointer"
                       >
-                        {selectedWords.length === learningList.length ? "Сбросить все" : "Выбрать все"}
+                        {selectedWords.length === learningList.length ? "╨б╨▒╤А╨╛╤Б╨╕╤В╤М ╨▓╤Б╨╡" : "╨Т╤Л╨▒╤А╨░╤В╤М ╨▓╤Б╨╡"}
                       </button>
                     </div>
                     
@@ -1702,7 +1340,7 @@ export default function VocabularyPractice({
                   {/* Level Selector */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
-                      Уровень сложности / Difficulty
+                      ╨г╤А╨╛╨▓╨╡╨╜╤М ╤Б╨╗╨╛╨╢╨╜╨╛╤Б╤В╨╕ / Difficulty
                     </span>
                     <div className="grid grid-cols-4 gap-1.5 bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans">
                       {[
@@ -1730,7 +1368,7 @@ export default function VocabularyPractice({
                   {/* Genre Selector */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
-                      Жанр истории / Genre
+                      ╨Ц╨░╨╜╤А ╨╕╤Б╤В╨╛╤А╨╕╨╕ / Genre
                     </span>
                     <div className="relative">
                       <select
@@ -1738,12 +1376,12 @@ export default function VocabularyPractice({
                         onChange={(e) => setStoryGenre(e.target.value)}
                         className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-xs font-semibold text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 cursor-pointer appearance-none shadow-4xs"
                       >
-                        <option value="general">Обычный рассказ (General)</option>
-                        <option value="humor">Юмор / Комедия (Humor)</option>
-                        <option value="scifi">Научная фантастика / Фэнтези (Sci-Fi)</option>
-                        <option value="mystery">Детектив / Тайна (Mystery)</option>
-                        <option value="romance">Романтика (Romance)</option>
-                        <option value="adventure">Приключение (Adventure)</option>
+                        <option value="general">╨Ю╨▒╤Л╤З╨╜╤Л╨╣ ╤А╨░╤Б╤Б╨║╨░╨╖ (General)</option>
+                        <option value="humor">╨о╨╝╨╛╤А / ╨Ъ╨╛╨╝╨╡╨┤╨╕╤П (Humor)</option>
+                        <option value="scifi">╨Э╨░╤Г╤З╨╜╨░╤П ╤Д╨░╨╜╤В╨░╤Б╤В╨╕╨║╨░ / ╨д╤Н╨╜╤В╨╡╨╖╨╕ (Sci-Fi)</option>
+                        <option value="mystery">╨Ф╨╡╤В╨╡╨║╤В╨╕╨▓ / ╨в╨░╨╣╨╜╨░ (Mystery)</option>
+                        <option value="romance">╨а╨╛╨╝╨░╨╜╤В╨╕╨║╨░ (Romance)</option>
+                        <option value="adventure">╨Я╤А╨╕╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ (Adventure)</option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-400">
                         <ChevronDown className="w-3.5 h-3.5" />
@@ -1754,7 +1392,7 @@ export default function VocabularyPractice({
                   {/* Error Notification */}
                   {genError && (
                     <div className="text-xs text-rose-500 font-bold p-2.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/35 rounded-xl text-center">
-                      ⚠️ {genError}
+                      тЪая╕П {genError}
                     </div>
                   )}
 
@@ -1769,7 +1407,7 @@ export default function VocabularyPractice({
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    Создать AI историю
+                    ╨б╨╛╨╖╨┤╨░╤В╤М AI ╨╕╤Б╤В╨╛╤А╨╕╤О
                   </button>
                 </>
               )}
@@ -1791,16 +1429,16 @@ export default function VocabularyPractice({
             <button
               onClick={() => setIsEditingWord(null)}
               className="absolute top-5 right-5 p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer z-10"
-              title="Закрыть"
+              title="╨Ч╨░╨║╤А╤Л╤В╤М"
             >
               <X className="w-5 h-5" />
             </button>
             <div className="pt-2 font-sans">
               {/* Language selection dropdown */}
               <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800 mb-4 pr-8">
-                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Редактирование карточки</h3>
+                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╨╜╨╕╨╡ ╨║╨░╤А╤В╨╛╤З╨║╨╕</h3>
                 <div className="flex items-center gap-1.5 font-sans">
-                  <span className="text-[10px] font-black uppercase text-zinc-400">Язык перевода:</span>
+                  <span className="text-[10px] font-black uppercase text-zinc-400">╨п╨╖╤Л╨║ ╨┐╨╡╤А╨╡╨▓╨╛╨┤╨░:</span>
                   <select
                     value={modalTranslationLang}
                     onChange={(e) => {
