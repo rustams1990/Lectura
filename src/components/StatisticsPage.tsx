@@ -2289,7 +2289,7 @@ function StatisticsPage({
       {/* Vocabulary Review Interactive Workspace */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4">
         
-        <div className="border-b border-zinc-100 dark:border-zinc-800 pb-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="border-b border-zinc-100 dark:border-zinc-800 pb-3 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
           <div className="space-y-0.5">
             <h4 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-teal-500" />
@@ -2301,7 +2301,7 @@ function StatisticsPage({
           </div>
 
           {/* Filtering tabs replaced with a dynamic word counter badge + Advanced filter toggle */}
-          <div className="flex items-center gap-2 shrink-0 select-none flex-wrap">
+          <div className="flex items-center gap-2 select-none flex-wrap">
             <button
               onClick={() => {
                 if (!statsArray || statsArray.length === 0) return;
