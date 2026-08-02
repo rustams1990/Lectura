@@ -60,7 +60,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
 
       const result = isRegisterVal
         ? await registerLocalServer(email || name, password)
-        : await loginLocalServer(email, password);
+        : await loginLocalServer(email || name, password);
 
       if (!result.success) {
         throw new Error(result.error || "Ошибка авторизации");
