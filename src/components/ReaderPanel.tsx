@@ -12,6 +12,7 @@ import { TooltipPortal } from "./TooltipPortal";
 import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
 import { segmentSentenceTokens } from "../tokenizer";
+import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
 
 interface ReaderPanelProps {
   key?: string;
@@ -29,50 +30,6 @@ interface ReaderPanelProps {
   showOnlyUnknown?: boolean;
   history?: HistoryEntry[];
   onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
-}
-
-function parseTimestampToSeconds(ts: string): number {
-  if (!ts) return 0;
-  const clean = ts.trim().toLowerCase();
-  
-  if (clean.endsWith("s") || clean.endsWith("m") || clean.endsWith("h")) {
-    let seconds = 0;
-    const hMatch = clean.match(/(\d+)h/);
-    const mMatch = clean.match(/(\d+)m/);
-    const sMatch = clean.match(/(\d+)s/);
-    
-    if (hMatch) seconds += parseInt(hMatch[1], 10) * 3600;
-    if (mMatch) seconds += parseInt(mMatch[1], 10) * 60;
-    if (sMatch) seconds += parseInt(sMatch[1], 10);
-    
-    if (seconds === 0) {
-      const numOnly = clean.replace(/[^\d]/g, "");
-      if (numOnly) {
-        seconds = parseInt(numOnly, 10);
-      }
-    }
-    return Math.max(0, seconds);
-  }
-  
-  const parts = clean.split(":");
-  if (parts.length === 3) {
-    const hrs = parseInt(parts[0], 10) || 0;
-    const mins = parseInt(parts[1], 10) || 0;
-    const secs = parseInt(parts[2], 10) || 0;
-    return hrs * 3600 + mins * 60 + secs;
-  } else if (parts.length === 2) {
-    const mins = parseInt(parts[0], 10) || 0;
-    const secs = parseInt(parts[1], 10) || 0;
-    return mins * 60 + secs;
-  }
-  
-  const num = parseInt(clean, 10);
-  return isNaN(num) ? 0 : Math.max(0, num);
-}
-
-interface TextSegment {
-  text: string;
-  timestamp: string | null;
 }
 
 const fontSizeMap = {
@@ -204,64 +161,6 @@ function ReaderPanel({
     return totalChars > 0 && (cjkChars / totalChars) > 0.3;
   }, [textForSearch]);
 
-  // Helper to split paragraph text into individual sentences
-  const splitIntoSentences = (text: string): string[] => {
-    if (isCjk) {
-      // Split on CJK terminators like 。！？ and filter out empty strings
-      const matches = text.match(/[^。！？\n]+[。！？]?|[\n]+/g);
-      return matches ? matches.map((s) => s.trim()).filter(Boolean) : [text];
-    } else {
-      // Standard split on .!? followed by whitespace, keeping delimiters
-      return text.split(/(?<=[.!?])\s+/).filter(Boolean);
-    }
-  };
-
-  // Parse lines to detect timestamps and compile clean TextSegments
-  const segments = useMemo<TextSegment[]>(() => {
-    const lines = lesson.text.split("\n");
-    const result: TextSegment[] = [];
-    // Matches patterns like "15s", "123s", "0:15", "11:20:45", "1:01", "1:07", "[15s]", "[1:15]"
-    const timestampRegex = /^\[?((?:\d{1,2}:){1,2}\d{2}|\d+(?:h|m|s))\]?\s*/i;
-
-    lines.forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        return;
-      }
-      
-      const match = trimmed.match(timestampRegex);
-      if (match) {
-        const ts = match[1].replace(/[\[\]]/g, ""); // clean brackets
-        const cleanText = trimmed.substring(match[0].length).trim();
-        result.push({
-          text: cleanText,
-          timestamp: ts,
-        });
-      } else {
-        result.push({
-          text: trimmed,
-          timestamp: null,
-        });
-      }
-    });
-
-    const hasAnyTimestamp = result.some((r) => r.timestamp !== null);
-    if (!hasAnyTimestamp) {
-      // Split standard prose by double line-break so we preserve neat large books style
-      const paras = lesson.text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
-      return paras.map((p) => ({
-        text: p.trim(),
-        timestamp: null,
-      }));
-    }
-
-    return result;
-  }, [lesson.text]);
-
-  const hasTimestamps = useMemo(() => {
-    return segments.some((s) => s.timestamp !== null);
-  }, [segments]);
-
   const activeSettings = useMemo<Required<ReaderSettings>>(() => {
     return {
       fontSize: settings?.fontSize || "lg",
@@ -283,327 +182,26 @@ function ReaderPanel({
     };
   }, [settings]);
 
-  // Compute pages based on segments list
-  const pages = useMemo<TextSegment[][]>(() => {
-    let pSize = activeSettings.pageSize || "auto";
-    if (pSize === "auto") {
-      if (hasTimestamps) {
-        pSize = "p15";
-      } else if (isCjk) {
-        pSize = "c500";
-      } else {
-        pSize = "w300";
-      }
-    }
-
-    if (pSize === "all") {
-      return [segments];
-    }
-    
-    if (pSize.startsWith("p")) {
-      const num = parseInt(pSize.substring(1), 10);
-      const result: TextSegment[][] = [];
-      for (let i = 0; i < segments.length; i += num) {
-        result.push(segments.slice(i, i + num));
-      }
-      return result.length > 0 ? result : [[]];
-    }
-    
-    if (pSize.startsWith("w")) {
-      const limit = parseInt(pSize.substring(1), 10);
-      const result: TextSegment[][] = [];
-      let currentChunk: TextSegment[] = [];
-      let currentWords = 0;
-      
-      for (const seg of segments) {
-        const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
-        const wordsInSeg = isImgSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
-        if (currentWords > 0 && currentWords + wordsInSeg > limit + 40) {
-          result.push(currentChunk);
-          currentChunk = [seg];
-          currentWords = wordsInSeg;
-        } else {
-          currentChunk.push(seg);
-          currentWords += wordsInSeg;
-        }
-      }
-      if (currentChunk.length > 0) {
-        result.push(currentChunk);
-      }
-      return result.length > 0 ? result : [[]];
-    }
-
-    if (pSize.startsWith("s")) {
-      const limit = parseInt(pSize.substring(1), 10);
-      const result: TextSegment[][] = [];
-      let currentChunk: TextSegment[] = [];
-      let currentSentences = 0;
-
-      for (const seg of segments) {
-        const sentsInSeg = splitIntoSentences(seg.text).length;
-        if (currentSentences > 0 && currentSentences + sentsInSeg > limit) {
-          result.push(currentChunk);
-          currentChunk = [seg];
-          currentSentences = sentsInSeg;
-        } else {
-          currentChunk.push(seg);
-          currentSentences += sentsInSeg;
-        }
-      }
-      if (currentChunk.length > 0) {
-        result.push(currentChunk);
-      }
-      return result.length > 0 ? result : [[]];
-    }
-
-    if (pSize.startsWith("c")) {
-      const limit = parseInt(pSize.substring(1), 10);
-      const result: TextSegment[][] = [];
-      let currentChunk: TextSegment[] = [];
-      let currentChars = 0;
-
-      for (const seg of segments) {
-        const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
-        const charsInSeg = isImgSeg ? 0 : seg.text.length;
-        if (currentChars > 0 && currentChars + charsInSeg > limit) {
-          result.push(currentChunk);
-          currentChunk = [seg];
-          currentChars = charsInSeg;
-        } else {
-          currentChunk.push(seg);
-          currentChars += charsInSeg;
-        }
-      }
-      if (currentChunk.length > 0) {
-        result.push(currentChunk);
-      }
-      return result.length > 0 ? result : [[]];
-    }
-    
-    return [segments];
-  }, [segments, activeSettings.pageSize, hasTimestamps, isCjk]);
-
-  // Track page navigation states initialized directly from localstorage
-  const [currentPageIdx, setCurrentPageIdx] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem(`vocab_progress_${lesson.id}`);
-      if (saved !== null) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load progress:", e);
-    }
-    return 0;
+  const {
+    segments,
+    pages,
+    currentPageIdx,
+    setCurrentPageIdx,
+    clampedPageIdx,
+    activeSegmentsForPage,
+    activeSegmentIndex,
+    handleTouchStart,
+    handleTouchEnd,
+    navigateToPage,
+    hasTimestamps
+  } = useReaderPagination({
+    lesson,
+    isCjk,
+    pageSize: activeSettings.pageSize,
+    currentYoutubeTime,
+    activeWord,
+    onWordClick
   });
-
-  // Track if the user manually navigated (to distinguish from initial auto-page detection)
-  const didUserNavigateRef = useRef(false);
-
-  // Save progress ONLY when the user has actually navigated or the page is non-zero
-  useEffect(() => {
-    if (!lesson.id || pages.length === 0) return;
-    // Never overwrite a saved non-zero progress with 0 on initial mount
-    const savedRaw = localStorage.getItem(`vocab_progress_${lesson.id}`);
-    const savedPage = savedRaw !== null ? parseInt(savedRaw, 10) : 0;
-    if (currentPageIdx === 0 && savedPage > 0 && !didUserNavigateRef.current) {
-      // Still initializing — don't overwrite real saved value with 0
-      return;
-    }
-    const valid = Math.min(Math.max(0, currentPageIdx), pages.length - 1);
-    safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, valid.toString());
-  }, [currentPageIdx, pages.length, lesson.id]);
-
-  // Reset hover states on page or lesson change
-  useEffect(() => {
-    setHoveredWordObj(null);
-    setHoveredWordId(null);
-  }, [currentPageIdx, lesson.id]);
-
-  // Dismiss tooltips on any scroll event in the window (e.g. scroll of the reader panel)
-  useEffect(() => {
-    const handleGlobalScroll = () => {
-      setHoveredWordObj(null);
-      setHoveredWordId(null);
-    };
-
-    window.addEventListener("scroll", handleGlobalScroll, true);
-    return () => {
-      window.removeEventListener("scroll", handleGlobalScroll, true);
-    };
-  }, []);
-
-  // Touch Swipe Gesture State for Mobile / Tablet Page Navigation
-  const touchStartXRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      touchStartXRef.current = e.touches[0].clientX;
-      touchStartYRef.current = e.touches[0].clientY;
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
-    if (e.changedTouches.length === 0) return;
-
-    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
-
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
-
-    if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
-      if (deltaX < 0) {
-        // Swipe Left -> Next Page
-        if (currentPageIdx < pages.length - 1) {
-          didUserNavigateRef.current = true;
-          setCurrentPageIdx(prev => Math.min(pages.length - 1, prev + 1));
-          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
-        }
-      } else {
-        // Swipe Right -> Prev Page
-        if (currentPageIdx > 0) {
-          didUserNavigateRef.current = true;
-          setCurrentPageIdx(prev => Math.max(0, prev - 1));
-          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
-        }
-      }
-    }
-  };
-
-  // Keyboard Shortcuts (ArrowLeft, ArrowRight, Escape)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
-      }
-
-      if (e.key === "ArrowLeft") {
-        if (currentPageIdx > 0) {
-          didUserNavigateRef.current = true;
-          setCurrentPageIdx(prev => Math.max(0, prev - 1));
-          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
-        }
-      } else if (e.key === "ArrowRight") {
-        if (currentPageIdx < pages.length - 1) {
-          didUserNavigateRef.current = true;
-          setCurrentPageIdx(prev => Math.min(pages.length - 1, prev + 1));
-          document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
-        }
-      } else if (e.key === "Escape") {
-        if (activeWord) {
-          onWordClick("", "");
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentPageIdx, pages.length, activeWord, onWordClick]);
-
-  const clampedPageIdx = useMemo(() => {
-    return Math.min(Math.max(0, currentPageIdx), pages.length - 1);
-  }, [currentPageIdx, pages]);
-
-  const activeSegmentsForPage = useMemo(() => {
-    return pages[clampedPageIdx] || [];
-  }, [pages, clampedPageIdx]);
-
-  // Find which segment index globally matches the current youtube video time
-  const activeSegmentIndex = useMemo(() => {
-    if (currentYoutubeTime === null || currentYoutubeTime === undefined) return -1;
-    
-    // Find all segments with parsed timestamp values
-    const timedSegments = segments.map((s, idx) => ({
-      idx,
-      time: s.timestamp ? parseTimestampToSeconds(s.timestamp) : -1
-    })).filter(s => s.time >= 0);
-    
-    if (timedSegments.length === 0) return -1;
-    
-    // Find which interval currentYoutubeTime falls into
-    for (let i = 0; i < timedSegments.length; i++) {
-      const current = timedSegments[i];
-      const next = timedSegments[i + 1];
-      
-      const startTime = current.time;
-      // If there is a next timestamp, the segment runs until that timestamp
-      // If not, it runs for a reasonable buffer (e.g. 10 seconds)
-      const endTime = next ? next.time : startTime + 10;
-      
-      if (currentYoutubeTime >= startTime && currentYoutubeTime < endTime) {
-        return current.idx;
-      }
-    }
-    
-    return -1;
-  }, [segments, currentYoutubeTime]);
-
-  // Track last active page index for playback page boundary crossings
-  const lastActivePageIdxRef = useRef<number>(-1);
-
-  // Automatically switch page ONLY when playback crosses page boundaries
-  useEffect(() => {
-    if (activeSegmentIndex < 0 || pages.length <= 1) {
-      lastActivePageIdxRef.current = -1;
-      return;
-    }
-
-    let newActivePageIdx = -1;
-    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
-      const page = pages[pIdx];
-      const hasActive = page.some((seg) => {
-        const globalIdx = segments.indexOf(seg);
-        return globalIdx === activeSegmentIndex;
-      });
-      if (hasActive) {
-        newActivePageIdx = pIdx;
-        break;
-      }
-    }
-
-    const prevActivePageIdx = lastActivePageIdxRef.current;
-    lastActivePageIdxRef.current = newActivePageIdx;
-
-    // Only switch page automatically if the playback itself crossed a page boundary while playing
-    const shouldSwitch = (newActivePageIdx >= 0 && prevActivePageIdx >= 0 && newActivePageIdx !== prevActivePageIdx);
-
-    if (shouldSwitch && newActivePageIdx !== currentPageIdx) {
-      didUserNavigateRef.current = true;
-      setCurrentPageIdx(newActivePageIdx);
-    }
-  }, [activeSegmentIndex, pages, segments, currentPageIdx]);
-
-  const lastPageIdxRef = useRef(currentPageIdx);
-
-  // Scroll active segment or page into view
-  useEffect(() => {
-    const pageChanged = lastPageIdxRef.current !== currentPageIdx;
-    lastPageIdxRef.current = currentPageIdx;
-
-    if (pageChanged) {
-      // If page changed, scroll to the top of the reader panel instantly
-      const topEl = document.getElementById("reader-top");
-      if (topEl) {
-        topEl.scrollIntoView({ behavior: "auto", block: "start" });
-      }
-    }
-
-    if (activeSegmentIndex >= 0) {
-      const activeEl = document.getElementById(`segment-row-${activeSegmentIndex}`);
-      if (activeEl) {
-        activeEl.scrollIntoView({
-          behavior: pageChanged ? "auto" : "smooth",
-          block: "nearest",
-        });
-      }
-    }
-  }, [activeSegmentIndex, currentPageIdx]);
 
   // Compute active saved multi-word phrases/idioms in active target language inside this text
   const activePhrasesInLesson = useMemo(() => {
@@ -650,7 +248,7 @@ function ReaderPanel({
 
     activeSegmentsForPage.forEach((seg, segIdx) => {
       const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
-        ? splitIntoSentences(seg.text)
+        ? splitIntoSentences(seg.text, isCjk)
         : [seg.text];
 
       sentenceStrings.forEach((sentText, sIdx) => {
@@ -771,7 +369,7 @@ function ReaderPanel({
       }
       if (currentEl) {
         const fullPara = currentEl.textContent || "";
-        const sentences = splitIntoSentences(fullPara);
+        const sentences = splitIntoSentences(fullPara, isCjk);
         associatedSentence = sentences.find((s) => s.includes(selectedText)) || fullPara;
       }
     }
@@ -885,10 +483,10 @@ function ReaderPanel({
       e.preventDefault();
     }
     const key = resolveWord(cleanWord);
-    const sentences = splitIntoSentences(fullPara);
+    const sentences = splitIntoSentences(fullPara, isCjk);
     const associatedSentence = sentences.find((s) => s.includes(rawToken)) || fullPara;
     setHoveredWordObj(null);
-    setHoveredWordId(null);
+    setHoveredWordId(null, isCjk);
     onWordClick(cleanWord, associatedSentence.trim());
   };
 
@@ -1112,14 +710,14 @@ function ReaderPanel({
 
           // Check if we should split by sentence
           const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
-            ? splitIntoSentences(seg.text)
+            ? splitIntoSentences(seg.text, isCjk)
             : [seg.text];
 
           // Precalculate total words in this segment for word-by-word highlight
           const segmentWordCount = (() => {
             if (!activeSettings.wordHighlight || !isSegmentActive) return 0;
             let count = 0;
-            sentenceStrings.forEach((sentText) => {
+            sentenceStrings.forEach((sentText, isCjk) => {
               const tokens = segmentSentenceTokens(sentText, lesson.targetLanguage);
               count += tokens.filter((t) => t.isWord).length;
             });
@@ -1933,9 +1531,7 @@ function ReaderPanel({
                     key={i}
                     type="button"
                     onClick={() => {
-                      didUserNavigateRef.current = true;
-                      setCurrentPageIdx(i);
-                      document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
+                      navigateToPage(i);
                     }}
                     className={`min-w-[28px] h-7 px-1.5 text-[10px] font-black font-mono rounded-lg transition-all cursor-pointer ${
                       i === clampedPageIdx
@@ -1955,9 +1551,7 @@ function ReaderPanel({
                 id="reader-prev-page-btn"
                 disabled={clampedPageIdx === 0}
                 onClick={() => {
-                  didUserNavigateRef.current = true;
-                  setCurrentPageIdx(prev => Math.max(0, prev - 1));
-                  document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
+                  navigateToPage(Math.max(0, clampedPageIdx - 1));
                 }}
                 className="w-full sm:w-auto px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 border border-zinc-200/50 dark:border-zinc-700/60"
               >
@@ -1973,9 +1567,7 @@ function ReaderPanel({
                   value={clampedPageIdx}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
-                    didUserNavigateRef.current = true;
-                    setCurrentPageIdx(val);
-                    document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
+                    navigateToPage(val);
                   }}
                   className="text-xs font-mono font-bold tracking-tight text-teal-600 dark:text-teal-400 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-xs font-sans"
                 >
@@ -1992,10 +1584,7 @@ function ReaderPanel({
                   type="button"
                   title="Сбросить на 1-ю страницу / Reset to Page 1"
                   onClick={() => {
-                    didUserNavigateRef.current = true;
-                    setCurrentPageIdx(0);
-                    safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "0");
-                    document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
+                    navigateToPage(0); safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "0");
                   }}
                   className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-md transition cursor-pointer ml-1"
                 >
@@ -2008,9 +1597,7 @@ function ReaderPanel({
                 id="reader-next-page-btn"
                 disabled={clampedPageIdx === pages.length - 1}
                 onClick={() => {
-                  didUserNavigateRef.current = true;
-                  setCurrentPageIdx(prev => Math.min(pages.length - 1, prev + 1));
-                  document.getElementById(`reader-top`)?.scrollIntoView({ behavior: "smooth" });
+                  navigateToPage(Math.min(pages.length - 1, clampedPageIdx + 1));
                 }}
                 className="w-full sm:w-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 shadow-sm"
               >
