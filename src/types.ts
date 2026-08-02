@@ -87,6 +87,7 @@ export interface ReaderSettings {
   showDetailedVocabularyStats?: boolean;
   mainStatsMetric?: "comprehension" | "vocabulary";
   showProgressBar?: boolean;
+  dailyGoalMinutes?: number; // 0 means disabled
 }
 
 export interface Dictionary {
@@ -108,6 +109,6 @@ export interface HistoryEntry {
   status?: "in_progress" | "completed";
   durationSeconds?: number;
   notes?: string;
+  tags?: string[];
 }
-
 

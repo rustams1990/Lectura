@@ -2700,6 +2700,8 @@ export default function App() {
                 setActiveTab("read");
               }}
               onUpdateHistory={handleUpdateHistory}
+              readerSettings={readerSettings}
+              onUpdateSettings={setReaderSettings}
             />
           </div>
         ) : (

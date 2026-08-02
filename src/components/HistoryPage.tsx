@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, memo } from "react";
-import { HistoryEntry, Lesson } from "../types";
+import { HistoryEntry, Lesson, ReaderSettings } from "../types";
 import { 
   History, 
   Search, 
@@ -22,7 +22,11 @@ import {
   X, 
   Check, 
   Globe, 
-  FileText
+  FileText,
+  Tag,
+  Target,
+  Flame,
+  Play
 } from "lucide-react";
 import { getCategoryIcon } from "./ImportLessonForm";
 
@@ -31,6 +35,8 @@ interface HistoryPageProps {
   lessons: Lesson[];
   onOpenLesson: (lessonId: string) => void;
   onUpdateHistory: (updatedHistory: HistoryEntry[]) => void;
+  readerSettings: ReaderSettings;
+  onUpdateSettings: (newSettings: ReaderSettings) => void;
 }
 
 function HistoryPage({
@@ -38,6 +44,8 @@ function HistoryPage({
   lessons,
   onOpenLesson,
   onUpdateHistory,
+  readerSettings,
+  onUpdateSettings,
 }: HistoryPageProps) {
   const [filterType, setFilterType] = useState<"all" | "read" | "listen" | "complete">("all");
   const [selectedPeriod, setSelectedPeriod] = useState<"all" | "today" | "yesterday" | "last7" | "thisMonth" | "custom">("all");
@@ -45,6 +53,17 @@ function HistoryPage({
   const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState<string>("all");
+
+  const availableTags = useMemo(() => {
+    const tagsSet = new Set<string>();
+    history.forEach((h) => {
+      if (h.tags) {
+        h.tags.forEach((t) => tagsSet.add(t));
+      }
+    });
+    return Array.from(tagsSet).sort();
+  }, [history]);
 
   // Extract unique available target languages present in history
   const availableLanguages = useMemo(() => {
@@ -97,6 +116,7 @@ function HistoryPage({
   const [formDateOnly, setFormDateOnly] = useState("");
   const [formHour24, setFormHour24] = useState("12");
   const [formMinute, setFormMinute] = useState("00");
+  const [formTags, setFormTags] = useState("");
 
   // Populate form when editing an entry
   const startEditEntry = (entry: HistoryEntry) => {
@@ -107,6 +127,7 @@ function HistoryPage({
     setFormStatus((entry.status === "completed" || entry.actionType === "complete") ? "completed" : "in_progress");
     setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
     setFormNotes(entry.notes || "");
+    setFormTags(entry.tags ? entry.tags.join(", ") : "");
 
     const d = new Date(entry.timestamp);
     if (!isNaN(d.getTime())) {
@@ -136,6 +157,7 @@ function HistoryPage({
     setFormStatus("in_progress");
     setFormMinutes("15");
     setFormNotes("");
+    setFormTags("");
 
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -164,6 +186,8 @@ function HistoryPage({
       }
     }
 
+    const parsedTags = formTags.split(",").map(t => t.trim()).filter(Boolean);
+
     if (editingEntry) {
       // Update existing entry
       const updated = history.map((h) =>
@@ -179,6 +203,7 @@ function HistoryPage({
               status: formStatus,
               durationSeconds,
               notes: formNotes.trim(),
+              tags: parsedTags,
               timestamp,
             }
           : h
@@ -198,6 +223,7 @@ function HistoryPage({
         status: formStatus,
         durationSeconds,
         notes: formNotes.trim(),
+        tags: parsedTags,
         timestamp,
       };
       onUpdateHistory([newEntry, ...history]);
@@ -268,6 +294,7 @@ function HistoryPage({
           status: isCompleted ? "completed" : (existing.status || "in_progress"),
           durationSeconds: Math.max(existing.durationSeconds || 0, itemWithStatus.durationSeconds || 0),
           notes: existing.notes || itemWithStatus.notes,
+          tags: existing.tags || itemWithStatus.tags,
         };
       } else {
         merged.push(itemWithStatus);
@@ -288,6 +315,13 @@ function HistoryPage({
       // Filter by language
       if (selectedLanguage !== "all") {
         if ((item.targetLanguage || "").toLowerCase() !== selectedLanguage.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // Filter by tag
+      if (selectedTag !== "all") {
+        if (!item.tags || !item.tags.includes(selectedTag)) {
           return false;
         }
       }
@@ -326,7 +360,7 @@ function HistoryPage({
 
       return true;
     });
-  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth]);
+  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag]);
 
   // Dynamic card title
   const timeCardTitle = useMemo(() => {
@@ -509,12 +543,34 @@ function HistoryPage({
         </div>
       </div>
 
+      {/* Language Analytics Progress Bar */}
+      {languageStats.length > 0 && (
+        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Target className="w-3.5 h-3.5"/> Распределение по языкам</span>
+          </div>
+          <div className="flex h-3 rounded-full overflow-hidden w-full gap-0.5">
+            {languageStats.map(stat => (
+              <div key={stat.lang} className={`h-full ${stat.color}`} style={{ width: `${stat.percent}%` }} title={`${stat.lang}: ${formatDuration(stat.duration)}`} />
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {languageStats.map(stat => (
+              <div key={stat.lang} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                <div className={`w-2 h-2 rounded-full ${stat.color}`} />
+                {stat.lang} <span className="text-zinc-400 font-normal">({Math.round(stat.percent)}%)</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filters & Search Control Bar */}
       <div className="p-3 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
         {/* Row 1: Filter Type Segmented Tabs + Search Input */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
           {/* Filter buttons */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 no-scrollbar">
             <button
               type="button"
               onClick={() => setFilterType("all")}
@@ -536,7 +592,7 @@ function HistoryPage({
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+              <BookOpen className="w-3.5 h-3.5" />
               Чтение ({readCount})
             </button>
 
@@ -549,7 +605,7 @@ function HistoryPage({
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
-              <Headphones className="w-3.5 h-3.5 text-purple-500" />
+              <Headphones className="w-3.5 h-3.5" />
               Аудио ({listenCount})
             </button>
 
@@ -562,19 +618,19 @@ function HistoryPage({
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
+              <CheckCircle2 className="w-3.5 h-3.5" />
               Завершено ({completeCount})
             </button>
           </div>
 
           {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
+          <div className="relative flex-1 min-w-[200px] lg:max-w-xs">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по заголовку или заметке..."
+              placeholder="Поиск по истории..."
               className="w-full pl-8 pr-8 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
             {searchQuery && (
@@ -589,82 +645,99 @@ function HistoryPage({
           </div>
         </div>
 
-        {/* Row 2: Language, Period & Date Selectors + Reset button */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Language Selector */}
-            {availableLanguages.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
-                <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">🌐 Все языки</option>
-                  {availableLanguages.map((lang) => (
-                    <option key={lang} value={lang}>
-                      🗣️ {lang}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Period / Day Filter Selector */}
-            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
-              <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+        {/* Row 2: Dropdowns */}
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-200/60 dark:border-zinc-800/60">
+          {/* Language Selector */}
+          {availableLanguages.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[140px]">
+              <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
               <select
-                value={selectedPeriod}
-                onChange={(e) => {
-                  const val = e.target.value as any;
-                  setSelectedPeriod(val);
-                  if (val !== "all" && val !== "custom") {
-                    setSelectedMonth("all");
-                  }
-                }}
-                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
               >
-                <option value="all">🗓️ За всё время</option>
-                <option value="today">🔥 За сегодня</option>
-                <option value="yesterday">⏳ За вчера</option>
-                <option value="last7">📅 Последние 7 дней</option>
-                <option value="thisMonth">📆 За этот месяц</option>
-                <option value="custom">📅 Выбрать дату...</option>
+                <option value="all">🌐 Все языки</option>
+                {availableLanguages.map((lang) => (
+                  <option key={lang} value={lang}>
+                    🗣️ {lang}
+                  </option>
+                ))}
               </select>
             </div>
+          )}
 
-            {/* Custom Date Input if selected */}
-            {selectedPeriod === "custom" && (
-              <input
-                type="date"
-                value={customDate}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className="px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20 shadow-3xs"
-              />
-            )}
+          {/* Tags Selector */}
+          {availableTags.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[140px]">
+              <Tag className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <select
+                value={selectedTag}
+                onChange={(e) => setSelectedTag(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
+              >
+                <option value="all">🏷️ Все теги</option>
+                {availableTags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-            {/* Month Selector if Period is all */}
-            {selectedPeriod === "all" && availableMonths.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs">
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">Все месяцы</option>
-                  {availableMonths.map((mKey) => (
-                    <option key={mKey} value={mKey}>
-                      📅 {formatMonthName(mKey)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+          {/* Period Selector */}
+          <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[160px]">
+            <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+            <select
+              value={selectedPeriod}
+              onChange={(e) => {
+                const val = e.target.value as any;
+                setSelectedPeriod(val);
+                if (val !== "all" && val !== "custom") {
+                  setSelectedMonth("all");
+                }
+              }}
+              className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
+            >
+              <option value="all">🗓️ За всё время</option>
+              <option value="today">🔥 За сегодня</option>
+              <option value="yesterday">⏳ За вчера</option>
+              <option value="last7">📅 Последние 7 дней</option>
+              <option value="thisMonth">📆 За этот месяц</option>
+              <option value="custom">📅 Выбрать дату...</option>
+            </select>
           </div>
 
-          {/* Reset Filters button if any filter is active */}
-          {(selectedPeriod !== "all" || selectedLanguage !== "all" || selectedMonth !== "all" || filterType !== "all" || searchQuery.trim() !== "" || customDate !== "") && (
+          {/* Custom Date Input */}
+          {selectedPeriod === "custom" && (
+            <input
+              type="date"
+              value={customDate}
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20 shadow-3xs flex-1 sm:flex-none min-w-[130px]"
+            />
+          )}
+
+          {/* Month Selector */}
+          {selectedPeriod === "all" && availableMonths.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[140px]">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
+              >
+                <option value="all">Все месяцы</option>
+                {availableMonths.map((mKey) => (
+                  <option key={mKey} value={mKey}>
+                    📅 {formatMonthName(mKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Reset Filters button */}
+          {(selectedPeriod !== "all" || selectedLanguage !== "all" || selectedMonth !== "all" || filterType !== "all" || searchQuery.trim() !== "" || customDate !== "" || selectedTag !== "all") && (
             <button
               type="button"
               onClick={() => {
@@ -674,11 +747,12 @@ function HistoryPage({
                 setFilterType("all");
                 setSearchQuery("");
                 setCustomDate("");
+                setSelectedTag("all");
               }}
-              className="px-2.5 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center gap-1 transition-all cursor-pointer ml-auto"
+              className="px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer flex-1 sm:flex-none"
             >
               <X className="w-3.5 h-3.5" />
-              Сбросить фильтры
+              Сброс
             </button>
           )}
         </div>
@@ -754,6 +828,13 @@ function HistoryPage({
                         <Calendar className="w-3 h-3 text-zinc-400" />
                         {formatDate(item.timestamp)}
                       </span>
+                      
+                      {item.tags && item.tags.length > 0 && item.tags.map(t => (
+                        <span key={t} className="text-[10px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-400 px-2 py-0.5 rounded-md border border-teal-100 dark:border-teal-900/50 flex items-center gap-1">
+                          <Tag className="w-2.5 h-2.5" />
+                          {t}
+                        </span>
+                      ))}
                     </div>
 
                     <h4 className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
@@ -801,6 +882,21 @@ function HistoryPage({
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+
+                  {matchedLesson && item.status === "in_progress" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenLesson(matchedLesson.id);
+                      }}
+                      className="p-2 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                      title="Продолжить урок"
+                    >
+                      <Play className="w-4 h-4" />
+                      <span className="text-xs font-bold hidden sm:inline">Продолжить</span>
+                    </button>
+                  )}
 
                   {matchedLesson && (
                     <button
@@ -979,7 +1075,7 @@ function HistoryPage({
                 </div>
               </div>
 
-              {/* Optional Notes */}
+              {/* Optional Notes & Tags */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
                   Личные заметки / Комментарий к сессии
@@ -989,6 +1085,19 @@ function HistoryPage({
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
                   placeholder="Добавьте свои впечатления, прогресс или заметки..."
+                  className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                  Теги (через запятую)
+                </label>
+                <input
+                  type="text"
+                  value={formTags}
+                  onChange={(e) => setFormTags(e.target.value)}
+                  placeholder="Например: Грамматика, Подкаст, Словарь"
                   className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
                 />
               </div>
