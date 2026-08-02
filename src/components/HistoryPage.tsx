@@ -362,6 +362,80 @@ function HistoryPage({
     });
   }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag]);
 
+  // Goals and Streaks logic
+  const dailyGoalMinutes = readerSettings?.dailyGoalMinutes || 15;
+  
+  const { currentStreak, todayMinutes, isGoalMetToday } = useMemo(() => {
+    if (!history || history.length === 0 || dailyGoalMinutes === 0) {
+       return { currentStreak: 0, todayMinutes: 0, isGoalMetToday: false };
+    }
+    
+    // Aggregate minutes per day
+    const dayTotals: Record<string, number> = {};
+    deduplicatedHistory.forEach(item => {
+      if (!item.durationSeconds) return;
+      const d = new Date(item.timestamp);
+      if (isNaN(d.getTime())) return;
+      const dateStr = d.toLocaleDateString("en-CA");
+      dayTotals[dateStr] = (dayTotals[dateStr] || 0) + (item.durationSeconds / 60);
+    });
+
+    let streak = 0;
+    const today = new Date();
+    const todayStr = today.toLocaleDateString("en-CA");
+    const todayMins = dayTotals[todayStr] || 0;
+    const metToday = todayMins >= dailyGoalMinutes;
+
+    let checkDate = new Date();
+    if (!metToday) {
+       checkDate.setDate(checkDate.getDate() - 1);
+       const yestStr = checkDate.toLocaleDateString("en-CA");
+       if (!dayTotals[yestStr] || dayTotals[yestStr] < dailyGoalMinutes) {
+         return { currentStreak: 0, todayMinutes: todayMins, isGoalMetToday: metToday };
+       }
+    }
+
+    while (true) {
+       const dStr = checkDate.toLocaleDateString("en-CA");
+       if (dayTotals[dStr] >= dailyGoalMinutes) {
+         streak++;
+         checkDate.setDate(checkDate.getDate() - 1);
+       } else {
+         break;
+       }
+    }
+
+    return { currentStreak: streak, todayMinutes: todayMins, isGoalMetToday: metToday };
+  }, [deduplicatedHistory, dailyGoalMinutes]);
+
+  // Language Analytics
+  const languageStats = useMemo(() => {
+    const stats: Record<string, { duration: number; percent: number; color: string }> = {};
+    let total = 0;
+    
+    scopedHistory.forEach(item => {
+      if (!item.durationSeconds) return;
+      const lang = item.targetLanguage || "Unknown";
+      stats[lang] = stats[lang] || { duration: 0, percent: 0, color: "" };
+      stats[lang].duration += item.durationSeconds;
+      total += item.durationSeconds;
+    });
+
+    if (total === 0) return [];
+    
+    const colors = ["bg-sky-500", "bg-indigo-500", "bg-rose-500", "bg-amber-500", "bg-emerald-500", "bg-purple-500"];
+    
+    return Object.entries(stats)
+      .sort((a, b) => b[1].duration - a[1].duration)
+      .map(([lang, data], i) => ({
+        lang,
+        duration: data.duration,
+        percent: (data.duration / total) * 100,
+        color: colors[i % colors.length]
+      }));
+  }, [scopedHistory]);
+
+
   // Dynamic card title
   const timeCardTitle = useMemo(() => {
     let periodLabel = "Всего времени";
