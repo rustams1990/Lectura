@@ -84,17 +84,15 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-5 animate-in zoom-in-95 duration-150">
-        {activeUser && (
-          <button
-            onClick={() => {
-              onClose();
-              setAuthError(null);
-            }}
-            className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer text-base font-bold"
-          >
-            &times;
-          </button>
-        )}
+        <button
+          onClick={() => {
+            onClose();
+            setAuthError(null);
+          }}
+          className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer text-base font-bold"
+        >
+          &times;
+        </button>
 
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center mx-auto text-xl">
