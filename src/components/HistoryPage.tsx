@@ -558,6 +558,36 @@ function HistoryPage({
         </div>
       </div>
 
+      {/* Daily Goal & Streak Banner */}
+      {dailyGoalMinutes > 0 && (
+        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-3xl border border-zinc-100 dark:border-zinc-800 flex flex-col md:flex-row items-center gap-4 justify-between shadow-sm">
+          <div className="flex items-center gap-4 w-full md:w-auto flex-1">
+            <div className={`p-3 rounded-2xl flex items-center justify-center shrink-0 ${isGoalMetToday ? 'bg-orange-50 text-orange-500 dark:bg-orange-950/40' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800'}`}>
+              <Flame className={`w-6 h-6 ${isGoalMetToday ? 'animate-pulse' : ''}`} />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">
+                  Ежедневная цель: {dailyGoalMinutes} мин
+                </span>
+                <span className="text-xs font-black text-orange-500">
+                  {currentStreak > 0 ? `${currentStreak} ${currentStreak === 1 ? 'день' : (currentStreak >= 2 && currentStreak <= 4) ? 'дня' : 'дней'} подряд!` : 'Пока нет стрика'}
+                </span>
+              </div>
+              <div className="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden w-full relative">
+                <div 
+                  className={`h-full rounded-full transition-all duration-1000 ${isGoalMetToday ? 'bg-gradient-to-r from-orange-400 to-rose-500' : 'bg-teal-500'}`}
+                  style={{ width: `${Math.min(100, (todayMinutes / dailyGoalMinutes) * 100)}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-zinc-400 font-bold mt-1.5 text-right">
+                {Math.round(todayMinutes)} / {dailyGoalMinutes} минут
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Metric Cards Summary Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
