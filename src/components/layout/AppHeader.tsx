@@ -35,7 +35,7 @@ export default function AppHeader({
   storageMode,
   isSyncing
 }: AppHeaderProps) {
-  const { activeUser, isAuthLoading, logout } = useAuth();
+  const { user: activeUser, isAuthLoading, logout } = useAuth();
 
   if (isFocusMode) return null;
 
