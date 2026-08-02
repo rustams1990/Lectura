@@ -25,6 +25,7 @@ import {
   FileText,
   Tag,
   Target,
+  Flame,
   Play
 } from "lucide-react";
 import { getCategoryIcon } from "./ImportLessonForm";
@@ -361,7 +362,51 @@ function HistoryPage({
     });
   }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag]);
 
-  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag]);
+  // Goals and Streaks logic
+  const dailyGoalMinutes = readerSettings?.dailyGoalMinutes || 15;
+  
+  const { currentStreak, todayMinutes, isGoalMetToday } = useMemo(() => {
+    if (!history || history.length === 0 || dailyGoalMinutes === 0) {
+       return { currentStreak: 0, todayMinutes: 0, isGoalMetToday: false };
+    }
+    
+    // Aggregate minutes per day
+    const dayTotals: Record<string, number> = {};
+    deduplicatedHistory.forEach(item => {
+      if (!item.durationSeconds) return;
+      const d = new Date(item.timestamp);
+      if (isNaN(d.getTime())) return;
+      const dateStr = d.toLocaleDateString("en-CA");
+      dayTotals[dateStr] = (dayTotals[dateStr] || 0) + (item.durationSeconds / 60);
+    });
+
+    let streak = 0;
+    const today = new Date();
+    const todayStr = today.toLocaleDateString("en-CA");
+    const todayMins = dayTotals[todayStr] || 0;
+    const metToday = todayMins >= dailyGoalMinutes;
+
+    let checkDate = new Date();
+    if (!metToday) {
+       checkDate.setDate(checkDate.getDate() - 1);
+       const yestStr = checkDate.toLocaleDateString("en-CA");
+       if (!dayTotals[yestStr] || dayTotals[yestStr] < dailyGoalMinutes) {
+         return { currentStreak: 0, todayMinutes: todayMins, isGoalMetToday: metToday };
+       }
+    }
+
+    while (true) {
+       const dStr = checkDate.toLocaleDateString("en-CA");
+       if (dayTotals[dStr] >= dailyGoalMinutes) {
+         streak++;
+         checkDate.setDate(checkDate.getDate() - 1);
+       } else {
+         break;
+       }
+    }
+
+    return { currentStreak: streak, todayMinutes: todayMins, isGoalMetToday: metToday };
+  }, [deduplicatedHistory, dailyGoalMinutes]);
 
   // Language Analytics
   const languageStats = useMemo(() => {
