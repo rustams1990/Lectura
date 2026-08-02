@@ -677,21 +677,6 @@ export default function App() {
       unsubscribes.forEach((unsub) => unsub());
       unsubscribes = [];
 
-      if (firebaseUser) {
-        // Automatically align storageMode to "cloud" when logged in via Firebase
-        if (storageMode !== "cloud") {
-          setStorageMode("cloud");
-          safeLocalStorageSetItem("vocab_clone_storage_mode", "cloud");
-          return; // The change in storageMode will trigger a re-run of this useEffect
-        }
-      }
-
-      if (storageMode === "cloud") {
-        if (serverToken) {
-          logout().catch(err => console.error("Server logout request failed:", err));
-        }
-      }
-
       if (firebaseUser && storageMode === "cloud") {
         setIsSyncing(true);
         try {
