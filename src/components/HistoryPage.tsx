@@ -363,16 +363,20 @@ function HistoryPage({
   }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag]);
 
   // Goals and Streaks logic
-  const dailyGoalMinutes = readerSettings?.dailyGoalMinutes || 15;
+  const isGlobalGoal = selectedLanguage === "all";
+  const activeGoalMinutes = isGlobalGoal 
+    ? (readerSettings?.dailyGoalMinutes ?? 15)
+    : (readerSettings?.dailyGoalsByLanguage?.[selectedLanguage] ?? readerSettings?.dailyGoalMinutes ?? 15);
   
   const { currentStreak, todayMinutes, isGoalMetToday } = useMemo(() => {
-    if (!history || history.length === 0 || dailyGoalMinutes === 0) {
+    if (!history || history.length === 0 || activeGoalMinutes === 0) {
        return { currentStreak: 0, todayMinutes: 0, isGoalMetToday: false };
     }
     
     // Aggregate minutes per day
     const dayTotals: Record<string, number> = {};
     deduplicatedHistory.forEach(item => {
+      if (!isGlobalGoal && item.targetLanguage !== selectedLanguage) return;
       if (!item.durationSeconds) return;
       const d = new Date(item.timestamp);
       if (isNaN(d.getTime())) return;
@@ -384,20 +388,20 @@ function HistoryPage({
     const today = new Date();
     const todayStr = today.toLocaleDateString("en-CA");
     const todayMins = dayTotals[todayStr] || 0;
-    const metToday = todayMins >= dailyGoalMinutes;
+    const metToday = todayMins >= activeGoalMinutes;
 
     let checkDate = new Date();
     if (!metToday) {
        checkDate.setDate(checkDate.getDate() - 1);
        const yestStr = checkDate.toLocaleDateString("en-CA");
-       if (!dayTotals[yestStr] || dayTotals[yestStr] < dailyGoalMinutes) {
+       if (!dayTotals[yestStr] || dayTotals[yestStr] < activeGoalMinutes) {
          return { currentStreak: 0, todayMinutes: todayMins, isGoalMetToday: metToday };
        }
     }
 
     while (true) {
        const dStr = checkDate.toLocaleDateString("en-CA");
-       if (dayTotals[dStr] >= dailyGoalMinutes) {
+       if (dayTotals[dStr] >= activeGoalMinutes) {
          streak++;
          checkDate.setDate(checkDate.getDate() - 1);
        } else {
@@ -406,7 +410,7 @@ function HistoryPage({
     }
 
     return { currentStreak: streak, todayMinutes: todayMins, isGoalMetToday: metToday };
-  }, [deduplicatedHistory, dailyGoalMinutes]);
+  }, [deduplicatedHistory, activeGoalMinutes, isGlobalGoal, selectedLanguage]);
 
   // Language Analytics
   const languageStats = useMemo(() => {
@@ -561,51 +565,59 @@ function HistoryPage({
       {/* Daily Goal & Streak Banner */}
       <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-3xl border border-zinc-100 dark:border-zinc-800 flex flex-col md:flex-row items-center gap-4 justify-between shadow-sm">
         <div className="flex items-center gap-4 w-full md:w-auto flex-1">
-          <div className={`p-3 rounded-2xl flex items-center justify-center shrink-0 ${dailyGoalMinutes > 0 ? (isGoalMetToday ? 'bg-orange-50 text-orange-500 dark:bg-orange-950/40' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800') : 'bg-zinc-100 text-zinc-300 dark:bg-zinc-800/50'}`}>
-            <Flame className={`w-6 h-6 ${dailyGoalMinutes > 0 && isGoalMetToday ? 'animate-pulse' : ''}`} />
+          <div className={`p-3 rounded-2xl flex items-center justify-center shrink-0 ${activeGoalMinutes > 0 ? (isGoalMetToday ? 'bg-orange-50 text-orange-500 dark:bg-orange-950/40' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800') : 'bg-zinc-100 text-zinc-300 dark:bg-zinc-800/50'}`}>
+            <Flame className={`w-6 h-6 ${activeGoalMinutes > 0 && isGoalMetToday ? 'animate-pulse' : ''}`} />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">
-                  Ежедневная цель:
+                  {isGlobalGoal ? "Ежедневная цель:" : `Цель (${selectedLanguage}):`}
                 </span>
-                <select
-                  value={dailyGoalMinutes}
-                  onChange={(e) => onUpdateSettings({ ...readerSettings, dailyGoalMinutes: Number(e.target.value) })}
-                  className="bg-zinc-100 dark:bg-zinc-800 border-none rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 py-1 px-2 cursor-pointer focus:ring-2 focus:ring-teal-500/50 outline-none"
-                >
-                  <option value={0}>Выкл</option>
-                  <option value={5}>5 мин</option>
-                  <option value={10}>10 мин</option>
-                  <option value={15}>15 мин</option>
-                  <option value={20}>20 мин</option>
-                  <option value={30}>30 мин</option>
-                  <option value={45}>45 мин</option>
-                  <option value={60}>60 мин</option>
-                </select>
+                <input
+                  type="number"
+                  min="0"
+                  value={activeGoalMinutes}
+                  onChange={(e) => {
+                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                    if (isGlobalGoal) {
+                      onUpdateSettings({ ...readerSettings, dailyGoalMinutes: val });
+                    } else {
+                      onUpdateSettings({
+                        ...readerSettings,
+                        dailyGoalsByLanguage: {
+                          ...(readerSettings?.dailyGoalsByLanguage || {}),
+                          [selectedLanguage]: val
+                        }
+                      });
+                    }
+                  }}
+                  className="bg-zinc-100 dark:bg-zinc-800 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 py-1 px-2 w-16 text-center cursor-text focus:border-teal-500 focus:ring-2 focus:ring-teal-500/50 outline-none transition-all"
+                  title="Введите 0 для выключения"
+                />
+                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">мин</span>
               </div>
-              {dailyGoalMinutes > 0 && (
+              {activeGoalMinutes > 0 && (
                 <span className="text-xs font-black text-orange-500">
                   {currentStreak > 0 ? `${currentStreak} ${currentStreak === 1 ? 'день' : (currentStreak >= 2 && currentStreak <= 4) ? 'дня' : 'дней'} подряд!` : 'Пока нет стрика'}
                 </span>
               )}
             </div>
-            {dailyGoalMinutes > 0 ? (
+            {activeGoalMinutes > 0 ? (
               <>
                 <div className="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden w-full relative">
                   <div 
                     className={`h-full rounded-full transition-all duration-1000 ${isGoalMetToday ? 'bg-gradient-to-r from-orange-400 to-rose-500' : 'bg-teal-500'}`}
-                    style={{ width: `${Math.min(100, (todayMinutes / dailyGoalMinutes) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (todayMinutes / activeGoalMinutes) * 100)}%` }}
                   />
                 </div>
                 <div className="text-[10px] text-zinc-400 font-bold mt-1.5 text-right">
-                  {Math.round(todayMinutes)} / {dailyGoalMinutes} минут
+                  {Math.round(todayMinutes)} / {activeGoalMinutes} минут
                 </div>
               </>
             ) : (
               <div className="text-xs text-zinc-400 font-medium mt-1">
-                Цель отключена. Выберите время, чтобы начать копить огненные стрики!
+                Цель отключена. Введите время, чтобы начать копить огненные стрики!
               </div>
             )}
           </div>

@@ -87,7 +87,8 @@ export interface ReaderSettings {
   showDetailedVocabularyStats?: boolean;
   mainStatsMetric?: "comprehension" | "vocabulary";
   showProgressBar?: boolean;
-  dailyGoalMinutes?: number; // 0 means disabled
+  dailyGoalMinutes?: number; // 0 means disabled, used as global fallback
+  dailyGoalsByLanguage?: Record<string, number>; // Maps language code (e.g. "Spanish") to goal minutes
 }
 
 export interface Dictionary {
