@@ -336,6 +336,8 @@ function WordExplainer({
   const [accentOpen, setAccentOpen] = useState(false);
   const [savedMeaningOpen, setSavedMeaningOpen] = useState(true);
   const [dictionariesOpen, setDictionariesOpen] = useState(true);
+  const [wordVariationsOpen, setWordVariationsOpen] = useState(false);
+  const [popularMeaningsOpen, setPopularMeaningsOpen] = useState(false);
   const [relatedPhrasesOpen, setRelatedPhrasesOpen] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("vocab_related_phrases_open") !== "false";
@@ -1836,15 +1838,22 @@ function WordExplainer({
               {/* Word Variations Link (Pattern) integrated directly in Saved Meaning Card */}
               <div className="space-y-1.5 pt-2 border-t border-zinc-100/40 dark:border-zinc-800/40 mt-1.5">
                 <div className="flex items-center justify-between text-xs font-sans">
-                  <span className="font-extrabold uppercase tracking-widest text-[8.5px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setWordVariationsOpen(!wordVariationsOpen)}
+                    className="font-extrabold uppercase tracking-widest text-[8.5px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
+                  >
                     🔗 Word Variations Link (Связь форм)
-                  </span>
+                    <ChevronDown className={`w-3 h-3 transition-transform ${wordVariationsOpen ? "rotate-180" : ""}`} />
+                  </button>
                   <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-teal-50/70 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 font-mono">
                     zorro ⇄ zorros
                   </span>
                 </div>
 
-                {isLinked ? (
+                {wordVariationsOpen && (
+                  <>
+                    {isLinked ? (
                   <div className="flex items-center justify-between bg-white dark:bg-zinc-900 border border-zinc-200/55 dark:border-zinc-800 p-2 rounded-lg font-medium shadow-3xs">
                     <p className="text-zinc-600 dark:text-zinc-300 text-[10.5px]">
                       Root: <strong className="text-teal-600 dark:text-teal-400 capitalize">{linkedParent}</strong>
@@ -1929,14 +1938,22 @@ function WordExplainer({
                     )}
                   </div>
                 )}
+                  </>
+                )}
               </div>
 
               {/* Popular Meanings — merged into Saved Meaning card */}
               <div className="space-y-1 pt-2.5 border-t border-zinc-100/40 dark:border-zinc-800/40 mt-1.5">
-                <span className="text-[8.5px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPopularMeaningsOpen(!popularMeaningsOpen)}
+                  className="text-[8.5px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
+                >
                   <Sparkles className="w-2.5 h-2.5 text-teal-500 animate-pulse" /> Popular Meanings
-                </span>
-                <div className="space-y-1 max-h-[170px] overflow-y-auto scrollbar-thin w-full">
+                  <ChevronDown className={`w-3 h-3 transition-transform ${popularMeaningsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {popularMeaningsOpen && (
+                  <div className="space-y-1 max-h-[170px] overflow-y-auto scrollbar-thin w-full animate-in fade-in slide-in-from-top-1">
                   {popularMeanings().map((meaning, idx) => {
                     const isSelected = translationValue === meaning;
                     return (
@@ -1964,6 +1981,7 @@ function WordExplainer({
                     );
                   })}
                 </div>
+                )}
 
                 {/* Translation Source Selector */}
                 <div className="space-y-1 pt-1.5 border-t border-zinc-100/40 dark:border-zinc-800/40 text-left shrink-0">
