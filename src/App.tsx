@@ -28,6 +28,8 @@ import {
   handleFirestoreError,
   OperationType
 } from "./firebaseService";
+import AppSidebar from "./components/layout/AppSidebar";
+import AppHeader from "./components/layout/AppHeader";
 import ReaderPanel from "./components/ReaderPanel";
 import WordExplainer from "./components/WordExplainer";
 import AudioPlayerBar from "./components/AudioPlayerBar";
@@ -2207,345 +2209,36 @@ export default function App() {
   return (
     <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200`}>
       
-      {/* Sliding Sidebar Drawer from the Left */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex pointer-events-auto">
-          {/* Backdrop Overlay */}
-          <div 
-            id="sidebar-overlay"
-            onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
-          />
-
-          {/* Sidebar Panel */}
-          <div 
-            id="sidebar-panel"
-            className={`relative flex flex-col w-full max-w-[280px] sm:max-w-xs h-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} border-r ${currentReaderTheme.border} shadow-2xl p-5 overflow-y-auto animate-in slide-in-from-left duration-200 z-10`}
-          >
-            {/* Header / Brand in Sidebar */}
-            <div className="flex items-center justify-between pb-5 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-teal-600 rounded-xl text-white">
-                  <Languages className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-zinc-900 dark:text-white tracking-wide">
-                    Lectura
-                  </h3>
-                  <span className="text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest block font-mono">
-                    Навигация
-                  </span>
-                </div>
-              </div>
-
-              {/* Close Button */}
-              <button
-                id="btn-close-sidebar"
-                onClick={() => setIsSidebarOpen(false)}
-                className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg cursor-pointer transition-colors"
-                title="Закрыть меню"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Sidebar Main Content Options */}
-            <div className="flex-1 py-6 space-y-6">
-              {/* Core Tabs Navigation */}
-              <div className="space-y-1">
-                <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
-                  Разделы
-                </span>
-                
-                <button
-                  id="tab-library-mode"
-                  onClick={() => {
-                    setActiveTab("library");
-                    setShowImportForm(false);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeTab === "library" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
-                  }`}
-                >
-                  <BookMarked className="w-4 h-4 shrink-0" />
-                  Библиотека
-                </button>
-
-                <button
-                  id="tab-read-mode"
-                  onClick={() => {
-                    setActiveTab("read");
-                    setShowImportForm(false);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeTab === "read" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4 shrink-0" />
-                  Чтение
-                </button>
-
-                <button
-                  id="tab-practice-mode"
-                  onClick={() => {
-                    setActiveTab("practice");
-                    setShowImportForm(false);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeTab === "practice" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
-                  }`}
-                >
-                  <GraduationCap className="w-4 h-4 shrink-0" />
-                  Практика
-                </button>
-
-                <button
-                  id="tab-statistics-mode"
-                  onClick={() => {
-                    setActiveTab("statistics");
-                    setShowImportForm(false);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeTab === "statistics" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
-                  }`}
-                >
-                  <TrendingUp className="w-4 h-4 shrink-0" />
-                  Словарь и статистика
-                </button>
-
-                <button
-                  id="tab-history-mode"
-                  onClick={() => {
-                    setActiveTab("history");
-                    setShowImportForm(false);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    activeTab === "history" && !showImportForm
-                      ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
-                      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
-                  }`}
-                >
-                  <History className="w-4 h-4 shrink-0 text-teal-600 dark:text-teal-400" />
-                  История чтения
-                </button>
-              </div>
-
-              {/* Quick Actions separator */}
-              <div className="space-y-1.5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
-                  Действия
-                </span>
-
-                {activeLesson && (
-                  <button
-                    id="btn-enter-focus"
-                    onClick={() => {
-                      setIsFocusMode(true);
-                      setIsSidebarOpen(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-teal-600 dark:text-teal-400 bg-teal-50/60 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 border border-teal-100/50 dark:border-teal-900/50 rounded-xl transition-all cursor-pointer active:scale-97"
-                    title="Перейти в режим фокуса"
-                  >
-                    <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 animate-pulse" />
-                    Режим фокуса
-                  </button>
-                )}
-
-                <button
-                  id="btn-open-settings"
-                  onClick={() => {
-                    setShowSettingsModal(true);
-                    setIsSidebarOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white rounded-xl transition-all cursor-pointer"
-                >
-                  <Settings className="w-4 h-4 text-zinc-400 shrink-0" />
-                  Настройки
-                </button>
-
-                <button
-                  id="btn-open-import"
-                  onClick={() => {
-                    setShowImportForm(true);
-                    setIsSidebarOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:scale-95 rounded-xl transition-all cursor-pointer shadow-3xs"
-                >
-                  <PlusCircle className="w-4 h-4 shrink-0 text-teal-100" />
-                  Импортировать материал
-                </button>
-              </div>
-            </div>
-
-            {/* Bottom Footer block inside sidebar showing sync/user stats overview */}
-            <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center">
-              <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-1 font-mono">
-                  Профиль синхронизации
-                </span>
-                {activeUser ? (
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-zinc-800 dark:text-zinc-200 truncate">{activeUser.displayName || activeUser.email}</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${activeUser ? "bg-teal-500 animate-pulse" : "bg-teal-500"}`} />
-                      <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-                        {activeUser ? "Синхронизировано" : "Локальный профиль"}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setShowLocalLoginModal(true);
-                      setIsSidebarOpen(false);
-                    }}
-                    className="text-[9px] font-black text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
-                  >
-                    🔑 Войти и синхронизировать
-                  </button>
-                )}
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
+      <AppSidebar
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        showImportForm={showImportForm}
+        setShowImportForm={setShowImportForm}
+        activeLesson={activeLesson}
+        setIsFocusMode={setIsFocusMode}
+        setShowSettingsModal={setShowSettingsModal}
+        activeUser={activeUser}
+        setShowLocalLoginModal={setShowLocalLoginModal}
+        currentReaderTheme={currentReaderTheme}
+      />
 
       {/* Top Header HUD */}
-      {!isFocusMode && (
-        <header className={`border-b ${currentReaderTheme.border} ${currentReaderTheme.headerBg} backdrop-blur-md relative z-30 px-4 sm:px-6 py-3.5`}>
-          <div className={`mx-auto flex items-center justify-between gap-4 transition-all duration-300 ${layoutContainerClass}`}>
-            
-            {/* Left side: Hamburger + Brand logo */}
-            <div className="flex items-center gap-3">
-              <button
-                id="btn-toggle-sidebar"
-                onClick={() => setIsSidebarOpen(true)}
-                className="p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
-                title="Открыть меню (Open Left Sidebar Menu)"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-
-              <a
-                href="#/library"
-                onClick={(e) => {
-                  // Only intercept regular clicks to perform in-app state updates.
-                  // Allow browser standard actions (e.g. Ctrl+Click, Cmd+Click, middle click) to open in a new tab.
-                  if (
-                    e.button === 0 &&
-                    !e.ctrlKey &&
-                    !e.shiftKey &&
-                    !e.metaKey &&
-                    !e.altKey
-                  ) {
-                    e.preventDefault();
-                    setActiveTab("library");
-                    setShowImportForm(false);
-                    setSelectedWord(null);
-                  }
-                }}
-                className="flex items-center gap-2.5 group cursor-pointer transition-all active:scale-98 text-left focus:outline-none no-underline"
-                title="На главную (Go to Home Page)"
-              >
-                <div className="p-2 bg-teal-600 group-hover:bg-teal-500 rounded-xl text-white shadow-md shadow-teal-100/10 dark:shadow-none hidden sm:block transition-colors">
-                  <Languages className="w-5 h-5 transition-transform group-hover:scale-110" />
-                </div>
-                <div>
-                  <h1 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5 text-zinc-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                    Lectura
-                  </h1>
-                </div>
-              </a>
-            </div>
-
-            {/* Right side: Sync State & Login/Logout HUD */}
-            <div className="flex items-center gap-2">
-              {/* Dark Mode Toggle Button */}
-              <button
-                id="btn-toggle-dark-mode"
-                onClick={() => {
-                  const next = !isDarkMode;
-                  try { localStorage.setItem("vocab_clone_dark_mode", next ? "true" : "false"); } catch (_) {}
-                  settingsStore.setItem("vocab_clone_dark_mode", next ? "true" : "false");
-                  if (next) { document.documentElement.classList.add("dark"); }
-                  else { document.documentElement.classList.remove("dark"); }
-                  setIsDarkMode(next);
-                }}
-                className="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95
-                  bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800
-                  text-amber-500 dark:text-indigo-400
-                  border-zinc-200/60 dark:border-zinc-800/80"
-                title={isDarkMode ? "Светлая тема (Light Mode)" : "Тёмная тема (Dark Mode)"}
-                aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-              >
-                {isDarkMode ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
-              </button>
-              {isAuthLoading ? (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 shadow-3xs">
-                  <div className="w-3.5 h-3.5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-[10px] text-zinc-400 font-bold hidden sm:inline">Checking...</span>
-                </div>
-              ) : activeUser ? (
-                <div className="flex items-center gap-2 px-3 py-1 bg-teal-50 dark:bg-teal-900/20 border border-teal-200/50 dark:border-teal-900 rounded-xl relative shadow-3xs">
-                  {activeUser.photoURL ? (
-                    <img
-                      src={activeUser.photoURL}
-                      alt="User avatar"
-                      className="w-5.5 h-5.5 rounded-full border border-teal-400"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-5.5 h-5.5 rounded-full bg-teal-100 dark:bg-teal-950/40 flex items-center justify-center text-[10px] font-black text-teal-700 dark:text-teal-300">
-                      {(activeUser.displayName || activeUser.email || "U").substring(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="flex flex-col text-left justify-center min-w-0 pr-1">
-                    <span className="text-[9px] font-black text-teal-700 dark:text-teal-300 flex items-center gap-1 leading-none">
-                      {storageMode === "cloud" ? "☁️ cloud" : storageMode === "server" ? "🖥️ server" : "📱 local"}
-                      {isSyncing && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse shrink-0" />}
-                    </span>
-                    <span className="text-[7.5px] text-zinc-400 dark:text-zinc-500 font-bold truncate max-w-[100px] leading-tight block mt-0.5" title={activeUser.displayName || activeUser.email || ""}>
-                      {activeUser.displayName || activeUser.email || "user"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      logout().catch(err => console.error(err));
-                    }}
-                    className="text-[9px] font-bold text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-1.5 py-0.5 rounded transition cursor-pointer"
-                    title="Выйти (Logout)"
-                  >
-                    Exit
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowLocalLoginModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-[10px] font-bold rounded-xl transition duration-150 cursor-pointer shadow-3xs"
-                  title="Войдите, чтобы сохранить результаты"
-                >
-                  ☁️ Войти (Sync)
-                </button>
-              )}
-            </div>
-
-          </div>
-        </header>
-      )}
+      <AppHeader
+        isFocusMode={isFocusMode}
+        currentReaderTheme={currentReaderTheme}
+        layoutContainerClass={layoutContainerClass}
+        setIsSidebarOpen={setIsSidebarOpen}
+        setActiveTab={setActiveTab}
+        setShowImportForm={setShowImportForm}
+        setSelectedWord={setSelectedWord}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
+        setShowLocalLoginModal={setShowLocalLoginModal}
+        storageMode={storageMode}
+        isSyncing={isSyncing}
+      />
 
       {cloudOfflineWarning && (
         <div id="banner-cloud-offline-warning" className={`mx-auto px-4 sm:px-6 pt-4 transition-all duration-300 ${layoutContainerClass}`}>

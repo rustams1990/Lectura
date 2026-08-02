@@ -4,12 +4,14 @@
  */
 
 import React, { useMemo, useState, useEffect, useRef, memo } from "react";
-import { createPortal } from "react-dom";
-import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
-import { segmentSentenceTokens } from "../tokenizer";
 import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw, Clock, CheckCircle2, Plus, X, Calendar, MessageSquare } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
+import { TooltipPortal } from "./TooltipPortal";
+import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
+import { useReaderHistory } from "../hooks/useReaderHistory";
+import { TooltipPortal } from "./TooltipPortal";
+import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 
 interface ReaderPanelProps {
   key?: string;
@@ -109,21 +111,6 @@ const widthMap = {
   wide: "max-w-5xl mx-auto",
 };
 
-function getZoomScale(): number {
-  if (typeof window === "undefined" || typeof document === "undefined") return 1;
-  const zoomStr = document.documentElement?.style.zoom || document.body?.style.zoom;
-  if (zoomStr) {
-    const val = parseFloat(zoomStr);
-    if (!isNaN(val)) return val / 100;
-  }
-  const saved = localStorage.getItem("vocab_clone_interface_zoom");
-  if (saved) {
-    const val = parseInt(saved, 10);
-    if (!isNaN(val)) return val / 100;
-  }
-  return 1;
-}
-
 const getPhraseTypeLabel = (type?: string) => {
   if (!type) return "Идиома";
   switch (type.toLowerCase()) {
@@ -133,84 +120,6 @@ const getPhraseTypeLabel = (type?: string) => {
     case "set_expression": return "Устойчивое выражение";
     default: return "Идиома";
   }
-};
-
-const TooltipPortal = ({
-  children,
-  x,
-  y,
-  position
-}: {
-  children: React.ReactNode;
-  x: number;
-  y: number;
-  position: "above" | "below";
-}) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState({ left: x, top: y });
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    
-    // Zoom factor correction if browser zoom is used
-    const scale = getZoomScale();
-    const zoomedX = x / scale;
-    const zoomedY = y / scale;
-    const zoomedWidth = width / scale;
-    const zoomedHeight = height / scale;
-
-    const viewportWidth = window.innerWidth / scale;
-    const viewportHeight = window.innerHeight / scale;
-
-    const margin = 12;
-    
-    let left = zoomedX - zoomedWidth / 2;
-    let right = zoomedX + zoomedWidth / 2;
-    
-    if (left < margin) {
-      left = margin;
-    } else if (right > viewportWidth - margin) {
-      left = viewportWidth - margin - zoomedWidth;
-    }
-    
-    let top = zoomedY;
-    if (position === "above") {
-      top = zoomedY - zoomedHeight - 4; // minor adjustment to sit nicely above
-    } else {
-      top = zoomedY + 4; // minor adjustment to sit nicely below
-    }
-    
-    // Clamp vertical position so it doesn't overflow top of page
-    if (top < margin) {
-      top = margin;
-    } else if (top + zoomedHeight > viewportHeight - margin) {
-      top = viewportHeight - margin - zoomedHeight;
-    }
-
-    setCoords({ left, top });
-  }, [x, y, position]);
-
-  return createPortal(
-    <div
-      ref={ref}
-      style={{
-        position: "fixed",
-        left: `${coords.left}px`,
-        top: `${coords.top}px`,
-        minWidth: "220px",
-        maxWidth: "min(520px, 90vw)",
-        width: "max-content",
-        zIndex: 99999,
-      }}
-      className="pointer-events-none p-3 bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl shadow-xl flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 text-left"
-    >
-      {children}
-    </div>,
-    document.body
-  );
 };
 
 const normalizeTranslationSemicolons = (text: string): string => {
@@ -243,149 +152,21 @@ function ReaderPanel({
   const [unknownSortMode, setUnknownSortMode] = useState<"alpha" | "appearance">("alpha");
 
   // Status & Reading Time Management States
-  const [isCustomTimeModalOpen, setIsCustomTimeModalOpen] = useState(false);
-  const [customMinutesInput, setCustomMinutesInput] = useState("15");
-  const [customNotesInput, setCustomNotesInput] = useState("");
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
-  };
-
-  const currentStatus: "in_progress" | "completed" = useMemo(() => {
-    const savedProg = localStorage.getItem(`vocab_progress_${lesson.id}`);
-    const isProg100 = savedProg ? parseFloat(savedProg) >= 100 : false;
-    const histEntry = (history || []).find((h) => h.lessonId === lesson.id);
-    if (isProg100 || histEntry?.status === "completed" || histEntry?.actionType === "complete") {
-      return "completed";
-    }
-    return "in_progress";
-  }, [history, lesson.id]);
-
-  const totalLoggedSeconds = useMemo(() => {
-    return (history || [])
-      .filter((h) => h.lessonId === lesson.id)
-      .reduce((sum, h) => sum + (h.durationSeconds || 0), 0);
-  }, [history, lesson.id]);
-
-  const formatLoggedDuration = (secs: number) => {
-    if (!secs || secs <= 0) return "0м";
-    const hrs = Math.floor(secs / 3600);
-    const mins = Math.floor((secs % 3600) / 60);
-    if (hrs > 0) return `${hrs}ч ${mins > 0 ? `${mins}м` : ""}`;
-    return `${mins}м`;
-  };
-
-  const isAudioOrVideoLesson = useMemo(() => {
-    return !!(
-      lesson.youtubeId ||
-      lesson.audioUrl ||
-      lesson.audioBase64 ||
-      lesson.lessonType === "podcast" ||
-      lesson.lessonType === "youtube" ||
-      lesson.lessonType === "audio"
-    );
-  }, [lesson]);
-
-  const handleToggleStatus = (newStatus: "in_progress" | "completed") => {
-    if (newStatus === "completed") {
-      safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "100");
-    } else {
-      const currentProg = localStorage.getItem(`vocab_progress_${lesson.id}`);
-      if (currentProg && parseFloat(currentProg) >= 100) {
-        safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "50");
-      }
-    }
-
-    if (onUpdateHistory) {
-      const now = new Date().toISOString();
-      const existingIdx = (history || []).findIndex((h) => h.lessonId === lesson.id);
-
-      let updated: HistoryEntry[];
-      if (existingIdx !== -1) {
-        updated = [...(history || [])];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          status: newStatus,
-          actionType: isAudioOrVideoLesson ? "listen" : (newStatus === "completed" ? "complete" : updated[existingIdx].actionType),
-          timestamp: now,
-        };
-      } else {
-        const newEntry: HistoryEntry = {
-          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          lessonId: lesson.id,
-          lessonTitle: lesson.title,
-          lessonType: lesson.lessonType || "article",
-          coverUrl: lesson.coverUrl || null,
-          targetLanguage: lesson.targetLanguage,
-          timestamp: now,
-          actionType: isAudioOrVideoLesson ? "listen" : (newStatus === "completed" ? "complete" : "read"),
-          status: newStatus,
-          durationSeconds: 0,
-        };
-        updated = [newEntry, ...(history || [])];
-      }
-      onUpdateHistory(updated);
-    }
-
-    showToast(newStatus === "completed" ? "✅ Статус изменён на 'Завершено'" : "⏳ Статус изменён на 'В процессе'");
-  };
-
-  const handleAddMinutes = (addedMinutes: number, notes?: string) => {
-    if (addedMinutes <= 0) return;
-    const addedSeconds = addedMinutes * 60;
-    const now = new Date().toISOString();
-
-    if (onUpdateHistory) {
-      const existingIdx = (history || []).findIndex(
-        (h) => h.lessonId === lesson.id && Date.now() - new Date(h.timestamp).getTime() < 24 * 60 * 60 * 1000
-      );
-
-      let updated: HistoryEntry[];
-      if (existingIdx !== -1) {
-        updated = [...(history || [])];
-        const existing = updated[existingIdx];
-        updated[existingIdx] = {
-          ...existing,
-          timestamp: now,
-          actionType: isAudioOrVideoLesson ? "listen" : existing.actionType,
-          durationSeconds: (existing.durationSeconds || 0) + addedSeconds,
-          notes: notes ? (existing.notes ? `${existing.notes}; ${notes}` : notes) : existing.notes,
-        };
-      } else {
-        const newEntry: HistoryEntry = {
-          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          lessonId: lesson.id,
-          lessonTitle: lesson.title,
-          lessonType: lesson.lessonType || "article",
-          coverUrl: lesson.coverUrl || null,
-          targetLanguage: lesson.targetLanguage,
-          timestamp: now,
-          actionType: isAudioOrVideoLesson ? "listen" : "read",
-          status: currentStatus,
-          durationSeconds: addedSeconds,
-          notes: notes || undefined,
-        };
-        updated = [newEntry, ...(history || [])];
-      }
-      onUpdateHistory(updated);
-    }
-
-    showToast(`⏱️ Добавлено +${addedMinutes} мин в историю!`);
-  };
-
-  const handleSaveCustomTime = (e: React.FormEvent) => {
-    e.preventDefault();
-    const mins = parseInt(customMinutesInput, 10) || 0;
-    if (mins > 0) {
-      handleAddMinutes(mins, customNotesInput.trim());
-    }
-    setIsCustomTimeModalOpen(false);
-    setCustomNotesInput("");
-  };
+  const {
+    isCustomTimeModalOpen,
+    setIsCustomTimeModalOpen,
+    customMinutesInput,
+    setCustomMinutesInput,
+    customNotesInput,
+    setCustomNotesInput,
+    toastMessage,
+    currentStatus,
+    totalLoggedSeconds,
+    formatLoggedDuration,
+    handleToggleStatus,
+    handleAddMinutes,
+    handleSaveCustomTime,
+  } = useReaderHistory({ lesson, history, onUpdateHistory });
 
   const textForSearch = useMemo(
     () => lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " "),
@@ -1308,126 +1089,21 @@ function ReaderPanel({
         className={`prose max-w-none space-y-6 ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
       >
         {showOnlyUnknown && unknownViewMode === "list" && (
-          <div className="animate-in fade-in duration-200 space-y-6 font-sans">
-            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-200/50 dark:border-zinc-800/60 shadow-xs">
-              <div className="relative w-full sm:max-w-xs">
-                <input
-                  type="text"
-                  placeholder="Поиск слов..."
-                  value={unknownSearchQuery}
-                  onChange={(e) => setUnknownSearchQuery(e.target.value)}
-                  className="w-full h-9 px-3.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 placeholder-zinc-400 dark:placeholder-zinc-650 transition-all font-sans"
-                />
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Сортировка:</span>
-                <select
-                  value={unknownSortMode}
-                  onChange={(e) => setUnknownSortMode(e.target.value as any)}
-                  className="text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 text-zinc-700 dark:text-zinc-300 cursor-pointer h-9 shadow-xs"
-                >
-                  <option value="alpha">По алфавиту</option>
-                  <option value="appearance">По появлению</option>
-                </select>
-              </div>
-            </div>
-
-            {filteredUnknownWords.length === 0 ? (
-              <div className="text-center py-16 bg-zinc-50/50 dark:bg-zinc-900/10 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">Неизвестных слов не найдено.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredUnknownWords.map((word) => {
-                  const status = getWordInfo(word);
-                  const key = resolveWord(word);
-                  const lang = lesson.targetLanguage.toLowerCase();
-                  const langKey = `${lang}_${key}`;
-                  const lq = vocab[langKey];
-                  const translation = lq ? lq.translation : "";
-                  const isSelected = activeWord?.toLowerCase() === word.toLowerCase() || activeWord?.toLowerCase() === key.toLowerCase();
-
-                  let badgeText = "New";
-                  let badgeColor = "bg-sky-100 text-sky-850 dark:bg-sky-950/40 dark:text-sky-350 border border-sky-200/50 dark:border-sky-900/40";
-                  if (status === "1") {
-                    badgeText = "L1";
-                    badgeColor = "bg-rose-100 text-rose-850 dark:bg-rose-950/40 dark:text-rose-350 border border-rose-200/50 dark:border-rose-900/40";
-                  } else if (status === "2") {
-                    badgeText = "L2";
-                    badgeColor = "bg-amber-105 text-amber-850 dark:bg-amber-950/40 dark:text-amber-350 border border-amber-200/50 dark:border-amber-900/40";
-                  } else if (status === "3" || (status as any) === "learning") {
-                    badgeText = "L3";
-                    badgeColor = "bg-emerald-100 text-emerald-850 dark:bg-emerald-950/40 dark:text-emerald-350 border border-emerald-200/50 dark:border-emerald-900/40";
-                  } else if (status === "4") {
-                    badgeText = "L4";
-                    badgeColor = "bg-blue-100 text-blue-850 dark:bg-blue-950/40 dark:text-blue-350 border border-blue-200/50 dark:border-blue-900/40";
-                  } else if (status === "5") {
-                    badgeText = "L5";
-                    badgeColor = "bg-purple-100 text-purple-850 dark:bg-purple-950/40 dark:text-purple-350 border border-purple-200/50 dark:border-purple-900/40";
-                  }
-
-                  const cardBorder = isSelected
-                    ? "border-teal-500 dark:border-teal-400 ring-2 ring-teal-500/25 shadow-md scale-102"
-                    : "border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-xs";
-
-                  return (
-                    <div
-                      key={word}
-                      onClick={() => onWordClick(word, lesson.text)}
-                      className={`p-4 rounded-2xl bg-white dark:bg-zinc-950 border transition-all cursor-pointer flex flex-col justify-between gap-3 ${cardBorder}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <span className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 break-words hover:text-teal-600 dark:hover:text-teal-400">
-                            {word}
-                          </span>
-                          {translation ? (
-                            <p className="text-xs text-zinc-650 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed" title={translation}>
-                              {translation}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-zinc-400 dark:text-zinc-650 mt-1 italic">
-                              Нет перевода
-                            </p>
-                          )}
-                        </div>
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded leading-none shrink-0 ${badgeColor}`}>
-                          {badgeText}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800/50 pt-3 mt-1 shrink-0 font-sans">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            speakWord(word);
-                          }}
-                          className="p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors cursor-pointer border border-zinc-200/50 dark:border-zinc-850"
-                          title="Прослушать произношение"
-                        >
-                          <Volume2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onMarkKnown(word);
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/20 dark:hover:bg-teal-900/35 text-teal-700 dark:text-teal-400 text-[10px] font-black uppercase tracking-wider border border-teal-100/60 dark:border-teal-900/40 transition-colors flex items-center gap-1 cursor-pointer"
-                          title="Отметить как известное"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Знаю</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <ReaderUnknownWordsList
+            lesson={lesson}
+            vocab={vocab}
+            activeWord={activeWord}
+            unknownSearchQuery={unknownSearchQuery}
+            setUnknownSearchQuery={setUnknownSearchQuery}
+            unknownSortMode={unknownSortMode}
+            setUnknownSortMode={setUnknownSortMode}
+            filteredUnknownWords={filteredUnknownWords}
+            getWordInfo={getWordInfo}
+            resolveWord={resolveWord}
+            onWordClick={onWordClick}
+            onMarkKnown={onMarkKnown}
+            speakWord={speakWord}
+          />
         )}
 
         {!(showOnlyUnknown && unknownViewMode === "list") && activeSegmentsForPage.map((seg, pIdx) => {

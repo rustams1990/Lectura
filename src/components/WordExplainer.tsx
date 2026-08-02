@@ -10,6 +10,8 @@ import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCo
 import { getSuggestedLemmas } from "../morphology";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
+import ImageSearch from "./ImageSearch";
+import AiExplainerChat from "./AiExplainerChat";
 import { BookOpen, Check, HelpCircle, Loader2, Award, Volume2, Ban, Sparkles, Tag, Plus, X, ChevronDown, ChevronUp, Trash2, Edit, ExternalLink, AppWindow, Image, Upload, Languages, Save } from "lucide-react";
 
 const sanitizeGrammarTag = (tag: string) => {
@@ -359,29 +361,8 @@ function WordExplainer({
   const [bookOpen, setBookOpen] = useState(false);
   const [aiTabOpen, setAiTabOpen] = useState(false);
   const [imageUrlValue, setImageUrlValue] = useState<string | null>(null);
-  const [imageSearchKeyword, setImageSearchKeyword] = useState("");
-  const [imagesList, setImagesList] = useState<{ id: string; url: string; thumb: string; author: string; description: string }[]>([]);
-  const [imagesLoading, setImagesLoading] = useState(false);
-  const [imageSearchError, setImageSearchError] = useState<string | null>(null);
-
-  // Ask AI state variables
-  const [askAiOpen, setAskAiOpen] = useState(true);
-  const [customQuestion, setCustomQuestion] = useState("");
+  // Ask AI state variables (only answer is kept in WordExplainer for saving)
   const [customAnswer, setCustomAnswer] = useState("");
-  const [customAiLoading, setCustomAiLoading] = useState(false);
-  const [customAiError, setCustomAiError] = useState<string | null>(null);
-
-  const handleSearchImages = async (keyword: string) => {
-    if (!keyword || !keyword.trim()) return;
-    setImagesLoading(true);
-    setImageSearchError(null);
-    try {
-      const resp = await fetch(`/api/image-search?q=${encodeURIComponent(keyword.trim())}`);
-      if (!resp.ok) {
-        throw new Error("Failed to fetch images from search proxy.");
-      }
-      const data = await safeJsonParse(resp);
-      setImagesList(data.results || []);
     } catch (err: any) {
       console.error(err);
       setImageSearchError("Failed to fetch images from internet");
@@ -903,93 +884,58 @@ function WordExplainer({
     }
   };
 
-  const handleAskAi = async (questionText: string) => {
-    if (!word || !questionText.trim()) return;
-    setCustomAiLoading(true);
-    setCustomAiError(null);
-    if (customQuestion !== questionText) {
-      setCustomQuestion(questionText);
+  const handleExplanationReceived = (data: any, questionText: string) => {
+    const answer = data.contextRelation || data.translation || "No explanation provided.";
+    setCustomAnswer(answer);
+    setContextRelationValue(answer);
+
+    // Auto-populate other fields if empty
+    let currentTranslation = translationValue;
+    if (!currentTranslation || currentTranslation === "Pending translation" || currentTranslation.startsWith("[")) {
+      if (data.translation) {
+        currentTranslation = normalizeTranslationSemicolons(data.translation);
+        setTranslationValue(currentTranslation);
+      }
+    }
+    let currentIpa = ipaValue;
+    if (data.ipa && !currentIpa) {
+      currentIpa = data.ipa;
+      setIpaValue(data.ipa);
+    }
+    let currentGrammar = grammarValue;
+    let currentTags = selectedTags;
+    if (data.grammar && !currentGrammar) {
+      const cleanGrammar = sanitizeGrammarTag(data.grammar);
+      currentGrammar = cleanGrammar;
+      setGrammarValue(cleanGrammar);
+      currentTags = selectedTags.includes(cleanGrammar) ? selectedTags : [...selectedTags, cleanGrammar];
+      setSelectedTags(currentTags);
+    }
+    let currentExamples = examplesValue;
+    if (data.examples && data.examples.length > 0 && currentExamples.length === 0) {
+      currentExamples = data.examples;
+      setExamplesValue(data.examples);
     }
 
-    try {
-      const endpoint = "/api/explain";
-      const bodyParams: any = {
-        word,
-        context: sentence || word,
-        targetLanguage,
-        translationLanguage,
-        aiProvider: settings?.aiProvider || "gemini",
-        localAiUrl: settings?.localAiUrl || "http://localhost:11434/api/generate",
-        localAiModel: settings?.localAiModel || "phi3.5",
-        customQuestion: questionText.trim(),
-      };
+    // Auto-save the explanation
+    const nextStatus = status === "new" ? "2" : status;
+    if (status === "new") setStatus("2");
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyParams),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to get explanation from AI.");
-      }
-
-      const data = await safeJsonParse(response);
-      const answer = data.contextRelation || data.translation || "No explanation provided.";
-      setCustomAnswer(answer);
-      setContextRelationValue(answer);
-
-      // Auto-populate other fields if empty
-      let currentTranslation = translationValue;
-      if (!currentTranslation || currentTranslation === "Pending translation" || currentTranslation.startsWith("[")) {
-        if (data.translation) {
-          currentTranslation = normalizeTranslationSemicolons(data.translation);
-          setTranslationValue(currentTranslation);
-        }
-      }
-      let currentIpa = ipaValue;
-      if (data.ipa && !currentIpa) {
-        currentIpa = data.ipa;
-        setIpaValue(data.ipa);
-      }
-      let currentGrammar = grammarValue;
-      let currentTags = selectedTags;
-      if (data.grammar && !currentGrammar) {
-        const cleanGrammar = sanitizeGrammarTag(data.grammar);
-        currentGrammar = cleanGrammar;
-        setGrammarValue(cleanGrammar);
-        currentTags = selectedTags.includes(cleanGrammar) ? selectedTags : [...selectedTags, cleanGrammar];
-        setSelectedTags(currentTags);
-      }
-      let currentExamples = examplesValue;
-      if (data.examples && data.examples.length > 0 && currentExamples.length === 0) {
-        currentExamples = data.examples;
-        setExamplesValue(data.examples);
-      }
-
-      // Auto-save the explanation
-      const nextStatus = status === "new" ? "2" : status;
-      if (status === "new") setStatus("2");
-
-      const savedTags = currentTags.length > 0 ? currentTags : (currentGrammar ? [currentGrammar] : []);
-      const newVocab: VocabItem = {
-        word: word.toLowerCase(),
-        translation: currentTranslation.trim() || "Pending translation",
-        ipa: currentIpa || "",
-        grammar: currentGrammar || "",
-        contextRelation: answer,
-        status: nextStatus,
-        examples: currentExamples,
-        createdAt: existingVocab ? existingVocab.createdAt : Date.now(),
-        tags: savedTags,
-        imageUrl: imageUrlValue,
-      };
+    const savedTags = currentTags.length > 0 ? currentTags : (currentGrammar ? [currentGrammar] : []);
+    const newVocab: VocabItem = {
+      word: word?.toLowerCase() || "",
+      translation: currentTranslation.trim() || "Pending translation",
+      ipa: currentIpa || "",
+      grammar: currentGrammar || "",
+      contextRelation: answer,
+      status: nextStatus,
+      examples: currentExamples,
+      createdAt: existingVocab ? existingVocab.createdAt : Date.now(),
+      tags: savedTags,
+      imageUrl: imageUrlValue,
+    };
+    if (word) {
       onSaveVocab(newVocab);
-    } catch (err: any) {
-      console.error(err);
-      setCustomAiError(err.message || "An error occurred while calling AI.");
-    } finally {
-      setCustomAiLoading(false);
     }
   };
 
@@ -2075,107 +2021,18 @@ function WordExplainer({
 
         {/* Ask AI Section */}
         {aiTabOpen && (
-          <div className="space-y-3 shrink-0 animate-in slide-in-from-top-1 duration-150">
-            <div className="border border-purple-100 dark:border-purple-900/50 rounded-xl overflow-visible bg-purple-50/10 dark:bg-purple-950/5">
-              <button
-                type="button"
-                onClick={() => setAskAiOpen(!askAiOpen)}
-                className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-purple-50/20 dark:hover:bg-purple-950/10 transition-colors"
-              >
-                <span className="uppercase tracking-wider text-[9px] text-purple-600 dark:text-purple-400 font-black font-sans flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-500 animate-pulse" /> Спросить ИИ (Ask AI)
-                </span>
-                {askAiOpen ? <ChevronUp className="w-3 h-3 text-purple-400" /> : <ChevronDown className="w-3 h-3 text-purple-400" />}
-              </button>
-
-              {askAiOpen && (
-                <div className="p-2.5 pt-0 border-t border-purple-100/30 dark:border-purple-900/20 space-y-2.5">
-                  <div className="relative mt-1.5">
-                    <textarea
-                      value={customQuestion}
-                      onChange={(e) => setCustomQuestion(e.target.value)}
-                      placeholder="Задайте вопрос к тексту... (например: Почему здесь такая форма? Объясни грамматику. Что это значит?)"
-                      rows={2}
-                      className="w-full p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/80 transition-all font-medium custom-scrollbar resize-none"
-                    />
-                  </div>
-
-                  {/* Quick Prompts */}
-                  <div className="flex flex-wrap gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleAskAi("Объясни грамматику и форму слов")}
-                      className="px-2 py-1 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
-                    >
-                      📖 Объясни грамматику
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAskAi("Что означает это выражение/идиома в данном контексте?")}
-                      className="px-2 py-1 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
-                    >
-                      💡 Разбери смысл/идиому
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAskAi("Переведи дословно и объясни разницу")}
-                      className="px-2 py-1 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg border border-purple-100/50 dark:border-purple-900/30 transition-all cursor-pointer"
-                    >
-                      ⚡ Переведи дословно
-                    </button>
-                  </div>
-
-                  {/* Action and status row */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      {customAiLoading && (
-                        <div className="flex items-center gap-1.5 text-zinc-500 text-[10px] font-bold">
-                          <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
-                          <span className="truncate">ИИ формулирует ответ...</span>
-                        </div>
-                      )}
-                      {customAiError && (
-                        <div className="text-[10px] text-red-500 font-bold truncate" title={customAiError}>
-                          Ошибка: {customAiError}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleAskAi(customQuestion)}
-                      disabled={customAiLoading || !customQuestion.trim()}
-                      className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10.5px] font-bold shrink-0 transition-all disabled:opacity-50 flex items-center gap-1 cursor-pointer active:scale-95"
-                    >
-                      Спросить ИИ ✨
-                    </button>
-                  </div>
-
-                  {/* Answer display */}
-                  {customAnswer && (
-                    <div className="space-y-1.5 pt-2.5 border-t border-purple-100/30 dark:border-purple-900/20">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[8.5px] font-extrabold uppercase tracking-widest text-purple-600 dark:text-purple-400">Объяснение ИИ:</span>
-                        <button
-                          type="button"
-                          onClick={handleSaveExplanation}
-                          className="text-[9px] font-bold text-teal-600 hover:text-teal-700 hover:underline flex items-center gap-0.5 cursor-pointer"
-                        >
-                          <Save className="w-2.5 h-2.5" /> Сохранить в словарь
-                        </button>
-                      </div>
-                      <div className="relative group/answer">
-                        <textarea
-                          value={customAnswer}
-                          onChange={(e) => setCustomAnswer(e.target.value)}
-                          rows={5}
-                          className="w-full p-2 text-xs bg-purple-50/15 dark:bg-purple-950/5 border border-purple-100/50 dark:border-purple-900/20 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-purple-500/80 transition-all font-medium custom-scrollbar"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+          <AiExplainerChat
+            word={word}
+            sentence={sentence}
+            targetLanguage={targetLanguage}
+            translationLanguage={translationLanguage}
+            settings={settings}
+            customAnswer={customAnswer}
+            onCustomAnswerChange={setCustomAnswer}
+            onExplanationReceived={handleExplanationReceived}
+            onSaveExplanation={handleSaveExplanation}
+          />
+        )}
 
             {/* 6. AI Generated Sentences */}
             {examplesValue.length > 0 && (
@@ -2274,139 +2131,13 @@ function WordExplainer({
 
         {/* 2.5. Pictures search & selection (Lute Image Search Requirement) */}
         {imageOpen && (
-          <div className="p-2.5 bg-zinc-50/75 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 animate-in slide-in-from-top-1 duration-150 font-sans">
-            <span className="text-[9px] uppercase font-extrabold text-zinc-400 dark:text-zinc-500 tracking-wider flex items-center gap-1.5 pl-0.5">
-              <span className="text-teal-600">🖼️</span> Изображение слова (Word Image)
-            </span>
-
-            {/* Selected Image Preview with delete handle */}
-            {imageUrlValue ? (
-              <div className="relative group/img rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100/20 dark:bg-zinc-900 max-h-32 flex items-center justify-center">
-                <img
-                  src={imageUrlValue.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(imageUrlValue)}` : imageUrlValue}
-                  alt={word || ""}
-                  className="max-h-32 max-w-full object-contain rounded-xl p-1"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-black/45 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectImage(null)}
-                    className="px-2.5 py-1 bg-red-650 text-white rounded-lg text-[10px] font-bold hover:bg-red-700 cursor-pointer shadow-sm transition-colors flex items-center gap-1"
-                  >
-                    <Trash2 className="w-3 h-3" /> Удалить (Remove)
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-normal border border-dashed border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-lg font-medium bg-white dark:bg-zinc-900/40">
-                Изображение не выбрано. Выберите ниже или вставьте картинку.
-              </div>
-            )}
-
-            {/* Paste from clipboard and custom upload action zone */}
-            <div className="grid grid-cols-2 gap-2 font-sans text-[10px]">
-              <div
-                onPaste={handleClipboardPaste}
-                tabIndex={0}
-                className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
-                title="Click here, then press Ctrl+V (or Command+V) to paste any copied image from your clipboard!"
-              >
-                <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">Paste clipboard</span>
-                <span className="text-[9.5px] mt-0.5 font-bold">Нажмите и вставьте Ctrl+V</span>
-              </div>
-
-              <label className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12">
-                <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">File upload</span>
-                <span className="text-[9.5px] mt-0.5 font-bold">Загрузить файл (Upload)</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* Keyword Search Row */}
-            <div className="flex items-center gap-1">
-              <input
-                type="text"
-                value={imageSearchKeyword}
-                onChange={(e) => setImageSearchKeyword(e.target.value)}
-                placeholder="Keyword to search..."
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleSearchImages(imageSearchKeyword);
-                  }
-                }}
-                className="flex-1 px-2.5 py-1 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
-              />
-              <button
-                type="button"
-                onClick={() => handleSearchImages(imageSearchKeyword)}
-                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-md text-[11px] font-bold shrink-0 transition-colors cursor-pointer"
-              >
-                Поиск
-              </button>
-            </div>
-
-            {/* Searched Results Horizontal Grid */}
-            <div className="space-y-1 w-full">
-              <span className="text-[8.5px] uppercase font-extrabold tracking-widest text-zinc-400 dark:text-zinc-500">Результаты поиска Unsplash:</span>
-              
-              {imagesLoading ? (
-                <div className="py-4 flex items-center justify-center gap-2 text-zinc-400 dark:text-zinc-500 font-bold text-[10px]">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
-                  <span>Ищем картинки...</span>
-                </div>
-              ) : imageSearchError ? (
-                <div className="text-[10px] text-rose-500 py-1 font-bold text-center">
-                  {imageSearchError}
-                </div>
-              ) : imagesList.length > 0 ? (
-                <div className="grid grid-cols-4 gap-1 max-h-[140px] overflow-y-auto scrollbar-thin rounded-lg p-0.5">
-                  {imagesList.map((img, idx) => {
-                    const imgUrl = img.url || (img as any).image || "";
-                    const rawThumb = img.thumb || (img as any).thumbnail || imgUrl;
-                    const imgThumb = rawThumb.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(rawThumb)}` : rawThumb;
-                    const imgAuthor = img.author || (img as any).source || "";
-                    const imgDesc = img.description || (img as any).title || "";
-                    const imgId = img.id || imgUrl || `img_${idx}`;
-                    const isSelected = imageUrlValue === imgUrl;
-                    return (
-                      <button
-                        key={imgId}
-                        type="button"
-                        onClick={() => handleSelectImage(imgUrl)}
-                        title={`${imgDesc} by ${imgAuthor}`}
-                        className={`relative aspect-square w-full rounded-md overflow-hidden border transition-all cursor-pointer hover:scale-103 group ${
-                          isSelected
-                            ? "ring-2 ring-teal-500 border-transparent shadow-xs"
-                            : "border-zinc-100 hover:border-zinc-400/80"
-                        }`}
-                      >
-                        <img
-                          src={imgThumb}
-                          alt={imgDesc}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[6.5px] px-0.5 py-0.25 truncate opacity-0 group-hover:opacity-100 transition-opacity leading-none">
-                          {imgAuthor}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center py-2 font-medium">
-                  Нет картинок. Попробуйте другой запрос.
-                </div>
-              )}
-            </div>
-          </div>
+          <ImageSearch
+            word={word}
+            imageUrlValue={imageUrlValue}
+            handleSelectImage={handleSelectImage}
+            handleClipboardPaste={handleClipboardPaste}
+            handleFileChange={handleFileChange}
+          />
         )}
 
         {/* Dedicated Context Search Tab content */}
