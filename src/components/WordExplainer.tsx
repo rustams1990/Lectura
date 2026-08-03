@@ -360,6 +360,7 @@ function WordExplainer({
   const [imageOpen, setImageOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
   const [aiTabOpen, setAiTabOpen] = useState(false);
+  const [examplesTabOpen, setExamplesTabOpen] = useState(false);
   const [imageUrlValue, setImageUrlValue] = useState<string | null>(null);
   // Ask AI state variables (only answer is kept in WordExplainer for saving)
   const [customAnswer, setCustomAnswer] = useState("");
@@ -1601,6 +1602,7 @@ function WordExplainer({
             setImageOpen(false);
             setBookOpen(false);
             setAiTabOpen(false);
+            setExamplesTabOpen(false);
           }}
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             tagsOpen
@@ -1620,6 +1622,7 @@ function WordExplainer({
             setTagsOpen(false);
             setBookOpen(false);
             setAiTabOpen(false);
+            setExamplesTabOpen(false);
           }}
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             imageOpen
@@ -1639,6 +1642,7 @@ function WordExplainer({
             setTagsOpen(false);
             setImageOpen(false);
             setAiTabOpen(false);
+            setExamplesTabOpen(false);
           }}
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             bookOpen
@@ -1658,6 +1662,7 @@ function WordExplainer({
             setTagsOpen(false);
             setImageOpen(false);
             setBookOpen(false);
+            setExamplesTabOpen(false);
           }}
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             aiTabOpen
@@ -1668,6 +1673,28 @@ function WordExplainer({
           <Sparkles className="w-2.5 h-2.5" />
           <span>AI+</span>
         </button>
+
+        {/* Ctx+ button to toggle example usages panel */}
+        {examplesValue.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setExamplesTabOpen(!examplesTabOpen);
+              setTagsOpen(false);
+              setImageOpen(false);
+              setBookOpen(false);
+              setAiTabOpen(false);
+            }}
+            className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
+              examplesTabOpen
+                ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
+                : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+            }`}
+          >
+            <Award className="w-2.5 h-2.5" />
+            <span>Ctx+</span>
+          </button>
+        )}
       </div>
 
       {/* Collapsible Section Layout Block */}
@@ -2021,8 +2048,8 @@ function WordExplainer({
         )}
 
             {/* 6. AI Generated Sentences */}
-            {examplesValue.length > 0 && (
-              <div className="space-y-2 pt-1 font-sans">
+            {examplesValue.length > 0 && examplesTabOpen && (
+              <div className="space-y-2 pt-1 font-sans animate-in slide-in-from-top-1 duration-150">
                 <span className="text-[10px] uppercase font-extrabold text-zinc-400 dark:text-zinc-500 tracking-wider flex items-center gap-1 pl-0.5">
                   <Award className="w-3.5 h-3.5 text-teal-500" /> Example Usages (AI)
                 </span>
