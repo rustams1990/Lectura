@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './i18n';
 
 // Global error handlers to capture any elusive uncaught exceptions or network errors
 window.addEventListener("error", (event) => {

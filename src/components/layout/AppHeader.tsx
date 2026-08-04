@@ -2,6 +2,7 @@ import React from 'react';
 import { Menu, Languages, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { settingsStore } from '../../db';
+import { useTranslation } from 'react-i18next';
 
 interface AppHeaderProps {
   isFocusMode: boolean;
@@ -36,6 +37,7 @@ export default function AppHeader({
   isSyncing
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
+  const { t } = useTranslation();
 
   if (isFocusMode) return null;
 
@@ -49,7 +51,7 @@ export default function AppHeader({
             id="btn-toggle-sidebar"
             onClick={() => setIsSidebarOpen(true)}
             className="p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
-            title="Открыть меню (Open Left Sidebar Menu)"
+            title={t('header.open_menu', 'Открыть меню')}
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -71,7 +73,7 @@ export default function AppHeader({
               }
             }}
             className="flex items-center gap-2.5 group cursor-pointer transition-all active:scale-98 text-left focus:outline-none no-underline"
-            title="На главную (Go to Home Page)"
+            title={t('header.go_home', 'На главную')}
           >
             <div className="p-2 bg-teal-600 group-hover:bg-teal-500 rounded-xl text-white shadow-md shadow-teal-100/10 dark:shadow-none hidden sm:block transition-colors">
               <Languages className="w-5 h-5 transition-transform group-hover:scale-110" />
@@ -98,7 +100,7 @@ export default function AppHeader({
               setIsDarkMode(next);
             }}
             className="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-amber-500 dark:text-indigo-400 border-zinc-200/60 dark:border-zinc-800/80"
-            title={isDarkMode ? "Светлая тема (Light Mode)" : "Тёмная тема (Dark Mode)"}
+            title={isDarkMode ? t('header.light_mode', 'Светлая тема') : t('header.dark_mode', 'Тёмная тема')}
             aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
           >
             {isDarkMode ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
@@ -107,7 +109,7 @@ export default function AppHeader({
           {isAuthLoading ? (
             <div className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 shadow-3xs">
               <div className="w-3.5 h-3.5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-[10px] text-zinc-400 font-bold hidden sm:inline">Checking...</span>
+              <span className="text-[10px] text-zinc-400 font-bold hidden sm:inline">{t('header.checking', 'Checking...')}</span>
             </div>
           ) : activeUser ? (
             <div className="flex items-center gap-2 px-3 py-1 bg-teal-50 dark:bg-teal-900/20 border border-teal-200/50 dark:border-teal-900 rounded-xl relative shadow-3xs">
@@ -137,18 +139,18 @@ export default function AppHeader({
                   logout().catch(err => console.error(err));
                 }}
                 className="text-[9px] font-bold text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-1.5 py-0.5 rounded transition cursor-pointer"
-                title="Выйти (Logout)"
+                title={t('header.exit', 'Выйти')}
               >
-                Exit
+                {t('header.exit', 'Exit')}
               </button>
             </div>
           ) : (
             <button
               onClick={() => setShowLocalLoginModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-[10px] font-bold rounded-xl transition duration-150 cursor-pointer shadow-3xs"
-              title="Войдите, чтобы сохранить результаты"
+              title={t('header.login_title', 'Войдите, чтобы сохранить результаты')}
             >
-              ☁️ Войти (Sync)
+              {t('header.login', '☁️ Войти (Sync)')}
             </button>
           )}
         </div>

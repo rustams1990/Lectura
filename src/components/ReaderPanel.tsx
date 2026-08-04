@@ -13,6 +13,7 @@ import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
 import { segmentSentenceTokens } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
+import { useTranslation } from "react-i18next";
 
 interface ReaderPanelProps {
   key?: string;
@@ -68,14 +69,14 @@ const widthMap = {
   wide: "max-w-5xl mx-auto",
 };
 
-const getPhraseTypeLabel = (type?: string) => {
-  if (!type) return "Идиома";
+const getPhraseTypeLabel = (type: string | undefined, t: any) => {
+  if (!type) return t('reader.phrase_idiom', 'Идиома');
   switch (type.toLowerCase()) {
-    case "phrasal_verb": return "Фразовый глагол";
-    case "idiom": return "Идиома";
-    case "saying": return "Пословица / поговорка";
-    case "set_expression": return "Устойчивое выражение";
-    default: return "Идиома";
+    case "phrasal_verb": return t('reader.phrase_verb', 'Фразовый глагол');
+    case "idiom": return t('reader.phrase_idiom', 'Идиома');
+    case "saying": return t('reader.phrase_saying', 'Пословица / поговорка');
+    case "set_expression": return t('reader.phrase_set', 'Устойчивое выражение');
+    default: return t('reader.phrase_idiom', 'Идиома');
   }
 };
 
@@ -104,6 +105,7 @@ function ReaderPanel({
   history,
   onUpdateHistory,
 }: ReaderPanelProps) {
+  const { t } = useTranslation();
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
   const [unknownSearchQuery, setUnknownSearchQuery] = useState("");
   const [unknownSortMode, setUnknownSortMode] = useState<"alpha" | "appearance">("alpha");
@@ -540,16 +542,16 @@ function ReaderPanel({
                 onClick={onEditClick}
                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
               >
-                ✏️ ред.
+                {t('reader.btn_edit', '✏️ ред.')}
               </button>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100/40 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
-              Язык: {lesson.targetLanguage}
+              {t('reader.lang_target', 'Язык: ')}{lesson.targetLanguage}
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
-              Перевод: {lesson.translationLanguage}
+              {t('reader.lang_trans', 'Перевод: ')}{lesson.translationLanguage}
             </span>
             {lesson.difficulty && (
               <span 
@@ -557,11 +559,11 @@ function ReaderPanel({
                   getDifficultyBadgeStyles(lesson.difficulty)
                 }`}
               >
-                Сложность: {lesson.difficulty}
+                {t('reader.difficulty', 'Сложность: ')}{lesson.difficulty}
               </span>
             )}
             <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
-              📖 Прочитано: {scrollProgress}%
+              {t('reader.read_pct', '📖 Прочитано: ')}{scrollProgress}%
             </span>
           </div>
         </div>
@@ -578,10 +580,10 @@ function ReaderPanel({
                   ? "bg-teal-600 text-white shadow-2xs"
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
-              title="Установить статус: В процессе"
+              title={t('reader.status_in_progress_title', 'Установить статус: В процессе')}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>В процессе</span>
+              <span>{t('reader.status_in_progress', 'В процессе')}</span>
             </button>
 
             <button
@@ -592,10 +594,10 @@ function ReaderPanel({
                   ? "bg-emerald-600 text-white shadow-2xs"
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
-              title="Установить статус: Завершено"
+              title={t('reader.status_completed_title', 'Установить статус: Завершено')}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Завершено</span>
+              <span>{t('reader.status_completed', 'Завершено')}</span>
             </button>
           </div>
 
@@ -610,7 +612,7 @@ function ReaderPanel({
               type="button"
               onClick={() => handleAddMinutes(15)}
               className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-              title="Добавить 15 минут чтения к истории"
+              title={t('reader.add_15m_title', 'Добавить 15 минут чтения к истории')}
             >
               +15м
             </button>
@@ -619,7 +621,7 @@ function ReaderPanel({
               type="button"
               onClick={() => handleAddMinutes(30)}
               className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-              title="Добавить 30 минут чтения к истории"
+              title={t('reader.add_30m_title', 'Добавить 30 минут чтения к истории')}
             >
               +30м
             </button>
@@ -628,7 +630,7 @@ function ReaderPanel({
               type="button"
               onClick={() => handleAddMinutes(60)}
               className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-              title="Добавить 1 час чтения к истории"
+              title={t('reader.add_1h_title', 'Добавить 1 час чтения к истории')}
             >
               +1ч
             </button>
@@ -637,7 +639,7 @@ function ReaderPanel({
               type="button"
               onClick={() => setIsCustomTimeModalOpen(true)}
               className="px-2 py-1 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer"
-              title="Добавить произвольное время чтения"
+              title={t('reader.add_custom_title', 'Добавить произвольное время чтения')}
             >
               +...
             </button>
@@ -649,7 +651,7 @@ function ReaderPanel({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-zinc-850 dark:text-zinc-200 animate-in fade-in duration-200 font-sans">
           <span className="text-xs font-black flex items-center gap-1.5 uppercase tracking-wider text-amber-700 dark:text-amber-400">
             <Sparkles className="w-4 h-4 text-amber-500 animate-pulse animate-duration-1000" />
-            Неизвестных слов в главе: {allUnknownWords.length}
+            {t('reader.unknown_count', 'Неизвестных слов в главе: ')}{allUnknownWords.length}
           </span>
           <div className="flex items-center gap-1 bg-white/60 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 shrink-0">
             <button
@@ -662,7 +664,7 @@ function ReaderPanel({
               }`}
             >
               <AlignLeft className="w-3.5 h-3.5" />
-              В контексте
+              {t('reader.view_context', 'В контексте')}
             </button>
             <button
               type="button"
@@ -674,7 +676,7 @@ function ReaderPanel({
               }`}
             >
               <List className="w-3.5 h-3.5" />
-              Списком
+              {t('reader.view_list', 'Списком')}
             </button>
           </div>
         </div>
@@ -793,7 +795,7 @@ function ReaderPanel({
                     src={dataUrl} 
                     style={imgStyle} 
                     className="rounded-xl shadow-xs max-w-full" 
-                    alt="Иллюстрация" 
+                    alt={t('reader.illustration', 'Иллюстрация')} 
                     referrerPolicy="no-referrer"
                     id={`pdf-epub-img-${pIdx}`}
                   />
@@ -1504,11 +1506,11 @@ function ReaderPanel({
                         ? "border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/10 dark:text-amber-400"
                         : "border border-purple-200 bg-purple-55 text-purple-800 dark:border-purple-900/40 dark:bg-purple-950/20 dark:text-purple-400"
                     }`}
-                    title={`[${getPhraseTypeLabel(details.type)}] ${details.translation}: ${details.explanation}`}
+                    title={`[${getPhraseTypeLabel(details.type, t)}] ${details.translation}: ${details.explanation}`}
                   >
                     <span>{isSaved ? `📖 ${phrase}` : `✨ ${phrase}`}</span>
                     <span className="text-[8px] opacity-75 font-normal px-1 rounded-sm bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 uppercase tracking-wider">
-                      {getPhraseTypeLabel(details.type).toLowerCase()}
+                      {getPhraseTypeLabel(details.type, t).toLowerCase()}
                     </span>
                   </button>
                 );
@@ -1664,7 +1666,7 @@ function ReaderPanel({
                   </span>
                 </div>
                 <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40 animate-pulse">
-                  {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType)} (ИИ)
+                  {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType, t)} (ИИ)
                 </span>
               </div>
               {hoveredWordObj.detectedPhraseTranslation && (

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Languages, X, BookMarked, BookOpen, GraduationCap, TrendingUp, History, Sparkles, Settings, PlusCircle } from 'lucide-react';
 import { Lesson } from '../../types';
+import { useTranslation } from 'react-i18next';
 
 interface AppSidebarProps {
   isSidebarOpen: boolean;
@@ -35,6 +36,8 @@ export default function AppSidebar({
   setShowLocalLoginModal,
   currentReaderTheme
 }: AppSidebarProps) {
+  const { t } = useTranslation();
+
   if (!isSidebarOpen) return null;
 
   return (
@@ -100,7 +103,7 @@ export default function AppSidebar({
               }`}
             >
               <BookMarked className="w-4 h-4 shrink-0" />
-              Библиотека
+              {t('sidebar.library', 'Библиотека')}
             </button>
 
             <button
@@ -134,7 +137,7 @@ export default function AppSidebar({
               }`}
             >
               <GraduationCap className="w-4 h-4 shrink-0" />
-              Практика
+              {t('sidebar.practice', 'Практика')}
             </button>
 
             <button
@@ -151,7 +154,7 @@ export default function AppSidebar({
               }`}
             >
               <TrendingUp className="w-4 h-4 shrink-0" />
-              Словарь и статистика
+              {t('sidebar.statistics', 'Словарь и статистика')}
             </button>
 
             <button
@@ -168,7 +171,7 @@ export default function AppSidebar({
               }`}
             >
               <History className="w-4 h-4 shrink-0 text-teal-600 dark:text-teal-400" />
-              История чтения
+              {t('sidebar.history', 'История чтения')}
             </button>
           </div>
 
@@ -202,7 +205,7 @@ export default function AppSidebar({
               className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white rounded-xl transition-all cursor-pointer"
             >
               <Settings className="w-4 h-4 text-zinc-400 shrink-0" />
-              Настройки
+              {t('sidebar.settings', 'Настройки')}
             </button>
 
             <button

@@ -11,8 +11,9 @@ import { APP_VERSION } from "../version";
 import { 
   X, Check, Globe, HelpCircle, Save, RotateCcw, Trash2, Link, 
   Maximize2, Sparkles, Database, HardDrive, Download, Upload, ShieldAlert,
-  Wifi, Copy, RefreshCw, TrendingUp, Headphones
+  Wifi, Copy, RefreshCw, TrendingUp, Headphones, Languages
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -304,6 +305,7 @@ export default function SettingsModal({
   settings,
   onSettingsChange,
 }: SettingsModalProps) {
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   const [customInputs, setCustomInputs] = useState<Record<string, string>>({});
   const [activeSettingsTab, setActiveSettingsTab] = useState<"flags" | "interface" | "patterns" | "storage">("flags");
@@ -506,7 +508,7 @@ export default function SettingsModal({
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                Настройки Приложения <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">{APP_VERSION}</span>
+                {t('settings.title', 'Настройки Приложения')} <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">{APP_VERSION}</span>
               </h3>
               <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed">
                 Настройте масштаб интерфейса, управляйте связями слов и визуальным оформлением флагов.
@@ -516,7 +518,7 @@ export default function SettingsModal({
           <button
             onClick={onClose}
             className="p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
-            title="Закрыть"
+            title={t('settings.close', 'Закрыть')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -689,6 +691,45 @@ export default function SettingsModal({
           {/* Active Tab: Interface Scale (Увеличение/Уменьшение интерфейса) */}
           {activeSettingsTab === "interface" && (
             <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Language Switcher */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl text-indigo-600 dark:text-indigo-400 shrink-0">
+                    <Languages className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                      {t('settings.language', 'Язык интерфейса')}
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
+                      Выберите язык приложения. Изменения применятся сразу.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => i18n.changeLanguage('ru')}
+                    className={`py-2 px-3 rounded-xl border text-sm font-bold transition-all ${
+                      i18n.language === 'ru'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+                    }`}
+                  >
+                    🇷🇺 Русский
+                  </button>
+                  <button
+                    onClick={() => i18n.changeLanguage('en')}
+                    className={`py-2 px-3 rounded-xl border text-sm font-bold transition-all ${
+                      i18n.language === 'en'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+                    }`}
+                  >
+                    🇬🇧 English
+                  </button>
+                </div>
+              </div>
+
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-5">
                 <div className="flex items-start gap-3">
                   <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">

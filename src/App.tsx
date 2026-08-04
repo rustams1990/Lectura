@@ -62,6 +62,7 @@ import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
 import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage } from "./db";
+import { useTranslation, Trans } from "react-i18next";
 
 const readerThemes = {
   default: {
@@ -111,6 +112,7 @@ export default function App() {
     layoutWidthMode, setLayoutWidthMode,
     isSidebarOpen, setIsSidebarOpen
   } = useUIStore();
+  const { t } = useTranslation();
   const [isAppLoaded, setIsAppLoaded] = useState(false);
 
   // Durable browser persistence states
@@ -1631,7 +1633,7 @@ export default function App() {
       }
     } catch (e: any) {
       console.error(e);
-      showToast("Ошибка при распознавании идиом: " + (e.message || String(e)), "error");
+      showToast(t('app.idioms_error', "Ошибка при распознавании идиом: ") + (e.message || String(e)), "error");
     } finally {
       setIsDetectingIdioms(false);
     }
@@ -1803,13 +1805,13 @@ export default function App() {
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-95 text-inherit font-bold text-xs rounded-xl transition-all active:scale-98 cursor-pointer shadow-xs`}
             >
-              ← Выйти из фокуса
+              ← {t('app.focus_exit', 'Выйти из фокуса')}
             </button>
 
             {/* Lesson Title Indicators */}
             <div className="text-center flex-1 max-w-xl truncate">
               <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 dark:text-teal-400 bg-teal-100/40 dark:bg-teal-950/40 px-2 py-0.5 rounded">
-                Режим фокуса
+                {t('app.focus_mode', 'Режим фокуса')}
               </span>
               <h2 className="text-sm font-bold text-inherit block truncate mt-1">
                 {activeLesson.title}
@@ -1825,10 +1827,10 @@ export default function App() {
                     ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm scale-102"
                     : `${focusTheme.cardBg} ${focusTheme.border} text-inherit hover:opacity-90`
                 }`}
-                title="Показать только неизвестные слова в уроке"
+                title={t('app.unknown_btn_title', 'Показать только неизвестные слова в уроке')}
               >
                 {showOnlyUnknown ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                <span>Только неизвестные</span>
+                <span>{t('app.unknown_btn', 'Только неизвестные')}</span>
               </button>
 
               {activeLesson?.youtubeId && (
@@ -1839,10 +1841,10 @@ export default function App() {
                       ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
                       : `${focusTheme.cardBg} ${focusTheme.border} text-inherit hover:opacity-90`
                   }`}
-                  title="Переключить окно YouTube"
+                  title={t('app.video_btn_title', 'Переключить окно YouTube')}
                 >
                   <Tv className="w-3.5 h-3.5" />
-                  <span>Видео</span>
+                  <span>{t('app.video_btn', 'Видео')}</span>
                 </button>
               )}
               <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
@@ -1857,9 +1859,9 @@ export default function App() {
                       ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
-                  title="Стандартная ширина (1280px)"
+                  title={t('app.width_standard_title', 'Стандартная ширина (1280px)')}
                 >
-                  Стандарт
+                  {t('app.width_standard', 'Стандарт')}
                 </button>
                 <button
                   type="button"
@@ -1869,9 +1871,9 @@ export default function App() {
                       ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
-                  title="Широкая область (1560px)"
+                  title={t('app.width_wide_title', 'Широкая область (1560px)')}
                 >
-                  Широкий
+                  {t('app.width_wide', 'Широкий')}
                 </button>
                 <button
                   type="button"
@@ -1881,9 +1883,9 @@ export default function App() {
                       ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
                       : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                   }`}
-                  title="На весь экран"
+                  title={t('app.width_full_title', 'На весь экран')}
                 >
-                  Экран
+                  {t('app.width_full', 'Экран')}
                 </button>
               </div>
             </div>
@@ -2029,7 +2031,7 @@ export default function App() {
             <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
               <span className="flex items-center gap-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600 dark:text-teal-400" />
-                Загрузка материалов...
+                {t('app.loading', 'Загрузка материалов...')}
               </span>
               <span className="font-mono text-[10px] text-teal-600 dark:text-teal-400">IndexedDB</span>
             </div>
@@ -2085,14 +2087,16 @@ export default function App() {
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-extrabold text-amber-800 dark:text-amber-400 leading-none">
-                  Связь с облаком не установлена (Работа в локальном режиме)
+                  {t('app.offline_title', 'Связь с облаком не установлена (Работа в локальном режиме)')}
                 </h4>
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5 leading-relaxed">
-                  Не удалось подключиться к облачной базе данных Google Firebase. Все функции активны, и ваши данные <strong>сохраняются локально</strong> в кэше браузера. Синхронизация автоматически возобновится при восстановлении связи!
+                  <Trans i18nKey="app.offline_desc">
+                    Не удалось подключиться к облачной базе данных Google Firebase. Все функции активны, и ваши данные <strong>сохраняются локально</strong> в кэше браузера. Синхронизация автоматически возобновится при восстановлении связи!
+                  </Trans>
                 </p>
                 {cloudOfflineError && (
                   <p className="text-[10px] bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/10 p-2 rounded-xl text-amber-800 dark:text-amber-300 font-mono mt-2 break-all">
-                    Детали ошибки: {cloudOfflineError}
+                    {t('app.offline_error_details', 'Детали ошибки: ')}{cloudOfflineError}
                   </p>
                 )}
               </div>
@@ -2101,7 +2105,7 @@ export default function App() {
               onClick={() => setCloudOfflineWarning(false)}
               className="text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 px-3 py-1.5 rounded-xl transition cursor-pointer self-stretch sm:self-auto text-center border border-amber-500/10"
             >
-              Свернуть
+              {t('app.collapse', 'Свернуть')}
             </button>
           </div>
         </div>
@@ -2265,7 +2269,7 @@ export default function App() {
 
       <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-600 bg-stone-50 dark:bg-zinc-950/40">
         <p className="leading-relaxed">
-          Lectura {APP_VERSION} &copy; 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изучения языков.
+          {t('app.footer', 'Lectura {{version}} © 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изучения языков.', { version: APP_VERSION })}
         </p>
       </footer>
 

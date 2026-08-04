@@ -6,6 +6,7 @@ import AudioPlayerBar from "./AudioPlayerBar";
 import ReaderView from "./ReaderView";
 import WordExplainer from "./WordExplainer";
 import { Lesson, HistoryEntry, ReaderSettings, VocabItem } from "../types";
+import { useTranslation } from "react-i18next";
 
 interface ReaderScreenProps {
   activeLesson: Lesson | null;
@@ -75,6 +76,7 @@ export default function ReaderScreen({
     layoutWidthMode,
     setLayoutWidthMode
   } = useUIStore();
+  const { t } = useTranslation();
 
   return (
     <>
@@ -95,7 +97,7 @@ export default function ReaderScreen({
                     className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
                   >
                     <ChevronLeft className="w-4 h-4" />
-                    Библиотека
+                    {t('reader.library_btn', 'Библиотека')}
                   </button>
 
                   <button
@@ -103,33 +105,33 @@ export default function ReaderScreen({
                     className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    Focus Mode
+                    {t('reader.focus_btn', 'Focus Mode')}
                   </button>
 
                   <button
                     onClick={() => setShowMatchPairsModal(true)}
                     className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
-                    title="Игра: сопоставление слов и перевода"
+                    title={t('reader.pairs_btn_title', 'Игра: сопоставление слов и перевода')}
                   >
                     <Trophy className="w-3.5 h-3.5" />
-                    Игра: Пары
+                    {t('reader.pairs_btn', 'Игра: Пары')}
                   </button>
 
                   <button
                     onClick={handleDetectIdioms}
                     disabled={isDetectingIdioms}
                     className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer disabled:opacity-50"
-                    title="Автоматически найти идиомы и фразовые глаголы с помощью ИИ"
+                    title={t('reader.detect_btn_title', 'Автоматически найти идиомы и фразовые глаголы с помощью ИИ')}
                   >
                     {isDetectingIdioms ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Поиск...
+                        {t('reader.detecting', 'Поиск...')}
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-3.5 h-3.5" />
-                        Найти идиомы
+                        {t('reader.detect_btn', 'Найти идиомы')}
                       </>
                     )}
                   </button>
@@ -141,10 +143,10 @@ export default function ReaderScreen({
                         ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm"
                         : "bg-white hover:bg-zinc-55 hover:text-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
                     }`}
-                    title="Показать только неизвестные слова в уроке"
+                    title={t('reader.unknown_btn_title', 'Показать только неизвестные слова в уроке')}
                   >
                     {showOnlyUnknown ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                    <span>Только неизвестные</span>
+                    <span>{t('reader.unknown_btn', 'Только неизвестные')}</span>
                   </button>
 
                   {activeLesson?.youtubeId && (
@@ -155,10 +157,10 @@ export default function ReaderScreen({
                           ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
                           : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
                       }`}
-                      title="Toggle YouTube Video window"
+                      title={t('reader.video_btn_title', 'Toggle YouTube Video window')}
                     >
                       <Tv className="w-3.5 h-3.5" />
-                      <span>Видео</span>
+                      <span>{t('reader.video_btn', 'Видео')}</span>
                     </button>
                   )}
 
@@ -172,9 +174,9 @@ export default function ReaderScreen({
                           ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
-                      title="Default width (1280px)"
+                      title={t('reader.width_standard_title', 'Default width (1280px)')}
                     >
-                      Стандарт
+                      {t('reader.width_standard', 'Стандарт')}
                     </button>
                     <button
                       type="button"
@@ -184,9 +186,9 @@ export default function ReaderScreen({
                           ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
-                      title="Wide width (1560px)"
+                      title={t('reader.width_wide_title', 'Wide width (1560px)')}
                     >
-                      Широкий
+                      {t('reader.width_wide', 'Широкий')}
                     </button>
                     <button
                       type="button"
@@ -196,9 +198,9 @@ export default function ReaderScreen({
                           ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
-                      title="Full screen width"
+                      title={t('reader.width_full_title', 'Full screen width')}
                     >
-                      Экран
+                      {t('reader.width_full', 'Экран')}
                     </button>
                   </div>
                 </div>
@@ -231,7 +233,7 @@ export default function ReaderScreen({
           ) : (
             <div className="bg-white dark:bg-zinc-900 p-12 text-center rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-4">
               <BookOpen className="w-12 h-12 text-zinc-300 mx-auto" />
-              <p className="text-zinc-500 dark:text-zinc-400">No lessons currently chosen. Go to the Library tab to selects or import lessons!</p>
+              <p className="text-zinc-500 dark:text-zinc-400">{t('reader.empty_state', 'No lessons currently chosen. Go to the Library tab to selects or import lessons!')}</p>
             </div>
           )}
         </div>
@@ -263,7 +265,7 @@ export default function ReaderScreen({
                 onOpenLesson={handleOpenLesson}
               />
             ) : (
-              <div className="text-center p-4 text-zinc-400">Select a lesson first</div>
+              <div className="text-center p-4 text-zinc-400">{t('reader.select_first', 'Select a lesson first')}</div>
             )}
           </div>
         </div>

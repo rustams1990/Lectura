@@ -9,6 +9,7 @@ import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, 
 import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE } from "../utils";
 import { segmentSentenceTokens } from "../tokenizer";
+import { useTranslation } from "react-i18next";
 
 export function getDifficultyBadgeStyles(level: string) {
   const lvl = (level || "").toUpperCase();
@@ -245,6 +246,7 @@ function LibraryHome({
   settings,
   isLoading = false,
 }: LibraryHomeProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("All");
   const [filterType, setFilterType] = useState<"all" | "builtin" | "custom">("all");
@@ -281,14 +283,14 @@ function LibraryHome({
   });
 
   const LANGUAGE_TIPS = [
-    "Подключайте слух: слушайте озвучку одновременно с чтением — это активирует слуховую кору мозга.",
-    "Не зубрите слова отдельно: запоминайте их в контексте фраз. Мозг обожает контекстуальные связи!",
-    "Интервальное повторение: возвращайтесь к сложным словам через 1 день, затем через 3 и 7 дней.",
-    "Лингво-совет: Читайте вслух те предложения, где встретили новые слова, чтобы тренировать артикуляцию.",
-    "Разгадывайте корни: у многих языков есть схожие латинские или общие корни. Ищите аналогии для запоминания!",
-    "Метод активного чтения: не бойтесь новых слов! Ваша цель — перевести их в статус 'изучаемых' и читать дальше.",
-    "Короткие сессии рулят: 15 минут увлекательного чтения каждый день эффективнее, чем 2 часа раз в неделю.",
-    "Понимайте суть: не обязательно переводить каждое слово. Учитесь догадываться в контексте!"
+    t('library.tip_1', "Подключайте слух: слушайте озвучку одновременно с чтением — это активирует слуховую кору мозга."),
+    t('library.tip_2', "Не зубрите слова отдельно: запоминайте их в контексте фраз. Мозг обожает контекстуальные связи!"),
+    t('library.tip_3', "Интервальное повторение: возвращайтесь к сложным словам через 1 день, затем через 3 и 7 дней."),
+    t('library.tip_4', "Лингво-совет: Читайте вслух те предложения, где встретили новые слова, чтобы тренировать артикуляцию."),
+    t('library.tip_5', "Разгадывайте корни: у многих языков есть схожие латинские или общие корни. Ищите аналогии для запоминания!"),
+    t('library.tip_6', "Метод активного чтения: не бойтесь новых слов! Ваша цель — перевести их в статус 'изучаемых' и читать дальше."),
+    t('library.tip_7', "Короткие сессии рулят: 15 минут увлекательного чтения каждый день эффективнее, чем 2 часа раз в неделю."),
+    t('library.tip_8', "Понимайте суть: не обязательно переводить каждое слово. Учитесь догадываться в контексте!")
   ];
 
   const handleCycleGoal = (e: React.MouseEvent) => {
@@ -625,19 +627,19 @@ function LibraryHome({
             <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-amber-300 border border-teal-200/60 dark:border-teal-800/40">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
-            <span className="truncate text-zinc-800 dark:text-white font-extrabold">Ваша умная библиотека / Smart Bookshelf</span>
+            <span className="truncate text-zinc-800 dark:text-white font-extrabold">{t('library.smart_bookshelf', 'Ваша умная библиотека / Smart Bookshelf')}</span>
             <div className="hidden sm:flex items-center gap-2.5 text-[11px] text-zinc-500 dark:text-teal-200 ml-2 font-medium">
-              <span>• Всего: <strong className="text-zinc-800 dark:text-white font-bold">{lessons.length}</strong></span>
-              <span>• Активных: <strong className="text-teal-700 dark:text-amber-300 font-bold">{activeCount}</strong></span>
-              <span>• В архиве: <strong className="text-zinc-600 dark:text-teal-300 font-bold">{archivedCount}</strong></span>
+              <span>• {t('library.total', 'Всего:')} <strong className="text-zinc-800 dark:text-white font-bold">{lessons.length}</strong></span>
+              <span>• {t('library.active', 'Активных:')} <strong className="text-teal-700 dark:text-amber-300 font-bold">{activeCount}</strong></span>
+              <span>• {t('library.archived', 'В архиве:')} <strong className="text-zinc-600 dark:text-teal-300 font-bold">{archivedCount}</strong></span>
             </div>
           </div>
           <button
             onClick={toggleBannerCollapse}
             className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-600 dark:text-teal-200 hover:text-zinc-900 dark:hover:text-white px-3 py-1 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-zinc-200/80 dark:border-white/10"
-            title="Развернуть баннер библиотеки"
+            title={t('library.expand_banner', 'Развернуть баннер библиотеки')}
           >
-            <span>Развернуть</span>
+            <span>{t('library.expand', 'Развернуть')}</span>
             <ChevronDown className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -657,44 +659,44 @@ function LibraryHome({
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-950/60 text-xs font-semibold tracking-wide text-white border border-teal-800/30 shadow-xs">
                     <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                    <span>Ваша умная библиотека / Smart Bookshelf</span>
+                    <span>{t('library.smart_bookshelf', 'Ваша умная библиотека / Smart Bookshelf')}</span>
                   </div>
                   
                   <button
                     onClick={toggleBannerCollapse}
                     className="flex items-center gap-1 text-[11px] font-bold text-teal-200 hover:text-white px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-white/10"
-                    title="Свернуть баннер библиотеки"
+                    title={t('library.collapse_banner', 'Свернуть баннер библиотеки')}
                   >
-                    <span>Свернуть</span>
+                    <span>{t('library.collapse', 'Свернуть')}</span>
                     <ChevronUp className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 <h2 className="text-xl sm:text-3xl font-black tracking-tight mt-2 max-w-xl leading-tight text-white drop-shadow-sm">
-                  Какую историю вы изучите сегодня?
+                  {t('library.hero_title', 'Какую историю вы изучите сегодня?')}
                 </h2>
                 <p className="text-xs sm:text-sm font-medium text-teal-100 max-w-md mt-1.5 opacity-95 leading-relaxed font-sans hidden sm:block">
-                  Интерактивный метод чтения: нажимайте на любые незнакомые слова, скачивайте переводы и слушайте озвучку!
+                  {t('library.hero_subtitle', 'Интерактивный метод чтения: нажимайте на любые незнакомые слова, скачивайте переводы и слушайте озвучку!')}
                 </p>
               </div>
 
             <div className="flex flex-wrap items-center gap-4 mt-2 sm:mt-6 border-t border-white/10 pt-4">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">Всего книг:</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.total', 'Всего книг:')}</span>
                 <span className="text-xs font-bold bg-white/15 px-2.5 py-0.5 rounded-md text-white">{lessons.length}</span>
               </div>
               
               <div className="h-4 w-px bg-white/15 hidden sm:block"></div>
               
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">Активных:</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.active', 'Активных:')}</span>
                 <span className="text-xs font-bold text-amber-300 bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-800/20">{activeCount}</span>
               </div>
 
               <div className="h-4 w-px bg-white/15 hidden sm:block"></div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">В архиве:</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.archived', 'В архиве:')}</span>
                 <span className="text-xs font-bold text-teal-300 bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-800/20">{archivedCount}</span>
               </div>
             </div>
@@ -708,20 +710,20 @@ function LibraryHome({
               <div className="flex justify-between items-center text-[10px] font-extrabold uppercase tracking-widest text-teal-200">
                 <span className="flex items-center gap-1">
                   <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>Прогресс за сегодня</span>
+                  <span>{t('library.progress_today', 'Прогресс за сегодня')}</span>
                 </span>
                 <button
                   onClick={handleCycleGoal}
                   className="cursor-pointer text-[9px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/20 active:scale-95 px-2 py-0.5 rounded-md transition-all text-amber-200 border border-white/10 select-none"
-                  title="Нажмите для настройки дневного лимита"
+                  title={t('library.goal_title', 'Нажмите для настройки дневного лимита')}
                 >
-                  Цель: {dailyGoal} слов
+                  {t('library.goal', 'Цель:')} {dailyGoal} {t('library.words', 'слов')}
                 </button>
               </div>
 
               <div className="flex items-center justify-between text-xs font-semibold">
                 <span className="text-white">
-                  Новых слов: <strong className="font-extrabold text-amber-300">{todayCreatedCount}</strong> из {dailyGoal}
+                  {t('library.new_words', 'Новых слов:')} <strong className="font-extrabold text-amber-300">{todayCreatedCount}</strong> {t('library.of', 'из')} {dailyGoal}
                 </span>
                 <span className="font-bold text-teal-100 font-mono text-[10px]">
                   {Math.round(Math.min(100, (todayCreatedCount / dailyGoal) * 100))}%
