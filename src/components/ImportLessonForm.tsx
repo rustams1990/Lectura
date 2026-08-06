@@ -39,6 +39,8 @@ import {
   Headphones
 } from "lucide-react";
 
+import { useTranslation } from "react-i18next";
+
 export const ICON_MAP: Record<string, React.ComponentType<any>> = {
   youtube: Youtube,
   podcast: Podcast,
@@ -70,10 +72,38 @@ export const getCategoryIcon = (iconKey: string, categoryName: string): React.Co
   if (name.includes("lectura") || name.includes("read") || name.includes("чтение")) {
     return BookOpen;
   }
-  if (name.includes("книг")) {
+  if (name.includes("книг") || name.includes("book")) {
     return Book;
   }
   return ICON_MAP.type || Type;
+};
+
+export const getCategoryDisplayName = (
+  typeId?: string,
+  typeName?: string,
+  t?: any
+): string => {
+  const translate = (key: string, def: string) => {
+    if (t) return t(key, def);
+    return def;
+  };
+
+  const id = (typeId || "").toLowerCase();
+  if (id === "youtube") return "YouTube";
+  if (id === "podcast") return translate("library.podcast", "Podcast");
+  if (id === "book") return translate("library.book", "Book");
+  if (id === "article") return translate("library.article", "Article");
+  if (id === "comic") return translate("library.comic", "Comic");
+
+  const name = (typeName || "").toLowerCase();
+  if (name.includes("книг") || name === "book") return translate("library.book", "Book");
+  if (name.includes("стать") || name === "article") return translate("library.article", "Article");
+  if (name.includes("комикс") || name === "comic") return translate("library.comic", "Comic");
+  if (name.includes("подкаст") || name === "podcast") return translate("library.podcast", "Podcast");
+  if (name.includes("ютуб") || name.includes("youtube")) return "YouTube";
+
+  if (typeName && typeName.trim()) return typeName;
+  return translate("library.book", "Book");
 };
 
 interface ImportLessonFormProps {
@@ -99,6 +129,7 @@ export default function ImportLessonForm({
   initialWebUrl,
   settings
 }: ImportLessonFormProps) {
+  const { t } = useTranslation();
   // Navigation: standard, youtube or file
   const [activeTab, setActiveTab] = useState<"standard" | "youtube" | "file" | "url">(
     editingLesson ? "standard" : (initialWebUrl ? "url" : "file")
@@ -201,10 +232,10 @@ export default function ImportLessonForm({
       const data = await safeJsonParse(response);
       console.log("DEBUG [ImportLessonForm]: /api/import-url response status:", response.status, "data:", data);
       if (!response.ok) {
-        throw new Error(data.error || "Не удалось извлечь статью/подкаст с указанного сайта");
+        throw new Error(data.error || "Failed to extract article/podcast from the specified URL");
       }
 
-      setTitle(data.title || "Подкаст / Статья с сайта");
+      setTitle(data.title || "Podcast / Web Article");
       setText(data.text || "");
 
       if (data.audioUrl) {
@@ -231,10 +262,10 @@ export default function ImportLessonForm({
       }
       
       const wordCount = data.text ? data.text.split(/\s+/).filter(Boolean).length : 0;
-      setWebSuccess(`✓ Успешно импортировано! ${data.audioUrl ? "Аудио привязано. " : ""}Извлечено ${wordCount} слов. Проверьте детали ниже.`);
+      setWebSuccess(t('import.web_success', '✓ Successfully imported! {{audioNote}}Extracted {{count}} words. Check details below.', { audioNote: data.audioUrl ? t('import.audio_attached_note', 'Audio attached. ') : '', count: wordCount }));
     } catch (err: any) {
       console.error("DEBUG [ImportLessonForm]: web import error:", err);
-      setWebError(err.message || "Ошибка подключения или парсинга страницы. Убедитесь, что URL доступен.");
+      setWebError(err.message || t('import.web_error_default', 'Connection or parsing error. Make sure URL is accessible.'));
     } finally {
       setIsWebLoading(false);
     }
@@ -243,7 +274,7 @@ export default function ImportLessonForm({
   const handleWebImport = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!webUrlInput.trim()) {
-      setWebError("Введите ссылку на сайт/статью");
+      setWebError(t('import.enter_url_err', 'Enter website/article URL'));
       return;
     }
     await performWebImport(webUrlInput);
@@ -266,7 +297,7 @@ export default function ImportLessonForm({
       try {
         const dataUrl = e.target?.result as string;
         if (!dataUrl) {
-          throw new Error("Не удалось прочитать локальный файл");
+          throw new Error(t('import.read_local_err', 'Failed to read local file'));
         }
 
         const base64Str = dataUrl.split(",")[1];
@@ -286,7 +317,7 @@ export default function ImportLessonForm({
 
         const data = await safeJsonParse(response);
         if (!response.ok) {
-          throw new Error(data.error || "Ошибка парсинга на сервере");
+          throw new Error(data.error || t('import.server_parse_err', 'Server parsing error'));
         }
 
         setTitle(data.title || file.name.replace(/\.[^/.]+$/, ""));
@@ -299,18 +330,18 @@ export default function ImportLessonForm({
           ? data.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ").split(/\s+/).filter(Boolean).length
           : 0;
         const imageCount = data.images ? Object.keys(data.images).length : 0;
-        const imageNote = imageCount > 0 ? `, ${imageCount} иллюстраций` : "";
-        setFileSuccess(`✓ Файл "${file.name}" импортирован! Извлечено ${wordCount} слов${imageNote}. Проверьте детали ниже.`);
+        const imageNote = imageCount > 0 ? t('import.illustrations_note', ', {{count}} illustrations', { count: imageCount }) : "";
+        setFileSuccess(t('import.file_imported_success', '✓ File "{{name}}" imported! Extracted {{count}} words{{imageNote}}. Check details below.', { name: file.name, count: wordCount, imageNote }));
       } catch (err: any) {
         console.error(err);
-        setFileError(err.message || "Ошибка парсинга файла. Попробуйте другой документ.");
+        setFileError(err.message || t('import.file_parse_err_default', 'File parsing error. Try another document.'));
       } finally {
         setIsFileLoading(false);
       }
     };
 
     reader.onerror = () => {
-      setFileError("Не удалось прочитать локальный файл с диска.");
+      setFileError(t('import.read_disk_err', 'Failed to read file from disk.'));
       setIsFileLoading(false);
     };
 
@@ -391,7 +422,7 @@ export default function ImportLessonForm({
   };
 
   const handleDeleteType = (typeId: string) => {
-    if (window.confirm("Вы уверены, что хотите удалить эту категорию?")) {
+    if (window.confirm(t('import.confirm_delete_cat', 'Are you sure you want to delete this category?'))) {
       if (onDeleteLessonType) {
         onDeleteLessonType(typeId);
       }
@@ -428,7 +459,7 @@ export default function ImportLessonForm({
   const handleYtFetch = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!youtubeUrlInput.trim()) {
-      setYtError("Введите ссылку на YouTube видео");
+      setYtError(t('import.enter_yt_url_err', 'Enter YouTube video link'));
       return;
     }
 
@@ -472,7 +503,7 @@ export default function ImportLessonForm({
           });
           setCanGenerateFallback(true);
         }
-        throw new Error(data.error || "Субтитры не найдены для этого YouTube видео. Однако мы нашли заставку и название видео! Вы можете вставить текст вручную ниже или сгенерировать текст с помощью Gemini AI.");
+        throw new Error(data.error || t('import.no_subtitles_found_err', 'Subtitles not found for this YouTube video. However, we retrieved the title and cover! You can paste text manually below or generate text using Gemini AI.'));
       }
 
       setTitle(data.title || "YouTube Video Lesson");
@@ -490,13 +521,13 @@ export default function ImportLessonForm({
       setSelectedType("youtube");
       
       if (data.isFallback) {
-        setYtSuccessMessage("✓ Субтитры не найдены, но ИИ успешно сгенерировал полноценный учебный текст по теме этого видео!");
+        setYtSuccessMessage(t('import.fallback_gen_success', '✓ Subtitles not found, but AI generated a full study text for this video!'));
       } else {
-        setYtSuccessMessage("✓ Субтитры и обложка успешно загружены! Вы можете проверить детали ниже.");
+        setYtSuccessMessage(t('import.yt_import_success', '✓ Subtitles and cover fetched successfully! Check details below.'));
       }
     } catch (err: any) {
       console.error(err);
-      setYtError(err.message || "Ошибка подключения. Убедитесь, что у видео есть субтитры.");
+      setYtError(err.message || t('import.yt_connect_err', 'Connection error. Make sure video has subtitles.'));
     } finally {
       setIsYtLoading(false);
     }
@@ -522,7 +553,7 @@ export default function ImportLessonForm({
       });
       const data = await safeJsonParse(response);
       if (!response.ok) {
-        throw new Error(data.error || "Не удалось сгенерировать текст урока.");
+        throw new Error(data.error || t('import.failed_generate_lesson', 'Failed to generate lesson text.'));
       }
       setTitle(fallbackData.title);
       setText(data.text || "");
@@ -539,10 +570,10 @@ export default function ImportLessonForm({
       setSelectedType("youtube");
       setCanGenerateFallback(false);
       setFallbackData(null);
-      setYtSuccessMessage("✓ Текст урока успешно сгенерирован ИИ по теме видео!");
+      setYtSuccessMessage(t('import.ai_gen_success', '✓ Lesson text generated by AI based on video topic!'));
     } catch (err: any) {
       console.error(err);
-      setYtError("Не удалось сгенерировать текст: " + (err.message || err));
+      setYtError(t('import.failed_gen_prefix', 'Failed to generate text: ') + (err.message || err));
     } finally {
       setIsGeneratingFallback(false);
     }
@@ -560,20 +591,20 @@ export default function ImportLessonForm({
       try {
         const dataUrl = e.target?.result as string;
         if (!dataUrl) {
-          throw new Error("Не удалось прочитать аудиофайл");
+          throw new Error(t('import.read_audio_err', 'Failed to read audio file'));
         }
         const base64Str = dataUrl.split(",")[1];
         setAudioUrl(dataUrl);
         setAudioBase64(base64Str);
       } catch (err: any) {
         console.error(err);
-        setAudioUploadError("Ошибка при загрузке аудиофайла: " + (err.message || err));
+        setAudioUploadError(t('import.upload_audio_err', 'Error uploading audio file: ') + (err.message || err));
       } finally {
         setIsAudioLoading(false);
       }
     };
     reader.onerror = () => {
-      setAudioUploadError("Не удалось прочитать файл с диска.");
+      setAudioUploadError(t('import.read_audio_disk_err', 'Failed to read file from disk.'));
       setIsAudioLoading(false);
     };
     reader.readAsDataURL(file);
@@ -589,7 +620,6 @@ export default function ImportLessonForm({
       let response: Response;
 
       if (audioRawFile) {
-        // Stream raw binary File object directly over HTTP POST (saves 33% memory & prevents JSON base64 overflow)
         response = await fetch("/api/transcribe-audio", {
           method: "POST",
           headers: {
@@ -601,7 +631,6 @@ export default function ImportLessonForm({
           body: audioRawFile,
         });
       } else {
-        // Fallback for base64 JSON payload
         response = await fetch("/api/transcribe-audio", {
           method: "POST",
           headers: {
@@ -619,12 +648,12 @@ export default function ImportLessonForm({
 
       const data = await response.json();
       if (!response.ok || data.error) {
-        throw new Error(data.error || "Не удалось распознать текст из аудиофайла.");
+        throw new Error(data.error || t('import.stt_err', 'Failed to transcribe speech from audio file.'));
       }
 
       if (data.text) {
         setText(data.text);
-        if (!title || title === "Моя Книга" || title.trim() === "") {
+        if (!title || title === "My Book" || title.trim() === "") {
           if (audioFileName) {
             const cleanName = audioFileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
             setTitle(cleanName);
@@ -633,7 +662,7 @@ export default function ImportLessonForm({
       }
     } catch (err: any) {
       console.error("Audio Transcription failed:", err);
-      setAudioUploadError(err.message || "Ошибка распознавания речи из аудиофайла.");
+      setAudioUploadError(err.message || t('import.stt_err', 'Speech recognition error.'));
     } finally {
       setIsTranscribingAudio(false);
     }
@@ -683,21 +712,21 @@ export default function ImportLessonForm({
           setCoverUrl(compressedDataUrl);
         } catch (err: any) {
           console.error(err);
-          setCoverUploadError("Ошибка при обработке изображения.");
+          setCoverUploadError(t('import.img_process_err', 'Image processing error.'));
         } finally {
           setIsCoverLoading(false);
           e.target.value = "";
         }
       };
       img.onerror = () => {
-        setCoverUploadError("Не удалось прочитать изображение.");
+        setCoverUploadError(t('import.read_img_err', 'Failed to read image.'));
         setIsCoverLoading(false);
         e.target.value = "";
       };
       img.src = event.target?.result as string;
     };
     reader.onerror = () => {
-      setCoverUploadError("Не удалось загрузить файл.");
+      setCoverUploadError(t('import.upload_file_err', 'Failed to upload file.'));
       setIsCoverLoading(false);
       e.target.value = "";
     };
@@ -706,7 +735,7 @@ export default function ImportLessonForm({
 
   const handleGenerateAiAudio = async () => {
     if (!text.trim()) {
-      setAudioUploadError("Введите текст книги перед озвучиванием ИИ");
+      setAudioUploadError(t('import.enter_text_first_err', 'Enter lesson text before generating AI audio'));
       return;
     }
     setGeneratingTts(true);
@@ -724,12 +753,12 @@ export default function ImportLessonForm({
 
       if (!response.ok) {
         const errorData = await safeJsonParse(response);
-        throw new Error(errorData.error || "Не удалось сгенерировать ИИ озвучку.");
+        throw new Error(errorData.error || t('import.tts_gen_err', 'Failed to generate AI audio.'));
       }
 
       const data = await safeJsonParse(response);
       if (!data.audioBase64) {
-        throw new Error("Сервер не вернул аудиофайл.");
+        throw new Error(t('import.no_audio_returned', 'Server returned no audio file.'));
       }
 
       const blobUrl = `data:audio/mp3;base64,${data.audioBase64}`;
@@ -738,7 +767,7 @@ export default function ImportLessonForm({
       setAudioUploadError(null);
     } catch (err: any) {
       console.error(err);
-      setAudioUploadError(err.message || "Не удалось запустить озвучивание.");
+      setAudioUploadError(err.message || t('import.tts_start_err', 'Failed to start audio generation.'));
     } finally {
       setGeneratingTts(false);
     }
@@ -787,10 +816,10 @@ export default function ImportLessonForm({
           </div>
           <div>
             <h3 className="font-black text-sm tracking-tight text-zinc-900 dark:text-zinc-100">
-              {editingLesson ? "Редактировать книгу / Урок (Edit Book)" : "Добавить книгу / Урок (Import Lesson)"}
+              {editingLesson ? t('import.edit_title', "Edit Book / Lesson") : t('import.title', "Add Book / Lesson")}
             </h3>
             <p className="text-xs text-zinc-500">
-              {editingLesson ? "Отредактируйте название, текст, языки и обложку книги" : "Импортируйте субтитры из YouTube с обложкой или добавьте свой текст"}
+              {editingLesson ? t('import.edit_subtitle', "Edit book title, text, languages and cover") : t('import.subtitle', "Import YouTube subtitles with cover or add your own text")}
             </p>
           </div>
         </div>
@@ -820,7 +849,7 @@ export default function ImportLessonForm({
             }`}
           >
             <Youtube className="w-4 h-4 text-red-500" />
-            Импорт с YouTube
+            {t('import.tab_youtube', 'YouTube Import')}
           </button>
           {/* 2. Подкаст */}
           <button
@@ -836,7 +865,7 @@ export default function ImportLessonForm({
             }`}
           >
             <Podcast className="w-4 h-4 text-purple-500" />
-            Подкаст
+            {t('import.tab_podcast', 'Podcast')}
           </button>
           {/* 3. Книга PDF / EPUB */}
           <button
@@ -852,7 +881,7 @@ export default function ImportLessonForm({
             }`}
           >
             <FileUp className="w-4 h-4 text-amber-500" />
-            Книга PDF / EPUB
+            {t('import.tab_file', 'Book PDF / EPUB')}
           </button>
           {/* 4. Импорт с Сайта */}
           <button
@@ -868,7 +897,7 @@ export default function ImportLessonForm({
             }`}
           >
             <Globe className="w-4 h-4 text-emerald-500" />
-            Импорт с Сайта
+            {t('import.tab_url', 'Website Import')}
           </button>
           {/* 5. Обычный текст */}
           <button
@@ -884,7 +913,7 @@ export default function ImportLessonForm({
             }`}
           >
             <FileText className="w-4 h-4 text-teal-500" />
-            Обычный текст
+            {t('import.tab_standard', 'Plain Text')}
           </button>
         </div>
       )}
@@ -893,7 +922,7 @@ export default function ImportLessonForm({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block md:h-8 md:flex md:items-end">
-            Язык изучения (Study)
+            {t('import.study_lang', 'Study Language (Study)')}
           </label>
           <div className="flex gap-2">
             <select
@@ -916,17 +945,17 @@ export default function ImportLessonForm({
                   ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900"
                   : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
               }`}
-              title="Запомнить язык изучения по умолчанию"
+              title={t('import.remember_target_title', 'Remember default study language')}
             >
               <Pin className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline md:hidden">{isTargetLanguageRemembered ? "Запомнено" : "Запомнить"}</span>
+              <span className="hidden sm:inline md:hidden">{isTargetLanguageRemembered ? t('import.remembered', 'Remembered') : t('import.remember', 'Remember')}</span>
             </button>
           </div>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block md:h-8 md:flex md:items-end">
-            Язык перевода (Translate to)
+            {t('import.trans_lang', 'Translation Language (Translate to)')}
           </label>
           <div className="flex gap-2">
             <select
@@ -949,17 +978,17 @@ export default function ImportLessonForm({
                   ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900"
                   : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
               }`}
-              title="Запомнить язык перевода по умолчанию"
+              title={t('import.remember_trans_lang', 'Remember default translation language')}
             >
               <Pin className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline md:hidden">{isTranslationLanguageRemembered ? "Запомнено" : "Запомнить"}</span>
+              <span className="hidden sm:inline md:hidden">{isTranslationLanguageRemembered ? t('import.remembered', 'Remembered') : t('import.remember', 'Remember')}</span>
             </button>
           </div>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block md:h-8 md:flex md:items-end">
-            Сложность (Difficulty)
+            {t('import.difficulty', 'Difficulty')}
           </label>
           <select
             id="sel-difficulty-level"
@@ -967,20 +996,20 @@ export default function ImportLessonForm({
             onChange={(e) => setDifficulty(e.target.value)}
             className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           >
-            <option value="">Не указана</option>
-            <option value="A1">A1 (Начинающий)</option>
-            <option value="A2">A2 (Элементарный)</option>
-            <option value="B1">B1 (Средний)</option>
-            <option value="B2">B2 (Выше среднего)</option>
-            <option value="C1">C1 (Продвинутый)</option>
-            <option value="C2">C2 (В совершенстве)</option>
+            <option value="">{t('import.diff_none', 'Not specified')}</option>
+            <option value="A1">A1 ({t('import.diff_a1', 'Beginner')})</option>
+            <option value="A2">A2 ({t('import.diff_a2', 'Elementary')})</option>
+            <option value="B1">B1 ({t('import.diff_b1', 'Intermediate')})</option>
+            <option value="B2">B2 ({t('import.diff_b2', 'Upper-Intermediate')})</option>
+            <option value="C1">C1 ({t('import.diff_c1', 'Advanced')})</option>
+            <option value="C2">C2 ({t('import.diff_c2', 'Proficient')})</option>
           </select>
         </div>
       </div>
 
       {difficultyExplanation && (
         <div className="text-xs bg-zinc-50 dark:bg-zinc-950 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800 animate-in fade-in slide-in-from-top-1 duration-200">
-          <span className="font-bold text-[10px] text-zinc-400 uppercase tracking-widest block mb-1">Обоснование уровня сложности</span>
+          <span className="font-bold text-[10px] text-zinc-400 uppercase tracking-widest block mb-1">{t('import.diff_reasoning', 'Difficulty Level Reasoning')}</span>
           <p className="text-zinc-600 dark:text-zinc-300 italic">"{difficultyExplanation}"</p>
         </div>
       )}
@@ -989,7 +1018,7 @@ export default function ImportLessonForm({
       <div className="space-y-3 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-            Тип материала / Ресурс (Source Type)
+            {t('import.source_type', 'Source Type / Resource')}
           </label>
           <button
             type="button"
@@ -1002,22 +1031,22 @@ export default function ImportLessonForm({
             }}
             className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
           >
-            {showTypeCreator ? "Закрыть" : "+ Создать свой тип"}
+            {showTypeCreator ? t('import.close', 'Close') : t('import.create_custom_type', '+ Create custom type')}
           </button>
         </div>
 
         {showTypeCreator && (
           <div className="p-3.5 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-900/10 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 border-dashed">
             <h4 className="text-[11px] font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-              {editingType ? "Редактировать тип материала" : "Создать новый тип материала"}
+              {editingType ? t('import.edit_type', 'Edit material type') : t('import.create_type', 'Create new material type')}
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
               <div className="space-y-1.5">
-                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block">Название (напр. Подкаст)</span>
+                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block">{t('import.type_name', 'Name (e.g. Podcast)')}</span>
                 <input
                   type="text"
-                  placeholder="Введите название..."
+                  placeholder={t('import.enter_name', 'Enter name...')}
                   value={newTypeName}
                   onChange={(e) => setNewTypeName(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20"
@@ -1025,7 +1054,7 @@ export default function ImportLessonForm({
               </div>
 
               <div className="space-y-1.5">
-                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block">Выберите иконку</span>
+                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block">{t('import.select_icon', 'Select icon')}</span>
                 <div className="flex flex-wrap gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800">
                   {Object.keys(ICON_MAP).map((iconKey) => {
                     const IconComponent = ICON_MAP[iconKey];
@@ -1056,7 +1085,7 @@ export default function ImportLessonForm({
                 onClick={handleSaveType}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-heavy text-[10px] uppercase tracking-wider rounded-xl shadow-xs cursor-pointer active:scale-97 transition-all"
               >
-                {editingType ? "Сохранить изменения" : "Создать и выбрать"}
+                {editingType ? t('import.save_changes', 'Save changes') : t('import.create_and_select', 'Create and select')}
               </button>
             </div>
           </div>
@@ -1082,7 +1111,7 @@ export default function ImportLessonForm({
                   className="px-2.5 py-1.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 >
                   <IconComponent className="w-3.5 h-3.5" />
-                  <span>{type.name}</span>
+                  <span>{getCategoryDisplayName(type.id, type.name, t)}</span>
                 </button>
                 {isSelected && (
                   <div className="flex items-center gap-0.5 border-l border-zinc-200/60 dark:border-zinc-700/60 pl-1 pr-1">
@@ -1090,7 +1119,7 @@ export default function ImportLessonForm({
                       type="button"
                       onClick={() => handleStartEditType(type)}
                       className="p-1 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50/80 dark:hover:bg-teal-900/20 rounded-md cursor-pointer transition-colors"
-                      title="Редактировать категорию"
+                      title={t('import.edit_category', 'Edit category')}
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -1098,7 +1127,7 @@ export default function ImportLessonForm({
                       type="button"
                       onClick={() => handleDeleteType(type.id)}
                       className="p-1 text-zinc-400 hover:text-red-655 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 rounded-md cursor-pointer transition-colors"
-                      title="Удалить категорию"
+                      title={t('import.delete_category', 'Delete category')}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -1117,11 +1146,11 @@ export default function ImportLessonForm({
             <div className="flex items-center gap-2">
               <Youtube className="w-4.5 h-4.5 text-red-500 animate-pulse" />
               <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                Загрузка субтитров с YouTube-видео
+                {t('import.yt_subtitles_title', 'Download subtitles from YouTube video')}
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Вставьте ссылку на видео YouTube (напр., <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[10px]">https://www.youtube.com/watch?v=dQw4w9WgXcQ</span>). Скрипт мгновенно скачает дорожку субтитров на выбранном языке и автоматически подтянет заставку видео в качестве обложки книги!
+              {t('import.yt_subtitles_desc', 'Paste a YouTube video link. The app will download subtitles in the selected language and automatically fetch the video cover!')}
             </p>
           </div>
 
@@ -1144,12 +1173,12 @@ export default function ImportLessonForm({
               {isYtLoading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Скачиваем...
+                  {t('import.downloading', 'Downloading...')}
                 </>
               ) : (
                 <>
                   <Sparkles className="w-3.5 h-3.5" />
-                  Импортировать
+                  {t('import.import_btn', 'Import')}
                 </>
               )}
             </button>
@@ -1169,10 +1198,10 @@ export default function ImportLessonForm({
                 )}
                 <div className="space-y-0.5" id="fallback-box">
                   <h5 className="font-bold text-teal-950 dark:text-teal-300 leading-snug">
-                    Найдено видео: "{fallbackData.title}"
+                    {t('import.found_video', 'Found video:')} "{fallbackData.title}"
                   </h5>
                   <p className="text-[10px] text-zinc-600 dark:text-zinc-400 leading-normal max-w-md font-sans">
-                    У этого видео нет встроенных субтитров (CC). Но не волнуйтесь! Наш искусственный интеллект (Gemini) может мгновенно сгенерировать увлекательный обучающий материал на выбранном языке (<strong>{targetLanguage}</strong>), вдохновленный темой этого видео!
+                    {t('import.no_subtitles_desc', 'This video has no built-in subtitles (CC). But no worries! Our AI (Gemini) can generate a story inspired by this video in')} <strong>{targetLanguage}</strong>!
                   </p>
                 </div>
               </div>
@@ -1186,12 +1215,12 @@ export default function ImportLessonForm({
                 {isGeneratingFallback ? (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    Генерируем...
+                    {t('import.generating', 'Generating...')}
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
-                    Сгенерировать с AI (Gemini)
+                    {t('import.gen_ai_btn', 'Generate with AI (Gemini)')}
                   </>
                 )}
               </button>
@@ -1213,11 +1242,11 @@ export default function ImportLessonForm({
             <div className="flex items-center gap-2">
               <Podcast className="w-4.5 h-4.5 text-purple-500 animate-pulse" />
               <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 font-sans">
-                Импорт подкаста (Podcast Import)
+                {t('import.podcast_title', 'Podcast Import')}
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 leading-normal font-sans">
-              Вставьте ссылку на эпизод с <span className="font-bold text-purple-600 dark:text-purple-400">Apple Podcasts</span> или другого подкаст-сервиса. ИИ автоматически скачает аудио и сгенерирует субтитры с тайм-кодами.
+              {t('import.podcast_subtitle', 'Paste an episode link from Apple Podcasts or RSS. AI will transcribe audio and generate subtitles with timecodes.')}
             </p>
           </div>
 
@@ -1227,13 +1256,13 @@ export default function ImportLessonForm({
               <Podcast className="w-5 h-5 text-purple-500" />
             </div>
             <div className="text-[11px] text-zinc-600 dark:text-zinc-400 font-sans leading-relaxed space-y-1">
-              <p className="font-bold text-zinc-800 dark:text-zinc-200">Как импортировать с Apple Podcasts?</p>
+              <p className="font-bold text-zinc-800 dark:text-zinc-200">{t('import.how_to_apple', 'How to import from Apple Podcasts?')}</p>
               <ol className="list-decimal list-inside space-y-0.5 text-zinc-500">
-                <li>Откройте <span className="font-semibold text-purple-600 dark:text-purple-400">podcasts.apple.com</span> в браузере</li>
-                <li>Перейдите к нужному эпизоду</li>
-                <li>Скопируйте ссылку из адресной строки и вставьте ниже</li>
+                <li>{t('import.apple_step1', 'Open podcasts.apple.com in browser')}</li>
+                <li>{t('import.apple_step2', 'Navigate to desired episode')}</li>
+                <li>{t('import.apple_step3', 'Copy link from address bar and paste below')}</li>
               </ol>
-              <p className="text-[10px] text-zinc-400 mt-1">Также поддерживаются: Spotify, Podbean, Buzzsprout, Anchor и другие</p>
+              <p className="text-[10px] text-zinc-400 mt-1">{t('import.also_supported', 'Also supported: Spotify, Podbean, Buzzsprout, Anchor, RSS feeds.')}</p>
             </div>
           </div>
 
@@ -1254,12 +1283,12 @@ export default function ImportLessonForm({
               {isWebLoading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Импортируем...
+                  {t('import.importing', 'Importing...')}
                 </>
               ) : (
                 <>
                   <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                  Импортировать
+                  {t('import.import_btn', 'Import')}
                 </>
               )}
             </button>
@@ -1286,11 +1315,11 @@ export default function ImportLessonForm({
             <div className="flex items-center gap-2">
               <Globe className="w-4.5 h-4.5 text-emerald-500 animate-pulse" />
               <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 font-sans">
-                Импорт статей с сайтов
+                {t('import.web_import_title', 'Import Articles from Websites')}
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 leading-normal font-sans">
-              Просто вставьте ссылку на любую статью или веб-страницу. Искусственный интеллект автоматически очистит страницу от рекламы, меню навигации и баннеров, извлекая только полезный текст для чтения и обучения.
+              {t('import.web_import_desc', 'Paste any article or web page link. AI will clean up ads, navigation and extract text.')}
             </p>
           </div>
 
@@ -1311,12 +1340,12 @@ export default function ImportLessonForm({
               {isWebLoading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Импортируем...
+                  {t('import.importing', 'Importing...')}
                 </>
               ) : (
                 <>
                   <Sparkles className="w-3.5 h-3.5 text-yellow-350" />
-                  Импортировать
+                  {t('import.import_btn', 'Import')}
                 </>
               )}
             </button>
@@ -1331,7 +1360,7 @@ export default function ImportLessonForm({
               className="rounded text-teal-600 focus:ring-teal-500/20 w-3.5 h-3.5"
             />
             <label htmlFor="webScreenshotAsCover" className="text-[11px] text-zinc-500 dark:text-zinc-400 font-sans cursor-pointer select-none">
-              Сделать скриншот страницы в качестве обложки (иначе использовать og:image)
+              {t('import.screenshot_cover', 'Take page screenshot as cover (otherwise use og:image)')}
             </label>
           </div>
 
@@ -1353,56 +1382,56 @@ export default function ImportLessonForm({
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 font-bold" />
                 <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                  Быстрый импорт с любого сайта (Букмарклет)
+                  {t('import.bookmarklet_title', 'Quick import from any site (Bookmarklet)')}
                 </span>
               </div>
               <span className="text-[9px] bg-teal-100/60 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full font-bold">
-                В один клик
+                {t('import.one_click', 'One-click')}
               </span>
             </div>
 
             <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed font-sans">
-              Букмарклет — это умная кнопка-закладка в панели вашего браузера. Чтобы установить её, выберите один из вариантов ниже:
+              {t('import.bookmarklet_desc', 'A bookmarklet is a smart bookmark button in your browser bar. To install it, choose one of the options below:')}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-0.5">
               {/* Option A: Open in new tab */}
               <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
                 <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                  Вариант 1: В новой вкладке (Рекомендуется)
+                  {t('import.option1_title', 'Option 1: New tab (Recommended)')}
                 </div>
                 <div className="flex items-center gap-2">
                   <a
                     href={`javascript:(function(){var url=window.location.href;var appUrl='${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/';window.open(appUrl+'?import_url='+encodeURIComponent(url),'_blank');})();`}
                     className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-heavy text-[11px] rounded-lg shadow-sm cursor-grab active:cursor-grabbing select-none hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-1 transition-all"
-                    title="Перетащите меня на panel закладок"
+                    title={t('import.drag_to_bar', 'Drag me to your bookmark bar')}
                   >
                     <Globe className="w-3.5 h-3.5" />
-                    📥 Импорт в Lectura (New Tab)
+                    📥 {t('import.import_new_tab', 'Import to Lectura (New Tab)')}
                   </a>
                 </div>
                 <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-sans leading-normal">
-                  Открывает очищенный текст в новой вкладке, оставляя исходную статью открытой в текущей вкладке.
+                  {t('import.option1_desc', 'Opens clean text in a new tab, leaving original article open.')}
                 </p>
               </div>
 
               {/* Option B: Open in same tab */}
               <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
                 <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                  Вариант 2: В текущей вкладке (Надёжный)
+                  {t('import.option2_title', 'Option 2: Current tab (Reliable)')}
                 </div>
                 <div className="flex items-center gap-2">
                   <a
                     href={`javascript:(function(){var url=window.location.href;var appUrl='${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/';window.location.href=appUrl+'?import_url='+encodeURIComponent(url);})();`}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-heavy text-[11px] rounded-lg shadow-sm cursor-grab active:cursor-grabbing select-none hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-1 transition-all"
-                    title="Перетащите меня на panel закладок"
+                    title={t('import.drag_to_bar', 'Drag me to your bookmark bar')}
                   >
                     <Globe className="w-3.5 h-3.5" />
-                    📥 Импорт в Lectura (Same Tab)
+                    📥 {t('import.import_same_tab', 'Import to Lectura (Same Tab)')}
                   </a>
                 </div>
                 <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-sans leading-normal">
-                  Перенаправляет текущую страницу в Lectura. Полностью защищен от блокировщиков всплывающих окон.
+                  {t('import.option2_desc', 'Redirects current page to Lectura. Protected against popup blockers.')}
                 </p>
               </div>
             </div>
@@ -1411,7 +1440,7 @@ export default function ImportLessonForm({
             <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                  Не получается перетащить? Установите вручную:
+                  {t('import.manual_setup', 'Can\'t drag? Set up manually:')}
                 </div>
                 <button
                   type="button"
@@ -1423,25 +1452,25 @@ export default function ImportLessonForm({
                   }}
                   className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold flex items-center gap-1.5 cursor-pointer"
                 >
-                  {copiedBookmarklet ? "✓ Скопировано!" : "Скопировать код"}
+                  {copiedBookmarklet ? t('import.copied', '✓ Copied!') : t('import.copy_code', 'Copy code')}
                 </button>
               </div>
               <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal font-sans">
-                1. Создайте любую временную закладку в браузере (например, нажмите <kbd className="px-1 bg-zinc-200 dark:bg-zinc-800 rounded">Ctrl+D</kbd> на этой странице).<br />
-                2. Нажмите правой кнопкой мыши по созданной закладке и выберите <strong>«Изменить»</strong> (или «Свойства»).<br />
-                3. Очистите поле <strong>URL / Адрес</strong>, вставьте туда скопированный код и переименуйте её в <code>Импорт в Lectura</code>.
+                {t('import.manual_step1', '1. Create any temporary bookmark in browser')} (<kbd className="px-1 bg-zinc-200 dark:bg-zinc-800 rounded">Ctrl+D</kbd>).<br />
+                {t('import.manual_step2', '2. Right click the created bookmark and select Edit')}.<br />
+                {t('import.manual_step3', '3. Clear URL field, paste copied code, and rename it to Lectura')}.
               </p>
             </div>
 
             {/* Crucial troubleshooting checklist */}
             <div className="p-3 bg-yellow-50/35 dark:bg-yellow-950/10 border border-yellow-200/30 dark:border-yellow-900/20 rounded-xl space-y-1 font-sans">
               <div className="text-[10px] font-bold text-yellow-850 dark:text-yellow-405">
-                ⚠️ Почему закладка может не реагировать на клик:
+                ⚠️ {t('import.bm_troubleshoot_title', 'Why bookmarklet may not react to click:')}
               </div>
               <ul className="text-[10px] text-zinc-500 dark:text-zinc-400 list-disc list-inside space-y-1 leading-normal font-sans">
-                <li>Вы кликнули по закладке на <strong>пустой вкладке браузера</strong> (<code>chrome://newtab</code>) или страницах настроек. Браузерные политики безопасности полностью блокируют букмарклеты на таких служебных страницах.</li>
-                <li>Вы тестируете на высокозащищенных сайтах (например, <em>GitHub</em> или интернет-магазин Chrome). Они блокируют запуск сторонних скриптов с помощью Content Security Policy (CSP).</li>
-                <li><strong>Проверьте:</strong> перейдите на любую статью в <a href="https://ru.wikipedia.org/" target="_blank" rel="noreferrer" className="underline text-teal-600 dark:text-teal-400">Википедии</a> или новостной сайт и нажмите на закладку там!</li>
+                <li>{t('import.bm_troubleshoot_1', 'You clicked the bookmark on an empty browser tab (chrome://newtab) or settings page. Browser security policies block bookmarklets on internal pages.')}</li>
+                <li>{t('import.bm_troubleshoot_2', 'You are testing on highly restricted sites (e.g. GitHub or Chrome Web Store) that restrict third-party scripts via Content Security Policy (CSP).')}</li>
+                <li><strong>{t('import.bm_troubleshoot_test', 'Test it:')}</strong> {t('import.bm_troubleshoot_3', 'Go to any article on Wikipedia or news website and click the bookmark there!')}</li>
               </ul>
             </div>
           </div>
@@ -1475,10 +1504,10 @@ export default function ImportLessonForm({
                 <Loader2 className="w-10 h-10 text-teal-500 animate-spin" />
                 <div>
                   <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">
-                    Читаем и анализируем документ...
+                    {t('import.parsing_book', 'Reading and analyzing document...')}
                   </h4>
                   <p className="text-[10px] text-zinc-500 mt-1 max-w-sm">
-                    Мы извлекаем главы, чистим разметку и формируем текст книги. Это может занять несколько секунд для больших файлов.
+                    {t('import.parsing_desc', 'Extracting chapters, cleaning markup, and formatting book text. May take a few seconds.')}
                   </p>
                 </div>
               </div>
@@ -1489,10 +1518,10 @@ export default function ImportLessonForm({
                 </div>
                 <div>
                   <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-widest leading-normal">
-                    Загрузить файл книги (PDF, EPUB)
+                    {t('import.upload_book_file', 'Upload book file (PDF, EPUB)')}
                   </h4>
                   <p className="text-[11px] text-zinc-500 mt-1.5 max-w-md font-sans">
-                    Перетащите сюда свой файл <strong className="text-zinc-600 dark:text-zinc-400">.pdf</strong> или <strong className="text-zinc-600 dark:text-zinc-400">.epub</strong>, либо нажмите для выбора на диске.
+                    {t('import.drag_file_here', 'Drag your .pdf or .epub file here or click to select')}
                   </p>
                 </div>
               </div>
@@ -1520,7 +1549,7 @@ export default function ImportLessonForm({
               className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-zinc-300 dark:border-zinc-700 cursor-pointer accent-teal-600"
             />
             <label htmlFor="chk-import-images" className="text-xs font-bold text-zinc-600 dark:text-zinc-300 cursor-pointer select-none leading-normal">
-              Опционально: Извлечь картинки со страниц и сохранить их положение и размеры (только для EPUB)
+              {t('import.epub_images_option', 'Optional: Extract images from pages and preserve layout (EPUB only)')}
             </label>
           </div>
         </div>
@@ -1531,7 +1560,7 @@ export default function ImportLessonForm({
         {/* Title */}
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-            Название книги / Урока (Title)
+            {t('import.book_title_label', 'Book / Lesson Title (Title)')}
           </label>
           <input
             type="text"
@@ -1539,7 +1568,7 @@ export default function ImportLessonForm({
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Например: El Patito Feo - Глава 1"
+            placeholder={t('import.title_placeholder', 'E.g.: El Patito Feo - Chapter 1')}
             className="w-full px-3.5 py-2 text-xs font-semibold bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
           />
         </div>
@@ -1547,7 +1576,7 @@ export default function ImportLessonForm({
         {/* Text Area */}
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block pb-0.5">
-            Текст книги (Content - {text ? `${text.split(/\s+/).length} слов` : "пусто"})
+            {t('import.content_label', 'Book Content')} ({text ? `${text.split(/\s+/).length} ${t('import.words_count', 'words')}` : t('import.empty', 'empty')})
           </label>
           <textarea
             id="txt-lesson-body"
@@ -1555,7 +1584,7 @@ export default function ImportLessonForm({
             rows={7}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Вставьте оригинальный иностранный текст, сказку или статью для чтения здесь..."
+            placeholder={t('import.content_placeholder', 'Paste original foreign text, fairy tale or article to read here...')}
             className="w-full px-3.5 py-2.5 text-xs bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 leading-relaxed font-sans"
           ></textarea>
         </div>
@@ -1565,7 +1594,7 @@ export default function ImportLessonForm({
           <div className="flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-teal-555" />
             <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-              Обложка книги (Book Cover)
+              {t('import.cover_label', 'Book Cover')}
             </span>
           </div>
 
@@ -1584,7 +1613,7 @@ export default function ImportLessonForm({
                   />
                 ) : (
                   <span className="text-[10px] text-zinc-500 font-extrabold text-center px-1">
-                    Без обложки
+                    {t('import.no_cover', 'No cover')}
                   </span>
                 )}
               </div>
@@ -1595,7 +1624,7 @@ export default function ImportLessonForm({
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Вставьте ссылку на изображение (URL)"
+                  placeholder={t('import.cover_url_placeholder', 'Paste image URL')}
                   value={coverUrl}
                   onChange={(e) => {
                     setCoverUrl(e.target.value);
@@ -1614,7 +1643,7 @@ export default function ImportLessonForm({
                   ) : (
                     <FileUp className="w-3.5 h-3.5" />
                   )}
-                  <span>{isCoverLoading ? "Сжатие..." : "Загрузить"}</span>
+                  <span>{isCoverLoading ? t('import.compressing', 'Compressing...') : t('import.upload_btn', 'Upload')}</span>
                 </button>
                 <input
                   id="cover-upload-input"
@@ -1633,7 +1662,7 @@ export default function ImportLessonForm({
 
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-zinc-400 block">
-                  Или выберите готовый пресет:
+                  {t('import.or_choose_preset', 'Or choose a ready-made preset:')}
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {PRESET_COVERS.map((preset, idx) => (
@@ -1660,7 +1689,7 @@ export default function ImportLessonForm({
                     className="w-9 h-9 rounded-lg bg-zinc-200 dark:bg-zinc-800 border-2 border-transparent text-[11px] font-bold text-zinc-600 dark:text-zinc-300 flex items-center justify-center hover:bg-zinc-300"
                     title="Clear cover"
                   >
-                    Сброс
+                    {t('import.reset_btn', 'Reset')}
                   </button>
                 </div>
               </div>
@@ -1674,7 +1703,7 @@ export default function ImportLessonForm({
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-              Сопровождающее аудио (Companion Audio / Narrator)
+              {t('import.companion_audio', 'Companion Audio / Narrator')}
             </span>
           </div>
 
@@ -1687,10 +1716,10 @@ export default function ImportLessonForm({
                   </div>
                   <div>
                     <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                      ✓ Аудиофайл успешно привязан {audioFileName ? `(${audioFileName})` : ""}
+                      {t('import.audio_attached', '✓ Audio file attached successfully')} {audioFileName ? `(${audioFileName})` : ""}
                     </p>
                     <p className="text-[10px] text-zinc-500">
-                      Будет доступен для воспроизведения в плеере при чтении
+                      {t('import.audio_available', 'Will be available in audio player during reading')}
                     </p>
                   </div>
                 </div>
@@ -1704,7 +1733,7 @@ export default function ImportLessonForm({
                   }}
                   className="px-3 py-1.5 border border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-red-950/30 dark:hover:bg-red-950/20 dark:hover:text-red-400 rounded-lg text-[11px] font-bold text-zinc-500 transition-colors cursor-pointer"
                 >
-                  Сбросить аудио
+                  {t('import.reset_audio', 'Reset audio')}
                 </button>
               </div>
 
@@ -1716,12 +1745,12 @@ export default function ImportLessonForm({
                   </div>
                   <div>
                     <h5 className="text-xs font-black text-zinc-900 dark:text-white">
-                      Создать субтитры из аудио через Gemini AI
+                      {t('import.create_subtitles_ai', 'Generate subtitles from audio with Gemini AI')}
                     </h5>
                     <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
                       {!text.trim()
-                        ? "Текст книги пока пуст. ИИ расшифрует аудиофайл и создаст предложения с таймкодами!"
-                        : "ИИ расшифрует аудиофайл и заново создаст предложения с синхронизированными таймкодами."}
+                        ? t('import.ai_subtitles_desc_empty', 'Book text is empty. AI will transcribe audio and create sentences with timecodes!')
+                        : t('import.ai_subtitles_desc_existing', 'AI will transcribe audio and re-generate sentences with sync timecodes.')}
                     </p>
                   </div>
                 </div>
@@ -1735,12 +1764,12 @@ export default function ImportLessonForm({
                   {isTranscribingAudio ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      Расшифровка аудио...
+                      {t('import.transcribing', 'Transcribing audio...')}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      Создать субтитры (Gemini AI)
+                      {t('import.create_subtitles_btn', 'Generate subtitles (Gemini AI)')}
                     </>
                   )}
                 </button>
@@ -1753,10 +1782,10 @@ export default function ImportLessonForm({
               <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3">
                 <div>
                   <h5 className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 tracking-tight uppercase">
-                    Озвучить текст через ИИ (Generate AI Audio)
+                    {t('import.generate_ai_voice', 'Generate AI Voice Audio (Generate AI Audio)')}
                   </h5>
                   <p className="text-[10px] text-zinc-500 mt-1 leading-normal">
-                    ИИ (Gemini) выразительно прочитает весь текст урока голосом носителя языка. (На бесплатном ключе Gemini API действует жесткий лимит 10 запросов в день).
+                    {t('import.generate_ai_voice_desc', 'AI (Gemini) will read the entire lesson text expressively with a native speaker voice.')}
                   </p>
                 </div>
 
@@ -1765,17 +1794,17 @@ export default function ImportLessonForm({
                   disabled={generatingTts || !text.trim()}
                   onClick={handleGenerateAiAudio}
                   className="w-full px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-heavy text-[10px] uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                  title={!text.trim() ? "Введите текст урока, чтобы озвучить его" : "Сгенерировать AI аудио"}
+                  title={!text.trim() ? t('import.enter_text_first', 'Enter lesson text first to generate audio') : t('import.generate_audio_title', 'Generate AI audio')}
                 >
                   {generatingTts ? (
                     <>
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      Генерируем аудио...
+                      {t('import.generating_audio', 'Generating audio...')}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-3.5 h-3.5" />
-                      Озвучить через ИИ
+                      {t('import.voice_ai_btn', 'Generate with AI')}
                     </>
                   )}
                 </button>
@@ -1786,10 +1815,10 @@ export default function ImportLessonForm({
               <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3 relative">
                 <div>
                   <h5 className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 tracking-tight uppercase">
-                    Загрузить аудиофайл (Upload)
+                    {t('import.upload_audio_file', 'Upload Audio File (Upload)')}
                   </h5>
                   <p className="text-[10px] text-zinc-500 mt-1 leading-normal">
-                    Загрузите аудиосопровождение (MP3, M4A и др.) со своего компьютера.
+                    {t('import.upload_audio_desc', 'Upload companion audio (MP3, M4A, etc.) from your computer.')}
                   </p>
                 </div>
 
@@ -1812,12 +1841,12 @@ export default function ImportLessonForm({
                     {isAudioLoading ? (
                       <>
                         <Loader2 className="w-3 h-3 animate-spin" />
-                        Загрузка...
+                        {t('import.uploading', 'Uploading...')}
                       </>
                     ) : (
                       <>
                         <FileUp className="w-3.5 h-3.5" />
-                        Загрузить файл
+                        {t('import.upload_file_btn', 'Upload file')}
                       </>
                     )}
                   </button>
@@ -1842,7 +1871,7 @@ export default function ImportLessonForm({
           onClick={onCancel}
           className="px-4 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer"
         >
-          Отмена
+          {t('import.cancel_btn', 'Cancel')}
         </button>
         <button
           type="submit"
@@ -1850,7 +1879,7 @@ export default function ImportLessonForm({
           className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-sm active:scale-97 cursor-pointer transition-all"
         >
           <Check className="w-4 h-4" />
-          {editingLesson ? "Сохранить изменения" : "Создать книгу и начать чтение"}
+          {editingLesson ? t('import.save_changes_btn', 'Save changes') : t('import.create_and_read_btn', 'Create book and start reading')}
         </button>
       </div>
     </form>

@@ -36,6 +36,7 @@ import {
   Download,
   Upload
 } from "lucide-react";
+import { useTranslation, Trans } from "react-i18next";
 
 interface StatisticsPageProps {
   vocab: Record<string, VocabItem>;
@@ -68,6 +69,7 @@ function StatisticsPage({
   onDeleteWordLink,
   onOpenLesson,
 }: StatisticsPageProps) {
+  const { t, i18n } = useTranslation();
   const [vocabSearch, setVocabSearch] = useState("");
   const [contextSearchQuery, setContextSearchQuery] = useState("");
   const [vocabFilter, setVocabFilter] = useState<string>("all");
@@ -285,7 +287,7 @@ function StatisticsPage({
   const handleExecuteBatchImport = () => {
     if (parsedBatchWords.length === 0) return;
     if (!onSaveVocab && !onSaveMultipleVocabs) {
-      setProfileMessage("Ошибка: Функция добавления слов не передана в компонент.");
+      setProfileMessage("Ошибка: Функция добавления {t('stats_page.words', 'words')} не передана в компонент.");
       return;
     }
 
@@ -348,11 +350,11 @@ function StatisticsPage({
       });
     }
 
-    let successMessage = `Успешно импортировано ${importCount} слов(а) с тегом "${batchImportTag}"!`;
+    let successMessage = `Успешно импортировано ${importCount} {t('stats_page.words', 'words')}(а) с тегом "${batchImportTag}"!`;
     if (customDatesCount > 0) {
-      successMessage += ` У ${customDatesCount} слов автоматически определились и применились даты из списка.`;
+      successMessage += ` У ${customDatesCount} {t('stats_page.words', 'words')} автоматически определились и применились даты из списка.`;
     } else {
-      successMessage += ` Всем установлена общая выбранная дата: ${tDate.toLocaleDateString("ru-RU")}.`;
+      successMessage += ` Всем установлена общая выбранная дата: ${tDate.toLocaleDateString(i18n.language.startsWith("en") ? "en-US" : "ru-RU")}.`;
     }
 
     setProfileMessage(successMessage);
@@ -584,21 +586,21 @@ function StatisticsPage({
         });
 
         if (newVocabs.length === 0) {
-          setProfileMessage("В CSV-файле не найдено корректных слов для импорта.");
+          setProfileMessage("В CSV-файле не найдено корректных {t('stats_page.words', 'words')} для импорта.");
           return;
         }
 
         askConfirm(
-          "Импорт слов из CSV",
-          `Вы действительно хотите импортировать ${newVocabs.length} слов(а) в словарь для языка "${selectedStatsLang}"?`,
-          skippedCount > 0 ? `Пропущено пустых строк: ${skippedCount}. Существующие в словаре слова с теми же ключами будут обновлены.` : undefined,
+          "Импорт {t('stats_page.words', 'words')} из CSV",
+          `Вы действительно хотите импортировать ${newVocabs.length} {t('stats_page.words', 'words')}(а) в {t('stats_page.words', 'words')}арь для языка "${selectedStatsLang}"?`,
+          skippedCount > 0 ? `Пропущено пустых строк: ${skippedCount}. Существующие в {t('stats_page.words', 'words')}аре {t('stats_page.words', 'words')}а с теми же ключами будут обновлены.` : undefined,
           () => {
             if (onSaveMultipleVocabs) {
               onSaveMultipleVocabs(newVocabs, selectedStatsLang);
             } else if (onSaveVocab) {
               newVocabs.forEach(item => onSaveVocab(item, selectedStatsLang));
             }
-            setProfileMessage(`Успешно импортировано ${newVocabs.length} слов(а) из CSV-файла!`);
+            setProfileMessage(`Успешно импортировано ${newVocabs.length} {t('stats_page.words', 'words')}(а) из CSV-файла!`);
           }
         );
 
@@ -618,8 +620,8 @@ function StatisticsPage({
 
     askConfirm(
       "Равномерное распределение дат",
-      `Вы действительно хотите равномерно распределить ${processedVocabularyList.length} отфильтрованных слов назад в прошлое на ${daysCount} дней?`,
-      "Это действие перезапишет даты сохранения для всех отфильтрованных слов, чтобы разгладить пики активности на тепловой карте.",
+      `Вы действительно хотите равномерно распределить ${processedVocabularyList.length} отфильтрованных {t('stats_page.words', 'words')} назад в прошлое на ${daysCount} дней?`,
+      "Это действие перезапишет даты сохранения для всех отфильтрованных {t('stats_page.words', 'words')}, чтобы разгладить пики активности на тепловой карте.",
       () => {
         const listSize = processedVocabularyList.length;
         const now = Date.now();
@@ -642,7 +644,7 @@ function StatisticsPage({
           onSaveVocab?.(updated, selectedStatsLang);
         });
 
-        setProfileMessage(`Успешно распределили даты для ${listSize} слов на последние ${daysCount} дней! Тепловая карта обновилась.`);
+        setProfileMessage(`Успешно распределили даты для ${listSize} {t('stats_page.words', 'words')} на последние ${daysCount} дней! Тепловая карта обновилась.`);
       }
     );
   };
@@ -653,9 +655,9 @@ function StatisticsPage({
     if (isNaN(targetDate.getTime())) return;
 
     askConfirm(
-      "Установка даты для слов",
-      `Установить дату сохранения "${targetDate.toLocaleDateString("ru-RU")}" для всех ${processedVocabularyList.length} отфильтрованных слов?`,
-      "Это действие запишет все выбранные слова на один день с реалистичным распределением времени в течение дня.",
+      t('stats_page.set_date_title', "Set Date for words"),
+      t('stats_page.set_date_confirm', `Set save date to "${targetDate.toLocaleDateString(i18n.language.startsWith("en") ? "en-US" : "ru-RU")}" for all ${processedVocabularyList.length} filtered words?`),
+      t('stats_page.set_date_warning', "This will set all selected words to one day with realistic time distribution throughout the day."),
       () => {
         // Use selected date but add random hour/minute/second so they don't have identical millisecond timestamps
         processedVocabularyList.forEach((item) => {
@@ -673,7 +675,7 @@ function StatisticsPage({
           onSaveVocab?.(updated, selectedStatsLang);
         });
 
-        setProfileMessage(`Успешно перенесли ${processedVocabularyList.length} слов на дату ${targetDate.toLocaleDateString("ru-RU")}! Тепловая карта обновилась.`);
+        setProfileMessage(t('stats_page.smooth_toast', `Successfully transferred ${processedVocabularyList.length} words to ${targetDate.toLocaleDateString()}! Heatmap updated.`));
       }
     );
   };
@@ -682,9 +684,9 @@ function StatisticsPage({
     if (vocabArray.length === 0) return;
     
     askConfirm(
-      "ПОЛНОЕ УДАЛЕНИЕ СЛОВАРЯ",
-      `Вы собираетесь ПОЛНОСТЬЮ удалить ВСЕ слова для языка "${selectedStatsLang}" (${vocabArray.length} шт.).`,
-      "ВНИМАНИЕ! Это действие абсолютно необратимо и сотрет ваш словарь для этого языка. Вы точно хотите начать заново?",
+      t('stats_page.delete_all_title', "FULL VOCABULARY DELETE"),
+      t('stats_page.delete_all_confirm', `You are about to PERMANENTLY delete ALL words for language "${selectedStatsLang}" (${vocabArray.length} pcs).`),
+      t('stats_page.delete_all_warning', "WARNING! This action is completely irreversible and will erase your dictionary for this language. Are you sure you want to start over?"),
       () => {
         if (onDeleteMultipleVocabs) {
           const words = vocabArray.map((item) => item.word);
@@ -696,7 +698,7 @@ function StatisticsPage({
           });
         }
 
-        setProfileMessage(`Успешно удалили все слова для языка "${selectedStatsLang}". Словарь полностью очищен для этого языка.`);
+        setProfileMessage(`Успешно удалили все {t('stats_page.words', 'words')}а для языка "${selectedStatsLang}". Словарь полностью очищен для этого языка.`);
       }
     );
   };
@@ -705,9 +707,9 @@ function StatisticsPage({
     if (processedVocabularyList.length === 0) return;
 
     askConfirm(
-      "Удаление отфильтрованных слов",
-      `Вы собираетесь удалить ${processedVocabularyList.length} ОТФИЛЬТРОВАННЫХ слов для языка "${selectedStatsLang}" из словаря.`,
-      "Все эти слова будут удалены со своими статусами без возможности восстановления.",
+      "Удаление отфильтрованных {t('stats_page.words', 'words')}",
+      `Вы собираетесь удалить ${processedVocabularyList.length} ОТФИЛЬТРОВАННЫХ {t('stats_page.words', 'words')} для языка "${selectedStatsLang}" из {t('stats_page.words', 'words')}аря.`,
+      "Все эти {t('stats_page.words', 'words')}а будут удалены со своими статусами без возможности восстановления.",
       () => {
         if (onDeleteMultipleVocabs) {
           const words = processedVocabularyList.map((item) => item.word);
@@ -719,7 +721,7 @@ function StatisticsPage({
           });
         }
 
-        setProfileMessage(`Успешно удалили ${processedVocabularyList.length} отфильтрованных слов со всеми их статусами.`);
+        setProfileMessage(`Успешно удалили ${processedVocabularyList.length} отфильтрованных {t('stats_page.words', 'words')} со всеми их статусами.`);
       }
     );
   };
@@ -1094,7 +1096,7 @@ function StatisticsPage({
     
     for (let i = 5; i >= 0; i--) {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      const monthLabel = d.toLocaleDateString("ru-RU", { month: "short", year: "2-digit" });
+      const monthLabel = d.toLocaleDateString(i18n.language.startsWith("en") ? "en-US" : "ru-RU", { month: "short", year: "2-digit" });
       
       const endOfMonthMax = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
       const totalWordsByThen = statsArray.filter(item => item.createdAt && item.createdAt <= endOfMonthMax && item.status !== "ignored").length;
@@ -1128,7 +1130,7 @@ function StatisticsPage({
 
   const handleAutoProfileVocabulary = () => {
     if (!onSaveVocab && !onSaveMultipleVocabs) {
-      setProfileMessage("Ошибка: функция обновления словаря недоступна.");
+      setProfileMessage("Ошибка: функция обновления {t('stats_page.words', 'words')}аря недоступна.");
       return;
     }
 
@@ -1265,7 +1267,7 @@ function StatisticsPage({
         }
 
         setProfileMessage(
-          `Успешно! Проанализировано ${relevantLessons.length} уроков (${tokens.length} словоупотреблений). Автоматически обновлено ${updatedCount} слов(а) в словаре добавлением CEFR-тегов важности (A1, A2, B1, B2, C1).`
+          `Успешно! Проанализировано ${relevantLessons.length} уроков (${tokens.length} {t('stats_page.words', 'words')}оупотреблений). Автоматически обновлено ${updatedCount} {t('stats_page.words', 'words')}(а) в {t('stats_page.words', 'words')}аре добавлением CEFR-тегов важности (A1, A2, B1, B2, C1).`
         );
       } catch (err) {
         console.error("Vocabulary profiling failed", err);
@@ -1293,40 +1295,40 @@ function StatisticsPage({
     const status5 = statsArray.filter((l) => l.status === "5" || l.status === "learning").length;
 
     // Estimate CEFR based on known words count
-    let cefrLevel = "A1 Breakthrough";
+    let cefrLevel = t('stats_page.cefr_a1', "A1 (Beginner)");
     let cefrTarget = 500;
-    let cefrDesc = "Вы умеете понимать и использовать простейшие бытовые фразы.";
+    let cefrDesc = t('stats_page.cefr_a1_desc', "Understanding basic vocabulary and simple phrases.");
     let cefrProgress = 0;
 
     if (known <= 500) {
-      cefrLevel = "A1 (Начинающий)";
+      cefrLevel = t('stats_page.cefr_a1', "A1 (Beginner)");
       cefrTarget = 500;
-      cefrDesc = "Освоение базовой лексики и простых выражений.";
+      cefrDesc = t('stats_page.cefr_a1_desc', "Mastering basic vocabulary and simple expressions.");
       cefrProgress = Math.min(100, Math.round((known / 500) * 100));
     } else if (known <= 1500) {
-      cefrLevel = "A2 (Элементарный)";
+      cefrLevel = t('stats_page.cefr_a2', "A2 (Elementary)");
       cefrTarget = 1500;
-      cefrDesc = "Понимание повседневных предложений на личные темы.";
+      cefrDesc = t('stats_page.cefr_a2_desc', "Understanding everyday sentences on personal topics.");
       cefrProgress = Math.min(100, Math.round(((known - 500) / 1000) * 100));
     } else if (known <= 3000) {
-      cefrLevel = "B1 (Средний)";
+      cefrLevel = t('stats_page.cefr_b1', "B1 (Intermediate)");
       cefrTarget = 3000;
-      cefrDesc = "Понимание главных идей сложных текстов о работе/учебе.";
+      cefrDesc = t('stats_page.cefr_b1_desc', "Understanding main ideas of complex texts about work/study.");
       cefrProgress = Math.min(100, Math.round(((known - 1500) / 1500) * 100));
     } else if (known <= 6000) {
-      cefrLevel = "B2 (Выше среднего)";
+      cefrLevel = t('stats_page.cefr_b2', "B2 (Upper-Intermediate)");
       cefrTarget = 6000;
-      cefrDesc = "Быстрое осмысление текстов и аргументов в беседах.";
+      cefrDesc = t('stats_page.cefr_b2_desc', "Fast comprehension of texts and arguments in conversations.");
       cefrProgress = Math.min(100, Math.round(((known - 3000) / 3000) * 100));
     } else if (known <= 10000) {
-      cefrLevel = "C1 (Продвинутый)";
+      cefrLevel = t('stats_page.cefr_c1', "C1 (Advanced)");
       cefrTarget = 10000;
-      cefrDesc = "Профессиональное владение языком, чтение оригиналов.";
+      cefrDesc = t('stats_page.cefr_c1_desc', "Professional language proficiency, reading original books.");
       cefrProgress = Math.min(100, Math.round(((known - 6000) / 4000) * 100));
     } else {
-      cefrLevel = "C2 (В совершенстве)";
+      cefrLevel = t('stats_page.cefr_c2', "C2 (Proficient)");
       cefrTarget = 20000;
-      cefrDesc = "Понимание любых сообщений без усилий, близко к носителю.";
+      cefrDesc = t('stats_page.cefr_c2_desc', "Effortless comprehension of any messages, native-like level.");
       cefrProgress = Math.min(100, Math.round((known / 20000) * 100));
     }
 
@@ -1346,22 +1348,22 @@ function StatisticsPage({
         level: cefrLevel,
         target: cefrTarget,
         desc: cefrDesc,
-        progress: Math.max(8, cefrProgress), // minimum visual 8% for design aesthetics
+        progress: cefrProgress,
       }
     };
   }, [statsArray]);
 
   // Formatted listening time helper
   const formatTime = (seconds: number) => {
-    if (!seconds || seconds <= 0) return "0с";
+    if (!seconds || seconds <= 0) return `0 ${t('stats_page.sec_unit', 's')}`;
     const totalSecs = Math.round(seconds);
-    if (totalSecs < 60) return `${totalSecs}с`;
+    if (totalSecs < 60) return `${totalSecs} ${t('stats_page.sec_unit', 's')}`;
     const mins = Math.floor(totalSecs / 60);
     const secs = totalSecs % 60;
-    if (mins < 60) return secs > 0 ? `${mins} мин ${secs} с` : `${mins} мин`;
+    if (mins < 60) return secs > 0 ? `${mins} ${t('stats_page.min_unit', 'min')} ${secs} ${t('stats_page.sec_unit', 's')}` : `${mins} ${t('stats_page.min_unit', 'min')}`;
     const hrs = Math.floor(mins / 60);
     const remMins = mins % 60;
-    return remMins > 0 ? `${hrs} ч ${remMins} мин` : `${hrs} ч`;
+    return remMins > 0 ? `${hrs} ${t('stats_page.hr_unit', 'h')} ${remMins} ${t('stats_page.min_unit', 'min')}` : `${hrs} ${t('stats_page.hr_unit', 'h')}`;
   };
 
   // Extract all unique tags actually used inside the user's active language dictionary
@@ -1394,7 +1396,7 @@ function StatisticsPage({
 
       const matchesFilter = (() => {
         if (vocabFilter === "all") {
-          return item.status !== "ignored"; // "игнорированные слова не отображаются в общем списке"
+          return item.status !== "ignored"; // "игнорированные {t('stats_page.words', 'words')}а не отображаются в общем списке"
         }
         if (vocabFilter === "learning") {
           return item.status && ["1", "2", "3", "4", "5", "learning"].includes(item.status);
@@ -1562,10 +1564,10 @@ function StatisticsPage({
         <div>
           <h2 className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-teal-500" />
-            Личный кабинет и статистика обучения (Learning Analytics)
+            {t('stats_page.title', 'Learning Analytics & Personal Dashboard')}
           </h2>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Отслеживайте свой словарный запас, показатели понимания текстов и речевую активность.
+            {t('stats_page.subtitle', 'Track your vocabulary growth, reading comprehension metrics, and audio listening activity.')}
           </p>
         </div>
 
@@ -1573,7 +1575,7 @@ function StatisticsPage({
         <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/45 dark:border-zinc-800/50 shrink-0 select-none">
           <Calendar className="w-4 h-4 text-zinc-400" />
           <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-            Статистика обновляется мгновенно в реальном времени
+            {t('stats_page.realtime', 'Statistics update instantly in real time')}
           </span>
         </div>
       </div>
@@ -1582,7 +1584,7 @@ function StatisticsPage({
       {languagesList.length > 0 && (
         <div id="stats-lang-selector" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-3 rounded-2xl shadow-xs font-sans">
           <label className="block text-[10px] uppercase font-bold tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">
-            Выберите язык для просмотра статистики / Choose Language:
+            {t('stats_page.choose_lang', 'Choose Language for Statistics:')}
           </label>
           <div className="flex flex-wrap gap-2">
             {languagesList.map((lang) => {
@@ -1608,7 +1610,7 @@ function StatisticsPage({
                       ? "bg-teal-200/50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
                       : "bg-zinc-200/50 dark:bg-zinc-800 text-zinc-500"
                   }`}>
-                    {wordsCount} слов(а)
+                    {wordsCount} {t('stats_page.words', 'words')}
                   </span>
                 </button>
               );
@@ -1630,13 +1632,13 @@ function StatisticsPage({
           </div>
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              Изучено слов (Known)
+              {t('stats_page.known_title', 'Mastered Words (Known)')}
             </span>
             <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
               {stats.known}
             </span>
             <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-              ✓ Полностью освоенные слова
+              {t('stats_page.known_desc', '✓ Fully mastered vocabulary')}
             </span>
           </div>
         </div>
@@ -1651,13 +1653,13 @@ function StatisticsPage({
           </div>
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              Изучается (Learning)
+              {t('stats_page.learning_title', 'In Learning (Learning)')}
             </span>
             <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
               {stats.learning}
             </span>
             <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold block mt-0.5">
-              ⚡ Активных карточек в обучении
+              {t('stats_page.learning_desc', '⚡ Active flashcards in training')}
             </span>
           </div>
         </div>
@@ -1672,13 +1674,13 @@ function StatisticsPage({
           </div>
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              Прослушивание (Listening)
+              {t('stats_page.listening_title', 'Audio Listening (Listening)')}
             </span>
             <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block truncate">
               {formatTime(listeningSeconds)}
             </span>
             <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block mt-0.5">
-              🔊 Время речевой аудиоозвучки
+              {t('stats_page.listening_desc', '🔊 Total audio speech listening time')}
             </span>
           </div>
         </div>
@@ -1693,13 +1695,13 @@ function StatisticsPage({
           </div>
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              Активных книг (Books)
+              {t('stats_page.books_title', 'Active Books (Books)')}
             </span>
             <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
               {lessons.filter(l => !l.isArchived).length}
             </span>
             <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block mt-0.5">
-              📖 Всего книг на книжной полке
+              {t('stats_page.books_desc', '📖 Total books on your bookshelf')}
             </span>
           </div>
         </div>
@@ -1714,19 +1716,19 @@ function StatisticsPage({
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-teal-50 dark:bg-teal-950/40 text-[10px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest">
               <Award className="w-3.5 h-3.5" />
-              Текущий уровень владения (Estimated Language Level)
+              {t('stats_page.cefr_title', 'Estimated Language Level')}
             </div>
             <h3 className="text-xl font-black text-zinc-900 dark:text-white mt-2">
               {stats.cefr.level}
             </h3>
             <p className="text-xs text-zinc-500 font-medium leading-relaxed mt-1">
-              {stats.cefr.desc} Оценка уровня производится на основе количества изученных и подтвержденных слов на платформе.
+              {stats.cefr.desc} {t('stats_page.cefr_evaluation_note', 'Level estimate based on the number of learned and confirmed words on the platform.')}
             </p>
           </div>
 
           <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
             <div className="flex justify-between items-center text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-              <span>До следующего ранга осталось: {stats.cefr.target - stats.known < 0 ? 0 : stats.cefr.target - stats.known} слов</span>
+              <span>{t('stats_page.words_to_next', 'Words remaining until next rank: {{count}}', { count: stats.cefr.target - stats.known < 0 ? 0 : stats.cefr.target - stats.known })}</span>
               <span className="text-teal-600 dark:text-teal-400">{stats.cefr.progress}%</span>
             </div>
             
@@ -1739,8 +1741,8 @@ function StatisticsPage({
             </div>
 
             <div className="flex justify-between items-center text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
-              <span>{stats.known} слов</span>
-              <span>Цель: {stats.cefr.target} слов</span>
+              <span>{stats.known} {t('stats_page.words', 'words')}</span>
+              <span>{t('stats_page.target_goal', 'Goal: {{count}} words', { count: stats.cefr.target })}</span>
             </div>
           </div>
         </div>
@@ -1749,10 +1751,10 @@ function StatisticsPage({
         <div className="col-span-12 md:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between">
           <div className="space-y-1">
             <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">
-              Распределение слов по статусу знакомства (Word Status Breakdown)
+              {t('stats_page.breakdown_title', 'Word Status Breakdown')}
             </h4>
             <p className="text-[11px] text-zinc-500">
-              Каждое сохраненное слово проходит 5 этапов запоминания до статуса «Знаю».
+              {t('stats_page.breakdown_desc', 'Each saved word goes through 5 stages of spaced repetition until marked as "Known".')}
             </p>
           </div>
 
@@ -1764,9 +1766,9 @@ function StatisticsPage({
               <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-red-400 inline-block"></span>
-                  Новые (Статус 1 - Не помню совсем)
+                  {t('stats_page.status1_label', 'New (Status 1 - Don\'t remember)')}
                 </span>
-                <span>{stats.distribution.status1} слов</span>
+                <span>{stats.distribution.status1} {t('stats_page.words', 'words')}</span>
               </div>
               <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
                 <div 
@@ -1781,9 +1783,9 @@ function StatisticsPage({
               <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-amber-400 inline-block"></span>
-                  В процессе (Статус 2-3 - Припоминаю с трудом)
+                  {t('stats_page.status2_3_label', 'In Progress (Status 2-3 - Remembering with effort)')}
                 </span>
-                <span>{stats.distribution.status2 + stats.distribution.status3} слов</span>
+                <span>{stats.distribution.status2 + stats.distribution.status3} {t('stats_page.words', 'words')}</span>
               </div>
               <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
                 <div 
@@ -1798,9 +1800,9 @@ function StatisticsPage({
               <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-teal-400 inline-block"></span>
-                  Почти изучено (Статус 4-5 - Хорошо помню)
+                  {t('stats_page.status4_5_label', 'Almost Learned (Status 4-5 - Remember well)')}
                 </span>
-                <span>{stats.distribution.status4 + stats.distribution.status5} слов</span>
+                <span>{stats.distribution.status4 + stats.distribution.status5} {t('stats_page.words', 'words')}</span>
               </div>
               <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
                 <div 
@@ -1815,9 +1817,9 @@ function StatisticsPage({
               <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-emerald-500 inline-block"></span>
-                  Знаю (Полностью выучено)
+                  {t('stats_page.status_known_label', 'Known (Fully mastered)')}
                 </span>
-                <span>{stats.known} слов</span>
+                <span>{stats.known} {t('stats_page.words', 'words')}</span>
               </div>
               <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
                 <div 
@@ -1841,10 +1843,10 @@ function StatisticsPage({
             <div>
               <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 <Flame className="w-5 h-5 text-orange-500 fill-orange-500 animate-pulse" />
-                Карта активности и регулярности обучения (Vocabulary Heatmap)
+                {t('stats_page.heatmap_title', 'Vocabulary Heatmap')}
               </h3>
               <p className="text-xs text-zinc-500">
-                Визуализация вашей ежедневной активности по сохранению и изучению новых слов за последние 24 недели.
+                {t('stats_page.heatmap_desc', 'Visualization of your daily word saving and practice activity over the last 24 weeks.')}
               </p>
             </div>
           </div>
@@ -1852,41 +1854,41 @@ function StatisticsPage({
           {/* Interactive Streak Indicators HUD strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-xl border border-zinc-100/45 dark:border-zinc-800/40 text-xs text-zinc-600 dark:text-zinc-300">
             <div className="space-y-1">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Текущая серия (Streak)</span>
+              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.current_streak', 'Current Streak')}</span>
               <div className="flex items-center gap-1.5">
                 <Flame className={`w-4 h-4 ${heatmapData.currentStreak > 0 ? "text-orange-500 fill-orange-500" : "text-zinc-400"}`} />
                 <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  {heatmapData.currentStreak} {heatmapData.currentStreak === 1 ? "день" : [2,3,4].includes(heatmapData.currentStreak % 10) && ![12,13,14].includes(heatmapData.currentStreak) ? "дня" : "дней"}
+                  {heatmapData.currentStreak} {t('stats_page.days_unit', 'day(s)')}
                 </span>
               </div>
             </div>
 
             <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Рекорд серии</span>
+              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.longest_streak', 'Streak Record')}</span>
               <div className="flex items-center gap-1.5">
                 <Award className="w-4 h-4 text-amber-500" />
                 <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  {heatmapData.longestStreak} {heatmapData.longestStreak === 1 ? "день" : [2,3,4].includes(heatmapData.longestStreak % 10) && ![12,13,14].includes(heatmapData.longestStreak) ? "дня" : "дней"}
+                  {heatmapData.longestStreak} {t('stats_page.days_unit', 'day(s)')}
                 </span>
               </div>
             </div>
 
             <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Активных дней</span>
+              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.active_days', 'Active Days')}</span>
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-teal-500" />
                 <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  {heatmapData.activeDays} {heatmapData.activeDays % 10 === 1 && heatmapData.activeDays !== 11 ? "день" : [2,3,4].includes(heatmapData.activeDays % 10) && ![12,13,14].includes(heatmapData.activeDays) ? "дня" : "дней"}
+                  {heatmapData.activeDays} {t('stats_page.days_unit', 'day(s)')}
                 </span>
               </div>
             </div>
 
             <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">Пик за сутки</span>
+              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.max_in_a_day', 'Daily Peak')}</span>
               <div className="flex items-center gap-1.5">
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
                 <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  +{heatmapData.maxInADay} слов
+                  +{heatmapData.maxInADay} {t('stats_page.words', 'words')}
                 </span>
               </div>
             </div>
@@ -1901,7 +1903,7 @@ function StatisticsPage({
                 let lastMonthName = "";
                 return heatmapData.columns.map((week, wIdx) => {
                   const firstDay = week[0].date;
-                  const monthName = firstDay.toLocaleDateString("ru", { month: "short" });
+                  const monthName = firstDay.toLocaleDateString("en-US", { month: "short" });
                   
                   // Only display month name when it changes
                   if (monthName !== lastMonthName) {
@@ -1924,13 +1926,13 @@ function StatisticsPage({
             <div className="flex gap-1.5 items-start">
               {/* Day names left labels */}
               <div className="flex flex-col text-[8px] font-black text-zinc-400 select-none space-y-[4.5px] mt-0.5 w-[22px] text-right shrink-0">
-                <span>Пн</span>
-                <span className="opacity-0">Вт</span>
-                <span>Ср</span>
-                <span className="opacity-0">Чт</span>
-                <span>Пт</span>
-                <span className="opacity-0">Сб</span>
-                <span>Вс</span>
+                <span>{t('stats_page.mon', 'Mon')}</span>
+                <span className="opacity-0">Tue</span>
+                <span>{t('stats_page.wed', 'Wed')}</span>
+                <span className="opacity-0">Thu</span>
+                <span>{t('stats_page.fri', 'Fri')}</span>
+                <span className="opacity-0">Sat</span>
+                <span>{t('stats_page.sun', 'Sun')}</span>
               </div>
 
               {/* Heatmap Matrix with Columns representing weeks */}
@@ -1964,7 +1966,7 @@ function StatisticsPage({
                           className={`w-[11.5px] h-[11.5px] rounded-xs border transition-all duration-100 shrink-0 cursor-pointer ${cellColor} ${
                             isSelected ? "ring-2 ring-teal-500 ring-offset-1 dark:ring-offset-zinc-900 scale-125 z-10 font-bold" : ""
                           }`}
-                          title={`${day.date.toLocaleDateString("ru-RU", { day: "2-digit", month: "long" })}: добавлено ${count} слов(а)`}
+                          title={`${day.date.toLocaleDateString("en-US", { day: "2-digit", month: "short" })}: ${count} ${t('stats_page.words', 'words')}`}
                         />
                       );
                     })}
@@ -1975,15 +1977,15 @@ function StatisticsPage({
 
             {/* Heatmap Legend */}
             <div className="flex items-center justify-between mt-3 text-[10px] text-zinc-400 select-none border-t border-zinc-100/40 dark:border-zinc-800/40 pt-2 px-1">
-              <span>* Кликните на квадрат, чтобы посмотреть добавленные слова за этот день</span>
+              <span>* {t('stats_page.click_heatmap_hint', 'Click on a square to view words added on that day')}</span>
               <div className="flex items-center gap-1">
-                <span>Меньше</span>
+                <span>{t('stats_page.less', 'Less')}</span>
                 <span className="w-2.5 h-2.5 rounded bg-zinc-100 dark:bg-zinc-950 border border-zinc-200/30 dark:border-zinc-800/40" />
                 <span className="w-2.5 h-2.5 rounded bg-teal-100 dark:bg-teal-950/30 border border-teal-200/30 dark:border-teal-900/40" />
                 <span className="w-2.5 h-2.5 rounded bg-teal-300 dark:bg-teal-800" />
                 <span className="w-2.5 h-2.5 rounded bg-teal-500 dark:bg-teal-600" />
                 <span className="w-2.5 h-2.5 rounded bg-teal-700 dark:bg-teal-400" />
-                <span>Больше</span>
+                <span>{t('stats_page.more', 'More')}</span>
               </div>
             </div>
             
@@ -1995,19 +1997,19 @@ function StatisticsPage({
             if (!resolvedWords) return null;
             
             const wordsList = resolvedWords.words;
-            const fullDateStr = resolvedWords.date.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+            const fullDateStr = resolvedWords.date.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
             
             return (
               <div className="bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/60 p-3.5 rounded-xl animate-in slide-in-from-top-2 duration-200 font-sans space-y-2">
                 <div className="flex items-center justify-between text-xs select-none border-b border-teal-100/45 pb-1.5">
                   <span className="font-extrabold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
-                    🗓️ Добавлено в {fullDateStr}
+                    🗓️ {t('stats_page.added_on', 'Added on {{date}}', { date: fullDateStr })}
                   </span>
                   <button
                     onClick={() => setSelectedHeatmapDate(null)}
                     className="text-[10px] font-black hover:text-red-500 cursor-pointer text-zinc-400"
                   >
-                    закрыть ✕
+                    {t('stats_page.close', 'close ✕')}
                   </button>
                 </div>
                 {wordsList.length > 0 ? (
@@ -2031,7 +2033,7 @@ function StatisticsPage({
                   </div>
                 ) : (
                   <p className="text-[11px] text-zinc-400 italic">
-                    В этот день вы не заносили новые слова в словарь. Самое время изучить новый урок! 🚀
+                    {t('stats_page.no_words_added', 'No words were added on this day.')}
                   </p>
                 )}
               </div>
@@ -2045,10 +2047,10 @@ function StatisticsPage({
           <div className="space-y-1 pb-3 border-b border-zinc-100 dark:border-zinc-800">
             <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-teal-500" />
-              Рост словаря (Growth History)
+              {t('stats_page.growth_title', 'Growth History')}
             </h3>
             <p className="text-xs text-zinc-500 w-full">
-              Динамика накопления сохраненных слов по месяцам.
+              {t('stats_page.growth_desc', 'Dynamics of saved vocabulary accumulation by month.')}
             </p>
           </div>
 
@@ -2075,7 +2077,7 @@ function StatisticsPage({
                         
                         {/* Word count Bubble marker displayed on hover/active */}
                         <div className="absolute bottom-full mb-1 bg-zinc-800 dark:bg-zinc-800 text-white dark:text-zinc-100 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none mb-1.5 duration-100 select-none">
-                          {month.count} слов
+                          {month.count} {t('stats_page.words', 'words')}
                         </div>
 
                         {/* Bar graphics column */}
@@ -2099,23 +2101,23 @@ function StatisticsPage({
               {/* Sparkline details list summary */}
               <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-lg border border-zinc-100/50 dark:border-zinc-800/50 space-y-1 text-[11px] text-zinc-600 dark:text-zinc-300">
                 <div className="flex justify-between font-medium select-none">
-                  <span>Общий запас (Total Scope):</span>
-                  <strong className="text-zinc-900 dark:text-white">{statsArray.length} {onlyPatterns ? "parents" : "слов"}</strong>
+                  <span>{t('stats_page.total_scope', 'Total Scope:')}</span>
+                  <strong className="text-zinc-900 dark:text-white">{statsArray.length} {onlyPatterns ? "parents" : t('stats_page.words', 'words')}</strong>
                 </div>
                 <div className="flex justify-between font-medium select-none text-[10.5px]">
-                  <span>Позапрошлый месяц:</span>
-                  <span className="text-zinc-500">{monthlyGrowth[3]?.count || 0} {onlyPatterns ? "parents" : "слов"}</span>
+                  <span>{t('stats_page.month_before_last', 'Month before last:')}</span>
+                  <span className="text-zinc-500">{monthlyGrowth[3]?.count || 0} {onlyPatterns ? "parents" : t('stats_page.words', 'words')}</span>
                 </div>
                 <div className="flex justify-between font-medium select-none text-[10.5px]">
-                  <span>Текущий месяц:</span>
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">+{statsArray.length - (monthlyGrowth[4]?.count || 0)} новых за месяц</span>
+                  <span>{t('stats_page.current_month', 'Current month:')}</span>
+                  <span className="text-teal-600 dark:text-teal-400 font-bold">+{statsArray.length - (monthlyGrowth[4]?.count || 0)} {t('stats_page.new_this_month', 'new this month')}</span>
                 </div>
               </div>
 
             </div>
           ) : (
             <div className="flex items-center justify-center p-8 bg-zinc-50 dark:bg-zinc-950/50 rounded-xl select-none">
-              <span className="text-xs text-zinc-400 italic">Недостаточно данных для графика</span>
+              <span className="text-xs text-zinc-400 italic">{t('stats_page.not_enough_chart_data', 'Not enough data for chart')}</span>
             </div>
           )}
         </div>
@@ -2129,10 +2131,10 @@ function StatisticsPage({
           <div className="space-y-0.5">
             <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2 select-none">
               <Sparkles className="w-5 h-5 text-teal-500 animate-pulse" />
-              Приоритет изучения слов & CEFR профилирование (Vocabulary Priority Profiler)
+              {t('stats_page.profiler_title', 'Vocabulary Priority Profiler')}
             </h3>
             <p className="text-xs text-zinc-500">
-              Умный лингвистический анализатор сканирует тексты ваших импортированных уроков, определяет частоту повторения слов и автоматически размечает карточки уровнями сложности (от A1 до C1). Это помогает сфокусироваться на высокочастотных словах в первую очередь.
+              {t('stats_page.profiler_desc', 'Smart linguistic analyzer scans your imported lesson texts, determines word repetition frequency, and automatically tags cards by difficulty (from A1 to C1). This helps focus on high-frequency words first.')}
             </p>
           </div>
 
@@ -2148,12 +2150,12 @@ function StatisticsPage({
             {isProfiling ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Анализ уроков...</span>
+                <span>{t('stats_page.analyzing_lessons', 'Analyzing lessons...')}</span>
               </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4" />
-                <span>Запустить разметку словаря</span>
+                <span>{t('stats_page.run_profiler', 'Run Frequency Analysis')}</span>
               </>
             )}
           </button>
@@ -2170,15 +2172,15 @@ function StatisticsPage({
         {/* Live CEFR Distribution Profile Stats */}
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs select-none">
-            <span className="font-extrabold text-zinc-600 dark:text-zinc-300">Распределение уровня сложности словаря ({selectedStatsLang}):</span>
+            <span className="font-extrabold text-zinc-600 dark:text-zinc-300">{t('stats_page.difficulty_breakdown', 'Vocabulary difficulty distribution ({{lang}}):', { lang: selectedStatsLang })}</span>
             <span className="font-mono text-zinc-400">
-              Размечено: <strong className="text-zinc-700 dark:text-zinc-200 font-extrabold">{cefrProfileCounts.totalWithCefr}</strong> из <strong className="text-zinc-700 dark:text-zinc-200 font-extrabold">{vocabArray.length}</strong> слов
+              {t('stats_page.tagged_count', 'Tagged: {{tagged}} of {{total}} words', { tagged: cefrProfileCounts.totalWithCefr, total: vocabArray.length })}
             </span>
           </div>
 
           {vocabArray.length === 0 ? (
             <div className="p-6 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center select-none text-xs text-zinc-400 italic">
-              Словарь пуст. Добавьте слова, читая уроки во вкладке "Читать уроки".
+              {t('stats_page.empty_vocab_notice', 'Vocabulary is empty. Add words while reading lessons in the "Read" tab.')}
             </div>
           ) : cefrProfileCounts.totalWithCefr > 0 ? (
             <div className="space-y-4">
@@ -2204,7 +2206,7 @@ function StatisticsPage({
                         key={idx}
                         style={{ width: `${pct}%` }}
                         className={`${item.color} flex items-center justify-center font-mono text-[8px] font-black leading-none truncate`}
-                        title={`${item.label}: ${item.count} слов (${pct.toFixed(1)}%)`}
+                        title={`${item.label}: ${item.count} ${t('stats_page.words', 'words')} (${pct.toFixed(1)}%)`}
                       >
                         {pct >= 8 && `${item.label} (${pct.toFixed(0)}%)`}
                       </div>
@@ -2216,17 +2218,17 @@ function StatisticsPage({
               {/* CEFR Tiers Detailed Grid Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 {[
-                  { level: "A1", badgeDesc: "Ключевые слова", count: cefrProfileCounts.a1, color: "border-emerald-200 text-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/10 dark:text-emerald-400 dark:border-emerald-950", sub: "Самые частые (Топ-15%)" },
-                  { level: "A2", badgeDesc: "Разговорные основы", count: cefrProfileCounts.a2, color: "border-teal-200 text-teal-700 bg-teal-50/40 dark:bg-teal-950/10 dark:text-teal-400 dark:border-teal-950", sub: "Общие основы (15-35%)" },
-                  { level: "B1", badgeDesc: "Пороговые понятия", count: cefrProfileCounts.b1, color: "border-cyan-200 text-cyan-700 bg-cyan-50/40 dark:bg-cyan-950/10 dark:text-cyan-400 dark:border-cyan-950", sub: "Средний уровень (35-55%)" },
-                  { level: "B2", badgeDesc: "Продвинутая речь", count: cefrProfileCounts.b2, color: "border-blue-200 text-blue-700 bg-blue-50/40 dark:bg-blue-950/10 dark:text-blue-400 dark:border-blue-950", sub: "Выше среднего (55-75%)" },
-                  { level: "C1", badgeDesc: "Академические", count: cefrProfileCounts.c1, color: "border-indigo-200 text-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/10 dark:text-indigo-400 dark:border-indigo-950", sub: "Сложные/Письменные" },
-                  { level: "C2", badgeDesc: "Узкая терминология", count: cefrProfileCounts.c2, color: "border-violet-200 text-violet-700 bg-violet-50/40 dark:bg-violet-950/10 dark:text-violet-400 dark:border-violet-950", sub: "Редкие слова (последний топ)" },
+                  { level: "A1", badgeDesc: t('stats_page.cefr_a1_badge', "Key Words"), count: cefrProfileCounts.a1, color: "border-emerald-200 text-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/10 dark:text-emerald-400 dark:border-emerald-950", sub: t('stats_page.cefr_a1_sub', "Most frequent (Top 15%)") },
+                  { level: "A2", badgeDesc: t('stats_page.cefr_a2_badge', "Conversational Basics"), count: cefrProfileCounts.a2, color: "border-teal-200 text-teal-700 bg-teal-50/40 dark:bg-teal-950/10 dark:text-teal-400 dark:border-teal-950", sub: t('stats_page.cefr_a2_sub', "General basics (15-35%)") },
+                  { level: "B1", badgeDesc: t('stats_page.cefr_b1_badge', "Threshold Concepts"), count: cefrProfileCounts.b1, color: "border-cyan-200 text-cyan-700 bg-cyan-50/40 dark:bg-cyan-950/10 dark:text-cyan-400 dark:border-cyan-950", sub: t('stats_page.cefr_b1_sub', "Intermediate level (35-55%)") },
+                  { level: "B2", badgeDesc: t('stats_page.cefr_b2_badge', "Advanced Speech"), count: cefrProfileCounts.b2, color: "border-blue-200 text-blue-700 bg-blue-50/40 dark:bg-blue-950/10 dark:text-blue-400 dark:border-blue-950", sub: t('stats_page.cefr_b2_sub', "Upper Intermediate (55-75%)") },
+                  { level: "C1", badgeDesc: t('stats_page.cefr_c1_badge', "Academic"), count: cefrProfileCounts.c1, color: "border-indigo-200 text-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/10 dark:text-indigo-400 dark:border-indigo-950", sub: t('stats_page.cefr_c1_sub', "Complex / Written") },
+                  { level: "C2", badgeDesc: t('stats_page.cefr_c2_badge', "Narrow Terminology"), count: cefrProfileCounts.c2, color: "border-violet-200 text-violet-700 bg-violet-50/40 dark:violet-950/10 dark:text-violet-400 dark:border-violet-950", sub: t('stats_page.cefr_c2_sub', "Rare words (Top tier)") },
                 ].map((tier, idx) => (
                   <div key={idx} className={`p-2.5 border rounded-xl flex flex-col justify-between ${tier.color} text-xs leading-normal select-none`}>
                     <div className="flex items-center justify-between">
                       <span className="font-extrabold text-sm">{tier.level}</span>
-                      <span className="font-sans font-black text-xs">{tier.count} <span className="text-[10px] font-normal text-zinc-400">слов</span></span>
+                      <span className="font-sans font-black text-xs">{tier.count} <span className="text-[10px] font-normal text-zinc-400">{t('stats_page.words', 'words')}</span></span>
                     </div>
                     <div className="mt-1.5 space-y-0.5">
                       <p className="text-[9px] font-bold uppercase tracking-wide opacity-80 leading-tight">{tier.badgeDesc}</p>
@@ -2239,7 +2241,7 @@ function StatisticsPage({
             </div>
           ) : (
             <div className="p-4 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center select-none text-[11px] text-zinc-500 leading-normal">
-              В вашем словаре пока нет размеченных по частотности слов. Нажмите кнопку <strong className="text-teal-600 dark:text-teal-400 font-extrabold">"Запустить разметку словаря"</strong> в правом верхнем углу, чтобы просканировать ваши уроки и присвоить теги приоритета!
+              {t('stats_page.empty_frequency_notice', 'Your vocabulary has no frequency-tagged words yet. Click the "Run Frequency Analysis" button in the top right to scan your lessons and assign CEFR priority tags!')}
             </div>
           )}
         </div>
@@ -2251,10 +2253,10 @@ function StatisticsPage({
         <div className="space-y-0.5">
           <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2 select-none">
             <BookOpen className="w-5 h-5 text-teal-500" />
-            Контекстный поиск по своим книгам
+            {t('stats_page.context_search_title', 'Context Search in Your Books')}
           </h3>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            Часто мы учим слово, но забываем, где именно его встречали. Поиск работает не по словарю, а по всем текстам, которые вы уже загрузили в Lectura.
+            {t('stats_page.context_search_desc', 'Search for occurrences of any word or phrase across all texts you have uploaded to Lectura.')}
           </p>
         </div>
 
@@ -2264,14 +2266,14 @@ function StatisticsPage({
             type="text"
             value={contextSearchQuery}
             onChange={(e) => setContextSearchQuery(e.target.value)}
-            placeholder="Введите слово или фразу — найдём все вхождения в ваших книгах..."
+            placeholder={t('stats_page.context_search_ph', 'Type a word or phrase — find all occurrences in your books...')}
             className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
           />
         </div>
 
         {contextSearchQuery.trim().length >= 2 && contextSearchHits.length === 0 && (
           <p className="text-xs text-zinc-500 italic">
-            Не найдено вхождений «{contextSearchQuery.trim()}» в текстах на языке {selectedStatsLang}.
+            {t('stats_page.context_no_results', 'No occurrences found for "{{query}}" in {{lang}} texts.', { query: contextSearchQuery.trim(), lang: selectedStatsLang })}
           </p>
         )}
 
@@ -2293,10 +2295,10 @@ function StatisticsPage({
           <div className="space-y-0.5">
             <h4 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-teal-500" />
-              Личный интерактивный словарь и разбор слов (Vocabulary Notebook)
+              {t('stats_page.notebook_title', 'Vocabulary Notebook')}
             </h4>
             <p className="text-xs text-zinc-500">
-              Быстрый обзор, повторение, редактирование статусов или удаление из карточек.
+              {t('stats_page.notebook_desc', 'Quick overview, review, status editing, or removal of saved words.')}
             </p>
           </div>
 
@@ -2328,7 +2330,7 @@ function StatisticsPage({
                 URL.revokeObjectURL(url);
               }}
               className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/60 flex items-center gap-1.5 cursor-pointer shadow-3xs"
-              title="Экспортировать отфильтрованные слова в Anki (.txt)"
+              title={t('stats_page.export_anki_title', 'Export filtered words to Anki (.txt)')}
             >
               <Download className="w-3.5 h-3.5" />
               <span>Anki (.txt)</span>
@@ -2340,10 +2342,10 @@ function StatisticsPage({
                   ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
                   : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-800 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-400"
               }`}
-              title="Инструменты коррекции дат для импортированных слов из Lute/Anki"
+              title={t('stats_page.lute_tools_title', 'Date correction tools for imported words from Lute/Anki')}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>Перенос с Lute / Даты</span>
+              <span>{t('stats_page.lute_tools', 'Lute / Migration Tools')}</span>
             </button>
             <button
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
@@ -2354,7 +2356,7 @@ function StatisticsPage({
               }`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>Доп. Фильтры</span>
+              <span>{t('stats_page.extra_filters', 'Extra Filters')}</span>
               {(vocabTagFilter !== "all" || vocabLengthFilter !== "all" || vocabImageFilter !== "all") && (
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
               )}
@@ -2363,18 +2365,18 @@ function StatisticsPage({
               onClick={handleExportCSV}
               disabled={processedVocabularyList.length === 0}
               className="px-3 py-1.5 bg-zinc-50 border border-zinc-200 text-zinc-600 hover:text-zinc-800 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs disabled:opacity-50 disabled:pointer-events-none select-none"
-              title="Экспортировать отфильтрованные слова в CSV файл"
+              title={t('stats_page.export_csv_title', 'Export filtered words to CSV file')}
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Экспорт ({processedVocabularyList.length})</span>
+              <span>{t('stats_page.export_csv', 'Export CSV ({{count}})', { count: processedVocabularyList.length })}</span>
             </button>
             <button
               onClick={() => document.getElementById("csv-file-import-input")?.click()}
               className="px-3 py-1.5 bg-teal-500 hover:bg-teal-600 active:scale-97 border border-teal-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs hover:shadow-4xs select-none"
-              title="Импортировать слова из CSV-файла"
+              title={t('stats_page.import_csv_title', 'Import words from CSV file')}
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>Импорт CSV</span>
+              <span>{t('stats_page.import_csv', 'Import CSV')}</span>
             </button>
             <input
               type="file"
@@ -2384,7 +2386,7 @@ function StatisticsPage({
               className="hidden"
             />
             <div className="flex bg-zinc-100 dark:bg-zinc-950 px-3 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 items-center gap-1.5 header-badge-layout select-none">
-              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none">Найдено слов:</span>
+              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none">{t('stats_page.words_found_label', 'Words found:')}</span>
               <span className="text-xs font-black text-teal-600 dark:text-teal-400 leading-none">{processedVocabularyList.length}</span>
             </div>
           </div>
@@ -2398,27 +2400,27 @@ function StatisticsPage({
               type="text"
               value={vocabSearch}
               onChange={(e) => setVocabSearch(e.target.value)}
-              placeholder="Быстрый поиск слова в блокноте... (Поиск перевода или грамматики)"
+              placeholder={t('stats_page.search_notebook_ph', 'Quick search in notebook... (search translation or grammar)')}
               className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
             />
           </div>
 
-          {/* New Dropdown list to filter by level of understanding and ignored status */}
+          {/* Dropdown list to filter by level of understanding and ignored status */}
           <div className="relative">
             <select
               value={vocabFilter}
               onChange={(e) => setVocabFilter(e.target.value)}
               className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
             >
-              <option value="all">🌐 Все активные {onlyPatterns ? "parents" : "слова"} ({statsArray.filter(l => l.status !== "ignored").length})</option>
-              <option value="learning">🎓 Изучаю (1-5) ({stats.learning})</option>
-              <option value="1">🔴 Уровень 1 (Новое) ({stats.distribution.status1})</option>
-              <option value="2">🟠 Уровень 2 (Трудное) ({stats.distribution.status2})</option>
-              <option value="3">🟡 Уровень 3 (Припоминаю) ({stats.distribution.status3})</option>
-              <option value="4">🟢 Уровень 4 (Почти знаю) ({stats.distribution.status4})</option>
-              <option value="5">🟣 Уровень 5 (Знаю хорошо) ({stats.distribution.status5})</option>
-              <option value="known">✓ Изучено ({stats.known})</option>
-              <option value="ignored">🚫 Игнорированные ({stats.ignored})</option>
+              <option value="all">{t('stats_page.filter_all_active', 'All active {{type}} ({{count}})', { type: onlyPatterns ? "parents" : "words", count: stats.known + stats.learning })}</option>
+              <option value="learning">{t('stats_page.filter_learning', 'Learning (1-5) ({{count}})', { count: stats.learning })}</option>
+              <option value="1">{t('stats_page.filter_lvl1', 'Level 1 (New) ({{count}})', { count: stats.distribution.status1 })}</option>
+              <option value="2">{t('stats_page.filter_lvl2', 'Level 2 (Hard) ({{count}})', { count: stats.distribution.status2 })}</option>
+              <option value="3">{t('stats_page.filter_lvl3', 'Level 3 (Remembering) ({{count}})', { count: stats.distribution.status3 })}</option>
+              <option value="4">{t('stats_page.filter_lvl4', 'Level 4 (Almost Known) ({{count}})', { count: stats.distribution.status4 })}</option>
+              <option value="5">{t('stats_page.filter_lvl5', 'Level 5 (Well Known) ({{count}})', { count: stats.distribution.status5 })}</option>
+              <option value="known">{t('stats_page.filter_known', 'Learned / Known ({{count}})', { count: stats.known })}</option>
+              <option value="ignored">{t('stats_page.filter_ignored', 'Ignored ({{count}})', { count: stats.ignored })}</option>
             </select>
             <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-zinc-400">
               <ChevronDown className="w-4 h-4" />
@@ -2431,11 +2433,11 @@ function StatisticsPage({
               onChange={(e) => setVocabSort(e.target.value as any)}
               className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
             >
-              <option value="newest">📅 Сначала новые</option>
-              <option value="oldest">📅 Сначала старые</option>
-              <option value="alphabetical">🔤 По алфавиту</option>
-              <option value="level_desc">📈 Status (По убыванию)</option>
-              <option value="level_asc">📉 Status (По возрастанию)</option>
+              <option value="newest">📅 {t('stats_page.sort_newest', 'Newest first')}</option>
+              <option value="oldest">📅 {t('stats_page.sort_oldest', 'Oldest first')}</option>
+              <option value="alphabetical">🔤 {t('stats_page.sort_alpha', 'Alphabetical')}</option>
+              <option value="level_desc">📈 {t('stats_page.sort_status_desc', 'Status (Descending)')}</option>
+              <option value="level_asc">📉 {t('stats_page.sort_status_asc', 'Status (Ascending)')}</option>
             </select>
             <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-zinc-400">
               <ChevronDown className="w-4 h-4" />
@@ -2451,10 +2453,10 @@ function StatisticsPage({
                 ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/45 dark:border-teal-900 dark:text-teal-400 font-extrabold shadow-inner"
                 : "bg-zinc-50 border-zinc-100 dark:bg-zinc-950 dark:border-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
             }`}
-            title="Отображать только базовые формы (леммы) слов, группируя морфологические формы"
+            title={t('stats_page.parents_only_title', 'Display only root forms (lemmas), grouping morphological variations')}
           >
             <span className="text-sm leading-none">🔗</span>
-            <span>Только Parents</span>
+            <span>{t('stats_page.parents_only', 'Parents Only')}</span>
           </button>
         </div>
 
@@ -2465,10 +2467,10 @@ function StatisticsPage({
               <span className="text-xl">📅</span>
               <div className="space-y-1">
                 <h5 className="text-xs font-black text-amber-800 dark:text-amber-400 uppercase tracking-widest leading-none">
-                  Инструменты миграции и ручного управления датами (LUTE / Anki Migration Tools)
+                  {t('stats_page.migration_title', 'Migration & Date Management Tools (LUTE / Anki Migration Tools)')}
                 </h5>
                 <p className="text-[11.5px] text-zinc-600 dark:text-zinc-400 leading-relaxed font-semibold">
-                  При переезде с Lute или Anki слова часто импортируются или добавляются сотнями за одну сессию. Это создает один огромный пик на тепловой карте и искажает ежедневную статистику. Вы можете точечно менять даты у слов в таблице ниже, либо использовать инструменты пакетного распределения ниже.
+                  {t('stats_page.migration_desc', 'When migrating from Lute or Anki, words are often imported in bulk. You can adjust saved dates individually or use batch distribution tools below.')}
                 </p>
               </div>
             </div>
@@ -2480,15 +2482,15 @@ function StatisticsPage({
                 <div className="space-y-1">
                   <h6 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
                     <RefreshCw className="w-3.5 h-3.5 text-teal-500" />
-                    Равномерно распределить (Разгладить тепловую карту)
+                    {t('stats_page.smooth_heatmap', 'Distribute evenly (Smooth Heatmap)')}
                   </h6>
                   <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug font-medium">
-                    Равномерно распределит все слова из текущего отфильтрованного списка ({processedVocabularyList.length} шт.) по временному интервалу назад в прошлое.
+                    {t('stats_page.smooth_desc', 'Evenly distributes all words in the current filtered list ({{count}} pcs) over a past time interval.', { count: processedVocabularyList.length })}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  <span className="text-[9px] uppercase font-black text-zinc-400 tracking-wider">Интервал:</span>
+                  <span className="text-[9px] uppercase font-black text-zinc-400 tracking-wider">{t('stats_page.interval', 'Interval:')}</span>
                   {[7, 14, 30, 90, 180].map((days) => (
                     <button
                       key={days}
@@ -2496,7 +2498,7 @@ function StatisticsPage({
                       disabled={processedVocabularyList.length === 0}
                       className="cursor-pointer px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-zinc-50 hover:bg-teal-500 hover:text-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-teal-500 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
                     >
-                      {days} дн.
+                      {days} {t('stats_page.days_unit', 'days')}
                     </button>
                   ))}
                 </div>
@@ -2507,10 +2509,10 @@ function StatisticsPage({
                 <div className="space-y-1">
                   <h6 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
                     <Calendar className="w-3.5 h-3.5 text-cyan-500" />
-                    Пакетный перенос на определенный день
+                    {t('stats_page.batch_transfer', 'Batch Transfer to Selected Day')}
                   </h6>
                   <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug font-medium">
-                    Установит выбранную дату в точности для всех отфильтрованных слов ({processedVocabularyList.length} шт.).
+                    {t('stats_page.batch_transfer_desc', 'Sets the exact selected date for all filtered words ({{count}} pcs).', { count: processedVocabularyList.length })}
                   </p>
                 </div>
 
@@ -2531,7 +2533,7 @@ function StatisticsPage({
                     disabled={processedVocabularyList.length === 0}
                     className="cursor-pointer bg-teal-500 hover:bg-teal-600 text-white px-3.5 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg border border-teal-600 hover:scale-105 active:scale-95 transition-all shadow-3xs disabled:opacity-50 disabled:pointer-events-none"
                   >
-                    Перенести
+                    {t('stats_page.transfer_btn', 'Transfer')}
                   </button>
                 </div>
               </div>
@@ -2543,10 +2545,10 @@ function StatisticsPage({
               <div className="space-y-1">
                 <h6 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 leading-none">
                   <span className="text-sm leading-none">📋</span>
-                  Пакетный импорт новых слов списком с выбором даты
+                  {t('stats_page.batch_import_title', 'Batch Import New Words List with Custom Date')}
                 </h6>
                 <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug font-medium">
-                  Вставьте список слов (по одному слову на строку), либо скопированные данные из Lute / Anki (поддерживается автоматическое разделение по табуляции <code className="bg-zinc-100 dark:bg-zinc-900 px-1 py-0.2 rounded font-mono font-bold text-amber-600">\t</code>, точке с запятой <code className="bg-zinc-100 dark:bg-zinc-900 px-1 py-0.2 rounded font-mono font-bold text-amber-600">;</code>, символу <code className="bg-zinc-100 dark:bg-zinc-900 px-1 py-0.2 rounded font-mono font-bold text-amber-600">|</code> или пробел-дефис-пробел <code className="bg-zinc-100 dark:bg-zinc-900 px-1 py-0.2 rounded font-mono font-bold text-amber-600"> - </code> для добавления перевода).
+                  {t('stats_page.batch_import_desc', 'Paste a list of words (one per line) or tab-separated data copied from Lute / Anki.')}
                 </p>
               </div>
 
@@ -2555,7 +2557,7 @@ function StatisticsPage({
                 <div className="md:col-span-7 space-y-1.5">
                   <textarea
                     rows={5}
-                    placeholder={`Пример:\nperro\tсобака\ngato\tкошка\nsol\tсолнце\nИли просто список слов по одному на строку`}
+                    placeholder={t('stats_page.batch_import_ph', 'Example:\nperro\tdog\ngato\tcat\nsol\tsun\nOr just a simple list of words one per line')}
                     value={batchImportText}
                     onChange={(e) => setBatchImportText(e.target.value)}
                     className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 placeholder-zinc-400 resize-y"
@@ -2563,10 +2565,10 @@ function StatisticsPage({
                   {parsedBatchWords.length > 0 && (
                     <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold bg-teal-500/5 dark:bg-teal-400/5 px-2.5 py-1 rounded-lg border border-teal-500/10 flex items-center justify-between select-none animate-pulse">
                       <span>
-                        🔍 Распознано слов к импорту: <strong className="text-teal-600 dark:text-teal-400">{parsedBatchWords.length} шт.</strong>
-                        {" "}(новых: <strong className="text-emerald-600 dark:text-emerald-400">{batchImportStats.newWords}</strong>, обновится: <strong className="text-amber-600 dark:text-amber-400">{batchImportStats.existingWords}</strong>)
+                        🔍 {t('stats_page.words_recognized', 'Recognized words to import: {{count}} pcs', { count: parsedBatchWords.length })}
+                        {" "}({t('stats_page.new_and_updated', 'new: {{newCount}}, updating: {{existingCount}}', { newCount: batchImportStats.newWords, existingCount: batchImportStats.existingWords })})
                       </span>
-                      <span className="text-[8.5px] uppercase font-black tracking-widest text-zinc-400">Язык: {selectedStatsLang}</span>
+                      <span className="text-[8.5px] uppercase font-black tracking-widest text-zinc-400">{t('stats_page.language', 'Language:')} {selectedStatsLang}</span>
                     </div>
                   )}
                 </div>
@@ -2576,7 +2578,7 @@ function StatisticsPage({
                   {/* Select Import Date */}
                   <div className="space-y-1">
                     <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
-                      Установить дату сохранения:
+                      {t('stats_page.set_save_date', 'Set save date:')}
                     </label>
                     <input
                       type="date"
@@ -2590,26 +2592,26 @@ function StatisticsPage({
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
-                        Статус слов:
+                        {t('stats_page.word_status', 'Word status:')}
                       </label>
                       <select
                         value={batchImportStatus}
                         onChange={(e) => setBatchImportStatus(e.target.value as WordStatus)}
                         className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-sans text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
                       >
-                        <option value="1">Изучаю (1)</option>
-                        <option value="2">Изучаю (2)</option>
-                        <option value="3">Изучаю (3)</option>
-                        <option value="4">Изучаю (4)</option>
-                        <option value="5">Изучаю (5)</option>
-                        <option value="known">Знаю полностью (known)</option>
-                        <option value="ignored">Игнорировать</option>
+                        <option value="1">Learning (1)</option>
+                        <option value="2">Learning (2)</option>
+                        <option value="3">Learning (3)</option>
+                        <option value="4">Learning (4)</option>
+                        <option value="5">Learning (5)</option>
+                        <option value="known">Known completely (known)</option>
+                        <option value="ignored">{t('stats_page.status_ignored', 'Ignored')}</option>
                       </select>
                     </div>
 
                     <div className="space-y-1">
                       <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
-                        Тег импорта:
+                        {t('stats_page.import_tag', 'Import tag:')}
                       </label>
                       <input
                         type="text"
@@ -2628,7 +2630,7 @@ function StatisticsPage({
                     className="w-full cursor-pointer bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest py-2 rounded-xl border border-emerald-600 hover:scale-103 active:scale-97 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/10 disabled:opacity-50 disabled:pointer-events-none disabled:transform-none select-none"
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>Импортировать {parsedBatchWords.length > 0 ? `${parsedBatchWords.length} слов` : "список"}</span>
+                    <span>{t('stats_page.import_btn', 'Import {{count}} words', { count: parsedBatchWords.length })}</span>
                   </button>
                 </div>
               </div>
@@ -2636,7 +2638,7 @@ function StatisticsPage({
               {/* Parsed list preview */}
               {parsedBatchWords.length > 0 && (
                 <div className="space-y-1 pt-1.5 border-t border-zinc-200/50 dark:border-zinc-800/50">
-                  <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Предпросмотр первых нескольких записей:</span>
+                  <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">{t('stats_page.preview_entries', 'Preview of first few entries:')}</span>
                   <div className="max-h-36 overflow-y-auto bg-zinc-500/5 rounded-lg border border-zinc-200 dark:border-zinc-800 p-2 font-mono text-[10.5px] space-y-1.5 align-middle">
                     {parsedBatchWords.slice(0, 10).map((w, i) => (
                       <div key={i} className="flex items-center justify-between gap-3 text-zinc-700 dark:text-zinc-300">
@@ -2656,14 +2658,14 @@ function StatisticsPage({
                             : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500"
                         }`}>
                           {w.customDate 
-                            ? `📅 ${new Date(w.customDate).toLocaleDateString("ru-RU", { day: "2-digit", month: "short", year: "numeric" })}` 
-                            : "Выбранная дата"}
+                            ? `📅 ${new Date(w.customDate).toLocaleDateString("en", { day: "2-digit", month: "short", year: "numeric" })}` 
+                            : t('stats_page.selected_date', "Selected date")}
                         </span>
                       </div>
                     ))}
                     {parsedBatchWords.length > 10 && (
                       <div className="text-[9px] text-zinc-400 italic text-center pt-1 font-sans">
-                        и ещё {parsedBatchWords.length - 10} слов(а)...
+                        {t('stats_page.and_more_words', 'and {{count}} more word(s)...', { count: parsedBatchWords.length - 10 })}
                       </div>
                     )}
                   </div>
@@ -2671,482 +2673,482 @@ function StatisticsPage({
               )}
             </div>
 
-            {/* Option 4: Danger Zone - Clear dictionary */}
-            <div className="bg-red-500/5 dark:bg-red-500/15 p-4 rounded-xl border border-red-200/40 dark:border-red-900/30 space-y-3 mt-1.5 font-sans">
-              <div className="space-y-1">
-                <h6 className="text-xs font-bold text-red-800 dark:text-red-400 flex items-center gap-1.5 leading-none">
-                  <span className="text-sm leading-none">⚠️</span>
-                  Опасная зона: Сбросить или стереть слова
-                </h6>
-                <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug font-medium">
-                  Если вы хотите начать обучение заново для языка {selectedStatsLang.toUpperCase()} или очистить неверные импорты, воспользуйтесь кнопками ниже. Действие безвозвратно удаляет слова.
-                </p>
-              </div>
+              {/* Option 4: Danger Zone - Clear dictionary */}
+              <div className="bg-red-500/5 dark:bg-red-500/15 p-4 rounded-xl border border-red-200/40 dark:border-red-900/30 space-y-3 mt-1.5 font-sans">
+                <div className="space-y-1">
+                  <h6 className="text-xs font-bold text-red-800 dark:text-red-400 flex items-center gap-1.5 leading-none">
+                    <span className="text-sm leading-none">⚠️</span>
+                    {t('stats_page.danger_zone', 'Danger Zone: Reset or erase words')}
+                  </h6>
+                  <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400 leading-snug font-medium">
+                    {t('stats_page.danger_desc', 'If you want to start learning from scratch for the language {{lang}} or clear incorrect imports, use the buttons below. This action permanently deletes words.', { lang: selectedStatsLang.toUpperCase() })}
+                  </p>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleDeleteAllLanguageWords}
-                  disabled={vocabArray.length === 0}
-                  className="cursor-pointer bg-red-650 hover:bg-red-700 active:scale-98 text-white px-3.5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg border border-red-700 hover:scale-103 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-40 disabled:pointer-events-none disabled:transform-none select-none"
-                  title="Удалить все слова для текущего выбранного языка из словаря"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Удалить все слова {selectedStatsLang.toUpperCase()} ({vocabArray.length} шт.)</span>
-                </button>
-
-                {processedVocabularyList.length > 0 && processedVocabularyList.length < vocabArray.length && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={handleDeleteFilteredWords}
-                    className="cursor-pointer bg-amber-600 hover:bg-amber-700 active:scale-98 text-white px-3.5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg border border-amber-600 hover:scale-103 transition-all flex items-center gap-1.5 shadow-sm select-none"
-                    title="Удалить только те слова, которые выбраны текущими фильтрами"
+                    onClick={handleDeleteAllLanguageWords}
+                    disabled={vocabArray.length === 0}
+                    className="cursor-pointer bg-red-650 hover:bg-red-700 active:scale-98 text-white px-3.5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg border border-red-700 hover:scale-103 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-40 disabled:pointer-events-none disabled:transform-none select-none"
+                    title={t('stats_page.delete_all_title', 'Delete all words for the current selected language from the dictionary')}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Удалить только отфильтрованные ({processedVocabularyList.length} шт.)</span>
+                    <span>{t('stats_page.delete_all_btn', 'Delete all {{lang}} words ({{count}} pcs)', { lang: selectedStatsLang.toUpperCase(), count: vocabArray.length })}</span>
                   </button>
-                )}
-              </div>
-            </div>
 
-          </div>
-        )}
-
-        {/* Advanced Filters Expandable Card */}
-        {showAdvancedFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800/50 rounded-2xl font-sans animate-in fade-in slide-in-from-top-2 duration-150">
-            {/* Tag Filter */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 leading-none select-none">
-                <Tag className="w-3.5 h-3.5 text-teal-500" /> Фильтр по тегам
-              </label>
-              <div className="relative">
-                <select
-                  value={vocabTagFilter}
-                  onChange={(e) => setVocabTagFilter(e.target.value)}
-                  className="w-full pl-3 pr-10 py-2 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
-                >
-                  <option value="all">🏷️ Все теги ({uniqueTags.length === 0 ? "нет тегов" : `${uniqueTags.length} видов`})</option>
-                  {uniqueTags.map((t, tIdx) => (
-                    <option key={`${t}-${tIdx}`} value={t}>#{t}</option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-zinc-400">
-                  <ChevronDown className="w-3.5 h-3.5" />
+                  {processedVocabularyList.length > 0 && processedVocabularyList.length < vocabArray.length && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteFilteredWords}
+                      className="cursor-pointer bg-amber-600 hover:bg-amber-700 active:scale-98 text-white px-3.5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg border border-amber-600 hover:scale-103 transition-all flex items-center gap-1.5 shadow-sm select-none"
+                      title={t('stats_page.delete_filtered_title', 'Delete only the words selected by current filters')}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{t('stats_page.delete_filtered_btn', 'Delete only filtered ({{count}} pcs)', { count: processedVocabularyList.length })}</span>
+                    </button>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Length Filter */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 leading-none select-none">
-                <Layers className="w-3.5 h-3.5 text-teal-500" /> Длина слова
-              </label>
-              <div className="relative">
-                <select
-                  value={vocabLengthFilter}
-                  onChange={(e) => setVocabLengthFilter(e.target.value)}
-                  className="w-full pl-3 pr-10 py-2 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
-                >
-                  <option value="all">📏 Любая длина</option>
-                  <option value="short">⚡ Короткие (&lt; 5 букв)</option>
-                  <option value="medium">📝 Средние (5–8 букв)</option>
-                  <option value="long">🏛️ Длинные (&gt; 8 букв)</option>
-                </select>
-                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-zinc-400">
-                  <ChevronDown className="w-3.5 h-3.5" />
+            </div>
+          )}
+
+          {/* Advanced Filters Expandable Card */}
+            {showAdvancedFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800/50 rounded-2xl font-sans animate-in fade-in slide-in-from-top-2 duration-150">
+                {/* Tag Filter */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 leading-none select-none">
+                    <Tag className="w-3.5 h-3.5 text-teal-500" /> {t('stats_page.filter_by_tags', 'Filter by Tags')}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={vocabTagFilter}
+                      onChange={(e) => setVocabTagFilter(e.target.value)}
+                      className="w-full pl-3 pr-10 py-2 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
+                    >
+                      <option value="all">🏷️ {t('stats_page.all_tags', 'All Tags ({{count}} types)', { count: uniqueTags.length })}</option>
+                      {uniqueTags.map((t, tIdx) => (
+                        <option key={`${t}-${tIdx}`} value={t}>#{t}</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-zinc-400">
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Length Filter */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 leading-none select-none">
+                    <Layers className="w-3.5 h-3.5 text-teal-500" /> {t('stats_page.word_length', 'Word Length')}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={vocabLengthFilter}
+                      onChange={(e) => setVocabLengthFilter(e.target.value)}
+                      className="w-full pl-3 pr-10 py-2 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
+                    >
+                      <option value="all">{t('stats_page.filter_any_len', '📏 Any length')}</option>
+                      <option value="short">{t('stats_page.filter_short', '⚡ Short (< 5 letters)')}</option>
+                      <option value="medium">{t('stats_page.filter_medium', '📝 Medium (5–8 letters)')}</option>
+                      <option value="long">{t('stats_page.filter_long', '🏛️ Long (> 8 letters)')}</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-zinc-400">
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Media Attachment Filter */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 leading-none select-none">
+                    <Image className="w-3.5 h-3.5 text-teal-500" /> {t('stats_page.card_illustrations', 'Card Illustrations')}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={vocabImageFilter}
+                      onChange={(e) => setVocabImageFilter(e.target.value)}
+                      className="w-full pl-3 pr-10 py-2 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
+                    >
+                      <option value="all">{t('stats_page.filter_all_cards', '🖼️ All cards')}</option>
+                      <option value="with_image">{t('stats_page.filter_with_image', '🎨 Only with illustration')}</option>
+                      <option value="without_image">{t('stats_page.filter_without_image', '📝 Without illustration')}</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-zinc-400">
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Media Attachment Filter */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 leading-none select-none">
-                <Image className="w-3.5 h-3.5 text-teal-500" /> Иллюстрации карточки
-              </label>
-              <div className="relative">
-                <select
-                  value={vocabImageFilter}
-                  onChange={(e) => setVocabImageFilter(e.target.value)}
-                  className="w-full pl-3 pr-10 py-2 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25 appearance-none cursor-pointer"
-                >
-                  <option value="all">🖼️ Все карточки</option>
-                  <option value="with_image">🎨 Только с иллюстрацией</option>
-                  <option value="without_image">📝 Без иллюстрации</option>
-                </select>
-                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-zinc-400">
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Words Table/List */}
-        {processedVocabularyList.length > 0 ? (
-          <>
-            <div className="overflow-x-auto border border-zinc-100 dark:border-zinc-800 rounded-xl max-h-[460px] overflow-y-auto">
-            <table className="w-full table-auto border-collapse text-left text-xs">
-              <thead className="bg-zinc-50 dark:bg-zinc-950 sticky top-0 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-black text-zinc-400 uppercase tracking-widest select-none">
-                <tr>
-                  <th className="p-3">Иностранное слово</th>
-                  <th className="p-3">Parents</th>
-                  <th className="p-3">Перевод / AI Значение</th>
-                  <th className="p-3">Грамматика / IPA</th>
-                  <th className="p-3 text-center">Дата доп.</th>
-                  <th className="p-3 text-center">Статус</th>
-                  <th className="p-3 text-center">Действия</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300">
-                {paginatedVocabularyList.map((item, idx) => {
-                  const isSavesKnown = item.status === "known";
-                  return (
-                    <tr key={`${item.word}-${idx}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/40 transition-colors">
-                      {/* Foreign word */}
-                      <td className="p-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          {item.imageUrl && (
-                            <img
-                              src={item.imageUrl}
-                              alt={item.word}
-                              referrerPolicy="no-referrer"
-                              className="w-7 h-7 object-cover rounded-lg border border-zinc-100 dark:border-zinc-800 shrink-0 select-none shadow-4xs"
-                            />
-                          )}
-                          <div className="flex flex-col min-w-[120px]">
+            {/* Words Table/List */}
+            {processedVocabularyList.length > 0 ? (
+              <>
+                <div className="overflow-x-auto border border-zinc-100 dark:border-zinc-800 rounded-xl max-h-[460px] overflow-y-auto">
+                <table className="w-full table-auto border-collapse text-left text-xs">
+                  <thead className="bg-zinc-50 dark:bg-zinc-950 sticky top-0 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-black text-zinc-400 uppercase tracking-widest select-none">
+                    <tr>
+                      <th className="p-3">{t('stats_page.col_foreign_word', 'Foreign Word')}</th>
+                      <th className="p-3">{t('stats_page.col_parents', 'Parents')}</th>
+                      <th className="p-3">{t('stats_page.col_translation', 'Translation / AI Definition')}</th>
+                      <th className="p-3">{t('stats_page.col_grammar', 'Grammar / IPA')}</th>
+                      <th className="p-3 text-center">{t('stats_page.col_date', 'Date Added')}</th>
+                      <th className="p-3 text-center">{t('stats_page.col_status', 'Status')}</th>
+                      <th className="p-3 text-center">{t('stats_page.col_actions', 'Actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-zinc-700 dark:text-zinc-300">
+                    {paginatedVocabularyList.map((item, idx) => {
+                      const isSavesKnown = item.status === "known";
+                      return (
+                        <tr key={`${item.word}-${idx}`} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/40 transition-colors">
+                          {/* Foreign word */}
+                          <td className="p-3 text-sm">
+                            <div className="flex items-center gap-2">
+                              {item.imageUrl && (
+                                <img
+                                  src={item.imageUrl}
+                                  alt={item.word}
+                                  referrerPolicy="no-referrer"
+                                  className="w-7 h-7 object-cover rounded-lg border border-zinc-100 dark:border-zinc-800 shrink-0 select-none shadow-4xs"
+                                />
+                              )}
+                              <div className="flex flex-col min-w-[120px]">
+                                {editingWord === item.word ? (
+                                  <input
+                                    type="text"
+                                    value={editWordValue}
+                                    onChange={(e) => setEditWordValue(e.target.value)}
+                                    className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                  />
+                                ) : (
+                                  <span className="capitalize leading-tight font-extrabold text-teal-600 dark:text-teal-400">{item.word}</span>
+                                )}
+                                {item.tags && item.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1 select-none">
+                                    {item.tags.map((tag, tagIdx) => (
+                                      <span
+                                        key={`${tag}-${tagIdx}`}
+                                        className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-[8px] px-1.5 py-0.5 rounded-full font-sans lowercase font-extrabold"
+                                      >
+                                        #{tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          
+                          {/* Pattern / Parent word */}
+                          <td className="p-3 text-xs">
                             {editingWord === item.word ? (
                               <input
                                 type="text"
-                                value={editWordValue}
-                                onChange={(e) => setEditWordValue(e.target.value)}
-                                className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                value={editParentValue}
+                                onChange={(e) => setEditParentValue(e.target.value)}
+                                placeholder="Parents"
+                                className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-semibold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                              />
+                            ) : onlyPatterns ? (
+                              /* If onlyPatterns is true, the item.word is the pattern itself. Show child variations grouped under it */
+                              (() => {
+                                const childWords = getChildWordsForPattern(item.word);
+                                return childWords.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1 max-w-[150px]">
+                                    <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block w-full">{t('stats_page.variants', 'variants:')}</span>
+                                    {childWords.map((child, cIdx) => (
+                                      <span
+                                        key={`${child}-${cIdx}`}
+                                        className="bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 text-[9px] px-1.5 py-0.5 rounded border border-teal-100 dark:border-teal-900 font-medium"
+                                      >
+                                        {child}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-zinc-400 italic">—</span>
+                                );
+                              })()
+                            ) : (
+                              /* Display parent pattern with quick delete link button */
+                              (() => {
+                                const parent = getParentWord(item.word);
+                                return parent ? (
+                                  <div className="inline-flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 px-2 py-1 rounded-lg">
+                                    <span className="font-semibold text-zinc-700 dark:text-zinc-300 capitalize">
+                                      {parent}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteParentLink(item.word)}
+                                      className="text-zinc-400 hover:text-red-500 transition-colors p-0.5 rounded cursor-pointer flex items-center justify-center"
+                                      title={t('stats_page.remove_parent', 'Delete parent link')}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-zinc-400 italic">—</span>
+                                );
+                              })()
+                            )}
+                          </td>
+                          
+                          {/* Translation text */}
+                          <td className="p-3 max-w-xs font-medium">
+                            {editingWord === item.word ? (
+                              <input
+                                type="text"
+                                value={editTranslationValue}
+                                onChange={(e) => setEditTranslationValue(e.target.value)}
+                                className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                               />
                             ) : (
-                              <span className="capitalize leading-tight font-extrabold text-teal-600 dark:text-teal-400">{item.word}</span>
-                            )}
-                            {item.tags && item.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1 select-none">
-                                {item.tags.map((tag, tagIdx) => (
-                                  <span
-                                    key={`${tag}-${tagIdx}`}
-                                    className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-[8px] px-1.5 py-0.5 rounded-full font-sans lowercase font-extrabold"
-                                  >
-                                    #{tag}
+                              <span className="truncate block max-w-xs" title={item.translation}>
+                                {item.translation && item.translation !== "Pending translation" && !item.translation.startsWith("[") ? (
+                                  item.translation
+                                ) : (
+                                  <span className="italic text-zinc-400 dark:text-zinc-600 text-[11px]">
+                                    {item.translation === "Pending translation" ? t('stats_page.no_translation', "— translation not added") : item.translation || "—"}
                                   </span>
-                                ))}
-                              </div>
+                                )}
+                              </span>
                             )}
-                          </div>
-                        </div>
-                      </td>
-                      
-                      {/* Pattern / Parent word */}
-                      <td className="p-3 text-xs">
-                        {editingWord === item.word ? (
-                          <input
-                            type="text"
-                            value={editParentValue}
-                            onChange={(e) => setEditParentValue(e.target.value)}
-                            placeholder="Parents"
-                            className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-semibold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                          />
-                        ) : onlyPatterns ? (
-                          /* If onlyPatterns is true, the item.word is the pattern itself. Show child variations grouped under it */
-                          (() => {
-                            const childWords = getChildWordsForPattern(item.word);
-                            return childWords.length > 0 ? (
-                              <div className="flex flex-wrap gap-1 max-w-[150px]">
-                                <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block w-full">варианты:</span>
-                                {childWords.map((child, cIdx) => (
-                                  <span
-                                    key={`${child}-${cIdx}`}
-                                    className="bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 text-[9px] px-1.5 py-0.5 rounded border border-teal-100 dark:border-teal-900 font-medium"
-                                  >
-                                    {child}
-                                  </span>
-                                ))}
+                          </td>
+
+                          {/* Grammar / IPA */}
+                          <td className="p-3 text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {editingWord === item.word ? (
+                              <div className="flex flex-col gap-1">
+                                <input
+                                  type="text"
+                                  value={editGrammarValue}
+                                  onChange={(e) => setEditGrammarValue(e.target.value)}
+                                  placeholder={t('stats_page.pos_placeholder', 'part of speech')}
+                                  className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                />
+                                <span className="font-mono text-[9px] text-zinc-400 self-start">
+                                  {item.ipa || "/.../"}
+                                </span>
                               </div>
                             ) : (
-                              <span className="text-zinc-400 italic">—</span>
-                            );
-                          })()
-                        ) : (
-                          /* Display parent pattern with quick delete link button */
-                          (() => {
-                            const parent = getParentWord(item.word);
-                            return parent ? (
-                              <div className="inline-flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 px-2 py-1 rounded-lg">
-                                <span className="font-semibold text-zinc-700 dark:text-zinc-300 capitalize">
-                                  {parent}
+                              <>
+                                <span className="font-mono bg-zinc-100 dark:bg-zinc-800 text-[10px] px-1.5 py-0.5 rounded mr-1.5">
+                                  {item.ipa || "/.../"}
                                 </span>
+                                <span className="italic block mt-0.5 sm:inline sm:mt-0 font-medium">
+                                  {item.grammar || t('stats_page.pos_placeholder', "part of speech")}
+                                </span>
+                              </>
+                            )}
+                          </td>
+
+                          {/* Date added */}
+                          <td className="p-3 text-center text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                            {editingWordDate === item.word ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <input
+                                  type="date"
+                                  defaultValue={item.createdAt && !isNaN(new Date(item.createdAt).getTime()) ? new Date(item.createdAt).toISOString().split('T')[0] : ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val) {
+                                      const timestamp = new Date(val).getTime();
+                                      if (!isNaN(timestamp)) {
+                                        const updated = {
+                                          ...item,
+                                          createdAt: timestamp
+                                        };
+                                        onSaveVocab?.(updated, selectedStatsLang);
+                                      }
+                                    }
+                                  }}
+                                  onBlur={() => setEditingWordDate(null)}
+                                  className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-1 text-xs font-mono text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                  autoFocus
+                                />
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteParentLink(item.word)}
-                                  className="text-zinc-400 hover:text-red-500 transition-colors p-0.5 rounded cursor-pointer flex items-center justify-center"
-                                  title="Удалить связь с родителем"
+                                  onClick={() => setEditingWordDate(null)}
+                                  className="p-1 text-emerald-600 hover:text-emerald-500 rounded bg-emerald-50 dark:bg-emerald-950/20"
                                 >
-                                  <X className="w-3 h-3" />
+                                  <Check className="w-3 h-3" />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-zinc-400 italic">—</span>
-                            );
-                          })()
-                        )}
-                      </td>
-                      
-                      {/* Translation text */}
-                      <td className="p-3 max-w-xs font-medium">
-                        {editingWord === item.word ? (
-                          <input
-                            type="text"
-                            value={editTranslationValue}
-                            onChange={(e) => setEditTranslationValue(e.target.value)}
-                            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                          />
-                        ) : (
-                          <span className="truncate block max-w-xs" title={item.translation}>
-                            {item.translation && item.translation !== "Pending translation" && !item.translation.startsWith("[") ? (
-                              item.translation
-                            ) : (
-                              <span className="italic text-zinc-400 dark:text-zinc-600 text-[11px]">
-                                {item.translation === "Pending translation" ? "— перевод не добавлен" : item.translation || "—"}
-                              </span>
+                              <div 
+                                onClick={() => setEditingWordDate(item.word)}
+                                className="inline-flex items-center justify-center gap-1 bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 hover:border-teal-400 hover:text-teal-600 dark:hover:border-teal-400 px-2 py-1 rounded-lg transition-all active:scale-95 cursor-pointer group"
+                                title={t('stats_page.change_date_title', 'Change save date for analytics')}
+                              >
+                                <span>
+                                  {item.createdAt && !isNaN(new Date(item.createdAt).getTime())
+                                    ? new Date(item.createdAt).toLocaleDateString("en-US", { day: "2-digit", month: "2-digit", year: "numeric" }) 
+                                    : "—"}
+                                </span>
+                                <Calendar className="w-3 h-3 text-zinc-400 group-hover:text-teal-500 transition-colors" />
+                              </div>
                             )}
-                          </span>
-                        )}
-                      </td>
+                          </td>
 
-                      {/* Grammar / IPA */}
-                      <td className="p-3 text-[11px] text-zinc-500 dark:text-zinc-400">
-                        {editingWord === item.word ? (
-                          <div className="flex flex-col gap-1">
-                            <input
-                              type="text"
-                              value={editGrammarValue}
-                              onChange={(e) => setEditGrammarValue(e.target.value)}
-                              placeholder="часть речи"
-                              className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-medium text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                            />
-                            <span className="font-mono text-[9px] text-zinc-400 self-start">
-                              {item.ipa || "/.../"}
-                            </span>
-                          </div>
-                        ) : (
-                          <>
-                            <span className="font-mono bg-zinc-100 dark:bg-zinc-800 text-[10px] px-1.5 py-0.5 rounded mr-1.5">
-                              {item.ipa || "/.../"}
-                            </span>
-                            <span className="italic block mt-0.5 sm:inline sm:mt-0 font-medium">
-                              {item.grammar || "часть речи"}
-                            </span>
-                          </>
-                        )}
-                      </td>
+                          {/* Status selectors */}
+                          <td className="p-3 text-center">
+                            <select
+                              value={item.status}
+                              onChange={(e) => onUpdateStatus(item.word, e.target.value as WordStatus, selectedStatsLang)}
+                              className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg border focus:outline-none ${
+                                isSavesKnown
+                                  ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200"
+                                  : "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200"
+                              }`}
+                            >
+                              <option value="1">{t('stats_page.status_1', '1 (New)')}</option>
+                              <option value="2">{t('stats_page.status_2', '2 (Hard)')}</option>
+                              <option value="3">{t('stats_page.status_3', '3 (Remembering)')}</option>
+                              <option value="4">{t('stats_page.status_4', '4 (Almost Known)')}</option>
+                              <option value="5">{t('stats_page.status_5', '5 (Well Known)')}</option>
+                              <option value="known">{t('stats_page.status_known', '✓ Known completely')}</option>
+                              <option value="ignored">{t('stats_page.status_ignored', 'Ignored')}</option>
+                            </select>
+                          </td>
 
-                      {/* Date added */}
-                      <td className="p-3 text-center text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                        {editingWordDate === item.word ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <input
-                              type="date"
-                              defaultValue={item.createdAt && !isNaN(new Date(item.createdAt).getTime()) ? new Date(item.createdAt).toISOString().split('T')[0] : ""}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val) {
-                                  const timestamp = new Date(val).getTime();
-                                  if (!isNaN(timestamp)) {
-                                    const updated = {
-                                      ...item,
-                                      createdAt: timestamp
-                                    };
-                                    onSaveVocab?.(updated, selectedStatsLang);
-                                  }
-                                }
-                              }}
-                              onBlur={() => setEditingWordDate(null)}
-                              className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-1 text-xs font-mono text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setEditingWordDate(null)}
-                              className="p-1 text-emerald-600 hover:text-emerald-500 rounded bg-emerald-50 dark:bg-emerald-950/20"
-                            >
-                              <Check className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div 
-                            onClick={() => setEditingWordDate(item.word)}
-                            className="inline-flex items-center justify-center gap-1 bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 hover:border-teal-400 hover:text-teal-600 dark:hover:border-teal-400 px-2 py-1 rounded-lg transition-all active:scale-95 cursor-pointer group"
-                            title="Изменить дату сохранения для статистики"
-                          >
-                            <span>
-                              {item.createdAt && !isNaN(new Date(item.createdAt).getTime())
-                                ? new Date(item.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) 
-                                : "—"}
-                            </span>
-                            <Calendar className="w-3 h-3 text-zinc-400 group-hover:text-teal-500 transition-colors" />
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Status selectors */}
-                      <td className="p-3 text-center">
-                        <select
-                          value={item.status}
-                          onChange={(e) => onUpdateStatus(item.word, e.target.value as WordStatus, selectedStatsLang)}
-                          className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg border focus:outline-none ${
-                            isSavesKnown
-                              ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200"
-                              : "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200"
-                          }`}
-                        >
-                          <option value="1">1 (Новое)</option>
-                          <option value="2">2 (Трудное)</option>
-                          <option value="3">3 (Помню)</option>
-                          <option value="4">4 (Почти знаю)</option>
-                          <option value="5">5 (Хорошо)</option>
-                          <option value="known">✓ Знаю полностью</option>
-                          <option value="ignored">Игнорировать</option>
-                        </select>
-                      </td>
-
-                      {/* Delete / Edit Actions */}
-                      <td className="p-3 text-center">
-                        {editingWord === item.word ? (
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleSaveEditedWord(item)}
-                              className="p-1 px-1.5 text-white bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-600 dark:hover:bg-emerald-500 rounded-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1 shadow-xs"
-                              title="Сохранить изменения"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span className="text-[10px] font-bold">ОК</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingWord(null)}
-                              className="p-1 px-1.5 text-zinc-500 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 rounded-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center"
-                              title="Отменить редактирование"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => startEditingWord(item)}
-                              className="p-1.5 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-zinc-400 hover:text-teal-500 rounded-lg transition-colors cursor-pointer"
-                              title="Редактировать слово"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteVocab(item.word, selectedStatsLang)}
-                              className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-zinc-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
-                              title="Удалить слово из словаря"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination and Rows Selection Controls */}
-          {processedVocabularyList.length > 25 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-xl animate-in fade-in duration-150">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-                  Показывать по:
-                </span>
-                <div className="relative">
-                  <select
-                    value={itemsPerPage}
-                    onChange={(e) => {
-                      setItemsPerPage(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="cursor-pointer bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-lg px-2.5 py-1.5 pr-8 text-xs font-black select-none focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none shadow-4xs"
-                  >
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                    <option value="250">250</option>
-                    <option value="500">500</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-zinc-400">
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-                <span className="text-xs text-zinc-400 dark:text-zinc-500 font-medium font-sans">
-                  | Показано {Math.min(processedVocabularyList.length, (safeCurrentPage - 1) * itemsPerPage + 1)} - {Math.min(safeCurrentPage * itemsPerPage, processedVocabularyList.length)} из {processedVocabularyList.length}
-                </span>
+                          {/* Delete / Edit Actions */}
+                          <td className="p-3 text-center">
+                            {editingWord === item.word ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditedWord(item)}
+                                  className="p-1 px-1.5 text-white bg-emerald-500 hover:bg-emerald-400 dark:bg-emerald-600 dark:hover:bg-emerald-500 rounded-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                                  title={t('stats_page.save_changes', 'Save changes')}
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span className="text-[10px] font-bold">{t('stats_page.ok', 'OK')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingWord(null)}
+                                  className="p-1 px-1.5 text-zinc-500 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 rounded-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center"
+                                  title={t('stats_page.cancel_edit', 'Cancel editing')}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingWord(item)}
+                                  className="p-1.5 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-zinc-400 hover:text-teal-500 rounded-lg transition-colors cursor-pointer"
+                                  title={t('stats_page.edit_word_title', 'Edit word')}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteVocab(item.word, selectedStatsLang)}
+                                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-zinc-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                                  title={t('stats_page.delete_word_title', 'Delete word from dictionary')}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1 overflow-x-auto max-w-full py-1 select-none">
-                  {/* Prev Button */}
-                  <button
-                    type="button"
-                    disabled={safeCurrentPage === 1}
-                    onClick={() => setCurrentPage(safeCurrentPage - 1)}
-                    className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
-                  >
-                    Назад
-                  </button>
+              {/* Pagination and Rows Selection Controls */}
+              {processedVocabularyList.length > 25 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-xl animate-in fade-in duration-150">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+                      {t('stats_page.show_by', 'Show by:')}
+                    </span>
+                    <div className="relative">
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="cursor-pointer bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-lg px-2.5 py-1.5 pr-8 text-xs font-black select-none focus:outline-none focus:ring-1 focus:ring-teal-500 appearance-none shadow-4xs"
+                      >
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                        <option value="500">500</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-zinc-400">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500 font-medium font-sans">
+                      | {t('stats_page.showing', 'Showing {{start}} - {{end}} of {{total}}', { start: Math.min(processedVocabularyList.length, (safeCurrentPage - 1) * itemsPerPage + 1), end: Math.min(safeCurrentPage * itemsPerPage, processedVocabularyList.length), total: processedVocabularyList.length })}
+                    </span>
+                  </div>
 
-                  {/* Page Numbers */}
-                  {pageNumbers.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setCurrentPage(p)}
-                      className={`cursor-pointer w-8 h-8 flex items-center justify-center rounded-lg text-xs font-black transition-all ${
-                        safeCurrentPage === p
-                          ? "bg-teal-600 border border-teal-600 text-white shadow-xs"
-                          : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1 overflow-x-auto max-w-full py-1 select-none">
+                      {/* Prev Button */}
+                      <button
+                        type="button"
+                        disabled={safeCurrentPage === 1}
+                        onClick={() => setCurrentPage(safeCurrentPage - 1)}
+                        className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
+                      >
+                        {t('stats_page.prev', 'Back')}
+                      </button>
 
-                  {/* Next Button */}
-                  <button
-                    type="button"
-                    disabled={safeCurrentPage === totalPages}
-                    onClick={() => setCurrentPage(safeCurrentPage + 1)}
-                    className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
-                  >
-                    Вперед
-                  </button>
+                      {/* Page Numbers */}
+                      {pageNumbers.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setCurrentPage(p)}
+                          className={`cursor-pointer w-8 h-8 flex items-center justify-center rounded-lg text-xs font-black transition-all ${
+                            safeCurrentPage === p
+                              ? "bg-teal-600 border border-teal-600 text-white shadow-xs"
+                              : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+
+                      {/* Next Button */}
+                      <button
+                        type="button"
+                        disabled={safeCurrentPage === totalPages}
+                        onClick={() => setCurrentPage(safeCurrentPage + 1)}
+                        className="cursor-pointer px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:pointer-events-none text-xs font-black transition-all shadow-4xs"
+                      >
+                        {t('stats_page.next', 'Next')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
           </>
         ) : (
           <div className="bg-zinc-50 dark:bg-zinc-950 border border-dashed border-zinc-200 dark:border-zinc-800 p-8 text-center rounded-xl space-y-2">
             <FileText className="w-8 h-8 text-zinc-300 mx-auto" aria-hidden="true" />
             <h5 className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">
-              Словарь пуст
+              {t('stats_page.empty_vocab_title', 'Vocabulary is empty')}
             </h5>
             <p className="text-[11px] text-zinc-500 leading-normal max-w-sm mx-auto">
               {vocabSearch 
-                ? `Не удалось найти слова по запросу "${vocabSearch}". Попробуйте изменить ключевые слова поиска.`
-                : "Открывайте уроки чтения, нажимайте на незнакомые слова, сохраняйте их в словарь, и вы начнете видеть их статистику здесь!"}
+                ? t('stats_page.no_search_results', 'No words found matching "{{query}}". Try changing your search keywords.', { query: vocabSearch })
+                : t('stats_page.empty_vocab_desc', 'Open reading lessons, click on unfamiliar words, save them to your vocabulary, and you will start seeing their statistics here!')}
             </p>
           </div>
         )}
@@ -3174,14 +3176,14 @@ function StatisticsPage({
                 onClick={() => setConfirmDialog(null)}
                 className="cursor-pointer bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all"
               >
-                Отмена
+                {t('stats_page.cancel', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={confirmDialog.onConfirm}
                 className="cursor-pointer bg-red-650 hover:bg-red-700 active:scale-98 text-white px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm"
               >
-                Подтвердить
+                {t('stats_page.confirm', 'Confirm')}
               </button>
             </div>
           </div>

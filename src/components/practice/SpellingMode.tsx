@@ -2,6 +2,7 @@ import React from "react";
 import { VocabItem } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 import { Volume2, Edit3, ArrowRight, Sparkles, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface SpellingModeProps {
   item: VocabItem;
@@ -40,6 +41,7 @@ export default function SpellingMode({
   onNext,
   onExclude
 }: SpellingModeProps) {
+  const { t } = useTranslation();
 
   const getClozeSentence = (sentence: string, wordToHide: string) => {
     if (!sentence || !wordToHide) return sentence;
@@ -66,7 +68,7 @@ export default function SpellingMode({
           >
             <div className="flex justify-between items-start">
               <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                Правописание / Spelling Check
+                {t('practice.spelling_check', 'Spelling Check')}
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -79,7 +81,7 @@ export default function SpellingMode({
                   className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
                     playingSpeech ? "animate-pulse" : ""
                   }`}
-                  title="Прослушать слово (TTS)"
+                  title={t('practice.listen_word', 'Listen to word (TTS)')}
                 >
                   <Volume2 className="w-4 h-4" />
                 </button>
@@ -90,7 +92,7 @@ export default function SpellingMode({
                     onEditWord();
                   }}
                   className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
-                  title="Редактировать слово / Edit word"
+                  title={t('practice.edit_word', 'Edit word')}
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
@@ -100,7 +102,7 @@ export default function SpellingMode({
             <div className="text-center py-6 flex-grow flex flex-col justify-center items-center space-y-4">
               <div className="space-y-1">
                 <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
-                  Перевод / Translation
+                    {t('practice.translation_label', 'Translation')}
                 </span>
                 <h2 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize">
                   {item.translation}
@@ -110,7 +112,7 @@ export default function SpellingMode({
               {item.examples && item.examples.length > 0 && (
                 <div className="max-w-md w-full bg-zinc-50/50 dark:bg-zinc-950/30 p-3 rounded-xl border border-zinc-100/50 dark:border-zinc-800/40">
                   <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
-                    Контекст / Context clue
+                    {t('practice.context_clue', 'Context clue')}
                   </span>
                   <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed italic">
                     "{getClozeSentence(item.examples[0].text, item.word)}"
@@ -130,7 +132,7 @@ export default function SpellingMode({
                         onCheckSpelling();
                       }
                     }}
-                    placeholder="Напишите слово..."
+                    placeholder={t('practice.write_word', 'Type the word...')}
                     className={`w-full px-5 py-4 bg-white dark:bg-zinc-900 border-2 rounded-2xl text-center text-lg font-bold shadow-sm outline-none transition-all ${
                       hasCheckedSpelling
                         ? spellingStatus === "correct"
@@ -149,7 +151,7 @@ export default function SpellingMode({
                     <div className="absolute -bottom-8 left-0 right-0 flex justify-center">
                       <span className="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
                         <AlertCircle className="w-3 h-3" />
-                        Ошибка в ударении / диакритике
+                        {t('practice.accent_error', 'Accent / Diacritic error')}
                       </span>
                     </div>
                   )}
@@ -172,10 +174,10 @@ export default function SpellingMode({
               >
                 {hasCheckedSpelling ? (
                   <>
-                    Дальше <ArrowRight className="w-4 h-4" />
+                    {t('practice.next_btn', 'Next')} <ArrowRight className="w-4 h-4" />
                   </>
                 ) : (
-                  "Проверить"
+                  t('practice.check_btn', 'Check')
                 )}
               </button>
             </div>
@@ -193,7 +195,7 @@ export default function SpellingMode({
               <div className="flex justify-between items-start border-b border-zinc-100 dark:border-zinc-800 pb-4">
                 <div className="pr-4">
                   <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
-                    Правильное написание
+                    {t('practice.correct_spelling', 'Correct spelling')}
                   </span>
                   <div>
                     <h3 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize inline-block mr-2">
@@ -221,7 +223,7 @@ export default function SpellingMode({
 
               <div className="space-y-1">
                 <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
-                  Перевод
+                  {t('practice.translation', 'Translation')}
                 </span>
                 <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
                   {item.translation}
@@ -235,7 +237,7 @@ export default function SpellingMode({
                 onClick={onNext}
                 className="w-full py-3.5 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
               >
-                Дальше <ArrowRight className="w-4 h-4" />
+                {t('practice.next', 'Next')} <ArrowRight className="w-4 h-4" />
               </button>
               
               <button
@@ -244,7 +246,7 @@ export default function SpellingMode({
                 className="w-full px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                Точно знаю (Исключить из правописания) 🌟
+                {t('practice.exclude_spelling', 'Know for sure (Exclude from spelling) 🌟')}
               </button>
             </div>
           </motion.div>

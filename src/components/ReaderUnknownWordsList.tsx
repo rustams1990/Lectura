@@ -1,5 +1,6 @@
 import React from "react";
 import { Volume2, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Lesson, VocabItem, WordStatus } from "../types";
 
 interface ReaderUnknownWordsListProps {
@@ -33,34 +34,35 @@ export default function ReaderUnknownWordsList({
   onMarkKnown,
   speakWord,
 }: ReaderUnknownWordsListProps) {
+  const { t } = useTranslation();
   return (
     <div className="animate-in fade-in duration-200 space-y-6 font-sans">
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-200/50 dark:border-zinc-800/60 shadow-xs">
         <div className="relative w-full sm:max-w-xs">
           <input
             type="text"
-            placeholder="Поиск слов..."
+            placeholder={t('reader.search_words', 'Поиск слов...')}
             value={unknownSearchQuery}
             onChange={(e) => setUnknownSearchQuery(e.target.value)}
             className="w-full h-9 px-3.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 placeholder-zinc-400 dark:placeholder-zinc-650 transition-all font-sans"
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Сортировка:</span>
+          <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{t('reader.sort_label', 'Сортировка:')}</span>
           <select
             value={unknownSortMode}
             onChange={(e) => setUnknownSortMode(e.target.value as any)}
             className="text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 text-zinc-700 dark:text-zinc-300 cursor-pointer h-9 shadow-xs"
           >
-            <option value="alpha">По алфавиту</option>
-            <option value="appearance">По появлению</option>
+            <option value="alpha">{t('reader.sort_alpha', 'По алфавиту')}</option>
+            <option value="appearance">{t('reader.sort_appearance', 'По появлению')}</option>
           </select>
         </div>
       </div>
 
       {filteredUnknownWords.length === 0 ? (
         <div className="text-center py-16 bg-zinc-50/50 dark:bg-zinc-900/10 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">Неизвестных слов не найдено.</p>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">{t('reader.no_unknown_words', 'Неизвестных слов не найдено.')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -113,7 +115,7 @@ export default function ReaderUnknownWordsList({
                       </p>
                     ) : (
                       <p className="text-xs text-zinc-400 dark:text-zinc-650 mt-1 italic">
-                        Нет перевода
+                        {t('reader.no_translation', 'Нет перевода')}
                       </p>
                     )}
                   </div>
@@ -130,7 +132,7 @@ export default function ReaderUnknownWordsList({
                       speakWord(word);
                     }}
                     className="p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors cursor-pointer border border-zinc-200/50 dark:border-zinc-850"
-                    title="Прослушать произношение"
+                    title={t('reader.listen_pronunciation', 'Прослушать произношение')}
                   >
                     <Volume2 className="w-4 h-4" />
                   </button>
@@ -142,10 +144,10 @@ export default function ReaderUnknownWordsList({
                       onMarkKnown(word);
                     }}
                     className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/20 dark:hover:bg-teal-900/35 text-teal-700 dark:text-teal-400 text-[10px] font-black uppercase tracking-wider border border-teal-100/60 dark:border-teal-900/40 transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Отметить как известное"
+                    title={t('reader.mark_known', 'Отметить как известное')}
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>Знаю</span>
+                    <span>{t('reader.known', 'Знаю')}</span>
                   </button>
                 </div>
               </div>

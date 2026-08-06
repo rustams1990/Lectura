@@ -57,10 +57,10 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto text-xl">
               ⚠️
             </div>
-            <h2 className="text-lg font-black tracking-tight">Произошла ошибка при отображении</h2>
+            <h2 className="text-lg font-black tracking-tight">An error occurred while rendering</h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-950 p-3 rounded-xl break-words text-left max-h-32 overflow-y-auto">
               {/* @ts-ignore */}
-              {this.state.error?.message || "Неизвестная ошибка интерфейса"}
+              {this.state.error?.message || "Unknown interface error"}
             </p>
             <button
               onClick={() => {
@@ -69,7 +69,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               }}
               className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-bold text-xs rounded-xl transition cursor-pointer"
             >
-              Перезагрузить приложение
+              Reload Application
             </button>
           </div>
         </div>

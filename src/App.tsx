@@ -95,9 +95,16 @@ const readerThemes = {
   },
 };
 
-
-
-
+const BUILT_IN_IDS = new Set(["builtin-es", "builtin-fr", "builtin-de", "builtin-pt"]);
+const normalizeBuiltInLessons = (lessonsList: Lesson[]): Lesson[] => {
+  if (!Array.isArray(lessonsList)) return BUILT_IN_LESSONS;
+  return lessonsList.map((l) => {
+    if (l.isBuiltIn || BUILT_IN_IDS.has(l.id)) {
+      return { ...l, translationLanguage: "English" };
+    }
+    return l;
+  });
+};
 
 export default function App() {
   const {
@@ -411,7 +418,12 @@ export default function App() {
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");
       if (saved) {
-        return { ...defaults, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        if (!parsed.ttsEngine_v2) {
+          parsed.ttsEngine = "google";
+          parsed.ttsEngine_v2 = true;
+        }
+        return { ...defaults, ...parsed };
       }
     } catch (e) {
       console.error("Failed to parse saved reader settings:", e);
@@ -563,7 +575,9 @@ export default function App() {
           const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
           const localHistoryStr = localStorage.getItem("vocab_clone_reading_history");
 
-          const lLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS);
+          const rawLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS);
+          const removedIds = new Set(["builtin-ja", "builtin-uk", "builtin-kk"]);
+          const lLessons = Array.isArray(rawLessons) ? rawLessons.filter((l: Lesson) => !removedIds.has(l.id)) : BUILT_IN_LESSONS;
           const lTypes = ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]);
           const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
           const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
@@ -571,7 +585,7 @@ export default function App() {
           const lLanguageFlags = safeParse(localFlagsStr, {});
           const lHistory = dedupeHistory(safeParse(localHistoryStr, []));
 
-          setLessons(lLessons);
+          setLessons(normalizeBuiltInLessons(lLessons));
           setLessonTypes(lTypes);
           setVocab(lWords);
           setListeningSeconds(lListening);
@@ -2022,7 +2036,7 @@ export default function App() {
               Lectura
             </h1>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-              Умное чтение и изучение языков с ИИ
+              {t('app.subtitle', 'Smart AI-powered reading and language learning')}
             </p>
           </div>
 
@@ -2031,7 +2045,7 @@ export default function App() {
             <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
               <span className="flex items-center gap-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600 dark:text-teal-400" />
-                {t('app.loading', 'Загрузка материалов...')}
+                {t('app.loading', 'Loading materials...')}
               </span>
               <span className="font-mono text-[10px] text-teal-600 dark:text-teal-400">IndexedDB</span>
             </div>
@@ -2087,16 +2101,16 @@ export default function App() {
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-extrabold text-amber-800 dark:text-amber-400 leading-none">
-                  {t('app.offline_title', 'Связь с облаком не установлена (Работа в локальном режиме)')}
+                  {t('app.offline_title', 'Cloud connection not established (Working in local mode)')}
                 </h4>
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5 leading-relaxed">
                   <Trans i18nKey="app.offline_desc">
-                    Не удалось подключиться к облачной базе данных Google Firebase. Все функции активны, и ваши данные <strong>сохраняются локально</strong> в кэше браузера. Синхронизация автоматически возобновится при восстановлении связи!
+                    Could not connect to Google Firebase cloud database. All features are active, and your data is <strong>saved locally</strong> in browser cache. Sync will resume automatically when connection is restored!
                   </Trans>
                 </p>
                 {cloudOfflineError && (
                   <p className="text-[10px] bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/10 p-2 rounded-xl text-amber-800 dark:text-amber-300 font-mono mt-2 break-all">
-                    {t('app.offline_error_details', 'Детали ошибки: ')}{cloudOfflineError}
+                    {t('app.offline_error_details', 'Error details: ')}{cloudOfflineError}
                   </p>
                 )}
               </div>
@@ -2269,7 +2283,7 @@ export default function App() {
 
       <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-600 bg-stone-50 dark:bg-zinc-950/40">
         <p className="leading-relaxed">
-          {t('app.footer', 'Lectura {{version}} © 2026. Powered by Google Gemini ИИ. Интерактивная система чтения и изучения языков.', { version: APP_VERSION })}
+          {t('app.footer', 'Lectura {{version}} © 2026. Interactive system for reading and language learning.', { version: APP_VERSION })}
         </p>
       </footer>
 

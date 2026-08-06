@@ -521,7 +521,7 @@ export function migrateLocalStorage() {
     const oldVal = localStorage.getItem(oldKey);
     if (oldVal !== null) {
       if (localStorage.getItem(newKey) === null) {
-        localStorage.setItem(newKey, oldVal);
+        try { localStorage.setItem(newKey, oldVal); } catch (e) { console.warn("Quota exceeded on " + newKey); }
       }
     }
   });
@@ -536,7 +536,7 @@ export function migrateLocalStorage() {
     const oldVal = localStorage.getItem(oldKey);
     if (oldVal !== null) {
       if (localStorage.getItem(newKey) === null) {
-        localStorage.setItem(newKey, oldVal);
+        try { localStorage.setItem(newKey, oldVal); } catch (e) { console.warn("Quota exceeded on " + newKey); }
       }
     }
   });

@@ -2,6 +2,7 @@ import React from "react";
 import { VocabItem } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 import { Volume2, Edit3, ArrowRight, CheckCircle, BrainCircuit, RefreshCw, Star, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface FlashcardModeProps {
   item: VocabItem;
@@ -15,10 +16,10 @@ interface FlashcardModeProps {
 }
 
 // SM-2 quality mapping
-// 1 = Снова (Again) - Incorrect
-// 3 = Трудно (Hard) - Correct, but hard
-// 4 = Хорошо (Good) - Correct
-// 5 = Легко (Easy) - Perfect response
+// 1 = {t('practice.rate_again', 'Снова')} (Again) - Incorrect
+// 3 = {t('practice.rate_hard', 'Трудно')} (Hard) - Correct, but hard
+// 4 = {t('practice.rate_good', 'Хорошо')} (Good) - Correct
+// 5 = {t('practice.rate_easy', 'Легко')} (Easy) - Perfect response
 
 export default function FlashcardMode({
   item,
@@ -30,6 +31,7 @@ export default function FlashcardMode({
   onAnswer,
   studyDirection
 }: FlashcardModeProps) {
+  const { t } = useTranslation();
 
   // Helper to highlight word in context
   const getClozeSentence = (sentence: string, wordToHide: string) => {
@@ -46,8 +48,8 @@ export default function FlashcardMode({
   const frontText = studyDirection === "forward" ? item.word : item.translation;
   const backText = studyDirection === "forward" ? item.translation : item.word;
   const showIpa = studyDirection === "forward" && item.ipa;
-  const frontLabel = studyDirection === "forward" ? "Изучаемое слово" : "Перевод";
-  const backLabel = studyDirection === "forward" ? "Перевод" : "Изучаемое слово";
+  const frontLabel = studyDirection === "forward" ? t('practice.study_word', "Target Word") : t('practice.translation', "Translation");
+  const backLabel = studyDirection === "forward" ? t('practice.translation', "Translation") : t('practice.study_word', "Target Word");
 
   return (
     <div 
@@ -69,7 +71,7 @@ export default function FlashcardMode({
           >
             <div className="flex justify-between items-start">
               <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                Флеш-карта
+                {t('practice.flashcard', 'Flashcard')}
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -82,7 +84,7 @@ export default function FlashcardMode({
                   className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
                     playingSpeech ? "animate-pulse" : ""
                   }`}
-                  title="Прослушать слово (TTS)"
+                  title={t('practice.listen_word', 'Listen to word (TTS)')}
                 >
                   <Volume2 className="w-4 h-4" />
                 </button>
@@ -105,7 +107,7 @@ export default function FlashcardMode({
               {item.examples && item.examples.length > 0 && studyDirection === "forward" && (
                 <div className="max-w-md w-full bg-zinc-50/50 dark:bg-zinc-950/30 p-4 rounded-xl border border-zinc-100/50 dark:border-zinc-800/40 opacity-70">
                   <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
-                    Подсказка контекстом
+                    {t('practice.context_hint', 'Context hint')}
                   </span>
                   <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed italic">
                     "{getClozeSentence(item.examples[0].text, item.word)}"
@@ -115,7 +117,7 @@ export default function FlashcardMode({
             </div>
 
             <div className="text-center text-[10px] text-zinc-400 font-bold uppercase tracking-widest animate-pulse pt-4">
-              Нажмите, чтобы перевернуть
+              {t('practice.click_to_flip', 'Click to flip')}
             </div>
           </motion.div>
         ) : (
@@ -133,7 +135,7 @@ export default function FlashcardMode({
               <div className="flex justify-between items-start border-b border-zinc-100 dark:border-zinc-800 pb-4">
                 <div className="pr-4">
                   <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
-                    {studyDirection === "reverse" ? "Изучаемое слово" : frontLabel}
+                    {studyDirection === "reverse" ? t('practice.study_word', "Target Word") : frontLabel}
                   </span>
                   <div>
                     <h3 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize inline-block mr-2">
@@ -183,7 +185,7 @@ export default function FlashcardMode({
               {item.examples && item.examples.length > 0 && (
                 <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100/75 dark:border-zinc-800">
                   <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
-                    Пример использования
+                    {t('practice.usage_example', 'Usage example')}
                   </span>
                   <p className="text-sm text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed">
                     {item.examples[0].text}
@@ -197,46 +199,46 @@ export default function FlashcardMode({
 
             {/* SRS Action Buttons */}
             <div className="space-y-3 pt-6 border-t border-zinc-100 dark:border-zinc-800 mt-4">
-              <p className="text-[10px] text-center font-bold uppercase tracking-widest text-zinc-400 mb-2">Оцените память</p>
+              <p className="text-[10px] text-center font-bold uppercase tracking-widest text-zinc-400 mb-2">{t('practice.rate_memory', 'Rate Memory')}</p>
               <div className="grid grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => onAnswer(1)}
                   className="px-2 py-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col items-center gap-1 cursor-pointer"
-                  title="Не вспомнил (Обучение заново)"
+                  title={t('practice.rate_again_title', 'Forgot / Reset learning')}
                 >
                   <RefreshCw className="w-4 h-4 mb-1" />
-                  Снова
+                  {t('practice.again', 'Again')}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onAnswer(3)}
                   className="px-2 py-3 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-500 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col items-center gap-1 cursor-pointer"
-                  title="Вспомнил с трудом (Интервал меньше)"
+                  title={t('practice.rate_hard_title', 'Remembered with effort')}
                 >
                   <BrainCircuit className="w-4 h-4 mb-1" />
-                  Трудно
+                  {t('practice.hard', 'Hard')}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onAnswer(4)}
                   className="px-2 py-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col items-center gap-1 cursor-pointer border border-emerald-200 dark:border-emerald-800/50"
-                  title="Вспомнил нормально (Увеличить интервал)"
+                  title={t('practice.rate_good_title', 'Remembered normally')}
                 >
                   <CheckCircle className="w-4 h-4 mb-1" />
-                  Хорошо
+                  {t('practice.good', 'Good')}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onAnswer(5)}
                   className="px-2 py-3 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex flex-col items-center gap-1 cursor-pointer"
-                  title="Вспомнил моментально (Максимальный интервал)"
+                  title={t('practice.rate_easy_title', 'Remembered instantly')}
                 >
                   <Sparkles className="w-4 h-4 mb-1" />
-                  Легко
+                  {t('practice.easy', 'Easy')}
                 </button>
               </div>
             </div>

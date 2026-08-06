@@ -101,6 +101,7 @@ export interface Dictionary {
   name: string;
   urlTemplate: string;
   displayType: "popup" | "new_tab" | "window_popup";
+  enabled?: boolean;
 }
 
 export interface HistoryEntry {

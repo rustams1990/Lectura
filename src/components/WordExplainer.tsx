@@ -13,6 +13,7 @@ import ContextSearchResults from "./ContextSearchResults";
 import ImageSearch from "./ImageSearch";
 import AiExplainerChat from "./AiExplainerChat";
 import { BookOpen, Check, HelpCircle, Loader2, Award, Volume2, Ban, Sparkles, Tag, Plus, X, ChevronDown, ChevronUp, Trash2, Edit, ExternalLink, AppWindow, Image, Upload, Languages, Save } from "lucide-react";
+import { useTranslation, Trans } from "react-i18next";
 
 const sanitizeGrammarTag = (tag: string) => {
   if (!tag) return "";
@@ -321,6 +322,7 @@ function WordExplainer({
   currentLessonId,
   onOpenLesson,
 }: WordExplainerProps) {
+  const { t } = useTranslation();
   const activeSettings = settings || { readerTheme: "default" };
   const explainerThemeMap = {
     default: "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-900 dark:text-zinc-100",
@@ -358,7 +360,6 @@ function WordExplainer({
 
   // Picture search & selection state variables
   const [imageOpen, setImageOpen] = useState(false);
-  const [bookOpen, setBookOpen] = useState(false);
   const [aiTabOpen, setAiTabOpen] = useState(false);
   const [examplesTabOpen, setExamplesTabOpen] = useState(false);
   const [imageUrlValue, setImageUrlValue] = useState<string | null>(null);
@@ -492,7 +493,8 @@ function WordExplainer({
               id: d.id,
               name: d.name,
               urlTemplate: d.urlTemplate,
-              displayType: d.displayType || (d.id === "wiktionary" ? "popup" : "new_tab")
+              displayType: d.displayType || (d.id === "wiktionary" ? "popup" : "new_tab"),
+              enabled: d.enabled !== false
             }))
           );
           return;
@@ -573,6 +575,14 @@ function WordExplainer({
     if (editingDict?.id === id) {
       handleCancelEditDict();
     }
+  };
+
+  const handleToggleDictionaryEnabled = (id: string) => {
+    const updated = dictionaries.map((d) =>
+      d.id === id ? { ...d, enabled: d.enabled === false ? true : false } : d
+    );
+    setDictionaries(updated);
+    safeLocalStorageSetItem(activeStorageKey, JSON.stringify(updated));
   };
 
   // Word link custom base targets variables
@@ -973,6 +983,9 @@ function WordExplainer({
         }
 
         if (audioUrl) {
+          if (typeof window !== "undefined" && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+          }
           const audio = new Audio(audioUrl);
           audio.onended = () => { URL.revokeObjectURL(audioUrl!); setPlayingSpeech(false); };
           audio.onerror = () => { URL.revokeObjectURL(audioUrl!); setPlayingSpeech(false); };
@@ -980,17 +993,30 @@ function WordExplainer({
           return;
         }
       } catch (e: any) {
+        setPlayingSpeech(false);
+        const isInterrupted = e.name === "AbortError" || (e.message && (
+          e.message.includes("interrupted") ||
+          e.message.includes("user gesture") ||
+          e.message.includes("pause") ||
+          e.message.includes("removed from the document")
+        ));
+
+        if (isInterrupted) {
+          return;
+        }
+
         console.warn("Google TTS failed, falling back to browser TTS:", e);
         const isKazakh = (targetLanguage || "").toLowerCase().includes("kaza") || (targetLanguage || "").toLowerCase().includes("қаза");
         if (isKazakh) {
-          setTtsWarning("Движок Google TTS не поддерживает казахский язык. Выберите 'Gemini AI' или 'Браузерный' в настройках.");
+          setTtsWarning(t('explainer.tts_no_kazakh', "Google TTS engine does not support Kazakh. Please select 'Gemini AI' or 'Browser' in settings."));
         } else {
-          setTtsWarning(`Озвучка Google не удалась (${e.message || "ошибка"}). Переключено на голос браузера.`);
+          setTtsWarning(t('explainer.tts_google_fail', `Google TTS failed (${e.message || "error"}). Switched to browser voice.`));
         }
         setTimeout(() => {
-          setTtsWarning(prev => prev && (prev.includes("Google") || prev.includes("казахский")) ? null : prev);
+          setTtsWarning(prev => prev && (prev.includes("Google") || prev.includes("kazakh")) ? null : prev);
         }, 8000);
       }
+      return;
     }
 
     // --- Kokoro-82M / Local TTS ---
@@ -1016,7 +1042,7 @@ function WordExplainer({
           });
           if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            throw new Error(errData?.error || `Сервер локального TTS вернул ${response.status}`);
+            throw new Error(errData?.error || t('explainer.local_tts_server_error', `Local TTS server returned ${response.status}`, { status: response.status }));
           }
           blob = await response.blob();
           await saveTtsAudioToCache(cacheKey, blob);
@@ -1032,11 +1058,12 @@ function WordExplainer({
         }
       } catch (e: any) {
         console.warn("Local Kokoro TTS failed, falling back to browser TTS:", e);
-        setTtsWarning(`Локальная озвучка не удалась (${e.message || "сервер недоступен"}). Переключено на голос браузера.`);
+        setTtsWarning(t('explainer.tts_local_fail', `Local TTS failed (${e.message || "server unavailable"}). Switched to browser voice.`));
         setTimeout(() => {
-          setTtsWarning(prev => prev && prev.includes("Локальная") ? null : prev);
+          setTtsWarning(prev => prev && (prev.includes("Local")) ? null : prev);
         }, 8000);
       }
+      return;
     }
 
     // --- Gemini neural TTS ---
@@ -1054,7 +1081,7 @@ function WordExplainer({
 
         if (!response.ok) {
           const errData = await safeJsonParse(response);
-          throw new Error(errData?.error || `Ошибка сервера (${response.status})`);
+          throw new Error(errData?.error || t('explainer.server_error', `Server error (${response.status})`, { status: response.status }));
         }
 
         const data = await safeJsonParse(response);
@@ -1067,12 +1094,17 @@ function WordExplainer({
           throw new Error("No audio base64 payload");
         }
       } catch (e: any) {
+        setPlayingSpeech(false);
+        const isInterrupted = e.name === "AbortError" || (e.message && e.message.includes("interrupted"));
+        if (isInterrupted) return;
+
         console.warn("Gemini neural voice failed or rate-limited. Falling back automatically to local browser TTS.", e);
-        setTtsWarning(`Озвучка Gemini не удалась (${e.message || "ошибка"}). Переключено на голос браузера.`);
+        setTtsWarning(t('explainer.tts_gemini_fail', `Gemini TTS failed (${e.message || "error"}). Switched to browser voice.`));
         setTimeout(() => {
-          setTtsWarning(prev => prev && prev.includes("Gemini") ? null : prev);
+          setTtsWarning(prev => prev && (prev.includes("Gemini")) ? null : prev);
         }, 8000);
       }
+      return;
     }
 
     // --- Default flow: local browser HTML5 SpeechSynthesis API ---
@@ -1317,14 +1349,14 @@ function WordExplainer({
       if (loading) {
         list.push("searching for meaning...", "loading...");
       } else {
-        list.push("загрузка...", "поиск значения...");
+        list.push(t('explainer.loading_lower', "loading..."), t('explainer.searching_meaning', "searching for meaning..."));
       }
     }
     return list;
   };
 
   const handleSelectPopularMeaning = (meaning: string) => {
-    if (meaning === "загрузка..." || meaning === "поиск значения..." || meaning === "searching for meaning..." || meaning === "loading...") return;
+    if (meaning === t('explainer.loading_lower', "загрузка...") || meaning === t('explainer.searching_meaning', "поиск значения...") || meaning === "загрузка..." || meaning === "поиск значения..." || meaning === "searching for meaning..." || meaning === "loading...") return;
     
     let newTranslation = translationValue.trim();
     if (!newTranslation || newTranslation === "Pending translation" || newTranslation.startsWith("[")) {
@@ -1370,7 +1402,7 @@ function WordExplainer({
             <button
               onClick={handlePlaySpeech}
               disabled={playingSpeech}
-              title="Воспроизвести произношение (TTS)"
+              title={t('explainer.play_tts_title', 'Play pronunciation (TTS)')}
               className={`w-8 h-8 rounded-l-lg bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-110 dark:hover:bg-teal-900/40 flex items-center justify-center text-teal-600 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/50 transition-all cursor-pointer ${
                 playingSpeech ? "animate-pulse scale-95" : "active:scale-90"
               }`}
@@ -1380,7 +1412,7 @@ function WordExplainer({
             {/* Accent dropdown trigger — always visible for Google TTS */}
             <button
               onClick={() => setAccentOpen(p => !p)}
-              title="Выбрать акцент"
+              title={t('explainer.choose_accent_title', 'Choose accent')}
               className="w-5 h-8 rounded-r-lg bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-110 dark:hover:bg-teal-900/40 flex items-center justify-center text-teal-500 dark:text-teal-500 border border-l-0 border-teal-100/50 dark:border-teal-900/50 transition-all cursor-pointer"
             >
               <svg className={`w-2.5 h-2.5 transition-transform ${accentOpen ? 'rotate-180' : ''}`} viewBox="0 0 10 6" fill="currentColor">
@@ -1391,43 +1423,43 @@ function WordExplainer({
             {accentOpen && (() => {
               const currentLocale = getEffectiveTtsLocale(targetLanguage, settings);
               const QUICK_ACCENTS = [
-                { group: "🇺🇸🇬🇧 Английский", items: [
-                  { code: "en-US", label: "🇺🇸 Американский" },
-                  { code: "en-GB", label: "🇬🇧 Британский" },
-                  { code: "en-AU", label: "🇦🇺 Австралийский" },
-                  { code: "en-CA", label: "🇨🇦 Канадский" },
-                  { code: "en-IN", label: "🇮🇳 Индийский" },
+                { group: t('explainer.accents_english', "🇺🇸🇬🇧 English"), items: [
+                  { code: "en-US", label: t('explainer.accent_us', "🇺🇸 American") },
+                  { code: "en-GB", label: t('explainer.accent_gb', "🇬🇧 British") },
+                  { code: "en-AU", label: t('explainer.accent_au', "🇦🇺 Australian") },
+                  { code: "en-CA", label: t('explainer.accent_ca', "🇨🇦 Canadian") },
+                  { code: "en-IN", label: t('explainer.accent_in', "🇮🇳 Indian") },
                 ]},
-                { group: "🇪🇸 Испанский", items: [
-                  { code: "es-US", label: "🇲🇽 Мексиканский" },
-                  { code: "es-ES", label: "🇪🇸 Испанский" },
-                  { code: "es-AR", label: "🇦🇷 Аргентинский" },
+                { group: t('explainer.accents_spanish', "🇪🇸 Spanish"), items: [
+                  { code: "es-US", label: t('explainer.accent_mx', "🇲🇽 Mexican") },
+                  { code: "es-ES", label: t('explainer.accent_es', "🇪🇸 Spanish") },
+                  { code: "es-AR", label: t('explainer.accent_ar', "🇦🇷 Argentine") },
                 ]},
-                { group: "🇧🇷 Португальский", items: [
-                  { code: "pt-BR", label: "🇧🇷 Бразильский" },
-                  { code: "pt-PT", label: "🇵🇹 Европейский" },
+                { group: t('explainer.accents_portuguese', "🇧🇷 Portuguese"), items: [
+                  { code: "pt-BR", label: t('explainer.accent_br', "🇧🇷 Brazilian") },
+                  { code: "pt-PT", label: t('explainer.accent_pt', "🇵🇹 European") },
                 ]},
-                { group: "🇫🇷 Французский", items: [
-                  { code: "fr-FR", label: "🇫🇷 Французский" },
-                  { code: "fr-CA", label: "🇨🇦 Канадский" },
+                { group: t('explainer.accents_french', "🇫🇷 French"), items: [
+                  { code: "fr-FR", label: t('explainer.accent_fr', "🇫🇷 French") },
+                  { code: "fr-CA", label: "🇨🇦 Canadian" },
                 ]},
-                { group: "Другие", items: [
-                  { code: "de-DE", label: "🇩🇪 Немецкий" },
-                  { code: "it-IT", label: "🇮🇹 Итальянский" },
-                  { code: "ru-RU", label: "🇷🇺 Русский" },
-                  { code: "uk-UA", label: "🇺🇦 Украинский" },
-                  { code: "ja-JP", label: "🇯🇵 Японский" },
-                  { code: "ko-KR", label: "🇰🇷 Корейский" },
-                  { code: "zh-CN", label: "🇨🇳 Китайский" },
-                  { code: "zh-TW", label: "🇹🇼 Тайваньский" },
-                  { code: "tr-TR", label: "🇹🇷 Турецкий" },
-                  { code: "ar-SA", label: "🇸🇦 Арабский" },
+                { group: t('explainer.accents_other', "Other"), items: [
+                  { code: "de-DE", label: t('explainer.accent_de', "🇩🇪 German") },
+                  { code: "it-IT", label: t('explainer.accent_it', "🇮🇹 Italian") },
+                  { code: "ru-RU", label: t('explainer.accent_ru', "🇷🇺 Russian") },
+                  { code: "uk-UA", label: t('explainer.accent_uk', "🇺🇦 Ukrainian") },
+                  { code: "ja-JP", label: t('explainer.accent_ja', "🇯🇵 Japanese") },
+                  { code: "ko-KR", label: t('explainer.accent_ko', "🇰🇷 Korean") },
+                  { code: "zh-CN", label: t('explainer.accent_zh_cn', "🇨🇳 Chinese") },
+                  { code: "zh-TW", label: t('explainer.accent_zh_tw', "🇹🇼 Taiwanese") },
+                  { code: "tr-TR", label: t('explainer.accent_tr', "🇹🇷 Turkish") },
+                  { code: "ar-SA", label: t('explainer.accent_ar', "🇸🇦 Arabic") },
                 ]},
               ];
               return (
                 <div className="absolute top-full left-0 mt-1.5 z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-2xl p-2 min-w-[200px] max-h-[70vh] overflow-y-auto" style={{scrollbarWidth:'thin'}}>
                   <div className="text-[9px] font-black uppercase tracking-widest text-zinc-400 px-2 py-1 mb-1">
-                    🌍 Акцент Google TTS · <span className="text-teal-600">{currentLocale}</span>
+                    🌍 {t('explainer.accent_google_tts', 'Google TTS Accent')} · <span className="text-teal-600">{currentLocale}</span>
                   </div>
                   {QUICK_ACCENTS.map(grp => (
                     <div key={grp.group} className="mb-2">
@@ -1472,7 +1504,7 @@ function WordExplainer({
               </h3>
               {!existingVocab && detectedPhrases && word && (detectedPhrases[word.toLowerCase()] || detectedPhrases[word]) && (
                 <span className="text-[8px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-900 px-1.5 py-0.5 rounded leading-none shrink-0 select-none animate-pulse">
-                  ИИ Рекомендует
+                  {t('explainer.ai_recommends', 'AI Recommends')}
                 </span>
               )}
             </div>
@@ -1513,7 +1545,7 @@ function WordExplainer({
                       type="button"
                       onClick={() => onWordClick && onWordClick(compKey, sentence || word || "")}
                       className={`px-1.5 py-0.5 rounded text-[9.5px]/none font-extrabold border capitalize tracking-wide cursor-pointer transition-all hover:scale-105 active:scale-95 ${badgeBg}`}
-                      title={`Нажмите, чтобы открыть "${comp}"`}
+                      title={t('explainer.click_to_open_comp', `Click to open "${comp}"`, { comp })}
                     >
                       {comp}
                     </button>
@@ -1527,7 +1559,7 @@ function WordExplainer({
         {onClose && (
           <button
             onClick={onClose}
-            title="Закрыть панель"
+            title={t('explainer.close_panel_title', 'Close panel')}
             className="w-6.5 h-6.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0"
           >
             <X className="w-3.5 h-3.5" />
@@ -1538,7 +1570,7 @@ function WordExplainer({
       {ttsWarning && (
         <div className="p-2.5 bg-amber-50 dark:bg-amber-950/25 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-900/50 text-[11px] rounded-xl flex items-center justify-between gap-1 leading-snug shrink-0">
           <div className="flex-1">
-            <span className="font-bold">Предупреждение: </span>
+            <span className="font-bold">{t('explainer.warning_prefix', 'Warning: ')}</span>
             {ttsWarning}
           </div>
           <button 
@@ -1600,7 +1632,6 @@ function WordExplainer({
           onClick={() => {
             setTagsOpen(!tagsOpen);
             setImageOpen(false);
-            setBookOpen(false);
             setAiTabOpen(false);
             setExamplesTabOpen(false);
           }}
@@ -1620,7 +1651,6 @@ function WordExplainer({
           onClick={() => {
             setImageOpen(!imageOpen);
             setTagsOpen(false);
-            setBookOpen(false);
             setAiTabOpen(false);
             setExamplesTabOpen(false);
           }}
@@ -1634,26 +1664,6 @@ function WordExplainer({
           <span>Img+</span>
         </button>
 
-        {/* Book+ button to toggle context search panel */}
-        <button
-          type="button"
-          onClick={() => {
-            setBookOpen(!bookOpen);
-            setTagsOpen(false);
-            setImageOpen(false);
-            setAiTabOpen(false);
-            setExamplesTabOpen(false);
-          }}
-          className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
-            bookOpen
-              ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
-              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
-          }`}
-        >
-          <BookOpen className="w-2.5 h-2.5" />
-          <span>Book+</span>
-        </button>
-
         {/* AI+ button to toggle Ask AI panel */}
         <button
           type="button"
@@ -1661,7 +1671,6 @@ function WordExplainer({
             setAiTabOpen(!aiTabOpen);
             setTagsOpen(false);
             setImageOpen(false);
-            setBookOpen(false);
             setExamplesTabOpen(false);
           }}
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
@@ -1682,7 +1691,6 @@ function WordExplainer({
               setExamplesTabOpen(!examplesTabOpen);
               setTagsOpen(false);
               setImageOpen(false);
-              setBookOpen(false);
               setAiTabOpen(false);
             }}
             className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
@@ -1701,7 +1709,7 @@ function WordExplainer({
       <div className="space-y-2 overflow-y-auto pr-0.5 flex-1 scrollbar-thin dark:dark-scrollbar max-h-[calc(100vh-210px)]">
 
         {/* 1. Saved Meaning Container */}
-        {!imageOpen && !bookOpen && !aiTabOpen && (
+        {!imageOpen && !aiTabOpen && (
           <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-visible bg-zinc-50/40 dark:bg-zinc-950/20">
           <button
             onClick={() => setSavedMeaningOpen(!savedMeaningOpen)}
@@ -1734,7 +1742,7 @@ function WordExplainer({
                   <button
                     type="button"
                     onClick={handleDeleteTranslation}
-                    title="Удалить перевод"
+                    title={t('explainer.delete_translation_title', 'Delete translation')}
                     className="p-2 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-650 dark:text-red-400 border border-red-100/50 dark:border-red-900/50 rounded-lg transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0 flex items-center justify-center self-stretch"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -1766,7 +1774,7 @@ function WordExplainer({
 
                 {dictionariesOpen && (
                   <div className="flex flex-wrap gap-1 pt-0.5">
-                    {dictionaries.map((dict) => (
+                    {dictionaries.filter((d) => d.enabled !== false).map((dict) => (
                       <button
                         key={dict.id}
                         type="button"
@@ -1802,7 +1810,7 @@ function WordExplainer({
                     onClick={() => setWordVariationsOpen(!wordVariationsOpen)}
                     className="font-extrabold uppercase tracking-widest text-[8.5px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
                   >
-                    🔗 Word Variations Link (Связь форм)
+                    🔗 {t('explainer.word_variations_link', 'WORD VARIATIONS LINK')}
                     <ChevronDown className={`w-3 h-3 transition-transform ${wordVariationsOpen ? "rotate-180" : ""}`} />
                   </button>
                   <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-teal-50/70 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 font-mono">
@@ -1878,7 +1886,7 @@ function WordExplainer({
                     {suggestedLemmas.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5 pl-0.5">
                         <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-extrabold uppercase font-sans">
-                          💡 Suggestions (Подсказки):
+                          💡 {t('explainer.suggestions', 'Suggestions:')}
                         </span>
                         {suggestedLemmas.map((lemma) => (
                           <button
@@ -1945,7 +1953,7 @@ function WordExplainer({
                 {/* Translation Source Selector */}
                 <div className="space-y-1 pt-1.5 border-t border-zinc-100/40 dark:border-zinc-800/40 text-left shrink-0">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 block pl-0.5">
-                    Источник перевода (Source)
+                    {t('explainer.translation_source', 'TRANSLATION SOURCE')}
                   </span>
                   <div className="grid grid-cols-5 gap-0.5 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200/50 dark:border-zinc-700/60 text-[9px] font-bold">
                     <button
@@ -1957,7 +1965,7 @@ function WordExplainer({
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
                     >
-                      ✨ ИИ
+                      ✨ {t('explainer.source_ai', 'AI')}
                     </button>
                     <button
                       type="button"
@@ -2001,7 +2009,7 @@ function WordExplainer({
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
                     >
-                      🌐 Гибрид
+                      🌐 {t('explainer.source_hybrid', 'Hybrid')}
                     </button>
                   </div>
                 </div>
@@ -2019,7 +2027,7 @@ function WordExplainer({
                     {translationSource === "hybrid" && <Sparkles className="w-3 h-3" />}
                     <span>
                       {translationSource === "ai" && "AI Lookup translation ✨"}
-                      {translationSource === "google" && "Google Translate (без ИИ) 🌐"}
+                      {translationSource === "google" && t('explainer.source_google_no_ai', 'Google Translate (no AI) 🌐')}
                       {translationSource === "free_dictionary" && "Free Dictionary API"}
                       {translationSource === "wiktionary" && "Wiktionary REST API"}
                       {translationSource === "hybrid" && "Dictionary Hybrid Search 🌐"}
@@ -2072,7 +2080,7 @@ function WordExplainer({
             )}
 
         {/* 2. Custom categorization tags panel (rendered when Tag+ is active) */}
-        {!imageOpen && !bookOpen && !aiTabOpen && tagsOpen && (
+        {!imageOpen && !aiTabOpen && tagsOpen && (
           <div className="p-2.5 bg-zinc-50/75 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2 animate-in slide-in-from-top-1 duration-150">
             <span className="text-[9px] uppercase font-extrabold text-zinc-400 dark:text-zinc-500 tracking-wider flex items-center gap-1">
               <Tag className="w-2.5 h-2.5 text-teal-600" /> Manage tags
@@ -2151,28 +2159,8 @@ function WordExplainer({
           />
         )}
 
-        {/* Dedicated Context Search Tab content */}
-        {bookOpen && (
-          <div className="space-y-2 animate-in slide-in-from-top-1 duration-150">
-            {contextSearchHits.length > 0 ? (
-              <ContextSearchResults
-                hits={contextSearchHits}
-                query={word || ""}
-                currentLessonId={currentLessonId}
-                onOpenLesson={onOpenLesson}
-                compact={false}
-              />
-            ) : (
-              <div className="text-zinc-400 dark:text-zinc-500 text-center py-10 text-[11px] font-medium border border-zinc-200 dark:border-zinc-800/60 rounded-xl bg-zinc-50/40 dark:bg-zinc-950/20 font-sans">
-                📖 Вхождений в других книгах не найдено.
-              </div>
-            )}
-          </div>
-        )}
-
-
         {/* 4. Related Phrases Card */}
-        {!imageOpen && !bookOpen && !aiTabOpen && sentence && (
+        {!imageOpen && !aiTabOpen && sentence && (
           <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-50/40 dark:bg-zinc-950/20">
             <button
               onClick={() => {
@@ -2206,14 +2194,14 @@ function WordExplainer({
 
 
         {/* 7. Loader Status indicators when AI translates */}
-        {!imageOpen && !bookOpen && !aiTabOpen && loading && (
+        {!imageOpen && !aiTabOpen && loading && (
           <div className="p-6 bg-zinc-50 dark:bg-zinc-900/40 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center space-y-2">
             <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-bold animate-pulse">Running smart translation analysis...</p>
           </div>
         )}
 
-        {!imageOpen && !bookOpen && !aiTabOpen && error && (
+        {!imageOpen && !aiTabOpen && error && (
           <div className="p-3 bg-red-50 dark:bg-red-950/20 text-rose-600 dark:text-rose-400 border border-red-200/50 dark:border-rose-900 text-xs rounded-xl flex flex-col gap-1.5 leading-normal">
             <span className="font-bold">Translation Error Info</span>
             <span>{error}</span>
@@ -2236,7 +2224,7 @@ function WordExplainer({
         {/* Trash delete / reset word button */}
         <button
           onClick={() => handleUpdateStatus("new")}
-          title="Стереть слово (Wipe word status)"
+          title={t('explainer.wipe_word_title', 'Wipe word status')}
           className="w-8 h-8 border border-zinc-200 dark:border-zinc-800 hover:border-red-300 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-400 hover:text-rose-600 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-3xs shrink-0 active:scale-90"
         >
           <Trash2 className="w-4 h-4" />
@@ -2245,7 +2233,7 @@ function WordExplainer({
         {/* Ignore word button with Ban icon */}
         <button
           onClick={() => handleUpdateStatus("ignored")}
-          title="Игнорировать (Ignore word)"
+          title={t('explainer.ignore_word_title', 'Ignore word')}
           className={`w-8 h-8 border rounded-full flex items-center justify-center transition-all cursor-pointer shadow-3xs shrink-0 active:scale-95 ${
             status === "ignored"
               ? "bg-zinc-800 border-zinc-700 text-white dark:bg-zinc-200 dark:border-zinc-300 dark:text-zinc-950 pointer-events-none"
@@ -2326,7 +2314,7 @@ function WordExplainer({
         {/* Green Checkmark button for status "known" */}
         <button
           onClick={() => handleUpdateStatus("known")}
-          title="Отметить как известное (Known)"
+          title={t('explainer.mark_known_title', 'Mark as Known')}
           className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer active:scale-90 shrink-0 ${
             status === "known"
               ? "bg-green-600 text-white border-green-500 shadow-md shadow-green-500/15 pointer-events-none"
@@ -2346,7 +2334,7 @@ function WordExplainer({
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 <span className="text-xs font-black uppercase text-zinc-700 dark:text-zinc-300 tracking-wider">
-                  Управление словарями (Manage Dictionaries)
+                  {t('explainer.manage_dicts', 'Manage Dictionaries')}
                 </span>
               </div>
               <button
@@ -2369,7 +2357,7 @@ function WordExplainer({
                 <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-teal-500/20 dark:border-teal-500/10 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 font-sans">
-                      {editingDict ? "Редактировать словарь" : "Добавить новый словарь"}
+                      {editingDict ? t('explainer.edit_dict', 'Edit Dictionary') : t('explainer.add_new_dict', 'Add New Dictionary')}
                     </h4>
                     <button
                       type="button"
@@ -2383,20 +2371,20 @@ function WordExplainer({
                   <div className="space-y-2.5">
                     <div>
                       <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1 font-sans">
-                        Название (Name)
+                        {t('explainer.dict_name', 'Name')}
                       </label>
                       <input
                         type="text"
                         value={dictFormName}
                         onChange={(e) => setDictFormName(e.target.value)}
-                        placeholder="Например: Spanishdict, WordReference..."
+                        placeholder={t('explainer.dict_name_placeholder', 'E.g.: Spanishdict, WordReference...')}
                         className="w-full px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
                       />
                     </div>
 
                     <div>
                       <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1 font-sans">
-                        Шаблон ссылки (URL Template)
+                        {t('explainer.url_template', 'URL Template')}
                       </label>
                       <input
                         type="text"
@@ -2406,13 +2394,13 @@ function WordExplainer({
                         className="w-full px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
                       />
                       <span className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1 block leading-relaxed font-sans">
-                        Используйте плейсхолдер <code className="text-teal-600 dark:text-teal-400 font-mono font-bold">{`{word}`}</code> в ссылке. Он автоматически заменится на выделенное слово.
+                        <Trans i18nKey="explainer.url_template_desc">Use placeholder <code className="text-teal-600 dark:text-teal-400 font-mono font-bold">{`{word}`}</code> in the link. It will automatically be replaced with the selected word.</Trans>
                       </span>
                     </div>
 
                     <div>
                       <label className="block text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5 font-sans">
-                        Тип отображения (Display Type)
+                        {t('explainer.display_type', 'Display Type')}
                       </label>
                       <div className="grid grid-cols-3 gap-2 font-sans">
                         <button
@@ -2425,7 +2413,7 @@ function WordExplainer({
                           }`}
                         >
                           <ExternalLink className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
-                          <span className="text-center">Новая вкладка</span>
+                          <span className="text-center">{t('explainer.display_new_tab', 'New Tab')}</span>
                         </button>
                         <button
                           type="button"
@@ -2437,7 +2425,7 @@ function WordExplainer({
                           }`}
                         >
                           <BookOpen className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
-                          <span className="text-center">Во фрейме (popup)</span>
+                          <span className="text-center">{t('explainer.display_popup', 'Popup Frame')}</span>
                         </button>
                         <button
                           type="button"
@@ -2449,7 +2437,7 @@ function WordExplainer({
                           }`}
                         >
                           <AppWindow className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
-                          <span className="text-center">Мини-окно поверх</span>
+                          <span className="text-center">{t('explainer.display_window', 'Mini Window')}</span>
                         </button>
                       </div>
                     </div>
@@ -2461,7 +2449,7 @@ function WordExplainer({
                       onClick={handleCancelEditDict}
                       className="px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-xl font-bold transition-colors text-xs cursor-pointer"
                     >
-                      Отмена
+                      {t('explainer.cancel', 'Cancel')}
                     </button>
                     <button
                       type="button"
@@ -2470,7 +2458,7 @@ function WordExplainer({
                       className="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold transition-all disabled:opacity-50 text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>{editingDict ? "Сохранить изменения" : "Добавить словарь"}</span>
+                      <span>{editingDict ? t('explainer.save_changes', 'Save Changes') : t('explainer.add_dict', 'Add Dictionary')}</span>
                     </button>
                   </div>
                 </div>
@@ -2479,7 +2467,7 @@ function WordExplainer({
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm("Вы уверены, что хотите сбросить список словарей на значения по умолчанию для текущего языка?")) {
+                      if (window.confirm(t('explainer.reset_dicts_confirm', "Are you sure you want to reset dictionaries to defaults for the target language?"))) {
                         const defaults = getDefaultDictionaries(targetLanguage, translationLanguage);
                         setDictionaries(defaults);
                         safeLocalStorageSetItem(activeStorageKey, JSON.stringify(defaults));
@@ -2487,7 +2475,7 @@ function WordExplainer({
                     }}
                     className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>Сбросить по умолчанию</span>
+                    <span>{t('explainer.reset_default', 'Reset to Default')}</span>
                   </button>
                   <button
                     type="button"
@@ -2495,7 +2483,7 @@ function WordExplainer({
                     className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 border border-teal-100 dark:border-teal-900/30 cursor-pointer shadow-xs font-sans"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Добавить новый словарь (Add Dictionary)</span>
+                    <span>{t('explainer.add_dict_btn', 'Add New Dictionary')}</span>
                   </button>
                 </div>
               )}
@@ -2503,65 +2491,88 @@ function WordExplainer({
               {/* List of existing dictionaries */}
               <div className="space-y-2 font-sans">
                 <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                  Список словарей (Available Dictionaries)
+                  {t('explainer.available_dicts', 'Available Dictionaries')}
                 </h4>
 
                 <div className="divide-y divide-zinc-100 dark:divide-zinc-800 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900">
-                  {dictionaries.map((dict) => (
-                    <div
-                      key={dict.id}
-                      className="p-3 flex items-center justify-between hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20 transition-all gap-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-xs text-zinc-700 dark:text-zinc-200 truncate">
-                            {dict.name}
-                          </span>
-                          {dict.displayType === "popup" ? (
-                            <span className="text-[7.5px] text-teal-600 dark:text-teal-400 font-extrabold uppercase bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-100/50 dark:border-teal-900/10 font-sans">
-                              pop
-                            </span>
-                          ) : dict.displayType === "window_popup" ? (
-                            <span className="text-[7.5px] text-amber-600 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">
-                              окно
-                            </span>
-                          ) : (
-                            <span className="text-[7.5px] text-blue-600 dark:text-blue-400 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">
-                              tab ↗
-                            </span>
-                          )}
+                  {dictionaries.map((dict) => {
+                    const isEnabled = dict.enabled !== false;
+                    return (
+                      <div
+                        key={dict.id}
+                        className={`p-3 flex items-center justify-between transition-all gap-3 ${
+                          !isEnabled
+                            ? "opacity-55 bg-zinc-100/40 dark:bg-zinc-950/40"
+                            : "hover:bg-zinc-50/50 dark:hover:bg-zinc-950/20"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {/* Toggle Switch */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDictionaryEnabled(dict.id)}
+                            className={`w-9 h-5 rounded-full transition-colors p-0.5 flex items-center shrink-0 cursor-pointer ${
+                              isEnabled
+                                ? "bg-teal-600 justify-end"
+                                : "bg-zinc-300 dark:bg-zinc-700 justify-start"
+                            }`}
+                            title={isEnabled ? t('explainer.disable_dict', 'Disable dictionary') : t('explainer.enable_dict', 'Enable dictionary')}
+                          >
+                            <span className="w-4 h-4 rounded-full bg-white shadow-xs" />
+                          </button>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`font-extrabold text-xs truncate ${!isEnabled ? "line-through text-zinc-400 dark:text-zinc-500" : "text-zinc-700 dark:text-zinc-200"}`}>
+                                {dict.name}
+                              </span>
+                              {dict.displayType === "popup" ? (
+                                <span className="text-[7.5px] text-teal-600 dark:text-teal-400 font-extrabold uppercase bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-100/50 dark:border-teal-900/10 font-sans">
+                                  pop
+                                </span>
+                              ) : dict.displayType === "window_popup" ? (
+                                <span className="text-[7.5px] text-amber-600 dark:text-amber-400 font-extrabold uppercase bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-100/50 dark:border-amber-900/10 font-sans">
+                                  win
+                                </span>
+                              ) : (
+                                <span className="text-[7.5px] text-blue-600 dark:text-blue-400 font-extrabold uppercase bg-blue-50 dark:bg-blue-950/40 px-1 rounded border border-blue-100/50 dark:border-blue-900/10 font-sans">
+                                  tab ↗
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono truncate max-w-sm mt-0.5 animate-none" title={dict.urlTemplate}>
+                              {dict.urlTemplate}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono truncate max-w-sm mt-0.5 animate-none" title={dict.urlTemplate}>
-                          {dict.urlTemplate}
-                        </p>
-                      </div>
 
                       <div className="flex items-center gap-1 shrink-0 animate-none">
                         <button
                           type="button"
                           onClick={() => handleStartEditDict(dict)}
                           className="p-1 px-2 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
-                          title="Редактировать словарь"
+                          title={t('explainer.edit_dict_title', 'Edit dictionary')}
                         >
                           <Edit className="w-3.5 h-3.5" />
-                          <span>ред.</span>
+                          <span>{t('explainer.edit_btn', 'Edit')}</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteDictionary(dict.id)}
                           className="p-1 px-2 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
-                          title="Удалить словарь"
+                          title={t('explainer.delete_dict_title', 'Delete dictionary')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>уд.</span>
+                          <span>{t('explainer.delete_btn', 'Delete')}</span>
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {dictionaries.length === 0 && (
                     <div className="p-6 text-center text-zinc-400 text-xs">
-                      Словари отсутствуют. Вы можете добавить новый выше!
+                      {t('explainer.no_dicts_msg', 'No dictionaries configured. You can add a new one above!')}
                     </div>
                   )}
                 </div>
@@ -2582,7 +2593,7 @@ function WordExplainer({
                 }}
                 className="w-full sm:w-auto px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold transition-all text-xs shadow-xs cursor-pointer focus:outline-none flex items-center justify-center gap-2"
               >
-                <span>Сохранить и закрыть</span>
+                <span>{t('explainer.save_and_close', 'Save & Close')}</span>
               </button>
             </div>
 
@@ -2609,7 +2620,7 @@ function WordExplainer({
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 text-[10px] font-black uppercase rounded-lg transition-colors flex items-center gap-1.5"
                 >
-                  <span>Открыть в новом окне (Open Link) ↗</span>
+                  <span>{t('explainer.open_in_new_window', 'Open Link ↗')}</span>
                 </a>
                 <button
                   type="button"
@@ -2632,7 +2643,7 @@ function WordExplainer({
                 sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
               />
               <div className="absolute bottom-2.5 right-2.5 max-w-sm p-3 bg-zinc-900/90 text-white rounded-xl text-[10px] leading-relaxed font-sans shadow-md pointer-events-none border border-zinc-500/10">
-                ⚠️ Если словарь пуст или не отображается из-за защиты сайта (X-Frame-Options), просто нажмите кнопку <strong>&laquo;Открыть в новом окне&raquo;</strong> в правом верхнем углу!
+                <Trans i18nKey="explainer.iframe_blocked_warning">⚠️ If the dictionary is blank due to site protection (X-Frame-Options), click <strong>&laquo;Open Link&raquo;</strong> in the top right corner!</Trans>
               </div>
             </div>
           </div>

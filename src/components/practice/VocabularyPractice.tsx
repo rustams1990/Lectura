@@ -8,6 +8,7 @@ import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../../types";
 import { calculateNextReview } from "../../utils/srsAlgorithm";
 import { motion, AnimatePresence } from "motion/react";
 import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../../utils";
 import WordExplainer from "../WordExplainer";
 import FlashcardMode from "./FlashcardMode";
@@ -45,6 +46,7 @@ export default function VocabularyPractice({
   onDeleteWordLink,
   lessons
 }: VocabularyPracticeProps) {
+  const { t } = useTranslation();
   // Extract all active language keys that have learning words (statuses 1-5)
   const activeDeckLanguages = useMemo(() => {
     const langs = new Set<string>();
@@ -228,7 +230,7 @@ export default function VocabularyPractice({
     if (!learningList || learningList.length === 0) return;
 
     // Специфичный формат для Anki: Слово ; Перевод ; Контекст
-    const header = ["Слово", "Перевод", "Контекст"].join(";");
+    const header = [t('practice.anki_word', 'Слово'), t('practice.anki_translation', 'Перевод'), t('practice.anki_context', 'Контекст')].join(";");
     const rows = learningList.map((item) => {
       const cleanWord = (item.word || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
       const cleanTranslation = (item.translation || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
@@ -380,7 +382,7 @@ export default function VocabularyPractice({
 
         if (!response.ok) {
           const errData = await safeJsonParse(response);
-          throw new Error(errData?.error || `Ошибка сервера (${response.status})`);
+          throw new Error(errData?.error || t('practice.server_error', `Ошибка сервера (${response.status})`, { status: response.status }));
         }
 
         const data = await safeJsonParse(response);
@@ -489,11 +491,11 @@ export default function VocabularyPractice({
 
   const handleGenerateStory = async () => {
     if (selectedWords.length === 0) {
-      setGenError("Пожалуйста, выберите хотя бы одно слово.");
+      setGenError(t('practice.select_one_word', 'Пожалуйста, выберите хотя бы одно слово.'));
       return;
     }
     if (selectedWords.length > 15) {
-      setGenError("Слишком много слов. Пожалуйста, выберите не более 15 слов.");
+      setGenError(t('practice.too_many_words', 'Слишком много слов. Пожалуйста, выберите не более 15 слов.'));
       return;
     }
 
@@ -518,12 +520,12 @@ export default function VocabularyPractice({
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.error || "Ошибка соединения с сервером");
+        throw new Error(errData.error || t('practice.conn_error', 'Ошибка соединения с сервером'));
       }
 
       const data = await response.json();
       if (!data.text || !data.title) {
-        throw new Error("Неверный формат ответа от ИИ");
+        throw new Error(t('practice.invalid_ai_response', 'Неверный формат ответа от ИИ'));
       }
 
       const newLessonId = "story_" + Date.now();
@@ -548,7 +550,7 @@ export default function VocabularyPractice({
       setShowStoryGen(false);
     } catch (err: any) {
       console.error(err);
-      setGenError(err.message || "Не удалось сгенерировать историю. Попробуйте еще раз.");
+      setGenError(err.message || t('practice.gen_failed', 'Не удалось сгенерировать историю. Попробуйте еще раз.'));
     } finally {
       setIsGenerating(false);
     }
@@ -723,7 +725,7 @@ export default function VocabularyPractice({
   if (learningList.length > 0 && !currentLq) {
     return (
       <div className="flex items-center justify-center p-8 text-zinc-500 font-sans">
-        Загрузка карточки... / Loading flashcard...
+        {t('practice.loading_flashcard', 'Загрузка карточки... / Loading flashcard...')}
       </div>
     );
   }
@@ -828,11 +830,11 @@ export default function VocabularyPractice({
         {/* Deck Type Filter (Empty state) */}
         <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-md mx-auto flex-wrap justify-center">
           {[
-            { id: "learning", label: "Изучаемые 🎯" },
-            { id: "all", label: "Все слова 📖" },
-            { id: "spelling-problems", label: "С ошибками ❌" },
-            { id: "spelling-accents", label: "С ударением ⚠️" },
-            { id: "spelling-correct", label: "Пишу правильно ✅" }
+            { id: "learning", label: t('practice.filter_learning', "Learning 🎯") },
+            { id: "all", label: t('practice.filter_all_words', "All words 📖") },
+            { id: "spelling-problems", label: t('practice.filter_spelling_errors', "With errors ❌") },
+            { id: "spelling-accents", label: t('practice.filter_spelling_accents', "With accents ⚠️") },
+            { id: "spelling-correct", label: t('practice.filter_spelling_correct', "Spelled correctly ✅") }
           ].map((item) => (
             <button
               key={item.id}
@@ -852,10 +854,10 @@ export default function VocabularyPractice({
         {/* Timeframe Filter Selector (Empty state) */}
         <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
           {[
-            { id: "all", label: "Все время 📅" },
-            { id: "today", label: "Сегодня ☀️" },
-            { id: "week", label: "Неделя 📅" },
-            { id: "month", label: "Месяц 🗓️" }
+            { id: "all", label: t('practice.filter_all_time', "All time 📅") },
+            { id: "today", label: t('practice.filter_today', "Today ☀️") },
+            { id: "week", label: t('practice.filter_week', "This week 📅") },
+            { id: "month", label: t('practice.filter_month', "This month 🗓️") }
           ].map((item) => (
             <button
               key={item.id}
@@ -881,9 +883,9 @@ export default function VocabularyPractice({
             <Bookmark className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">Ваша колода ({selectedPracticeLang}) пуста</h3>
+            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">{t('practice.deck_empty', 'Your deck ({{lang}}) is empty', { lang: selectedPracticeLang })}</h3>
             <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
-              Слова, которые вы отмечаете желтым/зеленым/красным цветом при чтении уроков {selectedPracticeLang}, автоматически попадают сюда. Начните чтение!
+              {t('practice.deck_empty_desc', 'Words you mark in lessons for {{lang}} automatically appear here. Start reading!', { lang: selectedPracticeLang })}
             </p>
           </div>
         </div>
@@ -902,7 +904,7 @@ export default function VocabularyPractice({
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-all cursor-pointer"
         >
           <Settings className="w-3.5 h-3.5" />
-          Настройки фильтров {showFilters ? "▴" : "▾"}
+          {t('practice.filter_settings', 'Filter settings')} {showFilters ? "▴" : "▾"}
         </button>
       </div>
 
@@ -934,11 +936,11 @@ export default function VocabularyPractice({
           {/* Deck Type Filter Selector */}
           <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans flex-wrap">
             {[
-              { id: "learning", label: "Изучаемые 🎯" },
-              { id: "all", label: "Все слова 📖" },
-              { id: "spelling-problems", label: "С ошибками ❌" },
-              { id: "spelling-accents", label: "С ударением ⚠️" },
-              { id: "spelling-correct", label: "Пишу правильно ✅" }
+              { id: "learning", label: t('practice.deck_learning', 'Learning 🎯') },
+              { id: "all", label: t('practice.deck_all', 'All words 📖') },
+              { id: "spelling-problems", label: t('practice.deck_problems', 'With errors ❌') },
+              { id: "spelling-accents", label: t('practice.deck_accents', 'Accented ⚠️') },
+              { id: "spelling-correct", label: t('practice.deck_correct', 'Spelled correctly ✅') }
             ].map((item) => (
               <button
                 key={item.id}
@@ -958,10 +960,10 @@ export default function VocabularyPractice({
           {/* Timeframe Filter Selector */}
           <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans">
             {[
-              { id: "all", label: "Все время 📅" },
-              { id: "today", label: "Сегодня ☀️" },
-              { id: "week", label: "Неделя 📅" },
-              { id: "month", label: "Месяц 🗓️" }
+              { id: "all", label: t('practice.tf_all', 'All time 📅') },
+              { id: "today", label: t('practice.tf_today', 'Today ☀️') },
+              { id: "week", label: t('practice.tf_week', 'This week 📅') },
+              { id: "month", label: t('practice.tf_month', 'This month 🗓️') }
             ].map((item) => (
               <button
                 key={item.id}
@@ -988,13 +990,13 @@ export default function VocabularyPractice({
         <div className={showList ? "md:col-span-7 space-y-6" : "space-y-6"}>
           {/* Deck progress meter */}
           <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
-            <span className="uppercase tracking-wider">Колода слов</span>
+            <span className="uppercase tracking-wider">{t('practice.word_deck', 'Word Deck')}</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleExportAnki}
                 className="px-2 py-1 rounded-lg border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 text-[10px] uppercase font-bold tracking-wider hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                title="Экспортировать выбранные слова для импорта в Anki"
+                title={t('practice.export_anki_title', 'Export selected words for Anki import')}
               >
                 <Download className="w-3 h-3" />
                 <span>Anki (.csv)</span>
@@ -1008,10 +1010,10 @@ export default function VocabularyPractice({
                     : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400"
                 }`}
               >
-                Список 📋
+                {t('practice.list_view', 'List 📋')}
               </button>
               <span>
-                Карточка {currentIndex + 1} из {learningList.length}
+                {t('practice.card_count', 'Card {{current}} of {{total}}', { current: currentIndex + 1, total: learningList.length })}
               </span>
             </div>
           </div>
@@ -1020,7 +1022,7 @@ export default function VocabularyPractice({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
         {/* Practice Mode Selector */}
         <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Режим:</span>
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{t('practice.mode_label', 'Mode:')}</span>
           <div className="flex gap-1 flex-wrap">
             <button
               type="button"
@@ -1034,7 +1036,7 @@ export default function VocabularyPractice({
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
             >
-              Слово 🔤
+              {t('practice.mode_word', 'Word 🔤')}
             </button>
             {hasAnyImages && (
               <button
@@ -1049,7 +1051,7 @@ export default function VocabularyPractice({
                     : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
                 }`}
               >
-                Картинка 🖼️
+                {t('practice.mode_image', 'Image 🖼️')}
               </button>
             )}
             <button
@@ -1064,14 +1066,14 @@ export default function VocabularyPractice({
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
             >
-              Правописание ✍️
+              {t('practice.mode_spelling', 'Spelling ✍️')}
             </button>
           </div>
         </div>
 
         {/* Direction Selector */}
         <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">Сначала:</span>
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{t('practice.first_label', 'First:')}</span>
           <div className="flex gap-1">
             <button
               type="button"
@@ -1084,9 +1086,9 @@ export default function VocabularyPractice({
                   ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
-              title="Изучаемое слово -> Перевод"
+              title={t('practice.word_to_trans', 'Target word -> Translation')}
             >
-              Слово 🔤
+              {t('practice.word_label', 'Word 🔤')}
             </button>
             <button
               type="button"
@@ -1099,9 +1101,9 @@ export default function VocabularyPractice({
                   ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
                   : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               }`}
-              title="Перевод -> Изучаемое слово"
+              title={t('practice.trans_to_word', 'Translation -> Target word')}
             >
-              Перевод 🔄
+              {t('practice.mode_translation', 'Translation 🔄')}
             </button>
           </div>
         </div>
@@ -1144,7 +1146,7 @@ export default function VocabularyPractice({
           className="text-xs text-teal-600 hover:text-teal-700 font-bold uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer select-none"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Перевернуть карточку
+          {t('practice.flip_card', 'Flip card')}
         </button>
 
         <button
@@ -1152,7 +1154,7 @@ export default function VocabularyPractice({
           className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-teal-500/20 hover:border-teal-500/50 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-teal-700 dark:text-teal-400 font-bold text-sm rounded-2xl transition-all active:scale-[0.98] cursor-pointer"
         >
           <Sparkles className="w-4 h-4" />
-          AI-Генератор Историй (Story Gen)
+          {t('practice.ai_story_gen', 'AI Story Generator (Story Gen)')}
         </button>
       </div>
     </div>
@@ -1162,14 +1164,14 @@ export default function VocabularyPractice({
       <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
         <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-3">
           <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Слова в колоде ({learningList.length})
+            {t('practice.words_in_deck', 'Words in deck ({{count}})', { count: learningList.length })}
           </span>
           <button
             type="button"
             onClick={() => setShowList(false)}
             className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
           >
-            Скрыть ×
+            {t('practice.hide', 'Hide ×')}
           </button>
         </div>
         
@@ -1186,22 +1188,22 @@ export default function VocabularyPractice({
 
             if (studyMode === "spelling") {
               if (item.spellingExclude) {
-                spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title="Исключено (Точно знаю)">⭐</span>;
+                spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title={t('practice.status_excluded', 'Excluded (Known)')}>⭐</span>;
                 if (!isActive) {
                   itemBgClass = "opacity-50 bg-stone-100/30 dark:bg-zinc-900/10 text-zinc-400 dark:text-zinc-500 border-zinc-200/40 line-through decoration-zinc-400/40";
                 }
               } else if (item.lastSpelledWithAccentError === true) {
-                spellingStatusIcon = <span className="text-amber-500 font-black ml-1.5" title="Ошибка в ударении">⚠️</span>;
+                spellingStatusIcon = <span className="text-amber-500 font-black ml-1.5" title={t('practice.status_accent_error', 'Accent error')}>⚠️</span>;
                 if (!isActive) {
                   itemBgClass = "bg-amber-50/35 hover:bg-amber-100/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-100/50 dark:border-amber-950/30";
                 }
               } else if (item.lastSpelledCorrectly === true) {
-                spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title="Написано верно">✓</span>;
+                spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title={t('practice.status_correct', 'Spelled correctly')}>✓</span>;
                 if (!isActive) {
                   itemBgClass = "bg-emerald-50/35 hover:bg-emerald-100/50 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border-emerald-100/50 dark:border-emerald-950/30";
                 }
               } else if (item.lastSpelledCorrectly === false) {
-                spellingStatusIcon = <span className="text-rose-500 font-black ml-1.5" title="Написано с ошибкой">✗</span>;
+                spellingStatusIcon = <span className="text-rose-500 font-black ml-1.5" title={t('practice.status_error', 'Spelled with error')}>✗</span>;
                 if (!isActive) {
                   itemBgClass = "bg-rose-50/35 hover:bg-rose-100/50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-rose-800 dark:text-rose-300 border-rose-100/50 dark:border-rose-950/30";
                 }
@@ -1278,14 +1280,14 @@ export default function VocabularyPractice({
                   <div className="relative w-16 h-16 flex items-center justify-center">
                     <div className="absolute inset-0 rounded-full border-4 border-teal-100 dark:border-zinc-800" />
                     <div className="absolute inset-0 rounded-full border-4 border-t-teal-600 dark:border-t-teal-400 animate-spin" />
-                    <Sparkles className="w-6 h-6 text-teal-600 dark:text-teal-400 animate-pulse" />
+                    <Sparkles className="w-6 h-6 text-teal-600 dark:border-t-teal-400 animate-pulse" />
                   </div>
                   <div className="text-center space-y-1.5">
                     <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 animate-pulse">
-                      ИИ сочиняет историю для вас...
+                      {t('practice.ai_composing', 'AI is composing a story for you...')}
                     </p>
                     <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed max-w-xs mx-auto">
-                      Интегрируем выбранные слова ({selectedWords.length}) в сюжет на языке {selectedPracticeLang}. Пожалуйста, подождите.
+                      {t('practice.integrating_words', 'Integrating selected words ({{count}}) into a story in {{lang}}. Please wait.', { count: selectedWords.length, lang: selectedPracticeLang })}
                     </p>
                   </div>
                 </div>
@@ -1296,7 +1298,7 @@ export default function VocabularyPractice({
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                        Выберите слова / Select Words ({selectedWords.length})
+                        {t('practice.select_words', 'Select Words ({{count}})', { count: selectedWords.length })}
                       </span>
                       <button
                         onClick={() => {
@@ -1308,7 +1310,7 @@ export default function VocabularyPractice({
                         }}
                         className="text-[9px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline cursor-pointer"
                       >
-                        {selectedWords.length === learningList.length ? "Сбросить все" : "Выбрать все"}
+                        {selectedWords.length === learningList.length ? t('practice.reset_all', 'Reset all') : t('practice.select_all', 'Select all')}
                       </button>
                     </div>
                     
@@ -1340,7 +1342,7 @@ export default function VocabularyPractice({
                   {/* Level Selector */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
-                      Уровень сложности / Difficulty
+                      {t('practice.difficulty', 'Difficulty level')}
                     </span>
                     <div className="grid grid-cols-4 gap-1.5 bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans">
                       {[
@@ -1368,7 +1370,7 @@ export default function VocabularyPractice({
                   {/* Genre Selector */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
-                      Жанр истории / Genre
+                      {t('practice.genre', 'Story genre')}
                     </span>
                     <div className="relative">
                       <select
@@ -1376,12 +1378,12 @@ export default function VocabularyPractice({
                         onChange={(e) => setStoryGenre(e.target.value)}
                         className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-xs font-semibold text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 cursor-pointer appearance-none shadow-4xs"
                       >
-                        <option value="general">Обычный рассказ (General)</option>
-                        <option value="humor">Юмор / Комедия (Humor)</option>
-                        <option value="scifi">Научная фантастика / Фэнтези (Sci-Fi)</option>
-                        <option value="mystery">Детектив / Тайна (Mystery)</option>
-                        <option value="romance">Романтика (Romance)</option>
-                        <option value="adventure">Приключение (Adventure)</option>
+                        <option value="general">{t('practice.genre_general', 'General story')}</option>
+                        <option value="humor">{t('practice.genre_humor', 'Humor / Comedy')}</option>
+                        <option value="scifi">{t('practice.genre_scifi', 'Sci-Fi / Fantasy')}</option>
+                        <option value="mystery">{t('practice.genre_mystery', 'Mystery / Detective')}</option>
+                        <option value="romance">{t('practice.genre_romance', 'Romance')}</option>
+                        <option value="adventure">{t('practice.genre_adventure', 'Adventure')}</option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-400">
                         <ChevronDown className="w-3.5 h-3.5" />
@@ -1407,7 +1409,7 @@ export default function VocabularyPractice({
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    Создать AI историю
+                    {t('practice.create_ai_story', 'Create AI Story')}
                   </button>
                 </>
               )}
@@ -1429,16 +1431,16 @@ export default function VocabularyPractice({
             <button
               onClick={() => setIsEditingWord(null)}
               className="absolute top-5 right-5 p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer z-10"
-              title="Закрыть"
+              title={t('practice.close', 'Close')}
             >
               <X className="w-5 h-5" />
             </button>
             <div className="pt-2 font-sans">
               {/* Language selection dropdown */}
               <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800 mb-4 pr-8">
-                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Редактирование карточки</h3>
+                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">{t('practice.edit_card', 'Редактирование карточки')}</h3>
                 <div className="flex items-center gap-1.5 font-sans">
-                  <span className="text-[10px] font-black uppercase text-zinc-400">Язык перевода:</span>
+                  <span className="text-[10px] font-black uppercase text-zinc-400">{t('practice.translation_lang', 'Язык перевода:')}</span>
                   <select
                     value={modalTranslationLang}
                     onChange={(e) => {

@@ -44,10 +44,10 @@ const fontSizeMap = {
 };
 
 const lineHeightMap = {
-  normal: "leading-normal",
-  relaxed: "leading-relaxed",
-  loose: "leading-loose",
-  "extra-loose": "leading-[2.2]",
+  normal: "leading-[1.6]",
+  relaxed: "leading-[1.75]",
+  loose: "leading-[1.9]",
+  "extra-loose": "leading-[2.1]",
 };
 
 const fontFamilyMap = {
@@ -70,13 +70,13 @@ const widthMap = {
 };
 
 const getPhraseTypeLabel = (type: string | undefined, t: any) => {
-  if (!type) return t('reader.phrase_idiom', 'Идиома');
+  if (!type) return t('reader.phrase_idiom', 'Idiom');
   switch (type.toLowerCase()) {
-    case "phrasal_verb": return t('reader.phrase_verb', 'Фразовый глагол');
-    case "idiom": return t('reader.phrase_idiom', 'Идиома');
-    case "saying": return t('reader.phrase_saying', 'Пословица / поговорка');
-    case "set_expression": return t('reader.phrase_set', 'Устойчивое выражение');
-    default: return t('reader.phrase_idiom', 'Идиома');
+    case "phrasal_verb": return t('reader.phrase_verb', 'Phrasal Verb');
+    case "idiom": return t('reader.phrase_idiom', 'Idiom');
+    case "saying": return t('reader.phrase_saying', 'Saying / Proverb');
+    case "set_expression": return t('reader.phrase_set', 'Set Expression');
+    default: return t('reader.phrase_idiom', 'Idiom');
   }
 };
 
@@ -173,7 +173,7 @@ function ReaderPanel({
       pageSize: settings?.pageSize || "auto",
       sentenceSpacing: settings?.sentenceSpacing || "normal",
       segmentSpacing: settings?.segmentSpacing || "normal",
-      ttsEngine: settings?.ttsEngine || "browser",
+      ttsEngine: settings?.ttsEngine || "google",
       ttsLocale: settings?.ttsLocale || "",
       ttsLocales: settings?.ttsLocales || {},
       localTtsUrl: settings?.localTtsUrl || "http://localhost:8880/v1/audio/speech",
@@ -516,6 +516,7 @@ function ReaderPanel({
   }, [currentPageIdx, pages.length]);
 
   const currentTheme = themeMap[activeSettings.readerTheme] || themeMap.default;
+  const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
     <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme}`}>
@@ -542,16 +543,16 @@ function ReaderPanel({
                 onClick={onEditClick}
                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
               >
-                {t('reader.btn_edit', '✏️ ред.')}
+                {t('reader.btn_edit', '✏️ Edit')}
               </button>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100/40 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
-              {t('reader.lang_target', 'Язык: ')}{lesson.targetLanguage}
+              {t('reader.lang_target', 'Language: ')}{lesson.targetLanguage}
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
-              {t('reader.lang_trans', 'Перевод: ')}{lesson.translationLanguage}
+              {t('reader.lang_trans', 'Translation: ')}{lesson.translationLanguage}
             </span>
             {lesson.difficulty && (
               <span 
@@ -559,11 +560,11 @@ function ReaderPanel({
                   getDifficultyBadgeStyles(lesson.difficulty)
                 }`}
               >
-                {t('reader.difficulty', 'Сложность: ')}{lesson.difficulty}
+                {t('reader.difficulty', 'Difficulty: ')}{lesson.difficulty}
               </span>
             )}
             <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
-              {t('reader.read_pct', '📖 Прочитано: ')}{scrollProgress}%
+              {t('reader.read_pct', '📖 Read: ')}{scrollProgress}%
             </span>
           </div>
         </div>
@@ -580,10 +581,10 @@ function ReaderPanel({
                   ? "bg-teal-600 text-white shadow-2xs"
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
-              title={t('reader.status_in_progress_title', 'Установить статус: В процессе')}
+              title={t('reader.status_in_progress_title', 'Set status: In Progress')}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>{t('reader.status_in_progress', 'В процессе')}</span>
+              <span>{t('reader.status_in_progress', 'In Progress')}</span>
             </button>
 
             <button
@@ -594,56 +595,58 @@ function ReaderPanel({
                   ? "bg-emerald-600 text-white shadow-2xs"
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
-              title={t('reader.status_completed_title', 'Установить статус: Завершено')}
+              title={t('reader.status_completed_title', 'Set status: Completed')}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{t('reader.status_completed', 'Завершено')}</span>
+              <span>{t('reader.status_completed', 'Completed')}</span>
             </button>
           </div>
 
-          {/* Time Logging Widget */}
-          <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
-            <div className="px-2 py-0.5 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-800 mr-0.5">
-              <Clock className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-              <span>{formatLoggedDuration(totalLoggedSeconds)}</span>
+          {/* Time Logging Widget (Only for plain text lessons, not for videos or podcasts) */}
+          {!isMediaLesson && (
+            <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
+              <div className="px-2 py-0.5 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-800 mr-0.5">
+                <Clock className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <span>{formatLoggedDuration(totalLoggedSeconds)}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleAddMinutes(15)}
+                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+                title={t('reader.add_15m_title', 'Add 15 minutes of reading to history')}
+              >
+                +15m
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAddMinutes(30)}
+                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+                title={t('reader.add_30m_title', 'Add 30 minutes of reading to history')}
+              >
+                +30m
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAddMinutes(60)}
+                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+                title={t('reader.add_1h_title', 'Add 1 hour of reading to history')}
+              >
+                +1h
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCustomTimeModalOpen(true)}
+                className="px-2 py-1 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer"
+                title={t('reader.add_custom_title', 'Add custom reading time')}
+              >
+                +...
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => handleAddMinutes(15)}
-              className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-              title={t('reader.add_15m_title', 'Добавить 15 минут чтения к истории')}
-            >
-              +15м
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleAddMinutes(30)}
-              className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-              title={t('reader.add_30m_title', 'Добавить 30 минут чтения к истории')}
-            >
-              +30м
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleAddMinutes(60)}
-              className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-              title={t('reader.add_1h_title', 'Добавить 1 час чтения к истории')}
-            >
-              +1ч
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsCustomTimeModalOpen(true)}
-              className="px-2 py-1 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer"
-              title={t('reader.add_custom_title', 'Добавить произвольное время чтения')}
-            >
-              +...
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
@@ -651,7 +654,7 @@ function ReaderPanel({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-zinc-850 dark:text-zinc-200 animate-in fade-in duration-200 font-sans">
           <span className="text-xs font-black flex items-center gap-1.5 uppercase tracking-wider text-amber-700 dark:text-amber-400">
             <Sparkles className="w-4 h-4 text-amber-500 animate-pulse animate-duration-1000" />
-            {t('reader.unknown_count', 'Неизвестных слов в главе: ')}{allUnknownWords.length}
+            {t('reader.unknown_count', 'Unknown words in chapter: ')}{allUnknownWords.length}
           </span>
           <div className="flex items-center gap-1 bg-white/60 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 shrink-0">
             <button
@@ -664,7 +667,7 @@ function ReaderPanel({
               }`}
             >
               <AlignLeft className="w-3.5 h-3.5" />
-              {t('reader.view_context', 'В контексте')}
+              {t('reader.view_context', 'In Context')}
             </button>
             <button
               type="button"
@@ -676,7 +679,7 @@ function ReaderPanel({
               }`}
             >
               <List className="w-3.5 h-3.5" />
-              {t('reader.view_list', 'Списком')}
+              {t('reader.view_list', 'List View')}
             </button>
           </div>
         </div>
@@ -795,7 +798,7 @@ function ReaderPanel({
                     src={dataUrl} 
                     style={imgStyle} 
                     className="rounded-xl shadow-xs max-w-full" 
-                    alt={t('reader.illustration', 'Иллюстрация')} 
+                    alt={t('reader.illustration', 'Illustration')} 
                     referrerPolicy="no-referrer"
                     id={`pdf-epub-img-${pIdx}`}
                   />
@@ -1287,22 +1290,22 @@ function ReaderPanel({
 
               let styleClass = "";
               if (status === "ignored" || status === "known") {
-                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
+                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded-md px-1 py-[1.5px] transition-colors font-normal`;
                 if (showOnlyUnknown && unknownViewMode === "text") {
                   styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
                 }
               } else if (status === "1") {
-                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#f3a4b0]"} cursor-pointer transition-colors`;
+                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#f3a4b0]"} cursor-pointer transition-colors`;
               } else if (status === "2") {
-                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-700 dark:border-amber-300" : "border-[#f0d46d]"} cursor-pointer transition-colors`;
+                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-700 dark:border-amber-300" : "border-[#f0d46d]"} cursor-pointer transition-colors`;
               } else if (status === "3" || (status as any) === "learning") {
-                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1 font-medium border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a6d896]"} cursor-pointer transition-colors`;
+                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded-md px-1 py-[1.5px] font-medium border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a6d896]"} cursor-pointer transition-colors`;
               } else if (status === "4") {
-                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
+                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
               } else if (status === "5") {
-                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1 font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
+                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
               } else {
-                styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 ${hasWordLink ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400" : ""} cursor-pointer transition-colors`;
+                styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded-md px-1 py-[1.5px] ${hasWordLink ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400" : ""} cursor-pointer transition-colors`;
               }
 
               if (isWordActive) {
@@ -1314,7 +1317,7 @@ function ReaderPanel({
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
               elements.push(
-                <span key={tIdx} className={`inline-block relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                <span key={tIdx} className={`inline-block relative my-[2px] py-[0.5px] ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
                   {prefix && <span className="opacity-80">{prefix}</span>}
                   <button
                     type="button"
@@ -1427,7 +1430,7 @@ function ReaderPanel({
                           ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-zinc-950 shadow-xs font-bold"
                           : "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/45"
                       }`}
-                      title="Нажмите, чтобы переместить видео к этому моменту / Click to seek"
+                      title={t('reader.click_to_seek', 'Click to seek video to this timestamp')}
                     >
                       {formatTime(parseTimestampToSeconds(seg.timestamp))}
                     </button>
@@ -1438,7 +1441,7 @@ function ReaderPanel({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 leading-relaxed text-sm sm:text-base">
+                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 text-sm sm:text-base">
                     {renderParagraphContent()}
                   </p>
                 </div>
@@ -1466,7 +1469,7 @@ function ReaderPanel({
         {activePhrasesInLesson.length > 0 && !(showOnlyUnknown && unknownViewMode === "list") && (
           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 mt-6 space-y-2">
             <h4 className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-              Выделенные идиомы и фразы в главе / Idioms In Chapter ({activePhrasesInLesson.length})
+              {t('reader.idioms_in_chapter', 'Idioms In Chapter')} ({activePhrasesInLesson.length})
             </h4>
             <div className="flex flex-wrap gap-1.5">
               {activePhrasesInLesson.map((pq) => (
@@ -1487,7 +1490,7 @@ function ReaderPanel({
         {lesson.detectedPhrases && Object.keys(lesson.detectedPhrases).length > 0 && !(showOnlyUnknown && unknownViewMode === "list") && (
           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 mt-4 space-y-2">
             <h4 className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
-              Найденные ИИ фразовые глаголы и идиомы / AI Detected Idioms ({Object.keys(lesson.detectedPhrases).length})
+              {t('reader.ai_detected_idioms', 'AI Detected Idioms')} ({Object.keys(lesson.detectedPhrases).length})
             </h4>
             <div className="flex flex-wrap gap-1.5 animate-in fade-in duration-200">
               {Object.entries(lesson.detectedPhrases).map(([phrase, details]) => {
@@ -1525,7 +1528,7 @@ function ReaderPanel({
             {/* Quick jump timeline slider row */}
             <div className="flex items-center justify-between gap-3 bg-zinc-50/50 dark:bg-zinc-950/20 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800/40">
               <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 shrink-0">
-                Быстрый переход / Fast Jump:
+                {t('reader.fast_jump', 'Fast Jump:')}
               </span>
               <div className="flex-grow flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
                 {pages.map((_, i) => (
@@ -1557,12 +1560,12 @@ function ReaderPanel({
                 }}
                 className="w-full sm:w-auto px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 border border-zinc-200/50 dark:border-zinc-700/60"
               >
-                ← Предыдущая (Prev)
+                ← {t('reader.prev_page', 'Prev')}
               </button>
 
               <div className="flex items-center gap-2 bg-zinc-100/40 dark:bg-zinc-950/40 px-3 py-1.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800/80">
                 <span className="text-xs font-mono font-bold tracking-tight text-zinc-500">
-                  Страница / Page
+                  {t('reader.page', 'Page')}
                 </span>
                 <select
                   id="page-jump-select"
@@ -1580,11 +1583,11 @@ function ReaderPanel({
                   ))}
                 </select>
                 <span className="text-xs font-mono font-bold tracking-tight text-zinc-400 dark:text-zinc-500">
-                  из {pages.length}
+                  {t('reader.of', 'of')} {pages.length}
                 </span>
                 <button
                   type="button"
-                  title="Сбросить на 1-ю страницу / Reset to Page 1"
+                  title={t('reader.reset_p1', 'Reset to Page 1')}
                   onClick={() => {
                     navigateToPage(0); safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "0");
                   }}
@@ -1603,7 +1606,7 @@ function ReaderPanel({
                 }}
                 className="w-full sm:w-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 shadow-sm"
               >
-                Следующая (Next) →
+                {t('reader.next_page', 'Next')} →
               </button>
             </div>
           </div>
@@ -1614,7 +1617,7 @@ function ReaderPanel({
             <details className="group select-text">
               <summary className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 hover:text-teal-700 cursor-pointer list-none select-none">
                 <span className="transition-transform duration-200 group-open:rotate-90 inline-block">▶</span>
-                <span>Показать перевод истории (Russian Translation)</span>
+                <span>{t('reader.show_full_trans', 'Show story translation')}</span>
               </summary>
               <div className="mt-4 p-4 rounded-xl bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-100 dark:border-zinc-800/40 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 space-y-4 antialiased whitespace-pre-line font-medium select-text">
                 {lesson.translationText}
@@ -1646,7 +1649,7 @@ function ReaderPanel({
                   hoveredWordObj.phraseStatus === "5" ? "bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40" :
                   "bg-zinc-50 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                 }`}>
-                  Статус: {hoveredWordObj.phraseStatus || "new"}
+                  Status: {hoveredWordObj.phraseStatus || "new"}
                 </span>
               </div>
               {hoveredWordObj.phraseTranslation && (
@@ -1666,7 +1669,7 @@ function ReaderPanel({
                   </span>
                 </div>
                 <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40 animate-pulse">
-                  {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType, t)} (ИИ)
+                  {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType, t)} (AI)
                 </span>
               </div>
               {hoveredWordObj.detectedPhraseTranslation && (
@@ -1752,7 +1755,7 @@ function ReaderPanel({
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                 <h3 className="text-xs font-extrabold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
-                  Добавить время чтения
+                  {t('reader.add_reading_time', 'Add Reading Time')}
                 </h3>
               </div>
               <button
@@ -1767,7 +1770,7 @@ function ReaderPanel({
             <form onSubmit={handleSaveCustomTime} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  Количество минут
+                  {t('reader.minutes_count', 'Number of minutes')}
                 </label>
                 <input
                   type="number"
@@ -1782,11 +1785,11 @@ function ReaderPanel({
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  Заметка (необязательно)
+                  {t('reader.note_optional', 'Note (optional)')}
                 </label>
                 <input
                   type="text"
-                  placeholder="Например: Глава 3..."
+                  placeholder={t('reader.note_placeholder', 'E.g.: Chapter 3...')}
                   value={customNotesInput}
                   onChange={(e) => setCustomNotesInput(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
@@ -1799,13 +1802,13 @@ function ReaderPanel({
                   onClick={() => setIsCustomTimeModalOpen(false)}
                   className="px-3 py-2 text-xs font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-xl transition-colors cursor-pointer"
                 >
-                  Отмена
+                  {t('reader.cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-97 cursor-pointer"
                 >
-                  Добавить в историю
+                  {t('reader.add_to_history', 'Add to History')}
                 </button>
               </div>
             </form>

@@ -37,6 +37,11 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "100mb", extended: true }));
   app.use(express.raw({ type: ["audio/*", "application/octet-stream"], limit: "100mb" }));
 
+  app.post("/api/log", (req, res) => {
+    console.log("BROWSER ERROR:", req.body);
+    res.json({ok: true});
+  });
+
   // Health check endpoint for monitoring & Docker
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", uptime: process.uptime(), timestamp: Date.now() });

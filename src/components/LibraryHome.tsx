@@ -6,7 +6,7 @@
 import React, { useState, useMemo, memo } from "react";
 import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown } from "lucide-react";
-import { ICON_MAP, getCategoryIcon } from "./ImportLessonForm";
+import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE } from "../utils";
 import { segmentSentenceTokens } from "../tokenizer";
 import { useTranslation } from "react-i18next";
@@ -197,6 +197,70 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "Қ",
     };
   }
+  if (l.includes("port")) {
+    return {
+      gradient: "from-emerald-700 via-teal-700 to-red-600",
+      accent: "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/45 dark:text-emerald-300",
+      emoji: "🇵🇹",
+      character: "P",
+    };
+  }
+  if (l.includes("chin") || l.includes("zh")) {
+    return {
+      gradient: "from-red-600 via-amber-600 to-red-800",
+      accent: "bg-red-100 text-red-950 dark:bg-red-950/45 dark:text-red-300",
+      emoji: "🇨🇳",
+      character: "字",
+    };
+  }
+  if (l.includes("kore") || l.includes("ko")) {
+    return {
+      gradient: "from-blue-600 via-slate-700 to-red-600",
+      accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
+      emoji: "🇰🇷",
+      character: "한",
+    };
+  }
+  if (l.includes("turk") || l.includes("tr")) {
+    return {
+      gradient: "from-red-600 via-rose-700 to-red-900",
+      accent: "bg-red-100 text-red-950 dark:bg-red-950/45 dark:text-red-300",
+      emoji: "🇹🇷",
+      character: "Ğ",
+    };
+  }
+  if (l.includes("arab") || l.includes("ar")) {
+    return {
+      gradient: "from-emerald-700 via-green-800 to-amber-600",
+      accent: "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/45 dark:text-emerald-300",
+      emoji: "🇸🇦",
+      character: "ع",
+    };
+  }
+  if (l.includes("dutc") || l.includes("nl")) {
+    return {
+      gradient: "from-orange-500 via-amber-600 to-blue-700",
+      accent: "bg-orange-100 text-orange-950 dark:bg-orange-950/45 dark:text-orange-300",
+      emoji: "🇳🇱",
+      character: "IJ",
+    };
+  }
+  if (l.includes("poli") || l.includes("pl")) {
+    return {
+      gradient: "from-red-600 via-rose-600 to-slate-200",
+      accent: "bg-red-100 text-red-950 dark:bg-red-950/45 dark:text-red-300",
+      emoji: "🇵🇱",
+      character: "Ł",
+    };
+  }
+  if (l.includes("swed") || l.includes("se")) {
+    return {
+      gradient: "from-blue-600 via-sky-500 to-yellow-400",
+      accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
+      emoji: "🇸🇪",
+      character: "Å",
+    };
+  }
   // Fallbacks for other languages
   return {
     gradient: "from-teal-600 via-teal-700 to-slate-800",
@@ -204,6 +268,18 @@ const getLanguageCoverPreset = (lang: string) => {
     emoji: "📖",
     character: "A",
   };
+};
+
+
+export const getLanguageFlagEmoji = (lang: string, customFlags?: Record<string, string>) => {
+  if (!lang) return "📖";
+  const langLower = lang.toLowerCase().trim();
+  const custom = customFlags ? customFlags[langLower] : undefined;
+  if (custom && custom !== "📖") {
+    return custom;
+  }
+  const preset = getLanguageCoverPreset(lang);
+  return preset.emoji;
 };
 
 export const renderCircularFlag = (flagEmoji: string, isAll = false) => {
@@ -246,7 +322,7 @@ function LibraryHome({
   settings,
   isLoading = false,
 }: LibraryHomeProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("All");
   const [filterType, setFilterType] = useState<"all" | "builtin" | "custom">("all");
@@ -627,19 +703,19 @@ function LibraryHome({
             <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-amber-300 border border-teal-200/60 dark:border-teal-800/40">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
-            <span className="truncate text-zinc-800 dark:text-white font-extrabold">{t('library.smart_bookshelf', 'Ваша умная библиотека / Smart Bookshelf')}</span>
+            <span className="truncate text-zinc-800 dark:text-white font-extrabold">{t('library.smart_bookshelf', 'Your Smart Bookshelf')}</span>
             <div className="hidden sm:flex items-center gap-2.5 text-[11px] text-zinc-500 dark:text-teal-200 ml-2 font-medium">
-              <span>• {t('library.total', 'Всего:')} <strong className="text-zinc-800 dark:text-white font-bold">{lessons.length}</strong></span>
-              <span>• {t('library.active', 'Активных:')} <strong className="text-teal-700 dark:text-amber-300 font-bold">{activeCount}</strong></span>
-              <span>• {t('library.archived', 'В архиве:')} <strong className="text-zinc-600 dark:text-teal-300 font-bold">{archivedCount}</strong></span>
+              <span>• {t('library.total', 'Total:')} <strong className="text-zinc-800 dark:text-white font-bold">{lessons.length}</strong></span>
+              <span>• {t('library.active', 'Active:')} <strong className="text-teal-700 dark:text-amber-300 font-bold">{activeCount}</strong></span>
+              <span>• {t('library.archived', 'Archived:')} <strong className="text-zinc-600 dark:text-teal-300 font-bold">{archivedCount}</strong></span>
             </div>
           </div>
           <button
             onClick={toggleBannerCollapse}
             className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-600 dark:text-teal-200 hover:text-zinc-900 dark:hover:text-white px-3 py-1 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-zinc-200/80 dark:border-white/10"
-            title={t('library.expand_banner', 'Развернуть баннер библиотеки')}
+            title={t('library.expand_banner', 'Expand library banner')}
           >
-            <span>{t('library.expand', 'Развернуть')}</span>
+            <span>{t('library.expand', 'Expand')}</span>
             <ChevronDown className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -659,44 +735,44 @@ function LibraryHome({
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-950/60 text-xs font-semibold tracking-wide text-white border border-teal-800/30 shadow-xs">
                     <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                    <span>{t('library.smart_bookshelf', 'Ваша умная библиотека / Smart Bookshelf')}</span>
+                    <span>{t('library.smart_bookshelf', 'Your Smart Bookshelf')}</span>
                   </div>
                   
                   <button
                     onClick={toggleBannerCollapse}
                     className="flex items-center gap-1 text-[11px] font-bold text-teal-200 hover:text-white px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-white/10"
-                    title={t('library.collapse_banner', 'Свернуть баннер библиотеки')}
+                    title={t('library.collapse_banner', 'Collapse library banner')}
                   >
-                    <span>{t('library.collapse', 'Свернуть')}</span>
+                    <span>{t('library.collapse', 'Collapse')}</span>
                     <ChevronUp className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 <h2 className="text-xl sm:text-3xl font-black tracking-tight mt-2 max-w-xl leading-tight text-white drop-shadow-sm">
-                  {t('library.hero_title', 'Какую историю вы изучите сегодня?')}
+                  {t('library.hero_title', 'What story will you learn today?')}
                 </h2>
                 <p className="text-xs sm:text-sm font-medium text-teal-100 max-w-md mt-1.5 opacity-95 leading-relaxed font-sans hidden sm:block">
-                  {t('library.hero_subtitle', 'Интерактивный метод чтения: нажимайте на любые незнакомые слова, скачивайте переводы и слушайте озвучку!')}
+                  {t('library.hero_subtitle', 'Interactive reading method: tap on any unfamiliar words, download translations and listen to audio!')}
                 </p>
               </div>
 
             <div className="flex flex-wrap items-center gap-4 mt-2 sm:mt-6 border-t border-white/10 pt-4">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.total', 'Всего книг:')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.total', 'Total books:')}</span>
                 <span className="text-xs font-bold bg-white/15 px-2.5 py-0.5 rounded-md text-white">{lessons.length}</span>
               </div>
               
               <div className="h-4 w-px bg-white/15 hidden sm:block"></div>
               
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.active', 'Активных:')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.active', 'Active:')}</span>
                 <span className="text-xs font-bold text-amber-300 bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-800/20">{activeCount}</span>
               </div>
 
               <div className="h-4 w-px bg-white/15 hidden sm:block"></div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.archived', 'В архиве:')}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.archived', 'Archived:')}</span>
                 <span className="text-xs font-bold text-teal-300 bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-800/20">{archivedCount}</span>
               </div>
             </div>
@@ -710,20 +786,20 @@ function LibraryHome({
               <div className="flex justify-between items-center text-[10px] font-extrabold uppercase tracking-widest text-teal-200">
                 <span className="flex items-center gap-1">
                   <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>{t('library.progress_today', 'Прогресс за сегодня')}</span>
+                  <span>{t('library.progress_today', 'Progress for today')}</span>
                 </span>
                 <button
                   onClick={handleCycleGoal}
                   className="cursor-pointer text-[9px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/20 active:scale-95 px-2 py-0.5 rounded-md transition-all text-amber-200 border border-white/10 select-none"
-                  title={t('library.goal_title', 'Нажмите для настройки дневного лимита')}
+                  title={t('library.goal_title', 'Click to set daily limit')}
                 >
-                  {t('library.goal', 'Цель:')} {dailyGoal} {t('library.words', 'слов')}
+                  {t('library.goal', 'Goal:')} {dailyGoal} {t('library.words', 'words')}
                 </button>
               </div>
 
               <div className="flex items-center justify-between text-xs font-semibold">
                 <span className="text-white">
-                  {t('library.new_words', 'Новых слов:')} <strong className="font-extrabold text-amber-300">{todayCreatedCount}</strong> {t('library.of', 'из')} {dailyGoal}
+                  {t('library.new_words', 'New words:')} <strong className="font-extrabold text-amber-300">{todayCreatedCount}</strong> {t('library.of', 'of')} {dailyGoal}
                 </span>
                 <span className="font-bold text-teal-100 font-mono text-[10px]">
                   {Math.round(Math.min(100, (todayCreatedCount / dailyGoal) * 100))}%
@@ -740,11 +816,11 @@ function LibraryHome({
 
               {todayCreatedCount >= dailyGoal ? (
                 <p className="text-[9px] text-amber-300 font-black animate-pulse flex items-center gap-1">
-                  🎉 Великое достижение! Дневная цель выполнена!
+                  {t("library.goal_achieved", "🎉 Great achievement! Daily goal completed!")}
                 </p>
               ) : (
                 <p className="text-[9px] text-teal-100/80 font-medium leading-none">
-                  Разметьте ещё {dailyGoal - todayCreatedCount} слов для завершения сегодняшней нормы.
+                  {t("library.more_words_needed", "Mark {{count}} more words to finish your daily goal.", { count: dailyGoal - todayCreatedCount })}
                 </p>
               )}
             </div>
@@ -754,18 +830,18 @@ function LibraryHome({
               <div className="border-t border-white/10 pt-3 flex flex-col space-y-2">
                 <span className="text-[9px] font-extrabold uppercase tracking-widest text-teal-200 flex items-center gap-1 select-none">
                   <TrendingUp className="w-3.5 h-3.5 text-cyan-300" />
-                  <span>Продолжить чтение</span>
+                  <span>{t("library.continue_reading", "CONTINUE READING")}</span>
                 </span>
                 
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 overflow-hidden flex-1">
-                    {renderCircularFlag(languageFlags[resumeLesson.targetLanguage.toLowerCase()] || getLanguageCoverPreset(resumeLesson.targetLanguage).emoji)}
+                    {renderCircularFlag(getLanguageFlagEmoji(resumeLesson.targetLanguage, languageFlags))}
                     <div className="overflow-hidden">
                       <h4 className="text-xs font-black truncate text-white" title={resumeLesson.title}>
                         {resumeLesson.title}
                       </h4>
                       <p className="text-[9px] text-teal-200 select-none">
-                        Понятно: <strong className="font-extrabold text-emerald-300">{resumeLessonStats?.knownPct}%</strong>
+                        {t("library.understood", "Understood:")} <strong className="font-extrabold text-emerald-300">{resumeLessonStats?.knownPct}%</strong>
                       </p>
                     </div>
                   </div>
@@ -774,7 +850,7 @@ function LibraryHome({
                     onClick={() => onSelectLesson(resumeLesson.id)}
                     className="cursor-pointer px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-950/25 border border-emerald-600 flex items-center gap-1 select-none shrink-0"
                   >
-                    <span>Старт</span>
+                    <span>{t("library.start", "Start")}</span>
                     <ArrowRight className="w-3 h-3" />
                   </button>
                 </div>
@@ -788,11 +864,11 @@ function LibraryHome({
               </div>
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-teal-200 uppercase tracking-widest text-[8px]">Совет дня</span>
+                  <span className="font-extrabold text-teal-200 uppercase tracking-widest text-[8px]">{t("library.tip_of_day", "TIP OF THE DAY")}</span>
                   <button
                     onClick={handleNextTip}
                     className="text-white/80 hover:text-amber-300 active:scale-90 p-0.5 tracking-normal cursor-pointer transition-all shrink-0"
-                    title="Сменить совет"
+                    title={t("library.change_tip", "Change tip")}
                   >
                     <RefreshCw className="w-2.5 h-2.5" />
                   </button>
@@ -819,7 +895,7 @@ function LibraryHome({
               : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
           }`}
         >
-          Активные книги ({activeCount})
+          {t('library.active_books_tab', 'ACTIVE BOOKS ({{count}})', { count: activeCount })}
           {!showArchived && (
             <span className="absolute bottom-0 left-0 right-0 h-1 bg-teal-600 dark:bg-teal-400 rounded-t-lg" />
           )}
@@ -833,7 +909,7 @@ function LibraryHome({
               : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
           }`}
         >
-          📁 Архив ({archivedCount})
+          📁 {t('library.archive_books_tab', 'ARCHIVED ({{count}})', { count: archivedCount })}
           {showArchived && (
             <span className="absolute bottom-0 left-0 right-0 h-1 bg-teal-600 dark:bg-teal-400 rounded-t-lg" />
           )}
@@ -852,7 +928,7 @@ function LibraryHome({
               id="library-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по названию или тексту... (Search books...)"
+              placeholder={t("library.search_placeholder", "Search by title or content...")}
               className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/50 transition-all placeholder:text-zinc-400"
             />
           </div>
@@ -867,7 +943,7 @@ function LibraryHome({
                   : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
               }`}
             >
-              Все источники
+              {t('library.all_sources', 'All Sources')}
             </button>
             <button
               onClick={() => setFilterType("builtin")}
@@ -877,7 +953,7 @@ function LibraryHome({
                   : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
               }`}
             >
-              Встроенные
+              {t('library.builtin', 'Built-in')}
             </button>
             <button
               onClick={() => setFilterType("custom")}
@@ -887,7 +963,7 @@ function LibraryHome({
                   : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
               }`}
             >
-              Импортированные
+              {t('library.imported', 'Imported')}
             </button>
 
             {/* Sort dropdown */}
@@ -896,22 +972,22 @@ function LibraryHome({
                 id="library-sort-select"
                 value={sortBy}
                 onChange={(e) => handleSortChange(e.target.value)}
-                title="Сортировка книг"
+                title={t("library.sort_title_attr", "Sort books")}
                 className={`pl-3 pr-7 py-1.5 text-xs font-bold rounded-lg transition-all appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${
                   sortBy !== "pinned"
                     ? "bg-teal-600 text-white border-teal-700 shadow-xs"
                     : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
-                <option value="pinned">📌 Закреплённые</option>
-                <option value="newest">🕐 Новые сначала</option>
-                <option value="oldest">📅 Старые сначала</option>
-                <option value="title">🔤 Название А→Я</option>
-                <option value="title_desc">🔤 Название Я→А</option>
-                <option value="comprehension_high">📊 Понимание: высокое</option>
-                <option value="comprehension_low">📊 Понимание: низкое</option>
-                <option value="length_short">📖 Короткие</option>
-                <option value="length_long">📖 Длинные</option>
+                <option value="pinned">{t('library.sort_pinned', '📌 Pinned')}</option>
+                <option value="newest">{t('library.sort_newest', '🕐 Newest first')}</option>
+                <option value="oldest">{t('library.sort_oldest', '📅 Oldest first')}</option>
+                <option value="title">{t('library.sort_title', '🔤 Title A-Z')}</option>
+                <option value="title_desc">{t('library.sort_title_desc', '🔤 Title Z-A')}</option>
+                <option value="comprehension_high">{t('library.sort_comp_high', '📊 Comprehension: high')}</option>
+                <option value="comprehension_low">{t('library.sort_comp_low', '📊 Comprehension: low')}</option>
+                <option value="length_short">{t('library.sort_short', '📖 Short')}</option>
+                <option value="length_long">{t('library.sort_long', '📖 Long')}</option>
               </select>
               {/* Custom chevron icon for the select */}
               <span className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ${
@@ -930,7 +1006,7 @@ function LibraryHome({
                 className="ml-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 active:scale-97 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-teal-100/30 dark:shadow-none"
               >
                 <Plus className="w-4 h-4" />
-                Создать книгу
+                {t('library.create_book', 'Create book')}
               </button>
             )}
           </div>
@@ -940,7 +1016,7 @@ function LibraryHome({
         {availableLanguages.length > 2 && (
           <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex items-center gap-2">
             <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 mr-1">
-              <Filter className="w-3 h-3" /> Языки:
+              <Filter className="w-3 h-3" /> {t("library.languages", "Languages:")}
             </span>
             <div className="flex flex-wrap gap-1.5 items-center">
               {availableLanguages.map((lang) => {
@@ -958,11 +1034,11 @@ function LibraryHome({
                     {lang === "All" ? (
                       <>
                         {renderCircularFlag("🌍", true)}
-                        <span>Все языки (All)</span>
+                        <span>{t("library.all_languages", "All languages")}</span>
                       </>
                     ) : (
                       <>
-                        {renderCircularFlag(languageFlags[lang.toLowerCase()] || getLanguageCoverPreset(lang).emoji)}
+                        {renderCircularFlag(getLanguageFlagEmoji(lang, languageFlags))}
                         <span>{lang}</span>
                       </>
                     )}
@@ -976,7 +1052,7 @@ function LibraryHome({
         {/* Dynamic Category Filter chips row */}
         <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex items-center gap-2">
           <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 mr-1 animate-pulse">
-            <Filter className="w-3 h-3" /> Категории:
+            <Filter className="w-3 h-3" /> {t("library.categories", "Categories:")}
           </span>
           <div className="flex flex-wrap gap-1.5 items-center">
             <button
@@ -987,7 +1063,7 @@ function LibraryHome({
                   : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-transparent"
               }`}
             >
-              🔍 Все
+              🔍 {t("library.all", "All")}
             </button>
 
             {lessonTypes.map((type) => {
@@ -1004,7 +1080,7 @@ function LibraryHome({
                   }`}
                 >
                   <IconComponent className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
-                  <span>{type.name}</span>
+                  <span>{getCategoryDisplayName(type.id, type.name, t)}</span>
                 </button>
               );
             })}
@@ -1015,9 +1091,9 @@ function LibraryHome({
         <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
-              📐 Вид сетки:
+              📐 {t("library.grid_view", "Grid view:")}
             </span>
-            <span className="text-xs text-zinc-500 font-medium">Количество книг в ряду</span>
+            <span className="text-xs text-zinc-500 font-medium">{t("library.books_per_row_label", "Books per row")}</span>
           </div>
           <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl shrink-0 border border-zinc-200/50 dark:border-zinc-800/50">
             {[2, 3, 4, 5, 6].map((num) => {
@@ -1033,7 +1109,7 @@ function LibraryHome({
                       : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                   }`}
                 >
-                  {num} {num === 2 || num === 3 || num === 4 ? "книги" : "книг"}
+                  {num} {i18n.language.startsWith("en") ? (num === 1 ? t("library.books_count", "book") : t("library.books_count_plural", "books")) : (num >= 2 && num <= 4 ? t("library.books_ru_234", "книги") : t("library.books_ru_many", "книг"))}
                 </button>
               );
             })}
@@ -1091,9 +1167,9 @@ function LibraryHome({
                         <Trash2 className="w-6 h-6 animate-pulse" />
                       </div>
                       <div className="space-y-1.5 px-1">
-                        <h4 className="text-xs font-black uppercase tracking-wider text-rose-400">Удалить книгу?</h4>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-rose-400">{t("library.delete_book_title", "Delete book?")}</h4>
                         <p className="text-[11px] text-zinc-300 leading-normal font-sans">
-                          Все сохранённые слова и прогресс для книги <strong className="text-zinc-100 font-bold font-serif italic">"{lesson.title}"</strong> будут безвозвратно удалены.
+                          {t("library.delete_book_confirm", "All saved words and progress for this book will be permanently deleted.")} <strong className="text-zinc-100 font-bold font-serif italic">"{lesson.title}"</strong>
                         </p>
                       </div>
                     </div>
@@ -1107,9 +1183,7 @@ function LibraryHome({
                           setDeletingLessonId(null);
                         }}
                         className="flex-1 py-2 bg-red-600 hover:bg-red-700 active:scale-97 text-white font-black text-[11px] rounded-xl transition-all cursor-pointer shadow-md"
-                      >
-                        Да, удалить
-                      </button>
+                      >{t("library.confirm_delete", "Yes, delete")}</button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1117,9 +1191,7 @@ function LibraryHome({
                           setDeletingLessonId(null);
                         }}
                         className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-97 text-zinc-300 border border-zinc-700/60 font-black text-[11px] rounded-xl transition-all cursor-pointer"
-                      >
-                        Отмена
-                      </button>
+                      >{t("library.cancel", "Cancel")}</button>
                     </div>
                   </div>
                 )}
@@ -1148,7 +1220,7 @@ function LibraryHome({
                   <div className="flex items-center justify-between z-10 w-full animate-in fade-in duration-300">
                     <div className="flex items-center gap-1.5 max-w-[65%]">
                       <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/45 backdrop-blur-md pl-1.5 pr-2.5 py-1 rounded-full border border-white/5 truncate">
-                        {renderCircularFlag(languageFlags[lesson.targetLanguage.toLowerCase()] || cover.emoji)}
+                        {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage, languageFlags))}
                         <span className="truncate">{lesson.targetLanguage}</span>
                       </span>
                       {lesson.difficulty && (
@@ -1185,11 +1257,12 @@ function LibraryHome({
                         const hasAudio = !!(lesson.audioUrl || lesson.audioBase64);
                         const lType = lesson.lessonType || (hasAudio ? "podcast" : "book");
                         const typeInfo = lessonTypes.find((t) => t.id === lType);
-                        const IconComponent = getCategoryIcon(typeInfo?.icon || (hasAudio ? "podcast" : "book"), typeInfo?.name || (hasAudio ? "Подкаст" : "Книга"));
+                        const catLabel = getCategoryDisplayName(typeInfo?.id || lType, typeInfo?.name, t);
+                        const IconComponent = getCategoryIcon(typeInfo?.icon || (hasAudio ? "podcast" : "book"), catLabel);
                         return (
                           <span className="text-[10px] font-black leading-none bg-black/40 backdrop-blur-md px-2 py-1.5 rounded-lg flex items-center gap-1 select-none text-zinc-100 border border-white/5">
                             <IconComponent className="w-3 h-3 text-teal-300" />
-                            <span>{typeInfo?.name || (hasAudio ? "Подкаст" : "Книга")}</span>
+                            <span>{catLabel}</span>
                           </span>
                         );
                       })()}
@@ -1209,7 +1282,7 @@ function LibraryHome({
 
                   <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/20 p-2 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30 select-none">
                     <div className="flex justify-between items-center text-[9px] uppercase font-black tracking-widest text-zinc-400">
-                      <span>{settings?.mainStatsMetric === "vocabulary" ? "Словарный запас (Vocabulary)" : "Понимание (Comprehension)"}</span>
+                      <span>{settings?.mainStatsMetric === "vocabulary" ? t("library.stat_vocab", "Vocabulary") : t("library.comprehension_caps", "Comprehension")}</span>
                       <span className="text-zinc-600 dark:text-zinc-300 font-extrabold">
                         {settings?.mainStatsMetric === "vocabulary" ? bookStats.knownVocabularyPct : bookStats.knownPct}%
                       </span>
@@ -1253,13 +1326,13 @@ function LibraryHome({
                             title={`Известные слова во фрагменте: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных слов из ${bookStats.uniqueTotal})`}
                             className="text-emerald-500 hover:underline cursor-help animate-none"
                           >
-                            Понятно: {bookStats.knownPct}% ({bookStats.knownCount} слов)
+                            {t("library.understood_stat", "Understood:")} {bookStats.knownPct}% ({bookStats.knownCount} {t("library.words", "words")})
                           </span>
                           <span 
                             title={`Процент уникального словаря: ${bookStats.knownVocabularyPct}% (${bookStats.uniqueKnownCount} уникальных лемм)`}
                             className="text-emerald-500 dark:text-emerald-400 hover:underline cursor-help animate-none mt-0.5"
                           >
-                            • Словарь: {bookStats.knownVocabularyPct}% ({bookStats.uniqueKnownCount} уник.)
+                            • {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}% ({bookStats.uniqueKnownCount} {t("library.unique", "unique")})
                           </span>
                         </div>
                         <div className="flex flex-col text-right animate-none">
@@ -1267,13 +1340,13 @@ function LibraryHome({
                             title={`Неизвестные или новые слова во фрагменте: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных слов из ${bookStats.uniqueTotal})`}
                             className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
                           >
-                            Непонятно: {bookStats.unknownPct}% ({bookStats.unknownCount} слов)
+                            {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}% ({bookStats.unknownCount} {t("library.words", "words")})
                           </span>
                           <span 
                             title={`Процент незнакомых уникальных лемм: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} уникальных лемм)`}
                             className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none mt-0.5"
                           >
-                            • Новых: {bookStats.unknownVocabularyPct}% ({bookStats.uniqueUnknownCount} уник.)
+                            • {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}% ({bookStats.uniqueUnknownCount} {t("library.unique", "unique")})
                           </span>
                         </div>
                       </div>
@@ -1283,13 +1356,13 @@ function LibraryHome({
                           title={`Известные слова во фрагменте: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных слов из ${bookStats.uniqueTotal})`}
                           className="text-emerald-500 hover:underline cursor-help animate-none"
                         >
-                          Понятно: {bookStats.knownPct}%
+                          {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
                         </span>
                         <span 
                           title={`Неизвестные или новые слова во фрагменте: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных слов из ${bookStats.uniqueTotal})`}
                           className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
                         >
-                          Непонятно: {bookStats.unknownPct}%
+                          {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}%
                         </span>
                       </div>
                     )}
@@ -1300,19 +1373,19 @@ function LibraryHome({
                     return (
                       <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
                         <span className="flex items-center gap-1">
-                          📚 {wordCount} слов
+                          📚 {wordCount} {t("library.words", "words")}
                         </span>
                         {isYoutube && youtubeDurationVal ? (
-                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Длительность YouTube видео">
+                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.yt_duration", "YouTube Video Duration")}>
                             ⏱️ {formatDuration(youtubeDurationVal)}
                           </span>
                         ) : effectiveAudioDuration ? (
-                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Длительность аудиозаписи">
+                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.audio_duration", "Audio Duration")}>
                             ⏱️ {formatDuration(effectiveAudioDuration)}
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title="Расчётное время чтения">
-                            ⏱️ ~{readTime} мин
+                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.read_time", "Estimated Read Time")}>
+                            ⏱️ ~{readTime} {t("library.min", "min")}
                           </span>
                         )}
                       </div>
@@ -1327,9 +1400,7 @@ function LibraryHome({
                       onClick={() => onSelectLesson(lesson.id)}
                       className="flex-1 py-2 bg-zinc-100 hover:bg-teal-600 dark:bg-zinc-800 group-hover:bg-teal-600 group-hover:text-white dark:group-hover:bg-teal-600 font-extrabold text-xs rounded-xl text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-98"
                     >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      Читать
-                    </button>
+                      <BookOpen className="w-3.5 h-3.5" />{t("library.read_btn", "Read")}</button>
 
                     {/* Archive / Restore Button */}
                     <button
@@ -1340,7 +1411,7 @@ function LibraryHome({
                         onToggleArchiveLesson(lesson.id, e);
                       }}
                       className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-xl transition-all"
-                      title={lesson.isArchived ? "Вернуть на книжную полку" : "Переместить в архив"}
+                      title={lesson.isArchived ? t("library.restore_tooltip", "Restore to bookshelf") : t("library.archive_tooltip", "Move to archive")}
                     >
                       <Archive className="w-3.5 h-3.5" />
                     </button>
@@ -1354,7 +1425,7 @@ function LibraryHome({
                         onEditLesson(lesson, e);
                       }}
                       className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-teal-50 dark:hover:bg-teal-950/20 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 rounded-xl transition-all"
-                      title="Редактировать книгу"
+                      title={t("library.edit_tooltip", "Edit book")}
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
@@ -1369,7 +1440,7 @@ function LibraryHome({
                           setDeletingLessonId(lesson.id);
                         }}
                         className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-400 hover:text-red-500 rounded-xl transition-all hover:border-red-200"
-                        title="Удалить книгу"
+                        title={t("library.delete_tooltip", "Delete book")}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1389,11 +1460,9 @@ function LibraryHome({
               <div className="p-4 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-50 dark:from-zinc-800 dark:to-zinc-900 text-teal-600 dark:text-zinc-400 group-hover:scale-110 shadow-sm transition-all duration-300">
                 <Plus className="w-6 h-6" />
               </div>
-              <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-300 uppercase tracking-widest mt-4">
-                Добавить книгу
-              </h4>
+              <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-300 uppercase tracking-widest mt-4">{t("library.add_book", "Add book")}</h4>
               <p className="text-[11px] text-zinc-500 max-w-xs mt-1.5 leading-normal">
-                Скачайте субтитры с YouTube или вставьте любой text с обложкой!
+                {t("library.add_book_desc", "Download YouTube subtitles or paste any text with a cover!")}
               </p>
             </div>
           )}
@@ -1406,9 +1475,7 @@ function LibraryHome({
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
               className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors font-bold text-xs shadow-sm cursor-pointer"
-            >
-              Назад
-            </button>
+            >{t("library.back", "Back")}</button>
             
             <div className="flex items-center gap-1.5">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -1430,9 +1497,7 @@ function LibraryHome({
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="px-4 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors font-bold text-xs shadow-sm cursor-pointer"
-              >
-                Вперед
-              </button>
+              >{t("library.next", "Next")}</button>
             </div>
           )}
         </>
@@ -1441,12 +1506,12 @@ function LibraryHome({
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-12 text-center rounded-2xl space-y-4 max-w-xl mx-auto shadow-sm">
           <BookOpen className="w-12 h-12 text-zinc-300 mx-auto" aria-hidden="true" />
           <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">
-            {showArchived ? "Архив пуст" : "Книги не найдены"}
+            {showArchived ? t("library.empty_archive", "Archive is empty") : t("library.no_books_found", "No books found")}
           </h3>
           <p className="text-xs text-zinc-500 leading-normal max-w-md mx-auto">
             {showArchived 
-              ? "У вас нет архивированных книг. Вы можете временно заархиверовать любую книгу, нажав на иконку папки на карточке книги."
-              : `Не удалось найти книги с ключевым словом "${searchQuery}". Попробуйте изменить фильтры или добавьте новую книгу.`}
+              ? t("library.empty_archive_desc", "You have no archived books.")
+              : t("library.no_books_desc", "No books found matching search query.")}
           </p>
           <div className="flex gap-2.5 items-center justify-center pt-2">
             <button
@@ -1456,16 +1521,12 @@ function LibraryHome({
                 setFilterType("all");
               }}
               className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl text-zinc-700 dark:text-zinc-300 transition-colors"
-            >
-              Сбросить поиск
-            </button>
+            >{t("library.reset_search", "Reset search")}</button>
             {!showArchived && (
               <button
                 onClick={onOpenImportForm}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
-              >
-                Импортировать книгу
-              </button>
+              >{t("library.import_book", "Import book")}</button>
             )}
           </div>
         </div>

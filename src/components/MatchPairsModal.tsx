@@ -7,6 +7,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { VocabItem, WordStatus } from "../types";
 import { X, CheckCircle, RefreshCw, Trophy, AlertCircle, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useTranslation } from "react-i18next";
 
 interface MatchPairsModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export default function MatchPairsModal({
   onUpdateStatus,
   languageName = "Spanish"
 }: MatchPairsModalProps) {
+  const { t } = useTranslation();
   const [timeFilter, setTimeFilter] = useState<"all" | "today" | "previous">("all");
   const [round, setRound] = useState(1);
   
@@ -239,21 +241,21 @@ export default function MatchPairsModal({
             </div>
             <div>
               <h3 id="match-pairs-modal-title" className="font-extrabold text-sm text-zinc-800 dark:text-zinc-100 tracking-tight">
-                Сопоставление пар (Match Pairs)
+                {t('match_pairs.title', 'Match Pairs')}
               </h3>
               <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mt-0.5">
-                Изучение лексики: {languageName}
+                {t('match_pairs.vocab_learning', 'Vocabulary practice:')} {languageName}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold text-[10px] uppercase rounded-lg border border-zinc-200/40 dark:border-zinc-700/50">
-              Очки: {score}
+              {t('match_pairs.score', 'Score:')} {score}
             </span>
             <button
               onClick={onClose}
-              aria-label="Закрыть"
+              aria-label={t('match_pairs.close', 'Close')}
               className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-400 rounded-xl transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -275,7 +277,7 @@ export default function MatchPairsModal({
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
-              Все слова
+              {t('match_pairs.all_words', 'All words')}
             </button>
             <button
               onClick={() => {
@@ -289,7 +291,7 @@ export default function MatchPairsModal({
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              За сегодня
+              {t('match_pairs.today', 'Today')}
             </button>
             <button
               onClick={() => {
@@ -302,12 +304,12 @@ export default function MatchPairsModal({
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
-              Предыдущие дни
+              {t('match_pairs.previous_days', 'Previous days')}
             </button>
           </div>
 
           <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500">
-            Доступно слов: {filteredWords.length}
+            {t('match_pairs.words_available', 'Words available:')} {filteredWords.length}
           </span>
         </div>
 
@@ -328,13 +330,13 @@ export default function MatchPairsModal({
                 </div>
                 <div className="space-y-1">
                   <h4 className="font-extrabold text-zinc-700 dark:text-zinc-200">
-                    Недостаточно слов
+                    {t('match_pairs.not_enough_words', 'Not enough words')}
                   </h4>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-semibold">
-                    Для игры требуется как минимум 2 слова со статусами 1–5 в выбранном фильтре. 
-                    {timeFilter === "today" && " Добавьте новые слова сегодня!"}
-                    {timeFilter === "previous" && " У вас нет слов, добавленных в предыдущие дни."}
-                    {timeFilter === "all" && " Читайте дальше и добавляйте переводы слов, чтобы начать играть!"}
+                    {t('match_pairs.not_enough_desc', 'Game requires at least 2 words with statuses 1–5 in the chosen filter.')}
+                    {timeFilter === "today" && ` ${t('match_pairs.add_new_today', 'Add new words today!')}`}
+                    {timeFilter === "previous" && ` ${t('match_pairs.no_prev_words', 'You have no words added on previous days.')}`}
+                    {timeFilter === "all" && ` ${t('match_pairs.keep_reading_add', 'Keep reading and saving word translations to start playing!')}`}
                   </p>
                 </div>
               </motion.div>
@@ -352,10 +354,10 @@ export default function MatchPairsModal({
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="text-lg font-black text-zinc-800 dark:text-zinc-50">
-                    Отличная работа! 🎉
+                    {t('match_pairs.great_job', 'Great job! 🎉')}
                   </h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold leading-relaxed">
-                    Все пары успешно сопоставлены в этом раунде. Вы повторили {currentPairs.length} слов!
+                    {t('match_pairs.round_completed_desc', 'All pairs matched successfully in this round. You reviewed {{count}} words!', { count: currentPairs.length })}
                   </p>
                 </div>
                 
@@ -365,7 +367,7 @@ export default function MatchPairsModal({
                     className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-500 active:scale-97 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <RefreshCw className="w-4 h-4" />
-                    Следующий раунд
+                    {t('match_pairs.next_round', 'Next Round')}
                   </button>
                 </div>
               </motion.div>
@@ -379,7 +381,7 @@ export default function MatchPairsModal({
                 className="space-y-4 h-full"
               >
                 <p className="text-xs text-zinc-400 dark:text-zinc-400 text-center font-bold font-sans">
-                  Выберите слово слева и его правильный перевод справа
+                  {t('match_pairs.instruction', 'Select a word on the left and its correct translation on the right')}
                 </p>
 
                 {/* Scrambled grid */}
@@ -388,7 +390,7 @@ export default function MatchPairsModal({
                   {/* Left Column: Words */}
                   <div className="space-y-2.5">
                     <span className="text-[10px] uppercase font-extrabold tracking-widest text-zinc-400 block text-center">
-                      Слово
+                      {t('match_pairs.word', 'Word')}
                     </span>
                     {wordCards.map((card) => {
                       const isMatched = matchedKeys.includes(card.wordKey);
@@ -420,7 +422,7 @@ export default function MatchPairsModal({
                   {/* Right Column: Translations */}
                   <div className="space-y-2.5">
                     <span className="text-[10px] uppercase font-extrabold tracking-widest text-zinc-400 block text-center">
-                      Перевод
+                      {t('match_pairs.translation', 'Translation')}
                     </span>
                     {transCards.map((card) => {
                       const isMatched = matchedKeys.includes(card.wordKey);
@@ -454,14 +456,14 @@ export default function MatchPairsModal({
                 {/* Progress bar info */}
                 <div className="pt-4 flex items-center justify-between text-[11px] font-bold text-zinc-400 dark:text-zinc-400 font-mono">
                   <span>
-                    Прогресс раунда: {matchedKeys.length} / {currentPairs.length}
+                    {t('match_pairs.progress', 'Round progress:')} {matchedKeys.length} / {currentPairs.length}
                   </span>
                   <button
                     onClick={setupRound}
-                    title="Перемешать"
+                    title={t('match_pairs.shuffle', 'Shuffle')}
                     className="text-[10px] font-black uppercase text-teal-600 hover:text-teal-700 cursor-pointer flex items-center gap-1"
                   >
-                    <RefreshCw className="w-3 h-3" /> Перемешать
+                    <RefreshCw className="w-3 h-3" /> {t('match_pairs.shuffle', 'Shuffle')}
                   </button>
                 </div>
               </motion.div>
@@ -471,7 +473,7 @@ export default function MatchPairsModal({
 
         {/* Modal Footer */}
         <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-stone-50/30 dark:bg-zinc-950/10 shrink-0 text-center text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
-          Повторяйте слова во время чтения для лучшего запоминания!
+          {t('match_pairs.footer_tip', 'Review words while reading for better retention!')}
         </div>
       </motion.div>
     </div>

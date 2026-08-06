@@ -5,6 +5,7 @@
 
 import React from "react";
 import { BookOpen, ChevronDown, ChevronUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { ContextSearchHit, highlightMatchInSentence } from "../contextSearch";
 
 interface ContextSearchResultsProps {
@@ -26,6 +27,7 @@ export default function ContextSearchResults({
   maxVisible = 8,
   embedded = false,
 }: ContextSearchResultsProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(true);
   const [showAll, setShowAll] = React.useState(false);
 
@@ -37,7 +39,7 @@ export default function ContextSearchResults({
     <div className={`space-y-2 ${compact ? "" : "max-h-72 overflow-y-auto"}`}>
       {!compact && !embedded && (
         <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-relaxed pt-1.5">
-          Все вхождения «{query}» в загруженных текстах — не только в словаре.
+          {t('explainer.context_all_occurrences', 'All occurrences of "{{query}}" in uploaded texts:', { query })}
         </p>
       )}
 
@@ -60,7 +62,7 @@ export default function ContextSearchResults({
             </span>
             {hit.lessonId === currentLessonId && (
               <span className="text-[8px] uppercase font-extrabold text-zinc-400 tracking-wider shrink-0">
-                сейчас
+                {t('explainer.context_now', 'current')}
               </span>
             )}
           </div>
@@ -89,7 +91,7 @@ export default function ContextSearchResults({
           onClick={() => setShowAll(!showAll)}
           className="text-[10px] font-extrabold text-teal-600 dark:text-teal-400 uppercase tracking-wider hover:underline cursor-pointer"
         >
-          {showAll ? "Свернуть" : `Показать ещё ${hits.length - maxVisible}`}
+          {showAll ? t('explainer.collapse', 'Collapse') : t('explainer.show_more', 'Show {{count}} more', { count: hits.length - maxVisible })}
         </button>
       )}
     </div>
@@ -108,7 +110,7 @@ export default function ContextSearchResults({
       >
         <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-500 font-extrabold font-sans flex items-center gap-1.5">
           <BookOpen className="w-3 h-3" />
-          Контекстный поиск по вашим книгам
+          {t('explainer.context_search_title', 'Context Search in Your Books')}
           <span className="text-teal-600 dark:text-teal-400 normal-case tracking-normal font-black">
             ({hits.length})
           </span>

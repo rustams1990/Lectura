@@ -6,24 +6,26 @@
 import React from "react";
 import { AppStats } from "../types";
 import { Headphones, CheckCircle2, Bookmark, Award } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface StatsWidgetProps {
   stats: AppStats;
 }
 
 export default function StatsWidget({ stats }: StatsWidgetProps) {
+  const { t } = useTranslation();
   const formatTime = (totalSeconds: number) => {
-    if (!totalSeconds || totalSeconds <= 0) return "0с";
+    if (!totalSeconds || totalSeconds <= 0) return `0${t('stats.seconds_short', 'с')}`;
     const hrs = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = Math.floor(totalSeconds % 60);
     if (hrs > 0) {
-      return mins > 0 ? `${hrs}ч ${mins}мин` : `${hrs}ч`;
+      return mins > 0 ? `${hrs}${t('stats.hours_short', 'ч')} ${mins}${t('stats.minutes_short', 'мин')}` : `${hrs}${t('stats.hours_short', 'ч')}`;
     }
     if (mins > 0) {
-      return secs > 0 ? `${mins}мин ${secs}с` : `${mins}мин`;
+      return secs > 0 ? `${mins}${t('stats.minutes_short', 'мин')} ${secs}${t('stats.seconds_short', 'с')}` : `${mins}${t('stats.minutes_short', 'мин')}`;
     }
-    return `${secs}с`;
+    return `${secs}${t('stats.seconds_short', 'с')}`;
   };
 
   return (

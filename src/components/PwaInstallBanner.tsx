@@ -1,5 +1,6 @@
 import React from "react";
 import { X } from "lucide-react";
+import { useTranslation, Trans } from "react-i18next";
 import { safeLocalStorageSetItem } from "../utils";
 
 interface PwaInstallBannerProps {
@@ -8,6 +9,7 @@ interface PwaInstallBannerProps {
 }
 
 export default function PwaInstallBanner({ showIosInstallBanner, setShowIosInstallBanner }: PwaInstallBannerProps) {
+  const { t } = useTranslation();
   if (!showIosInstallBanner) return null;
 
   return (
@@ -20,9 +22,9 @@ export default function PwaInstallBanner({ showIosInstallBanner, setShowIosInsta
         </svg>
       </div>
       <div className="flex-1">
-        <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">Установить Lectura</h4>
+        <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">{t('explainer.install_lectura', 'Установить Lectura')}</h4>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
-          Нажмите кнопку <span className="font-bold">«Поделиться»</span> (Share) в меню браузера Safari, затем выберите <span className="font-bold">«На экран "Домой"»</span> (Add to Home Screen) для установки приложения.
+          <Trans i18nKey="explainer.install_ios_instruction">Нажмите кнопку <span className="font-bold">«Поделиться»</span> (Share) в меню браузера Safari, затем выберите <span className="font-bold">«На экран "Домой"»</span> (Add to Home Screen) для установки приложения.</Trans>
         </p>
       </div>
       <button 
@@ -31,7 +33,7 @@ export default function PwaInstallBanner({ showIosInstallBanner, setShowIosInsta
           safeLocalStorageSetItem('ios_pwa_banner_dismissed', 'true');
         }}
         className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
-        title="Закрыть"
+        title={t('explainer.close_banner', 'Закрыть')}
       >
         <X className="w-4 h-4" />
       </button>

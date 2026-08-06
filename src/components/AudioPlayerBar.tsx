@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useLesson } from "../context/LessonContext";
 import { Play, Pause, RotateCcw, Volume2, FastForward } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface AudioPlayerBarProps {
   onAudioUpload: (audioUrl: string, base64: string | null) => void;
@@ -13,6 +14,7 @@ export default function AudioPlayerBar({
   onListeningTick,
   onAudioEnded,
 }: AudioPlayerBarProps) {
+  const { t } = useTranslation();
   const {
     activeLesson,
     isPlaying,
@@ -185,7 +187,7 @@ export default function AudioPlayerBar({
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Аудиоплеер (Audio)</h4>
+            <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{t('reader.audio_player', 'Аудиоплеер (Audio)')}</h4>
             {hasAudio && (
               <button
                 onClick={() => {
@@ -195,12 +197,12 @@ export default function AudioPlayerBar({
                 className="text-[10px] text-zinc-500 hover:text-red-500 font-semibold hover:underline cursor-pointer"
                 title="Reset or upload a different companion audio file"
               >
-                (Сбросить / Reset)
+                {t('reader.reset_audio', '(Сбросить / Reset)')}
               </button>
             )}
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            {hasAudio ? "Аудиофайл привязан и синхронизирован" : "Аудиодорожка к тексту пока не привязана"}
+            {hasAudio ? t('reader.audio_linked', 'Аудиофайл привязан и синхронизирован') : t('reader.audio_not_linked', 'Аудиодорожка к тексту пока не привязана')}
           </p>
         </div>
       </div>
@@ -216,7 +218,7 @@ export default function AudioPlayerBar({
               step="0.05"
               value={currentTime}
               onChange={handleAudioSeek}
-              aria-label="Аудио дорожка урока"
+              aria-label={t('reader.audio_track_label', 'Аудио дорожка урока')}
               aria-valuemin={0}
               aria-valuemax={Math.round(duration || 100)}
               aria-valuenow={Math.round(currentTime)}
@@ -255,7 +257,7 @@ export default function AudioPlayerBar({
       ) : (
         <div className="flex-grow flex items-center justify-end text-right md:py-2.5">
           <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed max-w-lg">
-            У этого урока нет озвучки. Вы можете сгенерировать ИИ-озвучку или загрузить аудиофайл в <span className="font-bold text-teal-600 dark:text-teal-400">окне редактирования урока</span>.
+            {t('reader.no_audio_desc', 'У этого урока нет озвучки. Вы можете сгенерировать ИИ-озвучку или загрузить аудиофайл в окне редактирования урока.')}
           </p>
         </div>
       )}

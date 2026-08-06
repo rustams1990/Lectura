@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { GripHorizontal, X, ChevronDown, ChevronUp, Maximize2, Minimize2, Tv, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
@@ -17,6 +18,7 @@ export default function YoutubePlayerWindow({
   onListeningTick,
   onVideoEnded,
 }: YoutubePlayerWindowProps) {
+  const { t } = useTranslation();
   const { setCurrentTime, seekToTime, setSeekToTime } = useLesson();
   const { youtubeId } = lesson;
   const lastTickTimeRef = useRef<number | null>(null);
@@ -507,7 +509,7 @@ export default function YoutubePlayerWindow({
         className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between select-none shrink-0 ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
-        title="Перетащите плеер удерживая левую кнопку мыши"
+        title={t('explainer.yt_drag', 'Перетащите плеер удерживая левую кнопку мыши')}
       >
         <div className="flex items-center gap-2 max-w-[50%]">
           <GripHorizontal className="w-4 h-4 text-zinc-400 dark:text-zinc-600" />
@@ -526,7 +528,7 @@ export default function YoutubePlayerWindow({
                 type="button"
                 onClick={() => applyPresetSize("small")}
                 className="px-1.5 py-0.5 rounded-sm hover:bg-white dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all cursor-pointer"
-                title="Маленький масштаб (16:9)"
+                title={t('explainer.yt_small', 'Маленький масштаб (16:9)')}
               >
                 S
               </button>
@@ -534,7 +536,7 @@ export default function YoutubePlayerWindow({
                 type="button"
                 onClick={() => applyPresetSize("medium")}
                 className="px-1.5 py-0.5 rounded-sm hover:bg-white dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all cursor-pointer"
-                title="Средний масштаб (16:9)"
+                title={t('explainer.yt_medium', 'Средний масштаб (16:9)')}
               >
                 M
               </button>
@@ -542,7 +544,7 @@ export default function YoutubePlayerWindow({
                 type="button"
                 onClick={() => applyPresetSize("large")}
                 className="px-1.5 py-0.5 rounded-sm hover:bg-white dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all cursor-pointer"
-                title="Большой масштаб (16:9)"
+                title={t('explainer.yt_large', 'Большой масштаб (16:9)')}
               >
                 L
               </button>
@@ -554,7 +556,7 @@ export default function YoutubePlayerWindow({
             type="button"
             onClick={() => setIframeKey((prev) => prev + 1)}
             className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-            title="Обновить видео"
+            title={t('explainer.yt_refresh', 'Обновить видео')}
           >
             <RefreshCw className="w-3 h-3" />
           </button>
@@ -564,7 +566,7 @@ export default function YoutubePlayerWindow({
             type="button"
             onClick={() => setIsMinimized((prev) => !prev)}
             className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-            title={isMinimized ? "Развернуть" : "Свернуть в панель"}
+            title={isMinimized ? t('explainer.yt_expand', 'Развернуть') : t('explainer.yt_collapse', 'Свернуть в панель')}
           >
             {isMinimized ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
@@ -574,7 +576,7 @@ export default function YoutubePlayerWindow({
             type="button"
             onClick={onClose}
             className="p-1 rounded-md text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer"
-            title="Закрыть плеер"
+            title={t('explainer.yt_close', 'Закрыть плеер')}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -602,7 +604,7 @@ export default function YoutubePlayerWindow({
           onMouseDown={handleResizeStart}
           onTouchStart={handleResizeStart}
           className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize z-50 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none"
-          title="Потяните для изменения размера (сохраняет 16:9)"
+          title={t('explainer.yt_resize', 'Потяните для изменения размера (сохраняет 16:9)')}
         >
           {/* Visual indicators for drag handle */}
           <svg

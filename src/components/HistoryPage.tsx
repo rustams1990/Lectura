@@ -28,6 +28,7 @@ import {
   Flame,
   Play
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
 
 interface HistoryPageProps {
@@ -47,6 +48,7 @@ function HistoryPage({
   readerSettings,
   onUpdateSettings,
 }: HistoryPageProps) {
+  const { t, i18n } = useTranslation();
   const [filterType, setFilterType] = useState<"all" | "read" | "listen" | "complete">("all");
   const [selectedPeriod, setSelectedPeriod] = useState<"all" | "today" | "yesterday" | "last7" | "thisMonth" | "custom">("all");
   const [customDate, setCustomDate] = useState<string>("");
@@ -91,11 +93,11 @@ function HistoryPage({
   }, [history]);
 
   const formatMonthName = (monthKey: string) => {
-    if (monthKey === "all") return "Все месяцы";
+    if (monthKey === "all") return t('history_page.all_months', "All Months");
     try {
       const [year, month] = monthKey.split("-");
       const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
-      const monthName = d.toLocaleString("ru-RU", { month: "long", year: "numeric" });
+      const monthName = d.toLocaleString(i18n.language.startsWith("en") ? "en-US" : "ru-RU", { month: "long", year: "numeric" });
       return monthName.charAt(0).toUpperCase() + monthName.slice(1);
     } catch {
       return monthKey;
@@ -152,7 +154,7 @@ function HistoryPage({
   const startCreateEntry = () => {
     setEditingEntry(null);
     setFormLessonId(lessons[0]?.id || "");
-    setFormCustomTitle(lessons[0]?.title || "Занятие");
+    setFormCustomTitle(lessons[0]?.title || t('history_page.lesson_default', "Lesson"));
     setFormActionType("read");
     setFormStatus("in_progress");
     setFormMinutes("15");
@@ -173,7 +175,7 @@ function HistoryPage({
     e.preventDefault();
     const durationSeconds = Math.max(0, (parseInt(formMinutes, 10) || 0) * 60);
     const selectedLesson = lessons.find((l) => l.id === formLessonId);
-    const title = selectedLesson ? selectedLesson.title : (formCustomTitle || "Урок");
+    const title = selectedLesson ? selectedLesson.title : (formCustomTitle || t('history_page.lesson_default_short', "Lesson"));
     const targetLang = selectedLesson ? selectedLesson.targetLanguage : "Spanish";
     const coverUrl = selectedLesson ? selectedLesson.coverUrl : null;
     const lessonType = selectedLesson ? selectedLesson.lessonType : "article";
@@ -233,13 +235,13 @@ function HistoryPage({
 
   const handleDeleteEntry = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Удалить эту запись из истории?")) {
+    if (confirm(t('history_page.confirm_delete', "Are you sure you want to delete this record from history?"))) {
       onUpdateHistory(history.filter((h) => h.id !== id));
     }
   };
 
   const handleClearAll = () => {
-    if (confirm("Вы уверены, что хотите полностью очистить всю историю активности?")) {
+    if (confirm(t('history_page.confirm_clear_all', "Are you sure you want to completely clear all activity history?"))) {
       onUpdateHistory([]);
     }
   };
@@ -442,13 +444,13 @@ function HistoryPage({
 
   // Dynamic card title
   const timeCardTitle = useMemo(() => {
-    let periodLabel = "Всего времени";
-    if (selectedPeriod === "today") periodLabel = "Время за сегодня";
-    else if (selectedPeriod === "yesterday") periodLabel = "Время за вчера";
-    else if (selectedPeriod === "last7") periodLabel = "Время за 7 дней";
-    else if (selectedPeriod === "thisMonth") periodLabel = "Время за этот месяц";
-    else if (selectedPeriod === "custom" && customDate) periodLabel = `Время за ${customDate}`;
-    else if (selectedMonth !== "all") periodLabel = `Время за ${formatMonthName(selectedMonth)}`;
+    let periodLabel = t('history_page.period_all', "Total Time");
+    if (selectedPeriod === "today") periodLabel = t('history_page.period_today', "Today's Time");
+    else if (selectedPeriod === "yesterday") periodLabel = t('history_page.period_yesterday', "Yesterday's Time");
+    else if (selectedPeriod === "last7") periodLabel = t('history_page.period_last7', "Last 7 Days Time");
+    else if (selectedPeriod === "thisMonth") periodLabel = t('history_page.period_this_month', "This Month's Time");
+    else if (selectedPeriod === "custom" && customDate) periodLabel = t('history_page.period_custom', "Time for {{date}}", { date: customDate });
+    else if (selectedMonth !== "all") periodLabel = t('history_page.period_month', "Time for {{month}}", { month: formatMonthName(selectedMonth) });
 
     if (selectedLanguage !== "all") {
       return `${periodLabel} (${selectedLanguage})`;
@@ -496,20 +498,20 @@ function HistoryPage({
   const completeCount = useMemo(() => scopedHistory.filter((h) => h.status === "completed" || h.actionType === "complete").length, [scopedHistory]);
 
   const formatDuration = (secs: number) => {
-    if (!secs || secs <= 0) return "0с";
+    if (!secs || secs <= 0) return `0${t('history_page.sec_short', 's')}`;
     const hrs = Math.floor(secs / 3600);
     const mins = Math.floor((secs % 3600) / 60);
     const s = Math.floor(secs % 60);
-    if (hrs > 0) return `${hrs}ч ${mins}мин`;
-    if (mins > 0) return `${mins}мин ${s > 0 ? `${s}с` : ""}`;
-    return `${s}с`;
+    if (hrs > 0) return `${hrs}${t('history_page.hr_short', 'h')} ${mins}${t('history_page.min_short', 'min')}`;
+    if (mins > 0) return `${mins}${t('history_page.min_short', 'min')} ${s > 0 ? `${s}${t('history_page.sec_short', 's')}` : ""}`;
+    return `${s}${t('history_page.sec_short', 's')}`;
   };
 
   const formatDate = (isoStr: string) => {
     try {
       const d = new Date(isoStr);
       if (isNaN(d.getTime())) return isoStr;
-      return d.toLocaleString("ru-RU", {
+      return d.toLocaleString(i18n.language.startsWith("en") ? "en-US" : "ru-RU", {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -532,11 +534,11 @@ function HistoryPage({
               <History className="w-5 h-5 text-white animate-spin-slow" />
             </div>
             <h2 className="text-xl font-extrabold tracking-tight">
-              История активности (Reading & Listening History)
+              {t('history_page.title', 'Reading & Listening Activity History')}
             </h2>
           </div>
           <p className="text-xs text-teal-50 max-w-xl font-medium leading-relaxed">
-            Полный журнал ваших прочитанных уроков, прослушанных подкастов и завершённых материалов. Вы можете редактировать любые записи и заметки.
+            {t('history_page.subtitle', 'Complete log of your read lessons, listened podcasts, and completed materials. You can edit any entries and personal notes.')}
           </p>
         </div>
 
@@ -547,14 +549,14 @@ function HistoryPage({
             className="px-4 py-2.5 bg-white text-teal-700 hover:bg-teal-50 font-black text-xs rounded-2xl flex items-center gap-2 shadow-sm hover:shadow-md cursor-pointer transition-all active:scale-97"
           >
             <Plus className="w-4 h-4" />
-            Добавить запись
+            {t('history_page.add_entry', 'Add Record')}
           </button>
           {history.length > 0 && (
             <button
               type="button"
               onClick={handleClearAll}
               className="px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl flex items-center gap-1.5 backdrop-blur-md border border-white/20 transition-all cursor-pointer"
-              title="Очистить всю историю"
+              title={t('history_page.clear_all_title', 'Clear entire history')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -572,7 +574,7 @@ function HistoryPage({
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">
-                  {isGlobalGoal ? "Ежедневная цель:" : `Цель (${selectedLanguage}):`}
+                  {isGlobalGoal ? t('history_page.daily_goal', "Daily Goal:") : t('history_page.lang_goal', "Goal ({{lang}}):", { lang: selectedLanguage })}
                 </span>
                 <input
                   type="number"
@@ -593,13 +595,13 @@ function HistoryPage({
                     }
                   }}
                   className="bg-zinc-100 dark:bg-zinc-800 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 py-1 px-2 w-16 text-center cursor-text focus:border-teal-500 focus:ring-2 focus:ring-teal-500/50 outline-none transition-all"
-                  title="Введите 0 для выключения"
+                  title={t('history_page.goal_zero_hint', 'Enter 0 to disable')}
                 />
-                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">мин</span>
+                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{t('history_page.min_label', 'min')}</span>
               </div>
               {activeGoalMinutes > 0 && (
                 <span className="text-xs font-black text-orange-500">
-                  {currentStreak > 0 ? `${currentStreak} ${currentStreak === 1 ? 'день' : (currentStreak >= 2 && currentStreak <= 4) ? 'дня' : 'дней'} подряд!` : 'Пока нет стрика'}
+                  {currentStreak > 0 ? t('history_page.streak_days', '{{count}} days streak!', { count: currentStreak }) : t('history_page.no_streak', 'No streak yet')}
                 </span>
               )}
             </div>
@@ -612,12 +614,12 @@ function HistoryPage({
                   />
                 </div>
                 <div className="text-[10px] text-zinc-400 font-bold mt-1.5 text-right">
-                  {Math.round(todayMinutes)} / {activeGoalMinutes} минут
+                  {t('history_page.goal_progress', '{{current}} / {{target}} minutes', { current: Math.round(todayMinutes), target: activeGoalMinutes })}
                 </div>
               </>
             ) : (
               <div className="text-xs text-zinc-400 font-medium mt-1">
-                Цель отключена. Введите время, чтобы начать копить огненные стрики!
+                {t('history_page.goal_disabled', 'Goal is disabled. Enter time to start earning streak flames!')}
               </div>
             )}
           </div>
@@ -646,7 +648,7 @@ function HistoryPage({
           </div>
           <div>
             <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
-              Сессий чтения
+              {t('history_page.reading_sessions', 'Reading Sessions')}
             </span>
             <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
               {readCount}
@@ -660,7 +662,7 @@ function HistoryPage({
           </div>
           <div>
             <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
-              Прослушиваний
+              {t('history_page.listenings', 'Listenings')}
             </span>
             <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
               {listenCount}
@@ -674,7 +676,7 @@ function HistoryPage({
           </div>
           <div>
             <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
-              Завершено
+              {t('history_page.completed_count', 'Completed')}
             </span>
             <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
               {completeCount}
@@ -687,7 +689,7 @@ function HistoryPage({
       {languageStats.length > 0 && (
         <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Target className="w-3.5 h-3.5"/> Распределение по языкам</span>
+            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Target className="w-3.5 h-3.5"/> {t('history_page.lang_distribution', 'Language Distribution')}</span>
           </div>
           <div className="flex h-3 rounded-full overflow-hidden w-full gap-0.5">
             {languageStats.map(stat => (
@@ -720,7 +722,7 @@ function HistoryPage({
                   : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
               }`}
             >
-              Все ({deduplicatedHistory.length})
+              {t('history_page.filter_all_count', 'All ({{count}})', { count: deduplicatedHistory.length })}
             </button>
 
             <button
@@ -733,7 +735,7 @@ function HistoryPage({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              Чтение ({readCount})
+              {t('history_page.filter_reading_count', 'Reading ({{count}})', { count: readCount })}
             </button>
 
             <button
@@ -746,7 +748,7 @@ function HistoryPage({
               }`}
             >
               <Headphones className="w-3.5 h-3.5" />
-              Аудио ({listenCount})
+              {t('history_page.filter_audio_count', 'Audio ({{count}})', { count: listenCount })}
             </button>
 
             <button
@@ -759,7 +761,7 @@ function HistoryPage({
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Завершено ({completeCount})
+              {t('history_page.filter_completed_count', 'Completed ({{count}})', { count: completeCount })}
             </button>
           </div>
 
@@ -770,7 +772,7 @@ function HistoryPage({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по истории..."
+              placeholder={t('history_page.search_placeholder', 'Search history...')}
               className="w-full pl-8 pr-8 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
             {searchQuery && (
@@ -796,7 +798,7 @@ function HistoryPage({
                 onChange={(e) => setSelectedLanguage(e.target.value)}
                 className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
               >
-                <option value="all">🌐 Все языки</option>
+                <option value="all">{t('history_page.all_langs', '🌐 All Languages')}</option>
                 {availableLanguages.map((lang) => (
                   <option key={lang} value={lang}>
                     🗣️ {lang}
@@ -815,7 +817,7 @@ function HistoryPage({
                 onChange={(e) => setSelectedTag(e.target.value)}
                 className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
               >
-                <option value="all">🏷️ Все теги</option>
+                <option value="all">{t('history_page.all_tags', '🏷️ All Tags')}</option>
                 {availableTags.map((tag) => (
                   <option key={tag} value={tag}>
                     {tag}
@@ -839,12 +841,12 @@ function HistoryPage({
               }}
               className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
             >
-              <option value="all">🗓️ За всё время</option>
-              <option value="today">🔥 За сегодня</option>
-              <option value="yesterday">⏳ За вчера</option>
-              <option value="last7">📅 Последние 7 дней</option>
-              <option value="thisMonth">📆 За этот месяц</option>
-              <option value="custom">📅 Выбрать дату...</option>
+              <option value="all">{t('history_page.all_time', '🗓️ All Time')}</option>
+              <option value="today">{t('history_page.today', '🔥 Today')}</option>
+              <option value="yesterday">{t('history_page.yesterday', '⏳ Yesterday')}</option>
+              <option value="last7">{t('history_page.last7', '📅 Last 7 Days')}</option>
+              <option value="thisMonth">{t('history_page.this_month', '📆 This Month')}</option>
+              <option value="custom">{t('history_page.custom_date', '📅 Choose Date...')}</option>
             </select>
           </div>
 
@@ -866,7 +868,7 @@ function HistoryPage({
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
               >
-                <option value="all">Все месяцы</option>
+                <option value="all">{t('history_page.all_months_opt', 'All Months')}</option>
                 {availableMonths.map((mKey) => (
                   <option key={mKey} value={mKey}>
                     📅 {formatMonthName(mKey)}
@@ -892,7 +894,7 @@ function HistoryPage({
               className="px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer flex-1 sm:flex-none"
             >
               <X className="w-3.5 h-3.5" />
-              Сброс
+              {t('history_page.reset', 'Reset')}
             </button>
           )}
         </div>
@@ -905,12 +907,12 @@ function HistoryPage({
             <History className="w-6 h-6" />
           </div>
           <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-            История пуста
+            {t('history_page.empty_history', 'History is empty')}
           </h3>
           <p className="text-xs text-zinc-400 max-w-sm mx-auto">
             {searchQuery
-              ? "По вашему запросу ничего не найдено."
-              : "Когда вы читаете или слушаете уроки, здесь появляется хронологическая история ваших занятий."}
+              ? t('history_page.no_results', "No results found for your search query.")
+              : t('history_page.empty_desc', "When you read or listen to lessons, your chronological activity history will appear here.")}
           </p>
         </div>
       ) : (
@@ -950,13 +952,13 @@ function HistoryPage({
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${typeBadgeColor}`}>
                         {isListening ? <Headphones className="w-3 h-3" /> : <BookOpen className="w-3 h-3" />}
-                        {isListening ? "Прослушивание" : "Чтение"}
+                        {isListening ? t('history_page.activity_listening', "Listening") : t('history_page.activity_reading', "Reading")}
                       </span>
 
                       {isCompleted && (
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900">
                           <CheckCircle2 className="w-3 h-3" />
-                          Завершено
+                          {t('history_page.status_completed', 'Completed')}
                         </span>
                       )}
 
@@ -1009,7 +1011,7 @@ function HistoryPage({
                       startEditEntry(item);
                     }}
                     className="p-2 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-xl transition-colors cursor-pointer"
-                    title="Редактировать запись истории"
+                    title={t('history_page.edit_entry', 'Edit history record')}
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -1018,7 +1020,7 @@ function HistoryPage({
                     type="button"
                     onClick={(e) => handleDeleteEntry(item.id, e)}
                     className="p-2 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer"
-                    title="Удалить из истории"
+                    title={t('history_page.delete_entry', 'Delete from history')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -1031,10 +1033,10 @@ function HistoryPage({
                         onOpenLesson(matchedLesson.id);
                       }}
                       className="p-2 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-colors cursor-pointer flex items-center gap-1"
-                      title="Продолжить урок"
+                      title={t('history_page.continue_lesson', 'Continue lesson')}
                     >
                       <Play className="w-4 h-4" />
-                      <span className="text-xs font-bold hidden sm:inline">Продолжить</span>
+                      <span className="text-xs font-bold hidden sm:inline">{t('history_page.continue', 'Continue')}</span>
                     </button>
                   )}
 
@@ -1047,7 +1049,7 @@ function HistoryPage({
                       }}
                       className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-2xs transition-all active:scale-97 cursor-pointer"
                     >
-                      <span>Открыть</span>
+                      <span>{t('history_page.open', 'Open')}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   )}
@@ -1066,7 +1068,7 @@ function HistoryPage({
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                 <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
-                  {editingEntry ? "Редактировать запись истории" : "Добавить новую запись"}
+                  {editingEntry ? t('history_page.edit_entry_title', "Edit History Entry") : t('history_page.add_entry_title', "Add New Record")}
                 </h3>
               </div>
               <button
@@ -1085,7 +1087,7 @@ function HistoryPage({
               {/* Lesson Select */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  Выберите урок
+                  {t('history_page.select_lesson', 'Select Lesson')}
                 </label>
                 <select
                   value={formLessonId}
@@ -1101,7 +1103,7 @@ function HistoryPage({
                       {l.title} ({l.targetLanguage})
                     </option>
                   ))}
-                  <option value="custom">-- Произвольный урок / Своё название --</option>
+                  <option value="custom">{t('history_page.custom_lesson', '-- Custom Lesson / Custom Name --')}</option>
                 </select>
               </div>
 
@@ -1109,14 +1111,14 @@ function HistoryPage({
               {formLessonId === "custom" && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Название занятия / Урока
+                    {t('history_page.lesson_name', 'Lesson / Activity Name')}
                   </label>
                   <input
                     type="text"
                     required
                     value={formCustomTitle}
                     onChange={(e) => setFormCustomTitle(e.target.value)}
-                    placeholder="Введите название урока или подкаста..."
+                    placeholder={t('history_page.lesson_name_placeholder', 'Enter lesson or podcast name...')}
                     className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
                   />
                 </div>
@@ -1126,29 +1128,29 @@ function HistoryPage({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Тип активности
+                    {t('history_page.activity_type', 'Activity Type')}
                   </label>
                   <select
                     value={formActionType}
                     onChange={(e) => setFormActionType(e.target.value as any)}
                     className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
                   >
-                    <option value="read">📖 Чтение (Reading)</option>
-                    <option value="listen">🎧 Прослушивание (Listening)</option>
+                    <option value="read">{t('history_page.type_reading', '📖 Reading')}</option>
+                    <option value="listen">{t('history_page.type_listening', '🎧 Listening')}</option>
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Статус урока
+                    {t('history_page.lesson_status', 'Lesson Status')}
                   </label>
                   <select
                     value={formStatus}
                     onChange={(e) => setFormStatus(e.target.value as any)}
                     className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
                   >
-                    <option value="in_progress">⏳ В процессе (In Progress)</option>
-                    <option value="completed">✅ Завершено (Completed)</option>
+                    <option value="in_progress">{t('history_page.status_in_progress', '⏳ In Progress')}</option>
+                    <option value="completed">{t('history_page.status_completed', '✅ Completed')}</option>
                   </select>
                 </div>
               </div>
@@ -1157,7 +1159,7 @@ function HistoryPage({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Длительность (Минуты)
+                    {t('history_page.duration_mins', 'Duration (Minutes)')}
                   </label>
                   <input
                     type="number"
@@ -1171,7 +1173,7 @@ function HistoryPage({
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Дата
+                    {t('history_page.date_label', 'Date')}
                   </label>
                   <input
                     type="date"
@@ -1183,7 +1185,7 @@ function HistoryPage({
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Время 24ч (Ч : М)
+                    {t('history_page.time_label', '24h Time (H : M)')}
                   </label>
                   <div className="flex items-center gap-1">
                     <select
@@ -1193,7 +1195,7 @@ function HistoryPage({
                     >
                       {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => (
                         <option key={h} value={h}>
-                          {h} ч
+                          {h} {t('history_page.hr_short', 'h')}
                         </option>
                       ))}
                     </select>
@@ -1207,7 +1209,7 @@ function HistoryPage({
                     >
                       {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map((m) => (
                         <option key={m} value={m}>
-                          {m} м
+                          {m} {t('history_page.min_short', 'min')}
                         </option>
                       ))}
                     </select>
@@ -1218,26 +1220,26 @@ function HistoryPage({
               {/* Optional Notes & Tags */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  Личные заметки / Комментарий к сессии
+                  {t('history_page.personal_notes', 'Personal Notes / Session Comments')}
                 </label>
                 <textarea
                   rows={2}
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  placeholder="Добавьте свои впечатления, прогресс или заметки..."
+                  placeholder={t('history_page.notes_placeholder', 'Add your impressions, progress, or notes...')}
                   className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  Теги (через запятую)
+                  {t('history_page.tags_label', 'Tags (comma separated)')}
                 </label>
                 <input
                   type="text"
                   value={formTags}
                   onChange={(e) => setFormTags(e.target.value)}
-                  placeholder="Например: Грамматика, Подкаст, Словарь"
+                  placeholder={t('history_page.tags_placeholder', 'E.g.: Grammar, Podcast, Vocabulary')}
                   className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
                 />
               </div>
@@ -1252,14 +1254,14 @@ function HistoryPage({
                   }}
                   className="px-4 py-2 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 >
-                  Отмена
+                  {t('history_page.cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   <Check className="w-4 h-4" />
-                  Сохранить
+                  {t('history_page.save', 'Save')}
                 </button>
               </div>
             </form>

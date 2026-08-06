@@ -65,7 +65,7 @@ export default function AppSidebar({
                 Lectura
               </h3>
               <span className="text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest block font-mono">
-                Навигация
+                {t('sidebar.navigation', 'Навигация')}
               </span>
             </div>
           </div>
@@ -75,7 +75,7 @@ export default function AppSidebar({
             id="btn-close-sidebar"
             onClick={() => setIsSidebarOpen(false)}
             className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg cursor-pointer transition-colors"
-            title="Закрыть меню"
+            title="{t('sidebar.close_menu', 'Закрыть меню')}"
           >
             <X className="w-4 h-4" />
           </button>
@@ -86,7 +86,7 @@ export default function AppSidebar({
           {/* Core Tabs Navigation */}
           <div className="space-y-1">
             <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
-              Разделы
+              {t('sidebar.sections', 'Разделы')}
             </span>
             
             <button
@@ -120,7 +120,7 @@ export default function AppSidebar({
               }`}
             >
               <BookOpen className="w-4 h-4 shrink-0" />
-              Чтение
+              {t('sidebar.reading', 'Чтение')}
             </button>
 
             <button
@@ -178,7 +178,7 @@ export default function AppSidebar({
           {/* Quick Actions separator */}
           <div className="space-y-1.5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
             <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest pl-2 font-mono">
-              Действия
+              {t('sidebar.actions', 'Действия')}
             </span>
 
             {activeLesson && (
@@ -189,10 +189,10 @@ export default function AppSidebar({
                   setIsSidebarOpen(false);
                 }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-teal-600 dark:text-teal-400 bg-teal-50/60 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 border border-teal-100/50 dark:border-teal-900/50 rounded-xl transition-all cursor-pointer active:scale-97"
-                title="Перейти в режим фокуса"
+                title="{t('sidebar.focus_mode_desc', 'Перейти в режим фокуса')}"
               >
                 <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 animate-pulse" />
-                Режим фокуса
+                {t('sidebar.focus_mode', 'Режим фокуса')}
               </button>
             )}
 
@@ -217,7 +217,7 @@ export default function AppSidebar({
               className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:scale-95 rounded-xl transition-all cursor-pointer shadow-3xs"
             >
               <PlusCircle className="w-4 h-4 shrink-0 text-teal-100" />
-              Импортировать материал
+              {t('sidebar.import_material', 'Импортировать материал')}
             </button>
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function AppSidebar({
         <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center">
           <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800">
             <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-1 font-mono">
-              Профиль синхронизации
+              {t('sidebar.sync_profile', 'Профиль синхронизации')}
             </span>
             {activeUser ? (
               <div className="space-y-1">
@@ -234,7 +234,7 @@ export default function AppSidebar({
                 <div className="flex items-center justify-center gap-1">
                   <span className={`w-1.5 h-1.5 rounded-full ${activeUser ? "bg-teal-500 animate-pulse" : "bg-teal-500"}`} />
                   <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-                    {activeUser ? "Синхронизировано" : "Локальный профиль"}
+                    {activeUser ? t("sidebar.synced", "Синхронизировано") : t("sidebar.local_profile", "Локальный профиль")}
                   </span>
                 </div>
               </div>
@@ -246,7 +246,7 @@ export default function AppSidebar({
                 }}
                 className="text-[9px] font-black text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
               >
-                🔑 Войти и синхронизировать
+                🔑 {t('sidebar.login_sync', 'Войти и синхронизировать')}
               </button>
             )}
           </div>

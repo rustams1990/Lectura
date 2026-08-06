@@ -77,7 +77,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("spanish") || norm.includes("испан") || norm.includes("español") || norm.includes("espanol") || norm === "es") {
     return {
       presets: ["🇪🇸", "🇲🇽", "🇨🇴", "🇦🇷", "🇨🇱", "🇵🇪", "🇻🇪", "🇪🇨", "🇬🇹", "🇨🇺", "🇩🇴", "🇭🇳", "🇵🇾", "🇸🇻", "🇳🇮", "🇨🇷", "🇵🇦", "🇺🇾", "🇧🇴", "🇪🇶", "🇺🇸"],
-      label: "Страны, где говорят на испанском:"
+      label: "Spanish-speaking countries:"
     };
   }
 
@@ -85,7 +85,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("english") || norm.includes("англ") || norm === "en") {
     return {
       presets: ["🇺🇸", "🇬🇧", "🇨🇦", "🇦🇺", "🇳🇿", "🇮🇪", "🇿🇦", "🇯🇲", "🇸🇬", "🇮🇳"],
-      label: "Англоязычные страны:"
+      label: "English-speaking countries:"
     };
   }
 
@@ -93,7 +93,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("german") || norm.includes("немец") || norm.includes("deutsch") || norm === "de") {
     return {
       presets: ["🇩🇪", "🇦🇹", "🇨🇭", "🇱🇮", "🇱🇺", "🇧🇪"],
-      label: "Немецкоязычные страны:"
+      label: "German-speaking countries:"
     };
   }
 
@@ -101,7 +101,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("french") || norm.includes("франц") || norm.includes("français") || norm.includes("francais") || norm === "fr") {
     return {
       presets: ["🇫🇷", "🇨🇦", "🇧🇪", "🇨🇭", "🇲🇨", "🇸🇳", "🇨🇮", "🇨🇲", "🇲🇬", "🇨🇩", "🇭🇹"],
-      label: "Франкоязычные страны:"
+      label: "French-speaking countries:"
     };
   }
 
@@ -109,7 +109,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("portuguese") || norm.includes("португал") || norm.includes("português") || norm.includes("portugues") || norm === "pt") {
     return {
       presets: ["🇵🇹", "🇧🇷", "🇦🇴", "🇲🇿", "🇨🇻", "🇬🇼", "🇸🇹", "🇹🇱", "🇲🇴"],
-      label: "Португалоязычные страны:"
+      label: "Portuguese-speaking countries:"
     };
   }
 
@@ -117,7 +117,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("russian") || norm.includes("русский") || norm.includes("русск") || norm === "ru") {
     return {
       presets: ["🇷🇺", "🇧🇾", "🇰🇿", "🇰🇬"],
-      label: "Русскоязычные регионы:"
+      label: "Russian-speaking regions:"
     };
   }
 
@@ -125,7 +125,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("italian") || norm.includes("итальян") || norm.includes("italiano") || norm === "it") {
     return {
       presets: ["🇮🇹", "🇨🇭", "🇸🇲", "🇻🇦"],
-      label: "Италоязычные страны:"
+      label: "Italian-speaking countries:"
     };
   }
 
@@ -133,7 +133,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("chinese") || norm.includes("китай") || norm.includes("中文") || norm === "zh") {
     return {
       presets: ["🇨🇳", "🇹🇼", "🇭🇰", "🇸🇬", "🇲🇴"],
-      label: "Китайскоязычные регионы:"
+      label: "Chinese-speaking regions:"
     };
   }
 
@@ -141,7 +141,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("japanese") || norm.includes("япон") || norm.includes("日本語") || norm === "ja") {
     return {
       presets: ["🇯🇵"],
-      label: "Япония:"
+      label: "Japan:"
     };
   }
 
@@ -149,7 +149,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("korean") || norm.includes("корей") || norm.includes("한국어") || norm === "ko") {
     return {
       presets: ["🇰🇷", "🇰🇵"],
-      label: "Корейские регионы:"
+      label: "Korean regions:"
     };
   }
 
@@ -157,7 +157,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("arabic") || norm.includes("араб") || norm === "ar") {
     return {
       presets: ["🇸🇦", "🇦🇪", "🇪🇬", "🇮🇶", "🇯🇴", "🇱🇧", "🇲🇦", "🇩🇿", "🇹🇳", "🇶🇦", "🇰🇼", "🇴🇲", "🇧🇭"],
-      label: "Арабоязычные страны:"
+      label: "Arabic-speaking countries:"
     };
   }
 
@@ -165,7 +165,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("turkish") || norm.includes("турец") || norm === "tr") {
     return {
       presets: ["🇹🇷", "🇨🇾"],
-      label: "Туркоязычные регионы:"
+      label: "Turkish-speaking regions:"
     };
   }
 
@@ -173,7 +173,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("ukrainian") || norm.includes("украин") || norm === "uk") {
     return {
       presets: ["🇺🇦"],
-      label: "Украина:"
+      label: "Ukraine:"
     };
   }
 
@@ -181,7 +181,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("kazakh") || norm.includes("казах") || norm.includes("қазақ") || norm === "kk") {
     return {
       presets: ["🇰🇿"],
-      label: "Казахстан:"
+      label: "Kazakhstan:"
     };
   }
 
@@ -189,7 +189,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("polish") || norm.includes("польск") || norm === "pl") {
     return {
       presets: ["🇵🇱"],
-      label: "Польша:"
+      label: "Poland:"
     };
   }
 
@@ -197,7 +197,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("dutch") || norm.includes("голланд") || norm.includes("нидерланд") || norm === "nl") {
     return {
       presets: ["🇳🇱", "🇧🇪", "🇸🇷"],
-      label: "Нидерландоязычные страны:"
+      label: "Dutch-speaking countries:"
     };
   }
 
@@ -205,7 +205,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("swedish") || norm.includes("швед") || norm === "sv") {
     return {
       presets: ["🇸🇪", "🇫🇮"],
-      label: "Швеция и Финляндия:"
+      label: "Sweden & Finland:"
     };
   }
 
@@ -213,7 +213,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("greek") || norm.includes("греч") || norm === "el") {
     return {
       presets: ["🇬🇷", "🇨🇾"],
-      label: "Греция и Кипр:"
+      label: "Greece & Cyprus:"
     };
   }
 
@@ -221,14 +221,14 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   if (norm.includes("hindi") || norm.includes("хинди") || norm === "hi") {
     return {
       presets: ["🇮🇳"],
-      label: "Индия:"
+      label: "India:"
     };
   }
 
   // Default fallback flags list
   return {
     presets: ALL_WORLD_FLAGS.slice(0, 24),
-    label: "Выберите подходящий флаг:"
+    label: "Choose a suitable flag:"
   };
 }
 
@@ -346,20 +346,20 @@ export default function SettingsModal({
       });
 
       if (!res.ok) {
-        throw new Error("Не удалось зарегистрировать код синхронизации на сервере.");
+        throw new Error(t("settings.err_register_sync", "Failed to register sync code on server."));
       }
 
       const body = await safeJsonParse(res);
       setWifiSyncPin(body.code);
       setWifiSyncStatus({
         type: "success",
-        message: "Код синхронизации сгенерирован! Он будет действителен в течение 15 минут."
+        message: t("settings.sync_code_gen", "Sync code generated! Valid for 15 minutes.")
       });
     } catch (err: any) {
       console.error(err);
       setWifiSyncStatus({
         type: "error",
-        message: err.message || "Ошибка при генерации сессии локального обмена."
+        message: err.message || t("settings.err_gen_session", "Error generating local sync session.")
       });
     } finally {
       setWifiSyncLoading(false);
@@ -370,7 +370,7 @@ export default function SettingsModal({
     if (!inputWifiPin.trim() || inputWifiPin.trim().length !== 6) {
       setWifiSyncStatus({
         type: "error",
-        message: "Пожалуйста, введите корректный 6-значный код."
+        message: t("settings.err_enter_pin", "Please enter a valid 6-digit code.")
       });
       return;
     }
@@ -385,18 +385,18 @@ export default function SettingsModal({
       });
       if (!res.ok) {
         const errJson = await safeJsonParse(res).catch(() => ({}));
-        throw new Error(errJson.error || "Не удалось загрузить данные по этому коду.");
+        throw new Error(errJson.error || t("settings.err_load_code", "Failed to load data for this code."));
       }
 
       const body = await safeJsonParse(res);
       if (!body.data) {
-        throw new Error("Сервер вернул пустой пакет данных.");
+        throw new Error(t("settings.err_empty_payload", "Server returned an empty data package."));
       }
 
       onImportData(body.data);
       setWifiSyncStatus({
         type: "success",
-        message: `Сотрудничество завершено! Успешно перенесено: ${body.data.lessons?.length || 0} книг, ${Object.keys(body.data.vocab || body.data.lingqs || {}).length || 0} слов и связей!`
+        message: `${t("settings.sync_success", "Sync complete! Successfully transferred:")} ${body.data.lessons?.length || 0} ${t("settings.books_unit", "books")}, ${Object.keys(body.data.vocab || body.data.lingqs || {}).length || 0} ${t("settings.words_unit", "words & links!")}`
       });
       setInputWifiPin("");
       setWifiSyncPin(null);
@@ -404,7 +404,7 @@ export default function SettingsModal({
       console.error(err);
       setWifiSyncStatus({
         type: "error",
-        message: err.message || "Ошибка при скачивании локальных данных."
+        message: err.message || t("settings.err_download_data", "Error downloading local data.")
       });
     } finally {
       setWifiSyncLoading(false);
@@ -433,7 +433,7 @@ export default function SettingsModal({
       downloadAnchor.remove();
     } catch (e: any) {
       console.error("Failed to export backup JSON:", e);
-      showToast(`Ошибка при экспорте резервной копии: ${e.message || String(e)}`, "error");
+      showToast(`${t("settings.err_export_backup", "Error exporting backup:")} ${e.message || String(e)}`, "error");
     }
   };
 
@@ -453,18 +453,18 @@ export default function SettingsModal({
           (typeof parsed !== "object") ||
           (!parsed.lessons && !parsed.vocab && !parsed.lingqs && !parsed.wordLinks && !parsed.lessonTypes)
         ) {
-          throw new Error("Неверная структура файла резервной копии. Должен быть хотя бы один список: уроки, слова или связи.");
+          throw new Error(t("settings.err_invalid_structure", "Invalid backup file structure. Must contain at least one list: lessons, words, or links."));
         }
 
         onImportData(parsed);
         setImportStatus({
           type: "success",
-          message: `Базовый импорт выполнен! Загружено: ${parsed.lessons?.length || 0} уроков, ${Object.keys(parsed.vocab || parsed.lingqs || {}).length || 0} слов.`
+          message: `${t("settings.import_success", "Import complete! Loaded:")} ${parsed.lessons?.length || 0} ${t("settings.lessons_unit", "lessons")}, ${Object.keys(parsed.vocab || parsed.lingqs || {}).length || 0} ${t("settings.words_unit", "words.")}`
         });
       } catch (err: any) {
         setImportStatus({
           type: "error",
-          message: `Ошибка чтения резервной копии: ${err.message || String(err)}`
+          message: `${t("settings.err_read_backup", "Error reading backup file:")} ${err.message || String(err)}`
         });
       }
     };
@@ -478,6 +478,15 @@ export default function SettingsModal({
       if (l.targetLanguage) {
         const trimmed = l.targetLanguage.trim();
         if (trimmed) {
+          const norm = trimmed.toLowerCase();
+          // Exclude single-flag languages with no variant flags (Japanese, Kazakh, Ukrainian)
+          if (
+            norm.includes("japan") || norm.includes("япон") || norm === "ja" ||
+            norm.includes("kazak") || norm.includes("казах") || norm.includes("қаза") || norm === "kk" ||
+            norm.includes("ukrai") || norm.includes("украин") || norm.includes("україн") || norm === "uk"
+          ) {
+            return;
+          }
           // Title case format, e.g. "spanish" -> "Spanish"
           const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
           set.add(formatted);
@@ -508,17 +517,17 @@ export default function SettingsModal({
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                {t('settings.title', 'Настройки Приложения')} <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">{APP_VERSION}</span>
+                {t('settings.title', 'Application Settings')} <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">{APP_VERSION}</span>
               </h3>
               <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed">
-                Настройте масштаб интерфейса, управляйте связями слов и визуальным оформлением флагов.
+                {t('settings.subtitle', 'Configure interface scale, manage word connections and flag visuals.')}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
-            title={t('settings.close', 'Закрыть')}
+            title={t('settings.close', 'Close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -534,7 +543,7 @@ export default function SettingsModal({
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            🚩 Флаги Языков
+            🚩 {t('settings.tab_flags', 'LANGUAGE FLAGS')}
           </button>
           <button
             onClick={() => setActiveSettingsTab("interface")}
@@ -544,7 +553,7 @@ export default function SettingsModal({
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            📐 Интерфейс (Масштаб)
+            📐 {t('settings.tab_ui', 'UI (SCALE)')}
           </button>
           <button
             onClick={() => setActiveSettingsTab("patterns")}
@@ -554,7 +563,7 @@ export default function SettingsModal({
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            🔗 Связи Слов
+            🔗 {t('settings.tab_links', 'WORD LINKS')}
           </button>
           <button
             onClick={() => {
@@ -568,7 +577,7 @@ export default function SettingsModal({
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            💾 Хранилище (Local & Cloud)
+            💾 {t('settings.tab_storage', 'STORAGE (LOCAL & CLOUD)')}
           </button>
         </div>
 
@@ -580,12 +589,12 @@ export default function SettingsModal({
             <div className="space-y-6 divide-y divide-zinc-100 dark:divide-zinc-800">
               {detectedLanguages.length === 0 ? (
                 <div className="text-center py-10 text-zinc-400 dark:text-zinc-500 font-medium">
-                  📚 В вашей библиотеке пока нет языков. Загрузите или выберите урок из библиотеки, чтобы настроить флаги!
+                  {t('settings.no_languages', '📚 Your library has no languages yet. Load or select a lesson to configure flags!')}
                 </div>
               ) : (
                 detectedLanguages.map((lang, index) => {
                   const langLower = lang.toLowerCase();
-                  const currentFlag = languageFlags[langLower] || DEFAULT_FALLBACK_FLAGS[langLower] || "📖";
+                  const currentFlag = (languageFlags[langLower] && languageFlags[langLower] !== "📖") ? languageFlags[langLower] : (DEFAULT_FALLBACK_FLAGS[langLower] || "🇵🇹");
                   const customValue = customInputs[langLower] !== undefined ? customInputs[langLower] : "";
                   const flagConfig = getFlagsForLanguage(lang);
                   const isShowingAll = !!showAllFlagsMap[langLower];
@@ -606,7 +615,7 @@ export default function SettingsModal({
                             {lang}
                           </h4>
                           <p className="text-[10px] text-zinc-400 font-medium">
-                            Текущий флаг: <span className="font-mono bg-zinc-100 dark:bg-zinc-950 px-1 py-0.5 rounded">{currentFlag}</span>
+                            {t('settings.current_flag', 'Current flag:')} <span className="font-mono bg-zinc-100 dark:bg-zinc-950 px-1 py-0.5 rounded">{currentFlag}</span>
                           </p>
                         </div>
                       </div>
@@ -617,14 +626,14 @@ export default function SettingsModal({
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
-                              {isShowingAll ? "Все флаги мира:" : flagConfig.label}
+                              {isShowingAll ? t('settings.all_world_flags', 'All world flags:') : flagConfig.label}
                             </span>
                             <button
                               type="button"
                               onClick={() => setShowAllFlagsMap(prev => ({ ...prev, [langLower]: !isShowingAll }))}
                               className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
                             >
-                              {isShowingAll ? "Показать только подходящие" : "🌐 Все флаги"}
+                              {isShowingAll ? t('settings.show_matching', 'Show matching only') : t('settings.all_flags', '🌐 All Flags')}
                             </button>
                           </div>
                           <div className="flex flex-wrap gap-1.5 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/50 dark:border-zinc-800/60 max-h-[110px] overflow-y-auto">
@@ -658,7 +667,7 @@ export default function SettingsModal({
                             <input
                               type="text"
                               maxLength={6}
-                              placeholder="...или вставьте свой emoji флага вручную"
+                              placeholder={t('settings.flag_placeholder', '...or paste your flag emoji here')}
                               value={customValue}
                               onChange={(e) => {
                                 setCustomInputs(prev => ({ ...prev, [langLower]: e.target.value }));
@@ -676,7 +685,7 @@ export default function SettingsModal({
                             }}
                             className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-100 dark:disabled:bg-zinc-800 text-white disabled:text-zinc-400 font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer"
                           >
-                            <Check className="w-3.5 h-3.5" /> Применить
+                            <Check className="w-3.5 h-3.5" /> {t('settings.apply', 'Apply')}
                           </button>
                         </div>
                       </div>
@@ -688,7 +697,7 @@ export default function SettingsModal({
             </div>
           )}
 
-          {/* Active Tab: Interface Scale (Увеличение/Уменьшение интерфейса) */}
+          {/* Active Tab: Interface Scale */}
           {activeSettingsTab === "interface" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {/* Language Switcher */}
@@ -699,10 +708,10 @@ export default function SettingsModal({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      {t('settings.language', 'Язык интерфейса')}
+                      {t('settings.language', 'Interface Language')}
                     </h4>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                      Выберите язык приложения. Изменения применятся сразу.
+                      {t('settings.language_desc', 'Choose the app language. Changes apply immediately.')}
                     </p>
                   </div>
                 </div>
@@ -737,10 +746,10 @@ export default function SettingsModal({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      Размер элементов интерфейса (Zoom)
+                      {t("settings.zoom_title", "Interface Zoom")}
                     </h4>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                      Управляйте масштабом приложения, чтобы сделать текст более читаемым или уместить на экране больше информации. Изменения применяются ко всему приложению мгновенно.
+                      {t("settings.zoom_desc", "Control the app scale to make text more readable or fit more information. Changes apply instantly.")}
                     </p>
                   </div>
                 </div>
@@ -748,65 +757,32 @@ export default function SettingsModal({
                 <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-4.5 rounded-2xl border border-zinc-100 dark:border-zinc-800">
                   <div className="space-y-1">
                     <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
-                      Активный масштаб:
+                      {t("settings.active_zoom", "Active Zoom:")}
                     </span>
-                    <span className="text-base font-black text-teal-600 dark:text-teal-400 flex items-center gap-2">
-                      {zoomScale}% {zoomScale === 100 && <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">(Рекомендуемый)</span>}
-                    </span>
+                    <div className="text-xl font-black text-zinc-800 dark:text-white flex items-center gap-2 font-mono">
+                      {zoomScale}% {zoomScale === 100 && <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{t("settings.recommended", "(Recommended)")}</span>}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 select-none text-zinc-700 dark:text-zinc-200">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => onZoomScaleChange(Math.max(70, zoomScale - 10))}
+                      onClick={() => onZoomScaleChange(Math.max(70, zoomScale - 5))}
                       disabled={zoomScale <= 70}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 cursor-pointer transition-all"
-                      title="Уменьшить масштаб на 10%"
+                      className="w-9 h-9 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 font-bold text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer flex items-center justify-center text-base"
+                      title={t("settings.decrease_zoom", "Decrease zoom (-5%)")}
                     >
-                      －
+                      -
                     </button>
                     <button
                       type="button"
-                      onClick={() => onZoomScaleChange(100)}
-                      className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[10px] font-black uppercase tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-950/40 transition-all cursor-pointer text-zinc-500"
-                    >
-                      Сброс
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onZoomScaleChange(Math.min(150, zoomScale + 10))}
+                      onClick={() => onZoomScaleChange(Math.min(150, zoomScale + 5))}
                       disabled={zoomScale >= 150}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 cursor-pointer transition-all"
-                      title="Увеличить масштаб на 10%"
+                      className="w-9 h-9 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 font-bold text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer flex items-center justify-center text-base"
+                      title={t("settings.increase_zoom", "Increase zoom (+5%)")}
                     >
-                      ＋
+                      +
                     </button>
-                  </div>
-                </div>
-
-                {/* Preset scale targets selection */}
-                <div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block mb-2.5">
-                    Выберите пресет быстрого переключения:
-                  </span>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[80, 90, 100, 110, 120, 130, 140, 150].map((scale) => {
-                      const isSelected = zoomScale === scale;
-                      return (
-                        <button
-                          key={scale}
-                          type="button"
-                          onClick={() => onZoomScaleChange(scale)}
-                          className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-600 dark:text-teal-400 font-extrabold'
-                              : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                          }`}
-                        >
-                          {scale}% {scale === 100 && "•"}
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
 
@@ -814,13 +790,13 @@ export default function SettingsModal({
                 {layoutWidthMode && onLayoutWidthModeChange && (
                   <div className="border-t border-zinc-100/60 dark:border-zinc-800 pt-5 space-y-3">
                     <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
-                      Максимальная ширина интерфейса:
+                      {t("settings.max_width", "Maximum interface width:")}
                     </span>
                     <div className="grid grid-cols-3 gap-2">
                       {([
-                        { id: "standard", label: "Стандарт (1280px)", desc: "Компактный вид" },
-                        { id: "wide", label: "Широкий (1560px)", desc: "Сбалансированный" },
-                        { id: "full", label: "На весь экран", desc: "Максимальный простор" },
+                        { id: "standard", label: t("settings.width_std", "Standard (1280px)"), desc: t("settings.width_std_desc", "Compact view") },
+                        { id: "wide", label: t("settings.width_wide", "Wide (1560px)"), desc: t("settings.width_wide_desc", "Balanced") },
+                        { id: "full", label: t("settings.width_full", "Full screen"), desc: t("settings.width_full_desc", "Maximum space") },
                       ] as const).map((mode) => {
                         const isSelected = layoutWidthMode === mode.id;
                         return (
@@ -846,68 +822,18 @@ export default function SettingsModal({
                 {/* Simulated live container sample showing sizes */}
                 <div className="border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 bg-white dark:bg-zinc-900/40 text-center space-y-3 shadow-inner">
                   <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/40 uppercase tracking-widest font-mono">
-                    Живой пример масштабирования (Scale Live Preview)
+                    {t("settings.scale_preview", "Scale Live Preview")}
                   </span>
                   <p className="text-zinc-800 dark:text-zinc-200 text-xs font-medium leading-relaxed max-w-sm mx-auto">
-                    Эта коробочка имитирует изменения. При масштабе <span className="font-bold text-teal-600 dark:text-teal-400">{zoomScale}%</span> размеры шрифтов и кнопок будут подогнаны под выбранное соотношение.
+                    {t("settings.scale_preview_desc", "This box simulates changes. At scale {{zoomScale}}%, fonts and buttons adjust accordingly.", { zoomScale })}
                   </p>
                   <button className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-black text-[11px] rounded-xl shadow-xs cursor-pointer select-none">
-                    Демонстрационная Кнопка!
+                    {t("settings.demo_btn", "Demo Button!")}
                   </button>
                 </div>
               </div>
 
-              {/* Listening Time Adjustment Card */}
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 bg-sky-50 dark:bg-sky-950/40 rounded-xl text-sky-600 dark:text-sky-400 shrink-0">
-                    <Headphones className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      Время прослушивания (Listening Time)
-                    </h4>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                      Автоматически учитывает время прослушивания YouTube видео и аудио уроков. Вы также можете указать время вручную:
-                    </p>
 
-                    <div className="mt-3.5 flex items-center gap-3">
-                      <div className="relative flex-1 max-w-[180px]">
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={listeningMinsInput}
-                          onChange={(e) => setListeningMinsInput(e.target.value)}
-                          className="w-full h-9 px-3 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-sky-500"
-                          placeholder="Минуты"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-zinc-400">мин</span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const mins = parseFloat(listeningMinsInput);
-                          if (!isNaN(mins) && mins >= 0 && onListeningSecondsChange) {
-                            onListeningSecondsChange(Math.round(mins * 60));
-                            setListeningSaveMsg("✓ Время прослушивания успешно обновлено!");
-                            setTimeout(() => setListeningSaveMsg(null), 3000);
-                          }
-                        }}
-                        className="h-9 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs"
-                      >
-                        Сохранить
-                      </button>
-                    </div>
-                    {listeningSaveMsg && (
-                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block mt-2 animate-in fade-in duration-200">
-                        {listeningSaveMsg}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
 
               {/* TTS Engine Selector */}
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
@@ -922,20 +848,20 @@ export default function SettingsModal({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      Движок озвучки слов (TTS)
+                      {t('settings.tts_engine', 'Word Audio Engine (TTS)')}
                     </h4>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                      Выберите, каким голосом будут озвучиваться слова при нажатии на кнопку 🔊 в карточке слова.
+                      {t('settings.tts_desc', 'Choose the voice for word pronunciation when clicking the 🔊 button on a word card.')}
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-2.5">
                   {([
-                    { id: "google", label: "Google Translate TTS", badge: "Как в AwesomeTTS", icon: "🎙️", desc: "Тот же голос что в плагине Anki AwesomeTTS. Чистый, приятный, бесплатный — без API ключа." },
-                    { id: "kokoro", label: "Kokoro-82M / Local TTS", badge: "Офлайн / Локальный ИИ", icon: "🧠", desc: "Студийный нейросетевой голос (Kokoro-82M / Piper). Работает локально на вашем сервере без облака." },
-                    { id: "gemini", label: "Gemini AI (Neural)", badge: "Требует API ключ", icon: "✨", desc: "Нейросетевой голос Gemini — очень естественный, живой. Требует GEMINI_API_KEY (на бесплатном ключе лимит 10 слов в день)." },
-                    { id: "browser", label: "Браузерный (Встроенный)", badge: "Офлайн", icon: "💻", desc: "Голос операционной системы. Работает без интернета, но качество зависит от ОС." },
+                    { id: "google", label: "Google Translate TTS", badge: t('settings.google_badge', 'As in AwesomeTTS'), icon: "🎙️", desc: t('settings.google_desc', 'Same voice as Anki AwesomeTTS plugin. Clean, pleasant, free — no API key needed.') },
+                    { id: "kokoro", label: "Kokoro-82M / Local TTS", badge: t('settings.kokoro_badge', 'Offline / Local AI'), icon: "🧠", desc: t('settings.kokoro_desc', 'Studio neural voice (Kokoro-82M / Piper). Works locally on your server without cloud.') },
+                    { id: "gemini", label: "Gemini AI (Neural)", badge: t('settings.gemini_badge', 'Requires API key'), icon: "✨", desc: t('settings.gemini_desc', 'Gemini neural voice — very natural and alive. Requires GEMINI_API_KEY (free tier limit: 10 words/day).') },
+                    { id: "browser", label: t('settings.browser_label', 'Browser (Built-in)'), badge: t('settings.browser_badge', 'Offline'), icon: "💻", desc: t('settings.browser_desc', 'System OS voice. Works offline without internet, but quality depends on OS.') },
                   ] as { id: string; label: string; badge: string; icon: string; desc: string }[]).map((engine) => {
                     const isSelected = (settings?.ttsEngine || "google") === engine.id;
                     return (
@@ -986,14 +912,14 @@ export default function SettingsModal({
                     <div className="flex items-center gap-2">
                       <span className="text-base">🧠</span>
                       <h5 className="text-xs font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">
-                        Настройки Kokoro / Local TTS
+                        {t('settings.kokoro_settings', 'Kokoro / Local TTS Settings')}
                       </h5>
                     </div>
 
                     <div className="space-y-3 text-xs">
                       <div>
                         <label className="block text-[11px] font-bold text-zinc-700 dark:text-zinc-300 mb-1">
-                          URL локального TTS сервера (OpenAI-compatible / Kokoro / Piper):
+                          {t('settings.local_tts_url', 'Local TTS server URL (OpenAI-compatible / Kokoro / Piper):')}
                         </label>
                         <input
                           type="text"
@@ -1003,13 +929,13 @@ export default function SettingsModal({
                           className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-900 dark:text-zinc-100 font-mono text-xs focus:ring-2 focus:ring-violet-500 focus:outline-none"
                         />
                         <p className="text-[10px] text-zinc-500 mt-1">
-                          Стандартный порт для kokoro-fastapi: <code>http://localhost:8880/v1/audio/speech</code>
+                          {t('settings.kokoro_port_note', 'Standard port for kokoro-fastapi:')} <code>http://localhost:8880/v1/audio/speech</code>
                         </p>
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-zinc-700 dark:text-zinc-300 mb-1">
-                          Имя голоса (Voice):
+                          {t('settings.voice_name', 'Voice name:')}
                         </label>
                         <div className="flex gap-2">
                           <input
@@ -1021,7 +947,7 @@ export default function SettingsModal({
                           />
                         </div>
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          <span className="text-[10px] text-zinc-400 self-center mr-1">Пресеты:</span>
+                          <span className="text-[10px] text-zinc-400 self-center mr-1">{t('settings.presets', 'Presets:')}</span>
                           {[
                             { name: "af_sarah (US ♀)", code: "af_sarah" },
                             { name: "am_adam (US ♂)", code: "am_adam" },
@@ -1049,15 +975,6 @@ export default function SettingsModal({
                   </div>
                 )}
 
-                {lessons.some(l => (l.targetLanguage || "").toLowerCase().includes("kaza") || (l.targetLanguage || "").toLowerCase().includes("қаза")) && (
-                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 rounded-2xl text-[11px] text-amber-800 dark:text-amber-300 flex gap-2.5">
-                    <span className="shrink-0 text-base leading-none">💡</span>
-                    <div className="leading-relaxed">
-                      <strong>Казахский язык (TTS):</strong> Бесплатный движок Google Translate TTS не поддерживает озвучку казахских слов (возвращает ошибку 400). Пожалуйста, выберите <strong>Gemini AI (Neural)</strong> (требуется настроенный API-ключ Gemini) или установите казахский голос в настройках ОС для работы <strong>Браузерной озвучки</strong> (например, Microsoft Aigul/Madi в Windows).
-                    </div>
-                  </div>
-                )}
-
                 {/* Accent / Locale Picker — always visible */}
                 {(() => {
                   const currentLocale = settings?.ttsLocale || "en-US";
@@ -1075,55 +992,55 @@ export default function SettingsModal({
                   };
                   const LOCALE_GROUPS = [
                     {
-                      lang: "Английский 🇺🇸🇬🇧",
+                      lang: t('settings.lang_english', 'English 🇺🇸🇬🇧'),
                       locales: [
-                        { code: "en-US", label: "🇺🇸 Американский (en-US)" },
-                        { code: "en-GB", label: "🇬🇧 Британский (en-GB)" },
-                        { code: "en-AU", label: "🇦🇺 Австралийский (en-AU)" },
-                        { code: "en-CA", label: "🇨🇦 Канадский (en-CA)" },
-                        { code: "en-IN", label: "🇮🇳 Индийский (en-IN)" },
+                        { code: "en-US", label: "🇺🇸 American (en-US)" },
+                        { code: "en-GB", label: "🇬🇧 British (en-GB)" },
+                        { code: "en-AU", label: "🇦🇺 Australian (en-AU)" },
+                        { code: "en-CA", label: "🇨🇦 Canadian (en-CA)" },
+                        { code: "en-IN", label: "🇮🇳 Indian (en-IN)" },
                       ],
                     },
                     {
-                      lang: "Испанский 🇪🇸🇲🇽",
+                      lang: t('settings.lang_spanish', 'Spanish 🇪🇸🇲🇽'),
                       locales: [
-                        { code: "es-US", label: "🇲🇽 Мексиканский (es-US)" },
-                        { code: "es-ES", label: "🇪🇸 Испанский (es-ES)" },
-                        { code: "es-AR", label: "🇦🇷 Аргентинский (es-AR)" },
+                        { code: "es-US", label: "🇲🇽 Mexican (es-US)" },
+                        { code: "es-ES", label: "🇪🇸 Spanish (es-ES)" },
+                        { code: "es-AR", label: "🇦🇷 Argentinian (es-AR)" },
                       ],
                     },
                     {
-                      lang: "Португальский 🇧🇷🇵🇹",
+                      lang: t('settings.lang_portuguese', 'Portuguese 🇧🇷🇵🇹'),
                       locales: [
-                        { code: "pt-BR", label: "🇧🇷 Бразильский (pt-BR)" },
-                        { code: "pt-PT", label: "🇵🇹 Европейский (pt-PT)" },
+                        { code: "pt-BR", label: "🇧🇷 Brazilian (pt-BR)" },
+                        { code: "pt-PT", label: "🇵🇹 European (pt-PT)" },
                       ],
                     },
                     {
-                      lang: "Французский 🇫🇷🇨🇦",
+                      lang: t('settings.lang_french', 'French 🇫🇷🇨🇦'),
                       locales: [
-                        { code: "fr-FR", label: "🇫🇷 Французский (fr-FR)" },
-                        { code: "fr-CA", label: "🇨🇦 Канадский (fr-CA)" },
+                        { code: "fr-FR", label: "🇫🇷 French (fr-FR)" },
+                        { code: "fr-CA", label: "🇨🇦 Canadian (fr-CA)" },
                       ],
                     },
                     {
-                      lang: "Китайский 🇨🇳🇹🇼",
+                      lang: t('settings.lang_chinese', 'Chinese 🇨🇳🇹🇼'),
                       locales: [
-                        { code: "zh-CN", label: "🇨🇳 Путунхуа (zh-CN)" },
-                        { code: "zh-TW", label: "🇹🇼 Тайваньский (zh-TW)" },
+                        { code: "zh-CN", label: "🇨🇳 Mandarin (zh-CN)" },
+                        { code: "zh-TW", label: "🇹🇼 Taiwanese (zh-TW)" },
                       ],
                     },
                     {
-                      lang: "Другие языки",
+                      lang: t('settings.lang_other', 'Other languages'),
                       locales: [
-                        { code: "de-DE", label: "🇩🇪 Немецкий (de-DE)" },
-                        { code: "it-IT", label: "🇮🇹 Итальянский (it-IT)" },
-                        { code: "ru-RU", label: "🇷🇺 Русский (ru-RU)" },
-                        { code: "uk-UA", label: "🇺🇦 Украинский (uk-UA)" },
-                        { code: "ja-JP", label: "🇯🇵 Японский (ja-JP)" },
-                        { code: "ko-KR", label: "🇰🇷 Корейский (ko-KR)" },
-                        { code: "tr-TR", label: "🇹🇷 Турецкий (tr-TR)" },
-                        { code: "ar-SA", label: "🇸🇦 Арабский (ar-SA)" },
+                        { code: "de-DE", label: "🇩🇪 German (de-DE)" },
+                        { code: "it-IT", label: "🇮🇹 Italian (it-IT)" },
+                        { code: "ru-RU", label: "🇷🇺 Russian (ru-RU)" },
+                        { code: "uk-UA", label: "🇺🇦 Ukrainian (uk-UA)" },
+                        { code: "ja-JP", label: "🇯🇵 Japanese (ja-JP)" },
+                        { code: "ko-KR", label: "🇰🇷 Korean (ko-KR)" },
+                        { code: "tr-TR", label: "🇹🇷 Turkish (tr-TR)" },
+                        { code: "ar-SA", label: "🇸🇦 Arabic (ar-SA)" },
                       ],
                     },
                   ];
@@ -1132,7 +1049,7 @@ export default function SettingsModal({
                       <div className="flex items-center gap-2">
                         <span className="text-base">🌍</span>
                         <span className="text-[11px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                          Акцент / Диалект Google TTS
+                          {t("settings.tts_accent", "Accent / Google TTS Dialect")}
                         </span>
                         <span className="ml-auto text-[10px] font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 px-2 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
                           {currentLocale}
@@ -1185,10 +1102,10 @@ export default function SettingsModal({
                     </div>
                     <div>
                       <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                        Настройки ИИ (AI Provider)
+                        {t("settings.ai_title", "AI Settings (AI Provider)")}
                       </h4>
                       <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                        Выберите, какую нейросеть использовать для перевода, объяснения грамматики, идиом и генерации историй.
+                        {t("settings.ai_desc", "Select which AI network to use for translation, grammar explanations, idioms, and story generation.")}
                       </p>
                     </div>
                   </div>
@@ -1210,7 +1127,7 @@ export default function SettingsModal({
                             Gemini AI
                           </span>
                           <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 leading-normal">
-                            Использует облачную модель Google Gemini.
+                            {t("settings.ai_gemini_desc", "Uses Google Gemini cloud model.")}
                           </p>
                         </div>
                       </div>
@@ -1229,10 +1146,10 @@ export default function SettingsModal({
                         <span className="text-xl shrink-0">💻</span>
                         <div className="flex-1 min-w-0">
                           <span className={`text-sm font-black block ${ (settings?.aiProvider || "gemini") === "local" ? "text-teal-700 dark:text-teal-300" : "text-zinc-800 dark:text-zinc-100" }`}>
-                            Локальный ИИ
+                            {t("settings.ai_local_label", "Local AI")}
                           </span>
                           <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 leading-normal">
-                            Запросы отправляются на локальный Ollama сервер.
+                            {t("settings.ai_local_desc", "Requests are sent to a local Ollama server.")}
                           </p>
                         </div>
                       </div>
@@ -1243,7 +1160,7 @@ export default function SettingsModal({
                     <div className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-4 shadow-3xs animate-in fade-in duration-150">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                          Адрес локального сервера (Ollama URL)
+                          {t("settings.ai_server_url", "Local server URL (Ollama URL)")}
                         </label>
                         <input
                           type="text"
@@ -1265,7 +1182,7 @@ export default function SettingsModal({
 
                       <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                          Название модели (Model name)
+                          {t("settings.ai_model_name", "Model name")}
                         </label>
                         <input
                           type="text"
@@ -1287,10 +1204,10 @@ export default function SettingsModal({
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                        Детальная статистика на карточках
+                        {t("settings.detailed_stats", "Detailed stats on book cards")}
                       </h4>
                       <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                        Показывать раздельную статистику понимания (по общей массе слов) и словарного запаса (по уникальным леммам) на карточках книг.
+                        {t("settings.detailed_stats_desc", "Show separate comprehension stats (by total words) and vocabulary stats (by unique lemmas) on book cards.")}
                       </p>
                     </div>
                   </div>
@@ -1298,7 +1215,7 @@ export default function SettingsModal({
                   <div className="flex flex-col gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                        Включить детальную статистику (Словарь и Новые %)
+                        {t("settings.enable_detailed", "Enable detailed stats (Vocabulary & New %)")}
                       </span>
                       <button
                         type="button"
@@ -1319,7 +1236,7 @@ export default function SettingsModal({
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                        Показывать на главной полоске карточки:
+                        {t("settings.main_stat_label", "Show on the main book card bar:")}
                       </span>
                       <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 font-sans shrink-0">
                         <button
@@ -1330,9 +1247,9 @@ export default function SettingsModal({
                               ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                               : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                           }`}
-                          title="Показывать процент понимания по общей массе слов"
+                          title={t("settings.show_comprehension", "Show comprehension percentage by total words")}
                         >
-                          Понятно
+                          {t("settings.understood_label", "Understood")}
                         </button>
                         <button
                           type="button"
@@ -1342,9 +1259,9 @@ export default function SettingsModal({
                               ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                               : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                           }`}
-                          title="Показывать процент уникального словарного запаса"
+                          title={t("settings.show_vocabulary", "Show unique vocabulary percentage")}
                         >
-                          Словарь
+                          {t("settings.vocab_label", "Vocabulary")}
                         </button>
                       </div>
                     </div>
@@ -1363,10 +1280,10 @@ export default function SettingsModal({
                 </div>
                 <div>
                   <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight mb-1">
-                    Связи слов (Морфологические Паттерны)
+                    {t("settings.word_links_title", "Word Links (Morphological Patterns)")}
                   </h4>
                   <p className="text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
-                    Здесь вы можете увидеть и удалить ранее настроенные связи словоформ (например, <span className="font-mono bg-zinc-100 dark:bg-zinc-950 px-1 py-0.5 rounded">zorros ➔ zorro</span>). Связанные слова делят перевод и статистику, предотвращая дублирование в словаре.
+                    {t("settings.word_links_desc", "Here you can view and delete previously configured word form links (e.g., zorros ➔ zorro). Linked words share translations and stats, preventing duplicates in the dictionary.")}
                   </p>
                 </div>
               </div>
@@ -1384,10 +1301,10 @@ export default function SettingsModal({
                       <div className="text-center py-14 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-zinc-400">
                         <span className="text-3xl block mb-2 opacity-60 filter grayscale">🔗</span>
                         <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
-                          Связанные слова не найдены
+                          {t("settings.no_word_links", "No word links found")}
                         </p>
                         <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-2 leading-relaxed max-w-sm mx-auto font-medium">
-                          Вы можете связать производные морфологические формы с их корнем на панели разбора слова во время чтения уроков.
+                          {t("settings.no_word_links_desc", "You can link morphological forms to their root in the word panel while reading.")}
                         </p>
                       </div>
                     );
@@ -1406,7 +1323,7 @@ export default function SettingsModal({
                         const tUnderscoreIdx = targetKey.indexOf("_");
                         const dstWord = tUnderscoreIdx !== -1 ? targetKey.substring(tUnderscoreIdx + 1) : targetKey;
 
-                        const flag = languageFlags[lang.toLowerCase()] || DEFAULT_FALLBACK_FLAGS[lang.toLowerCase()] || "📖";
+                        const flag = (languageFlags[lang.toLowerCase()] && languageFlags[lang.toLowerCase()] !== "📖") ? languageFlags[lang.toLowerCase()] : (DEFAULT_FALLBACK_FLAGS[lang.toLowerCase()] || "🇵🇹");
 
                         return (
                           <div 
@@ -1433,12 +1350,12 @@ export default function SettingsModal({
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm(`Вы действительно хотите удалить связь для слова "${srcWord}" ➔ "${dstWord}"?`)) {
+                                if (confirm(t("settings.confirm_delete_link", `Are you sure you want to delete the link for "${srcWord}" ➔ "${dstWord}"?`))) {
                                   onDeleteWordLink(key);
                                 }
                               }}
                               className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/35 rounded-lg transition-colors cursor-pointer shrink-0"
-                              title="Удалить паттерн связи"
+                              title={t("settings.delete_link", "Delete link pattern")}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1459,7 +1376,7 @@ export default function SettingsModal({
               {/* Part 1: Choose active database system */}
               <div className="space-y-3">
                 <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
-                  Текущий режим хранения данных
+                  {t("settings.current_storage_mode", "Current data storage mode")}
                 </label>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   {/* Option A: Local Storage */}
@@ -1481,17 +1398,17 @@ export default function SettingsModal({
                       </div>
                       <div>
                         <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white flex items-center gap-1.5">
-                          Локальный браузер
+                          {t('settings.local_browser', 'Local Browser')}
                           {storageMode === "local" && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />}
                         </h4>
                         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                          Данные хранятся локально в кэше вашего браузера. Высокая скорость работы, 100% приватность, доступность без интернета.
+                          {t('settings.local_desc', 'Data is stored locally in your browser cache. High performance, 100% privacy, offline access.')}
                         </p>
                       </div>
                     </div>
                     {storageMode === "local" && (
                       <div className="mt-3 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Активен: Локальное хранение
+                        <Check className="w-3.5 h-3.5" /> {t('settings.active_local', 'Active: Local Storage')}
                       </div>
                     )}
                   </div>
@@ -1515,41 +1432,41 @@ export default function SettingsModal({
                       </div>
                       <div>
                         <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white flex items-center gap-1.5">
-                          По локальной сети (Wi-Fi)
+                          {t('settings.local_network', 'Local Network (Wi-Fi)')}
                           {storageMode === "server" && <span className="w-2 h-2 bg-sky-500 rounded-full animate-ping" />}
                         </h4>
                         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                          <strong>Рекомендуется для ПК + Планшета!</strong> Сохраняет данные на запущенный сервер. Все ваши устройства видят одни книги и слова без интернета.
+                          {t("settings.server_desc", "Recommended for PC + Tablet! Saves data to the running server. All your devices share the same books and words without internet.")}
                         </p>
                       </div>
                     </div>
                     {storageMode === "server" ? (
                       <div className="mt-3">
                         <div className="text-[10px] font-black uppercase text-sky-600 dark:text-sky-400 flex items-center gap-1">
-                          <Check className="w-3.5 h-3.5" /> Активен: Локальный Сервер
+                          <Check className="w-3.5 h-3.5" /> {t("settings.active_server", "Active: Local Server")}
                         </div>
                         
                         {activeUser ? (
                           <div className="mt-3 pt-3 border-t border-zinc-100/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
                             <div className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
-                              Авторизован как <span className="text-zinc-800 dark:text-zinc-200">{activeUser.displayName || activeUser.email}</span>
+                              {t("settings.authorized_as", "Authorized as")} <span className="text-zinc-800 dark:text-zinc-200">{activeUser.displayName || activeUser.email}</span>
                             </div>
                           </div>
                         ) : (
                           <div className="mt-3 pt-3 border-t border-zinc-100/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
                             <label className="text-[9px] font-bold uppercase text-zinc-400 dark:text-zinc-500 block mb-1">
-                              Ключ авторизации (пароль)
+                              {t("settings.auth_key", "Authorization key (password)")}
                             </label>
                             <input
                               type="password"
                               value={localSyncKey}
                               onChange={(e) => onLocalSyncKeyChange(e.target.value)}
-                              placeholder="Секретный ключ..."
+                              placeholder={t("settings.secret_key", "Secret key...")}
                               className="w-full px-3 py-1.5 text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-sky-500 text-zinc-800 dark:text-zinc-200"
                             />
                             {localSyncError && (
                               <div className="text-[10px] text-red-500 font-semibold mt-1">
-                                ⚠️ Неверный ключ или доступ запрещен!
+                                {t("settings.wrong_key", "⚠️ Invalid key or access denied!")}
                               </div>
                             )}
                           </div>
@@ -1557,7 +1474,7 @@ export default function SettingsModal({
                       </div>
                     ) : (
                       <div className="mt-3 text-[10px] font-medium text-zinc-400 dark:text-zinc-400">
-                        Нажмите, чтобы включить
+                        {t("settings.click_to_enable", "Click to enable")}
                       </div>
                     )}
                   </div>
@@ -1581,10 +1498,10 @@ export default function SettingsModal({
                       </div>
                       <div>
                         <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white">
-                          Облако Google Firebase
+                          {t('settings.cloud_firebase', 'Google Firebase Cloud')}
                         </h4>
                         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                          Синхронизируются на телефонах, планшетах и ПК при авторизации. Требует интернет-соединения и OAuth-разрешения.
+                          {t("settings.cloud_desc", "Syncs on phones, tablets and PCs when logged in. Requires internet and OAuth permissions.")}
                         </p>
                       </div>
                     </div>
@@ -1592,17 +1509,17 @@ export default function SettingsModal({
                       <div className="mt-3 text-[10px] font-black uppercase text-teal-600 dark:text-teal-400 flex items-center gap-1">
                         {firebaseUser ? (
                           <>
-                            <Check className="w-3.5 h-3.5" /> Синхронизация: {firebaseUser.email}
+                            <Check className="w-3.5 h-3.5" /> {t("settings.syncing_as", "Syncing:")}: {firebaseUser.email}
                           </>
                         ) : (
                           <span className="text-amber-500 text-[10px] lowercase leading-tight block">
-                            ⚠️ Требуется вход в аккаунт через кнопку "Войти" на верхней панели
+                            {t("settings.login_required", "⚠️ Login required via the 'Sign In' button on the top bar")}
                           </span>
                         )}
                       </div>
                     ) : (
                       <div className="mt-3 text-[10px] font-medium text-zinc-400">
-                        Нажмите, чтобы включить облако
+                        {t("settings.click_to_enable_cloud", "Click to enable cloud")}
                       </div>
                     )}
                   </div>
@@ -1614,12 +1531,12 @@ export default function SettingsModal({
                 <div className="flex items-center gap-2">
                   <Save className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                   <h4 className="text-xs sm:text-sm font-black text-zinc-800 dark:text-white uppercase tracking-wider">
-                    Резервные копии на диске (Local Backups)
+                    {t('settings.local_backups', 'Disk Backups (Local Backups)')}
                   </h4>
                 </div>
                 
                 <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">
-                  Вы можете скачать полную копию всей вашей библиотеки, словаря иностранных слов, связей и набранной статистики в виде одного файла резервной копии <span className="font-mono text-zinc-600 bg-zinc-100 dark:bg-zinc-950/50 px-1 py-0.5 rounded">.json</span>. Вы также можете в любой момент загрузить этот файл обратно, чтобы восстановить свой прогресс.
+                  {t("settings.backup_desc", "You can download a full copy of your entire library, vocabulary, links and stats as a single .json backup file. You can also restore this file at any time to recover your progress.")}
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1.5">
@@ -1628,10 +1545,10 @@ export default function SettingsModal({
                     type="button"
                     onClick={handleExportDataLocal}
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-xs rounded-xl transition duration-150 cursor-pointer shadow-3xs"
-                    title="Экспортировать базу на компьютер"
+                    title={t("settings.export_title", "Export database to computer")}
                   >
                     <Download className="w-4 h-4 text-teal-500" />
-                    <span>Скачать копию (.json)</span>
+                    <span>{t('settings.download_json', 'Download backup (.json)')}</span>
                   </button>
 
                   {/* Import Button */}
@@ -1647,10 +1564,10 @@ export default function SettingsModal({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold text-xs rounded-xl transition duration-150 cursor-pointer shadow-3xs"
-                      title="Загрузить резервную копию с компьютера"
+                      title={t("settings.import_title", "Upload backup from computer")}
                     >
                       <Upload className="w-4 h-4 text-emerald-500" />
-                      <span>Восстановить из файла</span>
+                      <span>{t('settings.restore_json', 'Restore from file')}</span>
                     </button>
                   </div>
                 </div>
@@ -1671,26 +1588,26 @@ export default function SettingsModal({
                 <div className="flex items-center gap-2">
                   <Wifi className="w-4 h-4 text-sky-500" />
                   <h4 className="text-xs sm:text-sm font-black text-zinc-800 dark:text-white uppercase tracking-wider">
-                    Быстрый перенос по локальной сети Wi-Fi (В обе стороны)
+                    {t('settings.wifi_transfer', 'Wi-Fi Local Transfer (Two-way)')}
                   </h4>
                 </div>
                 
                 <p className="text-[11px] text-zinc-500 leading-relaxed font-semibold">
-                  Вы можете передавать ваши данные в любую сторону! Если вы пометили новые слова на планшете, просто сгенерируйте PIN-код на планшете и введите его на компьютере. Все ваши книги, слова и статистика синхронизируются мгновенно.
+                  {t("settings.wifi_desc", "Transfer data in either direction! Generate a PIN on the sending device and enter it on the receiving device. Your books, words and stats sync instantly.")}
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1.5">
                   {/* Sender side */}
                   <div className="p-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5">
                     <span className="text-[9px] font-black uppercase text-zinc-400 block tracking-wider">
-                      Шаг 1: Экспорт (Устройство-Отправитель)
+                      {t("settings.step1_export", "Step 1: Export (Sender Device)")}
                     </span>
                     <p className="text-[10px] text-zinc-500 leading-tight">
-                      Сгенерируйте временный PIN-код на устройстве, с которого хотите передать обновленный словарь.
+                      {t("settings.step1_desc", "Generate a temporary PIN on the device you want to transfer your vocabulary from.")}
                     </p>
                     {wifiSyncPin ? (
                       <div className="p-2.5 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900 text-center rounded-xl space-y-1">
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 block">Ваш код Wi-Fi PIN:</span>
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block">{t("settings.your_wifi_pin", "Your Wi-Fi PIN code:")}</span>
                         <div className="text-2xl font-black tracking-widest text-teal-600 dark:text-teal-400 font-mono">
                           {wifiSyncPin}
                         </div>
@@ -1698,11 +1615,11 @@ export default function SettingsModal({
                           type="button"
                           onClick={() => {
                             navigator.clipboard.writeText(wifiSyncPin);
-                            showToast("Код скопирован в буфер обмена", "success");
+                            showToast(t("settings.code_copied", "Code copied to clipboard"), "success");
                           }}
                           className="text-[9px] text-teal-600 dark:text-teal-400 underline font-bold cursor-pointer"
                         >
-                          Скопировать код
+                          {t("settings.copy_code", "Copy code")}
                         </button>
                       </div>
                     ) : (
@@ -1713,7 +1630,7 @@ export default function SettingsModal({
                         className="w-full py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-extrabold text-xs rounded-xl transition duration-150 cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${wifiSyncLoading ? "animate-spin" : ""}`} />
-                        <span>{wifiSyncLoading ? "Подготовка..." : "Сгенерировать Код PIN"}</span>
+                        <span>{wifiSyncLoading ? t("settings.preparing", "Preparing...") : t("settings.generate_pin", "Generate PIN Code")}</span>
                       </button>
                     )}
                   </div>
@@ -1722,10 +1639,10 @@ export default function SettingsModal({
                   <div className="p-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 flex flex-col justify-between">
                     <div className="space-y-1.5">
                       <span className="text-[9px] font-black uppercase text-zinc-400 block tracking-wider">
-                        Шаг 2: Импорт (Устройство-Получатель)
+                        {t("settings.step2_import", "Step 2: Import (Receiver Device)")}
                       </span>
                       <p className="text-[10px] text-zinc-500 leading-tight">
-                        Введите этот код на другом устройстве для получения и объединения всех изменений.
+                        {t("settings.step2_desc", "Enter this code on another device to receive and merge all changes.")}
                       </p>
                     </div>
 
@@ -1744,7 +1661,7 @@ export default function SettingsModal({
                         onClick={handleLocalWifiRetrieve}
                         className="px-4 py-1.5 bg-sky-500 hover:bg-sky-600 disabled:bg-zinc-100 dark:disabled:bg-zinc-800 text-white disabled:text-zinc-400 font-extrabold text-xs rounded-lg transition duration-155 cursor-pointer flex items-center gap-1 shrink-0"
                       >
-                        {wifiSyncLoading ? "Связь..." : "Принять"}
+                        {wifiSyncLoading ? t("settings.connecting", "Connecting...") : t("settings.receive", "Receive")}
                       </button>
                     </div>
                   </div>
@@ -1766,10 +1683,10 @@ export default function SettingsModal({
                 <div className="p-4 rounded-xl border border-teal-200/50 bg-teal-50/10 dark:border-teal-900 dark:bg-teal-950/10 flex flex-col sm:flex-row items-center justify-between gap-3.5">
                   <div className="space-y-1 sm:max-w-md text-center sm:text-left">
                     <span className="text-[9px] font-black uppercase text-teal-600 dark:text-teal-400 block tracking-widest">
-                      Синхронизация с облаком (Cloud Push)
+                      {t("settings.cloud_push", "Cloud Sync (Cloud Push)")}
                     </span>
                     <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight font-medium">
-                      Загрузить все текущие локальные материалы вашей библиотеки непосредственно в ваше облачное хранилище Firebase. Это объединит данные.
+                      {t("settings.cloud_push_desc", "Upload all current local library materials directly to your Firebase cloud storage. This will merge your data.")}
                     </p>
                   </div>
                   <button
@@ -1778,18 +1695,18 @@ export default function SettingsModal({
                     onClick={async () => {
                       if (onManualSync) {
                         try {
-                          setSyncStatus("Синхронизация...");
+                          setSyncStatus(t("settings.syncing", "Syncing..."));
                           await onManualSync();
-                          setSyncStatus("Готово! Данные в облаке защищены.");
+                          setSyncStatus(t("settings.sync_done", "Done! Data is safe in the cloud."));
                         } catch (e: any) {
-                          setSyncStatus(`Ошибка: ${e.message || String(e)}`);
+                          setSyncStatus(`Error: ${e.message || String(e)}`);
                         }
                       }
                     }}
                     className="shrink-0 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-3xs"
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    {isSyncing ? "Синхронизация..." : syncStatus || "Форсировать Cloud Sync"}
+                    {isSyncing ? t("settings.syncing", "Syncing...") : syncStatus || t("settings.force_sync", "Force Cloud Sync")}
                   </button>
                 </div>
               )}
@@ -1799,30 +1716,30 @@ export default function SettingsModal({
                 <div className="flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-red-500 animate-pulse" />
                   <span className="text-[10px] font-black uppercase bg-red-500/10 dark:bg-red-500/20 text-red-650 dark:text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full tracking-widest leading-none">
-                    Опасная зона (Danger Area)
+                    {t('settings.danger_zone', 'Danger Area')}
                   </span>
                 </div>
                 
                 <p className="text-zinc-500 dark:text-zinc-400 text-[11px] leading-relaxed font-medium">
-                  При нажатии на кнопку ниже ВСЕ ваши локально сохраненные материалы (уроки, слова в словаре, учебные связи и накопленная статистика) будут БЕЗВОЗВРАТНО стерты с этого компьютера. Рекомендуется сначала скачать копию в формате JSON.
+                  {t("settings.danger_desc", "Clicking the button below will PERMANENTLY delete ALL your locally saved materials (lessons, vocabulary, word links and accumulated stats) from this computer. It is recommended to download a JSON backup first.")}
                 </p>
 
                 <button 
                   type="button"
                   onClick={() => {
-                    if (confirm("ВНИМАНИЕ! Вы утеряете весь локальный прогресс. Вы точно хотите стереть все уроки, слова, и статистику с этого компьютера?")) {
-                      if (confirm("Вы абсолютно уверены? Это действие сотрет все локальные данные в вашем браузере. Данные в облаке останутся целыми (если залогинены в Cloud mode). Стереть локальный кэш?")) {
+                    if (confirm(t('settings.confirm_delete_all', 'WARNING! You will lose all local progress. Are you sure you want to delete all lessons, words and stats from this computer?'))) {
+                      if (confirm(t('settings.confirm_delete_all2', 'Absolutely sure? This will erase all local data in your browser. Cloud data will remain intact (if logged in to Cloud mode). Erase local cache?'))) {
                         onClearAllData();
                         setImportStatus({
                           type: "success",
-                          message: "Локальный кэш полностью очищен! Локальная библиотека сброшена."
+                          message: t("settings.cache_cleared", "Local cache fully cleared! Local library has been reset.")
                         });
                       }
                     }
                   }}
                   className="px-4 py-2 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 hover:text-red-700 text-red-600 font-extrabold text-[11px] rounded-xl border border-red-200/50 dark:border-red-900/40 transition duration-150 cursor-pointer shadow-3xs"
                 >
-                  Удалить все локальные данные с устройства
+                  {t('settings.delete_all_local', 'Delete all local data from device')}
                 </button>
               </div>
 
@@ -1838,7 +1755,7 @@ export default function SettingsModal({
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm("Вы уверены, что хотите сбросить все настроенные флаги на стандартные значения?")) {
+                  if (confirm(t('settings.confirm_reset_flags', 'Are you sure you want to reset all configured flags to their default values?'))) {
                     onResetLanguageFlags();
                     setCustomInputs({});
                     onClose();
@@ -1846,7 +1763,7 @@ export default function SettingsModal({
                 }}
                 className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400 px-3 py-1.5 hover:bg-red-50/55 dark:hover:bg-red-950/20 rounded-xl transition"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Сбросить флаги (Reset)
+                <RotateCcw className="w-3.5 h-3.5" /> {t("settings.reset_flags", "Reset flags (Reset)")}
               </button>
             ) : activeSettingsTab === "interface" ? (
               <button
@@ -1856,15 +1773,15 @@ export default function SettingsModal({
                 }}
                 className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Сбросить масштаб (100%)
+                <RotateCcw className="w-3.5 h-3.5" /> {t("settings.reset_zoom_btn", "Reset zoom (100%)")}
               </button>
             ) : activeSettingsTab === "storage" ? (
               <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest font-mono flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 px-2.5 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
-                Режим: <span className="text-teal-600 dark:text-teal-400 font-black">{storageMode === "cloud" ? "ОБЛАКО ☁️" : storageMode === "server" ? "СЕРВЕР 🖥️" : "ЛОКАЛЬНЫЙ 💻"}</span>
+                {t("settings.mode_label", "Mode:")} <span className="text-teal-600 dark:text-teal-400 font-black">{storageMode === "cloud" ? t("settings.mode_cloud", "CLOUD ☁️") : storageMode === "server" ? t("settings.mode_server", "SERVER 🖥️") : t("settings.mode_local", "LOCAL 💻")}</span>
               </div>
             ) : (
               <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest font-mono">
-                Связей в базе: {Object.keys(wordLinks).filter(k => k.includes("_")).length}
+                {t("settings.links_count", "Word links in DB:")} {Object.keys(wordLinks).filter(k => k.includes("_")).length}
               </div>
             )}
 
@@ -1878,7 +1795,7 @@ export default function SettingsModal({
             onClick={onClose}
             className="px-5 py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <Check className="w-4 h-4" /> Готово
+            <Check className="w-4 h-4" /> {t('settings.done', 'Done')}
           </button>
         </div>
 

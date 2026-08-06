@@ -37,7 +37,7 @@ export default function AppHeader({
   isSyncing
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   if (isFocusMode) return null;
 
@@ -88,6 +88,18 @@ export default function AppHeader({
 
         {/* Right side: Sync State & Login/Logout HUD */}
         <div className="flex items-center gap-2">
+          {/* Language Toggle Button */}
+          <button
+            onClick={() => {
+              const newLang = i18n.language.startsWith('en') ? 'ru' : 'en';
+              i18n.changeLanguage(newLang);
+            }}
+            className="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-teal-600 dark:text-teal-400 border-zinc-200/60 dark:border-zinc-800/80 font-bold text-xs uppercase"
+            title={i18n.language.startsWith('en') ? t('header.switch_to_ru', 'Switch to Russian') : t('header.switch_to_en', 'Switch to English')}
+          >
+            {i18n.language.startsWith('en') ? 'EN' : 'RU'}
+          </button>
+
           {/* Dark Mode Toggle Button */}
           <button
             id="btn-toggle-dark-mode"

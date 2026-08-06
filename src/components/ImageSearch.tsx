@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Trash2, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { safeJsonParse } from "../utils";
 
 interface ImageSearchProps {
@@ -17,7 +18,8 @@ export default function ImageSearch({
   handleClipboardPaste,
   handleFileChange,
 }: ImageSearchProps) {
-  const [imageSearchKeyword, setImageSearchKeyword] = useState("");
+  const { t } = useTranslation();
+  const [imageSearchKeyword, setImageSearchKeyword] = useState(word || "");
   const [imagesList, setImagesList] = useState<{ id: string; url: string; thumb: string; author: string; description: string }[]>([]);
   const [imagesLoading, setImagesLoading] = useState(false);
   const [imageSearchError, setImageSearchError] = useState<string | null>(null);
@@ -41,10 +43,20 @@ export default function ImageSearch({
     }
   };
 
+  useEffect(() => {
+    const query = (word || "").trim();
+    setImageSearchKeyword(query);
+    if (query) {
+      handleSearchImages(query);
+    } else {
+      setImagesList([]);
+    }
+  }, [word]);
+
   return (
     <div className="p-2.5 bg-zinc-50/75 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 animate-in slide-in-from-top-1 duration-150 font-sans">
       <span className="text-[9px] uppercase font-extrabold text-zinc-400 dark:text-zinc-500 tracking-wider flex items-center gap-1.5 pl-0.5">
-        <span className="text-teal-600">🖼️</span> Изображение слова (Word Image)
+        <span className="text-teal-600">🖼️</span> {t('explainer.word_image', 'Word Image')}
       </span>
 
       {/* Selected Image Preview with delete handle */}
@@ -62,13 +74,13 @@ export default function ImageSearch({
               onClick={() => handleSelectImage(null)}
               className="px-2.5 py-1 bg-red-650 text-white rounded-lg text-[10px] font-bold hover:bg-red-700 cursor-pointer shadow-sm transition-colors flex items-center gap-1"
             >
-              <Trash2 className="w-3 h-3" /> Удалить (Remove)
+              <Trash2 className="w-3 h-3" /> {t('explainer.remove_image', 'Remove')}
             </button>
           </div>
         </div>
       ) : (
         <div className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-normal border border-dashed border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-lg font-medium bg-white dark:bg-zinc-900/40">
-          Изображение не выбрано. Выберите ниже или вставьте картинку.
+          {t('explainer.no_image_selected', 'No image selected. Choose below or paste an image.')}
         </div>
       )}
 
@@ -81,12 +93,12 @@ export default function ImageSearch({
           title="Click here, then press Ctrl+V (or Command+V) to paste any copied image from your clipboard!"
         >
           <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">Paste clipboard</span>
-          <span className="text-[9.5px] mt-0.5 font-bold">Нажмите и вставьте Ctrl+V</span>
+          <span className="text-[9.5px] mt-0.5 font-bold">{t('explainer.paste_image', 'Click & Paste Ctrl+V')}</span>
         </div>
 
         <label className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12">
           <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">File upload</span>
-          <span className="text-[9.5px] mt-0.5 font-bold">Загрузить файл (Upload)</span>
+          <span className="text-[9.5px] mt-0.5 font-bold">{t('explainer.upload_image', 'Upload file')}</span>
           <input
             type="file"
             accept="image/*"
@@ -116,18 +128,18 @@ export default function ImageSearch({
           onClick={() => handleSearchImages(imageSearchKeyword)}
           className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-md text-[11px] font-bold shrink-0 transition-colors cursor-pointer"
         >
-          Поиск
+          {t('explainer.search_btn', 'Search')}
         </button>
       </div>
 
       {/* Searched Results Horizontal Grid */}
       <div className="space-y-1 w-full">
-        <span className="text-[8.5px] uppercase font-extrabold tracking-widest text-zinc-400 dark:text-zinc-500">Результаты поиска Unsplash:</span>
+        <span className="text-[8.5px] uppercase font-extrabold tracking-widest text-zinc-400 dark:text-zinc-500">{t('explainer.unsplash_results', 'Unsplash Search Results:')}</span>
         
         {imagesLoading ? (
           <div className="py-4 flex items-center justify-center gap-2 text-zinc-400 dark:text-zinc-500 font-bold text-[10px]">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
-            <span>Ищем картинки...</span>
+            <span>{t('explainer.searching_images', 'Searching images...')}</span>
           </div>
         ) : imageSearchError ? (
           <div className="text-[10px] text-rose-500 py-1 font-bold text-center">
@@ -170,7 +182,7 @@ export default function ImageSearch({
           </div>
         ) : (
           <div className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center py-2 font-medium">
-            Нет картинок. Попробуйте другой запрос.
+            {t('explainer.no_images_found', 'No images found. Try another query.')}
           </div>
         )}
       </div>
