@@ -458,6 +458,16 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           }
         }
 
+        const existingLesson = db.prepare("SELECT isArchived, pinned FROM lessons WHERE id = ?").get(l.id) as any;
+        let finalIsArchived = l.isArchived ? 1 : 0;
+        let finalPinned = l.pinned ? 1 : 0;
+        if (l.isArchived === undefined && existingLesson) {
+          finalIsArchived = existingLesson.isArchived || 0;
+        }
+        if (l.pinned === undefined && existingLesson) {
+          finalPinned = existingLesson.pinned || 0;
+        }
+
         insertLesson.run(
           l.id,
           l.title,
@@ -467,11 +477,11 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           l.targetLanguage,
           l.translationLanguage,
           l.isBuiltIn ? 1 : 0,
-          l.isArchived ? 1 : 0,
+          finalIsArchived,
           l.coverUrl || null,
           l.youtubeId || null,
           l.lessonType || null,
-          l.pinned ? 1 : 0,
+          finalPinned,
           l.translationText || null,
           JSON.stringify(l.detectedPhrases || {}),
           l.difficulty || null,
