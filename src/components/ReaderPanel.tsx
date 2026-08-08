@@ -56,17 +56,118 @@ const fontFamilyMap = {
   mono: "font-mono",
 };
 
-const themeMap = {
-  default: "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border-zinc-100 dark:border-zinc-800/80",
-  cream: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8]",
-  sepia: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3]",
-  slate: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
+interface ReaderThemeStyles {
+  container: string;
+  barBg: string;
+  pillBg: string;
+  subBadgeBg: string;
+  divider: string;
+  subText: string;
+}
+
+const themeMap: Record<string, ReaderThemeStyles> = {
+  default: {
+    container: "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border-zinc-100 dark:border-zinc-800/80",
+    barBg: "bg-transparent border border-zinc-200/80 dark:border-zinc-800/80",
+    pillBg: "bg-transparent text-zinc-800 dark:text-zinc-200",
+    subBadgeBg: "bg-zinc-100/60 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400",
+    divider: "border-zinc-200/80 dark:border-zinc-800/80",
+    subText: "text-zinc-600 dark:text-zinc-400",
+  },
+  cream: {
+    container: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8]",
+    barBg: "bg-transparent border border-[#eddcb9]",
+    pillBg: "bg-transparent text-[#3b2b1a]",
+    subBadgeBg: "bg-[#f5ebd6] text-[#523d24]",
+    divider: "border-[#eddcb9]",
+    subText: "text-[#523d24]",
+  },
+  sepia: {
+    container: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3]",
+    barBg: "bg-transparent border border-[#e0cea1]",
+    pillBg: "bg-transparent text-[#432d16]",
+    subBadgeBg: "bg-[#ebdcae] text-[#593d1f]",
+    divider: "border-[#e0cea1]",
+    subText: "text-[#593d1f]",
+  },
+  slate: {
+    container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
+    barBg: "bg-transparent border border-slate-200 dark:border-slate-800",
+    pillBg: "bg-transparent text-slate-800 dark:text-slate-100",
+    subBadgeBg: "bg-slate-200/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+    divider: "border-slate-200 dark:border-slate-800",
+    subText: "text-slate-700 dark:text-slate-300",
+  },
 };
 
 const widthMap = {
   narrow: "max-w-xl mx-auto",
   medium: "max-w-3xl mx-auto",
   wide: "max-w-5xl mx-auto",
+};
+
+const getWordStatusClass = (
+  status: string,
+  _theme: string = "default",
+  hasWordLink: boolean = false,
+  isPhrase: boolean = false,
+  hasIdiomUnderline: boolean = false
+): string => {
+  const isDotted = hasWordLink;
+  const baseRounding = isPhrase ? "rounded px-1" : "rounded-md px-1 py-[1.5px]";
+
+  if (status === "ignored" || status === "known") {
+    return `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer ${baseRounding} transition-colors font-normal`;
+  }
+
+  if (status === "1") {
+    const borderClass = hasIdiomUnderline
+      ? ""
+      : isDotted
+      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
+      : "border-b-2 border-[#f3a4b0]";
+    return `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+  }
+
+  if (status === "2") {
+    const borderClass = hasIdiomUnderline
+      ? ""
+      : isDotted
+      ? "border-b-2 border-dotted border-amber-700 dark:border-amber-300"
+      : "border-b-2 border-[#f0d46d]";
+    return `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+  }
+
+  if (status === "3" || (status as any) === "learning") {
+    const borderClass = hasIdiomUnderline
+      ? ""
+      : isDotted
+      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
+      : "border-b-2 border-[#a6d896]";
+    return `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 ${baseRounding} font-medium ${borderClass} cursor-pointer transition-colors`;
+  }
+
+  if (status === "4") {
+    const borderClass = hasIdiomUnderline
+      ? ""
+      : isDotted
+      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
+      : "border-b-2 border-[#204bf4] dark:border-blue-400";
+    return `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+  }
+
+  if (status === "5") {
+    const borderClass = hasIdiomUnderline
+      ? ""
+      : isDotted
+      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
+      : "border-b-2 border-[#a882dd] dark:border-purple-400";
+    return `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+  }
+
+  // Status 0 / default (New / Unknown word)
+  const borderClass = isDotted ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400" : "";
+  return `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 ${baseRounding} ${borderClass} cursor-pointer transition-colors`;
 };
 
 const getPhraseTypeLabel = (type: string | undefined, t: any) => {
@@ -519,7 +620,7 @@ function ReaderPanel({
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
-    <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme}`}>
+    <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-200/50 dark:bg-zinc-800/50">
@@ -530,7 +631,7 @@ function ReaderPanel({
         </div>
       )}
 
-      <div className="pb-4 border-b border-zinc-200/60 dark:border-zinc-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <div className={`pb-4 border-b ${currentTheme.divider} flex flex-col xl:flex-row xl:items-center justify-between gap-4`}>
         <div>
           <div className="flex items-center gap-3.5">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
@@ -548,7 +649,7 @@ function ReaderPanel({
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100/40 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${currentTheme.subBadgeBg}`}>
               {t('reader.lang_target', 'Language: ')}{lesson.targetLanguage}
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
@@ -570,16 +671,16 @@ function ReaderPanel({
         </div>
 
         {/* Status Switcher & Quick Time Logging Bar */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0 bg-zinc-50/80 dark:bg-zinc-950/60 p-2 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/80">
-          {/* Status Toggle Button */}
-          <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
+        <div className={`flex flex-wrap items-center gap-2 shrink-0 ${currentTheme.barBg} p-1.5 rounded-2xl`}>
+          {/* Status Toggle Buttons */}
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => handleToggleStatus("in_progress")}
-              className={`px-2.5 py-1 text-[11px] font-black rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1 text-[11px] font-black rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
                 currentStatus === "in_progress"
-                  ? "bg-teal-600 text-white shadow-2xs"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                  ? "bg-teal-600 text-white shadow-xs"
+                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5`
               }`}
               title={t('reader.status_in_progress_title', 'Set status: In Progress')}
             >
@@ -590,10 +691,10 @@ function ReaderPanel({
             <button
               type="button"
               onClick={() => handleToggleStatus("completed")}
-              className={`px-2.5 py-1 text-[11px] font-black rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1 text-[11px] font-black rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
                 currentStatus === "completed"
-                  ? "bg-emerald-600 text-white shadow-2xs"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5`
               }`}
               title={t('reader.status_completed_title', 'Set status: Completed')}
             >
@@ -604,8 +705,8 @@ function ReaderPanel({
 
           {/* Time Logging Widget (Only for plain text lessons, not for videos or podcasts) */}
           {!isMediaLesson && (
-            <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-3xs">
-              <div className="px-2 py-0.5 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-800 mr-0.5">
+            <div className={`flex items-center gap-1 pl-2 border-l ${currentTheme.divider}`}>
+              <div className={`px-2 py-0.5 text-[11px] font-bold ${currentTheme.subText} flex items-center gap-1 mr-0.5`}>
                 <Clock className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                 <span>{formatLoggedDuration(totalLoggedSeconds)}</span>
               </div>
@@ -613,7 +714,7 @@ function ReaderPanel({
               <button
                 type="button"
                 onClick={() => handleAddMinutes(15)}
-                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+                className="px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 text-teal-700 dark:text-teal-400 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
                 title={t('reader.add_15m_title', 'Add 15 minutes of reading to history')}
               >
                 +15m
@@ -622,7 +723,7 @@ function ReaderPanel({
               <button
                 type="button"
                 onClick={() => handleAddMinutes(30)}
-                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+                className="px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 text-teal-700 dark:text-teal-400 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
                 title={t('reader.add_30m_title', 'Add 30 minutes of reading to history')}
               >
                 +30m
@@ -631,7 +732,7 @@ function ReaderPanel({
               <button
                 type="button"
                 onClick={() => handleAddMinutes(60)}
-                className="px-2 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
+                className="px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 text-teal-700 dark:text-teal-400 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
                 title={t('reader.add_1h_title', 'Add 1 hour of reading to history')}
               >
                 +1h
@@ -640,7 +741,7 @@ function ReaderPanel({
               <button
                 type="button"
                 onClick={() => setIsCustomTimeModalOpen(true)}
-                className="px-2 py-1 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer"
+                className={`px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 ${currentTheme.subText} text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer`}
                 title={t('reader.add_custom_title', 'Add custom reading time')}
               >
                 +...
@@ -656,7 +757,7 @@ function ReaderPanel({
             <Sparkles className="w-4 h-4 text-amber-500 animate-pulse animate-duration-1000" />
             {t('reader.unknown_count', 'Unknown words in chapter: ')}{allUnknownWords.length}
           </span>
-          <div className="flex items-center gap-1 bg-white/60 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 shrink-0">
+          <div className={`flex items-center gap-1 ${currentTheme.pillBg} p-1 rounded-xl shrink-0`}>
             <button
               type="button"
               onClick={() => setUnknownViewMode("text")}
@@ -1185,22 +1286,7 @@ function ReaderPanel({
                           const isWordActive = activeWord?.toLowerCase() === tok.clean.toLowerCase() || activeWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
                           
                           const hasIdiomUnderline = idiomStyle === "underline" || idiomStyle === "hover";
-                          let tokenStyleClass = "";
-                          if (wordStatus === "ignored" || wordStatus === "known") {
-                            tokenStyleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-0.5 transition-colors font-normal`;
-                          } else if (wordStatus === "1") {
-                            tokenStyleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f3a4b0]"} cursor-pointer transition-colors`;
-                          } else if (wordStatus === "2") {
-                            tokenStyleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#f0d46d]"} cursor-pointer transition-colors`;
-                          } else if (wordStatus === "3" || (wordStatus as any) === "learning") {
-                            tokenStyleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1 font-medium ${hasIdiomUnderline ? "" : "border-b-2 border-[#a6d896]"} cursor-pointer transition-colors`;
-                          } else if (wordStatus === "4") {
-                            tokenStyleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
-                          } else if (wordStatus === "5") {
-                            tokenStyleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1 font-semibold ${hasIdiomUnderline ? "" : "border-b-2 border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
-                          } else {
-                            tokenStyleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded px-1 cursor-pointer transition-colors`;
-                          }
+                          let tokenStyleClass = getWordStatusClass(wordStatus, activeSettings.readerTheme, false, true, hasIdiomUnderline);
                           
                           if (isWordActive) {
                             tokenStyleClass = `${tokenStyleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-zinc-950 scale-103 duration-150`;
@@ -1288,24 +1374,9 @@ function ReaderPanel({
               const lang = lesson.targetLanguage.toLowerCase();
               const hasWordLink = !!wordLinks[`${lang}_${cleanWord.toLowerCase()}`];
 
-              let styleClass = "";
-              if (status === "ignored" || status === "known") {
-                styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded-md px-1 py-[1.5px] transition-colors font-normal`;
-                if (showOnlyUnknown && unknownViewMode === "text") {
-                  styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
-                }
-              } else if (status === "1") {
-                styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#f3a4b0]"} cursor-pointer transition-colors`;
-              } else if (status === "2") {
-                styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-700 dark:border-amber-300" : "border-[#f0d46d]"} cursor-pointer transition-colors`;
-              } else if (status === "3" || (status as any) === "learning") {
-                styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded-md px-1 py-[1.5px] font-medium border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a6d896]"} cursor-pointer transition-colors`;
-              } else if (status === "4") {
-                styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#204bf4] dark:border-blue-400"} cursor-pointer transition-colors`;
-              } else if (status === "5") {
-                styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded-md px-1 py-[1.5px] font-semibold border-b-2 ${hasWordLink ? "border-dotted border-amber-600 dark:border-amber-400" : "border-[#a882dd] dark:border-purple-400"} cursor-pointer transition-colors`;
-              } else {
-                styleClass = `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 rounded-md px-1 py-[1.5px] ${hasWordLink ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400" : ""} cursor-pointer transition-colors`;
+              let styleClass = getWordStatusClass(status, activeSettings.readerTheme, hasWordLink, false, false);
+              if ((status === "ignored" || status === "known") && showOnlyUnknown && unknownViewMode === "text") {
+                styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
               }
 
               if (isWordActive) {
@@ -1524,10 +1595,10 @@ function ReaderPanel({
 
         {/* Beautiful Pagination HUD bar custom control */}
         {pages.length > 1 && !(showOnlyUnknown && unknownViewMode === "list") && (
-          <div className="border-t border-zinc-200/60 dark:border-zinc-800/80 pt-5 mt-6 space-y-4">
+          <div className={`border-t ${currentTheme.divider} pt-5 mt-6 space-y-4`}>
             {/* Quick jump timeline slider row */}
-            <div className="flex items-center justify-between gap-3 bg-zinc-50/50 dark:bg-zinc-950/20 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800/40">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 shrink-0">
+            <div className={`flex items-center justify-between gap-3 ${currentTheme.barBg} p-2.5 rounded-xl`}>
+              <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.subText} shrink-0`}>
                 {t('reader.fast_jump', 'Fast Jump:')}
               </span>
               <div className="flex-grow flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
@@ -1541,7 +1612,7 @@ function ReaderPanel({
                     className={`min-w-[28px] h-7 px-1.5 text-[10px] font-black font-mono rounded-lg transition-all cursor-pointer ${
                       i === clampedPageIdx
                         ? "bg-teal-600 text-white shadow-sm ring-1 ring-teal-400 scale-105"
-                        : "bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        : `${currentTheme.pillBg} hover:opacity-80`
                     }`}
                   >
                     {i + 1}
@@ -1558,13 +1629,13 @@ function ReaderPanel({
                 onClick={() => {
                   navigateToPage(Math.max(0, clampedPageIdx - 1));
                 }}
-                className="w-full sm:w-auto px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 border border-zinc-200/50 dark:border-zinc-700/60"
+                className={`w-full sm:w-auto px-4 py-2 ${currentTheme.pillBg} disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5`}
               >
                 ← {t('reader.prev_page', 'Prev')}
               </button>
 
-              <div className="flex items-center gap-2 bg-zinc-100/40 dark:bg-zinc-950/40 px-3 py-1.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800/80">
-                <span className="text-xs font-mono font-bold tracking-tight text-zinc-500">
+              <div className={`flex items-center gap-2 ${currentTheme.subBadgeBg} px-3 py-1.5 rounded-xl border ${currentTheme.divider}`}>
+                <span className={`text-xs font-mono font-bold tracking-tight ${currentTheme.subText}`}>
                   {t('reader.page', 'Page')}
                 </span>
                 <select
@@ -1574,7 +1645,7 @@ function ReaderPanel({
                     const val = parseInt(e.target.value, 10);
                     navigateToPage(val);
                   }}
-                  className="text-xs font-mono font-bold tracking-tight text-teal-600 dark:text-teal-400 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-xs font-sans"
+                  className={`text-xs font-mono font-bold tracking-tight text-teal-600 dark:text-teal-400 ${currentTheme.pillBg} rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-xs font-sans`}
                 >
                   {pages.map((_, i) => (
                     <option key={i} value={i}>
