@@ -11,15 +11,11 @@ export const SQLITE_DB_PATH = path.join(DATA_DIR, "local_server_db.sqlite");
 
 const dbConns = new Map<string, Database.Database>();
 
-export function getDbConnection(userId: string = "default"): Database.Database {
-  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+export function getDbConnection(_userId: string = "default"): Database.Database {
+  const safeUserId = "default";
   let conn = dbConns.get(safeUserId);
   if (!conn) {
-    const userDbPath = safeUserId === "default"
-      ? SQLITE_DB_PATH
-      : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
-
-    conn = new Database(userDbPath);
+    conn = new Database(SQLITE_DB_PATH);
     conn.pragma("journal_mode = WAL");
     conn.pragma("foreign_keys = ON");
 
