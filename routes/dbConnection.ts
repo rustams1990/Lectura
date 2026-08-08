@@ -3,7 +3,7 @@ import fs from "fs";
 import Database from "better-sqlite3";
 
 const RAW_DATA_DIR = process.env.DATA_DIR;
-const DATA_DIR = RAW_DATA_DIR ? RAW_DATA_DIR : path.join(process.cwd(), "data");
+const DATA_DIR = RAW_DATA_DIR ? RAW_DATA_DIR : process.cwd();
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
