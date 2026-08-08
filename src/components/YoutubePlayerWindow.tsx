@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { GripHorizontal, X, ChevronDown, ChevronUp, Maximize2, Minimize2, Tv, RefreshCw } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
@@ -81,6 +81,7 @@ export default function YoutubePlayerWindow({
         localStorage.setItem(`youtube_progress_${lesson.id}`, val);
         settingsStore.setItem(`youtube_progress_${lesson.id}`, val).catch(() => {});
         lastStorageSaveTime = Date.now();
+        window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: val } }));
       } catch (e) {}
     };
 

@@ -499,6 +499,21 @@ export default function App() {
     }
   }, [isAuthLoading, activeUser]);
 
+  useEffect(() => {
+    let timer: any = null;
+    const handleProgressSave = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        syncDataToLocalServer().catch(() => {});
+      }, 1000);
+    };
+    window.addEventListener("lectura:save_progress", handleProgressSave);
+    return () => {
+      window.removeEventListener("lectura:save_progress", handleProgressSave);
+      if (timer) clearTimeout(timer);
+    };
+  }, [storageMode, isAuthLoading, localSyncError]);
+
 
   const loadDataFromLocalServer = async () => {
     if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
@@ -563,6 +578,22 @@ export default function App() {
           if (d.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", d.listeningSeconds.toString());
           if (d.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(d.languageFlags));
           if (d.history) safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(d.history));
+
+          if (d.videoProgress && typeof d.videoProgress === "object") {
+            for (const [lessonId, val] of Object.entries(d.videoProgress)) {
+              if (val !== undefined && val !== null) {
+                safeLocalStorageSetItem(`youtube_progress_${lessonId}`, String(val));
+                settingsStore.setItem(`youtube_progress_${lessonId}`, String(val)).catch(() => {});
+              }
+            }
+          }
+          if (d.readingProgress && typeof d.readingProgress === "object") {
+            for (const [lessonId, val] of Object.entries(d.readingProgress)) {
+              if (val !== undefined && val !== null) {
+                safeLocalStorageSetItem(`vocab_progress_${lessonId}`, String(val));
+              }
+            }
+          }
 
           serverInitialLoadComplete.current = true;
         } else if (body.status === "empty") {
@@ -657,6 +688,24 @@ export default function App() {
         postHeaders["Authorization"] = `Bearer ${savedToken}`;
       }
 
+      // Collect video & reading progress maps from localStorage
+      const videoProgress: Record<string, string> = {};
+      const readingProgress: Record<string, string> = {};
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("youtube_progress_")) {
+            const lessonId = key.replace("youtube_progress_", "");
+            const val = localStorage.getItem(key);
+            if (val !== null) videoProgress[lessonId] = val;
+          } else if (key?.startsWith("vocab_progress_")) {
+            const lessonId = key.replace("vocab_progress_", "");
+            const val = localStorage.getItem(key);
+            if (val !== null) readingProgress[lessonId] = val;
+          }
+        }
+      } catch (_) {}
+
       const res = await fetch("/api/server-db", {
         method: "POST",
         headers: postHeaders,
@@ -669,6 +718,8 @@ export default function App() {
             listeningSeconds: currentListening,
             languageFlags: currentFlags,
             history: currentHistory,
+            videoProgress,
+            readingProgress,
           },
         }),
       });

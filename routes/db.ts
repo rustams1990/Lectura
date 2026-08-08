@@ -316,6 +316,17 @@ export function getLocalServerDb(userId: string = "default") {
       }));
     } catch (_) {}
 
+    const progressRows = db.prepare("SELECT key, value FROM metadata WHERE key LIKE 'youtube_progress_%' OR key LIKE 'vocab_progress_%'").all() as { key: string; value: string }[];
+    const videoProgress: Record<string, string> = {};
+    const readingProgress: Record<string, string> = {};
+    for (const row of progressRows) {
+      if (row.key.startsWith("youtube_progress_")) {
+        videoProgress[row.key.replace("youtube_progress_", "")] = row.value;
+      } else if (row.key.startsWith("vocab_progress_")) {
+        readingProgress[row.key.replace("vocab_progress_", "")] = row.value;
+      }
+    }
+
     return {
       lessons,
       lessonTypes,
@@ -324,6 +335,8 @@ export function getLocalServerDb(userId: string = "default") {
       listeningSeconds,
       languageFlags,
       history,
+      videoProgress,
+      readingProgress,
     };
   } catch (e) {
     console.error("Error loading SQLite database data:", e);
@@ -487,6 +500,22 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       if (data.listeningSeconds !== undefined) {
         insertMetadata.run("listeningSeconds", String(data.listeningSeconds));
+      }
+
+      if (data.videoProgress && typeof data.videoProgress === "object") {
+        for (const [lessonId, val] of Object.entries(data.videoProgress)) {
+          if (val !== undefined && val !== null) {
+            insertMetadata.run(`youtube_progress_${lessonId}`, String(val));
+          }
+        }
+      }
+
+      if (data.readingProgress && typeof data.readingProgress === "object") {
+        for (const [lessonId, val] of Object.entries(data.readingProgress)) {
+          if (val !== undefined && val !== null) {
+            insertMetadata.run(`vocab_progress_${lessonId}`, String(val));
+          }
+        }
       }
 
       const insertHistory = db.prepare(`
