@@ -501,11 +501,18 @@ export default function App() {
 
   useEffect(() => {
     let timer: any = null;
-    const handleProgressSave = () => {
+    const handleProgressSave = (e: any) => {
+      if (e && e.detail && e.detail.lessonId && e.detail.videoProgress !== undefined) {
+        if (e.detail.videoProgress === "0") {
+          localStorage.removeItem(`youtube_progress_${e.detail.lessonId}`);
+        } else {
+          safeLocalStorageSetItem(`youtube_progress_${e.detail.lessonId}`, String(e.detail.videoProgress));
+        }
+      }
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         syncDataToLocalServer().catch(() => {});
-      }, 1000);
+      }, 500);
     };
     window.addEventListener("lectura:save_progress", handleProgressSave);
     return () => {

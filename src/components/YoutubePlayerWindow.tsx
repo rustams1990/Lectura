@@ -75,7 +75,7 @@ export default function YoutubePlayerWindow({
     let lastStorageSaveTime = 0;
 
     const saveProgressNow = (time: number) => {
-      if (time === undefined || isNaN(time) || time < 0) return;
+      if (time === undefined || isNaN(time) || time <= 2) return;
       try {
         const val = Math.floor(time).toString();
         localStorage.setItem(`youtube_progress_${lesson.id}`, val);
@@ -201,6 +201,7 @@ export default function YoutubePlayerWindow({
                   try {
                     localStorage.removeItem(`youtube_progress_${lesson.id}`);
                     settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
+                    window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));
                   } catch (e) {}
                   if (onVideoEnded) onVideoEnded();
                 }
