@@ -11,11 +11,34 @@ export const SQLITE_DB_PATH = path.join(DATA_DIR, "local_server_db.sqlite");
 
 const dbConns = new Map<string, Database.Database>();
 
-export function getDbConnection(_userId: string = "default"): Database.Database {
-  const safeUserId = "default";
+export function getDbConnection(userId: string = "default"): Database.Database {
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
   let conn = dbConns.get(safeUserId);
   if (!conn) {
-    conn = new Database(SQLITE_DB_PATH);
+    let userDbPath = SQLITE_DB_PATH;
+    if (safeUserId !== "default") {
+      const specificPath = path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
+      if (fs.existsSync(specificPath)) {
+        userDbPath = specificPath;
+      }
+    }
+    
+    // Fallback/auto-detect: if userDbPath doesn't exist or is default, check for existing user DB files in DATA_DIR
+    if (!fs.existsSync(userDbPath) || userDbPath === SQLITE_DB_PATH) {
+      try {
+        const usrFiles = fs.readdirSync(DATA_DIR).filter(f => f.startsWith("local_server_db_usr_") && f.endsWith(".sqlite"));
+        if (usrFiles.length > 0) {
+          usrFiles.sort((a, b) => {
+            const statA = fs.statSync(path.join(DATA_DIR, a));
+            const statB = fs.statSync(path.join(DATA_DIR, b));
+            return statB.size - statA.size;
+          });
+          userDbPath = path.join(DATA_DIR, usrFiles[0]);
+        }
+      } catch (_) {}
+    }
+
+    conn = new Database(userDbPath);
     conn.pragma("journal_mode = WAL");
     conn.pragma("foreign_keys = ON");
 
