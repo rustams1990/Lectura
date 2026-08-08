@@ -170,7 +170,18 @@ export default function YoutubePlayerWindow({
               onReady: (event: any) => {
                 if (isUnmounted) return;
                 const player = event.target;
-                const targetSeek = (seekToTime !== null && seekToTime !== undefined) ? seekToTime : startSeconds;
+                let currentStartSeconds = startSeconds;
+                try {
+                  const freshSaved = localStorage.getItem(`youtube_progress_${lesson.id}`);
+                  if (freshSaved) {
+                    const sec = parseFloat(freshSaved);
+                    if (!isNaN(sec) && sec > 2) {
+                      currentStartSeconds = Math.floor(sec);
+                    }
+                  }
+                } catch (e) {}
+
+                const targetSeek = (seekToTime !== null && seekToTime !== undefined) ? seekToTime : currentStartSeconds;
 
                 if (targetSeek > 0 && player && typeof player.seekTo === "function") {
                   try {
@@ -181,13 +192,13 @@ export default function YoutubePlayerWindow({
                     try {
                       player.seekTo(targetSeek, true);
                     } catch (e) {}
-                  }, 250);
+                  }, 300);
                   setTimeout(() => {
                     if (isUnmounted) return;
                     try {
                       player.seekTo(targetSeek, true);
                     } catch (e) {}
-                  }, 750);
+                  }, 800);
                 }
               },
               onStateChange: (event: any) => {

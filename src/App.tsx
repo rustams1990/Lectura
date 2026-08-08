@@ -1755,6 +1755,8 @@ export default function App() {
         }
         return l;
       });
+      lessonsStore.setItem("lessons", next);
+      safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
       if (storageMode === "server") {
         syncDataToLocalServer(next).catch((err) => console.error(err));
       }
@@ -1779,6 +1781,8 @@ export default function App() {
         }
         return l;
       });
+      lessonsStore.setItem("lessons", next);
+      safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
       if (storageMode === "server") {
         syncDataToLocalServer(next).catch((err) => console.error(err));
       }
