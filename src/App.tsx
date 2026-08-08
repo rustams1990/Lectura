@@ -668,7 +668,8 @@ export default function App() {
     currentLinks = wordLinks,
     currentListening = listeningSeconds,
     currentFlags = languageFlags,
-    currentHistory = history
+    currentHistory = history,
+    deletedLessonIds?: string[]
   ) => {
     if (storageMode !== "server") return;
     if (isAuthLoading) return;
@@ -720,6 +721,7 @@ export default function App() {
             history: currentHistory,
             videoProgress,
             readingProgress,
+            deletedLessonIds,
           },
         }),
       });
@@ -1725,7 +1727,7 @@ export default function App() {
     }
     // Immediately sync to local server so the polling interval doesn't restore the deleted lesson
     if (storageMode === "server") {
-      syncDataToLocalServer(remaining, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags).catch((err) => console.error(err));
+      syncDataToLocalServer(remaining, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, history, [idToDelete]).catch((err) => console.error(err));
     }
   };
 

@@ -440,16 +440,12 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         insertWordLink.run(lang, cleanFrom, cleanTo);
       }
 
-      const lessons = data.lessons || [];
-      if (Array.isArray(data.lessons)) {
-        const currentLessonIds = lessons.map((l: any) => l.id).filter(Boolean);
-        if (currentLessonIds.length > 0) {
-          const placeholders = currentLessonIds.map(() => "?").join(",");
-          db.prepare(`DELETE FROM lessons WHERE id NOT IN (${placeholders})`).run(...currentLessonIds);
-        } else {
-          db.prepare(`DELETE FROM lessons`).run();
-        }
+      if (data.deletedLessonIds && Array.isArray(data.deletedLessonIds) && data.deletedLessonIds.length > 0) {
+        const placeholders = data.deletedLessonIds.map(() => "?").join(",");
+        db.prepare(`DELETE FROM lessons WHERE id IN (${placeholders})`).run(...data.deletedLessonIds);
       }
+
+      const lessons = data.lessons || [];
 
       for (const l of lessons) {
         let finalAudioUrl = l.audioUrl || null;
