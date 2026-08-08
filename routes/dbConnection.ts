@@ -11,34 +11,151 @@ export const SQLITE_DB_PATH = path.join(DATA_DIR, "local_server_db.sqlite");
 
 const dbConns = new Map<string, Database.Database>();
 
-export function getDbConnection(userId: string = "default"): Database.Database {
-  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  let conn = dbConns.get(safeUserId);
-  if (!conn) {
-    let userDbPath = SQLITE_DB_PATH;
-    if (safeUserId !== "default") {
-      const specificPath = path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
-      if (fs.existsSync(specificPath)) {
-        userDbPath = specificPath;
+let hasPerformedAutoMigration = false;
+
+function performAutoMigrationIfNeeded(mainDb: Database.Database) {
+  if (hasPerformedAutoMigration) return;
+  hasPerformedAutoMigration = true;
+
+  try {
+    const usrFiles = fs.readdirSync(DATA_DIR).filter(f => f.startsWith("local_server_db_usr_") && f.endsWith(".sqlite"));
+    if (usrFiles.length === 0) return;
+
+    console.log(`[AutoMigration] Found ${usrFiles.length} isolated user DB file(s). Consolidating into main DB...`);
+    for (const file of usrFiles) {
+      const srcPath = path.join(DATA_DIR, file);
+      if (srcPath === SQLITE_DB_PATH) continue;
+      try {
+        const srcDb = new Database(srcPath);
+        
+        // 1. Merge server_users
+        try {
+          const users = srcDb.prepare("SELECT * FROM server_users").all();
+          const stmt = mainDb.prepare("INSERT OR IGNORE INTO server_users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)");
+          for (const u of users as any[]) {
+            stmt.run(u.id, u.email, u.password_hash, u.display_name, u.created_at);
+          }
+        } catch (_) {}
+
+        // 2. Merge server_sessions
+        try {
+          const sessions = srcDb.prepare("SELECT * FROM server_sessions").all();
+          const stmt = mainDb.prepare("INSERT OR IGNORE INTO server_sessions (token, user_id, expires_at) VALUES (?, ?, ?)");
+          for (const s of sessions as any[]) {
+            stmt.run(s.token, s.user_id, s.expires_at);
+          }
+        } catch (_) {}
+
+        // 3. Merge languages
+        try {
+          const langs = srcDb.prepare("SELECT * FROM languages").all();
+          const stmt = mainDb.prepare("INSERT OR IGNORE INTO languages (code, name, flag) VALUES (?, ?, ?)");
+          for (const l of langs as any[]) {
+            stmt.run(l.code, l.name, l.flag);
+          }
+        } catch (_) {}
+
+        // 4. Merge words
+        try {
+          const words = srcDb.prepare("SELECT * FROM words").all();
+          const stmt = mainDb.prepare(`
+            INSERT OR REPLACE INTO words (
+              id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+              spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const w of words as any[]) {
+            stmt.run(
+              w.id, w.language_code, w.word, w.translation, w.ipa, w.grammar, w.contextRelation, w.status, w.createdAt,
+              w.tags, w.imageUrl, w.examples, w.spellingCorrectCount || 0, w.spellingIncorrectCount || 0,
+              w.spellingAccentCount || 0, w.lastSpelledCorrectly, w.lastSpelledWithAccentError || 0, w.spellingExclude || 0
+            );
+          }
+        } catch (_) {}
+
+        // 5. Merge word_links
+        try {
+          const links = srcDb.prepare("SELECT * FROM word_links").all();
+          const stmt = mainDb.prepare("INSERT OR IGNORE INTO word_links (language_code, word_from, word_to) VALUES (?, ?, ?)");
+          for (const link of links as any[]) {
+            stmt.run(link.language_code, link.word_from, link.word_to);
+          }
+        } catch (_) {}
+
+        // 6. Merge lessons
+        try {
+          const lessons = srcDb.prepare("SELECT * FROM lessons").all();
+          const stmt = mainDb.prepare(`
+            INSERT OR REPLACE INTO lessons (
+              id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const l of lessons as any[]) {
+            stmt.run(
+              l.id, l.title, l.text, l.audioUrl, l.audioBase64, l.targetLanguage, l.translationLanguage,
+              l.isBuiltIn ? 1 : 0, l.isArchived ? 1 : 0, l.coverUrl, l.youtubeId, l.lessonType,
+              l.pinned ? 1 : 0, l.translationText, l.detectedPhrases, l.difficulty, l.difficultyExplanation
+            );
+          }
+        } catch (_) {}
+
+        // 7. Merge lesson_types
+        try {
+          const types = srcDb.prepare("SELECT * FROM lesson_types").all();
+          const stmt = mainDb.prepare("INSERT OR IGNORE INTO lesson_types (id, name, icon) VALUES (?, ?, ?)");
+          for (const t of types as any[]) {
+            stmt.run(t.id, t.name, t.icon);
+          }
+        } catch (_) {}
+
+        // 8. Merge reading_history
+        try {
+          const hist = srcDb.prepare("SELECT * FROM reading_history").all();
+          const stmt = mainDb.prepare(`
+            INSERT OR REPLACE INTO reading_history (
+              id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const h of hist as any[]) {
+            stmt.run(
+              h.id, h.lessonId, h.lessonTitle, h.lessonType, h.coverUrl, h.targetLanguage,
+              h.timestamp, h.actionType, h.status, h.durationSeconds, h.notes
+            );
+          }
+        } catch (_) {}
+
+        // 9. Merge metadata (e.g. listeningSeconds)
+        try {
+          const meta = srcDb.prepare("SELECT * FROM metadata").all();
+          const stmt = mainDb.prepare("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)");
+          for (const m of meta as any[]) {
+            if (m.key === "listeningSeconds") {
+              const currentVal = mainDb.prepare("SELECT value FROM metadata WHERE key = 'listeningSeconds'").get() as any;
+              const valNum = parseFloat(m.value) || 0;
+              const curNum = currentVal ? parseFloat(currentVal.value) || 0 : 0;
+              stmt.run("listeningSeconds", String(Math.max(valNum, curNum)));
+            } else {
+              stmt.run(m.key, m.value);
+            }
+          }
+        } catch (_) {}
+
+        srcDb.close();
+      } catch (e) {
+        console.error(`[AutoMigration] Error merging ${file}:`, e);
       }
     }
-    
-    // Fallback/auto-detect: if userDbPath doesn't exist or is default, check for existing user DB files in DATA_DIR
-    if (!fs.existsSync(userDbPath) || userDbPath === SQLITE_DB_PATH) {
-      try {
-        const usrFiles = fs.readdirSync(DATA_DIR).filter(f => f.startsWith("local_server_db_usr_") && f.endsWith(".sqlite"));
-        if (usrFiles.length > 0) {
-          usrFiles.sort((a, b) => {
-            const statA = fs.statSync(path.join(DATA_DIR, a));
-            const statB = fs.statSync(path.join(DATA_DIR, b));
-            return statB.size - statA.size;
-          });
-          userDbPath = path.join(DATA_DIR, usrFiles[0]);
-        }
-      } catch (_) {}
-    }
+    console.log(`[AutoMigration] Consolidated all database records into main DB!`);
+  } catch (e) {
+    console.error("[AutoMigration] Failed:", e);
+  }
+}
 
-    conn = new Database(userDbPath);
+export function getDbConnection(_userId: string = "default"): Database.Database {
+  const safeUserId = "default";
+  let conn = dbConns.get(safeUserId);
+  if (!conn) {
+    conn = new Database(SQLITE_DB_PATH);
     conn.pragma("journal_mode = WAL");
     conn.pragma("foreign_keys = ON");
 
@@ -178,6 +295,7 @@ export function getDbConnection(userId: string = "default"): Database.Database {
     }
 
     dbConns.set(safeUserId, conn);
+    performAutoMigrationIfNeeded(conn);
   }
   return conn;
 }
