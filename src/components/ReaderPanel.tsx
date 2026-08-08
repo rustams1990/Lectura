@@ -68,7 +68,7 @@ interface ReaderThemeStyles {
 const themeMap: Record<string, ReaderThemeStyles> = {
   default: {
     container: "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border-zinc-100 dark:border-zinc-800/80",
-    barBg: "bg-transparent border border-zinc-200/80 dark:border-zinc-800/80",
+    barBg: "bg-transparent",
     pillBg: "bg-transparent text-zinc-800 dark:text-zinc-200",
     subBadgeBg: "bg-zinc-100/60 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400",
     divider: "border-zinc-200/80 dark:border-zinc-800/80",
@@ -76,7 +76,7 @@ const themeMap: Record<string, ReaderThemeStyles> = {
   },
   cream: {
     container: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8]",
-    barBg: "bg-transparent border border-[#eddcb9]",
+    barBg: "bg-transparent",
     pillBg: "bg-transparent text-[#3b2b1a]",
     subBadgeBg: "bg-[#f5ebd6] text-[#523d24]",
     divider: "border-[#eddcb9]",
@@ -84,7 +84,7 @@ const themeMap: Record<string, ReaderThemeStyles> = {
   },
   sepia: {
     container: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3]",
-    barBg: "bg-transparent border border-[#e0cea1]",
+    barBg: "bg-transparent",
     pillBg: "bg-transparent text-[#432d16]",
     subBadgeBg: "bg-[#ebdcae] text-[#593d1f]",
     divider: "border-[#e0cea1]",
@@ -92,7 +92,7 @@ const themeMap: Record<string, ReaderThemeStyles> = {
   },
   slate: {
     container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
-    barBg: "bg-transparent border border-slate-200 dark:border-slate-800",
+    barBg: "bg-transparent",
     pillBg: "bg-transparent text-slate-800 dark:text-slate-100",
     subBadgeBg: "bg-slate-200/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
     divider: "border-slate-200 dark:border-slate-800",
