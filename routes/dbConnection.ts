@@ -9,320 +9,430 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 export const SQLITE_DB_PATH = path.join(DATA_DIR, "local_server_db.sqlite");
 
-const dbConns = new Map<string, Database.Database>();
+// Single shared connection — all users share one file, isolated by user_id column
+let _sharedDb: Database.Database | null = null;
 
-let hasPerformedAutoMigration = false;
+// ============================================================
+// Schema setup and safe migrations
+// ============================================================
 
-function performAutoMigrationIfNeeded(mainDb: Database.Database) {
-  if (hasPerformedAutoMigration) return;
-  hasPerformedAutoMigration = true;
+function setupSchema(db: Database.Database) {
+  db.pragma("foreign_keys = OFF");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS languages (
+      code TEXT PRIMARY KEY,
+      name TEXT,
+      flag TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS words (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      language_code TEXT NOT NULL,
+      word TEXT NOT NULL,
+      translation TEXT,
+      ipa TEXT,
+      grammar TEXT,
+      contextRelation TEXT,
+      status TEXT NOT NULL,
+      createdAt INTEGER,
+      tags TEXT,
+      imageUrl TEXT,
+      examples TEXT,
+      spellingCorrectCount INTEGER DEFAULT 0,
+      spellingIncorrectCount INTEGER DEFAULT 0,
+      spellingAccentCount INTEGER DEFAULT 0,
+      lastSpelledCorrectly INTEGER,
+      lastSpelledWithAccentError INTEGER DEFAULT 0,
+      spellingExclude INTEGER DEFAULT 0,
+      srsNextReview INTEGER,
+      srsInterval INTEGER,
+      srsEaseFactor REAL,
+      srsRepetitions INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS lessons (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      title TEXT NOT NULL,
+      text TEXT NOT NULL,
+      audioUrl TEXT,
+      audioBase64 TEXT,
+      targetLanguage TEXT NOT NULL,
+      translationLanguage TEXT NOT NULL,
+      isBuiltIn INTEGER DEFAULT 0,
+      isArchived INTEGER DEFAULT 0,
+      coverUrl TEXT,
+      youtubeId TEXT,
+      lessonType TEXT,
+      pinned INTEGER DEFAULT 0,
+      translationText TEXT,
+      detectedPhrases TEXT,
+      difficulty TEXT,
+      difficultyExplanation TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS lesson_types (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS reading_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      lessonId TEXT NOT NULL,
+      lessonTitle TEXT NOT NULL,
+      lessonType TEXT,
+      coverUrl TEXT,
+      targetLanguage TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      actionType TEXT NOT NULL,
+      status TEXT,
+      durationSeconds INTEGER DEFAULT 0,
+      notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS server_users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      created_at INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS server_sessions (
+      token TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at INTEGER,
+      FOREIGN KEY(user_id) REFERENCES server_users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // ── metadata: needs composite PK (user_id, key) ──────────────────────────────
+  const metaHasUserId = (db.prepare(
+    "SELECT COUNT(*) as c FROM pragma_table_info('metadata') WHERE name='user_id'"
+  ).get() as any).c > 0;
+
+  if (!metaHasUserId) {
+    // Check if old metadata table exists (key TEXT PRIMARY KEY)
+    const metaExists = (db.prepare(
+      "SELECT COUNT(*) as c FROM sqlite_master WHERE type='table' AND name='metadata'"
+    ).get() as any).c > 0;
+
+    if (metaExists) {
+      // Recreate with composite PK preserving existing data
+      db.exec(`
+        CREATE TABLE metadata_new (
+          user_id TEXT NOT NULL DEFAULT 'default',
+          key TEXT NOT NULL,
+          value TEXT,
+          PRIMARY KEY (user_id, key)
+        );
+        INSERT OR IGNORE INTO metadata_new (user_id, key, value)
+          SELECT 'default', key, value FROM metadata;
+        DROP TABLE metadata;
+        ALTER TABLE metadata_new RENAME TO metadata;
+      `);
+    } else {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS metadata (
+          user_id TEXT NOT NULL DEFAULT 'default',
+          key TEXT NOT NULL,
+          value TEXT,
+          PRIMARY KEY (user_id, key)
+        );
+      `);
+    }
+  }
+
+  // ── word_links: needs user_id in PK ──────────────────────────────────────────
+  const linksHasUserId = (db.prepare(
+    "SELECT COUNT(*) as c FROM pragma_table_info('word_links') WHERE name='user_id'"
+  ).get() as any).c > 0;
+
+  if (!linksHasUserId) {
+    const linksExists = (db.prepare(
+      "SELECT COUNT(*) as c FROM sqlite_master WHERE type='table' AND name='word_links'"
+    ).get() as any).c > 0;
+
+    if (linksExists) {
+      db.exec(`
+        CREATE TABLE word_links_new (
+          user_id TEXT NOT NULL DEFAULT 'default',
+          language_code TEXT NOT NULL,
+          word_from TEXT NOT NULL,
+          word_to TEXT NOT NULL,
+          PRIMARY KEY (user_id, language_code, word_from)
+        );
+        INSERT OR IGNORE INTO word_links_new (user_id, language_code, word_from, word_to)
+          SELECT 'default', language_code, word_from, word_to FROM word_links;
+        DROP TABLE word_links;
+        ALTER TABLE word_links_new RENAME TO word_links;
+      `);
+    } else {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS word_links (
+          user_id TEXT NOT NULL DEFAULT 'default',
+          language_code TEXT NOT NULL,
+          word_from TEXT NOT NULL,
+          word_to TEXT NOT NULL,
+          PRIMARY KEY (user_id, language_code, word_from)
+        );
+      `);
+    }
+  }
+
+  // ── Safe ADD COLUMN migrations for existing tables ───────────────────────────
+
+  // words: user_id column
+  try { db.exec(`ALTER TABLE words ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+  // words: SRS columns
+  try { db.exec(`ALTER TABLE words ADD COLUMN spellingCorrectCount INTEGER DEFAULT 0;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN spellingIncorrectCount INTEGER DEFAULT 0;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN spellingAccentCount INTEGER DEFAULT 0;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN lastSpelledCorrectly INTEGER;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN lastSpelledWithAccentError INTEGER DEFAULT 0;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN srsNextReview INTEGER;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN srsInterval INTEGER;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN srsEaseFactor REAL;`); } catch (_) {}
+  try { db.exec(`ALTER TABLE words ADD COLUMN srsRepetitions INTEGER;`); } catch (_) {}
+
+  // lessons: user_id column
+  try { db.exec(`ALTER TABLE lessons ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+
+  // reading_history: user_id column
+  try { db.exec(`ALTER TABLE reading_history ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+
+  db.pragma("foreign_keys = ON");
+}
+
+// ============================================================
+// Auto-migrate legacy usr_*.sqlite files into main DB
+// ============================================================
+
+let hasPerformedLegacyMigration = false;
+
+function performLegacyFileMigration(db: Database.Database) {
+  if (hasPerformedLegacyMigration) return;
+  hasPerformedLegacyMigration = true;
 
   try {
-    const usrFiles = fs.readdirSync(DATA_DIR).filter(f => f.startsWith("local_server_db_usr_") && f.endsWith(".sqlite"));
+    const usrFiles = fs.readdirSync(DATA_DIR).filter(
+      (f) => f.startsWith("local_server_db_usr_") && f.endsWith(".sqlite")
+    );
     if (usrFiles.length === 0) return;
 
-    console.log(`[AutoMigration] Found ${usrFiles.length} isolated user DB file(s). Consolidating into main DB...`);
+    console.log(`[LegacyMigration] Found ${usrFiles.length} isolated user DB file(s). Consolidating into main DB...`);
+
     for (const file of usrFiles) {
       const srcPath = path.join(DATA_DIR, file);
       if (srcPath === SQLITE_DB_PATH) continue;
       try {
         const srcDb = new Database(srcPath);
-        
-        // 1. Merge server_users
+
+        // Extract userId from filename: local_server_db_usr_XXXXX.sqlite
+        const userIdMatch = file.match(/^local_server_db_(usr_[a-zA-Z0-9]+)\.sqlite$/);
+        const fileUserId = userIdMatch ? userIdMatch[1] : "default";
+
+        // Merge server_users
         try {
-          const users = srcDb.prepare("SELECT * FROM server_users").all();
-          const stmt = mainDb.prepare("INSERT OR IGNORE INTO server_users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)");
-          for (const u of users as any[]) {
-            stmt.run(u.id, u.email, u.password_hash, u.display_name, u.created_at);
-          }
+          const users = srcDb.prepare("SELECT * FROM server_users").all() as any[];
+          const stmt = db.prepare("INSERT OR IGNORE INTO server_users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)");
+          for (const u of users) stmt.run(u.id, u.email, u.password_hash, u.display_name, u.created_at);
         } catch (_) {}
 
-        // 2. Merge server_sessions
+        // Merge server_sessions
         try {
-          const sessions = srcDb.prepare("SELECT * FROM server_sessions").all();
-          const stmt = mainDb.prepare("INSERT OR IGNORE INTO server_sessions (token, user_id, expires_at) VALUES (?, ?, ?)");
-          for (const s of sessions as any[]) {
-            stmt.run(s.token, s.user_id, s.expires_at);
-          }
+          const sessions = srcDb.prepare("SELECT * FROM server_sessions").all() as any[];
+          const stmt = db.prepare("INSERT OR IGNORE INTO server_sessions (token, user_id, expires_at) VALUES (?, ?, ?)");
+          for (const s of sessions) stmt.run(s.token, s.user_id, s.expires_at);
         } catch (_) {}
 
-        // 3. Merge languages
+        // Merge languages
         try {
-          const langs = srcDb.prepare("SELECT * FROM languages").all();
-          const stmt = mainDb.prepare("INSERT OR IGNORE INTO languages (code, name, flag) VALUES (?, ?, ?)");
-          for (const l of langs as any[]) {
-            stmt.run(l.code, l.name, l.flag);
-          }
+          const langs = srcDb.prepare("SELECT * FROM languages").all() as any[];
+          const stmt = db.prepare("INSERT OR IGNORE INTO languages (code, name, flag) VALUES (?, ?, ?)");
+          for (const l of langs) stmt.run(l.code, l.name, l.flag);
         } catch (_) {}
 
-        // 4. Merge words
+        // Merge lessons (with user_id)
         try {
-          const words = srcDb.prepare("SELECT * FROM words").all();
-          const stmt = mainDb.prepare(`
-            INSERT OR REPLACE INTO words (
-              id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
-              spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude
+          const lessons = srcDb.prepare("SELECT * FROM lessons").all() as any[];
+          const stmt = db.prepare(`
+            INSERT OR IGNORE INTO lessons (
+              id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage,
+              isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned,
+              translationText, detectedPhrases, difficulty, difficultyExplanation
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
-          for (const w of words as any[]) {
+          for (const l of lessons) {
             stmt.run(
-              w.id, w.language_code, w.word, w.translation, w.ipa, w.grammar, w.contextRelation, w.status, w.createdAt,
-              w.tags, w.imageUrl, w.examples, w.spellingCorrectCount || 0, w.spellingIncorrectCount || 0,
-              w.spellingAccentCount || 0, w.lastSpelledCorrectly, w.lastSpelledWithAccentError || 0, w.spellingExclude || 0
+              l.id, fileUserId, l.title, l.text, l.audioUrl, l.audioBase64,
+              l.targetLanguage, l.translationLanguage,
+              l.isBuiltIn ? 1 : 0, l.isArchived ? 1 : 0,
+              l.coverUrl, l.youtubeId, l.lessonType, l.pinned ? 1 : 0,
+              l.translationText, l.detectedPhrases, l.difficulty, l.difficultyExplanation
             );
           }
         } catch (_) {}
 
-        // 5. Merge word_links
+        // Merge words (with user_id)
         try {
-          const links = srcDb.prepare("SELECT * FROM word_links").all();
-          const stmt = mainDb.prepare("INSERT OR IGNORE INTO word_links (language_code, word_from, word_to) VALUES (?, ?, ?)");
-          for (const link of links as any[]) {
-            stmt.run(link.language_code, link.word_from, link.word_to);
-          }
-        } catch (_) {}
-
-        // 6. Merge lessons
-        try {
-          const lessons = srcDb.prepare("SELECT * FROM lessons").all();
-          const stmt = mainDb.prepare(`
-            INSERT OR REPLACE INTO lessons (
-              id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          const words = srcDb.prepare("SELECT * FROM words").all() as any[];
+          const stmt = db.prepare(`
+            INSERT OR IGNORE INTO words (
+              id, user_id, language_code, word, translation, ipa, grammar, contextRelation,
+              status, createdAt, tags, imageUrl, examples,
+              spellingCorrectCount, spellingIncorrectCount, spellingAccentCount,
+              lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
+              srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
-          for (const l of lessons as any[]) {
+          for (const w of words) {
             stmt.run(
-              l.id, l.title, l.text, l.audioUrl, l.audioBase64, l.targetLanguage, l.translationLanguage,
-              l.isBuiltIn ? 1 : 0, l.isArchived ? 1 : 0, l.coverUrl, l.youtubeId, l.lessonType,
-              l.pinned ? 1 : 0, l.translationText, l.detectedPhrases, l.difficulty, l.difficultyExplanation
+              w.id, fileUserId, w.language_code, w.word, w.translation, w.ipa,
+              w.grammar, w.contextRelation, w.status, w.createdAt,
+              w.tags, w.imageUrl, w.examples,
+              w.spellingCorrectCount || 0, w.spellingIncorrectCount || 0, w.spellingAccentCount || 0,
+              w.lastSpelledCorrectly, w.lastSpelledWithAccentError || 0, w.spellingExclude || 0,
+              w.srsNextReview, w.srsInterval, w.srsEaseFactor, w.srsRepetitions
             );
           }
         } catch (_) {}
 
-        // 7. Merge lesson_types
+        // Merge reading_history (with user_id)
         try {
-          const types = srcDb.prepare("SELECT * FROM lesson_types").all();
-          const stmt = mainDb.prepare("INSERT OR IGNORE INTO lesson_types (id, name, icon) VALUES (?, ?, ?)");
-          for (const t of types as any[]) {
-            stmt.run(t.id, t.name, t.icon);
-          }
-        } catch (_) {}
-
-        // 8. Merge reading_history
-        try {
-          const hist = srcDb.prepare("SELECT * FROM reading_history").all();
-          const stmt = mainDb.prepare(`
-            INSERT OR REPLACE INTO reading_history (
-              id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          const hist = srcDb.prepare("SELECT * FROM reading_history").all() as any[];
+          const stmt = db.prepare(`
+            INSERT OR IGNORE INTO reading_history (
+              id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage,
+              timestamp, actionType, status, durationSeconds, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
-          for (const h of hist as any[]) {
+          for (const h of hist) {
             stmt.run(
-              h.id, h.lessonId, h.lessonTitle, h.lessonType, h.coverUrl, h.targetLanguage,
-              h.timestamp, h.actionType, h.status, h.durationSeconds, h.notes
+              h.id, fileUserId, h.lessonId, h.lessonTitle, h.lessonType,
+              h.coverUrl, h.targetLanguage, h.timestamp, h.actionType,
+              h.status, h.durationSeconds, h.notes
             );
           }
         } catch (_) {}
 
-        // 9. Merge metadata (e.g. listeningSeconds)
+        // Merge metadata (with user_id)
         try {
-          const meta = srcDb.prepare("SELECT * FROM metadata").all();
-          const stmt = mainDb.prepare("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)");
-          for (const m of meta as any[]) {
-            if (m.key === "listeningSeconds") {
-              const currentVal = mainDb.prepare("SELECT value FROM metadata WHERE key = 'listeningSeconds'").get() as any;
-              const valNum = parseFloat(m.value) || 0;
-              const curNum = currentVal ? parseFloat(currentVal.value) || 0 : 0;
-              stmt.run("listeningSeconds", String(Math.max(valNum, curNum)));
-            } else {
-              stmt.run(m.key, m.value);
-            }
-          }
+          const meta = srcDb.prepare("SELECT * FROM metadata").all() as any[];
+          const stmt = db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, ?)");
+          for (const m of meta) stmt.run(fileUserId, m.key, m.value);
         } catch (_) {}
 
         srcDb.close();
+        console.log(`[LegacyMigration] Merged ${file} → user_id=${fileUserId}`);
       } catch (e) {
-        console.error(`[AutoMigration] Error merging ${file}:`, e);
+        console.error(`[LegacyMigration] Error merging ${file}:`, e);
       }
     }
 
-    // Two-way synchronization: Copy all lessons from mainDb into each user DB file so no user profile is missing any lessons
-    const allMainLessons = mainDb.prepare("SELECT * FROM lessons").all() as any[];
-    if (allMainLessons.length > 0) {
-      for (const file of usrFiles) {
-        const targetPath = path.join(DATA_DIR, file);
-        if (targetPath === SQLITE_DB_PATH) continue;
-        try {
-          const targetDb = new Database(targetPath);
-          const insertStmt = targetDb.prepare(`
-            INSERT OR IGNORE INTO lessons (
-              id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          for (const l of allMainLessons) {
-            insertStmt.run(
-              l.id, l.title, l.text, l.audioUrl, l.audioBase64, l.targetLanguage, l.translationLanguage,
-              l.isBuiltIn ? 1 : 0, l.isArchived ? 1 : 0, l.coverUrl, l.youtubeId, l.lessonType,
-              l.pinned ? 1 : 0, l.translationText, l.detectedPhrases, l.difficulty, l.difficultyExplanation
-            );
-          }
-          targetDb.close();
-        } catch (e) {
-          console.error(`[AutoMigration] Error syncing main lessons to ${file}:`, e);
-        }
-      }
-    }
-
-    console.log(`[AutoMigration] Consolidated and synchronized all database records!`);
+    console.log("[LegacyMigration] Done consolidating all legacy user DB files.");
   } catch (e) {
-    console.error("[AutoMigration] Failed:", e);
+    console.error("[LegacyMigration] Failed:", e);
   }
 }
 
-export function getDbConnection(rawUserId: string = "default"): Database.Database {
-  let conn = dbConns.get("default");
-  if (!conn) {
-    conn = new Database(SQLITE_DB_PATH);
-    conn.pragma("journal_mode = WAL");
-    conn.pragma("foreign_keys = ON");
+// ============================================================
+// Auto-assign all 'default' orphan records to the primary user
+// This runs once at startup so Rustam's 35 books appear immediately
+// ============================================================
 
-    // Ensure all tables exist in this database
-    conn.exec(`
-      CREATE TABLE IF NOT EXISTS metadata (
-        key TEXT PRIMARY KEY,
-        value TEXT
-      );
+function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
+  try {
+    // Find the primary user (the one registered with rustamniy@gmail.com or the first created user)
+    let primaryUser = db.prepare(
+      "SELECT id, email FROM server_users WHERE email = ? LIMIT 1"
+    ).get("rustamniy@gmail.com") as any;
 
-      CREATE TABLE IF NOT EXISTS languages (
-        code TEXT PRIMARY KEY,
-        name TEXT,
-        flag TEXT
-      );
+    if (!primaryUser) {
+      // Fallback: pick the first registered user in the system
+      primaryUser = db.prepare(
+        "SELECT id, email FROM server_users ORDER BY created_at ASC LIMIT 1"
+      ).get() as any;
+    }
 
-      CREATE TABLE IF NOT EXISTS words (
-        id TEXT PRIMARY KEY,
-        language_code TEXT NOT NULL,
-        word TEXT NOT NULL,
-        translation TEXT,
-        ipa TEXT,
-        grammar TEXT,
-        contextRelation TEXT,
-        status TEXT NOT NULL,
-        createdAt INTEGER,
-        tags TEXT,
-        imageUrl TEXT,
-        examples TEXT,
-        spellingCorrectCount INTEGER DEFAULT 0,
-        spellingIncorrectCount INTEGER DEFAULT 0,
-        spellingAccentCount INTEGER DEFAULT 0,
-        lastSpelledCorrectly INTEGER,
-        lastSpelledWithAccentError INTEGER DEFAULT 0,
-        spellingExclude INTEGER DEFAULT 0,
-        srsNextReview INTEGER,
-        srsInterval INTEGER,
-        srsEaseFactor REAL,
-        srsRepetitions INTEGER,
-        FOREIGN KEY(language_code) REFERENCES languages(code) ON DELETE CASCADE,
-        UNIQUE(language_code, word)
-      );
+    if (!primaryUser) {
+      console.log("[AutoAssign] No registered users found yet. Skipping assignment.");
+      return;
+    }
 
-      CREATE TABLE IF NOT EXISTS word_links (
-        language_code TEXT NOT NULL,
-        word_from TEXT NOT NULL,
-        word_to TEXT NOT NULL,
-        PRIMARY KEY (language_code, word_from),
-        FOREIGN KEY(language_code) REFERENCES languages(code) ON DELETE CASCADE
-      );
+    const uid = primaryUser.id;
+    const email = primaryUser.email;
 
-      CREATE TABLE IF NOT EXISTS lessons (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        text TEXT NOT NULL,
-        audioUrl TEXT,
-        audioBase64 TEXT,
-        targetLanguage TEXT NOT NULL,
-        translationLanguage TEXT NOT NULL,
-        isBuiltIn INTEGER DEFAULT 0,
-        isArchived INTEGER DEFAULT 0,
-        coverUrl TEXT,
-        youtubeId TEXT,
-        lessonType TEXT,
-        pinned INTEGER DEFAULT 0,
-        translationText TEXT,
-        detectedPhrases TEXT,
-        difficulty TEXT,
-        difficultyExplanation TEXT
-      );
+    const migrate = db.transaction(() => {
+      const lessonsCount = (db.prepare(
+        "SELECT COUNT(*) as c FROM lessons WHERE user_id = 'default'"
+      ).get() as any).c;
 
-      CREATE TABLE IF NOT EXISTS lesson_types (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        icon TEXT NOT NULL
-      );
+      const wordsCount = (db.prepare(
+        "SELECT COUNT(*) as c FROM words WHERE user_id = 'default'"
+      ).get() as any).c;
 
-      CREATE TABLE IF NOT EXISTS reading_history (
-        id TEXT PRIMARY KEY,
-        lessonId TEXT NOT NULL,
-        lessonTitle TEXT NOT NULL,
-        lessonType TEXT,
-        coverUrl TEXT,
-        targetLanguage TEXT NOT NULL,
-        timestamp TEXT NOT NULL,
-        actionType TEXT NOT NULL,
-        status TEXT,
-        durationSeconds INTEGER DEFAULT 0,
-        notes TEXT
-      );
+      const historyCount = (db.prepare(
+        "SELECT COUNT(*) as c FROM reading_history WHERE user_id = 'default'"
+      ).get() as any).c;
 
-      CREATE TABLE IF NOT EXISTS server_users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        display_name TEXT,
-        created_at INTEGER
-      );
+      const metaCount = (db.prepare(
+        "SELECT COUNT(*) as c FROM metadata WHERE user_id = 'default'"
+      ).get() as any).c;
 
-      CREATE TABLE IF NOT EXISTS server_sessions (
-        token TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        expires_at INTEGER,
-        FOREIGN KEY(user_id) REFERENCES server_users(id) ON DELETE CASCADE
-      );
-    `);
+      const linksCount = (db.prepare(
+        "SELECT COUNT(*) as c FROM word_links WHERE user_id = 'default'"
+      ).get() as any).c;
 
-    // Ensure spelling statistics columns exist in words table (safe migration)
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN spellingCorrectCount INTEGER DEFAULT 0;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN spellingIncorrectCount INTEGER DEFAULT 0;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN spellingAccentCount INTEGER DEFAULT 0;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN lastSpelledCorrectly INTEGER;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN lastSpelledWithAccentError INTEGER DEFAULT 0;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN srsNextReview INTEGER;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN srsInterval INTEGER;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN srsEaseFactor REAL;`);
-    } catch (_) {}
-    try {
-      conn.exec(`ALTER TABLE words ADD COLUMN srsRepetitions INTEGER;`);
-    } catch (_) {}
+      if (lessonsCount > 0)
+        db.prepare("UPDATE lessons SET user_id = ? WHERE user_id = 'default'").run(uid);
+      if (wordsCount > 0)
+        db.prepare("UPDATE words SET user_id = ? WHERE user_id = 'default'").run(uid);
+      if (historyCount > 0)
+        db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id = 'default'").run(uid);
+      if (metaCount > 0)
+        db.prepare("UPDATE metadata SET user_id = ? WHERE user_id = 'default'").run(uid);
+      if (linksCount > 0)
+        db.prepare("UPDATE word_links SET user_id = ? WHERE user_id = 'default'").run(uid);
 
-    dbConns.set("default", conn);
+      if (lessonsCount > 0 || wordsCount > 0) {
+        console.log(
+          `[AutoAssign] ✅ Assigned ${lessonsCount} lessons, ${wordsCount} words, ` +
+          `${historyCount} history records to user "${email}" (${uid})`
+        );
+      }
+    });
+
+    migrate();
+  } catch (e) {
+    console.error("[AutoAssign] Failed to auto-assign default data:", e);
   }
-  return conn;
+}
+
+// ============================================================
+// Public API
+// ============================================================
+
+export function getDbConnection(_rawUserId: string = "default"): Database.Database {
+  if (_sharedDb) return _sharedDb;
+
+  _sharedDb = new Database(SQLITE_DB_PATH);
+  _sharedDb.pragma("journal_mode = WAL");
+
+  // 1. Create / migrate schema
+  setupSchema(_sharedDb);
+
+  // 2. Merge any legacy per-user .sqlite files
+  performLegacyFileMigration(_sharedDb);
+
+  // 3. Assign all 'default' orphan data to primary user
+  autoAssignDefaultDataToPrimaryUser(_sharedDb);
+
+  console.log("[DB] Shared database ready at:", SQLITE_DB_PATH);
+  return _sharedDb;
 }

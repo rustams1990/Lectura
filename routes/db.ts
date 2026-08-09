@@ -196,93 +196,36 @@ async function fetchGoogleTranslate(text: string, fromLang: string, toLang: stri
   return null;
 }
 
-// Read helper safely
+// Read helper safely — all queries scoped strictly to userId
 export function getLocalServerDb(userId: string = "default") {
   try {
     const db = getDbConnection(userId);
-    
-    const wordsStmt = db.prepare("SELECT count(*) as count FROM words");
-    const wordsResult = wordsStmt.get() as { count: number };
-    const lessonsStmt = db.prepare("SELECT count(*) as count FROM lessons");
-    const lessonsResult = lessonsStmt.get() as { count: number };
 
-    // If this is a specific user profile (not "default"), ensure it inherits existing custom lessons and data from main/default DB if empty
-    if (userId !== "default") {
-      try {
-        const defaultDb = getDbConnection("default");
-        const defaultLessons = defaultDb.prepare("SELECT * FROM lessons").all() as any[];
-        const userCustomCount = (db.prepare("SELECT count(*) as count FROM lessons WHERE isBuiltIn = 0").get() as any)?.count || 0;
+    // Count only records belonging to this specific user
+    const wordsCount = (db.prepare("SELECT count(*) as count FROM words WHERE user_id = ?").get(userId) as { count: number }).count;
+    const lessonsCount = (db.prepare("SELECT count(*) as count FROM lessons WHERE user_id = ?").get(userId) as { count: number }).count;
 
-        if (defaultLessons.length > 0 && userCustomCount === 0) {
-          console.log(`[getLocalServerDb] Inheriting ${defaultLessons.length} lesson(s) from main DB for user "${userId}"`);
-          const insertLessonStmt = db.prepare(`
-            INSERT OR REPLACE INTO lessons (
-              id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          for (const l of defaultLessons) {
-            insertLessonStmt.run(
-              l.id, l.title, l.text, l.audioUrl, l.audioBase64, l.targetLanguage, l.translationLanguage,
-              l.isBuiltIn ? 1 : 0, l.isArchived ? 1 : 0, l.coverUrl, l.youtubeId, l.lessonType,
-              l.pinned ? 1 : 0, l.translationText, l.detectedPhrases, l.difficulty, l.difficultyExplanation
-            );
-          }
-        }
-
-        // Also inherit words if user DB has 0 words
-        if (wordsResult.count === 0) {
-          const defaultWords = defaultDb.prepare("SELECT * FROM words").all() as any[];
-          const defaultLangs = defaultDb.prepare("SELECT * FROM languages").all() as any[];
-          if (defaultWords.length > 0) {
-            console.log(`[getLocalServerDb] Inheriting ${defaultWords.length} word(s) from main DB for user "${userId}"`);
-            const insertLangStmt = db.prepare("INSERT OR IGNORE INTO languages (code, name, flag) VALUES (?, ?, ?)");
-            for (const lang of defaultLangs) {
-              insertLangStmt.run(lang.code, lang.name, lang.flag);
-            }
-            const insertWordStmt = db.prepare(`
-              INSERT OR REPLACE INTO words (
-                id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
-                spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
-                srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-            for (const w of defaultWords) {
-              insertWordStmt.run(
-                w.id, w.language_code, w.word, w.translation, w.ipa, w.grammar, w.contextRelation, w.status, w.createdAt,
-                w.tags, w.imageUrl, w.examples, w.spellingCorrectCount || 0, w.spellingIncorrectCount || 0,
-                w.spellingAccentCount || 0, w.lastSpelledCorrectly, w.lastSpelledWithAccentError || 0, w.spellingExclude || 0,
-                w.srsNextReview, w.srsInterval, w.srsEaseFactor, w.srsRepetitions
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error(`[getLocalServerDb] Error inheriting default DB data for user "${userId}":`, err);
-      }
-    }
-
-    // Re-check counts after inheritance
-    const wordsResultFinal = (db.prepare("SELECT count(*) as count FROM words").get() as { count: number }).count;
-    const lessonsResultFinal = (db.prepare("SELECT count(*) as count FROM lessons").get() as { count: number }).count;
-
-    if (wordsResultFinal === 0 && lessonsResultFinal === 0) {
-      console.log(`[getLocalServerDb] Database for "${userId}" is empty, returning null to trigger seeding.`);
+    if (wordsCount === 0 && lessonsCount === 0) {
+      console.log(`[getLocalServerDb] No data found for user "${userId}". Returning empty.`);
       return null;
     }
 
-    const metaStmt = db.prepare("SELECT value FROM metadata WHERE key = 'listeningSeconds'");
-    const listeningRow = metaStmt.get() as { value: string } | undefined;
+    // Listening seconds — per user
+    const listeningRow = db.prepare(
+      "SELECT value FROM metadata WHERE user_id = ? AND key = 'listeningSeconds'"
+    ).get(userId) as { value: string } | undefined;
     const listeningSeconds = listeningRow ? parseFloat(listeningRow.value) || 0 : 0;
 
-    const langStmt = db.prepare("SELECT code, flag FROM languages WHERE flag IS NOT NULL");
-    const langRows = langStmt.all() as { code: string; flag: string }[];
+    // Language flags — global (shared across users)
+    const langRows = db.prepare("SELECT code, flag FROM languages WHERE flag IS NOT NULL").all() as { code: string; flag: string }[];
     const languageFlags: Record<string, string> = {};
     for (const row of langRows) {
       languageFlags[row.code] = row.flag;
     }
 
-    const lessonsRows = db.prepare("SELECT * FROM lessons").all() as any[];
-    const updateAudioStmt = db.prepare("UPDATE lessons SET audioUrl = ?, audioBase64 = NULL WHERE id = ?");
+    // Lessons — strictly this user's
+    const lessonsRows = db.prepare("SELECT * FROM lessons WHERE user_id = ?").all(userId) as any[];
+    const updateAudioStmt = db.prepare("UPDATE lessons SET audioUrl = ?, audioBase64 = NULL WHERE id = ? AND user_id = ?");
 
     const lessons = lessonsRows.map((l) => {
       let currentAudioUrl = l.audioUrl;
@@ -295,7 +238,7 @@ export function getLocalServerDb(userId: string = "default") {
           currentAudioUrl = savedFileUrl;
           currentAudioBase64 = null;
           try {
-            updateAudioStmt.run(savedFileUrl, l.id);
+            updateAudioStmt.run(savedFileUrl, l.id, userId);
           } catch (e) {}
         }
       }
@@ -305,7 +248,7 @@ export function getLocalServerDb(userId: string = "default") {
         title: l.title,
         text: l.text,
         audioUrl: currentAudioUrl,
-        audioBase64: null, // Never send giant Base64 strings to frontend to save RAM!
+        audioBase64: null,
         targetLanguage: l.targetLanguage,
         translationLanguage: l.translationLanguage,
         isBuiltIn: l.isBuiltIn === 1,
@@ -321,9 +264,11 @@ export function getLocalServerDb(userId: string = "default") {
       };
     });
 
+    // Lesson types — global (not per-user)
     const lessonTypes = db.prepare("SELECT * FROM lesson_types").all() as any[];
 
-    const wordsRows = db.prepare("SELECT * FROM words").all() as any[];
+    // Words — strictly this user's
+    const wordsRows = db.prepare("SELECT * FROM words WHERE user_id = ?").all(userId) as any[];
     const lingqs: Record<string, any> = {};
     for (const w of wordsRows) {
       lingqs[w.id] = {
@@ -350,7 +295,10 @@ export function getLocalServerDb(userId: string = "default") {
       };
     }
 
-    const linksRows = db.prepare("SELECT language_code, word_from, word_to FROM word_links").all() as any[];
+    // Word links — strictly this user's
+    const linksRows = db.prepare(
+      "SELECT language_code, word_from, word_to FROM word_links WHERE user_id = ?"
+    ).all(userId) as any[];
     const wordLinks: Record<string, string> = {};
     for (const link of linksRows) {
       const lang = link.language_code;
@@ -359,9 +307,12 @@ export function getLocalServerDb(userId: string = "default") {
       }
     }
 
+    // Reading history — strictly this user's
     let history: any[] = [];
     try {
-      const historyRows = db.prepare("SELECT * FROM reading_history ORDER BY timestamp DESC").all() as any[];
+      const historyRows = db.prepare(
+        "SELECT * FROM reading_history WHERE user_id = ? ORDER BY timestamp DESC"
+      ).all(userId) as any[];
       history = historyRows.map((h) => ({
         id: h.id,
         lessonId: h.lessonId,
@@ -377,7 +328,10 @@ export function getLocalServerDb(userId: string = "default") {
       }));
     } catch (_) {}
 
-    const progressRows = db.prepare("SELECT key, value FROM metadata WHERE key LIKE 'youtube_progress_%' OR key LIKE 'vocab_progress_%'").all() as { key: string; value: string }[];
+    // Video / reading progress — strictly this user's
+    const progressRows = db.prepare(
+      "SELECT key, value FROM metadata WHERE user_id = ? AND (key LIKE 'youtube_progress_%' OR key LIKE 'vocab_progress_%')"
+    ).all(userId) as { key: string; value: string }[];
     const videoProgress: Record<string, string> = {};
     const readingProgress: Record<string, string> = {};
     for (const row of progressRows) {
@@ -424,20 +378,20 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+        id, user_id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
         spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
         srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
-      INSERT OR REPLACE INTO word_links (language_code, word_from, word_to) VALUES (?, ?, ?)
+      INSERT OR REPLACE INTO word_links (user_id, language_code, word_from, word_to) VALUES (?, ?, ?, ?)
     `);
 
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertLessonType = db.prepare(`
@@ -445,7 +399,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
     `);
 
     const insertMetadata = db.prepare(`
-      INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)
+      INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, ?)
     `);
 
     db.transaction(() => {
@@ -466,6 +420,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
         insertWord.run(
           key,
+          userId,
           lang,
           wordVal,
           val.translation || "",
@@ -504,12 +459,12 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         const cleanTo = cleanWordPrefix(val as string);
 
         ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
-        insertWordLink.run(lang, cleanFrom, cleanTo);
+        insertWordLink.run(userId, lang, cleanFrom, cleanTo);
       }
 
       if (data.deletedLessonIds && Array.isArray(data.deletedLessonIds) && data.deletedLessonIds.length > 0) {
         const placeholders = data.deletedLessonIds.map(() => "?").join(",");
-        db.prepare(`DELETE FROM lessons WHERE id IN (${placeholders})`).run(...data.deletedLessonIds);
+        db.prepare(`DELETE FROM lessons WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedLessonIds);
       }
 
       const lessons = data.lessons || [];
@@ -537,6 +492,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
         insertLesson.run(
           l.id,
+          userId,
           l.title,
           l.text,
           finalAudioUrl,
@@ -572,13 +528,13 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       if (data.listeningSeconds !== undefined) {
-        insertMetadata.run("listeningSeconds", String(data.listeningSeconds));
+        insertMetadata.run(userId, "listeningSeconds", String(data.listeningSeconds));
       }
 
       if (data.videoProgress && typeof data.videoProgress === "object") {
         for (const [lessonId, val] of Object.entries(data.videoProgress)) {
           if (val !== undefined && val !== null) {
-            insertMetadata.run(`youtube_progress_${lessonId}`, String(val));
+            insertMetadata.run(userId, `youtube_progress_${lessonId}`, String(val));
           }
         }
       }
@@ -586,21 +542,21 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       if (data.readingProgress && typeof data.readingProgress === "object") {
         for (const [lessonId, val] of Object.entries(data.readingProgress)) {
           if (val !== undefined && val !== null) {
-            insertMetadata.run(`vocab_progress_${lessonId}`, String(val));
+            insertMetadata.run(userId, `vocab_progress_${lessonId}`, String(val));
           }
         }
       }
 
       const insertHistory = db.prepare(`
         INSERT OR REPLACE INTO reading_history (
-          id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const historyList = data.history || [];
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
         const placeholders = data.deletedHistoryIds.map(() => "?").join(",");
-        db.prepare(`DELETE FROM reading_history WHERE id IN (${placeholders})`).run(...data.deletedHistoryIds);
+        db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedHistoryIds);
       }
 
       if (Array.isArray(historyList) && historyList.length > 0) {
@@ -608,6 +564,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           if (!h || !h.id || !h.lessonId) continue;
           insertHistory.run(
             h.id,
+            userId,
             h.lessonId,
             h.lessonTitle || "Занятие",
             h.lessonType || null,
