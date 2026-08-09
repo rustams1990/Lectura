@@ -145,7 +145,35 @@ function performAutoMigrationIfNeeded(mainDb: Database.Database) {
         console.error(`[AutoMigration] Error merging ${file}:`, e);
       }
     }
-    console.log(`[AutoMigration] Consolidated all database records into main DB!`);
+
+    // Two-way synchronization: Copy all lessons from mainDb into each user DB file so no user profile is missing any lessons
+    const allMainLessons = mainDb.prepare("SELECT * FROM lessons").all() as any[];
+    if (allMainLessons.length > 0) {
+      for (const file of usrFiles) {
+        const targetPath = path.join(DATA_DIR, file);
+        if (targetPath === SQLITE_DB_PATH) continue;
+        try {
+          const targetDb = new Database(targetPath);
+          const insertStmt = targetDb.prepare(`
+            INSERT OR IGNORE INTO lessons (
+              id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const l of allMainLessons) {
+            insertStmt.run(
+              l.id, l.title, l.text, l.audioUrl, l.audioBase64, l.targetLanguage, l.translationLanguage,
+              l.isBuiltIn ? 1 : 0, l.isArchived ? 1 : 0, l.coverUrl, l.youtubeId, l.lessonType,
+              l.pinned ? 1 : 0, l.translationText, l.detectedPhrases, l.difficulty, l.difficultyExplanation
+            );
+          }
+          targetDb.close();
+        } catch (e) {
+          console.error(`[AutoMigration] Error syncing main lessons to ${file}:`, e);
+        }
+      }
+    }
+
+    console.log(`[AutoMigration] Consolidated and synchronized all database records!`);
   } catch (e) {
     console.error("[AutoMigration] Failed:", e);
   }
