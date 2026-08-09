@@ -180,16 +180,9 @@ function performAutoMigrationIfNeeded(mainDb: Database.Database) {
 }
 
 export function getDbConnection(rawUserId: string = "default"): Database.Database {
-  const cleanId = typeof rawUserId === "string" ? rawUserId.trim() : "default";
-  const safeUserId = cleanId ? cleanId.replace(/[^a-zA-Z0-9_-]/g, "_") : "default";
-
-  let conn = dbConns.get(safeUserId);
+  let conn = dbConns.get("default");
   if (!conn) {
-    const dbPath = safeUserId === "default"
-      ? SQLITE_DB_PATH
-      : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
-
-    conn = new Database(dbPath);
+    conn = new Database(SQLITE_DB_PATH);
     conn.pragma("journal_mode = WAL");
     conn.pragma("foreign_keys = ON");
 
@@ -344,7 +337,7 @@ export function getDbConnection(rawUserId: string = "default"): Database.Databas
       }
     }
 
-    dbConns.set(safeUserId, conn);
+    dbConns.set("default", conn);
   }
   return conn;
 }
