@@ -272,27 +272,21 @@ export function getDbConnection(rawUserId: string = "default"): Database.Databas
         status TEXT,
         durationSeconds INTEGER DEFAULT 0,
         notes TEXT
+      CREATE TABLE IF NOT EXISTS server_users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        display_name TEXT,
+        created_at INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS server_sessions (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        expires_at INTEGER,
+        FOREIGN KEY(user_id) REFERENCES server_users(id) ON DELETE CASCADE
       );
     `);
-
-    if (safeUserId === "default") {
-      conn.exec(`
-        CREATE TABLE IF NOT EXISTS server_users (
-          id TEXT PRIMARY KEY,
-          email TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          display_name TEXT,
-          created_at INTEGER
-        );
-
-        CREATE TABLE IF NOT EXISTS server_sessions (
-          token TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          expires_at INTEGER,
-          FOREIGN KEY(user_id) REFERENCES server_users(id) ON DELETE CASCADE
-        );
-      `);
-    }
 
     // Ensure spelling statistics columns exist in words table (safe migration)
     try {
@@ -325,17 +319,6 @@ export function getDbConnection(rawUserId: string = "default"): Database.Databas
     try {
       conn.exec(`ALTER TABLE words ADD COLUMN srsRepetitions INTEGER;`);
     } catch (_) {}
-
-    // Evict oldest connections if pool size exceeds max limit (20 connections)
-    if (dbConns.size >= 20) {
-      for (const [k, oldConn] of dbConns.entries()) {
-        if (k !== "default" && k !== safeUserId) {
-          try { oldConn.close(); } catch (_) {}
-          dbConns.delete(k);
-          if (dbConns.size < 20) break;
-        }
-      }
-    }
 
     dbConns.set("default", conn);
   }
