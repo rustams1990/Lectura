@@ -372,11 +372,13 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
       "SELECT value FROM metadata WHERE user_id = '__system__' AND key = 'initial_user_migration_done'"
     ).get() as any)?.value === "1";
 
-    if (!migrationDone) {
-      // ── ONE-TIME MIGRATION ──────────────────────────────────────────────────
-      // Assign ALL existing data to the primary user.
-      // This is safe because this flag is written atomically — subsequent runs skip this block.
-      console.log(`[AutoAssign] Running ONE-TIME migration → all existing data → "${email}" (${uid})`);
+    const primaryWordCount = (db.prepare("SELECT COUNT(*) as c FROM words WHERE user_id = ?").get(uid) as any)?.c || 0;
+    const totalWords = (db.prepare("SELECT COUNT(*) as c FROM words").get() as any)?.c || 0;
+
+    if (!migrationDone || (primaryWordCount === 0 && totalWords > 50)) {
+      // ── ONE-TIME MIGRATION / RESTORE MAIN USER ──────────────────────────────
+      // Assign ALL existing data to the primary user rustamniy@gmail.com
+      console.log(`[AutoAssign] Assigning main library → "${email}" (${uid})`);
 
       db.transaction(() => {
         const [lN, wN, hN, mN, liN] = [
@@ -384,7 +386,6 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
           db.prepare("UPDATE OR IGNORE words SET user_id = ?").run(uid).changes,
           db.prepare("UPDATE OR IGNORE reading_history SET user_id = ?").run(uid).changes,
           db.prepare("UPDATE OR IGNORE word_links SET user_id = ?").run(uid).changes,
-          // Keep progress/listening metadata for this user without failing on PK conflicts
           db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id != '__system__'").run(uid).changes,
         ];
 
@@ -394,8 +395,8 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
         ).run();
 
         console.log(
-          `[AutoAssign] ✅ ONE-TIME migration done: ${lN} lessons, ${wN} words, ` +
-          `${hN} history, ${liN} metadata → "${email}" (${uid})`
+          `[AutoAssign] ✅ Main library assigned: ${lN} lessons, ${wN} words, ` +
+          `${hN} history → "${email}" (${uid})`
         );
       })();
 
