@@ -380,12 +380,12 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
 
       db.transaction(() => {
         const [lN, wN, hN, mN, liN] = [
-          db.prepare("UPDATE lessons SET user_id = ?").run(uid).changes,
-          db.prepare("UPDATE words SET user_id = ?").run(uid).changes,
-          db.prepare("UPDATE reading_history SET user_id = ?").run(uid).changes,
-          db.prepare("UPDATE word_links SET user_id = ?").run(uid).changes,
-          // Keep progress/listening metadata for this user
-          db.prepare("UPDATE metadata SET user_id = ? WHERE user_id != '__system__'").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE lessons SET user_id = ?").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE words SET user_id = ?").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE reading_history SET user_id = ?").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE word_links SET user_id = ?").run(uid).changes,
+          // Keep progress/listening metadata for this user without failing on PK conflicts
+          db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id != '__system__'").run(uid).changes,
         ];
 
         // Mark migration complete
@@ -403,11 +403,11 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
       // ── SUBSEQUENT RUNS: only assign truly orphaned records ─────────────────
       const orphaned = db.transaction(() => {
         const [lN, wN, hN, mN, liN] = [
-          db.prepare("UPDATE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users) AND user_id != '__system__'").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users) AND user_id != '__system__'").run(uid).changes,
         ];
         return lN + wN;
       });

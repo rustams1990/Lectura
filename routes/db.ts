@@ -220,11 +220,11 @@ export function getLocalServerDb(userId: string = "default") {
       );
       db.transaction(() => {
         db.prepare("DELETE FROM metadata WHERE user_id = '__system__' AND key = 'initial_user_migration_done'").run();
-        db.prepare("UPDATE lessons SET user_id = ?").run(userId);
-        db.prepare("UPDATE words SET user_id = ?").run(userId);
-        db.prepare("UPDATE reading_history SET user_id = ?").run(userId);
-        db.prepare("UPDATE metadata SET user_id = ? WHERE user_id != '__system__'").run(userId);
-        db.prepare("UPDATE word_links SET user_id = ?").run(userId);
+        db.prepare("UPDATE OR IGNORE lessons SET user_id = ?").run(userId);
+        db.prepare("UPDATE OR IGNORE words SET user_id = ?").run(userId);
+        db.prepare("UPDATE OR IGNORE reading_history SET user_id = ?").run(userId);
+        db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id != '__system__'").run(userId);
+        db.prepare("UPDATE OR IGNORE word_links SET user_id = ?").run(userId);
         db.prepare(
           "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES ('__system__', 'initial_user_migration_done', '1')"
         ).run();
