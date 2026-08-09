@@ -11,16 +11,10 @@ export const authRateLimit = rateLimit({
   max: 300, // Generous limit for home/local servers
   standardHeaders: true,
   legacyHeaders: false,
+  validate: false,
   message: {
     error: "Слишком много попыток входа или регистрации. Пожалуйста, подождите 15 минут.",
     retryAfter: 900
-  },
-  keyGenerator: (req) => {
-    const forwarded = req.headers["x-forwarded-for"];
-    if (typeof forwarded === "string" && forwarded.length > 0) {
-      return forwarded.split(",")[0].trim();
-    }
-    return req.ip || req.socket?.remoteAddress || "127.0.0.1";
   },
 });
 
