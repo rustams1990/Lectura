@@ -348,13 +348,12 @@ function performLegacyFileMigration(db: Database.Database) {
 
 function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
   try {
-    // Find the primary user (the one registered with rustamniy@gmail.com or the first created user)
+    // Find primary user by email, fallback to oldest registered user
     let primaryUser = db.prepare(
       "SELECT id, email FROM server_users WHERE email = ? LIMIT 1"
     ).get("rustamniy@gmail.com") as any;
 
     if (!primaryUser) {
-      // Fallback: pick the first registered user in the system
       primaryUser = db.prepare(
         "SELECT id, email FROM server_users ORDER BY created_at ASC LIMIT 1"
       ).get() as any;
@@ -368,49 +367,30 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
     const uid = primaryUser.id;
     const email = primaryUser.email;
 
+    // Reassign ALL records whose user_id is not a registered user (orphaned / legacy / 'default' / wrong ID)
+    // This covers: 'default', NULL, old PC user_id, any stale ID from previous failed migrations
     const migrate = db.transaction(() => {
-      const lessonsCount = (db.prepare(
-        "SELECT COUNT(*) as c FROM lessons WHERE user_id = 'default'"
-      ).get() as any).c;
+      const [lessonsN, wordsN, histN, metaN, linksN] = [
+        db.prepare("UPDATE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+      ];
 
-      const wordsCount = (db.prepare(
-        "SELECT COUNT(*) as c FROM words WHERE user_id = 'default'"
-      ).get() as any).c;
-
-      const historyCount = (db.prepare(
-        "SELECT COUNT(*) as c FROM reading_history WHERE user_id = 'default'"
-      ).get() as any).c;
-
-      const metaCount = (db.prepare(
-        "SELECT COUNT(*) as c FROM metadata WHERE user_id = 'default'"
-      ).get() as any).c;
-
-      const linksCount = (db.prepare(
-        "SELECT COUNT(*) as c FROM word_links WHERE user_id = 'default'"
-      ).get() as any).c;
-
-      if (lessonsCount > 0)
-        db.prepare("UPDATE lessons SET user_id = ? WHERE user_id = 'default'").run(uid);
-      if (wordsCount > 0)
-        db.prepare("UPDATE words SET user_id = ? WHERE user_id = 'default'").run(uid);
-      if (historyCount > 0)
-        db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id = 'default'").run(uid);
-      if (metaCount > 0)
-        db.prepare("UPDATE metadata SET user_id = ? WHERE user_id = 'default'").run(uid);
-      if (linksCount > 0)
-        db.prepare("UPDATE word_links SET user_id = ? WHERE user_id = 'default'").run(uid);
-
-      if (lessonsCount > 0 || wordsCount > 0) {
+      if (lessonsN > 0 || wordsN > 0) {
         console.log(
-          `[AutoAssign] ✅ Assigned ${lessonsCount} lessons, ${wordsCount} words, ` +
-          `${historyCount} history records to user "${email}" (${uid})`
+          `[AutoAssign] ✅ Reassigned ${lessonsN} lessons, ${wordsN} words, ` +
+          `${histN} history, ${metaN} metadata, ${linksN} links → user "${email}" (${uid})`
         );
+      } else {
+        console.log(`[AutoAssign] All records already properly assigned to registered users.`);
       }
     });
 
     migrate();
   } catch (e) {
-    console.error("[AutoAssign] Failed to auto-assign default data:", e);
+    console.error("[AutoAssign] Failed to auto-assign orphaned data:", e);
   }
 }
 

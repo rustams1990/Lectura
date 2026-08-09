@@ -206,8 +206,24 @@ export function getLocalServerDb(userId: string = "default") {
     const lessonsCount = (db.prepare("SELECT count(*) as count FROM lessons WHERE user_id = ?").get(userId) as { count: number }).count;
 
     if (wordsCount === 0 && lessonsCount === 0) {
-      console.log(`[getLocalServerDb] No data found for user "${userId}". Returning empty.`);
-      return null;
+      // EMERGENCY RECOVERY: Check if orphaned records exist and reassign them to this user
+      const orphanedLessons = (db.prepare(
+        "SELECT COUNT(*) as c FROM lessons WHERE user_id NOT IN (SELECT id FROM server_users)"
+      ).get() as any).c;
+
+      if (orphanedLessons > 0) {
+        console.log(`[getLocalServerDb] RECOVERY: Found ${orphanedLessons} orphaned lessons — reassigning to user "${userId}"`);
+        db.transaction(() => {
+          db.prepare("UPDATE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
+          db.prepare("UPDATE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
+          db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
+          db.prepare("UPDATE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
+          db.prepare("UPDATE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
+        })();
+      } else {
+        console.log(`[getLocalServerDb] No data found for user "${userId}". Returning empty.`);
+        return null;
+      }
     }
 
     // Listening seconds — per user
