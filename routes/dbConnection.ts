@@ -272,6 +272,8 @@ export function getDbConnection(rawUserId: string = "default"): Database.Databas
         status TEXT,
         durationSeconds INTEGER DEFAULT 0,
         notes TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS server_users (
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
