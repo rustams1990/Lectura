@@ -206,20 +206,29 @@ export function getLocalServerDb(userId: string = "default") {
     const lessonsCount = (db.prepare("SELECT count(*) as count FROM lessons WHERE user_id = ?").get(userId) as { count: number }).count;
 
     if (wordsCount === 0 && lessonsCount === 0) {
-      // EMERGENCY RECOVERY: Check if orphaned records exist and reassign them to this user
-      const orphanedLessons = (db.prepare(
-        "SELECT COUNT(*) as c FROM lessons WHERE user_id NOT IN (SELECT id FROM server_users)"
-      ).get() as any).c;
+      // EMERGENCY RECOVERY: User has 0 data but DB might have records under wrong user_id
+      const totalLessons = (db.prepare("SELECT COUNT(*) as c FROM lessons").get() as any).c;
 
-      if (orphanedLessons > 0) {
-        console.log(`[getLocalServerDb] RECOVERY: Found ${orphanedLessons} orphaned lessons — reassigning to user "${userId}"`);
+      if (totalLessons > 0) {
+        console.log(
+          `[getLocalServerDb] EMERGENCY RECOVERY: User "${userId}" has 0 lessons but DB has ${totalLessons} total. ` +
+          `Resetting migration flag and reassigning all data.`
+        );
+        // Reset the one-time migration flag so the next startup will re-run it
+        // Also immediately reassign ALL records to this user
         db.transaction(() => {
-          db.prepare("UPDATE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
-          db.prepare("UPDATE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
-          db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
-          db.prepare("UPDATE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
-          db.prepare("UPDATE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(userId);
+          db.prepare("DELETE FROM metadata WHERE user_id = '__system__' AND key = 'initial_user_migration_done'").run();
+          db.prepare("UPDATE lessons SET user_id = ?").run(userId);
+          db.prepare("UPDATE words SET user_id = ?").run(userId);
+          db.prepare("UPDATE reading_history SET user_id = ?").run(userId);
+          db.prepare("UPDATE metadata SET user_id = ? WHERE user_id != '__system__'").run(userId);
+          db.prepare("UPDATE word_links SET user_id = ?").run(userId);
+          // Re-mark migration as done for the new correct user_id
+          db.prepare(
+            "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES ('__system__', 'initial_user_migration_done', '1')"
+          ).run();
         })();
+        console.log(`[getLocalServerDb] ✅ Emergency recovery complete. Reloading data for user "${userId}".`);
       } else {
         console.log(`[getLocalServerDb] No data found for user "${userId}". Returning empty.`);
         return null;

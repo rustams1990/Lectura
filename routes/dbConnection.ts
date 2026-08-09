@@ -348,7 +348,7 @@ function performLegacyFileMigration(db: Database.Database) {
 
 function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
   try {
-    // Find primary user by email, fallback to oldest registered user
+    // Find primary user
     let primaryUser = db.prepare(
       "SELECT id, email FROM server_users WHERE email = ? LIMIT 1"
     ).get("rustamniy@gmail.com") as any;
@@ -360,37 +360,66 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
     }
 
     if (!primaryUser) {
-      console.log("[AutoAssign] No registered users found yet. Skipping assignment.");
+      console.log("[AutoAssign] No registered users found yet. Skipping.");
       return;
     }
 
     const uid = primaryUser.id;
     const email = primaryUser.email;
 
-    // Reassign ALL records whose user_id is not a registered user (orphaned / legacy / 'default' / wrong ID)
-    // This covers: 'default', NULL, old PC user_id, any stale ID from previous failed migrations
-    const migrate = db.transaction(() => {
-      const [lessonsN, wordsN, histN, metaN, linksN] = [
-        db.prepare("UPDATE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-        db.prepare("UPDATE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-        db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-        db.prepare("UPDATE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-        db.prepare("UPDATE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-      ];
+    // Check if the ONE-TIME forced migration has already been done
+    const migrationDone = (db.prepare(
+      "SELECT value FROM metadata WHERE user_id = '__system__' AND key = 'initial_user_migration_done'"
+    ).get() as any)?.value === "1";
 
-      if (lessonsN > 0 || wordsN > 0) {
+    if (!migrationDone) {
+      // ── ONE-TIME MIGRATION ──────────────────────────────────────────────────
+      // Assign ALL existing data to the primary user.
+      // This is safe because this flag is written atomically — subsequent runs skip this block.
+      console.log(`[AutoAssign] Running ONE-TIME migration → all existing data → "${email}" (${uid})`);
+
+      db.transaction(() => {
+        const [lN, wN, hN, mN, liN] = [
+          db.prepare("UPDATE lessons SET user_id = ?").run(uid).changes,
+          db.prepare("UPDATE words SET user_id = ?").run(uid).changes,
+          db.prepare("UPDATE reading_history SET user_id = ?").run(uid).changes,
+          db.prepare("UPDATE word_links SET user_id = ?").run(uid).changes,
+          // Keep progress/listening metadata for this user
+          db.prepare("UPDATE metadata SET user_id = ? WHERE user_id != '__system__'").run(uid).changes,
+        ];
+
+        // Mark migration complete
+        db.prepare(
+          "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES ('__system__', 'initial_user_migration_done', '1')"
+        ).run();
+
         console.log(
-          `[AutoAssign] ✅ Reassigned ${lessonsN} lessons, ${wordsN} words, ` +
-          `${histN} history, ${metaN} metadata, ${linksN} links → user "${email}" (${uid})`
+          `[AutoAssign] ✅ ONE-TIME migration done: ${lN} lessons, ${wN} words, ` +
+          `${hN} history, ${liN} metadata → "${email}" (${uid})`
         );
-      } else {
-        console.log(`[AutoAssign] All records already properly assigned to registered users.`);
-      }
-    });
+      })();
 
-    migrate();
+    } else {
+      // ── SUBSEQUENT RUNS: only assign truly orphaned records ─────────────────
+      const orphaned = db.transaction(() => {
+        const [lN, wN, hN, mN, liN] = [
+          db.prepare("UPDATE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+          db.prepare("UPDATE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users) AND user_id != '__system__'").run(uid).changes,
+        ];
+        return lN + wN;
+      });
+      const changed = orphaned();
+      if (changed > 0) {
+        console.log(`[AutoAssign] Assigned ${changed} orphaned records → "${email}" (${uid})`);
+      } else {
+        console.log("[AutoAssign] All records properly assigned. Nothing to fix.");
+      }
+    }
   } catch (e) {
-    console.error("[AutoAssign] Failed to auto-assign orphaned data:", e);
+    console.error("[AutoAssign] Failed:", e);
   }
 }
 
