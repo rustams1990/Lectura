@@ -8,17 +8,20 @@ const router = Router();
 // Rate limiter for authentication endpoints (login & register)
 export const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // max 15 requests per IP per 15 minutes
+  max: 300, // Generous limit for home/local servers
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     error: "Слишком много попыток входа или регистрации. Пожалуйста, подождите 15 минут.",
     retryAfter: 900
   },
-  keyGenerator: (req) =>
-    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
-    || req.socket.remoteAddress
-    || "unknown",
+  keyGenerator: (req) => {
+    const forwarded = req.headers["x-forwarded-for"];
+    if (typeof forwarded === "string" && forwarded.length > 0) {
+      return forwarded.split(",")[0].trim();
+    }
+    return req.ip || req.socket?.remoteAddress || "127.0.0.1";
+  },
 });
 
 // ============================================================

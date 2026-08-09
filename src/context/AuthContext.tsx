@@ -165,9 +165,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: username, username, password }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch (_) {
+        return { success: false, error: `Ошибка сервера (код статуса ${res.status})` };
+      }
       if (!res.ok || !data.token) {
-        return { success: false, error: data.error || "Login failed" };
+        return { success: false, error: data.error || `Ошибка входа (код статуса ${res.status})` };
       }
       setServerToken(data.token);
       setLocalUser(data.user);
@@ -176,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStorageMode("server");
       return { success: true };
     } catch (e: any) {
-      return { success: false, error: e.message || "Network error" };
+      return { success: false, error: e.message || "Не удалось подключиться к серверу" };
     }
   };
 
@@ -187,9 +192,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: username, username, password }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch (_) {
+        return { success: false, error: `Ошибка сервера (код статуса ${res.status})` };
+      }
       if (!res.ok || !data.token) {
-        return { success: false, error: data.error || "Registration failed" };
+        return { success: false, error: data.error || `Ошибка регистрации (код статуса ${res.status})` };
       }
       setServerToken(data.token);
       setLocalUser(data.user);
@@ -198,7 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStorageMode("server");
       return { success: true };
     } catch (e: any) {
-      return { success: false, error: e.message || "Network error" };
+      return { success: false, error: e.message || "Не удалось подключиться к серверу" };
     }
   };
 
