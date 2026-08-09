@@ -39,19 +39,39 @@ export function calculateNextReview(
 
   // Calculate Repetitions and Interval
   if (quality >= 3) {
-    // Correct response
     repetitions += 1;
-    if (repetitions === 1) {
-      interval = 1;
-    } else if (repetitions === 2) {
-      interval = 6;
-    } else {
-      interval = Math.round(interval * easeFactor);
+    if (quality === 3) {
+      // Hard: 1 day -> 3 days -> 1.2x multiplier
+      if (repetitions === 1) {
+        interval = 1;
+      } else if (repetitions === 2) {
+        interval = 3;
+      } else {
+        interval = Math.max(interval + 1, Math.round(interval * 1.2));
+      }
+    } else if (quality === 4) {
+      // Good: 2 days -> 5 days -> Ease Factor multiplier
+      if (repetitions === 1) {
+        interval = 2;
+      } else if (repetitions === 2) {
+        interval = 5;
+      } else {
+        interval = Math.max(interval + 1, Math.round(interval * easeFactor));
+      }
+    } else if (quality === 5) {
+      // Easy: 4 days -> 10 days -> Ease Factor * 1.3 bonus multiplier
+      if (repetitions === 1) {
+        interval = 4;
+      } else if (repetitions === 2) {
+        interval = 10;
+      } else {
+        interval = Math.max(interval + 2, Math.round(interval * easeFactor * 1.3));
+      }
     }
   } else {
-    // Incorrect response
+    // Incorrect response (Again)
     repetitions = 0;
-    interval = 1; // reset interval to 1 day for relearning
+    interval = 1; // reset interval to 1 day if saved
   }
 
   // Calculate next review date in milliseconds

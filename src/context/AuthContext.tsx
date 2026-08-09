@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { safeLocalStorageSetItem } from "../utils";
+import { clearLocalUserDataCache } from "../db";
+
 
 export interface LocalUser {
   id: string;
@@ -218,6 +220,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setServerToken("");
       setLocalUser(null);
     }
+    await clearLocalUserDataCache();
+    window.dispatchEvent(new CustomEvent("lectura:user_logout"));
   };
 
   const activeUser = storageMode === "cloud" ? firebaseUser : storageMode === "server" ? localUser : null;

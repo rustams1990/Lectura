@@ -65,8 +65,15 @@ export interface LessonType {
 
 export interface AppStats {
   listeningSeconds: number;
+  todayListeningSeconds: number;
   wordsKnownCount: number;
   wordsLearningCount: number;
+}
+
+export interface LanguageListeningStat {
+  language: string;
+  todaySeconds: number;
+  totalSeconds: number;
 }
 
 export interface ReaderSettings {

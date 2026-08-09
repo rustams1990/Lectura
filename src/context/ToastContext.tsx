@@ -131,11 +131,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Toast container — правый нижний угол */}
+      {/* Toast container — верхний центр экрана */}
       <div
         aria-label="Уведомления"
-        className="fixed bottom-5 right-5 z-[9999] flex flex-col-reverse gap-2.5 items-end pointer-events-none"
-        style={{ maxWidth: "calc(100vw - 2.5rem)" }}
+        className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2.5 items-center pointer-events-none"
+        style={{ maxWidth: "calc(100vw - 2rem)" }}
       >
         {toasts.map((t) => (
           <div key={t.id} className="pointer-events-auto">

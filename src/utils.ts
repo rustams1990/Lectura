@@ -392,6 +392,10 @@ export function normalizeVocabRecord(record: Record<string, any> | any[] | undef
       lastSpelledCorrectly: value.lastSpelledCorrectly !== undefined ? (value.lastSpelledCorrectly === true ? true : (value.lastSpelledCorrectly === false ? false : null)) : null,
       lastSpelledWithAccentError: !!value.lastSpelledWithAccentError,
       spellingExclude: !!value.spellingExclude,
+      srsNextReview: typeof value.srsNextReview === "number" && !isNaN(value.srsNextReview) ? value.srsNextReview : undefined,
+      srsInterval: typeof value.srsInterval === "number" && !isNaN(value.srsInterval) ? value.srsInterval : undefined,
+      srsEaseFactor: typeof value.srsEaseFactor === "number" && !isNaN(value.srsEaseFactor) ? value.srsEaseFactor : undefined,
+      srsRepetitions: typeof value.srsRepetitions === "number" && !isNaN(value.srsRepetitions) ? value.srsRepetitions : undefined,
     };
   }
   return normalized;
@@ -422,7 +426,8 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
       item.lessonType === "youtube" ||
       item.lessonType === "podcast" ||
       item.lessonType === "audio" ||
-      item.actionType === "listen";
+      item.actionType === "listen" ||
+      (item.durationSeconds || 0) > 0;
 
     const existingIdx = merged.findIndex(
       (m) =>
@@ -432,7 +437,13 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
 
     if (existingIdx !== -1) {
       const existing = merged[existingIdx];
-      const isListening = existing.actionType === "listen" || item.actionType === "listen" || isAudioOrVideoType;
+      const isListening =
+        existing.actionType === "listen" ||
+        item.actionType === "listen" ||
+        (existing.durationSeconds || 0) > 0 ||
+        (item.durationSeconds || 0) > 0 ||
+        isAudioOrVideoType;
+
       const isCompleted =
         existing.status === "completed" ||
         item.status === "completed" ||
@@ -502,6 +513,10 @@ export function buildVocabItem(
     lastSpelledCorrectly:      pick(newItem.lastSpelledCorrectly,      existing?.lastSpelledCorrectly,      null),
     lastSpelledWithAccentError: pick(newItem.lastSpelledWithAccentError, existing?.lastSpelledWithAccentError, null),
     spellingExclude:           pick(newItem.spellingExclude,           existing?.spellingExclude,           false),
+    srsNextReview:             pick(newItem.srsNextReview,             existing?.srsNextReview,             undefined),
+    srsInterval:               pick(newItem.srsInterval,               existing?.srsInterval,               undefined),
+    srsEaseFactor:             pick(newItem.srsEaseFactor,             existing?.srsEaseFactor,             undefined),
+    srsRepetitions:            pick(newItem.srsRepetitions,            existing?.srsRepetitions,            undefined),
   };
 }
 

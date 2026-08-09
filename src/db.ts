@@ -95,3 +95,36 @@ export async function migrateFromLocalStorage() {
     console.warn("Migration completed with non-critical errors. Migrated flag set to prevent endless retry loops.");
   }
 }
+
+export async function clearLocalUserDataCache() {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("vocab_clone_words") ||
+         key.startsWith("vocab_clone_aliases") ||
+         key.startsWith("vocab_clone_lessons") ||
+         key.startsWith("vocab_clone_lessontypes") ||
+         key.startsWith("vocab_clone_listening") ||
+         key.startsWith("vocab_clone_reading_history") ||
+         key.startsWith("vocab_clone_language_flags") ||
+         key.startsWith("youtube_progress_") ||
+         key.startsWith("vocab_progress_"))
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+    await lessonsStore.clear();
+    await vocabStore.clear();
+    await settingsStore.removeItem("vocab_clone_reading_history");
+    await settingsStore.removeItem("vocab_clone_listening");
+    await settingsStore.removeItem("vocab_clone_language_flags");
+  } catch (e) {
+    console.error("Failed to clear local user data cache:", e);
+  }
+}
+

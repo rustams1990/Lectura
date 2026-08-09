@@ -21,6 +21,7 @@ interface SpellingModeProps {
   onCheckSpelling: () => void;
   onNext: () => void;
   onExclude: () => void;
+  onDontKnow?: () => void;
 }
 
 export default function SpellingMode({
@@ -39,7 +40,8 @@ export default function SpellingMode({
   
   onCheckSpelling,
   onNext,
-  onExclude
+  onExclude,
+  onDontKnow
 }: SpellingModeProps) {
   const { t } = useTranslation();
 
@@ -159,11 +161,21 @@ export default function SpellingMode({
               </div>
             </div>
 
-            <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800 flex gap-2">
+              {onDontKnow && !hasCheckedSpelling && (
+                <button
+                  type="button"
+                  onClick={onDontKnow}
+                  className="px-4 py-3.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40 transition-all cursor-pointer shrink-0"
+                  title={t('practice.dont_know', 'Не знаю / Показать ответ')}
+                >
+                  {t('practice.dont_know_short', 'Не знаю')}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={hasCheckedSpelling ? onNext : onCheckSpelling}
-                className={`w-full py-3.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                className={`flex-1 py-3.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   hasCheckedSpelling
                     ? "bg-teal-600 hover:bg-teal-500 text-white"
                     : spellingInput.trim()

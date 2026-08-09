@@ -52,7 +52,19 @@
     "checking": "Проверка...",
     "exit": "Выйти",
     "login": "☁️ Войти (Sync)",
-    "login_title": "Войдите, чтобы сохранить результаты"
+    "login_title": "Войдите, чтобы сохранить результаты",
+    "target_language": "Язык обучения",
+    "select_target_language": "Выбрать язык обучения",
+    "all_languages": "Все языки"
+  },
+  "stats": {
+    "listening_today": "СЛУШАНИЕ ЗА СЕГОДНЯ 🎧",
+    "total_label": "всего:",
+    "learning_words": "ИЗУЧАЕМЫЕ СЛОВА 🎯",
+    "known_words": "ВЫУЧЕННЫЕ СЛОВА ✅",
+    "seconds_short": "с",
+    "minutes_short": "мин",
+    "hours_short": "ч"
   },
   "sidebar": {
     "library": "Библиотека",
@@ -73,7 +85,7 @@
     "local_profile": "💻 Локальный Профиль",
     "cloud_profile": "☁️ Облако (Google / Email)",
     "error": "⚠️ Ошибка:",
-    "local_description": "Войдите или зарегистрируйтесь на вашем локальном сервере CasaOS. Данные будут храниться и синхронизироваться через вашу собственную базу данных SQLite.",
+    "local_description": "Войдите или зарегистрируйтесь на вашем локальном сервере. Данные будут храниться и синхронизироваться через вашу собственную базу данных SQLite.",
     "server_profile": "Профиль на Сервере:",
     "login": "Вход",
     "register": "Регистрация",
@@ -87,6 +99,9 @@
     "email_login": "Вход по Email:",
     "placeholder_email_only": "Email адрес",
     "placeholder_password_6": "Пароль (от 6 символов)",
+    "placeholder_confirm_password": "Повторите пароль",
+    "error_empty_confirm": "Пожалуйста, повторите пароль.",
+    "error_passwords_dont_match": "Пароли не совпадают.",
     "btn_register_cloud": "Создать аккаунт и войти",
     "btn_login_cloud": "Войти в облако"
   },
@@ -315,7 +330,7 @@
     "source_wiki": "Wiki",
     "source_hybrid": "Гибридный",
     "ai_lookup": "ИИ разбор и перевод ✨",
-    "source_google_no_ai": "Google Translate (без ИИ) 🌐",
+    "source_google_no_ai": "Google Translate 🌐",
     "free_dict_api": "Free Dictionary API",
     "wiki_api": "Wiktionary REST API",
     "hybrid_search": "Гибридный поиск со словарями 🌐",

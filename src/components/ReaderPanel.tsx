@@ -5,7 +5,7 @@
 
 import React, { useMemo, useState, useEffect, useRef, memo } from "react";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
-import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw, Clock, CheckCircle2, Plus, X, Calendar, MessageSquare } from "lucide-react";
+import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw, Clock, CheckCircle2, Plus, X, Calendar, MessageSquare, ChevronDown } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 import { useReaderHistory } from "../hooks/useReaderHistory";
 import { TooltipPortal } from "./TooltipPortal";
@@ -31,6 +31,8 @@ interface ReaderPanelProps {
   showOnlyUnknown?: boolean;
   history?: HistoryEntry[];
   onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
+  /** When true, hides the title/badges/status header (used in Focus Mode) */
+  hideMeta?: boolean;
 }
 
 const fontSizeMap = {
@@ -63,6 +65,7 @@ interface ReaderThemeStyles {
   subBadgeBg: string;
   divider: string;
   subText: string;
+  selectBg: string;
 }
 
 const themeMap: Record<string, ReaderThemeStyles> = {
@@ -70,31 +73,35 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     container: "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border-zinc-100 dark:border-zinc-800/80",
     barBg: "bg-transparent",
     pillBg: "bg-transparent text-zinc-800 dark:text-zinc-200",
-    subBadgeBg: "bg-zinc-100/60 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400",
+    subBadgeBg: "bg-zinc-100/70 dark:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300",
+    selectBg: "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 border-zinc-200 dark:border-zinc-700",
     divider: "border-zinc-200/80 dark:border-zinc-800/80",
-    subText: "text-zinc-600 dark:text-zinc-400",
+    subText: "text-zinc-700 dark:text-zinc-300",
   },
   cream: {
     container: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8]",
     barBg: "bg-transparent",
     pillBg: "bg-transparent text-[#3b2b1a]",
-    subBadgeBg: "bg-[#f5ebd6] text-[#523d24]",
+    subBadgeBg: "bg-[#f4e8d3] text-[#4a3622]",
+    selectBg: "bg-[#fcf8f2] text-teal-700 border-[#e8d7bb]",
     divider: "border-[#eddcb9]",
-    subText: "text-[#523d24]",
+    subText: "text-[#4a3622]",
   },
   sepia: {
     container: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3]",
     barBg: "bg-transparent",
     pillBg: "bg-transparent text-[#432d16]",
-    subBadgeBg: "bg-[#ebdcae] text-[#593d1f]",
+    subBadgeBg: "bg-[#e8daae] text-[#4a3217]",
+    selectBg: "bg-[#f5ebd0] text-teal-800 border-[#dbca98]",
     divider: "border-[#e0cea1]",
-    subText: "text-[#593d1f]",
+    subText: "text-[#4a3217]",
   },
   slate: {
     container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
     barBg: "bg-transparent",
     pillBg: "bg-transparent text-slate-800 dark:text-slate-100",
-    subBadgeBg: "bg-slate-200/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+    subBadgeBg: "bg-slate-200/70 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300",
+    selectBg: "bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 border-slate-300 dark:border-slate-700",
     divider: "border-slate-200 dark:border-slate-800",
     subText: "text-slate-700 dark:text-slate-300",
   },
@@ -205,6 +212,7 @@ function ReaderPanel({
   showOnlyUnknown = false,
   history,
   onUpdateHistory,
+  hideMeta = false,
 }: ReaderPanelProps) {
   const { t } = useTranslation();
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
@@ -255,6 +263,19 @@ function ReaderPanel({
     detectedPhraseExplanation?: string;
     detectedPhraseType?: string;
   } | null>(null);
+
+  const [isPageSelectOpen, setIsPageSelectOpen] = useState(false);
+  const pageSelectRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pageSelectRef.current && !pageSelectRef.current.contains(e.target as Node)) {
+        setIsPageSelectOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Check if text is mostly East Asian (at least 30% CJK characters)
   const isCjk = useMemo(() => {
@@ -631,6 +652,8 @@ function ReaderPanel({
         </div>
       )}
 
+      {/* Title / badges / status — hidden in Focus Mode via hideMeta prop */}
+      {!hideMeta && (
       <div className={`pb-4 border-b ${currentTheme.divider} flex flex-col xl:flex-row xl:items-center justify-between gap-4`}>
         <div>
           <div className="flex items-center gap-3.5">
@@ -750,6 +773,7 @@ function ReaderPanel({
           )}
         </div>
       </div>
+      )} {/* end !hideMeta */}
 
       {showOnlyUnknown && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-zinc-850 dark:text-zinc-200 animate-in fade-in duration-200 font-sans">
@@ -1629,31 +1653,49 @@ function ReaderPanel({
                 onClick={() => {
                   navigateToPage(Math.max(0, clampedPageIdx - 1));
                 }}
-                className={`w-full sm:w-auto px-4 py-2 ${currentTheme.pillBg} disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5`}
+                className={`w-full sm:w-auto px-4 py-2 bg-transparent border ${currentTheme.divider} ${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5`}
               >
                 ← {t('reader.prev_page', 'Prev')}
               </button>
 
-              <div className={`flex items-center gap-2 ${currentTheme.subBadgeBg} px-3 py-1.5 rounded-xl border ${currentTheme.divider}`}>
+              <div className={`flex items-center gap-1.5 bg-transparent px-3 py-1.5 rounded-xl border ${currentTheme.divider}`}>
                 <span className={`text-xs font-mono font-bold tracking-tight ${currentTheme.subText}`}>
                   {t('reader.page', 'Page')}
                 </span>
-                <select
-                  id="page-jump-select"
-                  value={clampedPageIdx}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    navigateToPage(val);
-                  }}
-                  className={`text-xs font-mono font-bold tracking-tight text-teal-600 dark:text-teal-400 ${currentTheme.pillBg} rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-xs font-sans`}
-                >
-                  {pages.map((_, i) => (
-                    <option key={i} value={i}>
-                      {i + 1}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-xs font-mono font-bold tracking-tight text-zinc-400 dark:text-zinc-500">
+                <div className="relative" ref={pageSelectRef}>
+                  <button
+                    type="button"
+                    id="page-jump-select-btn"
+                    onClick={() => setIsPageSelectOpen(!isPageSelectOpen)}
+                    className="flex items-center gap-0.5 text-xs font-mono font-bold text-teal-600 dark:text-teal-400 bg-transparent px-1 py-0.5 rounded cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus:outline-none"
+                  >
+                    <span>{clampedPageIdx + 1}</span>
+                    <ChevronDown className={`w-3 h-3 text-teal-600 dark:text-teal-400 transition-transform ${isPageSelectOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {isPageSelectOpen && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-20 max-h-48 overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-[9999] py-1 text-center font-mono text-xs">
+                      {pages.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            navigateToPage(i);
+                            setIsPageSelectOpen(false);
+                          }}
+                          className={`w-full px-2 py-1 text-center transition-colors cursor-pointer ${
+                            i === clampedPageIdx
+                              ? "bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 font-bold"
+                              : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span className={`text-xs font-mono font-bold tracking-tight ${currentTheme.subText} opacity-80`}>
                   {t('reader.of', 'of')} {pages.length}
                 </span>
                 <button
@@ -1662,7 +1704,7 @@ function ReaderPanel({
                   onClick={() => {
                     navigateToPage(0); safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "0");
                   }}
-                  className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-md transition cursor-pointer ml-1"
+                  className={`p-1 hover:bg-black/10 dark:hover:bg-white/10 ${currentTheme.subText} opacity-70 hover:opacity-100 rounded-md transition cursor-pointer ml-1`}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>

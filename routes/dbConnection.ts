@@ -151,15 +151,21 @@ function performAutoMigrationIfNeeded(mainDb: Database.Database) {
   }
 }
 
-export function getDbConnection(_userId: string = "default"): Database.Database {
-  const safeUserId = "default";
+export function getDbConnection(rawUserId: string = "default"): Database.Database {
+  const cleanId = typeof rawUserId === "string" ? rawUserId.trim() : "default";
+  const safeUserId = cleanId ? cleanId.replace(/[^a-zA-Z0-9_-]/g, "_") : "default";
+
   let conn = dbConns.get(safeUserId);
   if (!conn) {
-    conn = new Database(SQLITE_DB_PATH);
+    const dbPath = safeUserId === "default"
+      ? SQLITE_DB_PATH
+      : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
+
+    conn = new Database(dbPath);
     conn.pragma("journal_mode = WAL");
     conn.pragma("foreign_keys = ON");
 
-    // Ensure all tables exist
+    // Ensure all tables exist in this database
     conn.exec(`
       CREATE TABLE IF NOT EXISTS metadata (
         key TEXT PRIMARY KEY,
@@ -191,6 +197,10 @@ export function getDbConnection(_userId: string = "default"): Database.Database 
         lastSpelledCorrectly INTEGER,
         lastSpelledWithAccentError INTEGER DEFAULT 0,
         spellingExclude INTEGER DEFAULT 0,
+        srsNextReview INTEGER,
+        srsInterval INTEGER,
+        srsEaseFactor REAL,
+        srsRepetitions INTEGER,
         FOREIGN KEY(language_code) REFERENCES languages(code) ON DELETE CASCADE,
         UNIQUE(language_code, word)
       );
@@ -282,6 +292,18 @@ export function getDbConnection(_userId: string = "default"): Database.Database 
     try {
       conn.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`);
     } catch (_) {}
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN srsNextReview INTEGER;`);
+    } catch (_) {}
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN srsInterval INTEGER;`);
+    } catch (_) {}
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN srsEaseFactor REAL;`);
+    } catch (_) {}
+    try {
+      conn.exec(`ALTER TABLE words ADD COLUMN srsRepetitions INTEGER;`);
+    } catch (_) {}
 
     // Evict oldest connections if pool size exceeds max limit (20 connections)
     if (dbConns.size >= 20) {
@@ -295,7 +317,6 @@ export function getDbConnection(_userId: string = "default"): Database.Database 
     }
 
     dbConns.set(safeUserId, conn);
-    performAutoMigrationIfNeeded(conn);
   }
   return conn;
 }

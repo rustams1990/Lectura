@@ -1,8 +1,9 @@
-import React from 'react';
-import { Menu, Languages, Sun, Moon } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Menu, Languages, Sun, Moon, ChevronDown, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { settingsStore } from '../../db';
 import { useTranslation } from 'react-i18next';
+import { getLanguageFlagEmoji, renderCircularFlag } from '../LibraryHome';
 
 interface AppHeaderProps {
   isFocusMode: boolean;
@@ -20,6 +21,10 @@ interface AppHeaderProps {
   setShowLocalLoginModal: (show: boolean) => void;
   storageMode: "local" | "cloud" | "server";
   isSyncing: boolean;
+  selectedTargetLanguage: string;
+  onSelectTargetLanguage: (lang: string) => void;
+  availableTargetLanguages: string[];
+  languageFlags?: Record<string, string>;
 }
 
 export default function AppHeader({
@@ -34,10 +39,27 @@ export default function AppHeader({
   setIsDarkMode,
   setShowLocalLoginModal,
   storageMode,
-  isSyncing
+  isSyncing,
+  selectedTargetLanguage,
+  onSelectTargetLanguage,
+  availableTargetLanguages,
+  languageFlags,
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
   const { t, i18n } = useTranslation();
+
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setIsLangDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (isFocusMode) return null;
 
@@ -88,7 +110,53 @@ export default function AppHeader({
 
         {/* Right side: Sync State & Login/Logout HUD */}
         <div className="flex items-center gap-2">
-          {/* Language Toggle Button */}
+
+          {/* Global Target Language Selector Dropdown in Header */}
+          <div className="relative font-sans" ref={langDropdownRef}>
+            <button
+              onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+              className="px-3 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-2 shadow-3xs active:scale-95 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 text-zinc-900 dark:text-white border-zinc-200/80 dark:border-zinc-800 font-extrabold text-xs"
+              title={t('header.select_target_language', 'Select target language')}
+            >
+              {renderCircularFlag(getLanguageFlagEmoji(selectedTargetLanguage, languageFlags), selectedTargetLanguage === "All")}
+              <span className="hidden md:inline font-black">{selectedTargetLanguage === "All" ? t('header.all_languages', 'All Languages') : selectedTargetLanguage}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-150 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isLangDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 font-sans">
+                <div className="px-3 py-1 text-[10px] uppercase font-black tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800/60 mb-1">
+                  🌐 {t('header.target_language', 'Learning Language')}
+                </div>
+                {availableTargetLanguages.map((lang) => {
+                  const isSelected = selectedTargetLanguage.toLowerCase() === lang.toLowerCase();
+                  return (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => {
+                        onSelectTargetLanguage(lang);
+                        setIsLangDropdownOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-xs font-extrabold flex items-center justify-between transition-colors cursor-pointer ${
+                        isSelected
+                          ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 font-black"
+                          : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/80"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {renderCircularFlag(getLanguageFlagEmoji(lang, languageFlags), lang === "All")}
+                        <span>{lang === "All" ? t('header.all_languages', 'All Languages') : lang}</span>
+                      </div>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Language Toggle Button (UI Interface Translation EN/RU) */}
           <button
             onClick={() => {
               const newLang = i18n.language.startsWith('en') ? 'ru' : 'en';

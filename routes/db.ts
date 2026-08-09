@@ -286,6 +286,10 @@ export function getLocalServerDb(userId: string = "default") {
         lastSpelledCorrectly: w.lastSpelledCorrectly === 1 ? true : (w.lastSpelledCorrectly === 0 ? false : null),
         lastSpelledWithAccentError: w.lastSpelledWithAccentError === 1,
         spellingExclude: w.spellingExclude === 1,
+        srsNextReview: typeof w.srsNextReview === "number" ? w.srsNextReview : undefined,
+        srsInterval: typeof w.srsInterval === "number" ? w.srsInterval : undefined,
+        srsEaseFactor: typeof w.srsEaseFactor === "number" ? w.srsEaseFactor : undefined,
+        srsRepetitions: typeof w.srsRepetitions === "number" ? w.srsRepetitions : undefined,
       };
     }
 
@@ -363,8 +367,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples, spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+        spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
+        srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -419,7 +425,11 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           val.spellingAccentCount || 0,
           val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null,
           val.lastSpelledWithAccentError ? 1 : 0,
-          val.spellingExclude ? 1 : 0
+          val.spellingExclude ? 1 : 0,
+          typeof val.srsNextReview === "number" ? val.srsNextReview : null,
+          typeof val.srsInterval === "number" ? val.srsInterval : null,
+          typeof val.srsEaseFactor === "number" ? val.srsEaseFactor : null,
+          typeof val.srsRepetitions === "number" ? val.srsRepetitions : null
         );
       }
 
@@ -531,14 +541,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       `);
 
       const historyList = data.history || [];
-      if (Array.isArray(data.history)) {
-        const currentHistoryIds = historyList.map((h: any) => h?.id).filter(Boolean);
-        if (currentHistoryIds.length > 0) {
-          const placeholders = currentHistoryIds.map(() => "?").join(",");
-          db.prepare(`DELETE FROM reading_history WHERE id NOT IN (${placeholders})`).run(...currentHistoryIds);
-        } else {
-          db.prepare(`DELETE FROM reading_history`).run();
-        }
+      if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
+        const placeholders = data.deletedHistoryIds.map(() => "?").join(",");
+        db.prepare(`DELETE FROM reading_history WHERE id IN (${placeholders})`).run(...data.deletedHistoryIds);
       }
 
       if (Array.isArray(historyList) && historyList.length > 0) {

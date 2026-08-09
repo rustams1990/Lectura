@@ -30,11 +30,12 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
   const [isLocalServerRegister, setIsLocalServerRegister] = useState<boolean>(false);
   const [localServerEmail, setLocalServerEmail] = useState<string>("");
   const [localServerPassword, setLocalServerPassword] = useState<string>("");
-  const [localServerName, setLocalServerName] = useState<string>("");
+  const [localServerConfirmPassword, setLocalServerConfirmPassword] = useState<string>("");
   const [isLocalServerAuthLoading, setIsLocalServerAuthLoading] = useState<boolean>(false);
   
   const [emailInput, setEmailInput] = useState<string>("");
   const [passwordInput, setPasswordInput] = useState<string>("");
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>("");
   const [isEmailRegister, setIsEmailRegister] = useState<boolean>(false);
   const [emailAuthLoading, setEmailAuthLoading] = useState<boolean>(false);
 
@@ -42,14 +43,30 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
     return isLocalHostname() ? "local" : "cloud";
   });
 
-  const handleServerAuthSubmit = async (emailInputVal: string, passwordInputVal: string, nameInputVal: string, isRegisterVal: boolean) => {
+  const handleServerAuthSubmit = async (
+    emailInputVal: string,
+    passwordInputVal: string,
+    confirmPasswordInputVal: string,
+    isRegisterVal: boolean
+  ) => {
     const email = emailInputVal.trim();
     const password = passwordInputVal.trim();
-    const name = nameInputVal.trim();
+    const confirmPassword = confirmPasswordInputVal.trim();
 
     if (!email || !password) {
       setAuthError(t('auth.error_empty', 'Пожалуйста, введите email/логин и пароль.'));
       return;
+    }
+
+    if (isRegisterVal) {
+      if (!confirmPassword) {
+        setAuthError(t('auth.error_empty_confirm', 'Пожалуйста, повторите пароль.'));
+        return;
+      }
+      if (password !== confirmPassword) {
+        setAuthError(t('auth.error_passwords_dont_match', 'Пароли не совпадают.'));
+        return;
+      }
     }
 
     setAuthError(null);
@@ -61,8 +78,8 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
       }
 
       const result = isRegisterVal
-        ? await registerLocalServer(email || name, password)
-        : await loginLocalServer(email || name, password);
+        ? await registerLocalServer(email, password)
+        : await loginLocalServer(email, password);
 
       if (!result.success) {
         throw new Error(result.error || "Ошибка авторизации");
@@ -71,7 +88,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
       onLocalServerLogin();
       setLocalServerEmail("");
       setLocalServerPassword("");
-      setLocalServerName("");
+      setLocalServerConfirmPassword("");
       onClose();
     } catch (err: any) {
       console.error("Local server auth error:", err);
@@ -141,7 +158,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
             <div className="space-y-4 pt-2">
               <div className="text-center space-y-1">
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal">
-                  {t('auth.local_description', 'Войдите или зарегистрируйтесь на вашем локальном сервере CasaOS. Данные будут храниться и синхронизироваться через вашу собственную базу данных SQLite.')}
+                  {t('auth.local_description', 'Войдите или зарегистрируйтесь на вашем локальном сервере. Данные будут храниться и синхронизироваться через вашу собственную базу данных SQLite.')}
                 </p>
               </div>
 
@@ -153,6 +170,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
                   <button
                     onClick={() => {
                       setIsLocalServerRegister(!isLocalServerRegister);
+                      setLocalServerConfirmPassword("");
                       setAuthError(null);
                     }}
                     className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline transition cursor-pointer"
@@ -162,16 +180,6 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
                 </div>
 
                 <div className="space-y-2">
-                  {isLocalServerRegister && (
-                    <input
-                      type="text"
-                      value={localServerName}
-                      onChange={(e) => setLocalServerName(e.target.value)}
-                      placeholder={t('auth.placeholder_name', 'Ваше имя (например, Rustam)')}
-                      disabled={isLocalServerAuthLoading}
-                      className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50 font-bold"
-                    />
-                  )}
                   <input
                     type="email"
                     value={localServerEmail}
@@ -188,15 +196,30 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
                     disabled={isLocalServerAuthLoading}
                     className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
                     onKeyDown={async (e) => {
-                      if (e.key === "Enter") {
-                        await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerName, isLocalServerRegister);
+                      if (e.key === "Enter" && !isLocalServerRegister) {
+                        await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerConfirmPassword, isLocalServerRegister);
                       }
                     }}
                   />
+                  {isLocalServerRegister && (
+                    <input
+                      type="password"
+                      value={localServerConfirmPassword}
+                      onChange={(e) => setLocalServerConfirmPassword(e.target.value)}
+                      placeholder={t('auth.placeholder_confirm_password', 'Повторите пароль')}
+                      disabled={isLocalServerAuthLoading}
+                      className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50 font-bold"
+                      onKeyDown={async (e) => {
+                        if (e.key === "Enter") {
+                          await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerConfirmPassword, isLocalServerRegister);
+                        }
+                      }}
+                    />
+                  )}
 
                   <button
                     onClick={async () => {
-                      await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerName, isLocalServerRegister);
+                      await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerConfirmPassword, isLocalServerRegister);
                     }}
                     disabled={isLocalServerAuthLoading}
                     className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/10"
@@ -248,6 +271,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
                   <button
                     onClick={() => {
                       setIsEmailRegister(!isEmailRegister);
+                      setConfirmPasswordInput("");
                       setAuthError(null);
                     }}
                     className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline transition cursor-pointer"
@@ -273,11 +297,22 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
                     disabled={emailAuthLoading}
                     className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
                   />
+                  {isEmailRegister && (
+                    <input
+                      type="password"
+                      value={confirmPasswordInput}
+                      onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                      placeholder={t('auth.placeholder_confirm_password', 'Повторите пароль')}
+                      disabled={emailAuthLoading}
+                      className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50 font-bold"
+                    />
+                  )}
 
                   <button
                     onClick={async () => {
                       const email = emailInput.trim();
                       const password = passwordInput.trim();
+                      const confirmPassword = confirmPasswordInput.trim();
                       if (!email || !password) {
                         setAuthError(t('auth.error_empty', 'Пожалуйста, введите email и пароль.'));
                         return;
@@ -285,6 +320,16 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
                       if (password.length < 6) {
                         setAuthError(t('auth.error_password_length', 'Пароль должен содержать не менее 6 символов.'));
                         return;
+                      }
+                      if (isEmailRegister) {
+                        if (!confirmPassword) {
+                          setAuthError(t('auth.error_empty_confirm', 'Пожалуйста, повторите пароль.'));
+                          return;
+                        }
+                        if (password !== confirmPassword) {
+                          setAuthError(t('auth.error_passwords_dont_match', 'Пароли не совпадают.'));
+                          return;
+                        }
                       }
 
                       setAuthError(null);
@@ -298,6 +343,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthM
                         setStorageMode("cloud");
                         setEmailInput("");
                         setPasswordInput("");
+                        setConfirmPasswordInput("");
                         onClose();
                       } catch (err: any) {
                         console.error("Email auth error:", err);

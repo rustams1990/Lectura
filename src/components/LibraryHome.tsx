@@ -4,12 +4,13 @@
  */
 
 import React, { useState, useMemo, memo } from "react";
-import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings } from "../types";
+import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
-import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE } from "../utils";
+import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory } from "../utils";
 import { segmentSentenceTokens } from "../tokenizer";
 import { useTranslation } from "react-i18next";
+import StatsWidget from "./StatsWidget";
 
 export function getDifficultyBadgeStyles(level: string) {
   const lvl = (level || "").toUpperCase();
@@ -47,6 +48,9 @@ interface LibraryHomeProps {
   vocab: Record<string, any>;
   wordLinks: Record<string, string>;
   languageFlags: Record<string, string>;
+  history?: HistoryEntry[];
+  selectedTargetLanguage?: string;
+  onSelectTargetLanguage?: (lang: string) => void;
   settings?: ReaderSettings;
   isLoading?: boolean;
 }
@@ -319,12 +323,126 @@ function LibraryHome({
   vocab,
   wordLinks,
   languageFlags,
+  history = [],
+  selectedTargetLanguage = "All",
+  onSelectTargetLanguage,
   settings,
   isLoading = false,
 }: LibraryHomeProps) {
   const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("All");
+  const selectedLanguage = selectedTargetLanguage;
+
+  // Dynamic statistics calculation for selected target language
+  const languageAwareStats = useMemo<AppStats>(() => {
+    const selectedLangLower = selectedLanguage !== "All" ? selectedLanguage.toLowerCase() : null;
+
+    // Filter vocab items by language
+    const vocabValues = Object.entries(vocab || {}).filter(([key, lq]) => {
+      if (!lq) return false;
+      if (!selectedLangLower) return true;
+      const parts = key.split("_");
+      const itemLang = parts.length > 1 ? parts[0].toLowerCase() : "spanish";
+      return itemLang === selectedLangLower;
+    }).map(([_, lq]) => lq as VocabItem);
+
+    const known = vocabValues.filter((l) => l && l.status === "known").length;
+    const learning = vocabValues.filter((l) =>
+      l && l.status && ["1", "2", "3", "4", "5", "learning"].includes(l.status)
+    ).length;
+
+    // Helper to check if ISO timestamp is today
+    const isToday = (isoDateStr?: string) => {
+      if (!isoDateStr) return false;
+      try {
+        const d = new Date(isoDateStr);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        return (
+          d.getDate() === now.getDate() &&
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
+      } catch {
+        return false;
+      }
+    };
+
+    // Helper to get exact target language for history entry
+    const getHistoryItemLanguage = (item: HistoryEntry): string => {
+      if (item.targetLanguage && typeof item.targetLanguage === "string" && item.targetLanguage.trim()) {
+        return item.targetLanguage.trim().toLowerCase();
+      }
+      if (item.lessonId) {
+        const foundLesson = lessons.find((l) => l.id === item.lessonId);
+        if (foundLesson && foundLesson.targetLanguage) {
+          return foundLesson.targetLanguage.trim().toLowerCase();
+        }
+      }
+      return "spanish";
+    };
+
+    const dedupedHist = dedupeHistory(history || []);
+    const langHist = selectedLangLower
+      ? dedupedHist.filter((item) => getHistoryItemLanguage(item) === selectedLangLower)
+      : dedupedHist;
+
+    const totalListeningSeconds = langHist
+      .filter((item) => item.actionType === "listen")
+      .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
+
+    const todayListeningSeconds = langHist
+      .filter((item) => item.actionType === "listen" && isToday(item.timestamp))
+      .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
+
+    return {
+      listeningSeconds: Math.round(totalListeningSeconds),
+      todayListeningSeconds: Math.round(todayListeningSeconds),
+      wordsKnownCount: known,
+      wordsLearningCount: learning,
+    };
+  }, [vocab, history, lessons, selectedLanguage]);
+
+  // Per-language listening breakdown calculation
+  const perLanguageListeningStats = useMemo<LanguageListeningStat[]>(() => {
+    const dedupedHist = dedupeHistory(history || []);
+    const map = new Map<string, { todaySeconds: number; totalSeconds: number }>();
+
+    const isToday = (isoDateStr?: string) => {
+      if (!isoDateStr) return false;
+      try {
+        const d = new Date(isoDateStr);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        return (
+          d.getDate() === now.getDate() &&
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
+      } catch {
+        return false;
+      }
+    };
+
+    dedupedHist.forEach((item) => {
+      if (item.actionType !== "listen" || !item.durationSeconds) return;
+      const rawLang = item.targetLanguage || "Spanish";
+      const langKey = rawLang.charAt(0).toUpperCase() + rawLang.slice(1).toLowerCase();
+
+      const existing = map.get(langKey) || { todaySeconds: 0, totalSeconds: 0 };
+      existing.totalSeconds += item.durationSeconds;
+      if (isToday(item.timestamp)) {
+        existing.todaySeconds += item.durationSeconds;
+      }
+      map.set(langKey, existing);
+    });
+
+    return Array.from(map.entries()).map(([language, data]) => ({
+      language,
+      todaySeconds: Math.round(data.todaySeconds),
+      totalSeconds: Math.round(data.totalSeconds),
+    }));
+  }, [history]);
   const [filterType, setFilterType] = useState<"all" | "builtin" | "custom">("all");
   const [selectedLessonType, setSelectedLessonType] = useState<string>("All");
   const [showArchived, setShowArchived] = useState<boolean>(false);
@@ -512,9 +630,9 @@ function LibraryHome({
   // If the selected language is no longer available in the current view, reset to "All"
   React.useEffect(() => {
     if (selectedLanguage !== "All" && !availableLanguages.includes(selectedLanguage)) {
-      setSelectedLanguage("All");
+      onSelectTargetLanguage?.("All");
     }
-  }, [availableLanguages, selectedLanguage]);
+  }, [availableLanguages, selectedLanguage, onSelectTargetLanguage]);
 
   // Compute word counts and display estimates
   const getWordCount = (text: string) => {
@@ -694,7 +812,9 @@ function LibraryHome({
   }, [searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived]);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+      {/* Per-Language & Today's Listening Statistics Dashboard Widget */}
+      <StatsWidget stats={languageAwareStats} selectedLanguage={selectedLanguage} />
       
       {/* Visual welcome bookshelf header */}
       {isBannerCollapsed ? (
@@ -1012,42 +1132,7 @@ function LibraryHome({
           </div>
         </div>
 
-        {/* Dynamic Language Filter Chips Row */}
-        {availableLanguages.length > 2 && (
-          <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex items-center gap-2">
-            <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1 mr-1">
-              <Filter className="w-3 h-3" /> {t("library.languages", "Languages:")}
-            </span>
-            <div className="flex flex-wrap gap-1.5 items-center">
-              {availableLanguages.map((lang) => {
-                const isActive = selectedLanguage === lang;
-                return (
-                  <button
-                    key={lang}
-                    onClick={() => setSelectedLanguage(lang)}
-                    className={`flex items-center gap-2 pl-1.5 pr-3.5 py-1 rounded-full text-[11px] font-extrabold transition-all border ${
-                      isActive
-                        ? "bg-white text-teal-700 border-teal-300 dark:bg-zinc-900 dark:text-teal-400 dark:border-teal-800 shadow-sm"
-                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-transparent"
-                    }`}
-                  >
-                    {lang === "All" ? (
-                      <>
-                        {renderCircularFlag("🌍", true)}
-                        <span>{t("library.all_languages", "All languages")}</span>
-                      </>
-                    ) : (
-                      <>
-                        {renderCircularFlag(getLanguageFlagEmoji(lang, languageFlags))}
-                        <span>{lang}</span>
-                      </>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+
 
         {/* Dynamic Category Filter chips row */}
         <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex items-center gap-2">
@@ -1517,7 +1602,7 @@ function LibraryHome({
             <button
               onClick={() => {
                 setSearchQuery("");
-                setSelectedLanguage("All");
+                onSelectTargetLanguage?.("All");
                 setFilterType("all");
               }}
               className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl text-zinc-700 dark:text-zinc-300 transition-colors"

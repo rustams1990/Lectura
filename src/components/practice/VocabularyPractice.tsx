@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../../utils";
+import { useToast } from "../../context/ToastContext";
 import WordExplainer from "../WordExplainer";
 import FlashcardMode from "./FlashcardMode";
 import SpellingMode from "./SpellingMode";
@@ -47,6 +48,7 @@ export default function VocabularyPractice({
   lessons
 }: VocabularyPracticeProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   // Extract all active language keys that have learning words (statuses 1-5)
   const activeDeckLanguages = useMemo(() => {
     const langs = new Set<string>();
@@ -78,58 +80,120 @@ export default function VocabularyPractice({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyMode, setStudyMode] = useState<"word" | "image" | "spelling">("word");
+  // Words re-queued after "Again" — shown again at end of current session
+  const [relearningQueue, setRelearningQueue] = useState<string[]>([]);
 
-  // Reset card index when deck filter changes to avoid index errors
+  // Reset card index and relearning queue when deck filter/mode/language changes
   useEffect(() => {
     setCurrentIndex(0);
     setIsFlipped(false);
-  }, [deckTypeFilter]);
+    setRelearningQueue([]);
+  }, [deckTypeFilter, studyMode, selectedPracticeLang]);
+
+  // Helper to get vocab item case-insensitively
+  const getVocabItemCaseInsensitive = (targetKey: string, vocabRecord: Record<string, VocabItem>): VocabItem | undefined => {
+    if (vocabRecord[targetKey]) return vocabRecord[targetKey];
+    const targetLower = targetKey.toLowerCase();
+    const foundKey = Object.keys(vocabRecord).find(k => k.toLowerCase() === targetLower);
+    return foundKey ? vocabRecord[foundKey] : undefined;
+  };
+
+  // Helper to get wordLink case-insensitively
+  const getWordLinkCaseInsensitive = (fromKey: string, links: Record<string, string>): string | undefined => {
+    if (links[fromKey]) return links[fromKey];
+    const lower = fromKey.toLowerCase();
+    const foundKey = Object.keys(links).find(k => k.toLowerCase() === lower);
+    return foundKey ? links[foundKey] : undefined;
+  };
 
   // Extract all learning status words for the selected language, resolving them to parents if they exist
   const learningList = useMemo(() => {
     const parentMap = new Map<string, typeof vocab[string]>();
 
-    Object.entries(vocab)
-      .filter(([key, lq]) => {
-        if (!lq) return false;
+    // Step 1: Map all vocab entries to their root parent item case-insensitively
+    Object.entries(vocab).forEach(([key, lq]) => {
+      if (!lq) return;
 
-        const parts = key.split("_");
-        const itemLang = parts.length > 1 ? parts[0] : "spanish";
-        if (itemLang.toLowerCase() !== selectedPracticeLang.toLowerCase()) return false;
+      const parts = key.split("_");
+      const itemLang = parts.length > 1 ? parts[0] : "spanish";
+      if (itemLang.toLowerCase() !== selectedPracticeLang.toLowerCase()) return;
 
-        // Apply deck filter
-        if (deckTypeFilter === "learning") {
-          const isActive = lq.status && ["1", "2", "3", "4", "5", "learning"].includes(lq.status);
-          if (!isActive) return false;
-          
-          if (studyMode !== "spelling") {
-            const isDue = !lq.srsNextReview || lq.srsNextReview <= Date.now();
+      // Resolve recursively to top-level parent key (case-insensitively)
+      let parentKey = key;
+      const visited = new Set<string>();
+      while (true) {
+        const linkTarget = getWordLinkCaseInsensitive(parentKey, wordLinks);
+        if (!linkTarget || visited.has(linkTarget.toLowerCase())) break;
+        visited.add(parentKey.toLowerCase());
+        parentKey = linkTarget;
+      }
+
+      const cleanParentWord = parentKey.replace(/^[a-zA-Z]+_/, "");
+
+      // Find parent item in vocab case-insensitively or fallback
+      const parentLq = getVocabItemCaseInsensitive(parentKey, vocab) || {
+        ...lq,
+        word: cleanParentWord,
+      };
+
+      const normalizedParentKey = parentKey.toLowerCase();
+
+      // Merge entries under normalized parent key so updated SRS dates are never lost
+      const existing = parentMap.get(normalizedParentKey);
+      if (!existing) {
+        parentMap.set(normalizedParentKey, parentLq);
+      } else {
+        const merged: VocabItem = {
+          ...existing,
+          ...parentLq,
+          srsNextReview: parentLq.srsNextReview ?? existing.srsNextReview,
+          srsInterval: parentLq.srsInterval ?? existing.srsInterval,
+          srsEaseFactor: parentLq.srsEaseFactor ?? existing.srsEaseFactor,
+          srsRepetitions: parentLq.srsRepetitions ?? existing.srsRepetitions,
+          status: parentLq.status && parentLq.status !== "1" ? parentLq.status : existing.status,
+        };
+        parentMap.set(normalizedParentKey, merged);
+      }
+    });
+
+    // Step 2: Apply deck filters to the resolved root parent items
+    const now = Date.now();
+    return Array.from(parentMap.values())
+      .filter((lq) => {
+        if (!lq || !lq.word) return false;
+
+        // Apply deck filter with complete separation of Reading and Spelling metrics
+        if (studyMode === "spelling") {
+          // SPELLING METRIC: Independent tracking of writing accuracy
+          if (lq.status === "ignored" || lq.spellingExclude === true) return false;
+
+          if (deckTypeFilter === "learning") {
+            // Words not yet spelled correctly in current writing queue
+            if (lq.lastSpelledCorrectly === true) return false;
+          } else if (deckTypeFilter === "spelling-problems") {
+            if (lq.lastSpelledCorrectly !== false || lq.lastSpelledWithAccentError === true) return false;
+          } else if (deckTypeFilter === "spelling-accents") {
+            if (!lq.lastSpelledWithAccentError) return false;
+          } else if (deckTypeFilter === "spelling-correct") {
+            if (lq.lastSpelledCorrectly !== true) return false;
+          }
+          // "all" in spelling mode -> all vocabulary available for writing practice!
+        } else {
+          // READING METRIC: Independent tracking of passive recognition SRS
+          if (deckTypeFilter === "learning") {
+            const isActive = lq.status && ["1", "2", "3", "4", "5", "learning"].includes(lq.status);
+            if (!isActive) return false;
+            const isDue = !lq.srsNextReview || lq.srsNextReview <= now;
             if (!isDue) return false;
           } else {
-            if (lq.lastSpelledCorrectly === true || lq.spellingExclude === true) return false;
+            // "all" - anything that isn't ignored or known
+            if (lq.status === "ignored" || lq.status === "known") return false;
           }
-        } else if (deckTypeFilter === "spelling-problems") {
-          // General spelling errors (complete incorrects, not accent warnings)
-          if (lq.lastSpelledCorrectly !== false || lq.lastSpelledWithAccentError === true) return false;
-          if (studyMode === "spelling" && lq.spellingExclude === true) return false;
-        } else if (deckTypeFilter === "spelling-accents") {
-          // Accent errors only
-          if (!lq.lastSpelledWithAccentError) return false;
-          if (studyMode === "spelling" && lq.spellingExclude === true) return false;
-        } else if (deckTypeFilter === "spelling-correct") {
-          // Words that were spelled correctly OR marked as "Точно знаю" both belong here
-          if (lq.lastSpelledCorrectly !== true && lq.spellingExclude !== true) return false;
-          if (lq.lastSpelledWithAccentError === true) return false;
-        } else {
-          // "all" - anything that isn't ignored
-          if (lq.status === "ignored") return false;
-          if (studyMode === "spelling" && (lq.lastSpelledCorrectly === true || lq.spellingExclude === true)) return false;
         }
 
         // Apply timeframe filter
         if (timeframeFilter !== "all") {
-          const createdAtVal = typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : Date.now();
-          const now = Date.now();
+          const createdAtVal = typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : now;
           let threshold = 0;
           if (timeframeFilter === "today") {
             threshold = now - 24 * 60 * 60 * 1000;
@@ -143,47 +207,25 @@ export default function VocabularyPractice({
 
         return true;
       })
-      .forEach(([key, lq]) => {
-        // Resolve recursively to the top-level parent key
-        let parentKey = key;
-        const visited = new Set<string>();
-        while (wordLinks[parentKey] && !visited.has(wordLinks[parentKey])) {
-          visited.add(parentKey);
-          parentKey = wordLinks[parentKey];
-        }
-
-        const cleanParentWord = parentKey.replace(/^[a-zA-Z]+_/, "");
-
-        // Find the parent item in vocab or fallback to child metadata with parent word
-        const parentLq = vocab[parentKey] || {
-          ...lq,
-          word: cleanParentWord,
-        };
-
-        if (!parentMap.has(parentKey)) {
-          parentMap.set(parentKey, parentLq);
-        }
-      });
-
-    return Array.from(parentMap.values()).map((lq) => ({
-      ...lq,
-      word: lq.word || "",
-      translation: lq.translation || "",
-      grammar: lq.grammar || "",
-      ipa: lq.ipa || "",
-      contextRelation: lq.contextRelation || "",
-      status: lq.status || "1",
-      createdAt: typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : Date.now(),
-      tags: Array.isArray(lq.tags) ? lq.tags.filter(t => typeof t === "string") : [],
-      examples: Array.isArray(lq.examples) ? lq.examples : [],
-      imageUrl: typeof lq.imageUrl === "string" ? lq.imageUrl : null,
-      spellingCorrectCount: typeof lq.spellingCorrectCount === "number" ? lq.spellingCorrectCount : 0,
-      spellingIncorrectCount: typeof lq.spellingIncorrectCount === "number" ? lq.spellingIncorrectCount : 0,
-      spellingAccentCount: typeof lq.spellingAccentCount === "number" ? lq.spellingAccentCount : 0,
-      lastSpelledCorrectly: lq.lastSpelledCorrectly !== undefined ? lq.lastSpelledCorrectly : null,
-      lastSpelledWithAccentError: !!lq.lastSpelledWithAccentError,
-      spellingExclude: !!lq.spellingExclude,
-    }));
+      .map((lq) => ({
+        ...lq,
+        word: lq.word || "",
+        translation: lq.translation || "",
+        grammar: lq.grammar || "",
+        ipa: lq.ipa || "",
+        contextRelation: lq.contextRelation || "",
+        status: lq.status || "1",
+        createdAt: typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : Date.now(),
+        tags: Array.isArray(lq.tags) ? lq.tags.filter((t) => typeof t === "string") : [],
+        examples: Array.isArray(lq.examples) ? lq.examples : [],
+        imageUrl: typeof lq.imageUrl === "string" ? lq.imageUrl : null,
+        spellingCorrectCount: typeof lq.spellingCorrectCount === "number" ? lq.spellingCorrectCount : 0,
+        spellingIncorrectCount: typeof lq.spellingIncorrectCount === "number" ? lq.spellingIncorrectCount : 0,
+        spellingAccentCount: typeof lq.spellingAccentCount === "number" ? lq.spellingAccentCount : 0,
+        lastSpelledCorrectly: lq.lastSpelledCorrectly !== undefined ? lq.lastSpelledCorrectly : null,
+        lastSpelledWithAccentError: !!lq.lastSpelledWithAccentError,
+        spellingExclude: !!lq.spellingExclude,
+      }));
   }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter, studyMode]);
 
 
@@ -594,21 +636,47 @@ export default function VocabularyPractice({
     }
     setHasCheckedSpelling(true);
 
-    pendingSpellSaveRef.current = {
-      ...currentLq,
-      spellingCorrectCount: (currentLq.spellingCorrectCount || 0) + (isCorrect ? 1 : 0),
-      spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + (!isCorrect && !isAccentWarning ? 1 : 0),
-      spellingAccentCount: (currentLq.spellingAccentCount || 0) + (isAccentWarning ? 1 : 0),
-      lastSpelledCorrectly: isCorrect,
-      lastSpelledWithAccentError: isAccentWarning,
-    };
+    if (isCorrect) {
+      // 100% correct spelling: update spelling statistics independently!
+      pendingSpellSaveRef.current = {
+        ...currentLq,
+        spellingCorrectCount: (currentLq.spellingCorrectCount || 0) + 1,
+        lastSpelledCorrectly: true,
+        lastSpelledWithAccentError: false,
+      };
+
+      showToast(`🟢 Правильно! Написание слова «${target}» зафиксировано!`, "success", 3000);
+
+    } else if (isAccentWarning) {
+      // Accent warning: update accent error statistics
+      pendingSpellSaveRef.current = {
+        ...currentLq,
+        spellingAccentCount: (currentLq.spellingAccentCount || 0) + 1,
+        lastSpelledWithAccentError: true,
+      };
+
+      showToast(`⚠️ Внимание: опечатка в акценте / знаке для «${target}»`, "warning", 3000);
+
+    } else {
+      // Incorrect spelling -> re-queue card in current session for writing practice, WITHOUT touching reading status!
+      setRelearningQueue((prev) => (prev.includes(target) ? prev : [...prev, target]));
+
+      pendingSpellSaveRef.current = {
+        ...currentLq,
+        spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + 1,
+        lastSpelledCorrectly: false,
+        lastSpelledWithAccentError: false,
+      };
+
+      showToast(`🔴 Ошибка в написании! «${target}» вернётся в этой сессии`, "error", 3000);
+    }
   };
 
   const handleExcludeSpelling = () => {
     if (!currentLq) return;
 
     // 1. Determine target next word before list changes
-    const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
+    const targetWord = learningList[(currentIndex + 1) % Math.max(learningList.length, 1)]?.word || null;
     nextWordTargetRef.current = targetWord;
 
     // 2. Flush any pending spell result first
@@ -633,16 +701,21 @@ export default function VocabularyPractice({
   const handleDontKnow = () => {
     if (!currentLq || !currentLq.word) return;
 
+    const target = currentLq.word;
     setSpellingStatus("incorrect");
     setHasCheckedSpelling(true);
+    setIsFlipped(true); // reveal back side with correct answer!
 
-    // Store result; save deferred to handleNext for consistency
+    setRelearningQueue((prev) => (prev.includes(target) ? prev : [...prev, target]));
+
     pendingSpellSaveRef.current = {
       ...currentLq,
       spellingIncorrectCount: (currentLq.spellingIncorrectCount || 0) + 1,
       lastSpelledCorrectly: false,
       lastSpelledWithAccentError: false,
     };
+
+    showToast(`🔴 Не знаю: «${target}» вернётся в этой сессии`, "warning", 3000);
   };
 
   const getClozeSentence = (sentenceText: string, targetWord: string) => {
@@ -734,23 +807,25 @@ export default function VocabularyPractice({
 
   const handleNext = () => {
     // 1. Determine target next word before list changes
-    const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
+    const targetWord = learningList[(currentIndex + 1) % Math.max(learningList.length, 1)]?.word || null;
     nextWordTargetRef.current = targetWord;
 
     resetSpellingState();
     setIsFlipped(false);
 
+    if (pendingSpellSaveRef.current) {
+      handleSaveVocabWrapped(pendingSpellSaveRef.current);
+      pendingSpellSaveRef.current = null;
+    }
+
     setTimeout(() => {
-      if (pendingSpellSaveRef.current) {
-        handleSaveVocabWrapped(pendingSpellSaveRef.current);
-        pendingSpellSaveRef.current = null;
+      const newIdx = learningList.findIndex(item => item.word === targetWord);
+      if (newIdx !== -1) {
+        setCurrentIndex(newIdx);
       } else {
-        const newIdx = learningList.findIndex(item => item.word === targetWord);
-        if (newIdx !== -1) {
-          setCurrentIndex(newIdx);
-        }
-        nextWordTargetRef.current = null;
+        setCurrentIndex((prev) => (prev + 1) % Math.max(learningList.length, 1));
       }
+      nextWordTargetRef.current = null;
     }, 150);
   };
 
@@ -758,16 +833,46 @@ export default function VocabularyPractice({
     if (!currentLq) return;
 
     // 1. Determine target next word before list changes
-    const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
+    const targetWord = learningList[(currentIndex + 1) % Math.max(learningList.length, 1)]?.word || null;
     nextWordTargetRef.current = targetWord;
 
-    onUpdateStatus(currentLq.word, "known", selectedPracticeLang);
+    setRelearningQueue((prev) => prev.filter((w) => w !== currentLq.word));
+
+    if (onUpdateStatus) {
+      onUpdateStatus(currentLq.word, "known", selectedPracticeLang);
+    } else if (onSaveVocab) {
+      onSaveVocab({ ...currentLq, status: "known" }, selectedPracticeLang);
+    }
+    showToast(`✨ «${currentLq.word}» перенесено в выученные!`, "success", 3000);
     setIsFlipped(false);
   };
 
   const handleSrsAnswer = (quality: number) => {
     if (!currentLq || !onSaveVocab) return;
-    
+
+    if (quality < 3) {
+      // "Again" — reset status to "1" and re-queue card in current session
+      const wordKey = currentLq.word;
+      setRelearningQueue((prev) =>
+        prev.includes(wordKey) ? prev : [...prev, wordKey]
+      );
+
+      const updatedItem: VocabItem = {
+        ...currentLq,
+        status: "1",
+      };
+      onSaveVocab(updatedItem, selectedPracticeLang);
+
+      showToast(`🔴 Again «${currentLq.word}»: повтор в этой сессии`, "warning", 3000);
+
+      const targetWord = learningList[(currentIndex + 1) % Math.max(learningList.length, 1)]?.word || null;
+      nextWordTargetRef.current = targetWord;
+      setIsFlipped(false);
+      setCurrentIndex((prev) => (prev + 1) % Math.max(learningList.length, 1));
+      return;
+    }
+
+    // Hard / Good / Easy — apply SM-2 and advance status
     const nextSrs = calculateNextReview(
       quality,
       currentLq.srsEaseFactor || 2.5,
@@ -775,25 +880,70 @@ export default function VocabularyPractice({
       currentLq.srsRepetitions || 0
     );
 
-    const updatedItem = {
+    // Calculate status progression
+    let currentStatus = currentLq.status || "1";
+    let newStatus: WordStatus = currentStatus;
+
+    if (quality === 3) {
+      // Hard: keep current status (ensure not "new")
+      if (currentStatus === "new") newStatus = "1";
+    } else if (quality === 4) {
+      // Good: advance +1 stage (1 -> 2 -> 3 -> 4 -> 5 -> known)
+      if (currentStatus === "1" || currentStatus === "new") newStatus = "2";
+      else if (currentStatus === "2") newStatus = "3";
+      else if (currentStatus === "3") newStatus = "4";
+      else if (currentStatus === "4") newStatus = "5";
+      else if (currentStatus === "5") newStatus = "known";
+    } else if (quality === 5) {
+      // Easy: advance +2 stages (1/2 -> 3, 3/4 -> 5, 5 -> known)
+      if (currentStatus === "1" || currentStatus === "2" || currentStatus === "new") newStatus = "3";
+      else if (currentStatus === "3" || currentStatus === "4") newStatus = "5";
+      else if (currentStatus === "5") newStatus = "known";
+    }
+
+    // Auto-graduate if interval >= 21 days or repetitions >= 5
+    if (nextSrs.interval >= 21 || nextSrs.repetitions >= 5) {
+      newStatus = "known";
+    }
+
+    const updatedItem: VocabItem = {
       ...currentLq,
+      status: newStatus,
       srsNextReview: nextSrs.nextReviewDate,
       srsInterval: nextSrs.interval,
       srsEaseFactor: nextSrs.easeFactor,
       srsRepetitions: nextSrs.repetitions,
     };
 
-    if (quality >= 3) {
-      const targetWord = learningList[(currentIndex + 1) % learningList.length]?.word || null;
-      nextWordTargetRef.current = targetWord;
-    }
+    const targetWord = learningList[(currentIndex + 1) % Math.max(learningList.length, 1)]?.word || null;
+    nextWordTargetRef.current = targetWord;
+
+    // Remove from relearning queue if it was there
+    setRelearningQueue((prev) => prev.filter((w) => w !== currentLq.word));
 
     onSaveVocab(updatedItem, selectedPracticeLang);
-    setIsFlipped(false);
-    
-    if (quality < 3) {
-      setCurrentIndex((prev) => (prev + 1) % learningList.length);
+
+    // Format human-readable toast notification
+    const dateObj = new Date(nextSrs.nextReviewDate);
+    const dateFormatted = dateObj.toLocaleDateString("ru-RU", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+
+    const dueMsg = nextSrs.interval === 1 ? `завтра (${dateFormatted})` : `через ${nextSrs.interval} дн. (${dateFormatted})`;
+
+    if (newStatus === "known") {
+      showToast(`✨ «${currentLq.word}» выучено! Следующий повтор ${dueMsg}`, "success", 4000);
+    } else if (quality === 5) {
+      showToast(`⚡ Easy «${currentLq.word}»: повтор ${dueMsg}`, "success", 4000);
+    } else if (quality === 4) {
+      showToast(`🟢 Good «${currentLq.word}»: повтор ${dueMsg}`, "success", 4000);
+    } else if (quality === 3) {
+      showToast(`🟡 Hard «${currentLq.word}»: повтор ${dueMsg}`, "info", 4000);
     }
+
+    setIsFlipped(false);
   };
 
   const resetDeck = () => {
@@ -804,6 +954,35 @@ export default function VocabularyPractice({
   if (learningList.length === 0) {
     return (
       <div className="space-y-6 max-w-md mx-auto font-sans">
+        {/* Practice Mode Selector (Empty state) */}
+        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-3 py-2 font-sans max-w-md mx-auto">
+          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{t('practice.mode_label', 'Mode:')}</span>
+          <div className="flex gap-1 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setStudyMode("word")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                studyMode === "word"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              {t('practice.mode_word', 'WORD 🎴')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStudyMode("spelling")}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                studyMode === "spelling"
+                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              {t('practice.mode_spelling', 'SPELLING ✍️')}
+            </button>
+          </div>
+        </div>
+
         {/* Language selector even when empty, so they can switch between decks! */}
         {activeDeckLanguages.length > 1 && (
           <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
@@ -878,17 +1057,45 @@ export default function VocabularyPractice({
           ))}
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-10 text-center space-y-4 shadow-sm">
-          <div className="p-4 bg-amber-50 dark:bg-amber-950/35 text-amber-500 rounded-full w-14 h-14 flex items-center justify-center mx-auto">
-            <Bookmark className="w-7 h-7" />
+        {/* If there are cards from "Again" — offer to review them */}
+        {relearningQueue.length > 0 ? (
+          <div className="bg-white dark:bg-zinc-900 border border-red-100 dark:border-red-900/40 rounded-3xl p-8 text-center space-y-4 shadow-sm">
+            <div className="p-4 bg-red-50 dark:bg-red-950/35 text-red-500 rounded-full w-14 h-14 flex items-center justify-center mx-auto text-2xl">
+              🔁
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">
+                {t('practice.relearning_title', 'You have {{count}} card(s) to review again', { count: relearningQueue.length })}
+              </h3>
+              <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
+                {t('practice.relearning_desc', 'These words were marked "Again". Review them now to strengthen memory.')}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDeckTypeFilter("all");
+                setCurrentIndex(0);
+                setIsFlipped(false);
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-xl transition-all shadow cursor-pointer"
+            >
+              🔁 {t('practice.review_again_btn', 'Review Again Cards')}
+            </button>
           </div>
-          <div className="space-y-1.5">
-            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">{t('practice.deck_empty', 'Your deck ({{lang}}) is empty', { lang: selectedPracticeLang })}</h3>
-            <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
-              {t('practice.deck_empty_desc', 'Words you mark in lessons for {{lang}} automatically appear here. Start reading!', { lang: selectedPracticeLang })}
-            </p>
+        ) : (
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-10 text-center space-y-4 shadow-sm">
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/35 text-amber-500 rounded-full w-14 h-14 flex items-center justify-center mx-auto">
+              <Bookmark className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">{t('practice.deck_empty', 'Your deck ({{lang}}) is empty', { lang: selectedPracticeLang })}</h3>
+              <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
+                {t('practice.deck_empty_desc', 'Words you mark in lessons for {{lang}} automatically appear here. Start reading!', { lang: selectedPracticeLang })}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -1012,8 +1219,13 @@ export default function VocabularyPractice({
               >
                 {t('practice.list_view', 'List 📋')}
               </button>
-              <span>
+              <span className="flex items-center gap-2">
                 {t('practice.card_count', 'Card {{current}} of {{total}}', { current: currentIndex + 1, total: learningList.length })}
+                {relearningQueue.length > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-[10px] font-bold">
+                    🔁 {relearningQueue.length}
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -1126,6 +1338,7 @@ export default function VocabularyPractice({
           onCheckSpelling={checkSpelling}
           onNext={handleNext}
           onExclude={handleExcludeSpelling}
+          onDontKnow={handleDontKnow}
         />
       ) : (
         <FlashcardMode
@@ -1136,6 +1349,7 @@ export default function VocabularyPractice({
           playingSpeech={playingSpeech}
           onEditWord={() => setIsEditingWord(currentLq.word)}
           onAnswer={handleSrsAnswer}
+          onMarkKnown={handleMarkKnown}
           studyDirection={studyDirection}
         />
       )}

@@ -12,6 +12,7 @@ interface FlashcardModeProps {
   playingSpeech: boolean;
   onEditWord: () => void;
   onAnswer: (quality: 1 | 3 | 4 | 5) => void;
+  onMarkKnown: () => void;
   studyDirection: "forward" | "reverse";
 }
 
@@ -29,6 +30,7 @@ export default function FlashcardMode({
   playingSpeech,
   onEditWord,
   onAnswer,
+  onMarkKnown,
   studyDirection
 }: FlashcardModeProps) {
   const { t } = useTranslation();
@@ -74,6 +76,18 @@ export default function FlashcardMode({
                 {t('practice.flashcard', 'Flashcard')}
               </span>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMarkKnown();
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition-all cursor-pointer border border-emerald-500/20"
+                  title={t('practice.mark_known_title', 'Mark as Known (Mastered)')}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>{t('practice.know_word', 'Знаю')}</span>
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -198,8 +212,17 @@ export default function FlashcardMode({
             </div>
 
             {/* SRS Action Buttons */}
-            <div className="space-y-3 pt-6 border-t border-zinc-100 dark:border-zinc-800 mt-4">
-              <p className="text-[10px] text-center font-bold uppercase tracking-widest text-zinc-400 mb-2">{t('practice.rate_memory', 'Rate Memory')}</p>
+            <div className="space-y-3 pt-4 border-t border-zinc-100 dark:border-zinc-800 mt-4">
+              <button
+                type="button"
+                onClick={onMarkKnown}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-bold border border-emerald-200 dark:border-emerald-800/60 transition-all cursor-pointer shadow-2xs"
+              >
+                <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>{t('practice.mark_known_btn', 'Точно знаю (Выучено)')}</span>
+              </button>
+              
+              <p className="text-[10px] text-center font-bold uppercase tracking-widest text-zinc-400 pt-1 mb-1">{t('practice.rate_memory', 'Rate Memory')}</p>
               <div className="grid grid-cols-4 gap-2">
                 <button
                   type="button"

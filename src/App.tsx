@@ -59,9 +59,10 @@ import {
   removeLessonImages,
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
+import FocusPinnedPlayer from "./components/FocusPinnedPlayer";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
-import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage } from "./db";
+import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { useTranslation, Trans } from "react-i18next";
 
 const readerThemes = {
@@ -122,6 +123,16 @@ export default function App() {
   const { t } = useTranslation();
   const [isAppLoaded, setIsAppLoaded] = useState(false);
 
+  // Detect mobile/tablet vs desktop (< 1024px = tablet/phone, ≥ 1024px = desktop)
+  const [isMobileTablet, setIsMobileTablet] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 1024 : false
+  );
+  useEffect(() => {
+    const check = () => setIsMobileTablet(window.innerWidth < 1024);
+    window.addEventListener("resize", check, { passive: true });
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   // Durable browser persistence states
   const [lessons, setLessons] = useState<Lesson[]>(BUILT_IN_LESSONS);
 
@@ -146,6 +157,30 @@ export default function App() {
 
   const [listeningSeconds, setListeningSeconds] = useState<number>(0);
 
+  const [selectedTargetLanguage, setSelectedTargetLanguage] = useState<string>(() => {
+    return localStorage.getItem("vocab_global_target_language") || "All";
+  });
+
+  const handleSelectTargetLanguage = (lang: string) => {
+    setSelectedTargetLanguage(lang);
+    safeLocalStorageSetItem("vocab_global_target_language", lang);
+  };
+
+  const availableTargetLanguages = useMemo(() => {
+    const list = new Set<string>();
+    lessons.forEach((l) => {
+      if (l.targetLanguage) list.add(l.targetLanguage);
+    });
+    Object.keys(vocab || {}).forEach((key) => {
+      const parts = key.split("_");
+      if (parts.length > 1) {
+        const lang = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+        list.add(lang);
+      }
+    });
+    return ["All", ...Array.from(list)];
+  }, [lessons, vocab]);
+
   const [activeLessonId, setActiveLessonId] = useState<string>(() => {
     return lessons[0]?.id || "";
   });
@@ -160,6 +195,11 @@ export default function App() {
     const saved = localStorage.getItem("vocab_clone_reading_history");
     return saved ? safeParse(saved, []) : [];
   });
+
+  const historyRef = useRef<HistoryEntry[]>(history);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
   const handleUpdateHistory = (newHistory: HistoryEntry[]) => {
     const deduped = dedupeHistory(newHistory);
@@ -200,7 +240,7 @@ export default function App() {
         const existing = updated[recentIdx];
 
         const nextActionType =
-          isAudioOrVideo || actionType === "listen" || existing.actionType === "listen"
+          isAudioOrVideo || actionType === "listen" || existing.actionType === "listen" || (existing.durationSeconds || 0) > 0 || (durationSeconds || 0) > 0
             ? "listen"
             : actionType === "complete"
             ? (existing.actionType === "complete" ? "read" : existing.actionType)
@@ -521,20 +561,55 @@ export default function App() {
     };
   }, [storageMode, isAuthLoading, localSyncError]);
 
+  const activeUserId = (activeUser as any)?.uid || (activeUser as any)?.id || null;
+  const prevUserIdRef = useRef<string | null>(activeUserId);
+
+  useEffect(() => {
+    if (prevUserIdRef.current !== activeUserId) {
+      prevUserIdRef.current = activeUserId;
+      serverInitialLoadComplete.current = false;
+      if (storageMode === "server" && activeUserId) {
+        loadDataFromLocalServer();
+      }
+    }
+  }, [activeUserId, storageMode]);
+
+  useEffect(() => {
+    const handleLogout = () => {
+      serverInitialLoadComplete.current = false;
+      setLessons(normalizeBuiltInLessons(BUILT_IN_LESSONS));
+      setLessonTypes(ensureDefaultLessonTypes(DEFAULT_LESSON_TYPES));
+      setVocab({});
+      setWordLinks({});
+      setListeningSeconds(0);
+      setHistory([]);
+      setLanguageFlags({});
+    };
+    window.addEventListener("lectura:user_logout", handleLogout);
+    return () => {
+      window.removeEventListener("lectura:user_logout", handleLogout);
+    };
+  }, []);
 
   const loadDataFromLocalServer = async () => {
     if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
       return;
     }
-    if (isAuthLoading) return;
     if (localSyncError) return;
+    // Only skip the isAuthLoading wait if a token is already saved in localStorage
+    // (meaning the user was previously logged in and the token is likely still valid).
+    // For fresh logins or missing tokens, wait for auth to complete to avoid
+    // sending a 401 request that would set localSyncError=true and break sync.
+    const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+    const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+    const hasSavedSession = !!(savedToken && savedUserStr);
+    if (!hasSavedSession && isAuthLoading) return;
+
     setIsSyncing(true);
     if (!serverInitialLoadComplete.current) {
       setIsInitialServerLoading(true);
     }
     try {
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
       const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
       const fetchHeaders: Record<string, string> = {
@@ -571,8 +646,9 @@ export default function App() {
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
           if (d.history && Array.isArray(d.history)) {
-            const cleanHistory = dedupeHistory(d.history);
+            const cleanHistory = dedupeHistory([...d.history, ...historyRef.current]);
             setHistory(cleanHistory);
+            historyRef.current = cleanHistory;
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
             settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(cleanHistory)).catch(() => {});
           }
@@ -604,32 +680,24 @@ export default function App() {
 
           serverInitialLoadComplete.current = true;
         } else if (body.status === "empty") {
-          // Empty server database: Seed with current browser's local state
-          const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
-          const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
-          const localWordsStr = localStorage.getItem("vocab_clone_words");
-          const localListeningStr = localStorage.getItem("vocab_clone_listening");
-          const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
-          const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
-          const localHistoryStr = localStorage.getItem("vocab_clone_reading_history");
+          // Empty server database: Initialize clean default state for brand new profile
+          await clearLocalUserDataCache();
 
-          const rawLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS);
-          const removedIds = new Set(["builtin-ja", "builtin-uk", "builtin-kk"]);
-          const lLessons = Array.isArray(rawLessons) ? rawLessons.filter((l: Lesson) => !removedIds.has(l.id)) : BUILT_IN_LESSONS;
-          const lTypes = ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]);
-          const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
-          const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
-          const lWordLinks = normalizeWordLinksRecord(safeParse(localAliasesStr, {}));
-          const lLanguageFlags = safeParse(localFlagsStr, {});
-          const lHistory = dedupeHistory(safeParse(localHistoryStr, []));
+          const cleanLessons = normalizeBuiltInLessons(BUILT_IN_LESSONS);
+          const cleanTypes = ensureDefaultLessonTypes(DEFAULT_LESSON_TYPES);
+          const cleanWords: Record<string, VocabItem> = {};
+          const cleanListening = 0;
+          const cleanWordLinks: Record<string, string> = {};
+          const cleanLanguageFlags: Record<string, string> = {};
+          const cleanHistory: any[] = [];
 
-          setLessons(normalizeBuiltInLessons(lLessons));
-          setLessonTypes(lTypes);
-          setVocab(lWords);
-          setListeningSeconds(lListening);
-          setWordLinks(lWordLinks);
-          setLanguageFlags(lLanguageFlags);
-          setHistory(lHistory);
+          setLessons(cleanLessons);
+          setLessonTypes(cleanTypes);
+          setVocab(cleanWords);
+          setListeningSeconds(cleanListening);
+          setWordLinks(cleanWordLinks);
+          setLanguageFlags(cleanLanguageFlags);
+          setHistory(cleanHistory);
 
           const postHeaders: Record<string, string> = {
             "Content-Type": "application/json",
@@ -645,13 +713,13 @@ export default function App() {
             headers: postHeaders,
             body: JSON.stringify({
               data: {
-                lessons: lLessons,
-                lessonTypes: lTypes,
-                vocab: lWords,
-                wordLinks: lWordLinks,
-                listeningSeconds: lListening,
-                languageFlags: lLanguageFlags,
-                history: lHistory,
+                lessons: cleanLessons,
+                lessonTypes: cleanTypes,
+                vocab: cleanWords,
+                wordLinks: cleanWordLinks,
+                listeningSeconds: cleanListening,
+                languageFlags: cleanLanguageFlags,
+                history: cleanHistory,
               }
             })
           });
@@ -675,11 +743,10 @@ export default function App() {
     currentLinks = wordLinks,
     currentListening = listeningSeconds,
     currentFlags = languageFlags,
-    currentHistory = history,
+    currentHistory = historyRef.current,
     deletedLessonIds?: string[]
   ) => {
     if (storageMode !== "server") return;
-    if (isAuthLoading) return;
     if (localSyncError) return;
     lastLocalChangeTime.current = Date.now();
     try {
@@ -1008,12 +1075,13 @@ export default function App() {
     }, 1500);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, storageMode, localSyncKey, localSyncError]);
+  }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, history, storageMode, localSyncKey, localSyncError]);
 
   // Dynamic automatic syncing of tablet/PC changes over local network (polls on mount, tab changes, focus, and every 8s when visible)
   useEffect(() => {
     if (storageMode !== "server") return;
-    if (isAuthLoading) return;
+    // No isAuthLoading guard here — token is read from localStorage directly,
+    // so we can load data immediately on page open without waiting for auth.
 
     loadDataFromLocalServer(); // Poll on mount/mode/key/tab change
 
@@ -1037,7 +1105,7 @@ export default function App() {
       window.removeEventListener("focus", handleFocusOrVisible);
       clearInterval(interval);
     };
-  }, [storageMode, localSyncKey, localSyncError, serverToken, isAuthLoading, activeTab]);
+  }, [storageMode, localSyncKey, localSyncError, serverToken, activeTab]);
 
 
 
@@ -1222,13 +1290,34 @@ export default function App() {
       l && l.status && ["1", "2", "3", "4", "5", "learning"].includes(l.status)
     ).length;
 
+    const isToday = (isoDateStr?: string) => {
+      if (!isoDateStr) return false;
+      try {
+        const d = new Date(isoDateStr);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        return (
+          d.getDate() === now.getDate() &&
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
+      } catch {
+        return false;
+      }
+    };
+
     const dedupedHist = dedupeHistory(history);
     const historyListeningSeconds = dedupedHist
       .filter((item) => item.actionType === "listen")
       .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
 
+    const todayListeningSeconds = dedupedHist
+      .filter((item) => item.actionType === "listen" && isToday(item.timestamp))
+      .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
+
     return {
       listeningSeconds: Math.round(historyListeningSeconds),
+      todayListeningSeconds: Math.round(todayListeningSeconds),
       wordsKnownCount: known,
       wordsLearningCount: learning,
     };
@@ -1868,113 +1957,55 @@ export default function App() {
   // Full-Screen Isolated Focused Reading Room
   if (isFocusMode && activeTab === "read" && activeLesson) {
     const focusTheme = readerThemes[readerSettings.readerTheme] || readerThemes.default;
+    const hasYouTube = !!activeLesson.youtubeId;
     return (
       <div className={`min-h-screen ${focusTheme.pageBg} ${focusTheme.text} flex flex-col font-sans transition-colors duration-200`}>
-        
-        {/* Top Focus Header bar */}
-        <header className={`border-b ${focusTheme.border} ${focusTheme.headerBg} backdrop-blur-md relative z-30 px-4 sm:px-6 py-3.5`}>
-          <div className={`mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 transition-all duration-300 ${layoutContainerClass}`}>
-            
-            {/* Back Button */}
+
+        {/* ── Mobile/Tablet: Pinned YouTube player sticky at top ─────────── */}
+        {hasYouTube && showYoutubePlayer && isMobileTablet && (
+          <FocusPinnedPlayer
+            lesson={activeLesson}
+            onClose={() => setShowYoutubePlayer(false)}
+            onExitFocus={() => setIsFocusMode(false)}
+            onListeningTick={handleListeningTick}
+            onVideoEnded={() => handleMediaEnded(activeLesson)}
+          />
+        )}
+
+        {/* ── Minimal bar: always shown on desktop, or on mobile when player is hidden ── */}
+        {!(hasYouTube && showYoutubePlayer && isMobileTablet) && (
+          <div
+            className={`sticky top-0 z-30 px-4 sm:px-6 py-2.5 border-b ${focusTheme.border} ${focusTheme.headerBg} backdrop-blur-md flex items-center gap-2`}
+          >
             <button
               id="focus-exit-btn"
-              onClick={() => {
-                setIsFocusMode(false);
-              }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-95 text-inherit font-bold text-xs rounded-xl transition-all active:scale-98 cursor-pointer shadow-xs`}
+              onClick={() => setIsFocusMode(false)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90 font-bold text-xs rounded-xl transition-all active:scale-97 cursor-pointer shadow-xs`}
             >
-              ← {t('app.focus_exit', 'Выйти из фокуса')}
+              ← {t("app.focus_exit", "Выйти из фокуса")}
             </button>
 
-            {/* Lesson Title Indicators */}
-            <div className="text-center flex-1 max-w-xl truncate">
-              <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 dark:text-teal-400 bg-teal-100/40 dark:bg-teal-950/40 px-2 py-0.5 rounded">
-                {t('app.focus_mode', 'Режим фокуса')}
-              </span>
-              <h2 className="text-sm font-bold text-inherit block truncate mt-1">
-                {activeLesson.title}
-              </h2>
-            </div>
-
-            {/* Typography controls */}
-            <div className="flex flex-wrap items-center gap-2">
+            {hasYouTube && (
               <button
-                onClick={() => setShowOnlyUnknown(!showOnlyUnknown)}
-                className={`flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  showOnlyUnknown
-                    ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm scale-102"
-                    : `${focusTheme.cardBg} ${focusTheme.border} text-inherit hover:opacity-90`
+                onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl font-bold text-xs transition-all active:scale-97 cursor-pointer shadow-xs ${
+                  showYoutubePlayer && !isMobileTablet
+                    ? `bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50`
+                    : `${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90`
                 }`}
-                title={t('app.unknown_btn_title', 'Показать только неизвестные слова в уроке')}
               >
-                {showOnlyUnknown ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                <span>{t('app.unknown_btn', 'Только неизвестные')}</span>
+                <Tv className="w-3.5 h-3.5" />
+                {t("app.video_btn", "Видео")}
               </button>
-
-              {activeLesson?.youtubeId && (
-                <button
-                  onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
-                  className={`flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap border rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                    showYoutubePlayer
-                      ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
-                      : `${focusTheme.cardBg} ${focusTheme.border} text-inherit hover:opacity-90`
-                  }`}
-                  title={t('app.video_btn_title', 'Переключить окно YouTube')}
-                >
-                  <Tv className="w-3.5 h-3.5" />
-                  <span>{t('app.video_btn', 'Видео')}</span>
-                </button>
-              )}
-              <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
-              
-              {/* Width Selector */}
-              <div className="flex items-center gap-1 bg-stone-100/50 dark:bg-zinc-900/55 p-1 h-9 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setLayoutWidthMode("standard")}
-                  className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                    layoutWidthMode === "standard"
-                      ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                  }`}
-                  title={t('app.width_standard_title', 'Стандартная ширина (1280px)')}
-                >
-                  {t('app.width_standard', 'Стандарт')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLayoutWidthMode("wide")}
-                  className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                    layoutWidthMode === "wide"
-                      ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                  }`}
-                  title={t('app.width_wide_title', 'Широкая область (1560px)')}
-                >
-                  {t('app.width_wide', 'Широкий')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLayoutWidthMode("full")}
-                  className={`h-7 px-2 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                    layoutWidthMode === "full"
-                      ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100 dark:border-zinc-700"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                  }`}
-                  title={t('app.width_full_title', 'На весь экран')}
-                >
-                  {t('app.width_full', 'Экран')}
-                </button>
-              </div>
-            </div>
-
+            )}
           </div>
-        </header>
+        )}
 
-        {/* Focused main container */}
-        <main className={`flex-grow w-full mx-auto p-4 sm:p-6 lg:px-8 grid grid-cols-12 gap-6 items-start transition-all duration-300 ${layoutContainerClass}`}>
-          
-          {/* Middle Main - Reader and Audio player only */}
+        {/* ── Focused main container ────────────────────────────────────── */}
+        <main
+          className={`flex-grow w-full mx-auto p-4 sm:p-6 lg:px-8 grid grid-cols-12 gap-6 items-start transition-all duration-300 ${layoutContainerClass}`}
+        >
+          {/* Middle — Reader + optional Audio player */}
           <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4">
             {(activeLesson.audioUrl || activeLesson.audioBase64) && (
               <AudioPlayerBar
@@ -1992,11 +2023,11 @@ export default function App() {
               showOnlyUnknown={showOnlyUnknown}
               history={history}
               onUpdateHistory={handleUpdateHistory}
+              hideMeta={true}
             />
           </div>
 
-          {/* Right Sidebar - Active Word dictionary */}
-          {/* Shared props for WordExplainer — desktop sidebar uses this directly */}
+          {/* Right Sidebar — Word dictionary (desktop) */}
           <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[85px] max-h-[calc(100vh-110px)] overflow-y-auto pr-1 z-25">
             <WordExplainer
               word={selectedWord}
@@ -2020,16 +2051,15 @@ export default function App() {
               onOpenLesson={handleOpenLesson}
             />
           </div>
-
         </main>
 
-        {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet with overlay */}
+        {/* Mobile word bottom sheet */}
         {selectedWord && (
-          <div 
+          <div
             className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
             onClick={() => setSelectedWord(null)}
           >
-            <div 
+            <div
               className={`font-sans max-h-[80vh] w-full ${focusTheme.cardBg} ${focusTheme.text} rounded-t-3xl border-t ${focusTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300`}
               onClick={(e) => e.stopPropagation()}
             >
@@ -2063,8 +2093,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Floating Youtube player in Focus Mode */}
-        {activeLesson && activeLesson.youtubeId && showYoutubePlayer && (
+        {/* ── Desktop: floating draggable YouTube window ────────────────── */}
+        {hasYouTube && showYoutubePlayer && !isMobileTablet && (
           <YoutubePlayerWindow
             lesson={activeLesson}
             onClose={() => setShowYoutubePlayer(false)}
@@ -2094,14 +2124,11 @@ export default function App() {
             <div className="absolute inset-0 rounded-3xl ring-1 ring-white/30" />
           </div>
 
-          {/* Title & Tagline */}
-          <div className="space-y-1.5">
+          {/* Title */}
+          <div>
             <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">
               Lectura
             </h1>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-              {t('app.subtitle', 'Smart AI-powered reading and language learning')}
-            </p>
           </div>
 
           {/* Loading bar & spinner */}
@@ -2154,6 +2181,10 @@ export default function App() {
         setShowLocalLoginModal={setShowLocalLoginModal}
         storageMode={storageMode}
         isSyncing={isSyncing}
+        selectedTargetLanguage={selectedTargetLanguage}
+        onSelectTargetLanguage={handleSelectTargetLanguage}
+        availableTargetLanguages={availableTargetLanguages}
+        languageFlags={languageFlags}
       />
 
       {cloudOfflineWarning && (
@@ -2193,7 +2224,7 @@ export default function App() {
       <main className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass}`}>
         
         {/* Dynamic Achievements HUD Panel */}
-        {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && <StatsWidget stats={calculatedStats} />}
+        {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && activeTab !== "library" && <StatsWidget stats={calculatedStats} />}
 
         {showImportForm || editingLesson ? (
           /* Import customized forms screen */
@@ -2255,6 +2286,9 @@ export default function App() {
               vocab={vocab}
               wordLinks={wordLinks}
               languageFlags={languageFlags}
+              history={history}
+              selectedTargetLanguage={selectedTargetLanguage}
+              onSelectTargetLanguage={handleSelectTargetLanguage}
               settings={readerSettings}
               isLoading={isInitialServerLoading}
             />
@@ -2345,7 +2379,7 @@ export default function App() {
         )}
       </main>
 
-      <footer className="py-6 border-t border-zinc-200/50 dark:border-zinc-900 text-center text-xs text-zinc-400 dark:text-zinc-600 bg-stone-50 dark:bg-zinc-950/40">
+      <footer className={`py-6 border-t ${currentReaderTheme.border} text-center text-xs ${currentReaderTheme.text} opacity-50 ${currentReaderTheme.pageBg} transition-colors duration-200`}>
         <p className="leading-relaxed">
           {t('app.footer', 'Lectura {{version}} © 2026. Interactive system for reading and language learning.', { version: APP_VERSION })}
         </p>

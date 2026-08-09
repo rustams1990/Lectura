@@ -12,6 +12,8 @@ interface ReaderViewProps {
   showOnlyUnknown?: boolean;
   history?: HistoryEntry[];
   onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
+  /** Hides the title/badges/status header block (for Focus Mode) */
+  hideMeta?: boolean;
 }
 
 export default function ReaderView({
@@ -21,6 +23,7 @@ export default function ReaderView({
   showOnlyUnknown,
   history,
   onUpdateHistory,
+  hideMeta = false,
 }: ReaderViewProps) {
   const { activeLesson, currentTime, setSeekToTime } = useLesson();
   const { vocab, selectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
@@ -44,6 +47,7 @@ export default function ReaderView({
       showOnlyUnknown={showOnlyUnknown}
       history={history}
       onUpdateHistory={onUpdateHistory}
+      hideMeta={hideMeta}
     />
   );
 }

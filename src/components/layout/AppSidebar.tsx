@@ -106,22 +106,7 @@ export default function AppSidebar({
               {t('sidebar.library', 'Библиотека')}
             </button>
 
-            <button
-              id="tab-read-mode"
-              onClick={() => {
-                setActiveTab("read");
-                setShowImportForm(false);
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                activeTab === "read" && !showImportForm
-                  ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
-                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
-              }`}
-            >
-              <BookOpen className="w-4 h-4 shrink-0" />
-              {t('sidebar.reading', 'Чтение')}
-            </button>
+
 
             <button
               id="tab-practice-mode"
@@ -181,20 +166,7 @@ export default function AppSidebar({
               {t('sidebar.actions', 'Действия')}
             </span>
 
-            {activeLesson && (
-              <button
-                id="btn-enter-focus"
-                onClick={() => {
-                  setIsFocusMode(true);
-                  setIsSidebarOpen(false);
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-teal-600 dark:text-teal-400 bg-teal-50/60 hover:bg-teal-100/80 dark:bg-teal-950/20 dark:hover:bg-teal-900/30 border border-teal-100/50 dark:border-teal-900/50 rounded-xl transition-all cursor-pointer active:scale-97"
-                title="{t('sidebar.focus_mode_desc', 'Перейти в режим фокуса')}"
-              >
-                <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0 animate-pulse" />
-                {t('sidebar.focus_mode', 'Режим фокуса')}
-              </button>
-            )}
+
 
             <button
               id="btn-open-settings"

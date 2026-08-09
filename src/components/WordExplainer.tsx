@@ -2027,7 +2027,7 @@ function WordExplainer({
                     {translationSource === "hybrid" && <Sparkles className="w-3 h-3" />}
                     <span>
                       {translationSource === "ai" && "AI Lookup translation ✨"}
-                      {translationSource === "google" && t('explainer.source_google_no_ai', 'Google Translate (no AI) 🌐')}
+                      {translationSource === "google" && t('explainer.source_google_no_ai', 'Google Translate 🌐')}
                       {translationSource === "free_dictionary" && "Free Dictionary API"}
                       {translationSource === "wiktionary" && "Wiktionary REST API"}
                       {translationSource === "hybrid" && "Dictionary Hybrid Search 🌐"}

@@ -157,7 +157,19 @@
     "checking": "Checking...",
     "exit": "Logout",
     "login": "☁️ Sync (Login)",
-    "login_title": "Login to save your progress"
+    "login_title": "Login to save your progress",
+    "target_language": "Learning Language",
+    "select_target_language": "Select target language",
+    "all_languages": "All Languages"
+  },
+  "stats": {
+    "listening_today": "LISTENING TIME (TODAY)",
+    "total_label": "total:",
+    "learning_words": "ACTIVE WORDS (LEARNING)",
+    "known_words": "KNOWN WORDS (VOCABULARY)",
+    "seconds_short": "s",
+    "minutes_short": "m",
+    "hours_short": "h"
   },
   "sidebar": {
     "library": "Library",
@@ -191,7 +203,7 @@
     "local_profile": "💻 Local Profile",
     "cloud_profile": "☁️ Cloud (Google / Email)",
     "error": "⚠️ Error:",
-    "local_description": "Log in or register on your local CasaOS server. Data will be stored and synchronized via your own SQLite database.",
+    "local_description": "Log in or register on your local server. Data will be stored and synchronized via your own SQLite database.",
     "server_profile": "Server Profile:",
     "login": "Log In",
     "register": "Register",
@@ -205,6 +217,9 @@
     "email_login": "Email Login:",
     "placeholder_email_only": "Email address",
     "placeholder_password_6": "Password (min 6 characters)",
+    "placeholder_confirm_password": "Confirm password",
+    "error_empty_confirm": "Please confirm your password.",
+    "error_passwords_dont_match": "Passwords do not match.",
     "btn_register_cloud": "Create Account & Log In",
     "btn_login_cloud": "Log In to Cloud"
   },
@@ -663,7 +678,7 @@
     "source_wiki": "Wiki",
     "source_hybrid": "Hybrid",
     "ai_lookup": "AI Lookup translation ✨",
-    "source_google_no_ai": "Google Translate (no AI) 🌐",
+    "source_google_no_ai": "Google Translate 🌐",
     "free_dict_api": "Free Dictionary API",
     "wiki_api": "Wiktionary REST API",
     "hybrid_search": "Dictionary Hybrid Search 🌐",
