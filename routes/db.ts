@@ -206,9 +206,66 @@ export function getLocalServerDb(userId: string = "default") {
     const lessonsStmt = db.prepare("SELECT count(*) as count FROM lessons");
     const lessonsResult = lessonsStmt.get() as { count: number };
 
-    console.log(`[getLocalServerDb] userId: "${userId}", words count: ${wordsResult.count}, lessons count: ${lessonsResult.count}`);
-    
-    if (wordsResult.count === 0 && lessonsResult.count === 0) {
+    // If this is a specific user profile (not "default"), ensure it inherits existing custom lessons and data from main/default DB if empty
+    if (userId !== "default") {
+      try {
+        const defaultDb = getDbConnection("default");
+        const defaultLessons = defaultDb.prepare("SELECT * FROM lessons").all() as any[];
+        const userCustomCount = (db.prepare("SELECT count(*) as count FROM lessons WHERE isBuiltIn = 0").get() as any)?.count || 0;
+
+        if (defaultLessons.length > 0 && userCustomCount === 0) {
+          console.log(`[getLocalServerDb] Inheriting ${defaultLessons.length} lesson(s) from main DB for user "${userId}"`);
+          const insertLessonStmt = db.prepare(`
+            INSERT OR REPLACE INTO lessons (
+              id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const l of defaultLessons) {
+            insertLessonStmt.run(
+              l.id, l.title, l.text, l.audioUrl, l.audioBase64, l.targetLanguage, l.translationLanguage,
+              l.isBuiltIn ? 1 : 0, l.isArchived ? 1 : 0, l.coverUrl, l.youtubeId, l.lessonType,
+              l.pinned ? 1 : 0, l.translationText, l.detectedPhrases, l.difficulty, l.difficultyExplanation
+            );
+          }
+        }
+
+        // Also inherit words if user DB has 0 words
+        if (wordsResult.count === 0) {
+          const defaultWords = defaultDb.prepare("SELECT * FROM words").all() as any[];
+          const defaultLangs = defaultDb.prepare("SELECT * FROM languages").all() as any[];
+          if (defaultWords.length > 0) {
+            console.log(`[getLocalServerDb] Inheriting ${defaultWords.length} word(s) from main DB for user "${userId}"`);
+            const insertLangStmt = db.prepare("INSERT OR IGNORE INTO languages (code, name, flag) VALUES (?, ?, ?)");
+            for (const lang of defaultLangs) {
+              insertLangStmt.run(lang.code, lang.name, lang.flag);
+            }
+            const insertWordStmt = db.prepare(`
+              INSERT OR REPLACE INTO words (
+                id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+                spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
+                srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            for (const w of defaultWords) {
+              insertWordStmt.run(
+                w.id, w.language_code, w.word, w.translation, w.ipa, w.grammar, w.contextRelation, w.status, w.createdAt,
+                w.tags, w.imageUrl, w.examples, w.spellingCorrectCount || 0, w.spellingIncorrectCount || 0,
+                w.spellingAccentCount || 0, w.lastSpelledCorrectly, w.lastSpelledWithAccentError || 0, w.spellingExclude || 0,
+                w.srsNextReview, w.srsInterval, w.srsEaseFactor, w.srsRepetitions
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[getLocalServerDb] Error inheriting default DB data for user "${userId}":`, err);
+      }
+    }
+
+    // Re-check counts after inheritance
+    const wordsResultFinal = (db.prepare("SELECT count(*) as count FROM words").get() as { count: number }).count;
+    const lessonsResultFinal = (db.prepare("SELECT count(*) as count FROM lessons").get() as { count: number }).count;
+
+    if (wordsResultFinal === 0 && lessonsResultFinal === 0) {
       console.log(`[getLocalServerDb] Database for "${userId}" is empty, returning null to trigger seeding.`);
       return null;
     }

@@ -637,8 +637,17 @@ export default function App() {
           const d = body.data;
           const normalizedCloudVocab = normalizeVocabRecord(d.vocab);
           const normalizedCloudWordLinks = normalizeWordLinksRecord(d.wordLinks);
-
-          if (d.lessons) setLessons(d.lessons);
+          if (d.lessons && Array.isArray(d.lessons)) {
+            const cachedLessons = (await lessonsStore.getItem<Lesson[]>("lessons")) || [];
+            const serverLessonIds = new Set(d.lessons.map((l: Lesson) => l.id));
+            const missingCustom = cachedLessons.filter((cl: Lesson) => !cl.isBuiltIn && !serverLessonIds.has(cl.id));
+            const mergedLessons = [...d.lessons, ...missingCustom];
+            setLessons(mergedLessons);
+            lessonsStore.setItem("lessons", mergedLessons).catch(() => {});
+            if (missingCustom.length > 0) {
+              syncDataToLocalServer(mergedLessons).catch(() => {});
+            }
+          }
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
           setVocab(normalizedCloudVocab);
           setWordLinks(normalizedCloudWordLinks);
@@ -680,49 +689,31 @@ export default function App() {
 
           serverInitialLoadComplete.current = true;
         } else if (body.status === "empty") {
-          // Empty server database: Initialize clean default state for brand new profile
-          await clearLocalUserDataCache();
+          // Empty server database: Seed it with existing local cached data if available
+          const cachedLessons = (await lessonsStore.getItem<Lesson[]>("lessons")) || [];
+          const cachedVocab = (await vocabStore.getItem<Record<string, VocabItem>>("words")) || vocab;
+          const cachedWordLinks = (await vocabStore.getItem<Record<string, string>>("aliases")) || wordLinks;
+          const cachedHistory = historyRef.current;
 
-          const cleanLessons = normalizeBuiltInLessons(BUILT_IN_LESSONS);
-          const cleanTypes = ensureDefaultLessonTypes(DEFAULT_LESSON_TYPES);
-          const cleanWords: Record<string, VocabItem> = {};
-          const cleanListening = 0;
-          const cleanWordLinks: Record<string, string> = {};
-          const cleanLanguageFlags: Record<string, string> = {};
-          const cleanHistory: any[] = [];
+          const seedLessons = (cachedLessons && cachedLessons.length > 0)
+            ? cachedLessons
+            : normalizeBuiltInLessons(BUILT_IN_LESSONS);
 
-          setLessons(cleanLessons);
-          setLessonTypes(cleanTypes);
-          setVocab(cleanWords);
-          setListeningSeconds(cleanListening);
-          setWordLinks(cleanWordLinks);
-          setLanguageFlags(cleanLanguageFlags);
-          setHistory(cleanHistory);
+          setLessons(seedLessons);
+          if (cachedVocab) setVocab(cachedVocab);
+          if (cachedWordLinks) setWordLinks(cachedWordLinks);
 
-          const postHeaders: Record<string, string> = {
-            "Content-Type": "application/json",
-            "x-local-sync-key": localSyncKey,
-            "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
-          };
-          if (savedToken) {
-            postHeaders["Authorization"] = `Bearer ${savedToken}`;
-          }
+          // Seed the empty server DB with user's data
+          syncDataToLocalServer(
+            seedLessons,
+            lessonTypes,
+            cachedVocab || {},
+            cachedWordLinks || {},
+            listeningSeconds,
+            languageFlags,
+            cachedHistory
+          ).catch(() => {});
 
-          await fetch("/api/server-db", {
-            method: "POST",
-            headers: postHeaders,
-            body: JSON.stringify({
-              data: {
-                lessons: cleanLessons,
-                lessonTypes: cleanTypes,
-                vocab: cleanWords,
-                wordLinks: cleanWordLinks,
-                listeningSeconds: cleanListening,
-                languageFlags: cleanLanguageFlags,
-                history: cleanHistory,
-              }
-            })
-          });
           serverInitialLoadComplete.current = true;
         }
       } else {
