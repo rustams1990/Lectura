@@ -32,6 +32,7 @@ import {
 } from "./firebaseService";
 import AppSidebar from "./components/layout/AppSidebar";
 import AppHeader from "./components/layout/AppHeader";
+import ManageLanguagesModal from "./components/ManageLanguagesModal";
 import ReaderPanel from "./components/ReaderPanel";
 import WordExplainer from "./components/WordExplainer";
 import AudioPlayerBar from "./components/AudioPlayerBar";
@@ -166,6 +167,25 @@ export default function App() {
     safeLocalStorageSetItem("vocab_global_target_language", lang);
   };
 
+  const [isManageLanguagesOpen, setIsManageLanguagesOpen] = useState(false);
+  const [pinnedLanguages, setPinnedLanguages] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("vocab_clone_pinned_languages");
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+
+  const handleTogglePinLanguage = (lang: string) => {
+    setPinnedLanguages((prev) => {
+      const next = prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang];
+      safeLocalStorageSetItem("vocab_clone_pinned_languages", JSON.stringify(next));
+      settingsStore.setItem("vocab_clone_pinned_languages", JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
+
   const availableTargetLanguages = useMemo(() => {
     const list = new Set<string>();
     lessons.forEach((l) => {
@@ -178,8 +198,20 @@ export default function App() {
         list.add(lang);
       }
     });
+    pinnedLanguages.forEach((lang) => list.add(lang));
     return ["All", ...Array.from(list)];
-  }, [lessons, vocab]);
+  }, [lessons, vocab, pinnedLanguages]);
+
+  const lessonCountByLanguage = useMemo(() => {
+    const map: Record<string, number> = {};
+    lessons.forEach((l) => {
+      if (l.targetLanguage) {
+        const key = l.targetLanguage;
+        map[key] = (map[key] || 0) + 1;
+      }
+    });
+    return map;
+  }, [lessons]);
 
   const [activeLessonId, setActiveLessonId] = useState<string>(() => {
     return lessons[0]?.id || "";
@@ -2217,6 +2249,8 @@ export default function App() {
         onSelectTargetLanguage={handleSelectTargetLanguage}
         availableTargetLanguages={availableTargetLanguages}
         languageFlags={languageFlags}
+        onOpenManageLanguages={() => setIsManageLanguagesOpen(true)}
+        lessonCountByLanguage={lessonCountByLanguage}
       />
 
       {cloudOfflineWarning && (
@@ -2626,6 +2660,18 @@ export default function App() {
           onVideoEnded={() => handleMediaEnded(activeLesson)}
         />
       )}
+
+      {/* Manage Languages Modal */}
+      <ManageLanguagesModal
+        isOpen={isManageLanguagesOpen}
+        onClose={() => setIsManageLanguagesOpen(false)}
+        selectedTargetLanguage={selectedTargetLanguage}
+        onSelectTargetLanguage={handleSelectTargetLanguage}
+        pinnedLanguages={pinnedLanguages}
+        onTogglePinLanguage={handleTogglePinLanguage}
+        lessonCountByLanguage={lessonCountByLanguage}
+        languageFlags={languageFlags}
+      />
 
       {/* iOS Safari PWA Install Banner */}
       <PwaInstallBanner 

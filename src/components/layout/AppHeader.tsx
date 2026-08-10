@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Languages, Sun, Moon, ChevronDown, Check } from 'lucide-react';
+import { Menu, Languages, Sun, Moon, ChevronDown, Check, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { settingsStore } from '../../db';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +25,8 @@ interface AppHeaderProps {
   onSelectTargetLanguage: (lang: string) => void;
   availableTargetLanguages: string[];
   languageFlags?: Record<string, string>;
+  onOpenManageLanguages?: () => void;
+  lessonCountByLanguage?: Record<string, number>;
 }
 
 export default function AppHeader({
@@ -44,6 +46,8 @@ export default function AppHeader({
   onSelectTargetLanguage,
   availableTargetLanguages,
   languageFlags,
+  onOpenManageLanguages,
+  lessonCountByLanguage = {},
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
   const { t, i18n } = useTranslation();
@@ -124,34 +128,61 @@ export default function AppHeader({
             </button>
 
             {isLangDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 font-sans">
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 font-sans overflow-hidden">
                 <div className="px-3 py-1 text-[10px] uppercase font-black tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800/60 mb-1">
                   🌐 {t('header.target_language', 'Learning Language')}
                 </div>
-                {availableTargetLanguages.map((lang) => {
-                  const isSelected = selectedTargetLanguage.toLowerCase() === lang.toLowerCase();
-                  return (
+                <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                  {availableTargetLanguages.map((lang) => {
+                    const isSelected = selectedTargetLanguage.toLowerCase() === lang.toLowerCase();
+                    const count = lessonCountByLanguage[lang] || 0;
+                    return (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => {
+                          onSelectTargetLanguage(lang);
+                          setIsLangDropdownOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 text-xs font-extrabold flex items-center justify-between transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 font-black"
+                            : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/80"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {renderCircularFlag(getLanguageFlagEmoji(lang, languageFlags), lang === "All")}
+                          <span>{lang === "All" ? t('header.all_languages', 'All Languages') : lang}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {count > 0 && lang !== "All" && (
+                            <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500">
+                              ({count})
+                            </span>
+                          )}
+                          {isSelected && <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {onOpenManageLanguages && (
+                  <>
+                    <div className="border-t border-zinc-100 dark:border-zinc-800/80 my-1" />
                     <button
-                      key={lang}
                       type="button"
                       onClick={() => {
-                        onSelectTargetLanguage(lang);
                         setIsLangDropdownOpen(false);
+                        onOpenManageLanguages();
                       }}
-                      className={`w-full px-3 py-2 text-xs font-extrabold flex items-center justify-between transition-colors cursor-pointer ${
-                        isSelected
-                          ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 font-black"
-                          : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/80"
-                      }`}
+                      className="w-full px-3 py-2 text-xs font-extrabold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 flex items-center gap-2 transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5">
-                        {renderCircularFlag(getLanguageFlagEmoji(lang, languageFlags), lang === "All")}
-                        <span>{lang === "All" ? t('header.all_languages', 'All Languages') : lang}</span>
-                      </div>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />}
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{t('header.add_new_language', 'Add a new language')}</span>
                     </button>
-                  );
-                })}
+                  </>
+                )}
               </div>
             )}
           </div>
