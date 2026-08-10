@@ -561,6 +561,34 @@ export default function App() {
     };
   }, [storageMode, isAuthLoading, localSyncError]);
 
+  // Periodic background check for new server version to auto-reload browser tab seamlessly
+  useEffect(() => {
+    let unmounted = false;
+    const checkVersion = async () => {
+      try {
+        const res = await fetch("/api/health?t=" + Date.now());
+        if (res.ok) {
+          const data = await res.json();
+          if (!unmounted && data && data.version && data.version !== APP_VERSION) {
+            const reloadedKey = `reloaded_for_${data.version}`;
+            if (!sessionStorage.getItem(reloadedKey)) {
+              sessionStorage.setItem(reloadedKey, "true");
+              console.log(`[VersionCheck] Server updated to ${data.version} (current: ${APP_VERSION}). Auto-reloading...`);
+              window.location.reload();
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    checkVersion();
+    const interval = setInterval(checkVersion, 30000);
+    return () => {
+      unmounted = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   const activeUserId = (activeUser as any)?.uid || (activeUser as any)?.id || null;
   const prevUserIdRef = useRef<string | null>(activeUserId);
 

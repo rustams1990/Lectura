@@ -10,6 +10,7 @@ import youtubeRouter from "./routes/youtube.ts";
 import authRouter from "./routes/auth.ts";
 import dbRouter from "./routes/db.ts";
 import mediaRouter from "./routes/media.ts";
+import { APP_VERSION } from "./src/version.ts";
 
 dotenv.config();
 
@@ -44,7 +45,7 @@ async function startServer() {
 
   // Health check endpoint for monitoring & Docker
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", uptime: process.uptime(), timestamp: Date.now() });
+    res.json({ status: "ok", version: APP_VERSION, uptime: process.uptime(), timestamp: Date.now() });
   });
 
   // Static Audio Storage route (serves audio files directly from disk to keep RAM usage minimal)
@@ -93,8 +94,21 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      }
+    }));
     app.get("*", (_req, res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
