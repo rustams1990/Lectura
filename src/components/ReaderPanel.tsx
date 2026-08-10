@@ -660,7 +660,7 @@ function ReaderPanel({
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
               {lesson.title}
             </h2>
-            {!lesson.isBuiltIn && onEditClick && (
+            {onEditClick && (
               <button
                 type="button"
                 id="btn-edit-active-lesson"

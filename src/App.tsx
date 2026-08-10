@@ -723,9 +723,10 @@ export default function App() {
           const cachedWordLinks = (await vocabStore.getItem<Record<string, string>>("aliases")) || wordLinks;
           const cachedHistory = historyRef.current;
 
-          const seedLessons = (cachedLessons && cachedLessons.length > 0)
+          const userDeletedLessons = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
+          const seedLessons = (cachedLessons && (cachedLessons.length > 0 || userDeletedLessons))
             ? cachedLessons
-            : (lessons && lessons.length > 0 ? lessons : normalizeBuiltInLessons(BUILT_IN_LESSONS));
+            : (lessons && (lessons.length > 0 || userDeletedLessons) ? lessons : normalizeBuiltInLessons(BUILT_IN_LESSONS));
 
           setLessons(seedLessons);
           if (cachedVocab) setVocab(cachedVocab);
@@ -1843,6 +1844,7 @@ export default function App() {
     setLessons(remaining);
     lessonsStore.setItem("lessons", remaining);
     safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(remaining));
+    safeLocalStorageSetItem("vocab_clone_user_deleted_lessons", "true");
 
     // Switch active lesson if necessary
     if (activeLessonId === idToDelete && remaining.length > 0) {

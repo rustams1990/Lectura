@@ -1515,21 +1515,19 @@ function LibraryHome({
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
 
-                    {/* Show delete if custom */}
-                    {!lesson.isBuiltIn && (
-                      <button
-                        type="button"
-                        id={`book-delete-btn-${lesson.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingLessonId(lesson.id);
-                        }}
-                        className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-400 hover:text-red-500 rounded-xl transition-all hover:border-red-200"
-                        title={t("library.delete_tooltip", "Delete book")}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    {/* Delete book button (available for all books including built-in) */}
+                    <button
+                      type="button"
+                      id={`book-delete-btn-${lesson.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingLessonId(lesson.id);
+                      }}
+                      className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-400 hover:text-red-500 rounded-xl transition-all hover:border-red-200"
+                      title={t("library.delete_tooltip", "Delete book")}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
