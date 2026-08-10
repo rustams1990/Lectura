@@ -598,8 +598,12 @@ export default function YoutubePlayerWindow({
 
       {/* Embed YouTube player container */}
       <div 
-        style={{ height: isMinimized ? "0px" : `${size.height - 44}px`, display: isMinimized ? "none" : "block" }} 
-        className="w-full bg-black relative flex-1"
+        style={{
+          height: isMinimized ? "0px" : `${size.height - 44}px`,
+          opacity: isMinimized ? 0 : 1,
+          pointerEvents: isMinimized ? "none" : "auto"
+        }} 
+        className="w-full bg-black relative flex-1 transition-all duration-150 overflow-hidden"
       >
         {/* Dedicated YouTube player container - completely untouched by React's children reconciliation */}
         <div 

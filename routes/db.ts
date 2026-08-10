@@ -391,7 +391,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
         id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertLessonType = db.prepare(`
@@ -497,8 +497,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           l.text,
           finalAudioUrl,
           finalAudioBase64,
-          l.targetLanguage,
-          l.translationLanguage,
+          l.targetLanguage || "english",
+          l.translationLanguage || "russian",
           l.isBuiltIn ? 1 : 0,
           finalIsArchived,
           l.coverUrl || null,

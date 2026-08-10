@@ -227,6 +227,19 @@ export default function FocusPinnedPlayer({
     }
   }, [seekToTime, setSeekToTime]);
 
+  // Force layout repaint when un-collapsing (expanding) player on tablets/mobile to eliminate black screen delay
+  useEffect(() => {
+    if (!collapsed && playerRef.current) {
+      try {
+        const iframe = containerRef.current?.querySelector("iframe");
+        if (iframe) {
+          iframe.style.width = "100%";
+          iframe.style.height = "100%";
+        }
+      } catch (e) {}
+    }
+  }, [collapsed]);
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div ref={rootRef} className="sticky top-0 z-50 w-full bg-zinc-950 shadow-xl shadow-black/50">
@@ -308,20 +321,25 @@ export default function FocusPinnedPlayer({
       </div>
 
       {/* ── YouTube iframe — aspect-ratio 16/9, zero black bars ────────────
-          S/M/L change max-width; height auto-follows via aspect-ratio.        */}
-      {!collapsed && (
-        <div className="w-full bg-zinc-950 flex justify-center">
+          S/M/L change max-width; height auto-follows via aspect-ratio.
+          Keep iframe ALWAYS mounted in DOM to prevent video stopping & black screen on expand! */}
+      <div 
+        className={`w-full bg-zinc-950 flex justify-center transition-all duration-200 ${
+          collapsed 
+            ? "h-0 min-h-0 max-h-0 opacity-0 overflow-hidden pointer-events-none" 
+            : "h-auto opacity-100"
+        }`}
+      >
+        <div
+          style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }}
+          className="bg-black relative"
+        >
           <div
-            style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }}
-            className="bg-black"
-          >
-            <div
-              ref={containerRef}
-              className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
-            />
-          </div>
+            ref={containerRef}
+            className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
+          />
         </div>
-      )}
+      </div>
     </div>
   );
 }

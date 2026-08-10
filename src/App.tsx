@@ -697,7 +697,7 @@ export default function App() {
 
           const seedLessons = (cachedLessons && cachedLessons.length > 0)
             ? cachedLessons
-            : normalizeBuiltInLessons(BUILT_IN_LESSONS);
+            : (lessons && lessons.length > 0 ? lessons : normalizeBuiltInLessons(BUILT_IN_LESSONS));
 
           setLessons(seedLessons);
           if (cachedVocab) setVocab(cachedVocab);
@@ -1721,20 +1721,31 @@ export default function App() {
       setLessonImages(lessonWithDate.id, images);
       setLessonImagesVersion((v) => v + 1);
     }
+    let updatedLessons: Lesson[] = [];
     setLessons((prev) => {
       const exists = prev.some((l) => l.id === lessonWithDate.id);
       if (exists) {
-        return prev.map((l) => (l.id === lessonWithDate.id ? { ...l, ...lessonWithDate } : l));
+        updatedLessons = prev.map((l) => (l.id === lessonWithDate.id ? { ...l, ...lessonWithDate } : l));
+      } else {
+        updatedLessons = [lessonWithDate, ...prev];
       }
-      return [lessonWithDate, ...prev];
+      return updatedLessons;
     });
+    // Instantly persist new lesson to IndexedDB cache
+    lessonsStore.getItem<Lesson[]>("lessons").then((cached) => {
+      const list = cached || lessons;
+      const exists = list.some((l) => l.id === lessonWithDate.id);
+      const nextList = exists ? list.map((l) => (l.id === lessonWithDate.id ? { ...l, ...lessonWithDate } : l)) : [lessonWithDate, ...list];
+      lessonsStore.setItem("lessons", nextList).catch(() => {});
+    }).catch(() => {});
+
     setActiveLessonId(lessonWithDate.id);
     setShowImportForm(false);
     if (auth.currentUser && storageMode === "cloud") {
       saveLesson(auth.currentUser.uid, lessonWithDate, images).catch((err) => console.error(err));
     }
     if (storageMode === "server") {
-      syncDataToLocalServer([lessonWithDate, ...lessons]).catch((err) => console.error(err));
+      syncDataToLocalServer(updatedLessons.length > 0 ? updatedLessons : [lessonWithDate, ...lessons]).catch((err) => console.error(err));
     }
   };
 
