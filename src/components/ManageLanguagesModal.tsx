@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Search, Plus, Check, Globe } from "lucide-react";
+import { X, Search, Plus, Check, Globe, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getLanguageFlagEmoji, renderCircularFlag } from "./LibraryHome";
 
@@ -38,8 +38,9 @@ interface ManageLanguagesModalProps {
   onClose: () => void;
   selectedTargetLanguage: string;
   onSelectTargetLanguage: (lang: string) => void;
-  pinnedLanguages: string[];
-  onTogglePinLanguage: (lang: string) => void;
+  availableTargetLanguages: string[];
+  onAddLanguage: (lang: string) => void;
+  onRemoveLanguage: (lang: string) => void;
   lessonCountByLanguage?: Record<string, number>;
   languageFlags?: Record<string, string>;
 }
@@ -49,8 +50,9 @@ export default function ManageLanguagesModal({
   onClose,
   selectedTargetLanguage,
   onSelectTargetLanguage,
-  pinnedLanguages,
-  onTogglePinLanguage,
+  availableTargetLanguages,
+  onAddLanguage,
+  onRemoveLanguage,
   lessonCountByLanguage = {},
   languageFlags,
 }: ManageLanguagesModalProps) {
@@ -69,14 +71,6 @@ export default function ManageLanguagesModal({
     );
   });
 
-  const handleSelectLanguage = (langName: string) => {
-    if (!pinnedLanguages.includes(langName)) {
-      onTogglePinLanguage(langName);
-    }
-    onSelectTargetLanguage(langName);
-    onClose();
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
@@ -91,10 +85,10 @@ export default function ManageLanguagesModal({
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white">
-                {t("header.add_new_language", "Add a new language")}
+                {t("header.add_new_language", "Manage Languages")}
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold">
-                {t("header.select_language_desc", "Select a language to add to your dropdown")}
+                {t("header.select_language_desc", "Add or remove languages from your dropdown")}
               </p>
             </div>
           </div>
@@ -124,17 +118,20 @@ export default function ManageLanguagesModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-1.5 custom-scrollbar">
           {filteredLanguages.map((lang) => {
             const isCurrentSelected = selectedTargetLanguage.toLowerCase() === lang.name.toLowerCase();
-            const isPinned = pinnedLanguages.includes(lang.name) || (lessonCountByLanguage[lang.name] || 0) > 0;
+            const isInDropdown = availableTargetLanguages.some(
+              (l) => l.toLowerCase() === lang.name.toLowerCase()
+            );
             const bookCount = lessonCountByLanguage[lang.name] || 0;
 
             return (
               <div
                 key={lang.code}
-                onClick={() => handleSelectLanguage(lang.name)}
-                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${
+                className={`p-3 rounded-2xl border transition-all flex items-center justify-between group ${
                   isCurrentSelected
                     ? "bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900 shadow-xs"
-                    : "bg-white dark:bg-zinc-900/60 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 border-zinc-100 dark:border-zinc-800/60"
+                    : isInDropdown
+                    ? "bg-white dark:bg-zinc-900/60 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 border-zinc-200/80 dark:border-zinc-800"
+                    : "bg-zinc-50/50 dark:bg-zinc-900/30 border-zinc-100 dark:border-zinc-800/40 opacity-80 hover:opacity-100"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -157,32 +154,46 @@ export default function ManageLanguagesModal({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {isCurrentSelected ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-600 text-white rounded-lg text-[10px] font-black shadow-xs">
-                      <Check className="w-3 h-3" />
-                      Active
-                    </span>
-                  ) : isPinned ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectLanguage(lang.name);
-                      }}
-                      className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-teal-500 hover:text-white dark:hover:bg-teal-600 text-zinc-600 dark:text-zinc-300 rounded-lg text-[10px] font-bold transition-all"
-                    >
-                      Select
-                    </button>
+                  {isInDropdown ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectTargetLanguage(lang.name);
+                          onClose();
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                          isCurrentSelected
+                            ? "bg-teal-600 text-white shadow-xs"
+                            : "bg-zinc-100 dark:bg-zinc-800 hover:bg-teal-500 hover:text-white text-zinc-700 dark:text-zinc-200"
+                        }`}
+                      >
+                        {isCurrentSelected ? "Active" : "Select"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveLanguage(lang.name);
+                        }}
+                        className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all border border-transparent hover:border-red-200 dark:hover:border-red-900 cursor-pointer"
+                        title={t("common.remove", "Remove from dropdown")}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
                   ) : (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleSelectLanguage(lang.name);
+                        onAddLanguage(lang.name);
+                        onClose();
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 hover:bg-teal-600 hover:text-white rounded-lg text-[10px] font-black transition-all border border-teal-200/60 dark:border-teal-900"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 hover:bg-teal-600 hover:text-white rounded-xl text-[10px] font-black transition-all border border-teal-200/60 dark:border-teal-900 cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                       Add
                     </button>
                   )}
@@ -205,3 +216,4 @@ export default function ManageLanguagesModal({
     </div>
   );
 }
+

@@ -176,14 +176,55 @@ export default function App() {
       return [];
     }
   });
+  const [hiddenLanguages, setHiddenLanguages] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("vocab_clone_hidden_languages");
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
 
-  const handleTogglePinLanguage = (lang: string) => {
+  const handleAddLanguage = (langName: string) => {
+    setHiddenLanguages((prev) => {
+      const next = prev.filter((l) => l.toLowerCase() !== langName.toLowerCase());
+      safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(next));
+      settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(next)).catch(() => {});
+      return next;
+    });
     setPinnedLanguages((prev) => {
-      const next = prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang];
+      if (!prev.some((l) => l.toLowerCase() === langName.toLowerCase())) {
+        const next = [...prev, langName];
+        safeLocalStorageSetItem("vocab_clone_pinned_languages", JSON.stringify(next));
+        settingsStore.setItem("vocab_clone_pinned_languages", JSON.stringify(next)).catch(() => {});
+        return next;
+      }
+      return prev;
+    });
+    setSelectedTargetLanguage(langName);
+    safeLocalStorageSetItem("vocab_global_target_language", langName);
+  };
+
+  const handleRemoveLanguage = (langName: string) => {
+    setHiddenLanguages((prev) => {
+      if (!prev.some((l) => l.toLowerCase() === langName.toLowerCase())) {
+        const next = [...prev, langName];
+        safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(next));
+        settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(next)).catch(() => {});
+        return next;
+      }
+      return prev;
+    });
+    setPinnedLanguages((prev) => {
+      const next = prev.filter((l) => l.toLowerCase() !== langName.toLowerCase());
       safeLocalStorageSetItem("vocab_clone_pinned_languages", JSON.stringify(next));
       settingsStore.setItem("vocab_clone_pinned_languages", JSON.stringify(next)).catch(() => {});
       return next;
     });
+    if (selectedTargetLanguage.toLowerCase() === langName.toLowerCase()) {
+      setSelectedTargetLanguage("All");
+      safeLocalStorageSetItem("vocab_global_target_language", "All");
+    }
   };
 
   const availableTargetLanguages = useMemo(() => {
@@ -199,8 +240,11 @@ export default function App() {
       }
     });
     pinnedLanguages.forEach((lang) => list.add(lang));
-    return ["All", ...Array.from(list)];
-  }, [lessons, vocab, pinnedLanguages]);
+
+    const hiddenLower = new Set(hiddenLanguages.map((l) => l.toLowerCase()));
+    const filtered = Array.from(list).filter((lang) => !hiddenLower.has(lang.toLowerCase()));
+    return ["All", ...filtered];
+  }, [lessons, vocab, pinnedLanguages, hiddenLanguages]);
 
   const lessonCountByLanguage = useMemo(() => {
     const map: Record<string, number> = {};
@@ -2667,8 +2711,9 @@ export default function App() {
         onClose={() => setIsManageLanguagesOpen(false)}
         selectedTargetLanguage={selectedTargetLanguage}
         onSelectTargetLanguage={handleSelectTargetLanguage}
-        pinnedLanguages={pinnedLanguages}
-        onTogglePinLanguage={handleTogglePinLanguage}
+        availableTargetLanguages={availableTargetLanguages}
+        onAddLanguage={handleAddLanguage}
+        onRemoveLanguage={handleRemoveLanguage}
         lessonCountByLanguage={lessonCountByLanguage}
         languageFlags={languageFlags}
       />
