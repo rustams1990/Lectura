@@ -1190,7 +1190,7 @@ function WordExplainer({
     } else {
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || existingVocab?.translation || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : "Pending translation"),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1218,7 +1218,7 @@ function WordExplainer({
       }
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || existingVocab?.translation || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1257,7 +1257,7 @@ function WordExplainer({
       }
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || existingVocab?.translation || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1287,7 +1287,7 @@ function WordExplainer({
       }
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || existingVocab?.translation || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",

@@ -418,15 +418,27 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
         ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
 
+        const existingWord = db.prepare("SELECT translation, ipa, grammar, contextRelation, examples FROM words WHERE user_id = ? AND id = ?").get(userId, key) as any;
+
+        const isPlaceholder = (s?: string) => !s || s.trim() === "" || s === "Pending translation" || s === "[Known]" || s === "[Ignored]";
+        let finalTranslation = val.translation || "";
+        if (isPlaceholder(finalTranslation) && existingWord && !isPlaceholder(existingWord.translation)) {
+          finalTranslation = existingWord.translation;
+        }
+
+        let finalIpa = val.ipa || (existingWord ? existingWord.ipa || "" : "");
+        let finalGrammar = val.grammar || (existingWord ? existingWord.grammar || "" : "");
+        let finalContextRelation = val.contextRelation || (existingWord ? existingWord.contextRelation || "" : "");
+
         insertWord.run(
           key,
           userId,
           lang,
           wordVal,
-          val.translation || "",
-          val.ipa || "",
-          val.grammar || "",
-          val.contextRelation || "",
+          finalTranslation,
+          finalIpa,
+          finalGrammar,
+          finalContextRelation,
           val.status || "known",
           val.createdAt || Date.now(),
           JSON.stringify(val.tags || []),

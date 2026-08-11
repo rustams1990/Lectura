@@ -1566,7 +1566,7 @@ export default function App() {
       
       linkedWords.forEach((linkedWord) => {
         const targetLangKey = `${activeLang}_${linkedWord}`;
-        const existing = prev[targetLangKey];
+        const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
 
         const updatedVocabItem: VocabItem = buildVocabItem(newVocabItem, linkedWord, existing);
 
@@ -1628,7 +1628,7 @@ export default function App() {
 
         linkedWords.forEach((linkedWord) => {
           const targetLangKey = `${activeLang}_${linkedWord}`;
-          const existing = prev[targetLangKey];
+          const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
 
           const updatedVocabItem: VocabItem = buildVocabItem(newVocabItem, linkedWord, existing);
 

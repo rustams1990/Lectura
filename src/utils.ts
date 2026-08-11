@@ -488,7 +488,27 @@ export function buildVocabItem(
   word: string,
   existing?: import("./types").VocabItem | null
 ): import("./types").VocabItem {
+  const isPlaceholder = (str?: string) => !str || str.trim() === "" || str === "Pending translation" || str === "[Known]" || str === "[Ignored]";
+
+  const pickString = (newVal: string | undefined, existingVal: string | undefined, fallback: string): string => {
+    if (newVal !== undefined && !isPlaceholder(newVal)) return newVal;
+    if (existingVal !== undefined && !isPlaceholder(existingVal)) return existingVal;
+    if (newVal !== undefined) return newVal;
+    if (existingVal !== undefined) return existingVal;
+    return fallback;
+  };
+
+  const pickArray = <T>(newVal: T[] | undefined, existingVal: T[] | undefined, fallback: T[]): T[] => {
+    if (newVal !== undefined && Array.isArray(newVal) && newVal.length > 0) return newVal;
+    if (existingVal !== undefined && Array.isArray(existingVal) && existingVal.length > 0) return existingVal;
+    if (newVal !== undefined && Array.isArray(newVal)) return newVal;
+    if (existingVal !== undefined && Array.isArray(existingVal)) return existingVal;
+    return fallback;
+  };
+
   const pick = <T>(newVal: T | undefined, existingVal: T | undefined, fallback: T): T => {
+    if (newVal !== undefined && newVal !== null && newVal !== "") return newVal;
+    if (existingVal !== undefined && existingVal !== null && existingVal !== "") return existingVal;
     if (newVal !== undefined) return newVal;
     if (existingVal !== undefined) return existingVal;
     return fallback;
@@ -497,13 +517,13 @@ export function buildVocabItem(
   return {
     word,
     status:                    newItem.status,
-    translation:               pick(newItem.translation,               existing?.translation,               ""),
-    ipa:                       pick(newItem.ipa,                       existing?.ipa,                       ""),
-    grammar:                   pick(newItem.grammar,                   existing?.grammar,                   ""),
-    contextRelation:           pick(newItem.contextRelation,           existing?.contextRelation,           ""),
-    examples:                  pick(newItem.examples,                  existing?.examples,                  []),
+    translation:               pickString(newItem.translation,               existing?.translation,               ""),
+    ipa:                       pickString(newItem.ipa,                       existing?.ipa,                       ""),
+    grammar:                   pickString(newItem.grammar,                   existing?.grammar,                   ""),
+    contextRelation:           pickString(newItem.contextRelation,           existing?.contextRelation,           ""),
+    examples:                  pickArray(newItem.examples,                  existing?.examples,                  []),
     createdAt:                 pick(newItem.createdAt,                 existing?.createdAt,                 Date.now()),
-    tags:                      pick(newItem.tags,                      existing?.tags,                      []),
+    tags:                      pickArray(newItem.tags,                      existing?.tags,                      []),
     imageUrl:                  newItem.imageUrl !== undefined
                                  ? newItem.imageUrl
                                  : (existing?.imageUrl ?? null),

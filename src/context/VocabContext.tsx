@@ -112,12 +112,15 @@ export function VocabProvider({ children }: { children: ReactNode }) {
 
       linkedWords.forEach((linkedWord) => {
         const targetLangKey = `${activeLang}_${linkedWord}`;
-        const existing = prev[targetLangKey] || prev[linkedWord];
+        const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
+
+        const isPlaceholder = (s?: string) => !s || s === "Pending translation" || s === "[Known]" || s === "[Ignored]";
+        const existingTrans = existing && !isPlaceholder(existing.translation) ? existing.translation : undefined;
 
         const updated: VocabItem = {
           word: linkedWord,
           status: newStatus,
-          translation: existing ? existing.translation : "[Known]",
+          translation: existingTrans || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : "Pending translation"),
           ipa: existing ? existing.ipa : "",
           grammar: existing ? existing.grammar : "",
           contextRelation: existing ? existing.contextRelation : "",
