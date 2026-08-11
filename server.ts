@@ -48,6 +48,24 @@ async function startServer() {
     res.json({ status: "ok", version: APP_VERSION, uptime: process.uptime(), timestamp: Date.now() });
   });
 
+  // Dynamic Service Worker endpoint: injects current APP_VERSION into CACHE_NAME
+  // This forces all browsers (including Edge on tablet) to install a fresh SW and clear old caches on every update
+  const swTemplatePath = path.join(process.cwd(), "public", "sw.js");
+  app.get("/sw.js", (_req, res) => {
+    try {
+      const swTemplate = fs.readFileSync(swTemplatePath, "utf8");
+      const swContent = swTemplate.replace(/__CACHE_VERSION__/g, APP_VERSION);
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.send(swContent);
+    } catch (e) {
+      res.status(500).send("// sw.js template not found");
+    }
+  });
+
+
   // Static Audio Storage route (serves audio files directly from disk to keep RAM usage minimal)
   const AUDIO_STORAGE_DIR = path.join(DATA_DIR, "audio_files");
   if (!fs.existsSync(AUDIO_STORAGE_DIR)) {

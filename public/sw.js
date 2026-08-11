@@ -2,22 +2,24 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * Service Worker for Lectura PWA Offline Support & Cache Management
+ *
+ * NOTE: CACHE_NAME contains __CACHE_VERSION__ which is replaced dynamically
+ * by the Express server at /api/sw.js with the actual APP_VERSION string.
+ * This ensures old caches are always cleared when the app version changes.
  */
 
-const CACHE_NAME = "lectura-v2.80";
+const CACHE_NAME = "lectura-__CACHE_VERSION__";
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",
   "/manifest.json",
-  "/src/main.tsx",
-  "/src/index.css"
 ];
 
 // 1. Install Event: Pre-cache core shell resources
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log("[PWA Service Worker] Pre-caching app shell assets");
+      console.log("[PWA Service Worker] Pre-caching app shell assets, cache:", CACHE_NAME);
       return cache.addAll(PRECACHE_ASSETS).catch((err) => {
         console.warn("[PWA Service Worker] Pre-cache failed for some assets, continuing anyway:", err);
       });
@@ -25,7 +27,7 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// 2. Activate Event: Clean up legacy caches
+// 2. Activate Event: Clean up ALL legacy caches (any name that doesn't match current)
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -41,7 +43,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 3. Fetch Event: Stale-While-Revalidate Strategy for UI shell & Cache-First for static assets
+// 3. Fetch Event: Network-First strategy (always try network, fall back to cache only when offline)
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
 
@@ -50,7 +52,7 @@ self.addEventListener("fetch", (event) => {
     event.request.method !== "GET" ||
     requestUrl.pathname.startsWith("/api/") ||
     requestUrl.hostname.includes("firestore.googleapis.com") ||
-    requestUrl.hostname.includes("generativelanguage.googleapis.com text/html")
+    requestUrl.hostname.includes("generativelanguage.googleapis.com")
   ) {
     return;
   }

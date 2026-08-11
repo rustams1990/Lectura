@@ -9,7 +9,8 @@
     <meta http-equiv="Expires" content="0" />
     <title>Lectura</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- PWA Support handled by VitePWA plugin -->
+    <link rel="manifest" href="/manifest.json" />
+    <!-- PWA Support -->
     <meta name="theme-color" content="#0d9488" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -50,9 +51,26 @@
       } catch (err) {
         console.error("LocalStorage pre-cleanse error:", err);
       }
+
+      // Register Service Worker — served dynamically by Express with APP_VERSION injected
+      // into CACHE_NAME so old caches are always purged on every update (fixes Edge tablet caching)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+            .then(function(reg) {
+              console.log('[SW] Registered, scope:', reg.scope);
+              // Force immediate update check on every page load
+              reg.update();
+            })
+            .catch(function(err) {
+              console.warn('[SW] Registration failed:', err);
+            });
+        });
+      }
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
 
