@@ -49,7 +49,8 @@ function setupSchema(db: Database.Database) {
       srsNextReview INTEGER,
       srsInterval INTEGER,
       srsEaseFactor REAL,
-      srsRepetitions INTEGER
+      srsRepetitions INTEGER,
+      UNIQUE(user_id, language_code, word)
     );
 
     CREATE TABLE IF NOT EXISTS lessons (
@@ -205,6 +206,69 @@ function setupSchema(db: Database.Database) {
 
   // reading_history: user_id column
   try { db.exec(`ALTER TABLE reading_history ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+
+  // ── Migrate words table: fix old UNIQUE(language_code, word) → UNIQUE(user_id, language_code, word) ─
+  // The old constraint prevented multiple users from having the same word in the same language.
+  // Detect by checking if the sqlite_master SQL contains the old constraint pattern.
+  try {
+    const wordsSchema = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='words'").get() as any)?.sql || "";
+    const hasOldConstraint = wordsSchema.includes("UNIQUE(language_code, word)") || wordsSchema.includes("UNIQUE( language_code, word)");
+    if (hasOldConstraint) {
+      console.log("[DB] Migrating words table: fixing UNIQUE constraint to include user_id...");
+      const allWords = db.prepare("SELECT * FROM words").all() as any[];
+      db.exec("DROP TABLE words");
+      db.exec(`
+        CREATE TABLE words (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL DEFAULT 'default',
+          language_code TEXT NOT NULL,
+          word TEXT NOT NULL,
+          translation TEXT,
+          ipa TEXT,
+          grammar TEXT,
+          contextRelation TEXT,
+          status TEXT NOT NULL,
+          createdAt INTEGER,
+          tags TEXT,
+          imageUrl TEXT,
+          examples TEXT,
+          spellingCorrectCount INTEGER DEFAULT 0,
+          spellingIncorrectCount INTEGER DEFAULT 0,
+          spellingAccentCount INTEGER DEFAULT 0,
+          lastSpelledCorrectly INTEGER,
+          lastSpelledWithAccentError INTEGER DEFAULT 0,
+          spellingExclude INTEGER DEFAULT 0,
+          srsNextReview INTEGER,
+          srsInterval INTEGER,
+          srsEaseFactor REAL,
+          srsRepetitions INTEGER,
+          UNIQUE(user_id, language_code, word)
+        )
+      `);
+      const stmtRestore = db.prepare(`
+        INSERT OR IGNORE INTO words (
+          id, user_id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+          spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
+          srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const restoreTx = db.transaction((words: any[]) => {
+        for (const w of words) {
+          stmtRestore.run(
+            w.id, w.user_id || 'default', w.language_code, w.word, w.translation, w.ipa, w.grammar, w.contextRelation,
+            w.status, w.createdAt, w.tags, w.imageUrl, w.examples,
+            w.spellingCorrectCount || 0, w.spellingIncorrectCount || 0, w.spellingAccentCount || 0,
+            w.lastSpelledCorrectly, w.lastSpelledWithAccentError || 0, w.spellingExclude || 0,
+            w.srsNextReview, w.srsInterval, w.srsEaseFactor, w.srsRepetitions
+          );
+        }
+      });
+      restoreTx(allWords);
+      console.log(`[DB] Words table migrated. Restored ${allWords.length} words with correct UNIQUE(user_id, language_code, word).`);
+    }
+  } catch (e) {
+    console.error("[DB] Failed to migrate words table UNIQUE constraint:", e);
+  }
 
   db.pragma("foreign_keys = ON");
 }

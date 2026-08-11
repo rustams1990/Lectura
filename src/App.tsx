@@ -377,10 +377,81 @@ export default function App() {
   const [isDetectingIdioms, setIsDetectingIdioms] = useState<boolean>(false);
   const lastLocalChangeTime = useRef<number>(0);
   const [showIosInstallBanner, setShowIosInstallBanner] = useState<boolean>(false);
+  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>({});
 
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
+    const defaults: ReaderSettings = {
+      fontSize: "xl",
+      lineHeight: "loose",
+      fontFamily: "sans",
+      readerTheme: "default",
+      maxWidth: "medium",
+      pageSize: "auto",
+      sentenceSpacing: "normal",
+      segmentSpacing: "normal",
+      ttsEngine: "google",
+      ttsLocale: "en-US",
+      aiProvider: "gemini",
+      localAiUrl: "http://localhost:11434/api/generate",
+      localAiModel: "phi3.5",
+      showDetailedVocabularyStats: true,
+      mainStatsMetric: "comprehension",
+      showProgressBar: true,
+    };
+    try {
+      const saved = localStorage.getItem("vocab_clone_reader_settings");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.ttsEngine_v2) {
+          parsed.ttsEngine = "google";
+          parsed.ttsEngine_v2 = true;
+        }
+        return { ...defaults, ...parsed };
+      }
+    } catch (e) {
+      console.error("Failed to parse saved reader settings:", e);
+    }
+    return defaults;
+  });
+
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("vocab_clone_dark_mode");
+      if (saved === "false") return false;
+      if (saved === "true") return true;
+    } catch (_) {}
+    return false;
+  });
+
+  // Firebase Auth & Cloud Sync States
+  const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [cloudOfflineWarning, setCloudOfflineWarning] = useState<boolean>(false);
+  const [cloudOfflineError, setCloudOfflineError] = useState<string | null>(null);
+  const {
+    user: activeUser,
+    serverToken,
+    storageMode,
+    setStorageMode,
+    localSyncKey,
+    setLocalSyncKey,
+    localSyncError,
+    setLocalSyncError,
+    isAuthLoading,
+    isAuthenticated,
+    loginLocalServer,
+    registerLocalServer,
+    logout,
+  } = useAuth();
 
   useEffect(() => {
     async function initDb() {
+      // In server mode, data comes directly from local server DB via loadDataFromLocalServer().
+      // Skip heavy sequential IndexedDB reads to ensure immediate startup.
+      if (storageMode === "server") {
+        setIsAppLoaded(true);
+        return;
+      }
       try {
         await migrateFromLocalStorage();
         
@@ -437,7 +508,6 @@ export default function App() {
         const zs = await settingsStore.getItem('vocab_clone_interface_zoom');
         if (zs !== null) setZoomScale(parseInt(zs as string, 10));
 
-
       } catch (e) {
         console.error("App DB load error:", e);
       } finally {
@@ -445,168 +515,7 @@ export default function App() {
       }
     }
     initDb();
-  }, []);
-
-  // Synchronize URL Hash with Tab Navigation and Browser Back/Forward buttons
-  useEffect(() => {
-    const handlePopState = () => {
-      const hash = window.location.hash || "#/library";
-      
-      if (hash.startsWith("#/import")) {
-        setActiveTab("library");
-        setShowImportForm(true);
-      } else if (hash.startsWith("#/read")) {
-        setActiveTab("read");
-        setShowImportForm(false);
-        const match = hash.match(/[?&]lesson=([^&]+)/);
-        if (match && match[1]) {
-          setActiveLessonId(match[1]);
-        }
-      } else if (hash.startsWith("#/practice")) {
-        setActiveTab("practice");
-        setShowImportForm(false);
-      } else if (hash.startsWith("#/statistics")) {
-        setActiveTab("statistics");
-        setShowImportForm(false);
-      } else {
-        // default /library
-        setActiveTab("library");
-        setShowImportForm(false);
-      }
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    window.addEventListener("hashchange", handlePopState);
-    
-    // Initialize state on first mount
-    handlePopState();
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      window.removeEventListener("hashchange", handlePopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    // Detect iOS Safari in non-standalone mode
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    const bannerDismissed = localStorage.getItem('ios_pwa_banner_dismissed') === 'true';
-
-    if (isIOS && !isStandalone && !bannerDismissed) {
-      setShowIosInstallBanner(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    let hash = `#/${activeTab}`;
-    if (activeTab === "read" && activeLessonId) {
-      hash += `?lesson=${activeLessonId}`;
-    } else if (activeTab === "library" && showImportForm) {
-      hash = `#/import`;
-    }
-    
-    if (window.location.hash !== hash) {
-      window.history.pushState(null, "", hash);
-    }
-  }, [activeTab, activeLessonId, showImportForm]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const importUrl = params.get("import_url");
-    if (importUrl) {
-      setInitialImportUrl(importUrl);
-      setShowImportForm(true);
-      // Clean query parameters from URL without reloading
-      const url = new URL(window.location.href);
-      url.searchParams.delete("import_url");
-      window.history.replaceState({}, document.title, url.pathname + url.search);
-    }
-  }, []);
-  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>({});
-
-
-  // Customizable reader options (Fonts family, background tone, size, spacing, container width)
-  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
-    const defaults: ReaderSettings = {
-      fontSize: "xl",
-      lineHeight: "loose",
-      fontFamily: "sans",
-      readerTheme: "default",
-      maxWidth: "medium",
-      pageSize: "auto",
-      sentenceSpacing: "normal",
-      segmentSpacing: "normal",
-      ttsEngine: "google",
-      ttsLocale: "en-US",
-      aiProvider: "gemini",
-      localAiUrl: "http://localhost:11434/api/generate",
-      localAiModel: "phi3.5",
-      showDetailedVocabularyStats: true,
-      mainStatsMetric: "comprehension",
-      showProgressBar: true,
-    };
-    try {
-      const saved = localStorage.getItem("vocab_clone_reader_settings");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (!parsed.ttsEngine_v2) {
-          parsed.ttsEngine = "google";
-          parsed.ttsEngine_v2 = true;
-        }
-        return { ...defaults, ...parsed };
-      }
-    } catch (e) {
-      console.error("Failed to parse saved reader settings:", e);
-    }
-    return defaults;
-  });
-
-  // Zoom level state (default is 100 representing 100%)
-
-  useEffect(() => {
-    settingsStore.setItem("vocab_clone_interface_zoom", zoomScale.toString());
-    const val = `${zoomScale}%`;
-    try {
-      (document.documentElement.style as any).zoom = "";
-      if (document.body) {
-        (document.body.style as any).zoom = val;
-      }
-    } catch (e) {
-      console.error("Zoom layout adjustment not supported:", e);
-    }
-  }, [zoomScale]);
-
-  // Dark mode toggle state (manual, persists to localStorage)
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("vocab_clone_dark_mode");
-      if (saved === "false") return false;
-      if (saved === "true") return true;
-    } catch (_) {}
-    return false;
-  });
-
-  // Firebase Auth & Cloud Sync States
-  const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [cloudOfflineWarning, setCloudOfflineWarning] = useState<boolean>(false);
-  const [cloudOfflineError, setCloudOfflineError] = useState<string | null>(null);
-  const {
-    user: activeUser,
-    serverToken,
-    storageMode,
-    setStorageMode,
-    localSyncKey,
-    setLocalSyncKey,
-    localSyncError,
-    setLocalSyncError,
-    isAuthLoading,
-    isAuthenticated,
-    loginLocalServer,
-    registerLocalServer,
-    logout,
-  } = useAuth();
+  }, [storageMode]);
 
 
   const serverInitialLoadComplete = useRef<boolean>(false);
@@ -685,14 +594,14 @@ export default function App() {
   const prevUserIdRef = useRef<string | null>(activeUserId);
 
   useEffect(() => {
-    if (prevUserIdRef.current !== activeUserId) {
-      prevUserIdRef.current = activeUserId;
-      serverInitialLoadComplete.current = false;
-      if (storageMode === "server" && activeUserId) {
-        loadDataFromLocalServer();
+    if (storageMode === "server" && !isAuthLoading) {
+      if (prevUserIdRef.current !== activeUserId) {
+        prevUserIdRef.current = activeUserId;
+        serverInitialLoadComplete.current = false;
       }
+      loadDataFromLocalServer();
     }
-  }, [activeUserId, storageMode]);
+  }, [activeUserId, storageMode, isAuthLoading]);
 
   useEffect(() => {
     const handleLogout = () => {
@@ -712,7 +621,7 @@ export default function App() {
   }, []);
 
   const loadDataFromLocalServer = async () => {
-    if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
+    if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
       return;
     }
     if (localSyncError) return;
@@ -732,6 +641,8 @@ export default function App() {
     if (!serverInitialLoadComplete.current) {
       setIsInitialServerLoading(true);
     }
+    const loadT0 = performance.now();
+    console.log("[Load] loadDataFromLocalServer START", new Date().toISOString());
     try {
       const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
@@ -742,9 +653,12 @@ export default function App() {
       if (savedToken) {
         fetchHeaders["Authorization"] = `Bearer ${savedToken}`;
       }
+      const fetchStart = performance.now();
       const res = await fetch("/api/server-db", {
         headers: fetchHeaders
       });
+      console.log(`[Load] /api/server-db responded in ${(performance.now() - fetchStart).toFixed(0)}ms, status=${res.status}`);
+
       if (res.status === 401 || res.status === 403) {
         setLocalSyncError(true);
         setIsSyncing(false);
@@ -752,7 +666,7 @@ export default function App() {
       }
       if (res.ok) {
         const body = await safeJsonParse(res);
-        if (storageMode === "server" && Date.now() - lastLocalChangeTime.current < 8000) {
+        if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
           setIsSyncing(false);
           return;
         }
@@ -761,15 +675,21 @@ export default function App() {
           const normalizedCloudVocab = normalizeVocabRecord(d.vocab);
           const normalizedCloudWordLinks = normalizeWordLinksRecord(d.wordLinks);
           if (d.lessons && Array.isArray(d.lessons)) {
-            const cachedLessons = (await lessonsStore.getItem<Lesson[]>("lessons")) || [];
-            const serverLessonIds = new Set(d.lessons.map((l: Lesson) => l.id));
-            const missingCustom = cachedLessons.filter((cl: Lesson) => !cl.isBuiltIn && !serverLessonIds.has(cl.id));
-            const mergedLessons = [...d.lessons, ...missingCustom];
-            setLessons(mergedLessons);
-            lessonsStore.setItem("lessons", mergedLessons).catch(() => {});
-            if (missingCustom.length > 0) {
-              syncDataToLocalServer(mergedLessons).catch(() => {});
-            }
+            // Show server lessons IMMEDIATELY — don't block on IndexedDB read
+            setLessons(d.lessons);
+            lessonsStore.setItem("lessons", d.lessons).catch(() => {});
+            // Async background: check for locally-cached lessons not yet synced to server
+            lessonsStore.getItem<Lesson[]>("lessons").then((cachedLessons) => {
+              if (!cachedLessons || cachedLessons.length === 0) return;
+              const serverLessonIds = new Set(d.lessons.map((l: Lesson) => l.id));
+              const missingCustom = cachedLessons.filter((cl: Lesson) => !cl.isBuiltIn && !serverLessonIds.has(cl.id));
+              if (missingCustom.length > 0) {
+                const mergedLessons = [...d.lessons, ...missingCustom];
+                setLessons(mergedLessons);
+                lessonsStore.setItem("lessons", mergedLessons).catch(() => {});
+                syncDataToLocalServer(mergedLessons).catch(() => {});
+              }
+            }).catch(() => {});
           }
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
           setVocab(normalizedCloudVocab);
@@ -832,33 +752,11 @@ export default function App() {
 
           serverInitialLoadComplete.current = true;
         } else if (body.status === "empty") {
-          // Empty server database: Seed it with existing local cached data if available
-          const cachedLessons = (await lessonsStore.getItem<Lesson[]>("lessons")) || [];
-          const cachedVocab = (await vocabStore.getItem<Record<string, VocabItem>>("words")) || vocab;
-          const cachedWordLinks = (await vocabStore.getItem<Record<string, string>>("aliases")) || wordLinks;
-          const cachedHistory = historyRef.current;
-
-          const userDeletedLessons = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
-          const seedLessons = (cachedLessons && (cachedLessons.length > 0 || userDeletedLessons))
-            ? cachedLessons
-            : (lessons && (lessons.length > 0 || userDeletedLessons) ? lessons : normalizeBuiltInLessons(BUILT_IN_LESSONS));
-
+          // Empty server database: Seed it immediately with default lessons
+          const seedLessons = normalizeBuiltInLessons(BUILT_IN_LESSONS);
           setLessons(seedLessons);
-          if (cachedVocab) setVocab(cachedVocab);
-          if (cachedWordLinks) setWordLinks(cachedWordLinks);
-
-          // Seed the empty server DB with user's data
-          syncDataToLocalServer(
-            seedLessons,
-            lessonTypes,
-            cachedVocab || {},
-            cachedWordLinks || {},
-            listeningSeconds,
-            languageFlags,
-            cachedHistory
-          ).catch(() => {});
-
           serverInitialLoadComplete.current = true;
+          syncDataToLocalServer(seedLessons).catch(() => {});
         }
       } else {
         setIsSyncing(false);
@@ -957,6 +855,13 @@ export default function App() {
 
   // Synchronize Cloud Firestore with Local Cache on mount/auth change
   useEffect(() => {
+    // In server mode: skip Firebase entirely — data is loaded by loadDataFromLocalServer()
+    // Firebase onAuthStateChanged takes 5-15s to resolve and would block all data loading
+    if (storageMode === "server") {
+      loadDataFromLocalServer();
+      return;
+    }
+
     let unsubscribes: (() => void)[] = [];
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -2513,7 +2418,7 @@ export default function App() {
               onSelectTargetLanguage={handleSelectTargetLanguage}
               settings={readerSettings}
               onUpdateSettings={(newSettings) => setReaderSettings(newSettings)}
-              isLoading={isInitialServerLoading}
+              isLoading={isInitialServerLoading && lessons.length === 0}
             />
           </div>
         ) : activeTab === "statistics" ? (

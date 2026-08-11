@@ -97,16 +97,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [localUser]);
 
-  // Handle Firebase Auth Listener
+  // Handle Firebase Auth Listener — only active in cloud mode
+  // In server mode we skip Firebase entirely to avoid 5-15s network round-trip to Firebase servers
   useEffect(() => {
+    if (storageMode !== "cloud") {
+      // Not using Firebase: just make sure isAuthLoading is set to false
+      // (checkServerSession useEffect below handles isAuthLoading for server mode)
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       if (user && storageMode !== "cloud") {
         setStorageMode("cloud");
       }
-      if (storageMode === "cloud") {
-        setIsAuthLoading(false);
-      }
+      setIsAuthLoading(false);
     });
 
     return () => unsubscribe();
@@ -115,19 +119,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check self-hosted server session on mount
   useEffect(() => {
     const checkServerSession = async () => {
+      const t0 = performance.now();
+      console.log("[Auth] checkServerSession START", new Date().toISOString());
       const savedToken = localStorage.getItem("vocab_clone_server_token");
       if (!savedToken) {
+        console.log("[Auth] no saved token → setting isAuthLoading=false immediately");
         if (storageMode === "server") {
           setIsAuthLoading(false);
         }
         return;
       }
+      console.log("[Auth] found saved token, fetching /api/auth/me...");
       try {
+        const fetchStart = performance.now();
         const res = await fetch("/api/auth/me", {
           headers: {
             Authorization: `Bearer ${savedToken}`,
           },
         });
+        console.log(`[Auth] /api/auth/me responded in ${(performance.now() - fetchStart).toFixed(0)}ms, status=${res.status}`);
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
@@ -148,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (storageMode === "server") {
           setIsAuthLoading(false);
         }
+        console.log(`[Auth] checkServerSession DONE in ${(performance.now() - t0).toFixed(0)}ms`);
       }
     };
 
@@ -157,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthLoading(false);
     }
   }, [storageMode, serverToken]);
+
 
   const loginLocalServer = async (username: string, password = ""): Promise<{ success: boolean; error?: string }> => {
     try {
