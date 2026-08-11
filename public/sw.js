@@ -17,14 +17,21 @@ const PRECACHE_ASSETS = [
 
 // 1. Install Event: Pre-cache core shell resources
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log("[PWA Service Worker] Pre-caching app shell assets, cache:", CACHE_NAME);
       return cache.addAll(PRECACHE_ASSETS).catch((err) => {
         console.warn("[PWA Service Worker] Pre-cache failed for some assets, continuing anyway:", err);
       });
-    }).then(() => self.skipWaiting())
+    })
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // 2. Activate Event: Clean up ALL legacy caches (any name that doesn't match current)

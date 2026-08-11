@@ -90,25 +90,22 @@ export default function VocabularyPractice({
     setRelearningQueue([]);
   }, [deckTypeFilter, studyMode, selectedPracticeLang]);
 
-  // Helper to get vocab item case-insensitively
-  const getVocabItemCaseInsensitive = (targetKey: string, vocabRecord: Record<string, VocabItem>): VocabItem | undefined => {
-    if (vocabRecord[targetKey]) return vocabRecord[targetKey];
-    const targetLower = targetKey.toLowerCase();
-    const foundKey = Object.keys(vocabRecord).find(k => k.toLowerCase() === targetLower);
-    return foundKey ? vocabRecord[foundKey] : undefined;
-  };
-
-  // Helper to get wordLink case-insensitively
-  const getWordLinkCaseInsensitive = (fromKey: string, links: Record<string, string>): string | undefined => {
-    if (links[fromKey]) return links[fromKey];
-    const lower = fromKey.toLowerCase();
-    const foundKey = Object.keys(links).find(k => k.toLowerCase() === lower);
-    return foundKey ? links[foundKey] : undefined;
-  };
-
   // Extract all learning status words for the selected language, resolving them to parents if they exist
   const learningList = useMemo(() => {
     const parentMap = new Map<string, typeof vocab[string]>();
+
+    // Build O(1) lowercase lookup maps ONCE before processing entries to avoid O(N^2) linear scans
+    const lowerVocabMap = new Map<string, VocabItem>();
+    for (const [k, v] of Object.entries(vocab)) {
+      if (v) lowerVocabMap.set(k.toLowerCase(), v);
+    }
+
+    const lowerLinksMap = new Map<string, string>();
+    for (const [k, v] of Object.entries(wordLinks)) {
+      if (v) lowerLinksMap.set(k.toLowerCase(), v);
+    }
+
+    const targetLangLower = selectedPracticeLang.toLowerCase();
 
     // Step 1: Map all vocab entries to their root parent item case-insensitively
     Object.entries(vocab).forEach(([key, lq]) => {
@@ -116,13 +113,13 @@ export default function VocabularyPractice({
 
       const parts = key.split("_");
       const itemLang = parts.length > 1 ? parts[0] : "spanish";
-      if (itemLang.toLowerCase() !== selectedPracticeLang.toLowerCase()) return;
+      if (itemLang.toLowerCase() !== targetLangLower) return;
 
-      // Resolve recursively to top-level parent key (case-insensitively)
+      // Resolve recursively to top-level parent key (case-insensitively using O(1) Map)
       let parentKey = key;
       const visited = new Set<string>();
       while (true) {
-        const linkTarget = getWordLinkCaseInsensitive(parentKey, wordLinks);
+        const linkTarget = lowerLinksMap.get(parentKey.toLowerCase());
         if (!linkTarget || visited.has(linkTarget.toLowerCase())) break;
         visited.add(parentKey.toLowerCase());
         parentKey = linkTarget;
@@ -130,8 +127,8 @@ export default function VocabularyPractice({
 
       const cleanParentWord = parentKey.replace(/^[a-zA-Z]+_/, "");
 
-      // Find parent item in vocab case-insensitively or fallback
-      const parentLq = getVocabItemCaseInsensitive(parentKey, vocab) || {
+      // Find parent item in vocab case-insensitively or fallback (using O(1) Map)
+      const parentLq = lowerVocabMap.get(parentKey.toLowerCase()) || {
         ...lq,
         word: cleanParentWord,
       };

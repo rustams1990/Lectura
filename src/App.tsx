@@ -574,19 +574,31 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (!unmounted && data && data.version && data.version !== APP_VERSION) {
-            const reloadedKey = `reloaded_for_${data.version}`;
-            if (!sessionStorage.getItem(reloadedKey)) {
-              sessionStorage.setItem(reloadedKey, "true");
-              console.log(`[VersionCheck] Server updated to ${data.version} (current: ${APP_VERSION}). Auto-reloading...`);
-              window.location.reload();
+            console.log(`[VersionCheck] Server updated to ${data.version} (current: ${APP_VERSION}). Purging PWA SW cache and reloading...`);
+            if ("serviceWorker" in navigator) {
+              try {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) {
+                  await reg.unregister();
+                }
+              } catch (_) {}
             }
+            if ("caches" in window) {
+              try {
+                const keys = await caches.keys();
+                for (const key of keys) {
+                  await caches.delete(key);
+                }
+              } catch (_) {}
+            }
+            window.location.reload();
           }
         }
       } catch (e) {}
     };
 
     checkVersion();
-    const interval = setInterval(checkVersion, 30000);
+    const interval = setInterval(checkVersion, 15000);
     return () => {
       unmounted = true;
       clearInterval(interval);

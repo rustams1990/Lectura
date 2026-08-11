@@ -266,6 +266,30 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "Å",
     };
   }
+  if (l.includes("hind") || l.includes("hi")) {
+    return {
+      gradient: "from-orange-600 via-amber-600 to-emerald-700",
+      accent: "bg-orange-100 text-orange-950 dark:bg-orange-950/45 dark:text-orange-300",
+      emoji: "🇮🇳",
+      character: "अ",
+    };
+  }
+  if (l.includes("gree") || l.includes("el")) {
+    return {
+      gradient: "from-blue-600 via-sky-600 to-blue-800",
+      accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
+      emoji: "🇬🇷",
+      character: "Ω",
+    };
+  }
+  if (l.includes("hebr") || l.includes("he")) {
+    return {
+      gradient: "from-blue-600 via-sky-500 to-slate-200",
+      accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
+      emoji: "🇮🇱",
+      character: "א",
+    };
+  }
   // Fallbacks for other languages
   return {
     gradient: "from-teal-600 via-teal-700 to-slate-800",
