@@ -252,11 +252,14 @@ export default function App() {
       }
     });
     pinnedLanguages.forEach((lang) => list.add(lang));
+    if (selectedTargetLanguage && selectedTargetLanguage !== "All") {
+      list.add(selectedTargetLanguage);
+    }
 
     const hiddenLower = new Set(hiddenLanguages.map((l) => l.toLowerCase()));
     const filtered = Array.from(list).filter((lang) => !hiddenLower.has(lang.toLowerCase()));
     return ["All", ...filtered];
-  }, [lessons, vocab, pinnedLanguages, hiddenLanguages]);
+  }, [lessons, vocab, pinnedLanguages, hiddenLanguages, selectedTargetLanguage]);
 
   const lessonCountByLanguage = useMemo(() => {
     const map: Record<string, number> = {};
@@ -770,6 +773,26 @@ export default function App() {
           if (d.listeningSeconds !== undefined) setListeningSeconds(d.listeningSeconds);
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
+          if (d.readerSettings && typeof d.readerSettings === "object") {
+            setReaderSettings(prev => ({ ...prev, ...d.readerSettings }));
+            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(d.readerSettings));
+            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(d.readerSettings)).catch(() => {});
+          }
+          if (d.pinnedLanguages && Array.isArray(d.pinnedLanguages)) {
+            setPinnedLanguages(d.pinnedLanguages);
+            safeLocalStorageSetItem("vocab_clone_pinned_languages", JSON.stringify(d.pinnedLanguages));
+            settingsStore.setItem("vocab_clone_pinned_languages", JSON.stringify(d.pinnedLanguages)).catch(() => {});
+          }
+          if (d.hiddenLanguages && Array.isArray(d.hiddenLanguages)) {
+            setHiddenLanguages(d.hiddenLanguages);
+            safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(d.hiddenLanguages));
+            settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(d.hiddenLanguages)).catch(() => {});
+          }
+          if (d.selectedTargetLanguage && typeof d.selectedTargetLanguage === "string") {
+            setSelectedTargetLanguage(d.selectedTargetLanguage);
+            safeLocalStorageSetItem("vocab_global_target_language", d.selectedTargetLanguage);
+          }
+
           if (d.history && Array.isArray(d.history)) {
             const cleanHistory = dedupeHistory([...d.history, ...historyRef.current]);
             setHistory(cleanHistory);
@@ -852,7 +875,11 @@ export default function App() {
     currentListening = listeningSeconds,
     currentFlags = languageFlags,
     currentHistory = historyRef.current,
-    deletedLessonIds?: string[]
+    deletedLessonIds?: string[],
+    currentSettings = readerSettings,
+    currentPinned = pinnedLanguages,
+    currentHidden = hiddenLanguages,
+    currentSelectedLang = selectedTargetLanguage
   ) => {
     if (storageMode !== "server") return;
     if (localSyncError) return;
@@ -901,6 +928,10 @@ export default function App() {
             listeningSeconds: currentListening,
             languageFlags: currentFlags,
             history: currentHistory,
+            readerSettings: currentSettings,
+            pinnedLanguages: currentPinned,
+            hiddenLanguages: currentHidden,
+            selectedTargetLanguage: currentSelectedLang,
             videoProgress,
             readingProgress,
             deletedLessonIds,
@@ -1267,7 +1298,10 @@ export default function App() {
   useEffect(() => {
     safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
     settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
-  }, [readerSettings]);
+    if (storageMode === "server") {
+      syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettings).catch(() => {});
+    }
+  }, [readerSettings, storageMode]);
 
   useEffect(() => {
     settingsStore.setItem("vocab_clone_language_flags", JSON.stringify(languageFlags));
@@ -1394,11 +1428,71 @@ export default function App() {
 
   // Dynamic statistics computing
   const calculatedStats = useMemo<AppStats>(() => {
-    const values = (Object.values(vocab) || []).filter(Boolean) as VocabItem[];
-    const known = values.filter((l) => l && l.status === "known").length;
-    const learning = values.filter((l) => 
-      l && l.status && ["1", "2", "3", "4", "5", "learning"].includes(l.status)
-    ).length;
+    const onlyParents = !!readerSettings?.onlyPatterns;
+
+    let known = 0;
+    let learning = 0;
+
+    if (onlyParents && wordLinks) {
+      const parentGroups = new Map<string, string[]>();
+      Object.entries(vocab || {}).forEach(([key, lq]) => {
+        const item = lq as VocabItem;
+        if (!item || typeof item !== "object" || !item.word) return;
+        const parts = key.split("_");
+        const itemLang = parts.length > 1 ? parts[0].toLowerCase() : "spanish";
+        const wordLower = item.word.toLowerCase();
+        const keyWithLang = `${itemLang}_${wordLower}`;
+        const targetKey = wordLinks[keyWithLang] || wordLinks[wordLower];
+        let parentWord = wordLower;
+        if (targetKey && typeof targetKey === "string") {
+          const underscoreIdx = targetKey.indexOf("_");
+          parentWord = underscoreIdx !== -1 ? targetKey.substring(underscoreIdx + 1).toLowerCase() : targetKey.toLowerCase();
+        }
+
+        const parentGroupKey = `${itemLang}_${parentWord}`;
+        if (!parentGroups.has(parentGroupKey)) {
+          parentGroups.set(parentGroupKey, []);
+        }
+        parentGroups.get(parentGroupKey)!.push(item.status || "known");
+      });
+
+      parentGroups.forEach((statuses) => {
+        const getStatusWeight = (status: string) => {
+          switch (status) {
+            case "known": return 6;
+            case "5": return 5;
+            case "4": return 4;
+            case "3": case "learning": return 3;
+            case "2": return 2;
+            case "1": return 1;
+            case "ignored": return 0;
+            default: return 0;
+          }
+        };
+
+        let highestStatus = "ignored";
+        let maxWeight = -1;
+        statuses.forEach((st) => {
+          const w = getStatusWeight(st);
+          if (w > maxWeight) {
+            maxWeight = w;
+            highestStatus = st;
+          }
+        });
+
+        if (highestStatus === "known") {
+          known++;
+        } else if (["1", "2", "3", "4", "5", "learning"].includes(highestStatus)) {
+          learning++;
+        }
+      });
+    } else {
+      const values = (Object.values(vocab) || []).filter(Boolean) as VocabItem[];
+      known = values.filter((l) => l && l.status === "known").length;
+      learning = values.filter((l) => 
+        l && l.status && ["1", "2", "3", "4", "5", "learning"].includes(l.status)
+      ).length;
+    }
 
     const isToday = (isoDateStr?: string) => {
       if (!isoDateStr) return false;
@@ -1431,7 +1525,7 @@ export default function App() {
       wordsKnownCount: known,
       wordsLearningCount: learning,
     };
-  }, [vocab, listeningSeconds, history]);
+  }, [vocab, listeningSeconds, history, readerSettings?.onlyPatterns, wordLinks]);
 
   const handleOpenLesson = (lessonId: string, word: string, sentence: string) => {
     const normalizedWord = word.replace(/\s+/g, " ").trim();
@@ -2178,7 +2272,7 @@ export default function App() {
         {/* Mobile word bottom sheet */}
         {selectedWord && (
           <div
-            className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+            className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
             onClick={() => setSelectedWord(null)}
           >
             <div
@@ -2360,6 +2454,7 @@ export default function App() {
               onDeleteLessonType={handleDeleteLessonType}
               onUpdateLessonType={handleUpdateLessonType}
               initialWebUrl={initialImportUrl}
+              defaultTargetLanguage={selectedTargetLanguage}
               onAddLesson={(newOrUpdated, images) => {
                 lastLocalChangeTime.current = Date.now();
                 if (editingLesson) {
@@ -2414,6 +2509,7 @@ export default function App() {
               selectedTargetLanguage={selectedTargetLanguage}
               onSelectTargetLanguage={handleSelectTargetLanguage}
               settings={readerSettings}
+              onUpdateSettings={(newSettings) => setReaderSettings(newSettings)}
               isLoading={isInitialServerLoading}
             />
           </div>
@@ -2434,6 +2530,8 @@ export default function App() {
               onSaveWordLink={handleSaveWordLink}
               onDeleteWordLink={handleDeleteWordLink}
               onOpenLesson={handleOpenLesson}
+              readerSettings={readerSettings}
+              onUpdateSettings={(newSettings) => setReaderSettings(newSettings)}
             />
           </div>
         ) : activeTab === "practice" ? (

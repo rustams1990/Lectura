@@ -5,7 +5,7 @@
  */
 
 import React, { useMemo, useState, useEffect, memo } from "react";
-import { VocabItem, Lesson, WordStatus } from "../types";
+import { VocabItem, Lesson, WordStatus, ReaderSettings } from "../types";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
 import { normalizeContraction } from "../utils";
@@ -52,6 +52,8 @@ interface StatisticsPageProps {
   onSaveWordLink?: (from: string, to: string, lang?: string) => void;
   onDeleteWordLink?: (from: string, lang?: string) => void;
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
+  readerSettings?: ReaderSettings;
+  onUpdateSettings?: (newSettings: ReaderSettings) => void;
 }
 
 function StatisticsPage({
@@ -68,13 +70,29 @@ function StatisticsPage({
   onSaveWordLink,
   onDeleteWordLink,
   onOpenLesson,
+  readerSettings,
+  onUpdateSettings,
 }: StatisticsPageProps) {
   const { t, i18n } = useTranslation();
   const [vocabSearch, setVocabSearch] = useState("");
   const [contextSearchQuery, setContextSearchQuery] = useState("");
   const [vocabFilter, setVocabFilter] = useState<string>("all");
   const [vocabSort, setVocabSort] = useState<"newest" | "oldest" | "alphabetical" | "level_desc" | "level_asc">("newest");
-  const [onlyPatterns, setOnlyPatterns] = useState(false);
+  const [onlyPatterns, setOnlyPatternsState] = useState<boolean>(() => !!readerSettings?.onlyPatterns);
+
+  useEffect(() => {
+    if (readerSettings?.onlyPatterns !== undefined) {
+      setOnlyPatternsState(readerSettings.onlyPatterns);
+    }
+  }, [readerSettings?.onlyPatterns]);
+
+  const setOnlyPatterns = (val: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof val === "function" ? val(onlyPatterns) : val;
+    setOnlyPatternsState(nextVal);
+    if (onUpdateSettings && readerSettings) {
+      onUpdateSettings({ ...readerSettings, onlyPatterns: nextVal });
+    }
+  };
 
   // Advanced word filter states
   const [vocabTagFilter, setVocabTagFilter] = useState<string>("all");
@@ -734,8 +752,16 @@ function StatisticsPage({
   const resolveWordToPattern = (word: string): string => {
     if (!wordLinks) return word;
     const langLower = selectedStatsLang.toLowerCase();
-    const keyWithLang = `${langLower}_${word.toLowerCase()}`;
-    const targetKey = wordLinks[keyWithLang] || wordLinks[word.toLowerCase()];
+    const wordLower = word.toLowerCase();
+    const keyWithLang = `${langLower}_${wordLower}`;
+    
+    let targetKey = wordLinks[keyWithLang] || wordLinks[wordLower];
+    let depth = 0;
+    while (depth < 5 && targetKey && wordLinks[targetKey]) {
+      targetKey = wordLinks[targetKey];
+      depth++;
+    }
+
     if (targetKey && typeof targetKey === "string") {
       const underscoreIdx = targetKey.indexOf("_");
       return underscoreIdx !== -1 ? targetKey.substring(underscoreIdx + 1) : targetKey;
@@ -747,8 +773,16 @@ function StatisticsPage({
   const getParentWord = (word: string): string | null => {
     if (!wordLinks) return null;
     const langLower = selectedStatsLang.toLowerCase();
-    const keyWithLang = `${langLower}_${word.toLowerCase()}`;
-    const targetKey = wordLinks[keyWithLang] || wordLinks[word.toLowerCase()];
+    const wordLower = word.toLowerCase();
+    const keyWithLang = `${langLower}_${wordLower}`;
+    
+    let targetKey = wordLinks[keyWithLang] || wordLinks[wordLower];
+    let depth = 0;
+    while (depth < 5 && targetKey && wordLinks[targetKey]) {
+      targetKey = wordLinks[targetKey];
+      depth++;
+    }
+
     if (targetKey && typeof targetKey === "string") {
       const underscoreIdx = targetKey.indexOf("_");
       return underscoreIdx !== -1 ? targetKey.substring(underscoreIdx + 1) : targetKey;
@@ -1638,7 +1672,7 @@ function StatisticsPage({
               {stats.known}
             </span>
             <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-              {t('stats_page.known_desc', '✓ Fully mastered vocabulary')}
+              {onlyPatterns ? t('stats_page.known_desc_parents', '🔗 Parents Only (Unique root words)') : t('stats_page.known_desc', '✓ Fully mastered vocabulary')}
             </span>
           </div>
         </div>

@@ -116,6 +116,7 @@ interface ImportLessonFormProps {
   onUpdateLessonType?: (updatedType: LessonType) => void;
   initialWebUrl?: string | null;
   settings?: ReaderSettings;
+  defaultTargetLanguage?: string;
 }
 
 export default function ImportLessonForm({
@@ -127,7 +128,8 @@ export default function ImportLessonForm({
   onDeleteLessonType,
   onUpdateLessonType,
   initialWebUrl,
-  settings
+  settings,
+  defaultTargetLanguage
 }: ImportLessonFormProps) {
   const { t } = useTranslation();
   // Navigation: standard, youtube or file
@@ -137,12 +139,22 @@ export default function ImportLessonForm({
 
   const [title, setTitle] = useState(editingLesson?.title || "");
   const [text, setText] = useState(editingLesson?.text || "");
-  const [targetLanguage, setTargetLanguage] = useState(
-    editingLesson?.targetLanguage || localStorage.getItem("vocab_default_target_language") || "Spanish"
-  );
+  const [targetLanguage, setTargetLanguage] = useState(() => {
+    if (editingLesson?.targetLanguage) return editingLesson.targetLanguage;
+    if (defaultTargetLanguage && defaultTargetLanguage !== "All") return defaultTargetLanguage;
+    const globalTarget = localStorage.getItem("vocab_global_target_language");
+    if (globalTarget && globalTarget !== "All") return globalTarget;
+    return localStorage.getItem("vocab_default_target_language") || "Spanish";
+  });
   const [translationLanguage, setTranslationLanguage] = useState(
     editingLesson?.translationLanguage || localStorage.getItem("vocab_default_translation_language") || "Russian"
   );
+
+  useEffect(() => {
+    if (!editingLesson && defaultTargetLanguage && defaultTargetLanguage !== "All") {
+      setTargetLanguage(defaultTargetLanguage);
+    }
+  }, [defaultTargetLanguage, editingLesson]);
 
   const [savedTargetLang, setSavedTargetLang] = useState(
     localStorage.getItem("vocab_default_target_language") || "Spanish"

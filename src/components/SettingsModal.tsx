@@ -1265,6 +1265,49 @@ export default function SettingsModal({
                         </button>
                       </div>
                     </div>
+
+                    <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
+
+                    {/* Vocabulary Counting Mode: All Forms vs Parents Only */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
+                          {t("settings.vocab_count_mode_label", "Vocabulary Counting Mode:")}
+                        </span>
+                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
+                          {settings?.onlyPatterns
+                            ? t("settings.vocab_count_mode_parents_desc", "Counting root/parent words (be, been, is = 1 parent word)")
+                            : t("settings.vocab_count_mode_all_desc", "Counting all word forms separately (be, been, is = 3 words)")}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 font-sans shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => onSettingsChange?.({ onlyPatterns: false })}
+                          className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            !settings?.onlyPatterns
+                              ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700 font-black"
+                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                          }`}
+                        >
+                          <span>🔤</span>
+                          <span>{t("settings.all_forms", "All Forms")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onSettingsChange?.({ onlyPatterns: true })}
+                          className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            settings?.onlyPatterns
+                              ? "bg-teal-600 text-white shadow-xs font-black"
+                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                          }`}
+                        >
+                          <span>🔗</span>
+                          <span>{t("settings.parents_only", "Parents Only")}</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1274,6 +1317,48 @@ export default function SettingsModal({
           {/* Active Tab: Patterns & Word Links list with deletion */}
           {activeSettingsTab === "patterns" && (
             <div className="space-y-5 animate-in fade-in duration-200">
+              {/* Mode Selector Card */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-50 dark:bg-zinc-950/40 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                <div className="space-y-0.5">
+                  <h5 className="text-xs font-black text-zinc-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <span>{settings?.onlyPatterns ? "🔗" : "🔤"}</span>
+                    <span>{t("settings.vocab_count_mode_label", "Vocabulary Counting Mode:")}</span>
+                  </h5>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
+                    {settings?.onlyPatterns
+                      ? t("settings.vocab_count_mode_parents_desc", "Counting root/parent words (be, been, is = 1 parent word)")
+                      : t("settings.vocab_count_mode_all_desc", "Counting all word forms separately (be, been, is = 3 words)")}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ onlyPatterns: false })}
+                    className={`h-8 px-3 flex items-center gap-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      !settings?.onlyPatterns
+                        ? "bg-teal-50 border border-teal-200 dark:bg-teal-950/60 dark:border-teal-800 text-teal-700 dark:text-teal-400 font-black shadow-2xs"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                    }`}
+                  >
+                    <span>🔤</span>
+                    <span>{t("settings.all_forms", "All Forms")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ onlyPatterns: true })}
+                    className={`h-8 px-3 flex items-center gap-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      settings?.onlyPatterns
+                        ? "bg-teal-600 text-white shadow-xs font-black"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                    }`}
+                  >
+                    <span>🔗</span>
+                    <span>{t("settings.parents_only", "Parents Only")}</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-start gap-3 text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed bg-zinc-50 dark:bg-zinc-950/30 p-4.5 rounded-2xl border border-zinc-100/50 dark:border-zinc-800/40">
                 <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
                   <Link className="w-5 h-5" />

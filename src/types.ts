@@ -101,6 +101,7 @@ export interface ReaderSettings {
   showProgressBar?: boolean;
   dailyGoalMinutes?: number; // 0 means disabled, used as global fallback
   dailyGoalsByLanguage?: Record<string, number>; // Maps language code (e.g. "Spanish") to goal minutes
+  onlyPatterns?: boolean; // When true, stats & known words count use Parents Only (lemmas) grouping
 }
 
 export interface Dictionary {

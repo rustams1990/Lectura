@@ -196,7 +196,7 @@
             {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet with overlay */}
             {selectedWord && activeLesson && (
               <div 
-                className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+                className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
                 onClick={() => setSelectedWord(null)}
               >
                 <div 

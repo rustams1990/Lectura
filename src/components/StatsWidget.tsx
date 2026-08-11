@@ -6,9 +6,11 @@ import { useTranslation } from "react-i18next";
 interface StatsWidgetProps {
   stats: AppStats;
   selectedLanguage?: string;
+  onlyPatterns?: boolean;
+  onToggleOnlyPatterns?: () => void;
 }
 
-export default function StatsWidget({ stats, selectedLanguage }: StatsWidgetProps) {
+export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onToggleOnlyPatterns }: StatsWidgetProps) {
   const { t } = useTranslation();
   const formatTime = (totalSeconds: number) => {
     if (!totalSeconds || totalSeconds <= 0) return `0${t('stats.seconds_short', 'с')}`;
@@ -72,12 +74,32 @@ export default function StatsWidget({ stats, selectedLanguage }: StatsWidgetProp
           <CheckCircle2 className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
-            {t('stats.known_words', 'Known Words (Vocabulary)')}
-          </span>
-          <span className="text-xl font-black text-zinc-900 dark:text-zinc-100 mt-0.5 block">
-            {stats.wordsKnownCount}
-          </span>
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
+              {t('stats.known_words', 'Known Words (Vocabulary)')}
+            </span>
+
+            {onToggleOnlyPatterns && (
+              <button
+                type="button"
+                onClick={onToggleOnlyPatterns}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border flex items-center gap-1 select-none cursor-pointer shrink-0 ${
+                  onlyPatterns
+                    ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/50 dark:border-teal-800 dark:text-teal-400 font-extrabold shadow-2xs"
+                    : "bg-white border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+                title={onlyPatterns ? t('stats.mode_parents_title', 'Counting parent words only') : t('stats.mode_all_title', 'Counting all word forms')}
+              >
+                <span>{onlyPatterns ? "🔗" : "🔤"}</span>
+                <span>{onlyPatterns ? t('stats.parents_only', 'Parents Only') : t('stats.all_words', 'All Forms')}</span>
+              </button>
+            )}
+          </div>
+          <div className="flex items-baseline gap-1.5 mt-0.5">
+            <span className="text-xl font-black text-zinc-900 dark:text-zinc-100 block">
+              {stats.wordsKnownCount}
+            </span>
+          </div>
         </div>
       </div>
     </div>

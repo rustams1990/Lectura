@@ -52,6 +52,7 @@ interface LibraryHomeProps {
   selectedTargetLanguage?: string;
   onSelectTargetLanguage?: (lang: string) => void;
   settings?: ReaderSettings;
+  onUpdateSettings?: (newSettings: ReaderSettings) => void;
   isLoading?: boolean;
 }
 
@@ -327,6 +328,7 @@ function LibraryHome({
   selectedTargetLanguage = "All",
   onSelectTargetLanguage,
   settings,
+  onUpdateSettings,
   isLoading = false,
 }: LibraryHomeProps) {
   const { t, i18n } = useTranslation();
@@ -336,20 +338,86 @@ function LibraryHome({
   // Dynamic statistics calculation for selected target language
   const languageAwareStats = useMemo<AppStats>(() => {
     const selectedLangLower = selectedLanguage !== "All" ? selectedLanguage.toLowerCase() : null;
+    const onlyParents = !!settings?.onlyPatterns;
 
-    // Filter vocab items by language
-    const vocabValues = Object.entries(vocab || {}).filter(([key, lq]) => {
-      if (!lq) return false;
-      if (!selectedLangLower) return true;
-      const parts = key.split("_");
-      const itemLang = parts.length > 1 ? parts[0].toLowerCase() : "spanish";
-      return itemLang === selectedLangLower;
-    }).map(([_, lq]) => lq as VocabItem);
+    let known = 0;
+    let learning = 0;
 
-    const known = vocabValues.filter((l) => l && l.status === "known").length;
-    const learning = vocabValues.filter((l) =>
-      l && l.status && ["1", "2", "3", "4", "5", "learning"].includes(l.status)
-    ).length;
+    if (onlyParents && wordLinks) {
+      const parentGroups = new Map<string, string[]>();
+      Object.entries(vocab || {}).forEach(([key, lq]) => {
+        if (!lq || typeof lq !== "object") return;
+        if (!lq.word) return;
+        const parts = key.split("_");
+        const itemLang = parts.length > 1 ? parts[0].toLowerCase() : "spanish";
+        if (selectedLangLower && itemLang !== selectedLangLower) return;
+
+        const wordLower = lq.word.toLowerCase();
+        const keyWithLang = `${itemLang}_${wordLower}`;
+        let targetKey = wordLinks[keyWithLang] || wordLinks[wordLower] || wordLinks[key];
+        let depth = 0;
+        while (depth < 5 && targetKey && wordLinks[targetKey]) {
+          targetKey = wordLinks[targetKey];
+          depth++;
+        }
+
+        let parentWord = wordLower;
+        if (targetKey && typeof targetKey === "string") {
+          const underscoreIdx = targetKey.indexOf("_");
+          parentWord = underscoreIdx !== -1 ? targetKey.substring(underscoreIdx + 1).toLowerCase() : targetKey.toLowerCase();
+        }
+
+        const parentGroupKey = `${itemLang}_${parentWord}`;
+        if (!parentGroups.has(parentGroupKey)) {
+          parentGroups.set(parentGroupKey, []);
+        }
+        parentGroups.get(parentGroupKey)!.push(lq.status || "known");
+      });
+
+      parentGroups.forEach((statuses) => {
+        const getStatusWeight = (status: string) => {
+          switch (status) {
+            case "known": return 6;
+            case "5": return 5;
+            case "4": return 4;
+            case "3": case "learning": return 3;
+            case "2": return 2;
+            case "1": return 1;
+            case "ignored": return 0;
+            default: return 0;
+          }
+        };
+
+        let highestStatus = "ignored";
+        let maxWeight = -1;
+        statuses.forEach((st) => {
+          const w = getStatusWeight(st);
+          if (w > maxWeight) {
+            maxWeight = w;
+            highestStatus = st;
+          }
+        });
+
+        if (highestStatus === "known") {
+          known++;
+        } else if (["1", "2", "3", "4", "5", "learning"].includes(highestStatus)) {
+          learning++;
+        }
+      });
+    } else {
+      const vocabValues = Object.entries(vocab || {}).filter(([key, lq]) => {
+        if (!lq) return false;
+        if (!selectedLangLower) return true;
+        const parts = key.split("_");
+        const itemLang = parts.length > 1 ? parts[0].toLowerCase() : "spanish";
+        return itemLang === selectedLangLower;
+      }).map(([_, lq]) => lq as VocabItem);
+
+      known = vocabValues.filter((l) => l && l.status === "known").length;
+      learning = vocabValues.filter((l) =>
+        l && l.status && ["1", "2", "3", "4", "5", "learning"].includes(l.status)
+      ).length;
+    }
 
     // Helper to check if ISO timestamp is today
     const isToday = (isoDateStr?: string) => {
@@ -401,7 +469,7 @@ function LibraryHome({
       wordsKnownCount: known,
       wordsLearningCount: learning,
     };
-  }, [vocab, history, lessons, selectedLanguage]);
+  }, [vocab, history, lessons, selectedLanguage, settings?.onlyPatterns, wordLinks]);
 
   // Per-language listening breakdown calculation
   const perLanguageListeningStats = useMemo<LanguageListeningStat[]>(() => {
@@ -627,12 +695,7 @@ function LibraryHome({
     return ["All", ...Array.from(list)];
   }, [lessons, showArchived, filterType, selectedLessonType]);
 
-  // If the selected language is no longer available in the current view, reset to "All"
-  React.useEffect(() => {
-    if (selectedLanguage !== "All" && !availableLanguages.includes(selectedLanguage)) {
-      onSelectTargetLanguage?.("All");
-    }
-  }, [availableLanguages, selectedLanguage, onSelectTargetLanguage]);
+
 
   // Compute word counts and display estimates
   const getWordCount = (text: string) => {
@@ -813,8 +876,11 @@ function LibraryHome({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
-      {/* Per-Language & Today's Listening Statistics Dashboard Widget */}
-      <StatsWidget stats={languageAwareStats} selectedLanguage={selectedLanguage} />
+      <StatsWidget
+        stats={languageAwareStats}
+        selectedLanguage={selectedLanguage}
+        onlyPatterns={!!settings?.onlyPatterns}
+      />
       
       {/* Visual welcome bookshelf header */}
       {isBannerCollapsed ? (

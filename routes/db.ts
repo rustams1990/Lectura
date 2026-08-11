@@ -328,17 +328,30 @@ export function getLocalServerDb(userId: string = "default") {
       }));
     } catch (_) {}
 
-    // Video / reading progress — strictly this user's
-    const progressRows = db.prepare(
-      "SELECT key, value FROM metadata WHERE user_id = ? AND (key LIKE 'youtube_progress_%' OR key LIKE 'vocab_progress_%')"
+    // Video / reading progress & custom user settings — strictly this user's
+    const metadataRows = db.prepare(
+      "SELECT key, value FROM metadata WHERE user_id = ?"
     ).all(userId) as { key: string; value: string }[];
     const videoProgress: Record<string, string> = {};
     const readingProgress: Record<string, string> = {};
-    for (const row of progressRows) {
+    let readerSettings = null;
+    let pinnedLanguages = null;
+    let hiddenLanguages = null;
+    let selectedTargetLanguage = null;
+
+    for (const row of metadataRows) {
       if (row.key.startsWith("youtube_progress_")) {
         videoProgress[row.key.replace("youtube_progress_", "")] = row.value;
       } else if (row.key.startsWith("vocab_progress_")) {
         readingProgress[row.key.replace("vocab_progress_", "")] = row.value;
+      } else if (row.key === "readerSettings" && row.value) {
+        try { readerSettings = JSON.parse(row.value); } catch (_) {}
+      } else if (row.key === "pinnedLanguages" && row.value) {
+        try { pinnedLanguages = JSON.parse(row.value); } catch (_) {}
+      } else if (row.key === "hiddenLanguages" && row.value) {
+        try { hiddenLanguages = JSON.parse(row.value); } catch (_) {}
+      } else if (row.key === "selectedTargetLanguage" && row.value) {
+        selectedTargetLanguage = row.value;
       }
     }
 
@@ -352,6 +365,10 @@ export function getLocalServerDb(userId: string = "default") {
       history,
       videoProgress,
       readingProgress,
+      readerSettings,
+      pinnedLanguages,
+      hiddenLanguages,
+      selectedTargetLanguage,
     };
   } catch (e) {
     console.error("Error loading SQLite database data:", e);
@@ -545,6 +562,22 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       if (data.listeningSeconds !== undefined) {
         insertMetadata.run(userId, "listeningSeconds", String(data.listeningSeconds));
+      }
+
+      if (data.readerSettings && typeof data.readerSettings === "object") {
+        insertMetadata.run(userId, "readerSettings", JSON.stringify(data.readerSettings));
+      }
+
+      if (data.pinnedLanguages && Array.isArray(data.pinnedLanguages)) {
+        insertMetadata.run(userId, "pinnedLanguages", JSON.stringify(data.pinnedLanguages));
+      }
+
+      if (data.hiddenLanguages && Array.isArray(data.hiddenLanguages)) {
+        insertMetadata.run(userId, "hiddenLanguages", JSON.stringify(data.hiddenLanguages));
+      }
+
+      if (data.selectedTargetLanguage && typeof data.selectedTargetLanguage === "string") {
+        insertMetadata.run(userId, "selectedTargetLanguage", data.selectedTargetLanguage);
       }
 
       if (data.videoProgress && typeof data.videoProgress === "object") {

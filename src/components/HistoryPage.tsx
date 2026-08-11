@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, memo } from "react";
+import React, { useState, useEffect, useMemo, memo } from "react";
 import { HistoryEntry, Lesson, ReaderSettings } from "../types";
 import { 
   History, 
@@ -26,10 +26,27 @@ import {
   Tag,
   Target,
   Flame,
-  Play
+  Play,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
+
+const ITEMS_PER_PAGE = 10;
+
+const getPageNumbers = (current: number, total: number) => {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, "...", total];
+  }
+  if (current >= total - 3) {
+    return [1, "...", total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, "...", current - 1, current, current + 1, "...", total];
+};
 
 interface HistoryPageProps {
   history: HistoryEntry[];
@@ -56,6 +73,11 @@ function HistoryPage({
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType, selectedPeriod, customDate, selectedLanguage, selectedMonth, searchQuery, selectedTag]);
 
   const availableTags = useMemo(() => {
     const tagsSet = new Set<string>();
@@ -489,6 +511,14 @@ function HistoryPage({
     });
   }, [scopedHistory, filterType, searchQuery]);
 
+  const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedHistory = useMemo(() => {
+    const start = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
+    return filteredHistory.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredHistory, safeCurrentPage]);
+
   const totalSeconds = useMemo(() => {
     return scopedHistory.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
   }, [scopedHistory]);
@@ -917,7 +947,7 @@ function HistoryPage({
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredHistory.map((item) => {
+          {paginatedHistory.map((item) => {
             const matchedLesson = lessons.find((l) => l.id === item.lessonId);
             const isCompleted = item.status === "completed" || item.actionType === "complete";
             const isListening = item.actionType === "listen";
@@ -1057,6 +1087,68 @@ function HistoryPage({
               </div>
             );
           })}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="text-xs text-zinc-500 font-semibold">
+                {t('history_page.showing_items', 'Showing {{start}}-{{end}} of {{total}} records', {
+                  start: (safeCurrentPage - 1) * ITEMS_PER_PAGE + 1,
+                  end: Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredHistory.length),
+                  total: filteredHistory.length,
+                })}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safeCurrentPage === 1}
+                  className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all font-bold text-xs shadow-3xs cursor-pointer active:scale-95 flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>{t('history_page.back', 'Back')}</span>
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {getPageNumbers(safeCurrentPage, totalPages).map((page, idx) => {
+                    if (page === "...") {
+                      return (
+                        <span key={`dots-${idx}`} className="px-2 text-xs text-zinc-400 font-bold select-none">
+                          ...
+                        </span>
+                      );
+                    }
+                    const pageNum = page as number;
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-8 h-8 flex items-center justify-center rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          safeCurrentPage === pageNum
+                            ? "bg-teal-600 text-white shadow-md border-transparent font-black"
+                            : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safeCurrentPage === totalPages}
+                  className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all font-bold text-xs shadow-3xs cursor-pointer active:scale-95 flex items-center gap-1"
+                >
+                  <span>{t('history_page.next', 'Next')}</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
