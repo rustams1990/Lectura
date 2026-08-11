@@ -610,6 +610,7 @@ export default function App() {
 
 
   const serverInitialLoadComplete = useRef<boolean>(false);
+  const isServerLoadInProgress = useRef<boolean>(false);
   const [isInitialServerLoading, setIsInitialServerLoading] = useState<boolean>(() => {
     return storageMode === "server" && !serverInitialLoadComplete.current;
   });
@@ -715,6 +716,8 @@ export default function App() {
       return;
     }
     if (localSyncError) return;
+    // Prevent parallel simultaneous fetches (e.g. two useEffects firing at once on startup)
+    if (isServerLoadInProgress.current) return;
     // Only skip the isAuthLoading wait if a token is already saved in localStorage
     // (meaning the user was previously logged in and the token is likely still valid).
     // For fresh logins or missing tokens, wait for auth to complete to avoid
@@ -724,6 +727,7 @@ export default function App() {
     const hasSavedSession = !!(savedToken && savedUserStr);
     if (!hasSavedSession && isAuthLoading) return;
 
+    isServerLoadInProgress.current = true;
     setIsSyncing(true);
     if (!serverInitialLoadComplete.current) {
       setIsInitialServerLoading(true);
@@ -862,6 +866,7 @@ export default function App() {
     } catch (e) {
       console.error("Failed to load or seed dataset from local server:", e);
     } finally {
+      isServerLoadInProgress.current = false;
       setIsSyncing(false);
       setIsInitialServerLoading(false);
     }
@@ -1218,13 +1223,11 @@ export default function App() {
     return () => clearTimeout(delayDebounceFn);
   }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, history, storageMode, localSyncKey, localSyncError]);
 
-  // Dynamic automatic syncing of tablet/PC changes over local network (polls on mount, tab changes, focus, and every 8s when visible)
+  // Dynamic automatic syncing of tablet/PC changes over local network (polls on tab changes, focus, and every 8s when visible)
+  // Note: We do NOT call loadDataFromLocalServer() on mount here — onAuthStateChanged already does the initial load.
+  // This avoids a duplicate parallel fetch race on startup that caused UI flickering.
   useEffect(() => {
     if (storageMode !== "server") return;
-    // No isAuthLoading guard here — token is read from localStorage directly,
-    // so we can load data immediately on page open without waiting for auth.
-
-    loadDataFromLocalServer(); // Poll on mount/mode/key/tab change
 
     const handleFocusOrVisible = () => {
       if (document.visibilityState === "visible") {
