@@ -177,6 +177,9 @@ export default function App() {
   const handleSelectTargetLanguage = (lang: string) => {
     setSelectedTargetLanguage(lang);
     safeLocalStorageSetItem("vocab_global_target_language", lang);
+    if (storageMode === "server") {
+      syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettings, pinnedLanguages, hiddenLanguages, lang).catch(() => {});
+    }
   };
 
   const [isManageLanguagesOpen, setIsManageLanguagesOpen] = useState(false);
@@ -713,8 +716,10 @@ export default function App() {
             settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(d.hiddenLanguages)).catch(() => {});
           }
           if (d.selectedTargetLanguage && typeof d.selectedTargetLanguage === "string") {
-            setSelectedTargetLanguage(d.selectedTargetLanguage);
-            safeLocalStorageSetItem("vocab_global_target_language", d.selectedTargetLanguage);
+            if (!serverInitialLoadComplete.current) {
+              setSelectedTargetLanguage(d.selectedTargetLanguage);
+              safeLocalStorageSetItem("vocab_global_target_language", d.selectedTargetLanguage);
+            }
           }
 
           if (d.history && Array.isArray(d.history)) {
@@ -1126,7 +1131,7 @@ export default function App() {
     }, 1500);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, history, storageMode, localSyncKey, localSyncError]);
+  }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, history, storageMode, localSyncKey, localSyncError, selectedTargetLanguage]);
 
   // Dynamic automatic syncing of tablet/PC changes over local network (polls on tab changes, focus, and every 8s when visible)
   // Note: We do NOT call loadDataFromLocalServer() on mount here — onAuthStateChanged already does the initial load.
