@@ -393,25 +393,25 @@ export default function App() {
         const ls = await settingsStore.getItem('vocab_clone_listening');
         if (ls !== null) setListeningSeconds(parseFloat(ls as string) || 0);
 
-        const localHist1 = safeParse(localStorage.getItem('vocab_clone_reading_history'), []);
-        const localHist2 = safeParse(localStorage.getItem('lingq_clone_reading_history'), []);
-        let dbHist: HistoryEntry[] = [];
-        try {
-          const savedHistory = await settingsStore.getItem('vocab_clone_reading_history');
-          if (savedHistory) {
-            dbHist = typeof savedHistory === 'string' ? JSON.parse(savedHistory) : (savedHistory as any);
-          }
-        } catch(e) {}
+        let initialHistory: HistoryEntry[] = [];
+        const localHist1Str = localStorage.getItem('vocab_clone_reading_history');
+        if (localHist1Str) {
+          initialHistory = safeParse(localHist1Str, []);
+        } else {
+          try {
+            const savedHistory = await settingsStore.getItem('vocab_clone_reading_history');
+            if (savedHistory) {
+              initialHistory = typeof savedHistory === 'string' ? JSON.parse(savedHistory) : (savedHistory as any);
+            }
+          } catch(e) {}
+        }
 
-        const combinedHistory = dedupeHistory([...localHist1, ...(localHist2.length > 0 ? localHist2 : []), ...(Array.isArray(dbHist) ? dbHist : [])]);
-        if (combinedHistory.length > 0) {
-          setHistory(combinedHistory);
-          safeLocalStorageSetItem('vocab_clone_reading_history', JSON.stringify(combinedHistory));
-          settingsStore.setItem('vocab_clone_reading_history', JSON.stringify(combinedHistory)).catch(() => {});
-        }
-        if (localHist2.length > 0) {
-          try { localStorage.removeItem('lingq_clone_reading_history'); } catch(_) {}
-        }
+        try { localStorage.removeItem('lingq_clone_reading_history'); } catch(_) {}
+
+        const cleanInitialHistory = dedupeHistory(Array.isArray(initialHistory) ? initialHistory : []);
+        setHistory(cleanInitialHistory);
+        safeLocalStorageSetItem('vocab_clone_reading_history', JSON.stringify(cleanInitialHistory));
+        settingsStore.setItem('vocab_clone_reading_history', JSON.stringify(cleanInitialHistory)).catch(() => {});
 
         const lf = await settingsStore.getItem('vocab_clone_language_flags');
         if (lf) setLanguageFlags(typeof lf === 'string' ? JSON.parse(lf) : lf);
