@@ -134,8 +134,20 @@ export default function App() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Durable browser persistence states
-  const [lessons, setLessons] = useState<Lesson[]>(BUILT_IN_LESSONS);
+  const [lessons, setLessons] = useState<Lesson[]>(() => {
+    if (typeof window !== "undefined") {
+      const userDeleted = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
+      const stored = localStorage.getItem("vocab_clone_lessons");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {}
+      }
+      if (userDeleted) return [];
+    }
+    return BUILT_IN_LESSONS;
+  });
 
   const [lessonTypes, setLessonTypes] = useState<LessonType[]>(DEFAULT_LESSON_TYPES);
 
@@ -933,7 +945,8 @@ export default function App() {
           const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
           const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
 
-          const lLessons = safeParse(localLessonsStr, BUILT_IN_LESSONS) as Lesson[];
+          const userDeletedLessons = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
+          const lLessons = safeParse(localLessonsStr, userDeletedLessons ? [] : BUILT_IN_LESSONS) as Lesson[];
           const lTypes = ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]);
           const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
           const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
@@ -1145,7 +1158,8 @@ export default function App() {
           const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
           const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
 
-          setLessons(safeParse(localLessonsStr, BUILT_IN_LESSONS));
+          const userDel = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
+          setLessons(safeParse(localLessonsStr, userDel ? [] : BUILT_IN_LESSONS));
           setLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES));
           setVocab(normalizeVocabRecord(safeParse(localWordsStr, {})));
           setListeningSeconds(localListeningStr ? parseFloat(localListeningStr) || 0 : 0);

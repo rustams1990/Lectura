@@ -114,7 +114,7 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         const targetLangKey = `${activeLang}_${linkedWord}`;
         const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
 
-        const isPlaceholder = (s?: string) => !s || s === "Pending translation" || s === "[Known]" || s === "[Ignored]";
+        const isPlaceholder = (s?: string) => !s || s.trim() === "" || s === "Pending translation" || (s.trim().startsWith("[") && s.trim().endsWith("]"));
         const existingTrans = existing && !isPlaceholder(existing.translation) ? existing.translation : undefined;
 
         const updated: VocabItem = {

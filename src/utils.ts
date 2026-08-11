@@ -488,7 +488,7 @@ export function buildVocabItem(
   word: string,
   existing?: import("./types").VocabItem | null
 ): import("./types").VocabItem {
-  const isPlaceholder = (str?: string) => !str || str.trim() === "" || str === "Pending translation" || str === "[Known]" || str === "[Ignored]";
+  const isPlaceholder = (str?: string) => !str || str.trim() === "" || str === "Pending translation" || (str.trim().startsWith("[") && str.trim().endsWith("]"));
 
   const pickString = (newVal: string | undefined, existingVal: string | undefined, fallback: string): string => {
     if (newVal !== undefined && !isPlaceholder(newVal)) return newVal;

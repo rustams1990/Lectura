@@ -420,7 +420,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
         const existingWord = db.prepare("SELECT translation, ipa, grammar, contextRelation, examples FROM words WHERE user_id = ? AND id = ?").get(userId, key) as any;
 
-        const isPlaceholder = (s?: string) => !s || s.trim() === "" || s === "Pending translation" || s === "[Known]" || s === "[Ignored]";
+        const isPlaceholder = (s?: string) => !s || s.trim() === "" || s === "Pending translation" || (s.trim().startsWith("[") && s.trim().endsWith("]"));
         let finalTranslation = val.translation || "";
         if (isPlaceholder(finalTranslation) && existingWord && !isPlaceholder(existingWord.translation)) {
           finalTranslation = existingWord.translation;
@@ -477,6 +477,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       if (data.deletedLessonIds && Array.isArray(data.deletedLessonIds) && data.deletedLessonIds.length > 0) {
         const placeholders = data.deletedLessonIds.map(() => "?").join(",");
         db.prepare(`DELETE FROM lessons WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedLessonIds);
+        const insertMeta = db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, '1')");
+        for (const delId of data.deletedLessonIds) {
+          insertMeta.run(userId, `deleted_lesson_${delId}`);
+        }
       }
 
       const lessons = data.lessons || [];

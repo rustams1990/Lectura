@@ -269,6 +269,8 @@ function performLegacyFileMigration(db: Database.Database) {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
           for (const l of lessons) {
+            const isDel = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = ?").get(fileUserId, `deleted_lesson_${l.id}`);
+            if (isDel) continue;
             stmt.run(
               l.id, fileUserId, l.title, l.text, l.audioUrl, l.audioBase64,
               l.targetLanguage, l.translationLanguage,
@@ -329,7 +331,12 @@ function performLegacyFileMigration(db: Database.Database) {
         } catch (_) {}
 
         srcDb.close();
-        console.log(`[LegacyMigration] Merged ${file} → user_id=${fileUserId}`);
+        try {
+          fs.unlinkSync(srcPath);
+          console.log(`[LegacyMigration] Merged and deleted legacy file: ${file}`);
+        } catch (_) {
+          console.log(`[LegacyMigration] Merged ${file} → user_id=${fileUserId}`);
+        }
       } catch (e) {
         console.error(`[LegacyMigration] Error merging ${file}:`, e);
       }
