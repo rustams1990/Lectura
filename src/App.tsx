@@ -794,7 +794,7 @@ export default function App() {
           }
 
           if (d.history && Array.isArray(d.history)) {
-            const cleanHistory = dedupeHistory([...d.history, ...historyRef.current]);
+            const cleanHistory = dedupeHistory(d.history);
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));

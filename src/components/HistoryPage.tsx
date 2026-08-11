@@ -89,16 +89,28 @@ function HistoryPage({
     return Array.from(tagsSet).sort();
   }, [history]);
 
+  // Helper to reliably resolve a history item's target language
+  const getItemLanguage = React.useCallback((item: HistoryEntry): string => {
+    if (!item) return "Spanish";
+    const lesson = lessons.find((l) => l.id === item.lessonId);
+    if (lesson && lesson.targetLanguage && lesson.targetLanguage.trim()) {
+      return lesson.targetLanguage.trim();
+    }
+    if (item.targetLanguage && item.targetLanguage.trim()) {
+      return item.targetLanguage.trim();
+    }
+    return "Spanish";
+  }, [lessons]);
+
   // Extract unique available target languages present in history
   const availableLanguages = useMemo(() => {
     const langsSet = new Set<string>();
     history.forEach((h) => {
-      if (h && h.targetLanguage && h.targetLanguage.trim()) {
-        langsSet.add(h.targetLanguage.trim());
-      }
+      const lang = getItemLanguage(h);
+      if (lang) langsSet.add(lang);
     });
     return Array.from(langsSet).sort();
-  }, [history]);
+  }, [history, getItemLanguage]);
 
   // Extract unique available months from history (e.g. ["2026-07", "2026-06"])
   const availableMonths = useMemo(() => {
@@ -338,7 +350,8 @@ function HistoryPage({
     return deduplicatedHistory.filter((item) => {
       // Filter by language
       if (selectedLanguage !== "all") {
-        if ((item.targetLanguage || "").toLowerCase() !== selectedLanguage.toLowerCase()) {
+        const itemLang = getItemLanguage(item);
+        if (itemLang.toLowerCase() !== selectedLanguage.toLowerCase()) {
           return false;
         }
       }
@@ -384,7 +397,7 @@ function HistoryPage({
 
       return true;
     });
-  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag]);
+  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag, getItemLanguage]);
 
   // Goals and Streaks logic
   const isGlobalGoal = selectedLanguage === "all";
@@ -400,7 +413,8 @@ function HistoryPage({
     // Aggregate minutes per day
     const dayTotals: Record<string, number> = {};
     deduplicatedHistory.forEach(item => {
-      if (!isGlobalGoal && item.targetLanguage !== selectedLanguage) return;
+      const itemLang = getItemLanguage(item);
+      if (!isGlobalGoal && itemLang.toLowerCase() !== selectedLanguage.toLowerCase()) return;
       if (!item.durationSeconds) return;
       const d = new Date(item.timestamp);
       if (isNaN(d.getTime())) return;
@@ -434,7 +448,7 @@ function HistoryPage({
     }
 
     return { currentStreak: streak, todayMinutes: todayMins, isGoalMetToday: metToday };
-  }, [deduplicatedHistory, activeGoalMinutes, isGlobalGoal, selectedLanguage]);
+  }, [deduplicatedHistory, activeGoalMinutes, isGlobalGoal, selectedLanguage, getItemLanguage]);
 
   // Language Analytics
   const languageStats = useMemo(() => {
@@ -443,7 +457,7 @@ function HistoryPage({
     
     scopedHistory.forEach(item => {
       if (!item.durationSeconds) return;
-      const lang = item.targetLanguage || "Unknown";
+      const lang = getItemLanguage(item);
       stats[lang] = stats[lang] || { duration: 0, percent: 0, color: "" };
       stats[lang].duration += item.durationSeconds;
       total += item.durationSeconds;
@@ -461,7 +475,7 @@ function HistoryPage({
         percent: (data.duration / total) * 100,
         color: colors[i % colors.length]
       }));
-  }, [scopedHistory]);
+  }, [scopedHistory, getItemLanguage]);
 
 
   // Dynamic card title
@@ -497,7 +511,7 @@ function HistoryPage({
         const q = searchQuery.toLowerCase().trim();
         const matchesTitle = item.lessonTitle.toLowerCase().includes(q);
         const matchesNote = (item.notes || "").toLowerCase().includes(q);
-        const matchesLang = item.targetLanguage.toLowerCase().includes(q);
+        const matchesLang = getItemLanguage(item).toLowerCase().includes(q);
         if (!matchesTitle && !matchesNote && !matchesLang) return false;
       }
       return true;
@@ -993,7 +1007,7 @@ function HistoryPage({
                       )}
 
                       <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md">
-                        {item.targetLanguage}
+                        {getItemLanguage(item)}
                       </span>
 
                       <span className="text-[10px] text-zinc-400 flex items-center gap-1">
