@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Lesson } from "../types";
 import { safeLocalStorageSetItem } from "../utils";
 
+import { chunkSubtitlesIntoSentences, SubtitleItem } from "../utils/sentenceChunker";
+
 export interface TextSegment {
   text: string;
   timestamp: string | null;
@@ -54,6 +56,7 @@ interface UseReaderPaginationProps {
   lesson: Lesson;
   isCjk: boolean;
   pageSize: string;
+  autoPunctuationSplit?: boolean;
   currentYoutubeTime?: number | null;
   activeWord: string | null;
   onWordClick: (word: string, root: string) => void;
@@ -63,6 +66,7 @@ export function useReaderPagination({
   lesson,
   isCjk,
   pageSize,
+  autoPunctuationSplit = true,
   currentYoutubeTime,
   activeWord,
   onWordClick
@@ -91,11 +95,61 @@ export function useReaderPagination({
     const hasAnyTimestamp = result.some((r) => r.timestamp !== null);
     if (!hasAnyTimestamp) {
       const paras = lesson.text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
-      return paras.map((p) => ({ text: p.trim(), timestamp: null }));
+      const rawParas = paras.map((p) => ({ text: p.trim(), timestamp: null }));
+      
+      if (autoPunctuationSplit) {
+        const sentenceSegments: TextSegment[] = [];
+        paras.forEach((p) => {
+          const sentences = splitIntoSentences(p.trim(), isCjk);
+          sentences.forEach((s) => {
+            const clean = s.trim();
+            if (clean) {
+              sentenceSegments.push({ text: clean, timestamp: null });
+            }
+          });
+        });
+        return sentenceSegments.length > 0 ? sentenceSegments : rawParas;
+      }
+      return rawParas;
+    }
+
+    if (autoPunctuationSplit) {
+      const subItems: SubtitleItem[] = result.map((seg, idx) => {
+        const startSec = seg.timestamp ? parseTimestampToSeconds(seg.timestamp) : idx * 3;
+        const nextStartSec = (idx < result.length - 1 && result[idx + 1].timestamp) 
+          ? parseTimestampToSeconds(result[idx + 1].timestamp!) 
+          : startSec + 3.0;
+        const endSec = Math.max(startSec + 0.5, nextStartSec);
+        return {
+          start: startSec,
+          end: endSec,
+          text: seg.text
+        };
+      });
+
+      const chunked = chunkSubtitlesIntoSentences(subItems);
+      if (chunked.length > 0) {
+        let lastTime = -1;
+        return chunked.map((item) => {
+          let startSec = item.start;
+          if (startSec <= lastTime) {
+            startSec = lastTime + 1; // Strictly ascending timestamp so playback never jumps backwards or duplicates
+          }
+          lastTime = startSec;
+
+          const mins = Math.floor(startSec / 60);
+          const secs = Math.floor(startSec % 60);
+          const formattedTs = `${mins}:${secs.toString().padStart(2, '0')}`;
+          return {
+            text: item.text,
+            timestamp: formattedTs
+          };
+        });
+      }
     }
 
     return result;
-  }, [lesson.text]);
+  }, [lesson.text, autoPunctuationSplit]);
 
   const hasTimestamps = useMemo(() => segments.some((s) => s.timestamp !== null), [segments]);
 
@@ -298,6 +352,40 @@ export function useReaderPagination({
   }, [segments, currentYoutubeTime]);
 
   const lastActivePageIdxRef = useRef<number>(-1);
+
+  // Anchor tracking: Remember the top segment of the visible page to preserve reading position across setting/layout changes
+  const lastFirstSegRef = useRef<{ text: string; timestamp: string | null } | null>(null);
+
+  useEffect(() => {
+    if (activeSegmentsForPage && activeSegmentsForPage.length > 0) {
+      const first = activeSegmentsForPage[0];
+      lastFirstSegRef.current = { text: first.text, timestamp: first.timestamp };
+    }
+  }, [clampedPageIdx, activeSegmentsForPage]);
+
+  useEffect(() => {
+    if (!lastFirstSegRef.current || pages.length === 0) return;
+    const target = lastFirstSegRef.current;
+
+    let targetPageIdx = -1;
+    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+      const page = pages[pIdx];
+      const match = page.some(seg => 
+        (target.timestamp && seg.timestamp === target.timestamp) || 
+        (target.text.length > 5 && seg.text.includes(target.text.slice(0, 20))) ||
+        (seg.text.length > 5 && target.text.includes(seg.text.slice(0, 20)))
+      );
+      if (match) {
+        targetPageIdx = pIdx;
+        break;
+      }
+    }
+
+    if (targetPageIdx >= 0 && targetPageIdx !== currentPageIdx) {
+      didUserNavigateRef.current = true;
+      setCurrentPageIdx(targetPageIdx);
+    }
+  }, [pages]);
 
   useEffect(() => {
     if (activeSegmentIndex < 0 || pages.length <= 1) {

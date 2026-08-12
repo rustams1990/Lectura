@@ -301,6 +301,7 @@ function ReaderPanel({
       localTtsUrl: settings?.localTtsUrl || "http://localhost:8880/v1/audio/speech",
       localTtsVoice: settings?.localTtsVoice || "af_sarah",
       wordHighlight: settings?.wordHighlight !== false,
+      autoPunctuationSplit: settings?.autoPunctuationSplit !== false,
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
       showProgressBar: settings?.showProgressBar !== false,
     };
@@ -322,6 +323,7 @@ function ReaderPanel({
     lesson,
     isCjk,
     pageSize: activeSettings.pageSize,
+    autoPunctuationSplit: activeSettings.autoPunctuationSplit,
     currentYoutubeTime,
     activeWord,
     onWordClick

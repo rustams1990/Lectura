@@ -468,18 +468,48 @@ export default function ImportLessonForm({
     "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=400&q=80", // Vintage books
   ];
 
-  const handleYtFetch = async (e: React.MouseEvent) => {
-    e.preventDefault();
+  const [ytLoadingMode, setYtLoadingMode] = useState<"auto" | "force_ai" | null>(null);
+  const [ytProgress, setYtProgress] = useState<number>(0);
+  const [ytStageText, setYtStageText] = useState<string>("");
+  const [ytChunkSentences, setYtChunkSentences] = useState<boolean>(true);
+
+  const handleYtFetch = async (e?: React.MouseEvent, modeChoice: "auto" | "force_ai" = "auto") => {
+    if (e) e.preventDefault();
     if (!youtubeUrlInput.trim()) {
       setYtError(t('import.enter_yt_url_err', 'Enter YouTube video link'));
       return;
     }
 
     setIsYtLoading(true);
+    setYtLoadingMode(modeChoice);
     setYtError(null);
     setYtSuccessMessage(null);
     setCanGenerateFallback(false);
     setFallbackData(null);
+    setYtProgress(5);
+    setYtStageText(t('import.stage_metadata', 'Connecting & fetching video metadata...'));
+
+    const isAi = modeChoice === "force_ai";
+    const speed = isAi ? 350 : 250;
+
+    const progressInterval = setInterval(() => {
+      setYtProgress((prev) => {
+        if (prev < 20) {
+          setYtStageText(t('import.stage_metadata', 'Connecting & fetching video metadata...'));
+          return prev + 4;
+        } else if (prev < 45) {
+          setYtStageText(isAi ? t('import.stage_audio', 'Extracting audio track for AI...') : t('import.stage_subs', 'Downloading YouTube subtitles...'));
+          return prev + 3;
+        } else if (prev < 80) {
+          setYtStageText(isAi ? t('import.stage_ai', 'Gemini AI Speech-to-Text transcribing...') : t('import.stage_parsing', 'Parsing and cleaning subtitles...'));
+          return prev + (isAi ? 1.5 : 2.5);
+        } else if (prev < 95) {
+          setYtStageText(t('import.stage_format', 'Formatting timestamped sentences...'));
+          return prev + 0.8;
+        }
+        return 95;
+      });
+    }, speed);
 
     try {
       const response = await fetch("/api/youtube-subtitles", {
@@ -490,10 +520,14 @@ export default function ImportLessonForm({
         body: JSON.stringify({
           url: youtubeUrlInput.trim(),
           targetLanguage,
+          mode: modeChoice,
+          chunkSentences: ytChunkSentences
         }),
       });
 
       const data = await safeJsonParse(response);
+      clearInterval(progressInterval);
+      setYtProgress(100);
 
       if (!response.ok) {
         if (data.videoTitle) {
@@ -534,14 +568,22 @@ export default function ImportLessonForm({
       
       if (data.isFallback) {
         setYtSuccessMessage(t('import.fallback_gen_success', '✓ Subtitles not found, but AI generated a full study text for this video!'));
+      } else if (modeChoice === "force_ai") {
+        setYtSuccessMessage(t('import.yt_ai_success', '✓ Gemini AI Speech-to-Text transcribed the video audio with timestamps successfully!'));
       } else {
         setYtSuccessMessage(t('import.yt_import_success', '✓ Subtitles and cover fetched successfully! Check details below.'));
       }
     } catch (err: any) {
+      clearInterval(progressInterval);
+      setYtProgress(0);
       console.error(err);
       setYtError(err.message || t('import.yt_connect_err', 'Connection error. Make sure video has subtitles.'));
     } finally {
-      setIsYtLoading(false);
+      setTimeout(() => {
+        setIsYtLoading(false);
+        setYtLoadingMode(null);
+        setYtProgress(0);
+      }, 400);
     }
   };
 
@@ -1155,45 +1197,99 @@ export default function ImportLessonForm({
       {activeTab === "youtube" && (
         <div className="space-y-4 p-4 border border-red-100 dark:border-red-950/30 bg-red-50/20 dark:bg-red-950/10 rounded-2xl">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Youtube className="w-4.5 h-4.5 text-red-500 animate-pulse" />
-              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                {t('import.yt_subtitles_title', 'Download subtitles from YouTube video')}
-              </span>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Youtube className="w-4.5 h-4.5 text-red-500 animate-pulse" />
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  {t('import.yt_subtitles_title', 'Download subtitles from YouTube video')}
+                </span>
+              </div>
             </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              {t('import.yt_subtitles_desc', 'Paste a YouTube video link. The app will download subtitles in the selected language and automatically fetch the video cover!')}
+            <p className="text-[11px] text-zinc-500 leading-relaxed font-sans">
+              {t('import.yt_subtitles_desc', 'Paste a YouTube video link. Choose standard YouTube subtitles download or direct Gemini AI Speech-to-Text transcription!')}
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="space-y-2.5">
             <input
               type="text"
               id="txt-youtube-url"
               value={youtubeUrlInput}
               onChange={(e) => setYoutubeUrlInput(e.target.value)}
               placeholder="https://www.youtube.com/watch?v=..."
-              className="flex-1 px-3.5 py-2.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/25"
+              className="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/25"
             />
-            <button
-              type="button"
-              id="btn-youtube-fetch"
-              disabled={isYtLoading}
-              onClick={handleYtFetch}
-              className="px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-heavy text-xs rounded-xl flex items-center gap-1.5 shadow-sm hover:shadow-md cursor-pointer transition-all shrink-0"
-            >
-              {isYtLoading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {t('import.downloading', 'Downloading...')}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {t('import.import_btn', 'Import')}
-                </>
-              )}
-            </button>
+
+
+            {/* Action Buttons: YouTube Subtitles vs AI Speech-to-Text */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                id="btn-youtube-fetch"
+                disabled={isYtLoading}
+                onClick={(e) => handleYtFetch(e, "auto")}
+                className="flex-1 py-2.5 px-4 bg-red-50/80 hover:bg-red-100/90 dark:bg-red-950/30 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 font-extrabold text-xs rounded-xl border border-red-200/80 dark:border-red-800/40 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                title={t('import.yt_auto_tooltip', 'Import official or auto-generated YouTube subtitles (falls back to AI if missing)')}
+              >
+                {isYtLoading && (ytLoadingMode === "auto" || !ytLoadingMode) ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600 dark:text-red-400" />
+                    {t('import.downloading', 'Downloading...')} <span className="font-mono font-bold">{Math.round(ytProgress)}%</span>
+                  </>
+                ) : (
+                  <>
+                    <Youtube className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                    {t('import.yt_auto_btn', 'YouTube Subtitles (Auto)')}
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                id="btn-youtube-ai-fetch"
+                disabled={isYtLoading}
+                onClick={(e) => handleYtFetch(e, "force_ai")}
+                className="flex-1 py-2.5 px-4 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                title={t('import.yt_ai_tooltip', 'Directly transcribe video speech into timestamped sentences using Gemini AI Speech-to-Text')}
+              >
+                {isYtLoading && ytLoadingMode === "force_ai" ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600 dark:text-purple-400" />
+                    {t('import.ai_transcribing', 'Gemini AI Transcribing...')} <span className="font-mono font-bold">{Math.round(ytProgress)}%</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                    {t('import.yt_ai_btn', 'Import with AI (Gemini STT)')}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Live Progress Bar & Stage Indicator */}
+            {isYtLoading && (
+              <div className="p-3.5 bg-white dark:bg-zinc-900/90 border border-zinc-200/80 dark:border-zinc-800 rounded-xl space-y-2 shadow-2xs animate-in fade-in duration-150 font-sans">
+                <div className="flex items-center justify-between text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  <span className="flex items-center gap-2">
+                    <Loader2 className={`w-3.5 h-3.5 animate-spin ${ytLoadingMode === "force_ai" ? "text-purple-600 dark:text-purple-400" : "text-red-600 dark:text-red-400"}`} />
+                    {ytStageText || t('import.processing', 'Processing video...')}
+                  </span>
+                  <span className={`font-mono font-extrabold text-xs ${ytLoadingMode === "force_ai" ? "text-purple-600 dark:text-purple-400" : "text-red-600 dark:text-red-400"}`}>
+                    {Math.round(ytProgress)}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ease-out ${
+                      ytLoadingMode === "force_ai"
+                        ? "bg-gradient-to-r from-purple-500 via-indigo-500 to-teal-400"
+                        : "bg-gradient-to-r from-red-500 via-amber-500 to-emerald-400"
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(4, ytProgress))}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {ytError && !canGenerateFallback && (

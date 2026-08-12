@@ -149,6 +149,11 @@ export default function App() {
     return BUILT_IN_LESSONS;
   });
 
+  const lessonsRef = useRef<Lesson[]>(lessons);
+  useEffect(() => {
+    lessonsRef.current = lessons;
+  }, [lessons]);
+
   const [lessonTypes, setLessonTypes] = useState<LessonType[]>(DEFAULT_LESSON_TYPES);
 
   const {
@@ -555,7 +560,7 @@ export default function App() {
       }
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        syncDataToLocalServer().catch(() => {});
+        syncDataToLocalServer(lessonsRef.current).catch(() => {});
       }, 500);
     };
     window.addEventListener("lectura:save_progress", handleProgressSave);
@@ -788,7 +793,7 @@ export default function App() {
   };
 
   const syncDataToLocalServer = async (
-    currentLessons = lessons,
+    currentLessons = lessonsRef.current,
     currentTypes = lessonTypes,
     currentVocab = vocab,
     currentLinks = wordLinks,
@@ -1139,7 +1144,7 @@ export default function App() {
     if (!serverInitialLoadComplete.current) return;
 
     const delayDebounceFn = setTimeout(() => {
-      syncDataToLocalServer();
+      syncDataToLocalServer(lessonsRef.current);
     }, 1500);
 
     return () => clearTimeout(delayDebounceFn);
@@ -1971,53 +1976,61 @@ export default function App() {
   const handleToggleArchiveLesson = (idToToggle: string, e: React.MouseEvent) => {
     e.stopPropagation();
     lastLocalChangeTime.current = Date.now();
+    let next: Lesson[] = [];
     setLessons((prev) => {
-      const next = prev.map((l) => {
+      next = prev.map((l) => {
         if (l.id === idToToggle) {
-          const updated = {
+          return {
             ...l,
             isArchived: !l.isArchived,
           };
-          if (auth.currentUser && storageMode === "cloud") {
-            saveLesson(auth.currentUser.uid, updated).catch((err) => console.error(err));
-          }
-          return updated;
         }
         return l;
       });
-      lessonsStore.setItem("lessons", next);
-      safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
-      if (storageMode === "server") {
-        syncDataToLocalServer(next).catch((err) => console.error(err));
-      }
       return next;
     });
+
+    lessonsRef.current = next;
+    lessonsStore.setItem("lessons", next).catch(() => {});
+    safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
+
+    const toggledLesson = next.find((l) => l.id === idToToggle);
+    if (toggledLesson && auth.currentUser && storageMode === "cloud") {
+      saveLesson(auth.currentUser.uid, toggledLesson).catch((err) => console.error(err));
+    }
+    if (storageMode === "server") {
+      syncDataToLocalServer(next).catch((err) => console.error(err));
+    }
   };
 
   const handleTogglePinLesson = (idToToggle: string, e: React.MouseEvent) => {
     e.stopPropagation();
     lastLocalChangeTime.current = Date.now();
+    let next: Lesson[] = [];
     setLessons((prev) => {
-      const next = prev.map((l) => {
+      next = prev.map((l) => {
         if (l.id === idToToggle) {
-          const updated = {
+          return {
             ...l,
             pinned: !l.pinned,
           };
-          if (auth.currentUser && storageMode === "cloud") {
-            saveLesson(auth.currentUser.uid, updated).catch((err) => console.error(err));
-          }
-          return updated;
         }
         return l;
       });
-      lessonsStore.setItem("lessons", next);
-      safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
-      if (storageMode === "server") {
-        syncDataToLocalServer(next).catch((err) => console.error(err));
-      }
       return next;
     });
+
+    lessonsRef.current = next;
+    lessonsStore.setItem("lessons", next).catch(() => {});
+    safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
+
+    const toggledLesson = next.find((l) => l.id === idToToggle);
+    if (toggledLesson && auth.currentUser && storageMode === "cloud") {
+      saveLesson(auth.currentUser.uid, toggledLesson).catch((err) => console.error(err));
+    }
+    if (storageMode === "server") {
+      syncDataToLocalServer(next).catch((err) => console.error(err));
+    }
   };
 
   // Sync audiourl uploads or base64 generated state

@@ -92,6 +92,7 @@ export interface ReaderSettings {
   localTtsVoice?: string; // Voice name for Kokoro/Local TTS (e.g. af_sarah, am_adam, bf_emma)
   localTtsVoices?: Record<string, string>; // Maps language code (e.g. "es", "fr", "en") to specific local TTS voice
   wordHighlight?: boolean;
+  autoPunctuationSplit?: boolean;
   idiomHighlightStyle?: "badge" | "underline" | "icon" | "hover";
   aiProvider?: "gemini" | "local";
   localAiUrl?: string;

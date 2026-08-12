@@ -1,18 +1,25 @@
 {
   "short_name": "Lectura",
-  "name": "Lectura — ИИ Чтение и Изучение Языков",
+  "name": "Lectura",
   "description": "Интерактивная система чтения книг, статей и видео с мгновенным контекстным переводом, озвучкой и умным словарем на базе Google Gemini ИИ.",
   "icons": [
     {
       "src": "/icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
   "start_url": "/",

@@ -6,12 +6,18 @@ import ytdlp from "yt-dlp-exec";
 import WebVTT from "node-webvtt";
 import { aiRateLimit, sanitizeLang } from "./ai.ts";
 import { getGeminiClient } from "./geminiClient.ts";
+import {
+  SubtitleItem,
+  FormattedSentence,
+  isAbbreviationOrNumber,
+  cleanSentenceText,
+  chunkSubtitlesIntoSentences
+} from "../src/utils/sentenceChunker.ts";
 
 const router = Router();
 
-// ============================================================
-// YouTube Subtitle Downloader & Metadata Parser Route
-// ============================================================
+export type { SubtitleItem, FormattedSentence };
+export { isAbbreviationOrNumber, cleanSentenceText, chunkSubtitlesIntoSentences };
 
 export function formatGeminiTranscript(rawText: string): string {
   if (!rawText) return "";
@@ -94,6 +100,9 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
   let title = "YouTube Video";
   const thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
   let videoLengthSeconds: number | null = null;
+
+  const mode = req.body.mode || "auto"; // "auto" | "force_ai"
+  const doChunkSentences = req.body.chunkSentences !== false;
 
   try {
     const resPage = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -258,6 +267,7 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
                 .trim();
               return {
                 start: c.start,
+                end: c.end,
                 text: t
               };
             }).filter(c => c.text.length > 0);
@@ -278,6 +288,7 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
             if (filteredCues.length > 0) {
               finalLines.push({
                 start: filteredCues[0].start,
+                end: filteredCues[0].end,
                 text: filteredCues[0].text
               });
 
@@ -290,6 +301,7 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
                 if (cleanText) {
                   finalLines.push({
                     start: filteredCues[i].start,
+                    end: filteredCues[i].end,
                     text: cleanText
                   });
                 }
@@ -297,10 +309,15 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
             }
 
             // Format cues into final array format
-            lines = finalLines.map(cue => {
-              const offsetSec = Math.floor(cue.start);
-              return `${offsetSec}s\t${cue.text}`;
-            });
+            if (doChunkSentences) {
+              const formattedSentences = chunkSubtitlesIntoSentences(finalLines);
+              lines = formattedSentences.map(s => `${s.start}s\t${s.text}`);
+            } else {
+              lines = finalLines.map(cue => {
+                const offsetSec = Math.floor(cue.start);
+                return `${offsetSec}s\t${cue.text}`;
+              });
+            }
           }
           
           // Cleanup
@@ -320,12 +337,16 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
       return false;
     };
 
-    // 1. Try fetching with preferred language
-    isSuccessful = await downloadSubs(langCode);
+    if (mode !== "force_ai") {
+      // 1. Try fetching with preferred language
+      isSuccessful = await downloadSubs(langCode);
 
-    // 2. Try fetching with default language (English fallback)
-    if (!isSuccessful) {
-      isSuccessful = await downloadSubs("en");
+      // 2. Try fetching with default language (English fallback)
+      if (!isSuccessful) {
+        isSuccessful = await downloadSubs("en");
+      }
+    } else {
+      console.log(`[YouTube] Forced AI mode for video ${videoId}. Running Gemini Audio Speech-to-Text...`);
     }
 
     // 3. Fallback to Gemini AI Audio Transcription if we could not retrieve any subtitles
