@@ -23,7 +23,7 @@ interface IgnoreListsSettingsManagerProps {
   onSettingsChange?: (patch: Partial<ReaderSettings>) => void;
   availableLanguages?: string[];
   selectedTargetLanguage?: string;
-  t: (key: string, defaultVal: string, options?: any) => string;
+  t: any;
 }
 
 export default function IgnoreListsSettingsManager({

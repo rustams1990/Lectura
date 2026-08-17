@@ -609,8 +609,8 @@ function WordExplainer({
     if (!word || existingVocab) {
       return { isIgnored: false, categoryId: null, categoryLabelRu: "", categoryLabelEn: "", icon: "" };
     }
-    return ignoreListManager.checkAutoIgnore(word, activeSettings, targetLanguage);
-  }, [word, existingVocab, activeSettings, targetLanguage]);
+    return ignoreListManager.checkAutoIgnore(word, settings, targetLanguage);
+  }, [word, existingVocab, settings, targetLanguage]);
 
   const handleSelectImage = (url: string | null) => {
     setImageUrlValue(url);

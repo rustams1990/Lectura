@@ -8,7 +8,7 @@ interface WhisperNotificationDropdownProps {
 }
 
 /** Formats seconds into a human-readable duration using active i18n translations */
-function formatDuration(seconds: number, t: (key: string, defaultVal: string, opts?: any) => string): string {
+function formatDuration(seconds: number, t: any): string {
   if (!seconds || seconds <= 0) return "";
   const s = Math.round(seconds);
   if (s < 60) {

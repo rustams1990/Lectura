@@ -950,7 +950,7 @@ export default function App() {
       const state = whisperQueueService.getState();
       if (state.completedTasks.length > lastCompletedCount) {
         lastCompletedCount = state.completedTasks.length;
-        loadDataFromLocalServer(true);
+        loadDataFromLocalServer();
       }
     });
     return () => unsub();
