@@ -40,44 +40,51 @@ interface LibraryHomeProps {
 }
 
 function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>) {
-  if (typeof lesson.text !== "string") {
-    return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
-  }
+  const zero = { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, ignoredCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueIgnoredCount: 0, uniqueTotal: 0, total: 0, eligibleTokens: 0, eligibleLemmas: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
+  if (typeof lesson.text !== "string") return zero;
+
   const cleanText = lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ");
   const tokens = segmentSentenceTokens(cleanText, lesson.targetLanguage || "spanish");
   const processedWords = tokens.filter(t => t.isWord && t.clean).map(t => t.clean);
 
-  if (processedWords.length === 0) {
-    return { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueTotal: 0, total: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
-  }
+  if (processedWords.length === 0) return zero;
 
   let knownCount = 0;
   let unknownCount = 0;
+  let ignoredCount = 0;
   const lang = (lesson.targetLanguage || "spanish").toLowerCase();
 
+  const uniqueKnownWords   = new Set<string>();
   const uniqueUnknownWords = new Set<string>();
-  const uniqueKnownWords = new Set<string>();
-  const uniqueTotalWords = new Set<string>();
+  const uniqueIgnoredWords = new Set<string>();
+  const uniqueTotalWords   = new Set<string>();
 
   processedWords.forEach(word => {
     const key = word.toLowerCase();
     const langKey = `${lang}_${key}`;
     const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
     const langKeyForResolved = `${lang}_${resolvedKey}`;
-    
+
     let item = vocab[langKeyForResolved] || vocab[resolvedKey];
-    
+
     if (!item) {
       const normalized = normalizeContraction(resolvedKey, lang);
       if (normalized !== resolvedKey) {
-        const normLangKey = `${lang}_${normalized}`;
-        item = vocab[normLangKey] || vocab[normalized];
+        item = vocab[`${lang}_${normalized}`] || vocab[normalized];
       }
     }
 
     uniqueTotalWords.add(resolvedKey);
-    const isAutoIgnored = !item && ignoreListManager.checkAutoIgnore(resolvedKey, undefined, lang).isIgnored;
-    if ((item && (item.status === "known" || item.status === "ignored")) || isAutoIgnored) {
+
+    const isManuallyIgnored = !!(item && item.status === "ignored");
+    const isAutoIgnored     = !item && ignoreListManager.checkAutoIgnore(resolvedKey, undefined, lang).isIgnored;
+    const isIgnored         = isManuallyIgnored || isAutoIgnored;
+
+    if (isIgnored) {
+      // Excluded from both numerator and denominator
+      ignoredCount++;
+      uniqueIgnoredWords.add(resolvedKey);
+    } else if (item && item.status === "known") {
       knownCount++;
       uniqueKnownWords.add(resolvedKey);
     } else {
@@ -86,28 +93,29 @@ function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wo
     }
   });
 
-  const total = processedWords.length;
-  const knownPct = Math.round((knownCount / total) * 100);
+  const total          = processedWords.length;
+  // Eligible = everything that is not ignored
+  const eligibleTokens = total - ignoredCount;
+  const eligibleLemmas = uniqueKnownWords.size + uniqueUnknownWords.size; // mutual-exclusive sets
 
-  const uniqueUnknownCount = Array.from(uniqueUnknownWords).filter(w => !uniqueKnownWords.has(w)).length;
-  const uniqueKnownCount = uniqueKnownWords.size;
-  const uniqueTotal = uniqueTotalWords.size;
-
-  const uniqueTotalLemmas = uniqueKnownCount + uniqueUnknownCount;
-  const knownVocabularyPct = uniqueTotalLemmas > 0 ? Math.round((uniqueKnownCount / uniqueTotalLemmas) * 100) : 0;
-  const unknownVocabularyPct = 100 - knownVocabularyPct;
+  const knownPct           = eligibleTokens > 0 ? Math.round((knownCount  / eligibleTokens) * 100) : 0;
+  const knownVocabularyPct = eligibleLemmas  > 0 ? Math.round((uniqueKnownWords.size / eligibleLemmas)  * 100) : 0;
 
   return {
     knownPct,
-    unknownPct: 100 - knownPct,
+    unknownPct:           100 - knownPct,
     knownCount,
     unknownCount,
-    uniqueKnownCount,
-    uniqueUnknownCount,
-    uniqueTotal,
+    ignoredCount,
+    uniqueKnownCount:     uniqueKnownWords.size,
+    uniqueUnknownCount:   uniqueUnknownWords.size,
+    uniqueIgnoredCount:   uniqueIgnoredWords.size,
+    uniqueTotal:          uniqueTotalWords.size,
     total,
+    eligibleTokens,
+    eligibleLemmas,
     knownVocabularyPct,
-    unknownVocabularyPct
+    unknownVocabularyPct: 100 - knownVocabularyPct,
   };
 }
 
@@ -1533,12 +1541,12 @@ function LibraryHome({
                           <div 
                             style={{ width: `${bookStats.knownVocabularyPct}%` }}
                             className="bg-emerald-500 h-full transition-all duration-300 cursor-help"
-                            title={`Словарный запас: ${bookStats.knownVocabularyPct}% (Изучено: ${bookStats.uniqueKnownCount} уникальных лемм из ${bookStats.uniqueKnownCount + bookStats.uniqueUnknownCount})`}
+                            title={`Словарный запас: ${bookStats.knownVocabularyPct}% (Изучено: ${bookStats.uniqueKnownCount} лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
                           />
                           <div 
                             style={{ width: `${bookStats.unknownVocabularyPct}%` }}
                             className="bg-sky-400 h-full transition-all duration-300 cursor-help"
-                            title={`Новых слов: ${bookStats.unknownVocabularyPct}% (Новых: ${bookStats.uniqueUnknownCount} уникальных лемм из ${bookStats.uniqueKnownCount + bookStats.uniqueUnknownCount})`}
+                            title={`Новых слов: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} новых лемм из ${bookStats.eligibleLemmas})`}
                           />
                         </>
                       ) : (
@@ -1546,58 +1554,68 @@ function LibraryHome({
                           <div 
                             style={{ width: `${bookStats.knownPct}%` }}
                             className="bg-emerald-500 h-full transition-all duration-300 cursor-help"
-                            title={`Понимание: ${bookStats.knownPct}% (Известно слов: ${bookStats.knownCount} из ${bookStats.total}, уникальных: ${bookStats.uniqueKnownCount} из ${bookStats.uniqueTotal})`}
+                            title={`Понимание: ${bookStats.knownPct}% (Известно: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению токенов)`}
                           />
                           <div 
                             style={{ width: `${bookStats.unknownPct}%` }}
                             className="bg-sky-400 h-full transition-all duration-300 cursor-help"
-                            title={`Непонимание: ${bookStats.unknownPct}% (Неизвестно слов: ${bookStats.unknownCount} из ${bookStats.total}, уникальных: ${bookStats.uniqueUnknownCount} из ${bookStats.uniqueTotal})`}
+                            title={`Непонимание: ${bookStats.unknownPct}% (Неизвестно: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов)`}
                           />
                         </>
                       )}
                     </div>
 
                     {settings?.showDetailedVocabularyStats !== false ? (
-                      <div className="flex justify-between items-start text-[9px] font-extrabold font-sans">
-                        <div className="flex flex-col text-left">
+                      <div className="flex flex-col gap-0.5 text-[9px] font-extrabold font-sans">
+                        <div className="flex justify-between items-center">
                           <span 
-                            title={`Известные слова во фрагменте: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных слов из ${bookStats.uniqueTotal})`}
-                            className="text-emerald-500 hover:underline cursor-help animate-none"
+                            title={`Известные слова: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
+                            className="text-emerald-500 hover:underline cursor-help"
                           >
-                            {t("library.understood_stat", "Understood:")} {bookStats.knownPct}% ({bookStats.knownCount} {t("library.words", "words")})
+                            {t("library.understood_stat", "Understood:")} {bookStats.knownPct}% ({bookStats.knownCount} / {bookStats.eligibleTokens} {t("library.words", "words")})
                           </span>
                           <span 
-                            title={`Процент уникального словаря: ${bookStats.knownVocabularyPct}% (${bookStats.uniqueKnownCount} уникальных лемм)`}
-                            className="text-emerald-500 dark:text-emerald-400 hover:underline cursor-help animate-none mt-0.5"
-                          >
-                            • {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}% ({bookStats.uniqueKnownCount} {t("library.unique", "unique")})
-                          </span>
-                        </div>
-                        <div className="flex flex-col text-right animate-none">
-                          <span 
-                            title={`Неизвестные или новые слова во фрагменте: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных слов из ${bookStats.uniqueTotal})`}
-                            className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
+                            title={`Неизвестные слова: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных лемм)`}
+                            className="text-sky-500 dark:text-sky-400 hover:underline cursor-help"
                           >
                             {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}% ({bookStats.unknownCount} {t("library.words", "words")})
                           </span>
+                        </div>
+                        <div className="flex justify-between items-center">
                           <span 
-                            title={`Процент незнакомых уникальных лемм: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} уникальных лемм)`}
-                            className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none mt-0.5"
+                            title={`Уникальные изученные леммы: ${bookStats.uniqueKnownCount} из ${bookStats.eligibleLemmas} подлежащих изучению`}
+                            className="text-emerald-500 dark:text-emerald-400 hover:underline cursor-help"
+                          >
+                            • {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}% ({bookStats.uniqueKnownCount} / {bookStats.eligibleLemmas} {t("library.unique", "unique")})
+                          </span>
+                          <span 
+                            title={`Новые уникальные леммы: ${bookStats.uniqueUnknownCount} из ${bookStats.eligibleLemmas}`}
+                            className="text-sky-500 dark:text-sky-400 hover:underline cursor-help"
                           >
                             • {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}% ({bookStats.uniqueUnknownCount} {t("library.unique", "unique")})
                           </span>
                         </div>
+                        {bookStats.ignoredCount > 0 && (
+                          <div className="flex justify-end">
+                            <span 
+                              title={`Пропущено как шум/имена: ${bookStats.ignoredCount} токенов, ${bookStats.uniqueIgnoredCount} уникальных лемм. Не входят в расчёт понимания.`}
+                              className="text-zinc-400 dark:text-zinc-600 hover:underline cursor-help"
+                            >
+                              • {t("library.ignored_stat", "Ignored:")} {bookStats.ignoredCount} ({bookStats.uniqueIgnoredCount} {t("library.unique", "unique")})
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="flex justify-between items-center text-[9px] font-extrabold font-sans">
                         <span 
-                          title={`Известные слова во фрагменте: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных слов из ${bookStats.uniqueTotal})`}
+                          title={`Известные слова: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению`}
                           className="text-emerald-500 hover:underline cursor-help animate-none"
                         >
                           {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
                         </span>
                         <span 
-                          title={`Неизвестные или новые слова во фрагменте: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных слов из ${bookStats.uniqueTotal})`}
+                          title={`Неизвестные слова: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов`}
                           className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
                         >
                           {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}%
