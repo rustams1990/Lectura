@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci || npm install
 COPY . .
 RUN npm run build
 # Prune node_modules to remove devDependencies after building
