@@ -19,12 +19,15 @@ RUN npm prune --omit=dev
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
-# Install python3, python-is-python3, ca-certificates and ffmpeg for yt-dlp support
+# Install python3, python-is-python3, ca-certificates, ffmpeg, and faster-whisper
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python-is-python3 \
+    python3-pip \
+    python3-venv \
     ca-certificates \
     ffmpeg \
+    && pip install --no-cache-dir --break-system-packages faster-whisper \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files

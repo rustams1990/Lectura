@@ -180,12 +180,17 @@ async function processQueue() {
 
     const pythonPath = resolvePythonExecutable();
     const workerScript = path.join(process.cwd(), "server", "whisper", "whisper_worker.py");
+    const cacheDir = path.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
 
     const workerArgs = [
       workerScript,
       tempAudioPath,
       "--model", activeItem.model || "base",
       "--threads", String(activeItem.threads || 2),
+      "--cache-dir", cacheDir,
       activeItem.vad === false ? "--no-vad" : "--vad",
     ];
 
@@ -527,6 +532,7 @@ router.get("/telemetry", async (_req: Request, res: Response) => {
 
 // 6. Check Model Cache on Disk
 router.get("/models-status", async (_req: Request, res: Response) => {
+  const cacheDir = path.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
   const models = ["tiny", "base", "small", "medium"];
   const pythonPath = resolvePythonExecutable();
   const workerScript = path.join(process.cwd(), "server", "whisper", "whisper_worker.py");
@@ -535,7 +541,7 @@ router.get("/models-status", async (_req: Request, res: Response) => {
 
   await Promise.all(models.map(async (model) => {
     return new Promise<void>((resolve) => {
-      const proc = spawn(pythonPath, [workerScript, "dummy", "--model", model, "--check-cached-only"], {
+      const proc = spawn(pythonPath, [workerScript, "dummy", "--model", model, "--cache-dir", cacheDir, "--check-cached-only"], {
         stdio: ["ignore", "pipe", "ignore"]
       });
 
