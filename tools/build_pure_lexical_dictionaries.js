@@ -2,10 +2,8 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Pure Lexical Multi-Language Dictionary Compiler
- * Uses true morphological/spelling dictionaries (Hunspell / SCOWL / LibreOffice)
- * that contain genuine vocabulary words (nouns, verbs, adjectives) and EXCLUDE
- * genuine first names (John, James, William, David, Carlos, Vladimir...).
+ * Pure Lexical Multi-Language Dictionary Compiler with Language Tracking
+ * Tracks exact languages (ES, EN, FR, DE, RU, IT, PT) for every filtered word.
  */
 
 import fs from 'fs';
@@ -21,37 +19,42 @@ if (!fs.existsSync(DICT_DIR)) {
 const SOURCES = [
   {
     lang: 'es',
-    url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/Spanish.dic',
-    fallback: 'https://raw.githubusercontent.com/words/an-array-of-spanish-words/master/index.json'
+    name: 'ES',
+    url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/Spanish.dic'
   },
   {
     lang: 'en',
+    name: 'EN',
     url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/English%20(American).dic'
   },
   {
     lang: 'fr',
+    name: 'FR',
     url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/French.dic'
   },
   {
     lang: 'de',
-    url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/German.dic'
+    name: 'DE',
+    url: 'https://raw.githubusercontent.com/wooorm/dictionaries/main/dictionaries/de/index.dic'
   },
   {
     lang: 'ru',
+    name: 'RU',
     url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/Russian.dic'
   },
   {
     lang: 'it',
+    name: 'IT',
     url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/Italian.dic'
   },
   {
     lang: 'pt',
+    name: 'PT',
     url: 'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/Portuguese%20(Brazilian).dic'
   }
 ];
 
 // Names that are 100% genuine proper names and NEVER standard vocabulary words
-// These should NEVER be in the dictionary wordlist.
 const UNAMBIGUOUS_PURE_NAMES = new Set([
   'john', 'james', 'william', 'charles', 'george', 'david', 'thomas', 'robert', 'henry', 'arthur',
   'edward', 'albert', 'samuel', 'joseph', 'richard', 'harold', 'frederick', 'walter', 'louis', 'peter',
@@ -84,7 +87,7 @@ const UNAMBIGUOUS_PURE_NAMES = new Set([
 ]);
 
 // Real dictionary words that must ALWAYS be filtered out
-const STRICT_VOCABULARY_BLACKLIST = new Set([
+const STRICT_VOCABULARY_BLACKLIST = [
   'able', 'ace', 'art', 'baron', 'best', 'bird', 'blade', 'blessing', 'blue', 'bright', 'brown', 'buddy', 'busy',
   'candy', 'case', 'cash', 'chance', 'clay', 'clear', 'cliff', 'clover', 'cook', 'counsel', 'courage', 'cross', 'crystal',
   'daily', 'danger', 'dark', 'dawn', 'day', 'deal', 'dear', 'diamond', 'divine', 'dodge', 'dream', 'duke', 'dusty',
@@ -127,7 +130,7 @@ const STRICT_VOCABULARY_BLACKLIST = new Set([
   'grande', 'chico', 'pequeno', 'alto', 'bajo', 'gordo', 'flaco', 'rubio', 'moreno', 'castano', 'cano', 'calvo', 'tuerto',
   'berry', 'cherry', 'cinnamon', 'clove', 'coco', 'ginger', 'hazel', 'honey', 'jasmine', 'lemon', 'maple', 'nutmeg', 'peach',
   'pepper', 'plum', 'rosemary', 'saffron', 'sugar', 'sweet'
-]);
+];
 
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
@@ -148,58 +151,77 @@ function downloadFile(url, dest) {
 }
 
 async function run() {
-  console.log('🔄 Сборка чистых лексических словарей (Hunspell/Morphology)...');
+  console.log('🔄 Сборка чистых лексических словарей с отслеживанием языков...');
 
-  const masterSet = new Set(STRICT_VOCABULARY_BLACKLIST);
+  // Map: word -> Set of language codes ('ES', 'EN', etc.)
+  const wordLangMap = new Map();
+
+  // 1. Add strictly blacklisted words
+  for (const w of STRICT_VOCABULARY_BLACKLIST) {
+    wordLangMap.set(w, new Set(['EN/ES']));
+  }
 
   for (const src of SOURCES) {
     const dest = path.join(DICT_DIR, `${src.lang}_hunspell.dic`);
     try {
       if (!fs.existsSync(dest) || fs.statSync(dest).size < 1000) {
-        console.log(`⏳ Скачиваем ${src.lang.toUpperCase()} Hunspell словарь...`);
+        console.log(`⏳ Скачиваем ${src.name} словарь...`);
         await downloadFile(src.url, dest);
-        console.log(`✅ ${src.lang.toUpperCase()} скачан`);
+        console.log(`✅ ${src.name} скачан`);
       }
 
       const content = fs.readFileSync(dest, 'utf-8');
       const lines = content.split(/\r?\n/);
       let count = 0;
       for (const line of lines) {
-        // Hunspell format: "word/flags"
         const raw = line.split('/')[0].trim().toLowerCase();
         if (raw && raw.length > 1 && !/^\d+$/.test(raw)) {
-          // If this token is an unambiguous pure name (like 'john', 'david', 'james'), DO NOT add it to dictionary blacklist!
           if (!UNAMBIGUOUS_PURE_NAMES.has(raw)) {
-            masterSet.add(raw);
+            let set = wordLangMap.get(raw);
+            if (!set) {
+              set = new Set();
+              wordLangMap.set(raw, set);
+            }
+            set.add(src.name);
             count++;
           }
         }
       }
-      console.log(`   + Добавлено ${count.toLocaleString()} чистых словарных слов для ${src.lang.toUpperCase()}`);
+      console.log(`   + Добавлено ${count.toLocaleString()} слов для ${src.name}`);
     } catch (e) {
-      console.warn(`⚠️ Ошибка для ${src.lang}:`, e.message);
+      console.warn(`⚠️ Ошибка для ${src.name}:`, e.message);
     }
   }
 
-  // Remove any remaining unambiguous names that might have sneaked in
+  // Remove unambiguous proper names
   UNAMBIGUOUS_PURE_NAMES.forEach(n => {
-    if (!STRICT_VOCABULARY_BLACKLIST.has(n)) {
-      masterSet.delete(n);
+    if (!STRICT_VOCABULARY_BLACKLIST.includes(n)) {
+      wordLangMap.delete(n);
     }
   });
 
-  const sortedWords = Array.from(masterSet).sort();
+  // Convert to compact JSON format: { "word": "EN, ES", ... }
+  const compactObject = {};
+  const sortedKeys = Array.from(wordLangMap.keys()).sort();
+  for (const k of sortedKeys) {
+    const langs = Array.from(wordLangMap.get(k)).sort().join(', ');
+    compactObject[k] = langs;
+  }
+
   const masterJsonPath = path.join(DICT_DIR, 'master_dictionary.json');
-  fs.writeFileSync(masterJsonPath, JSON.stringify(sortedWords), 'utf-8');
+  fs.writeFileSync(masterJsonPath, JSON.stringify(sortedKeys), 'utf-8');
 
   const masterJsPath = path.join(DICT_DIR, 'master_dictionary.js');
-  fs.writeFileSync(masterJsPath, `window.OFFLINE_DICTIONARY_SET = new Set(${JSON.stringify(sortedWords)});`, 'utf-8');
+  fs.writeFileSync(
+    masterJsPath, 
+    `window.OFFLINE_DICTIONARY_MAP = ${JSON.stringify(compactObject)};\nwindow.OFFLINE_DICTIONARY_SET = new Set(Object.keys(window.OFFLINE_DICTIONARY_MAP));`,
+    'utf-8'
+  );
 
   console.log('\n======================================================');
-  console.log(`🎉 Чистая словарная база успешно скомпилирована!`);
-  console.log(`📊 Всего уникальных словарных слов в базе: ${masterSet.size.toLocaleString()}`);
-  console.log(`✅ Имена (John, James, William, David, Carlos...) РАЗРЕШЕНЫ как имена!`);
-  console.log(`🛡️ Словарные слова (alma, almond, rose, will, may...) НАДЕЖНО ОТСЕКАЮТСЯ!`);
+  console.log(`🎉 Словарная база с языковыми метками скомпилирована!`);
+  console.log(`📊 Всего уникальных словарных слов: ${sortedKeys.length.toLocaleString()}`);
+  console.log(`📁 Файл master_dictionary.js:   ${masterJsPath}`);
   console.log('======================================================\n');
 }
 

@@ -239,9 +239,23 @@
       border: 1px solid rgba(239, 68, 68, 0.3);
       color: #fca5a5;
       font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
       font-family: monospace;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lang-pill {
+      background: #7f1d1d;
+      color: #fecaca;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      letter-spacing: 0.05em;
     }
 
     .notice {
@@ -253,6 +267,90 @@
       font-size: 12px;
       color: #93c5fd;
       line-height: 1.6;
+    }
+
+    .lang-filter-bar {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+    }
+
+    .lang-filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .lang-filter-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lang-filter-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-tiny {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-tiny:hover {
+      background: #334155;
+      color: var(--text);
+    }
+
+    .lang-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .lang-label {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .lang-label:hover {
+      border-color: #38bdf8;
+      background: #1e293b/80;
+    }
+
+    .lang-label input[type="checkbox"] {
+      accent-color: #0284c7;
+      cursor: pointer;
+      width: 14px;
+      height: 14px;
     }
   </style>
 </head>
@@ -288,6 +386,26 @@
       <div class="stat-card">
         <div class="stat-label">Устранено дубликатов</div>
         <div id="statDupes" class="stat-value warning">0</div>
+      </div>
+    </div>
+
+    <!-- Multi-Language Filter Selection -->
+    <div class="lang-filter-bar">
+      <div class="lang-filter-header">
+        <span class="lang-filter-title">🌐 Фильтровать по словарям языков:</span>
+        <div class="lang-filter-actions">
+          <button type="button" class="btn-tiny" onclick="toggleAllLangs(true)">✓ Выбрать все</button>
+          <button type="button" class="btn-tiny" onclick="toggleAllLangs(false)">✕ Снять все</button>
+        </div>
+      </div>
+      <div class="lang-checkboxes">
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="ES" checked onchange="autoReProcess()"> 🇪🇸 Испанский (ES)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="EN" checked onchange="autoReProcess()"> 🇬🇧 Английский (EN)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="FR" checked onchange="autoReProcess()"> 🇫🇷 Французский (FR)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="DE" checked onchange="autoReProcess()"> 🇩🇪 Немецкий (DE)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="RU" checked onchange="autoReProcess()"> 🇷🇺 Русский (RU)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="IT" checked onchange="autoReProcess()"> 🇮🇹 Итальянский (IT)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="PT" checked onchange="autoReProcess()"> 🇵🇹 Португальский (PT)</label>
       </div>
     </div>
 
@@ -341,7 +459,7 @@
     </div>
   </div>
 
-  <script src="dictionaries/master_dictionary.js?v=2"></script>
+  <script src="dictionaries/master_dictionary.js?v=3"></script>
   <script>
     // Comprehensive Multilingual Dictionary Blacklist
     const DICTIONARY_WORDS = new Set([
@@ -465,6 +583,26 @@
       return null;
     }
 
+    function getSelectedLanguages() {
+      const cbs = document.querySelectorAll('.lang-cb:checked');
+      const set = new Set();
+      cbs.forEach(cb => set.add(cb.value));
+      return set;
+    }
+
+    function toggleAllLangs(select) {
+      document.querySelectorAll('.lang-cb').forEach(cb => {
+        cb.checked = select;
+      });
+      autoReProcess();
+    }
+
+    function autoReProcess() {
+      if (input.value && input.value.trim().length > 0) {
+        processText();
+      }
+    }
+
     function processText() {
       const text = input.value;
       if (!text.trim()) {
@@ -472,6 +610,7 @@
         return;
       }
 
+      const selectedLangs = getSelectedLanguages();
       const lines = text.split(/\r?\n/);
       const totalLines = lines.length;
 
@@ -488,20 +627,36 @@
 
         // 1. Length <= 2
         if (lower.length <= 2) {
-          rejectedSet.add(`${name} (короткое)`);
+          rejectedSet.add(`${name} <span class="lang-pill">короткое</span>`);
           continue;
         }
 
-        // 2. Multi-Language Full Offline Dictionary (266,811 words)
-        const isOfflineDictWord = window.OFFLINE_DICTIONARY_SET && window.OFFLINE_DICTIONARY_SET.has(lower);
-        if (isOfflineDictWord || DICTIONARY_WORDS.has(lower)) {
-          rejectedSet.add(`${name} (словарное слово)`);
+        // 2. Multi-Language Full Offline Dictionary with Selective Filtering
+        const wordLangsStr = (window.OFFLINE_DICTIONARY_MAP && window.OFFLINE_DICTIONARY_MAP[lower]) || 
+                             (DICTIONARY_WORDS.has(lower) ? 'ES, EN' : '');
+        
+        let isRejectedByDict = false;
+        let matchedLangsList = [];
+
+        if (wordLangsStr) {
+          const list = wordLangsStr.split(', ');
+          matchedLangsList = list.filter(l => {
+            if (l === 'EN/ES') return selectedLangs.has('EN') || selectedLangs.has('ES');
+            return selectedLangs.has(l);
+          });
+          if (matchedLangsList.length > 0) {
+            isRejectedByDict = true;
+          }
+        }
+
+        if (isRejectedByDict) {
+          rejectedSet.add(`${name} <span class="lang-pill">${matchedLangsList.join(', ')}</span>`);
           continue;
         }
 
         // 3. Country / Demonym
         if (COUNTRIES.has(lower)) {
-          rejectedSet.add(`${name} (страна)`);
+          rejectedSet.add(`${name} <span class="lang-pill">страна</span>`);
           continue;
         }
 
@@ -526,7 +681,7 @@
         rejectedBox.style.display = 'block';
         rejectedCountText.innerText = `(всего отсеяно ${rejectedSet.size} опасных слов)`;
         
-        const preview = Array.from(rejectedSet).slice(0, 100);
+        const preview = Array.from(rejectedSet).slice(0, 150);
         rejectedTags.innerHTML = preview.map(w => `<span class="rejected-tag">🚫 ${w}</span>`).join('');
       } else {
         rejectedBox.style.display = 'none';
