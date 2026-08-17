@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+coverage
+.git
+.github
+data
+audio_cache
+image_cache
+*.log
+.env*
+!.env.example
+scratch
+21.06*
+Резервы/
+tools/dictionaries/*.dic
+tools/dictionaries/*_50k.txt
