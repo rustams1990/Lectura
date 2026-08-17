@@ -12,12 +12,14 @@ import {
   X, Check, Globe, HelpCircle, Save, RotateCcw, Trash2, Link, 
   Maximize2, Sparkles, Database, HardDrive, Download, Upload,
   Wifi, Copy, RefreshCw, TrendingUp, Headphones, Languages, AlertTriangle, UserCheck, ChevronDown, Lightbulb,
-  ArrowUp, ArrowDown, Key, Eye, EyeOff, Plus, CheckCircle2, XCircle, Loader2, Zap, Server, ShieldAlert, Cpu, ExternalLink, Activity
+  ArrowUp, ArrowDown, Key, Eye, EyeOff, Plus, CheckCircle2, XCircle, Loader2, Zap, Server, ShieldAlert, Cpu, ExternalLink, Activity,
+  Calendar, Clock
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
 import { UserAvatarDisplay } from "./ProfileModal";
-import { AIProfile } from "../types";
+import { AIProfile, DateFormatOption, TimeFormatOption } from "../types";
+import { formatDate, formatTime } from "../utils/dateUtils";
 import { 
   getOrCreateAiProfiles, testAiProfileConnection, 
   isProfileOnCooldown, getCooldownRemainingSeconds 
@@ -785,6 +787,105 @@ export default function SettingsModal({
                         </option>
                         <option value="en" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
                           🇬🇧 English
+                        </option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Regional Preferences (Date & Time Formats) */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                        {t('settings.regional_preferences', 'Regional Preferences')}
+                      </h4>
+                      {/* Live Preview Badge */}
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-[11px] font-mono font-bold text-teal-600 dark:text-teal-400 shadow-3xs">
+                        <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <span className="text-zinc-500 dark:text-zinc-400 font-sans font-normal text-[10px]">{t('settings.live_preview', 'Preview:')}</span>
+                        <span>
+                          {formatDate(new Date(), { datePref: (settings?.dateFormat as DateFormatOption) || 'auto', appLocale: i18n.language })}
+                          {' • '}
+                          {formatTime(new Date(), { timePref: (settings?.timeFormat as TimeFormatOption) || 'auto', appLocale: i18n.language })}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                      {t('settings.regional_preferences_desc', 'Date and time display formats across lists, vocabulary, and stats.')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Date Format Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      {t('settings.date_format', 'Date Format')}
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={(settings?.dateFormat as string) || "auto"}
+                        onChange={(e) => {
+                          const val = e.target.value as DateFormatOption;
+                          onSettingsChange?.({ dateFormat: val });
+                        }}
+                        aria-label="Date Format"
+                        className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold py-2.5 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition cursor-pointer shadow-3xs"
+                      >
+                        <option value="auto">
+                          {t('settings.format_auto', 'Automatic (by language)')} — {formatDate(new Date(), { datePref: 'auto', appLocale: i18n.language })}
+                        </option>
+                        <option value="DD.MM.YYYY">
+                          DD.MM.YYYY — {formatDate(new Date(), { datePref: 'DD.MM.YYYY' })}
+                        </option>
+                        <option value="DD/MM/YYYY">
+                          DD/MM/YYYY — {formatDate(new Date(), { datePref: 'DD/MM/YYYY' })}
+                        </option>
+                        <option value="MM/DD/YYYY">
+                          MM/DD/YYYY — {formatDate(new Date(), { datePref: 'MM/DD/YYYY' })}
+                        </option>
+                        <option value="YYYY-MM-DD">
+                          YYYY-MM-DD — {formatDate(new Date(), { datePref: 'YYYY-MM-DD' })}
+                        </option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Time Format Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      {t('settings.time_format', 'Time Format')}
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={(settings?.timeFormat as string) || "auto"}
+                        onChange={(e) => {
+                          const val = e.target.value as TimeFormatOption;
+                          onSettingsChange?.({ timeFormat: val });
+                        }}
+                        aria-label="Time Format"
+                        className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold py-2.5 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition cursor-pointer shadow-3xs"
+                      >
+                        <option value="auto">
+                          {t('settings.format_auto', 'Automatic (by language)')} — {formatTime(new Date(), { timePref: 'auto', appLocale: i18n.language })}
+                        </option>
+                        <option value="24h">
+                          {t('settings.time_24h', '24-hour (22:30)')} — {formatTime(new Date(), { timePref: '24h' })}
+                        </option>
+                        <option value="12h">
+                          {t('settings.time_12h', '12-hour (10:30 PM)')} — {formatTime(new Date(), { timePref: '12h' })}
                         </option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">

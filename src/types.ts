@@ -129,13 +129,18 @@ export interface ReaderSettings {
   dailyGoalMinutes?: number; // 0 means disabled, used as global fallback
   dailyGoalsByLanguage?: Record<string, number>; // Maps language code (e.g. "Spanish") to goal minutes
   onlyPatterns?: boolean; // When true, stats & known words count use Parents Only (lemmas) grouping
-  dimBookCovers?: boolean; // When true, dims book covers in library with a dark gradient overlay
+  dimBookCovers?: boolean;
   whisperModel?: "tiny" | "base" | "small" | "medium";
   whisperThreads?: number;
   whisperVad?: boolean;
   showWhisperMiniTelemetry?: boolean;
   ignoreCategories?: IgnoreCategorySettings;
+  dateFormat?: DateFormatOption;
+  timeFormat?: TimeFormatOption;
 }
+
+export type DateFormatOption = 'auto' | 'DD/MM/YYYY' | 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+export type TimeFormatOption = 'auto' | '12h' | '24h';
 
 export interface DictionaryItem {
   id: string;

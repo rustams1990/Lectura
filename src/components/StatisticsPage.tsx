@@ -37,6 +37,7 @@ import {
   Upload
 } from "lucide-react";
 import { useTranslation, Trans } from "react-i18next";
+import { formatDate, formatFriendlyDate, formatTime } from "../utils/dateUtils";
 
 interface StatisticsPageProps {
   vocab: Record<string, VocabItem>;
@@ -372,7 +373,7 @@ function StatisticsPage({
     if (customDatesCount > 0) {
       successMessage += ` У ${customDatesCount} {t('stats_page.words', 'words')} автоматически определились и применились даты из списка.`;
     } else {
-      successMessage += ` Всем установлена общая выбранная дата: ${tDate.toLocaleDateString(i18n.language.startsWith("en") ? "en-US" : "ru-RU")}.`;
+      successMessage += ` Всем установлена общая выбранная дата: ${formatDate(tDate, { datePref: readerSettings?.dateFormat, appLocale: i18n.language })}.`;
     }
 
     setProfileMessage(successMessage);
@@ -674,7 +675,7 @@ function StatisticsPage({
 
     askConfirm(
       t('stats_page.set_date_title', "Set Date for words"),
-      t('stats_page.set_date_confirm', `Set save date to "${targetDate.toLocaleDateString(i18n.language.startsWith("en") ? "en-US" : "ru-RU")}" for all ${processedVocabularyList.length} filtered words?`),
+      t('stats_page.set_date_confirm', `Set save date to "${formatDate(targetDate, { datePref: readerSettings?.dateFormat, appLocale: i18n.language })}" for all ${processedVocabularyList.length} filtered words?`),
       t('stats_page.set_date_warning', "This will set all selected words to one day with realistic time distribution throughout the day."),
       () => {
         // Use selected date but add random hour/minute/second so they don't have identical millisecond timestamps
@@ -693,7 +694,7 @@ function StatisticsPage({
           onSaveVocab?.(updated, selectedStatsLang);
         });
 
-        setProfileMessage(t('stats_page.smooth_toast', `Successfully transferred ${processedVocabularyList.length} words to ${targetDate.toLocaleDateString()}! Heatmap updated.`));
+        setProfileMessage(t('stats_page.smooth_toast', `Successfully transferred ${processedVocabularyList.length} words to ${formatDate(targetDate, { datePref: readerSettings?.dateFormat, appLocale: i18n.language })}! Heatmap updated.`));
       }
     );
   };
@@ -2705,7 +2706,7 @@ function StatisticsPage({
                             : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500"
                         }`}>
                           {w.customDate 
-                            ? `📅 ${new Date(w.customDate).toLocaleDateString("en", { day: "2-digit", month: "short", year: "numeric" })}` 
+                            ? `📅 ${formatFriendlyDate(w.customDate, { datePref: readerSettings?.dateFormat, appLocale: i18n.language })}` 
                             : t('stats_page.selected_date', "Selected date")}
                         </span>
                       </div>
@@ -3034,7 +3035,7 @@ function StatisticsPage({
                               >
                                 <span>
                                   {item.createdAt && !isNaN(new Date(item.createdAt).getTime())
-                                    ? new Date(item.createdAt).toLocaleDateString("en-US", { day: "2-digit", month: "2-digit", year: "numeric" }) 
+                                    ? formatFriendlyDate(item.createdAt, { datePref: readerSettings?.dateFormat, appLocale: i18n.language }) 
                                     : "—"}
                                 </span>
                                 <Calendar className="w-3 h-3 text-zinc-400 group-hover:text-teal-500 transition-colors" />

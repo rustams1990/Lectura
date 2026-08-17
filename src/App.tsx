@@ -511,6 +511,8 @@ export default function App() {
       mainStatsMetric: "comprehension",
       showProgressBar: true,
       dimBookCovers: false,
+      dateFormat: "auto",
+      timeFormat: "auto",
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");

@@ -16,6 +16,7 @@ import FlashcardMode from "./FlashcardMode";
 import SpellingMode from "./SpellingMode";
 import { LANGUAGES_SUPPORTED } from "../../data";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../../services/aiFailoverService";
+import { resolveLocale, formatFriendlyDate } from "../../utils/dateUtils";
 
 
 
@@ -48,7 +49,7 @@ export default function VocabularyPractice({
   onDeleteWordLink,
   lessons
 }: VocabularyPracticeProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   // Extract all active language keys that have learning words (statuses 1-5)
   const activeDeckLanguages = useMemo(() => {
@@ -935,7 +936,7 @@ export default function VocabularyPractice({
 
     // Format human-readable toast notification
     const dateObj = new Date(nextSrs.nextReviewDate);
-    const dateFormatted = dateObj.toLocaleDateString("ru-RU", {
+    const dateFormatted = dateObj.toLocaleDateString(resolveLocale(i18n.language), {
       weekday: "short",
       day: "numeric",
       month: "short",

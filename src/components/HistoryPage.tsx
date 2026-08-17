@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
+import { formatDateTime } from "../utils/dateUtils";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -562,15 +563,10 @@ function HistoryPage({
 
   const formatDate = (isoStr: string) => {
     try {
-      const d = new Date(isoStr);
-      if (isNaN(d.getTime())) return isoStr;
-      return d.toLocaleString(i18n.language.startsWith("en") ? "en-US" : "ru-RU", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
+      return formatDateTime(isoStr, {
+        datePref: readerSettings?.dateFormat,
+        timePref: readerSettings?.timeFormat,
+        appLocale: i18n.language
       });
     } catch {
       return isoStr;
