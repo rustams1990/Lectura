@@ -32,6 +32,7 @@ function setupSchema(db: Database.Database) {
       language_code TEXT NOT NULL,
       word TEXT NOT NULL,
       translation TEXT,
+      definition TEXT,
       ipa TEXT,
       grammar TEXT,
       contextRelation TEXT,
@@ -66,12 +67,14 @@ function setupSchema(db: Database.Database) {
       isArchived INTEGER DEFAULT 0,
       coverUrl TEXT,
       youtubeId TEXT,
+      localVideoUrl TEXT,
       lessonType TEXT,
       pinned INTEGER DEFAULT 0,
       translationText TEXT,
       detectedPhrases TEXT,
       difficulty TEXT,
-      difficultyExplanation TEXT
+      difficultyExplanation TEXT,
+      createdAt INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS lesson_types (
@@ -100,6 +103,8 @@ function setupSchema(db: Database.Database) {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       display_name TEXT,
+      avatarUrl TEXT,
+      passwordHint TEXT,
       created_at INTEGER
     );
 
@@ -186,26 +191,81 @@ function setupSchema(db: Database.Database) {
   }
 
   // ── Safe ADD COLUMN migrations for existing tables ───────────────────────────
+  const wordsCols = (db.prepare("PRAGMA table_info(words)").all() as any[]).map(c => c.name);
+  if (!wordsCols.includes("user_id")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (e) { console.error("Migrate words user_id error:", e); }
+  }
+  if (!wordsCols.includes("definition")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN definition TEXT;`); } catch (e) { console.error("Migrate words definition error:", e); }
+  }
+  if (!wordsCols.includes("spellingCorrectCount")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN spellingCorrectCount INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("spellingIncorrectCount")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN spellingIncorrectCount INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("spellingAccentCount")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN spellingAccentCount INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("lastSpelledCorrectly")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN lastSpelledCorrectly INTEGER;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("lastSpelledWithAccentError")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN lastSpelledWithAccentError INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("spellingExclude")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("srsNextReview")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN srsNextReview INTEGER;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("srsInterval")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN srsInterval INTEGER;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("srsEaseFactor")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN srsEaseFactor REAL;`); } catch (_) {}
+  }
+  if (!wordsCols.includes("srsRepetitions")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN srsRepetitions INTEGER;`); } catch (_) {}
+  }
 
-  // words: user_id column
-  try { db.exec(`ALTER TABLE words ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
-  // words: SRS columns
-  try { db.exec(`ALTER TABLE words ADD COLUMN spellingCorrectCount INTEGER DEFAULT 0;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN spellingIncorrectCount INTEGER DEFAULT 0;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN spellingAccentCount INTEGER DEFAULT 0;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN lastSpelledCorrectly INTEGER;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN lastSpelledWithAccentError INTEGER DEFAULT 0;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN spellingExclude INTEGER DEFAULT 0;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN srsNextReview INTEGER;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN srsInterval INTEGER;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN srsEaseFactor REAL;`); } catch (_) {}
-  try { db.exec(`ALTER TABLE words ADD COLUMN srsRepetitions INTEGER;`); } catch (_) {}
-
-  // lessons: user_id column
-  try { db.exec(`ALTER TABLE lessons ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+  // lessons: user_id, localVideoUrl, createdAt columns
+  const lessonsCols = (db.prepare("PRAGMA table_info(lessons)").all() as any[]).map(c => c.name);
+  if (!lessonsCols.includes("user_id")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("localVideoUrl")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN localVideoUrl TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("createdAt")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN createdAt INTEGER;`); } catch (_) {}
+  }
 
   // reading_history: user_id column
-  try { db.exec(`ALTER TABLE reading_history ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+  const historyCols = (db.prepare("PRAGMA table_info(reading_history)").all() as any[]).map(c => c.name);
+  if (!historyCols.includes("user_id")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+  }
+
+  // server_users & users: passwordHint and avatarUrl columns
+  const serverUsersCols = (db.prepare("PRAGMA table_info(server_users)").all() as any[]).map(c => c.name);
+  if (!serverUsersCols.includes("passwordHint")) {
+    try { db.exec(`ALTER TABLE server_users ADD COLUMN passwordHint TEXT;`); } catch (e) { console.error("Migrate server_users passwordHint error:", e); }
+  }
+  if (!serverUsersCols.includes("avatarUrl")) {
+    try { db.exec(`ALTER TABLE server_users ADD COLUMN avatarUrl TEXT;`); } catch (e) { console.error("Migrate server_users avatarUrl error:", e); }
+  }
+
+  const hasUsersTable = (db.prepare("SELECT COUNT(*) as c FROM sqlite_master WHERE type='table' AND name='users'").get() as any).c > 0;
+  if (hasUsersTable) {
+    const usersCols = (db.prepare("PRAGMA table_info(users)").all() as any[]).map(c => c.name);
+    if (!usersCols.includes("passwordHint")) {
+      try { db.exec(`ALTER TABLE users ADD COLUMN passwordHint TEXT;`); } catch (_) {}
+    }
+    if (!usersCols.includes("avatarUrl")) {
+      try { db.exec(`ALTER TABLE users ADD COLUMN avatarUrl TEXT;`); } catch (_) {}
+    }
+  }
 
   // ── Migrate words table: fix old UNIQUE(language_code, word) → UNIQUE(user_id, language_code, word) ─
   // The old constraint prevented multiple users from having the same word in the same language.
@@ -224,6 +284,7 @@ function setupSchema(db: Database.Database) {
           language_code TEXT NOT NULL,
           word TEXT NOT NULL,
           translation TEXT,
+          definition TEXT,
           ipa TEXT,
           grammar TEXT,
           contextRelation TEXT,
@@ -247,27 +308,46 @@ function setupSchema(db: Database.Database) {
       `);
       const stmtRestore = db.prepare(`
         INSERT OR IGNORE INTO words (
-          id, user_id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+          id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
           spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
           srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const restoreTx = db.transaction((words: any[]) => {
         for (const w of words) {
           stmtRestore.run(
-            w.id, w.user_id || 'default', w.language_code, w.word, w.translation, w.ipa, w.grammar, w.contextRelation,
-            w.status, w.createdAt, w.tags, w.imageUrl, w.examples,
-            w.spellingCorrectCount || 0, w.spellingIncorrectCount || 0, w.spellingAccentCount || 0,
-            w.lastSpelledCorrectly, w.lastSpelledWithAccentError || 0, w.spellingExclude || 0,
-            w.srsNextReview, w.srsInterval, w.srsEaseFactor, w.srsRepetitions
+            w.id,
+            w.user_id || "default",
+            w.language_code,
+            w.word,
+            w.translation,
+            w.definition || null,
+            w.ipa,
+            w.grammar,
+            w.contextRelation,
+            w.status,
+            w.createdAt,
+            w.tags,
+            w.imageUrl,
+            w.examples,
+            w.spellingCorrectCount || 0,
+            w.spellingIncorrectCount || 0,
+            w.spellingAccentCount || 0,
+            w.lastSpelledCorrectly,
+            w.lastSpelledWithAccentError || 0,
+            w.spellingExclude || 0,
+            w.srsNextReview || null,
+            w.srsInterval || null,
+            w.srsEaseFactor || null,
+            w.srsRepetitions || null
           );
         }
       });
       restoreTx(allWords);
-      console.log(`[DB] Words table migrated. Restored ${allWords.length} words with correct UNIQUE(user_id, language_code, word).`);
+      console.log(`[DB] Restored ${allWords.length} words with new user_id-scoped schema.`);
     }
-  } catch (e) {
-    console.error("[DB] Failed to migrate words table UNIQUE constraint:", e);
+  } catch (err) {
+    console.error("[DB] Failed to migrate words UNIQUE constraint:", err);
   }
 
   db.pragma("foreign_keys = ON");
@@ -304,8 +384,8 @@ function performLegacyFileMigration(db: Database.Database) {
         // Merge server_users
         try {
           const users = srcDb.prepare("SELECT * FROM server_users").all() as any[];
-          const stmt = db.prepare("INSERT OR IGNORE INTO server_users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)");
-          for (const u of users) stmt.run(u.id, u.email, u.password_hash, u.display_name, u.created_at);
+          const stmt = db.prepare("INSERT OR IGNORE INTO server_users (id, email, password_hash, display_name, avatarUrl, passwordHint, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+          for (const u of users) stmt.run(u.id, u.email, u.password_hash, u.display_name, u.avatarUrl || null, u.passwordHint || null, u.created_at);
         } catch (_) {}
 
         // Merge server_sessions

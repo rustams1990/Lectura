@@ -1,10 +1,11 @@
-import React from "react";
-import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
 import ReaderView from "./ReaderView";
 import WordExplainer from "./WordExplainer";
+import AiHubModal from "./AiHubModal";
 import { Lesson, HistoryEntry, ReaderSettings, VocabItem } from "../types";
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +27,7 @@ interface ReaderScreenProps {
   wordLinks: Record<string, string>;
   vocab: Record<string, VocabItem>;
   handleSaveVocabItem: (item: VocabItem) => void;
+  onSaveMultipleVocabs?: (items: VocabItem[], lang?: string) => void;
   handleDeleteVocabItem: (word: string) => void;
   handleSaveWordLink: (from: string, to: string, lang?: string) => void;
   handleDeleteWordLink: (alias: string) => void;
@@ -35,6 +37,8 @@ interface ReaderScreenProps {
   currentReaderTheme: { cardBg: string; text: string; border: string; };
   handleDetectIdioms: () => void;
   isDetectingIdioms: boolean;
+  handleAiLemmatizeText?: () => void;
+  isLemmatizingText?: boolean;
 }
 
 export default function ReaderScreen({
@@ -55,6 +59,7 @@ export default function ReaderScreen({
   wordLinks,
   vocab,
   handleSaveVocabItem,
+  onSaveMultipleVocabs,
   handleDeleteVocabItem,
   handleSaveWordLink,
   handleDeleteWordLink,
@@ -63,7 +68,9 @@ export default function ReaderScreen({
   lessons,
   currentReaderTheme,
   handleDetectIdioms,
-  isDetectingIdioms
+  isDetectingIdioms,
+  handleAiLemmatizeText,
+  isLemmatizingText
 }: ReaderScreenProps) {
   const {
     setActiveTab,
@@ -77,6 +84,9 @@ export default function ReaderScreen({
     setLayoutWidthMode
   } = useUIStore();
   const { t } = useTranslation();
+
+  const [showAiHubModal, setShowAiHubModal] = useState(false);
+  const [selectedText, setSelectedText] = useState("");
 
   return (
     <>
@@ -100,6 +110,16 @@ export default function ReaderScreen({
                     {t('reader.library_btn', 'Библиотека')}
                   </button>
 
+                  {/* AI Hub Modal Launcher */}
+                  <button
+                    onClick={() => setShowAiHubModal(true)}
+                    className="flex items-center justify-center gap-1.5 h-8 px-3 shrink-0 whitespace-nowrap bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-extrabold rounded-xl shadow-sm hover:shadow-md transition-all active:scale-97 cursor-pointer"
+                    title={t('reader.ai_hub_title', 'Открыть ИИ-Центр (Поиск выражений, сленга и анализ свойств слов)')}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{t('reader.ai_hub_btn', 'AI Hub')}</span>
+                  </button>
+
                   <button
                     onClick={() => setIsFocusMode(true)}
                     className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
@@ -117,24 +137,9 @@ export default function ReaderScreen({
                     {t('reader.pairs_btn', 'Игра: Пары')}
                   </button>
 
-                  <button
-                    onClick={handleDetectIdioms}
-                    disabled={isDetectingIdioms}
-                    className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer disabled:opacity-50"
-                    title={t('reader.detect_btn_title', 'Автоматически найти идиомы и фразовые глаголы с помощью ИИ')}
-                  >
-                    {isDetectingIdioms ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        {t('reader.detecting', 'Поиск...')}
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {t('reader.detect_btn', 'Найти идиомы')}
-                      </>
-                    )}
-                  </button>
+
+
+
 
                   <button
                     onClick={() => setShowOnlyUnknown(!showOnlyUnknown)}
@@ -261,6 +266,7 @@ export default function ReaderScreen({
                 lessonText={activeLesson?.text}
                 lessons={lessons}
                 detectedPhrases={activeLesson.detectedPhrases}
+                textLemmas={activeLesson?.text_lemmas}
                 currentLessonId={activeLesson?.id}
                 onOpenLesson={handleOpenLesson}
               />
@@ -304,6 +310,7 @@ export default function ReaderScreen({
                 lessonText={activeLesson?.text}
                 lessons={lessons}
                 detectedPhrases={activeLesson.detectedPhrases}
+                textLemmas={activeLesson?.text_lemmas}
                 currentLessonId={activeLesson?.id}
                 onOpenLesson={handleOpenLesson}
               />
@@ -311,6 +318,19 @@ export default function ReaderScreen({
           </div>
         </div>
       )}
+
+      {/* AI Hub Modal */}
+      <AiHubModal
+        isOpen={showAiHubModal}
+        onClose={() => setShowAiHubModal(false)}
+        activeLesson={activeLesson}
+        selectedText={selectedText}
+        onSaveMultipleVocabs={onSaveMultipleVocabs || ((items) => items.forEach(handleSaveVocabItem))}
+        onSaveWordLink={handleSaveWordLink}
+        readerSettings={readerSettings}
+        t={t}
+        currentReaderTheme={currentReaderTheme}
+      />
     </>
   );
 }

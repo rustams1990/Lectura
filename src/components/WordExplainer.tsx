@@ -5,31 +5,35 @@
 
 import React, { useState, useEffect, useMemo, useRef, memo } from "react";
 import { createPortal } from "react-dom";
-import { VocabItem, WordStatus, ExampleSentence, Dictionary, ReaderSettings, Lesson } from "../types";
+import { VocabItem, WordStatus, ExampleSentence, Dictionary, DictionaryItem, TabDictionaryPreferences, UserDictionaryPreferences, ReaderSettings, Lesson } from "../types";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getEffectiveLocalTtsVoice, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
 import { getSuggestedLemmas } from "../morphology";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
 import ImageSearch from "./ImageSearch";
 import AiExplainerChat from "./AiExplainerChat";
-import { BookOpen, Check, HelpCircle, Loader2, Award, Volume2, Ban, Sparkles, Tag, Plus, X, ChevronDown, ChevronUp, Trash2, Edit, ExternalLink, AppWindow, Image, Upload, Languages, Save } from "lucide-react";
+import WordNetSynsetsView from "./WordNetSynsetsView";
+import { BookOpen, Check, HelpCircle, Loader2, Award, Volume2, Ban, Sparkles, Tag, Plus, X, ChevronDown, ChevronUp, Trash2, Edit, ExternalLink, AppWindow, Image, Upload, Languages, Save, Layers, Network } from "lucide-react";
 import { useTranslation, Trans } from "react-i18next";
+import { useToast } from "../context/ToastContext";
+import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
+import { ignoreListManager } from "../services/ignoreListService";
 
 const sanitizeGrammarTag = (tag: string) => {
   if (!tag) return "";
   const tagLower = tag.toLowerCase().trim();
-  if (tagLower.includes("существительн") || tagLower === "сущ" || tagLower === "noun") return "Noun";
-  if (tagLower.includes("глагол") || tagLower === "гл" || tagLower === "verb") return "Verb";
-  if (tagLower.includes("прилагательн") || tagLower === "прил" || tagLower === "adjective" || tagLower === "adj") return "Adjective";
-  if (tagLower.includes("наречи") || tagLower === "нар" || tagLower === "adverb" || tagLower === "adv") return "Adverb";
-  if (tagLower.includes("местоимени") || tagLower === "мест" || tagLower === "pronoun" || tagLower === "pron") return "Pronoun";
-  if (tagLower.includes("предлог") || tagLower === "prep" || tagLower === "preposition") return "Preposition";
-  if (tagLower.includes("союз") || tagLower === "conj" || tagLower === "conjunction") return "Conjunction";
+  if (tagLower === "verb" || tagLower.includes("глагол") || tagLower === "гл" || tagLower.includes("auxiliary")) return "Verb";
+  if (tagLower === "noun" || tagLower.includes("существительн") || tagLower === "сущ") return "Noun";
+  if (tagLower === "adjective" || tagLower.includes("прилагательн") || tagLower === "прил" || tagLower === "adj") return "Adjective";
+  if (tagLower === "adverb" || tagLower.includes("наречи") || tagLower === "нар" || tagLower === "adv") return "Adverb";
+  if (tagLower === "pronoun" || tagLower.includes("местоимени") || tagLower === "мест" || tagLower === "pron") return "Pronoun";
+  if (tagLower === "preposition" || tagLower.includes("предлог") || tagLower === "prep") return "Preposition";
+  if (tagLower === "conjunction" || tagLower.includes("союз") || tagLower === "conj") return "Conjunction";
+  if (tagLower === "determiner" || tagLower.includes("артикль") || tagLower === "article" || tagLower === "art") return "Determiner";
   if (tagLower.includes("междомети") || tagLower === "interj" || tagLower === "interjection") return "Interjection";
-  if (tagLower.includes("артикль") || tagLower === "article" || tagLower === "art") return "Article";
   if (tagLower.includes("идиом") || tagLower === "idiom") return "Idiom";
   if (tagLower.includes("фразов") || tagLower.includes("phrasal") || tagLower === "phrasal verb") return "Phrasal Verb";
-  if (tagLower.includes("выражени") || tagLower.includes("phrase") || tagLower === "phrase") return "Phrase";
+  if (tagLower.includes("выражени") || tagLower.includes("phrase")) return "Phrase";
 
   let cleaned = tag.split(/[,\(\[\/]/)[0].trim();
   if (cleaned.length > 0) {
@@ -40,20 +44,6 @@ const sanitizeGrammarTag = (tag: string) => {
 
 const STANDARD_TAGS = ["Noun", "Verb", "Adjective", "Adverb", "Pronoun", "Preposition", "Conjunction", "Idiom", "Phrasal Verb", "Phrase"];
 
-const PRESET_POPULAR_MEANINGS: Record<string, string[]> = {
-  preocupacion: [
-    "забота",
-    "беспокойство",
-    "озабоченность",
-    "волнение",
-    "тревога"
-  ],
-  perro: ["собака", "пёс", "собачий", "кобель"],
-  gato: ["кот", "кошка", "кошачий", "домкрат"],
-  amigo: ["друг", "приятель", "товарищ", "дружеский"],
-  casa: ["дом", "жилище", "здание", "домашний"],
-};
-
 const normalizeWordString = (w: string) => {
   return w
     .toLowerCase()
@@ -62,8 +52,6 @@ const normalizeWordString = (w: string) => {
     .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()"?]/g, "")
     .trim();
 };
-
-
 
 const getLanguageReversoName = (languageName: string): string => {
   const norm = (languageName || "").toLowerCase().trim();
@@ -83,7 +71,28 @@ const getLanguageReversoName = (languageName: string): string => {
   return norm || "english";
 };
 
-const getDefaultDictionaries = (targetLanguage: string, translationLanguage: string): Dictionary[] => {
+export const sanitizeDictItem = (d: any): DictionaryItem => {
+  const isGtransOrReverso = (
+    d.name?.includes("Google") ||
+    d.name?.includes("Reverso") ||
+    d.id?.includes("gtrans") ||
+    d.id?.includes("reverso")
+  );
+  let displayType = d.displayType;
+  if (!displayType || (isGtransOrReverso && displayType === "new_tab")) {
+    displayType = "window_popup";
+  }
+  return {
+    id: d.id || `dict_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: d.name || "Dictionary",
+    urlTemplate: d.urlTemplate || "",
+    displayType: displayType || "window_popup",
+    enabled: d.enabled !== false,
+    order: typeof d.order === "number" ? d.order : undefined
+  };
+};
+
+export const getDefaultMeaningDictionaries = (targetLanguage: string, translationLanguage: string): DictionaryItem[] => {
   const sourceCode = getLanguageCode(targetLanguage);
   const targetCode = getLanguageCode(translationLanguage);
   const sourceReverso = getLanguageReversoName(targetLanguage);
@@ -92,40 +101,39 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
   if (sourceCode === "es") {
     return [
       {
-        id: "gtrans-es-en",
-        name: "Google Translate (EN)",
-        urlTemplate: "https://translate.google.com/?sl=es&tl=en&text={word}",
-        displayType: "window_popup"
+        id: "gtrans-es",
+        name: "Google Translate",
+        urlTemplate: `https://translate.google.com/?sl=es&tl=${targetCode}&text={word}`,
+        displayType: "window_popup",
+        enabled: true
       },
       {
-        id: "reverso-es-en",
+        id: "reverso-es",
         name: "Reverso Context",
-        urlTemplate: "https://context.reverso.net/translation/spanish-english/{word}",
-        displayType: "window_popup"
+        urlTemplate: `https://context.reverso.net/translation/spanish-${targetReverso}/{word}`,
+        displayType: "window_popup",
+        enabled: true
       },
       {
         id: "spanishdict",
         name: "Spanishdict",
         urlTemplate: "https://www.spanishdict.com/translate/{word}",
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
-        id: "rae",
-        name: "RAE",
-        urlTemplate: "https://dle.rae.es/{word}",
-        displayType: "window_popup"
-      },
-      {
-        id: "collins-es-en",
+        id: "collins-es",
         name: "Collins",
         urlTemplate: "https://www.collinsdictionary.com/dictionary/spanish-english/{word}",
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
-        id: "cambridge-es-en",
+        id: "cambridge-es",
         name: "Cambridge",
         urlTemplate: "https://dictionary.cambridge.org/dictionary/spanish-english/{word}",
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       }
     ];
   }
@@ -133,22 +141,25 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
   if (sourceCode === "en") {
     return [
       {
-        id: "simple-wiktionary",
-        name: "Simple Wiktionary",
-        urlTemplate: "https://simple.wiktionary.org/wiki/{word}",
-        displayType: "popup"
+        id: "gtrans-en",
+        name: "Google Translate",
+        urlTemplate: `https://translate.google.com/?sl=en&tl=${targetCode}&text={word}`,
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "reverso-en",
+        name: "Reverso Context",
+        urlTemplate: `https://context.reverso.net/translation/english-${targetReverso}/{word}`,
+        displayType: "window_popup",
+        enabled: true
       },
       {
         id: "cambridge-en",
         name: "Cambridge",
-        urlTemplate: "https://dictionary.cambridge.org/dictionary/english/{word}",
-        displayType: "window_popup"
-      },
-      {
-        id: "reverso-en-ru",
-        name: "Reverso Context (EN-RU)",
-        urlTemplate: "https://context.reverso.net/translation/english-russian/{word}",
-        displayType: "window_popup"
+        urlTemplate: `https://dictionary.cambridge.org/dictionary/english-${targetReverso}/{word}`,
+        displayType: "window_popup",
+        enabled: true
       }
     ];
   }
@@ -157,33 +168,24 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
     return [
       {
         id: "gtrans-uk",
-        name: `Google Translate (${targetCode.toUpperCase()})`,
+        name: "Google Translate",
         urlTemplate: `https://translate.google.com/?sl=uk&tl=${targetCode}&text={word}`,
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
         id: "goroh-declension",
         name: "Горох (Словозміна)",
         urlTemplate: "https://goroh.pp.ua/Словозміна/{word}",
-        displayType: "window_popup"
-      },
-      {
-        id: "goroh-definition",
-        name: "Горох (Тлумачення)",
-        urlTemplate: "https://goroh.pp.ua/Тлумачення/{word}",
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
         id: "reverso-uk",
         name: "Reverso Context",
         urlTemplate: `https://context.reverso.net/translation/ukrainian-${targetReverso}/{word}`,
-        displayType: "window_popup"
-      },
-      {
-        id: "wiktionary-uk",
-        name: "Wiktionary (UK)",
-        urlTemplate: "https://uk.wiktionary.org/wiki/{word}",
-        displayType: "popup"
+        displayType: "window_popup",
+        enabled: true
       }
     ];
   }
@@ -192,33 +194,24 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
     return [
       {
         id: "gtrans-pt",
-        name: `Google Translate (${targetCode.toUpperCase()})`,
+        name: "Google Translate",
         urlTemplate: `https://translate.google.com/?sl=pt&tl=${targetCode}&text={word}`,
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
         id: "reverso-pt",
         name: "Reverso Context",
         urlTemplate: `https://context.reverso.net/translation/portuguese-${targetReverso}/{word}`,
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
-        id: "priberam",
-        name: "Priberam (PT-PT)",
-        urlTemplate: "https://dicionario.priberam.org/{word}",
-        displayType: "window_popup"
-      },
-      {
-        id: "dicio",
-        name: "Dicio (PT-BR)",
-        urlTemplate: "https://www.dicio.com.br/{word}",
-        displayType: "window_popup"
-      },
-      {
-        id: "collins-pt-en",
+        id: "collins-pt",
         name: "Collins",
         urlTemplate: "https://www.collinsdictionary.com/dictionary/portuguese-english/{word}",
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       }
     ];
   }
@@ -227,45 +220,286 @@ const getDefaultDictionaries = (targetLanguage: string, translationLanguage: str
     return [
       {
         id: "gtrans-kk",
-        name: `Google Translate (${targetCode.toUpperCase()})`,
+        name: "Google Translate",
         urlTemplate: `https://translate.google.com/?sl=kk&tl=${targetCode}&text={word}`,
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
         id: "sozdik-kk",
         name: "Sozdik.kz",
         urlTemplate: `https://sozdik.kz/${targetCode === "ru" ? "ru" : "en"}/dictionary/translate/kk/${targetCode === "ru" ? "ru" : "en"}/{word}`,
-        displayType: "window_popup"
+        displayType: "window_popup",
+        enabled: true
       },
       {
-        id: "wiktionary-kk",
-        name: "Wiktionary (KK)",
-        urlTemplate: "https://kk.wiktionary.org/wiki/{word}",
-        displayType: "popup"
+        id: "reverso-kk",
+        name: "Reverso Context",
+        urlTemplate: `https://context.reverso.net/translation/kazakh-${targetReverso}/{word}`,
+        displayType: "window_popup",
+        enabled: true
       }
     ];
   }
 
   return [
     {
-      id: "gtrans",
-      name: `Google Translate (${targetCode.toUpperCase()})`,
+      id: "gtrans-auto",
+      name: "Google Translate",
       urlTemplate: `https://translate.google.com/?sl=${sourceCode}&tl=${targetCode}&text={word}`,
-      displayType: "new_tab"
+      displayType: "window_popup",
+      enabled: true
     },
     {
-      id: "reverso",
+      id: "reverso-auto",
       name: "Reverso Context",
       urlTemplate: `https://context.reverso.net/translation/${sourceReverso}-${targetReverso}/{word}`,
-      displayType: "new_tab"
-    },
-    {
-      id: "wiktionary",
-      name: "Wiktionary",
-      urlTemplate: `https://${sourceCode}.wiktionary.org/wiki/{word}`,
-      displayType: "popup"
+      displayType: "window_popup",
+      enabled: true
     }
   ];
+};
+
+export const getDefaultDefinitionDictionaries = (targetLanguage: string): DictionaryItem[] => {
+  const sourceCode = getLanguageCode(targetLanguage);
+
+  if (sourceCode === "es") {
+    return [
+      {
+        id: "rae-def",
+        name: "RAE (DLE)",
+        urlTemplate: "https://dle.rae.es/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "wordreference-es-def",
+        name: "WordReference (Definición)",
+        urlTemplate: "https://www.wordreference.com/definicion/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "wiktionary-es-def",
+        name: "Wikcionario (ES)",
+        urlTemplate: "https://es.wiktionary.org/wiki/{word}",
+        displayType: "popup",
+        enabled: true
+      },
+      {
+        id: "cambridge-es-def",
+        name: "Cambridge (Definición)",
+        urlTemplate: "https://dictionary.cambridge.org/dictionary/spanish/{word}",
+        displayType: "window_popup",
+        enabled: true
+      }
+    ];
+  }
+
+  if (sourceCode === "en") {
+    return [
+      {
+        id: "cambridge-en-def",
+        name: "Cambridge English",
+        urlTemplate: "https://dictionary.cambridge.org/dictionary/english/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "simple-wiktionary-def",
+        name: "Simple Wiktionary",
+        urlTemplate: "https://simple.wiktionary.org/wiki/{word}",
+        displayType: "popup",
+        enabled: true
+      },
+      {
+        id: "merriam-webster-def",
+        name: "Merriam-Webster",
+        urlTemplate: "https://www.merriam-webster.com/dictionary/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "collins-en-def",
+        name: "Collins English",
+        urlTemplate: "https://www.collinsdictionary.com/dictionary/english/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "oxford-learners-def",
+        name: "Oxford Learner's",
+        urlTemplate: "https://www.oxfordlearnersdictionaries.com/definition/english/{word}",
+        displayType: "window_popup",
+        enabled: true
+      }
+    ];
+  }
+
+  if (sourceCode === "fr") {
+    return [
+      {
+        id: "larousse-fr-def",
+        name: "Larousse",
+        urlTemplate: "https://www.larousse.fr/dictionnaires/francais/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "robert-fr-def",
+        name: "Le Robert",
+        urlTemplate: "https://dictionnaire.lerobert.com/definition/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "wiktionary-fr-def",
+        name: "Wiktionnaire (FR)",
+        urlTemplate: "https://fr.wiktionary.org/wiki/{word}",
+        displayType: "popup",
+        enabled: true
+      }
+    ];
+  }
+
+  if (sourceCode === "de") {
+    return [
+      {
+        id: "duden-de-def",
+        name: "Duden",
+        urlTemplate: "https://www.duden.de/suchen/dudenonline/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "dwds-de-def",
+        name: "DWDS",
+        urlTemplate: "https://www.dwds.de/wb/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "wiktionary-de-def",
+        name: "Wiktionary (DE)",
+        urlTemplate: "https://de.wiktionary.org/wiki/{word}",
+        displayType: "popup",
+        enabled: true
+      }
+    ];
+  }
+
+  if (sourceCode === "ru") {
+    return [
+      {
+        id: "gramota-ru-def",
+        name: "Грамота.ру",
+        urlTemplate: "https://gramota.ru/poisk?query={word}&mode=slovari",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "wiktionary-ru-def",
+        name: "Викисловарь",
+        urlTemplate: "https://ru.wiktionary.org/wiki/{word}",
+        displayType: "popup",
+        enabled: true
+      },
+      {
+        id: "academic-ru-def",
+        name: "Академик",
+        urlTemplate: "https://dic.academic.ru/searchall.php?SWord={word}",
+        displayType: "window_popup",
+        enabled: true
+      }
+    ];
+  }
+
+  if (sourceCode === "uk") {
+    return [
+      {
+        id: "goroh-uk-def",
+        name: "Горох (Тлумачення)",
+        urlTemplate: "https://goroh.pp.ua/Тлумачення/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "slovnyk-uk-def",
+        name: "Словник.ua",
+        urlTemplate: "https://slovnyk.ua/index.php?swrd={word}",
+        displayType: "window_popup",
+        enabled: true
+      },
+      {
+        id: "wiktionary-uk-def",
+        name: "Вікісловник",
+        urlTemplate: "https://uk.wiktionary.org/wiki/{word}",
+        displayType: "popup",
+        enabled: true
+      }
+    ];
+  }
+
+  return [
+    {
+      id: "wiktionary-gen-def",
+      name: "Wiktionary",
+      urlTemplate: `https://${sourceCode}.wiktionary.org/wiki/{word}`,
+      displayType: "popup",
+      enabled: true
+    }
+  ];
+};
+
+export const getDefaultDictionaries = (targetLanguage: string, translationLanguage: string): DictionaryItem[] => {
+  return getDefaultMeaningDictionaries(targetLanguage, translationLanguage);
+};
+
+export const normalizeDictionaryPreferences = (
+  raw: any,
+  targetLanguage: string,
+  translationLanguage: string
+): TabDictionaryPreferences => {
+  const defaultMeaning = getDefaultMeaningDictionaries(targetLanguage, translationLanguage);
+  const defaultDefinition = getDefaultDefinitionDictionaries(targetLanguage);
+
+  if (!raw) {
+    return { meaning: defaultMeaning, definition: defaultDefinition };
+  }
+
+  // Backward compatibility: if raw is an old flat array DictionaryItem[]
+  if (Array.isArray(raw)) {
+    const migratedMeaning = raw.map(sanitizeDictItem);
+    return {
+      meaning: migratedMeaning.length > 0 ? migratedMeaning : defaultMeaning,
+      definition: defaultDefinition
+    };
+  }
+
+  // If raw is TabDictionaryPreferences object { meaning?, definition? }
+  if (typeof raw === "object") {
+    let meaningList: DictionaryItem[] = [];
+    let definitionList: DictionaryItem[] = [];
+
+    if (Array.isArray(raw.meaning)) {
+      meaningList = raw.meaning.map(sanitizeDictItem);
+    } else {
+      meaningList = defaultMeaning;
+    }
+
+    if (Array.isArray(raw.definition)) {
+      definitionList = raw.definition.map(sanitizeDictItem);
+    } else {
+      definitionList = defaultDefinition;
+    }
+
+    return {
+      meaning: meaningList.length > 0 ? meaningList : defaultMeaning,
+      definition: definitionList.length > 0 ? definitionList : defaultDefinition
+    };
+  }
+
+  return { meaning: defaultMeaning, definition: defaultDefinition };
 };
 
 interface WordExplainerProps {
@@ -287,6 +521,7 @@ interface WordExplainerProps {
   lessonText?: string;
   lessons?: Lesson[];
   detectedPhrases?: Record<string, { translation: string; explanation: string; type?: string }>;
+  textLemmas?: Record<string, string>;
   currentLessonId?: string;
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
 }
@@ -319,15 +554,17 @@ function WordExplainer({
   lessonText,
   lessons,
   detectedPhrases,
+  textLemmas,
   currentLessonId,
   onOpenLesson,
 }: WordExplainerProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { showToast } = useToast();
   const activeSettings = settings || { readerTheme: "default" };
   const explainerThemeMap = {
     default: "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-900 dark:text-zinc-100",
-    cream: "bg-[#fcf8f2] border-[#eddcb9] text-[#3d2c16]",
-    sepia: "bg-[#f5ebd0] border-[#ebdcb3] text-[#4d3319]",
+    cream: "bg-[#fcf8f2] dark:bg-zinc-900 border-[#eddcb9] dark:border-zinc-800/80 text-[#3d2c16] dark:text-zinc-100",
+    sepia: "bg-[#f5ebd0] dark:bg-zinc-900 border-[#ebdcb3] dark:border-zinc-800/80 text-[#4d3319] dark:text-zinc-100",
     slate: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100",
   };
   const themeClasses = explainerThemeMap[activeSettings.readerTheme || "default"] || explainerThemeMap.default;
@@ -341,7 +578,6 @@ function WordExplainer({
   const [savedMeaningOpen, setSavedMeaningOpen] = useState(true);
   const [dictionariesOpen, setDictionariesOpen] = useState(true);
   const [wordVariationsOpen, setWordVariationsOpen] = useState(false);
-  const [popularMeaningsOpen, setPopularMeaningsOpen] = useState(false);
   const [relatedPhrasesOpen, setRelatedPhrasesOpen] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("vocab_related_phrases_open") !== "false";
@@ -362,9 +598,19 @@ function WordExplainer({
   const [imageOpen, setImageOpen] = useState(false);
   const [aiTabOpen, setAiTabOpen] = useState(false);
   const [examplesTabOpen, setExamplesTabOpen] = useState(false);
+  const [wordnetTabOpen, setWordnetTabOpen] = useState(false);
   const [imageUrlValue, setImageUrlValue] = useState<string | null>(null);
+  // Frequency & CEFR data state
+  const [frequencyData, setFrequencyData] = useState<{ rank?: number; cefr: string; found: boolean } | null>(null);
   // Ask AI state variables (only answer is kept in WordExplainer for saving)
   const [customAnswer, setCustomAnswer] = useState("");
+
+  const autoIgnoreInfo = useMemo(() => {
+    if (!word || existingVocab) {
+      return { isIgnored: false, categoryId: null, categoryLabelRu: "", categoryLabelEn: "", icon: "" };
+    }
+    return ignoreListManager.checkAutoIgnore(word, activeSettings, targetLanguage);
+  }, [word, existingVocab, activeSettings, targetLanguage]);
 
   const handleSelectImage = (url: string | null) => {
     setImageUrlValue(url);
@@ -372,7 +618,8 @@ function WordExplainer({
       const nextStatus = status === "new" ? "2" : status;
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
+        definition: definitionValue.trim() || existingVocab?.definition || undefined,
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -422,6 +669,8 @@ function WordExplainer({
 
   // Form states so the user can customize the definition/notes
   const [translationValue, setTranslationValue] = useState("");
+  const [definitionValue, setDefinitionValue] = useState("");
+  const [savedMeaningTab, setSavedMeaningTab] = useState<"meaning" | "definition">("meaning");
   const [ipaValue, setIpaValue] = useState("");
   const [grammarValue, setGrammarValue] = useState("");
   const [contextRelationValue, setContextRelationValue] = useState("");
@@ -465,12 +714,19 @@ function WordExplainer({
     return [];
   });
 
-  // Third-party Dictionaries State (With custom additions support and display types)
-  const [dictionaries, setDictionaries] = useState<Dictionary[]>([]);
+  // Third-party Dictionaries Preferences (Meaning & Definition separation + Multi-device sync)
+  const [dictPreferences, setDictPreferences] = useState<TabDictionaryPreferences>(() => {
+    return normalizeDictionaryPreferences(null, targetLanguage, translationLanguage);
+  });
+  const [manageDictsTab, setManageDictsTab] = useState<"meaning" | "definition">("meaning");
 
-  const activeStorageKey = useMemo(() => {
-    return `vocab_clone_dicts_${(targetLanguage || "unknown").toLowerCase()}_${(translationLanguage || "unknown").toLowerCase()}`;
+  const activeLangKey = useMemo(() => {
+    return `${(targetLanguage || "unknown").toLowerCase()}_${(translationLanguage || "unknown").toLowerCase()}`;
   }, [targetLanguage, translationLanguage]);
+
+  const activePrefsStorageKey = useMemo(() => {
+    return `vocab_clone_dict_prefs_${activeLangKey}`;
+  }, [activeLangKey]);
 
   // Auto-adjust height of saved meaning textarea
   useEffect(() => {
@@ -483,81 +739,157 @@ function WordExplainer({
 
   // Load dictionaries when target Language or translation Language changes
   useEffect(() => {
-    const saved = localStorage.getItem(activeStorageKey);
-    if (saved) {
+    // 1. Instant load from localStorage (new format or legacy format fallback)
+    const savedPrefs = localStorage.getItem(activePrefsStorageKey);
+    if (savedPrefs) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setDictionaries(
-            parsed.map((d: any) => ({
-              id: d.id,
-              name: d.name,
-              urlTemplate: d.urlTemplate,
-              displayType: d.displayType || (d.id === "wiktionary" ? "popup" : "new_tab"),
-              enabled: d.enabled !== false
-            }))
-          );
-          return;
-        }
+        const parsed = JSON.parse(savedPrefs);
+        setDictPreferences(normalizeDictionaryPreferences(parsed, targetLanguage, translationLanguage));
       } catch (err) {
-        console.error("Error parsing saved dictionaries for language:", err);
+        console.error("Error parsing saved dictionary preferences:", err);
+      }
+    } else {
+      const legacySaved = localStorage.getItem(`vocab_clone_dicts_${activeLangKey}`);
+      if (legacySaved) {
+        try {
+          const parsedLegacy = JSON.parse(legacySaved);
+          const normalized = normalizeDictionaryPreferences(parsedLegacy, targetLanguage, translationLanguage);
+          setDictPreferences(normalized);
+          safeLocalStorageSetItem(activePrefsStorageKey, JSON.stringify(normalized));
+        } catch (_) {}
+      } else {
+        setDictPreferences(normalizeDictionaryPreferences(null, targetLanguage, translationLanguage));
       }
     }
 
-    // Default to language-specific dictionaries
-    setDictionaries(getDefaultDictionaries(targetLanguage, translationLanguage));
-  }, [targetLanguage, translationLanguage, activeStorageKey]);
+    // 2. Background sync from server (multi-device sync)
+    let isMounted = true;
+    (async () => {
+      try {
+        const token = localStorage.getItem("vocab_clone_auth_token");
+        const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (syncKey) headers["x-sync-key"] = syncKey;
+
+        const res = await fetch("/api/dictionary-preferences", { headers });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.data && json.data[activeLangKey] && isMounted) {
+            const serverNormalized = normalizeDictionaryPreferences(json.data[activeLangKey], targetLanguage, translationLanguage);
+            setDictPreferences(serverNormalized);
+            safeLocalStorageSetItem(activePrefsStorageKey, JSON.stringify(serverNormalized));
+          }
+        }
+      } catch (_) {}
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [targetLanguage, translationLanguage, activePrefsStorageKey, activeLangKey]);
+
+  // Helper to open dictionary with safe URI encoding for diacritics and special characters
+  const handleOpenDictionary = (dict: DictionaryItem, wordToLookup: string) => {
+    const cleanWord = (wordToLookup || "").trim();
+    const encodedWord = encodeURIComponent(cleanWord);
+    const url = dict.urlTemplate
+      .replace(/{word}/g, encodedWord)
+      .replace(/{query}/g, encodedWord);
+
+    if (dict.displayType === "new_tab") {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else if (dict.displayType === "window_popup") {
+      window.open(
+        url,
+        `dict_win_${dict.id}`,
+        "width=900,height=650,location=no,status=no,directories=no,menubar=no,toolbar=no,scrollbars=yes,resizable=yes"
+      );
+    } else {
+      setActiveDictUrl(url);
+      setActiveDictName(dict.name);
+    }
+  };
 
   // State for dictionary management modal
   const [showManageDictsModal, setShowManageDictsModal] = useState(false);
-  const [editingDict, setEditingDict] = useState<Dictionary | null>(null);
+  const [editingDict, setEditingDict] = useState<DictionaryItem | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Form fields for dictionary creations & modifications
   const [dictFormName, setDictFormName] = useState("");
   const [dictFormUrl, setDictFormUrl] = useState("");
-  const [dictFormType, setDictFormType] = useState<"popup" | "new_tab" | "window_popup">("new_tab");
+  const [dictFormType, setDictFormType] = useState<"popup" | "new_tab" | "window_popup">("window_popup");
+
+  const currentTabDictionaries = dictPreferences[manageDictsTab] || [];
+
+  const persistDictionaryPreferences = (updated: TabDictionaryPreferences, changedTab?: "meaning" | "definition") => {
+    setDictPreferences(updated);
+    safeLocalStorageSetItem(activePrefsStorageKey, JSON.stringify(updated));
+
+    // Send granular update to server for multi-device sync
+    try {
+      const token = localStorage.getItem("vocab_clone_auth_token");
+      const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (syncKey) headers["x-sync-key"] = syncKey;
+
+      const tabToSync = changedTab || manageDictsTab;
+      fetch("/api/dictionary-preferences", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          langKey: activeLangKey,
+          tab: tabToSync,
+          dictionaries: updated[tabToSync]
+        })
+      }).catch(err => {
+        console.warn("[Dictionary Sync] Server save failed:", err);
+      });
+    } catch (_) {}
+  };
 
   const handleSaveDictionary = () => {
     if (!dictFormName.trim() || !dictFormUrl.trim()) return;
 
-    let updated: Dictionary[];
-
+    let updatedList: DictionaryItem[];
     if (editingDict) {
-      // Modify existing
-      updated = dictionaries.map((d) =>
+      updatedList = currentTabDictionaries.map((d) =>
         d.id === editingDict.id
           ? { ...d, name: dictFormName.trim(), urlTemplate: dictFormUrl.trim(), displayType: dictFormType }
           : d
       );
     } else {
-      // Create new
-      const newDict: Dictionary = {
+      const newDict: DictionaryItem = {
         id: "dict_" + Date.now(),
         name: dictFormName.trim(),
         urlTemplate: dictFormUrl.trim(),
-        displayType: dictFormType
+        displayType: dictFormType,
+        enabled: true
       };
-      updated = [...dictionaries, newDict];
+      updatedList = [...currentTabDictionaries, newDict];
     }
 
-    setDictionaries(updated);
-    safeLocalStorageSetItem(activeStorageKey, JSON.stringify(updated));
+    const nextPrefs: TabDictionaryPreferences = {
+      ...dictPreferences,
+      [manageDictsTab]: updatedList
+    };
+    persistDictionaryPreferences(nextPrefs, manageDictsTab);
 
-    // Reset/close form
     setEditingDict(null);
     setShowAddForm(false);
     setDictFormName("");
     setDictFormUrl("");
-    setDictFormType("new_tab");
+    setDictFormType("window_popup");
   };
 
-  const handleStartEditDict = (dict: Dictionary) => {
+  const handleStartEditDict = (dict: DictionaryItem) => {
     setEditingDict(dict);
     setShowAddForm(false);
     setDictFormName(dict.name);
     setDictFormUrl(dict.urlTemplate);
-    setDictFormType(dict.displayType || "new_tab");
+    setDictFormType(dict.displayType || "window_popup");
   };
 
   const handleCancelEditDict = () => {
@@ -565,24 +897,48 @@ function WordExplainer({
     setShowAddForm(false);
     setDictFormName("");
     setDictFormUrl("");
-    setDictFormType("new_tab");
+    setDictFormType("window_popup");
   };
 
   const handleDeleteDictionary = (id: string) => {
-    const updated = dictionaries.filter((d) => d.id !== id);
-    setDictionaries(updated);
-    safeLocalStorageSetItem(activeStorageKey, JSON.stringify(updated));
+    const updatedList = currentTabDictionaries.filter((d) => d.id !== id);
+    const nextPrefs: TabDictionaryPreferences = {
+      ...dictPreferences,
+      [manageDictsTab]: updatedList
+    };
+    persistDictionaryPreferences(nextPrefs, manageDictsTab);
     if (editingDict?.id === id) {
       handleCancelEditDict();
     }
   };
 
   const handleToggleDictionaryEnabled = (id: string) => {
-    const updated = dictionaries.map((d) =>
+    const updatedList = currentTabDictionaries.map((d) =>
       d.id === id ? { ...d, enabled: d.enabled === false ? true : false } : d
     );
-    setDictionaries(updated);
-    safeLocalStorageSetItem(activeStorageKey, JSON.stringify(updated));
+    const nextPrefs: TabDictionaryPreferences = {
+      ...dictPreferences,
+      [manageDictsTab]: updatedList
+    };
+    persistDictionaryPreferences(nextPrefs, manageDictsTab);
+  };
+
+  const handleResetDefaults = () => {
+    const msg = manageDictsTab === "meaning"
+      ? t('explainer.reset_meaning_dicts_confirm', "Are you sure you want to reset Meaning dictionaries to defaults?")
+      : t('explainer.reset_def_dicts_confirm', "Are you sure you want to reset Definition dictionaries to defaults?");
+
+    if (window.confirm(msg)) {
+      const defaults = manageDictsTab === "meaning"
+        ? getDefaultMeaningDictionaries(targetLanguage, translationLanguage)
+        : getDefaultDefinitionDictionaries(targetLanguage);
+
+      const nextPrefs: TabDictionaryPreferences = {
+        ...dictPreferences,
+        [manageDictsTab]: defaults
+      };
+      persistDictionaryPreferences(nextPrefs, manageDictsTab);
+    }
   };
 
   // Word link custom base targets variables
@@ -591,15 +947,129 @@ function WordExplainer({
   const linkedParentRaw = word ? (wordLinks[`${targetLanguage.toLowerCase()}_${word.toLowerCase()}`] || "") : "";
   const linkedParent = linkedParentRaw.replace(/^[a-zA-Z]+_/, "");
 
-  // Reset mapper input when word changes
+  // Word Family state
+  const [familyTabOpen, setFamilyTabOpen] = useState(false);
+  const [isGeneratingFamily, setIsGeneratingFamily] = useState(false);
+  const [familyData, setFamilyData] = useState<{ word: string; contextMeaning: string; family: { word: string; pos: string; translation: string }[] } | null>(null);
+
+  const handleGenerateWordFamily = async () => {
+    if (!word) return;
+    if (familyData && familyData.word.toLowerCase() === word.toLowerCase()) {
+      setFamilyTabOpen(!familyTabOpen);
+      return;
+    }
+    setIsGeneratingFamily(true);
+    try {
+      const profiles = getOrCreateAiProfiles(settings);
+      const data = await executeAiWithFailover(
+        profiles,
+        async (profile) => {
+          const response = await fetch("/api/analyze-word-family", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              word,
+              sentence: sentence || word,
+              targetLanguage,
+              translationLanguage,
+              aiProfile: profile,
+            })
+          });
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const err: any = new Error(errData.error || `HTTP ${response.status}`);
+            err.status = response.status;
+            throw err;
+          }
+          return response.json();
+        },
+        {
+          onFallback: (from, to) => {
+            showToast(t("settings.ai_fallback_toast", "Quota for {{from}} exceeded. Request completed via {{to}}.", { from: from.name, to: to.name }), "info");
+          }
+        }
+      );
+      setFamilyData(data);
+      setFamilyTabOpen(true);
+    } catch (err: any) {
+      console.error("Word Family Error:", err);
+    } finally {
+      setIsGeneratingFamily(false);
+    }
+  };
+
+  // Reset mapper input and load word frequency when word changes
   useEffect(() => {
     setParentWordInput("");
-  }, [word]);
+    if (!word || !word.trim() || !targetLanguage) {
+      setFrequencyData(null);
+      return;
+    }
 
-  // Suggest potential root lemmas using the morphology helpers
-  const suggestedLemmas = useMemo(() => {
-    return word ? getSuggestedLemmas(word, targetLanguage) : [];
+    const cleanWord = word.trim().toLowerCase();
+
+    let isMounted = true;
+    fetch(`/api/frequency/lookup?word=${encodeURIComponent(cleanWord)}&lang=${encodeURIComponent(targetLanguage)}`)
+      .then(res => safeJsonParse(res))
+      .then(json => {
+        if (isMounted && json && json.status === "ok" && json.data) {
+          setFrequencyData(json.data);
+        } else if (isMounted) {
+          setFrequencyData(null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setFrequencyData(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [word, targetLanguage]);
+
+  // Suggest potential root lemmas using morphology helpers & text_lemmas AI map
+  const suggestedLemmas = useMemo(() => {
+    if (!word) return [];
+    const targetNorm = word.trim().toLowerCase();
+    const langKey = `${targetLanguage.toLowerCase()}_${targetNorm}`;
+
+    // 1. Check existing wordLinks parent
+    const linkedParentRaw = wordLinks ? (wordLinks[langKey] || wordLinks[targetNorm]) : null;
+    const linkedParent = linkedParentRaw ? linkedParentRaw.replace(/^[a-zA-Z]+_/, "") : null;
+
+    // 2. Check AI pre-parsed text_lemmas (trimmed, lowercased, or raw)
+    const aiLemma = textLemmas
+      ? (textLemmas[word.trim()] || textLemmas[targetNorm] || textLemmas[word])
+      : null;
+
+    // 3. Check algorithmic morphology suggestions
+    const morphs = getSuggestedLemmas(word, targetLanguage);
+
+    const candidates = [
+      linkedParent,
+      aiLemma,
+      ...morphs
+    ];
+
+    // Filter out: empty values, duplicate forms, and the SELECTED WORD ITSELF (case-insensitive)
+    const seen = new Set<string>();
+    const filtered: string[] = [];
+
+    for (const cand of candidates) {
+      if (!cand) continue;
+      const candNorm = cand.trim().toLowerCase();
+
+      // Rule: NEVER suggest the exact selected word itself!
+      if (candNorm === targetNorm) continue;
+
+      if (!seen.has(candNorm)) {
+        seen.add(candNorm);
+        filtered.push(cand.trim());
+      }
+    }
+
+    return filtered;
+  }, [word, targetLanguage, textLemmas, wordLinks]);
 
   // Search candidates for linking
   const searchCandidates = useMemo(() => {
@@ -712,12 +1182,61 @@ function WordExplainer({
     const prevVocab = prevVocabRef.current;
     prevVocabRef.current = existingVocab || null;
 
+    // Helper: resolve the parent vocab entry using both prefixed and non-prefixed keys
+    const resolveParentVocab = (parentWord: string): VocabItem | null => {
+      if (!vocab || !parentWord) return null;
+      const langPrefix = `${targetLanguage.toLowerCase()}_`;
+      const parentLower = parentWord.toLowerCase();
+      const parentKey = parentLower.startsWith(langPrefix)
+        ? parentLower
+        : `${langPrefix}${parentLower}`;
+      return vocab[parentKey] || vocab[parentLower] || null;
+    };
+
+    // Resolve definition: own entry first, direct vocab object, then parent entry via wordLinks, then any family link
+    const resolveDefinition = (): string => {
+      if (existingVocab?.definition) return existingVocab.definition;
+
+      const wordLower = word.toLowerCase();
+      const lang = targetLanguage.toLowerCase();
+      const langPrefix = `${lang}_`;
+
+      // 1. Direct check in vocab object
+      const directVocab = vocab?.[`${langPrefix}${wordLower}`] || vocab?.[wordLower];
+      if (directVocab?.definition) return directVocab.definition;
+
+      // 2. Check parent link via wordLinks
+      const rawParentKey = wordLinks[`${langPrefix}${wordLower}`] || wordLinks[wordLower] || "";
+      const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
+      if (parentWord && parentWord !== wordLower) {
+        const parentEntry = resolveParentVocab(parentWord);
+        if (parentEntry?.definition) return parentEntry.definition;
+      }
+
+      // 3. Search across all wordLinks in family for any definition
+      if (wordLinks && vocab) {
+        for (const [fromKey, toKey] of Object.entries(wordLinks)) {
+          const cleanFrom = fromKey.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+          const cleanTo = String(toKey || "").replace(/^[a-zA-Z]+_/, "").toLowerCase();
+          if (cleanFrom === wordLower || cleanTo === wordLower) {
+            const memberVocab = vocab[`${langPrefix}${cleanTo}`] || vocab[cleanTo] || vocab[`${langPrefix}${cleanFrom}`] || vocab[cleanFrom];
+            if (memberVocab?.definition) return memberVocab.definition;
+          }
+        }
+      }
+
+      return "";
+    };
+
+    const resolvedDef = resolveDefinition();
+
     const vocabContentChanged =
       wordChanged ||
       (existingVocab === null) !== (prevVocab === null) ||
       (existingVocab && prevVocab && (
         existingVocab.word !== prevVocab.word ||
         existingVocab.translation !== prevVocab.translation ||
+        existingVocab.definition !== prevVocab.definition ||
         existingVocab.status !== prevVocab.status ||
         existingVocab.ipa !== prevVocab.ipa ||
         existingVocab.grammar !== prevVocab.grammar ||
@@ -725,14 +1244,23 @@ function WordExplainer({
         JSON.stringify(existingVocab.examples) !== JSON.stringify(prevVocab.examples) ||
         JSON.stringify(existingVocab.tags) !== JSON.stringify(prevVocab.tags) ||
         existingVocab.imageUrl !== prevVocab.imageUrl
-      ));
+      )) ||
+      (resolvedDef !== definitionValue && !internalStatusUpdateRef.current);
 
     if (!vocabContentChanged) {
       return;
     }
 
+    // Reset tab to "meaning" whenever the active word changes
+    if (wordChanged) {
+      setSavedMeaningTab("meaning");
+    }
+
     if (existingVocab) {
-      setTranslationValue(normalizeTranslationSemicolons(existingVocab.translation));
+      const rawTrans = existingVocab.translation || "";
+      const isPlaceholderTrans = !rawTrans || rawTrans === "Pending translation" || (rawTrans.startsWith("[") && rawTrans.endsWith("]"));
+      setTranslationValue(isPlaceholderTrans ? "" : normalizeTranslationSemicolons(rawTrans));
+      setDefinitionValue(resolvedDef);
       setIpaValue(existingVocab.ipa);
       const cleanGrammar = sanitizeGrammarTag(existingVocab.grammar);
       setGrammarValue(cleanGrammar);
@@ -752,6 +1280,9 @@ function WordExplainer({
       // Check if this word/phrase exists in the auto-detected idioms
       const cleanWord = word.toLowerCase();
       const detectedInfo = detectedPhrases ? (detectedPhrases[cleanWord] || detectedPhrases[word]) : null;
+
+      // Still try to resolve definition from parent even if word not yet in vocab
+      setDefinitionValue(resolvedDef);
 
       if (detectedInfo) {
         setTranslationValue(normalizeTranslationSemicolons(detectedInfo.translation));
@@ -793,7 +1324,11 @@ function WordExplainer({
         setCustomAnswer("");
         setExamplesValue([]);
         if (!internalStatusUpdateRef.current) {
-          setStatus("new");
+          if (autoIgnoreInfo.isIgnored) {
+            setStatus("ignored");
+          } else {
+            setStatus("new");
+          }
         }
         setSelectedTags(isPhrase ? ["Idiom"] : []);
         setImageUrlValue(null);
@@ -804,7 +1339,8 @@ function WordExplainer({
     if (wordChanged) {
       setError(null);
     }
-  }, [word, existingVocab, detectedPhrases]);
+  }, [word, existingVocab, detectedPhrases, vocab, wordLinks, targetLanguage]);
+
 
   // Request word translation & expansion from server API
   const handleTranslate = async () => {
@@ -813,39 +1349,56 @@ function WordExplainer({
     setError(null);
 
     try {
-      const endpoint = translationSource === "ai" ? "/api/explain" : "/api/dictionary-explain";
-      const bodyParams: any = {
-        word,
-        targetLanguage,
-        translationLanguage,
-      };
+      let data: any = null;
       if (translationSource === "ai") {
-        bodyParams.context = sentence || word;
-        bodyParams.aiProvider = settings?.aiProvider || "gemini";
-        bodyParams.localAiUrl = settings?.localAiUrl || "http://localhost:11434/api/generate";
-        bodyParams.localAiModel = settings?.localAiModel || "phi3.5";
-      } else {
-        bodyParams.source = translationSource;
-        if (translationSource === "google") {
-          bodyParams.context = sentence || word;
-        }
-      }
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyParams),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          translationSource === "ai"
-            ? "Failed to fetch translation and explanation."
-            : "No dictionary record found for this word."
+        const profiles = getOrCreateAiProfiles(settings);
+        data = await executeAiWithFailover(
+          profiles,
+          async (profile) => {
+            const response = await fetch("/api/explain", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                word,
+                context: sentence || word,
+                targetLanguage,
+                translationLanguage,
+                aiProfile: profile,
+              }),
+            });
+            if (!response.ok) {
+              const errData = await response.json().catch(() => ({}));
+              const err: any = new Error(errData.error || "Failed to fetch translation and explanation.");
+              err.status = response.status;
+              throw err;
+            }
+            return safeJsonParse(response);
+          },
+          {
+            onFallback: (from, to) => {
+              showToast(t("settings.ai_fallback_toast", "Quota for {{from}} exceeded. Request completed via {{to}}.", { from: from.name, to: to.name }), "info");
+            }
+          }
         );
+      } else {
+        const bodyParams: any = {
+          word,
+          targetLanguage,
+          translationLanguage,
+          source: translationSource,
+          context: translationSource === "google" ? (sentence || word) : undefined,
+        };
+        const response = await fetch("/api/dictionary-explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyParams),
+        });
+        if (!response.ok) {
+          throw new Error("No dictionary record found for this word.");
+        }
+        data = await safeJsonParse(response);
       }
 
-      const data = await safeJsonParse(response);
       setTranslationValue(normalizeTranslationSemicolons(data.translation || ""));
       setIpaValue(data.ipa || "");
       setGrammarValue(data.grammar || "");
@@ -863,6 +1416,7 @@ function WordExplainer({
       const newVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: data.translation || "",
+        definition: definitionValue.trim() || existingVocab?.definition || undefined,
         ipa: data.ipa || "",
         grammar: data.grammar || "",
         contextRelation: data.contextRelation || "",
@@ -887,16 +1441,12 @@ function WordExplainer({
     setContextRelationValue(answer);
 
     // Auto-populate other fields if empty
-    let currentTranslation = translationValue;
-    if (!currentTranslation || currentTranslation === "Pending translation" || currentTranslation.startsWith("[")) {
-      if (data.translation) {
-        currentTranslation = normalizeTranslationSemicolons(data.translation);
-        setTranslationValue(currentTranslation);
-      }
+    let currentTranslation = data.translation ? normalizeTranslationSemicolons(data.translation) : translationValue;
+    if (data.translation) {
+      setTranslationValue(currentTranslation);
     }
-    let currentIpa = ipaValue;
-    if (data.ipa && !currentIpa) {
-      currentIpa = data.ipa;
+    let currentIpa = data.ipa || ipaValue;
+    if (data.ipa) {
       setIpaValue(data.ipa);
     }
     let currentGrammar = grammarValue;
@@ -921,7 +1471,8 @@ function WordExplainer({
     const savedTags = currentTags.length > 0 ? currentTags : (currentGrammar ? [currentGrammar] : []);
     const newVocab: VocabItem = {
       word: word?.toLowerCase() || "",
-      translation: currentTranslation.trim() || "Pending translation",
+      translation: currentTranslation.trim() || "",
+      definition: definitionValue.trim() || existingVocab?.definition || undefined,
       ipa: currentIpa || "",
       grammar: currentGrammar || "",
       contextRelation: answer,
@@ -943,7 +1494,8 @@ function WordExplainer({
 
     const updatedVocab: VocabItem = {
       word: word.toLowerCase(),
-      translation: translationValue.trim() || "Pending translation",
+      translation: translationValue.trim() || "",
+      definition: definitionValue.trim() || existingVocab?.definition || undefined,
       ipa: ipaValue || "",
       grammar: grammarValue || "",
       contextRelation: customAnswer,
@@ -1159,6 +1711,7 @@ function WordExplainer({
     const updatedVocab: VocabItem = {
       word: word.toLowerCase(),
       translation: trimmedVal,
+      definition: definitionValue.trim() || existingVocab?.definition || undefined,
       ipa: ipaValue || "",
       grammar: grammarValue || "",
       contextRelation: contextRelationValue || "",
@@ -1178,6 +1731,50 @@ function WordExplainer({
     onDeleteVocab(word.toLowerCase());
   };
 
+  // Save definition to the parent (lemma) vocab entry, or self if no parent link
+  const handleSaveDefinition = () => {
+    if (!word) return;
+    const defVal = definitionValue.trim();
+
+    // Determine the target word: parent (lemma) if linked, otherwise the word itself
+    const wordLower = word.toLowerCase();
+    const langKey = targetLanguage.toLowerCase();
+    const rawParentKey = wordLinks[`${langKey}_${wordLower}`] || wordLinks[wordLower] || "";
+    const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
+    const targetWord = (parentWord && parentWord !== wordLower) ? parentWord : wordLower;
+
+    // Resolve the target vocab entry with prefixed/non-prefixed fallback
+    const langPrefix = `${langKey}_`;
+    const prefixedKey = `${langPrefix}${targetWord}`;
+    const existingTarget: VocabItem | null | undefined =
+      vocab?.[prefixedKey] || vocab?.[targetWord] || null;
+
+    if (existingTarget) {
+      // Update definition on existing entry; set to undefined when empty (clean removal)
+      onSaveVocab({
+        ...existingTarget,
+        definition: defVal || undefined,
+      });
+    } else if (defVal) {
+      // Parent word or new word not yet in vocab → create entry with status "2"
+      const newParentVocab: VocabItem = {
+        word: targetWord,
+        translation: (targetWord === wordLower && translationValue) ? translationValue.trim() : "",
+        definition: defVal,
+        ipa: (targetWord === wordLower && ipaValue) ? ipaValue : "",
+        grammar: (targetWord === wordLower && grammarValue) ? grammarValue : "",
+        contextRelation: (targetWord === wordLower && contextRelationValue) ? contextRelationValue : "",
+        status: status === "new" ? "2" : status,
+        examples: (targetWord === wordLower && examplesValue) ? examplesValue : [],
+        createdAt: Date.now(),
+        tags: (targetWord === wordLower && selectedTags) ? selectedTags : [],
+      };
+      if (status === "new") setStatus("2");
+      onSaveVocab(newParentVocab);
+    }
+  };
+
+
   const handleUpdateStatus = (newStatus: WordStatus) => {
     if (!word) return;
     // Mark that this status change was initiated by the user,
@@ -1190,7 +1787,8 @@ function WordExplainer({
     } else {
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || existingVocab?.translation || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : ""),
+        definition: definitionValue.trim() || existingVocab?.definition || undefined,
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1218,7 +1816,8 @@ function WordExplainer({
       }
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || existingVocab?.translation || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
+        definition: definitionValue.trim() || existingVocab?.definition || undefined,
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1241,6 +1840,14 @@ function WordExplainer({
       const updated = [...customTags, capitalized];
       setCustomTags(updated);
       safeLocalStorageSetItem("vocab_clone_custom_tags", JSON.stringify(updated));
+      try {
+        const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+        const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (syncKey) headers["x-sync-key"] = syncKey;
+        fetch("/api/user-metadata", { method: "PUT", headers, body: JSON.stringify({ customTags: updated }) }).catch(() => {});
+      } catch (_) {}
     }
     
     const updatedTags = selectedTags.includes(capitalized)
@@ -1257,7 +1864,8 @@ function WordExplainer({
       }
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || existingVocab?.translation || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
+        definition: definitionValue.trim() || existingVocab?.definition || undefined,
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1276,6 +1884,14 @@ function WordExplainer({
     const updated = customTags.filter((t) => t !== tag);
     setCustomTags(updated);
     safeLocalStorageSetItem("vocab_clone_custom_tags", JSON.stringify(updated));
+    try {
+      const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+      const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (syncKey) headers["x-sync-key"] = syncKey;
+      fetch("/api/user-metadata", { method: "PUT", headers, body: JSON.stringify({ customTags: updated }) }).catch(() => {});
+    } catch (_) {}
     
     const updatedTags = selectedTags.filter((t) => t !== tag);
     setSelectedTags(updatedTags);
@@ -1287,7 +1903,8 @@ function WordExplainer({
       }
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
-        translation: translationValue.trim() || existingVocab?.translation || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+        translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
+        definition: definitionValue.trim() || existingVocab?.definition || undefined,
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1319,75 +1936,6 @@ function WordExplainer({
 
   // Calculate coins based on active status level (represented in VocabItem as the yellow coins score award)
   const coinCount = status === "1" ? "1" : status === "2" ? "2" : status === "3" ? "3" : status === "4" ? "4" : status === "5" ? "5" : status === "known" ? "Check" : "1";
-
-  // Parse list of popular meaning alternatives (merging normalize preset and split translations)
-  const popularMeanings = () => {
-    const list: string[] = [];
-    const normalized = normalizeWordString(word);
-    
-    // Preset values for high-fidelity screenshots matching
-    if (PRESET_POPULAR_MEANINGS[normalized]) {
-      list.push(...PRESET_POPULAR_MEANINGS[normalized]);
-    }
-    
-    // Split current translated value if any
-    if (translationValue && translationValue !== "Pending translation" && !translationValue.startsWith("[")) {
-      const splitItems = translationValue
-        .split(/[;\n]+/)
-        .map((s) => s.trim())
-        .filter((s) => {
-          if (!s) return false;
-          // Filter out grammatical placeholders that have no real explanation characters
-          const clean = s.replace(/\([^)]*\)/g, "").replace(/\b(noun|verb|adj|adjective|adv|adverb|pronoun|prep|conjunction|countable|uncountable)\b/gi, "").trim();
-          return clean.length >= 2 && !list.includes(s) && !s.includes("Pending translation") && !s.includes("[Demo Translation]");
-        });
-      list.push(...splitItems);
-    }
-
-    // Default suggestions if list is empty
-    if (list.length === 0) {
-      if (loading) {
-        list.push("searching for meaning...", "loading...");
-      } else {
-        list.push(t('explainer.loading_lower', "loading..."), t('explainer.searching_meaning', "searching for meaning..."));
-      }
-    }
-    return list;
-  };
-
-  const handleSelectPopularMeaning = (meaning: string) => {
-    if (meaning === t('explainer.loading_lower', "загрузка...") || meaning === t('explainer.searching_meaning', "поиск значения...") || meaning === "загрузка..." || meaning === "поиск значения..." || meaning === "searching for meaning..." || meaning === "loading...") return;
-    
-    let newTranslation = translationValue.trim();
-    if (!newTranslation || newTranslation === "Pending translation" || newTranslation.startsWith("[")) {
-      newTranslation = meaning;
-    } else {
-      const parts = newTranslation.split(/[;\n]+/).map((s) => s.trim().toLowerCase());
-      if (!parts.includes(meaning.toLowerCase())) {
-        newTranslation = `${newTranslation}; ${meaning}`;
-      }
-    }
-    
-    setTranslationValue(newTranslation);
-    
-    // Save instantly inside status learning level 2
-    const nextStatus = status === "new" ? "2" : status;
-    if (status === "new") setStatus("2");
-    
-    const updatedVocab: VocabItem = {
-      word: word.toLowerCase(),
-      translation: newTranslation,
-      ipa: ipaValue || "",
-      grammar: grammarValue || "",
-      contextRelation: contextRelationValue || "",
-      status: nextStatus,
-      examples: examplesValue,
-      createdAt: existingVocab ? existingVocab.createdAt : Date.now(),
-      tags: selectedTags,
-      imageUrl: imageUrlValue,
-    };
-    onSaveVocab(updatedVocab);
-  };
 
 
 
@@ -1502,6 +2050,25 @@ function WordExplainer({
               <h3 className="text-lg font-bold text-inherit capitalize tracking-tight leading-tight truncate select-all">
                 {word}
               </h3>
+              {(() => {
+                const langKey = targetLanguage.toLowerCase();
+                const rawParentKey = wordLinks[`${langKey}_${word.toLowerCase()}`] || (wordLinks[word.toLowerCase()] ? wordLinks[word.toLowerCase()] : null);
+                if (rawParentKey) {
+                  const cleanParentWord = rawParentKey.replace(/^[a-zA-Z]+_/, "").trim();
+                  if (cleanParentWord.toLowerCase() !== word.toLowerCase()) {
+                    const parentVocab = vocab ? (vocab[`${langKey}_${cleanParentWord.toLowerCase()}`] || vocab[cleanParentWord.toLowerCase()]) : null;
+                    const parentTrans = parentVocab?.translation;
+                    return (
+                      <span className="inline-flex items-center gap-1 text-[12px] font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
+                        <span className="text-zinc-400 dark:text-zinc-500 font-normal">{t('explainer.from_word', 'from')}</span>
+                        <span className="font-bold text-teal-600 dark:text-teal-400 capitalize">{cleanParentWord}</span>
+                        {parentTrans && <span className="text-zinc-400 dark:text-zinc-500 font-normal">— {parentTrans}</span>}
+                      </span>
+                    );
+                  }
+                }
+                return null;
+              })()}
               {!existingVocab && detectedPhrases && word && (detectedPhrases[word.toLowerCase()] || detectedPhrases[word]) && (
                 <span className="text-[8px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-900 px-1.5 py-0.5 rounded leading-none shrink-0 select-none animate-pulse">
                   {t('explainer.ai_recommends', 'AI Recommends')}
@@ -1510,7 +2077,9 @@ function WordExplainer({
             </div>
             {ipaValue && (
               <span className="text-[10px] font-mono text-teal-600 dark:text-teal-400 font-semibold tracking-wider block mt-0.5">
-                {ipaValue}
+                {targetLanguage.toLowerCase() === "english" 
+                  ? ipaValue 
+                  : `IPA: ${ipaValue.replace(/US:\s*/gi, "").replace(/UK:\s*/gi, "").split("|")[0].trim()}`}
               </span>
             )}
             {componentWords.length > 1 && (
@@ -1597,7 +2166,7 @@ function WordExplainer({
               const nextStatus = status === "new" ? "2" : status;
               const updatedVocab = {
                 word: word.toLowerCase(),
-                translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : "Pending translation"),
+                translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
                 ipa: ipaValue || "",
                 grammar: newVal,
                 contextRelation: contextRelationValue || "",
@@ -1626,6 +2195,55 @@ function WordExplainer({
             <option value={grammarValue}>{grammarValue}</option>
           )}
         </select>
+
+        {/* Auto-Ignore Category Badge */}
+        {autoIgnoreInfo.isIgnored && !existingVocab && (
+          <span
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0"
+            title={t('ignore_lists.auto_ignored_tooltip', 'Слово автоматически скрыто правилами фильтрации. Вы можете в 1 клик сделать его изучаемым, выбрав любой статус.')}
+          >
+            <span>{autoIgnoreInfo.icon || "🛡️"}</span>
+            <span>
+              {autoIgnoreInfo.categoryId
+                ? `${t('ignore_lists.auto_ignored_badge', 'Игнор')}: ${autoIgnoreInfo.shortNameKey ? t(autoIgnoreInfo.shortNameKey, autoIgnoreInfo.shortNameRu) : (i18n?.language?.startsWith("ru") ? autoIgnoreInfo.shortNameRu : autoIgnoreInfo.shortNameEn)}`
+                : t('ignore_lists.auto_ignored_badge', 'Игнор')}
+            </span>
+          </span>
+        )}
+
+        {/* Frequency Rank & CEFR Level Badge (Hidden for ignored words / names) */}
+        {frequencyData && status !== "ignored" && (
+          <span
+            className={`px-1.5 py-0.5 rounded-md text-[9.5px] font-black border tracking-tight flex items-center gap-1 transition-all ${
+              frequencyData.cefr === "A1"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50"
+                : frequencyData.cefr === "A2"
+                ? "bg-teal-50 text-teal-700 border-teal-200/70 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/50"
+                : frequencyData.cefr === "B1"
+                ? "bg-amber-50 text-amber-700 border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50"
+                : frequencyData.cefr === "B2"
+                ? "bg-orange-50 text-orange-700 border-orange-200/70 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/50"
+                : frequencyData.cefr === "C1"
+                ? "bg-purple-50 text-purple-700 border-purple-200/70 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/50"
+                : frequencyData.cefr === "C2"
+                ? "bg-indigo-50 text-indigo-700 border-indigo-200/70 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/50"
+                : "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
+            }`}
+            title={
+              frequencyData.found && frequencyData.rank
+                ? t("frequency.rank_tooltip", `Частотный ранг: #${frequencyData.rank.toLocaleString()} из 50,000 (Уровень ${frequencyData.cefr})`, { rank: frequencyData.rank.toLocaleString(), cefr: frequencyData.cefr })
+                : t("frequency.rare_tooltip", "Редкое слово / Имя собственное / Термин")
+            }
+          >
+            <span>{frequencyData.cefr === "A1" ? "🔥" : frequencyData.cefr === "A2" ? "⚡" : frequencyData.cefr === "B1" ? "📊" : frequencyData.cefr === "B2" ? "🎯" : frequencyData.cefr === "C1" ? "💎" : frequencyData.cefr === "C2" ? "👑" : "⚪"}</span>
+            <span>
+              {frequencyData.found && frequencyData.rank 
+                ? `#${frequencyData.rank > 999 ? (frequencyData.rank / 1000).toFixed(1) + "k" : frequencyData.rank} • ${frequencyData.cefr}`
+                : frequencyData.cefr.toUpperCase()
+              }
+            </span>
+          </span>
+        )}
 
         {/* Tag+ button to expand/toggle custom categorization tags list */}
         <button
@@ -1672,6 +2290,7 @@ function WordExplainer({
             setTagsOpen(false);
             setImageOpen(false);
             setExamplesTabOpen(false);
+            setFamilyTabOpen(false);
           }}
           className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
             aiTabOpen
@@ -1683,6 +2302,59 @@ function WordExplainer({
           <span>AI+</span>
         </button>
 
+        {/* Family+ button for Word Family generation */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!familyTabOpen && (!familyData || familyData.word.toLowerCase() !== word?.toLowerCase())) {
+              handleGenerateWordFamily();
+            } else {
+              setFamilyTabOpen(!familyTabOpen);
+            }
+            setTagsOpen(false);
+            setImageOpen(false);
+            setAiTabOpen(false);
+            setExamplesTabOpen(false);
+          }}
+          disabled={isGeneratingFamily}
+          className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
+            familyTabOpen
+              ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
+              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+          }`}
+        >
+          {isGeneratingFamily ? (
+            <Loader2 className="w-2.5 h-2.5 animate-spin text-teal-500" />
+          ) : (
+            <Layers className="w-2.5 h-2.5" />
+          )}
+          <span>Family+</span>
+        </button>
+
+        {/* WN+ button for WordNet Semantic Network (English only or general) */}
+        {targetLanguage.toLowerCase().startsWith("en") && (
+          <button
+            type="button"
+            onClick={() => {
+              setWordnetTabOpen(!wordnetTabOpen);
+              setTagsOpen(false);
+              setImageOpen(false);
+              setAiTabOpen(false);
+              setFamilyTabOpen(false);
+              setExamplesTabOpen(false);
+            }}
+            className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
+              wordnetTabOpen
+                ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
+                : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
+            }`}
+            title="WordNet Semantic Synsets & Network"
+          >
+            <Network className="w-2.5 h-2.5" />
+            <span>WN+</span>
+          </button>
+        )}
+
         {/* Ctx+ button to toggle example usages panel */}
         {examplesValue.length > 0 && (
           <button
@@ -1692,6 +2364,8 @@ function WordExplainer({
               setTagsOpen(false);
               setImageOpen(false);
               setAiTabOpen(false);
+              setFamilyTabOpen(false);
+              setWordnetTabOpen(false);
             }}
             className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
               examplesTabOpen
@@ -1708,99 +2382,414 @@ function WordExplainer({
       {/* Collapsible Section Layout Block */}
       <div className="space-y-2 overflow-y-auto pr-0.5 flex-1 scrollbar-thin dark:dark-scrollbar max-h-[calc(100vh-210px)]">
 
-        {/* 1. Saved Meaning Container */}
-        {!imageOpen && !aiTabOpen && (
-          <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-visible bg-zinc-50/40 dark:bg-zinc-950/20">
-          <button
-            onClick={() => setSavedMeaningOpen(!savedMeaningOpen)}
-            className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
-          >
-            <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-500 font-extrabold font-sans">Saved Meaning</span>
-            {savedMeaningOpen ? <ChevronUp className="w-3 h-3 text-zinc-400" /> : <ChevronDown className="w-3 h-3 text-zinc-400" />}
-          </button>
+        {/* Word Family Panel */}
+        {familyTabOpen && familyData && (
+          <div className="border border-teal-200 dark:border-teal-900/50 rounded-xl p-3 bg-teal-50/30 dark:bg-teal-950/20 space-y-2 font-sans animate-in fade-in duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 dark:text-teal-400 font-sans flex items-center gap-1">
+                <Layers className="w-3 h-3" /> Word Family (Contextual Roots)
+              </span>
+              <button onClick={() => setFamilyTabOpen(false)} className="text-zinc-400 hover:text-zinc-600 cursor-pointer">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-          {savedMeaningOpen && (
-            <div className="p-2.5 pt-0 border-t border-zinc-100/70 dark:border-zinc-800 space-y-2">
-              <div className="flex items-start gap-1.5 mt-1.5">
-                <textarea
-                  ref={meaningTextareaRef}
-                  value={translationValue}
-                  onChange={(e) => setTranslationValue(e.target.value)}
-                  onBlur={handleSaveCustom}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                      e.preventDefault();
-                      handleSaveCustom();
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  placeholder="Type a new meaning here..."
-                  rows={1}
-                  className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[34px] overflow-hidden"
-                />
-                {translationValue && translationValue !== "Pending translation" && !translationValue.startsWith("[") && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteTranslation}
-                    title={t('explainer.delete_translation_title', 'Delete translation')}
-                    className="p-2 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-650 dark:text-red-400 border border-red-100/50 dark:border-red-900/50 rounded-lg transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0 flex items-center justify-center self-stretch"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+            {familyData.contextMeaning && (
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 italic">
+                Meaning in context: "{familyData.contextMeaning}"
+              </p>
+            )}
 
-              {/* Dictionaries Section integrated directly in Saved Meaning Card */}
-              <div className="space-y-1.5 pt-0.5">
-                <div className="flex items-center justify-between text-xs font-sans">
-                  <button
-                    type="button"
-                    onClick={() => setDictionariesOpen(!dictionariesOpen)}
-                    className="font-extrabold uppercase tracking-widest text-[8px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
-                  >
-                    <BookOpen className="w-2.5 h-2.5 text-teal-600/80" /> Dictionaries
-                  </button>
+            <div className="space-y-1.5 pt-1">
+              {familyData.family.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/60 shadow-3xs"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-xs text-zinc-800 dark:text-zinc-200 capitalize">
+                        {item.word}
+                      </span>
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                        {item.pos}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {item.translation}
+                    </p>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => {
-                      setShowManageDictsModal(true);
-                      handleCancelEditDict();
+                      if (word) {
+                        onSaveWordLink(word.toLowerCase(), item.word.toLowerCase());
+                      }
                     }}
-                    className="text-[9px] font-bold text-teal-600 hover:text-teal-700 hover:underline cursor-pointer focus:outline-none"
+                    className="px-2 py-1 text-[10px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-600 dark:text-teal-400 hover:bg-teal-100 rounded-md border border-teal-200/50 cursor-pointer"
                   >
-                    Manage &gt;
+                    Link 🔗
                   </button>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-                {dictionariesOpen && (
-                  <div className="flex flex-wrap gap-1 pt-0.5">
-                    {dictionaries.filter((d) => d.enabled !== false).map((dict) => (
+        {/* WordNet Semantic Network Dedicated Tab (WN+) */}
+        {wordnetTabOpen && word && (
+          <div className="animate-in fade-in duration-200">
+            <WordNetSynsetsView
+              word={(isLinked && linkedParent) ? linkedParent : word}
+              onApplyDefinition={(def, posName) => {
+                setDefinitionValue(def);
+                
+                // Map WordNet POS to standard grammar tag (Noun, Verb, Adjective, Adverb)
+                const posToGrammarMap: Record<string, string> = {
+                  noun: "Noun",
+                  verb: "Verb",
+                  adjective: "Adjective",
+                  adverb: "Adverb"
+                };
+                const newGrammar = (posName && posToGrammarMap[posName]) ? posToGrammarMap[posName] : grammarValue;
+                if (newGrammar) {
+                  setGrammarValue(newGrammar);
+                }
+                const updatedTags = (newGrammar && !selectedTags.includes(newGrammar)) 
+                  ? [...selectedTags, newGrammar] 
+                  : selectedTags;
+                if (newGrammar && !selectedTags.includes(newGrammar)) {
+                  setSelectedTags(updatedTags);
+                }
+
+                if (!word) return;
+                const wordLower = word.toLowerCase();
+                const langKey = targetLanguage.toLowerCase();
+                const rawParentKey = wordLinks[`${langKey}_${wordLower}`] || wordLinks[wordLower] || "";
+                const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
+                const targetWord = (parentWord && parentWord !== wordLower) ? parentWord : wordLower;
+                const langPrefix = `${langKey}_`;
+                const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || null;
+                const nextStatus = status === "new" ? "2" : status;
+                if (status === "new") setStatus("2");
+
+                if (existingTarget) {
+                  onSaveVocab({ 
+                    ...existingTarget, 
+                    definition: def.trim(),
+                    grammar: newGrammar || existingTarget.grammar,
+                    tags: updatedTags
+                  });
+                } else {
+                  const newVocab: VocabItem = {
+                    word: targetWord,
+                    translation: translationValue.trim() || "",
+                    definition: def.trim(),
+                    ipa: ipaValue || "",
+                    grammar: newGrammar || "",
+                    contextRelation: contextRelationValue || "",
+                    status: nextStatus,
+                    examples: examplesValue,
+                    createdAt: Date.now(),
+                    tags: updatedTags,
+                    imageUrl: imageUrlValue,
+                  };
+                  onSaveVocab(newVocab);
+                }
+              }}
+              onApplySynonym={(syn) => {
+                if (onWordClick) onWordClick(syn, sentence || "");
+              }}
+              onWordClick={(w) => {
+                if (onWordClick) onWordClick(w, sentence || "");
+              }}
+            />
+          </div>
+        )}
+
+        {/* 1. Saved Meaning Container */}
+        {!imageOpen && !aiTabOpen && (
+          <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-visible bg-zinc-50/40 dark:bg-zinc-950/20">
+          <div className="px-2.5 py-1.5 flex items-center justify-between gap-2">
+            {/* Tabs: Meaning / Definition */}
+            <div className="flex items-center gap-0.5 bg-zinc-100/80 dark:bg-zinc-800/60 rounded-lg p-0.5">
+              <button
+                type="button"
+                onClick={() => { setSavedMeaningTab("meaning"); if (!savedMeaningOpen) setSavedMeaningOpen(true); }}
+                className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+                  savedMeaningTab === "meaning"
+                    ? "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 shadow-3xs"
+                    : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
+                }`}
+              >
+                {t('explainer.tab_meaning', 'Meaning')}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSavedMeaningTab("definition"); if (!savedMeaningOpen) setSavedMeaningOpen(true); }}
+                className={`relative px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+                  savedMeaningTab === "definition"
+                    ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                    : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
+                }`}
+              >
+                {t('explainer.tab_definition', 'Definition')}
+                {definitionValue && (
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-teal-500 border border-white dark:border-zinc-900" />
+                )}
+              </button>
+            </div>
+            {/* Collapse toggle */}
+            <button
+              type="button"
+              onClick={() => setSavedMeaningOpen(!savedMeaningOpen)}
+              className="p-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors cursor-pointer"
+            >
+              {savedMeaningOpen ? <ChevronUp className="w-3 h-3 text-zinc-400" /> : <ChevronDown className="w-3 h-3 text-zinc-400" />}
+            </button>
+          </div>
+
+          {savedMeaningOpen && (
+            <div className="p-2.5 pt-0 border-t border-zinc-100/70 dark:border-zinc-800 space-y-2">
+              {savedMeaningTab === "meaning" ? (
+                <div className="flex items-start gap-1.5 mt-1.5">
+                  <textarea
+                    ref={meaningTextareaRef}
+                    value={translationValue}
+                    onChange={(e) => setTranslationValue(e.target.value)}
+                    onBlur={handleSaveCustom}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleSaveCustom();
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    placeholder={t('explainer.meaning_placeholder', 'Type a meaning for this form...')}
+                    rows={1}
+                    className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[34px] overflow-hidden"
+                  />
+                  {translationValue && translationValue !== "Pending translation" && !translationValue.startsWith("[") && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteTranslation}
+                      title={t('explainer.delete_translation_title', 'Delete translation')}
+                      className="p-2 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-650 dark:text-red-400 border border-red-100/50 dark:border-red-900/50 rounded-lg transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0 flex items-center justify-center self-stretch"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                /* Definition tab */
+                <div className="mt-1.5 space-y-1.5">
+                  {isLinked && (
+                    <div className="flex items-center gap-1 text-[9px] text-teal-600 dark:text-teal-400 font-bold">
+                      <span>📖</span>
+                      <span>{t('explainer.definition_for_lemma', 'Definition for root:')}</span>
+                      <span className="capitalize font-extrabold">{linkedParent}</span>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-1.5">
+                    <textarea
+                      value={definitionValue}
+                      onChange={(e) => setDefinitionValue(e.target.value)}
+                      onBlur={handleSaveDefinition}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          handleSaveDefinition();
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder={t('explainer.definition_placeholder', 'Type definition for parent word...')}
+                      rows={2}
+                      className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-teal-200/60 dark:border-teal-900/40 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[52px] overflow-hidden italic"
+                    />
+                    {definitionValue && (
                       <button
-                        key={dict.id}
                         type="button"
                         onClick={() => {
-                          const url = dict.urlTemplate.replace("{word}", encodeURIComponent(word || ""));
-                          if (dict.displayType === "new_tab") {
-                            window.open(url, "_blank", "noopener,noreferrer");
-                          } else if (dict.displayType === "window_popup") {
-                            window.open(
-                              url,
-                              `dict_win_${dict.id}`,
-                              "width=900,height=650,location=no,status=no,directories=no,menubar=no,toolbar=no,scrollbars=yes,resizable=yes"
-                            );
-                          } else {
-                            setActiveDictUrl(url);
-                            setActiveDictName(dict.name);
+                          setDefinitionValue("");
+                          // Call save directly with empty string so we don't rely on async state
+                          if (!word) return;
+                          const wordLower = word.toLowerCase();
+                          const langKey = targetLanguage.toLowerCase();
+                          const rawParentKey = wordLinks[`${langKey}_${wordLower}`] || wordLinks[wordLower] || "";
+                          const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
+                          const targetWord = (parentWord && parentWord !== wordLower) ? parentWord : wordLower;
+                          const langPrefix = `${langKey}_`;
+                          const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || null;
+                          if (existingTarget) {
+                            const { definition: _removed, ...rest } = existingTarget;
+                            onSaveVocab({ ...rest, definition: undefined });
                           }
                         }}
-                        className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 px-2 py-0.5 rounded-md text-[9px] font-bold text-zinc-600 dark:text-zinc-300 transition-all flex items-center gap-1 cursor-pointer"
+                        title={t('explainer.delete_definition_title', 'Delete definition')}
+                        className="p-2 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-650 dark:text-red-400 border border-red-100/50 dark:border-red-900/50 rounded-lg transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0 flex items-center justify-center self-stretch"
                       >
-                        <span>{dict.name}</span>
+                        <Trash2 className="w-4 h-4" />
                       </button>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
+
+                  {/* Definition Dictionaries Section */}
+                  <div className="space-y-1.5 pt-1.5 border-t border-zinc-100/40 dark:border-zinc-800/40 mt-1">
+                    <div className="flex items-center justify-between text-xs font-sans">
+                      <button
+                        type="button"
+                        onClick={() => setDictionariesOpen(!dictionariesOpen)}
+                        className="font-extrabold uppercase tracking-widest text-[8px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
+                      >
+                        <BookOpen className="w-2.5 h-2.5 text-teal-600/80" /> {t('explainer.definition_dicts', 'Definition Dictionaries')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManageDictsTab("definition");
+                          setShowManageDictsModal(true);
+                          handleCancelEditDict();
+                        }}
+                        className="text-[9px] font-bold text-teal-600 hover:text-teal-700 hover:underline cursor-pointer focus:outline-none"
+                      >
+                        Manage &gt;
+                      </button>
+                    </div>
+
+                    {dictionariesOpen && (
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {dictPreferences.definition.filter((d) => d.enabled !== false).map((dict) => {
+                          const lookupWord = (isLinked && linkedParent) ? linkedParent : (word || "");
+                          return (
+                            <button
+                              key={dict.id}
+                              type="button"
+                              onClick={() => handleOpenDictionary(dict, lookupWord)}
+                              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 px-2 py-0.5 rounded-md text-[9px] font-bold text-zinc-600 dark:text-zinc-300 transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>{dict.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* WordNet Synsets for English in Definition Tab */}
+                  {targetLanguage.toLowerCase().startsWith("en") && word && (
+                    <div className="pt-2">
+                      <WordNetSynsetsView
+                        word={(isLinked && linkedParent) ? linkedParent : word}
+                        onApplyDefinition={(def, posName) => {
+                          setDefinitionValue(def);
+                          
+                          // Map WordNet POS to standard grammar tag (Noun, Verb, Adjective, Adverb)
+                          const posToGrammarMap: Record<string, string> = {
+                            noun: "Noun",
+                            verb: "Verb",
+                            adjective: "Adjective",
+                            adverb: "Adverb"
+                          };
+                          const newGrammar = (posName && posToGrammarMap[posName]) ? posToGrammarMap[posName] : grammarValue;
+                          if (newGrammar) {
+                            setGrammarValue(newGrammar);
+                          }
+                          const updatedTags = (newGrammar && !selectedTags.includes(newGrammar)) 
+                            ? [...selectedTags, newGrammar] 
+                            : selectedTags;
+                          if (newGrammar && !selectedTags.includes(newGrammar)) {
+                            setSelectedTags(updatedTags);
+                          }
+
+                          // Auto save definition and grammar
+                          const wordLower = word.toLowerCase();
+                          const langKey = targetLanguage.toLowerCase();
+                          const rawParentKey = wordLinks[`${langKey}_${wordLower}`] || wordLinks[wordLower] || "";
+                          const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
+                          const targetWord = (parentWord && parentWord !== wordLower) ? parentWord : wordLower;
+                          const langPrefix = `${langKey}_`;
+                          const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || null;
+                          const nextStatus = status === "new" ? "2" : status;
+                          if (status === "new") setStatus("2");
+
+                          if (existingTarget) {
+                            onSaveVocab({ 
+                              ...existingTarget, 
+                              definition: def.trim(),
+                              grammar: newGrammar || existingTarget.grammar,
+                              tags: updatedTags
+                            });
+                          } else {
+                            const newVocab: VocabItem = {
+                              word: targetWord,
+                              translation: translationValue.trim() || "",
+                              definition: def.trim(),
+                              ipa: ipaValue || "",
+                              grammar: newGrammar || "",
+                              contextRelation: contextRelationValue || "",
+                              status: nextStatus,
+                              examples: examplesValue,
+                              createdAt: Date.now(),
+                              tags: updatedTags,
+                              imageUrl: imageUrlValue,
+                            };
+                            onSaveVocab(newVocab);
+                          }
+                        }}
+                        onApplySynonym={(syn) => {
+                          if (onWordClick) onWordClick(syn, sentence || "");
+                        }}
+                        onWordClick={(w) => {
+                          if (onWordClick) onWordClick(w, sentence || "");
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Dictionaries, Word Variations — on Meaning tab */}
+              {savedMeaningTab === "meaning" && (
+                <>
+                {/* Meaning Dictionaries Section integrated directly in Saved Meaning Card */}
+                <div className="space-y-1.5 pt-0.5">
+                  <div className="flex items-center justify-between text-xs font-sans">
+                    <button
+                      type="button"
+                      onClick={() => setDictionariesOpen(!dictionariesOpen)}
+                      className="font-extrabold uppercase tracking-widest text-[8px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
+                    >
+                      <BookOpen className="w-2.5 h-2.5 text-teal-600/80" /> {t('explainer.translation_dicts', 'Dictionaries')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManageDictsTab("meaning");
+                        setShowManageDictsModal(true);
+                        handleCancelEditDict();
+                      }}
+                      className="text-[9px] font-bold text-teal-600 hover:text-teal-700 hover:underline cursor-pointer focus:outline-none"
+                    >
+                      Manage &gt;
+                    </button>
+                  </div>
+
+                  {dictionariesOpen && (
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {dictPreferences.meaning.filter((d) => d.enabled !== false).map((dict) => (
+                        <button
+                          key={dict.id}
+                          type="button"
+                          onClick={() => handleOpenDictionary(dict, word || "")}
+                          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 px-2 py-0.5 rounded-md text-[9px] font-bold text-zinc-600 dark:text-zinc-300 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>{dict.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
               {/* Word Variations Link (Pattern) integrated directly in Saved Meaning Card */}
               <div className="space-y-1.5 pt-2 border-t border-zinc-100/40 dark:border-zinc-800/40 mt-1.5">
@@ -1883,6 +2872,9 @@ function WordExplainer({
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
                     {suggestedLemmas.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5 pl-0.5">
                         <span className="text-[9.5px] text-zinc-400 dark:text-zinc-500 font-extrabold uppercase font-sans">
@@ -1903,55 +2895,12 @@ function WordExplainer({
                         ))}
                       </div>
                     )}
-                  </div>
-                )}
                   </>
                 )}
               </div>
 
-              {/* Popular Meanings — merged into Saved Meaning card */}
-              <div className="space-y-1 pt-2.5 border-t border-zinc-100/40 dark:border-zinc-800/40 mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPopularMeaningsOpen(!popularMeaningsOpen)}
-                  className="text-[8.5px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
-                >
-                  <Sparkles className="w-2.5 h-2.5 text-teal-500 animate-pulse" /> Popular Meanings
-                  <ChevronDown className={`w-3 h-3 transition-transform ${popularMeaningsOpen ? "rotate-180" : ""}`} />
-                </button>
-                {popularMeaningsOpen && (
-                  <div className="space-y-1 max-h-[170px] overflow-y-auto scrollbar-thin w-full animate-in fade-in slide-in-from-top-1">
-                  {popularMeanings().map((meaning, idx) => {
-                    const isSelected = translationValue === meaning;
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => handleSelectPopularMeaning(meaning)}
-                        title={meaning}
-                        className={`flex items-start justify-between p-2 rounded-lg text-[11px] font-medium transition-all group/row cursor-pointer ${
-                          isSelected
-                            ? "bg-teal-50/80 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-900 text-teal-800 dark:text-teal-300 font-bold shadow-3xs"
-                            : "bg-white dark:bg-zinc-900 border border-zinc-100/40 dark:border-zinc-800/40 hover:bg-zinc-100/50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
-                        }`}
-                      >
-                        <span className="leading-normal break-words pr-2 capitalize flex-1">{meaning}</span>
-                        <button
-                          className={`w-4 h-4 rounded flex items-center justify-center transition-colors shadow-3xs group-hover/row:scale-105 shrink-0 self-center ${
-                            isSelected
-                              ? "bg-teal-600 text-white"
-                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-teal-600 hover:text-white"
-                          }`}
-                        >
-                          <Plus className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                )}
-
-                {/* Translation Source Selector */}
-                <div className="space-y-1 pt-1.5 border-t border-zinc-100/40 dark:border-zinc-800/40 text-left shrink-0">
+              {/* Translation Source Selector */}
+              <div className="space-y-1 pt-2 border-t border-zinc-100/40 dark:border-zinc-800/40 text-left shrink-0">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 block pl-0.5">
                     {t('explainer.translation_source', 'TRANSLATION SOURCE')}
                   </span>
@@ -2012,7 +2961,6 @@ function WordExplainer({
                       🌐 {t('explainer.source_hybrid', 'Hybrid')}
                     </button>
                   </div>
-                </div>
 
                 {!loading && (
                   <button
@@ -2035,7 +2983,9 @@ function WordExplainer({
                   </button>
                 )}
               </div>
-            </div>
+              </>
+            )}
+          </div>
           )}
         </div>
       )}
@@ -2349,6 +3299,44 @@ function WordExplainer({
               </button>
             </div>
 
+            {/* Tab Selection Switcher inside Modal */}
+            <div className="flex items-center gap-2 px-5 pt-3 pb-1 bg-zinc-50/50 dark:bg-zinc-950/50 border-b border-zinc-100 dark:border-zinc-800 font-sans">
+              <button
+                type="button"
+                onClick={() => {
+                  setManageDictsTab("meaning");
+                  handleCancelEditDict();
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                  manageDictsTab === "meaning"
+                    ? "bg-teal-600 text-white shadow-xs"
+                    : "bg-white dark:bg-zinc-900 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800"
+                }`}
+              >
+                <span>📖 {t('explainer.manage_meaning_dicts', 'Meaning Dictionaries')}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${manageDictsTab === "meaning" ? "bg-teal-700 text-teal-100" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>
+                  {dictPreferences.meaning.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setManageDictsTab("definition");
+                  handleCancelEditDict();
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                  manageDictsTab === "definition"
+                    ? "bg-teal-600 text-white shadow-xs"
+                    : "bg-white dark:bg-zinc-900 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800"
+                }`}
+              >
+                <span>📘 {t('explainer.manage_def_dicts', 'Definition Dictionaries')}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${manageDictsTab === "definition" ? "bg-teal-700 text-teal-100" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>
+                  {dictPreferences.definition.length}
+                </span>
+              </button>
+            </div>
+
             {/* Scrollable Content */}
             <div className="p-5 overflow-y-auto space-y-4 custom-scrollbar">
               
@@ -2466,13 +3454,7 @@ function WordExplainer({
                 <div className="flex justify-between items-center font-sans gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(t('explainer.reset_dicts_confirm', "Are you sure you want to reset dictionaries to defaults for the target language?"))) {
-                        const defaults = getDefaultDictionaries(targetLanguage, translationLanguage);
-                        setDictionaries(defaults);
-                        safeLocalStorageSetItem(activeStorageKey, JSON.stringify(defaults));
-                      }
-                    }}
+                    onClick={handleResetDefaults}
                     className="px-3 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>{t('explainer.reset_default', 'Reset to Default')}</span>
@@ -2491,11 +3473,11 @@ function WordExplainer({
               {/* List of existing dictionaries */}
               <div className="space-y-2 font-sans">
                 <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                  {t('explainer.available_dicts', 'Available Dictionaries')}
+                  {manageDictsTab === "meaning" ? t('explainer.available_meaning_dicts', 'Available Meaning Dictionaries') : t('explainer.available_def_dicts', 'Available Definition Dictionaries')}
                 </h4>
 
                 <div className="divide-y divide-zinc-100 dark:divide-zinc-800 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900">
-                  {dictionaries.map((dict) => {
+                  {currentTabDictionaries.map((dict) => {
                     const isEnabled = dict.enabled !== false;
                     return (
                       <div
@@ -2570,7 +3552,7 @@ function WordExplainer({
                     );
                   })}
 
-                  {dictionaries.length === 0 && (
+                  {currentTabDictionaries.length === 0 && (
                     <div className="p-6 text-center text-zinc-400 text-xs">
                       {t('explainer.no_dicts_msg', 'No dictionaries configured. You can add a new one above!')}
                     </div>

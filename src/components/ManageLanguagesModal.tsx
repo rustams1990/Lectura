@@ -31,6 +31,12 @@ export const ALL_SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳" },
   { code: "el", name: "Greek", nativeName: "Ελληνικά", flag: "🇬🇷" },
   { code: "he", name: "Hebrew", nativeName: "עברית", flag: "🇮🇱" },
+  { code: "fi", name: "Finnish", nativeName: "Suomi", flag: "🇫🇮" },
+  { code: "hu", name: "Hungarian", nativeName: "Magyar", flag: "🇭🇺" },
+  { code: "cs", name: "Czech", nativeName: "Čeština", flag: "🇨🇿" },
+  { code: "ro", name: "Romanian", nativeName: "Română", flag: "🇷🇴" },
+  { code: "vi", name: "Vietnamese", nativeName: "Tiếng Việt", flag: "🇻🇳" },
+  { code: "fa", name: "Persian", nativeName: "فارسی", flag: "🇮🇷" },
 ];
 
 interface ManageLanguagesModalProps {

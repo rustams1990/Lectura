@@ -21,7 +21,7 @@ export default defineConfig(() => {
         manifest: {
           name: 'Lectura',
           short_name: 'Lectura',
-          description: 'Умное чтение и изучение языков',
+          description: 'Lectura',
           theme_color: '#0d9488',
           background_color: '#111111',
           display: 'standalone',

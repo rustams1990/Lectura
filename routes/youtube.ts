@@ -81,7 +81,7 @@ export function formatGeminiTranscript(rawText: string): string {
     }
   }
 
-  return lines.join("\n\n");
+  return lines.join("\n");
 }
 
 router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
@@ -210,16 +210,25 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
       };
 
       try {
-        await ytdlp(`https://www.youtube.com/watch?v=${videoId}`, {
+        await (ytdlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
           writeSub: true,
           writeAutoSub: true,
           subLang: lang,
           subFormat: 'vtt',
+          addHeader: [
+            'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language:en-US,en;q=0.9'
+          ],
+          extractorArgs: 'youtube:player_client=android,web',
           output: tempBasePath,
           skipDownload: true,
           noCheckCertificate: true,
         });
+      } catch (dlErr: any) {
+        // yt-dlp may return exit code 1 if secondary auto-translation fails, but primary .vtt file is written!
+      }
 
+      try {
         // Search for generated subtitle file matching the prefix and ending with .vtt
         const files = fs.readdirSync(tempDir);
         const matchingFile = files.find(f => f.startsWith(tempBaseName) && f.endsWith(".vtt"));
@@ -263,6 +272,10 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
                 .replace(/&lt;/g, "<")
                 .replace(/&gt;/g, ">")
                 .replace(/&#10;/g, " ")
+                // Remove music symbols and technical subtitle cue artifacts
+                .replace(/[♪♫♬♩#]+|>>+|-->|align:(?:start|center|end|left|right)|position:\d+%?|line:\d+%?|size:\d+%?/gi, " ")
+                .replace(/\s+([.,!?:;])/g, "$1")
+                .replace(/^([.,!?:;]\s*)+/g, "")
                 .replace(/\s+/g, " ")
                 .trim();
               return {
@@ -332,7 +345,7 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
           }
         }
       } catch (err: any) {
-        // yt-dlp failed for this language
+        // parsing failed for this language
       }
       return false;
     };
@@ -353,18 +366,36 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
     if (!isSuccessful || lines.length === 0) {
       const userApiKey = (req.headers["x-gemini-key"] as string) || req.body.geminiApiKey;
       const ai = getGeminiClient(userApiKey);
+
+      if (mode === "force_ai" && !ai) {
+        return res.status(400).json({
+          error: "Gemini API Key missing or invalid. Please set your Gemini API Key in Settings to use Gemini AI Speech-to-Text transcription.",
+          videoTitle: title,
+          coverUrl: thumbnail,
+          youtubeId: videoId,
+          youtubeDuration: videoLengthSeconds,
+        });
+      }
+
       if (ai) {
         let tempAudioPath: string | null = null;
         let uploadedGeminiFile: any = null;
+        let lastAiErr: string | null = null;
         try {
-          console.log(`[YouTube] No captions found for video ${videoId}. Attempting Gemini Audio Speech-to-Text...`);
+          console.log(`[YouTube] Attempting Gemini Audio Speech-to-Text for video ${videoId}...`);
           const tempAudioDir = os.tmpdir();
           const tempAudioBase = path.join(tempAudioDir, `yt_audio_${videoId}_${Date.now()}`);
           
-          await ytdlp(`https://www.youtube.com/watch?v=${videoId}`, {
+          await (ytdlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
             extractAudio: true,
             audioFormat: 'mp3',
             audioQuality: 5,
+            format: 'bestaudio/best',
+            addHeader: [
+              'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept-Language:en-US,en;q=0.9'
+            ],
+            extractorArgs: 'youtube:player_client=android,web',
             output: `${tempAudioBase}.%(ext)s`,
             noCheckCertificate: true,
           });
@@ -417,6 +448,7 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
           }
         } catch (gErr: any) {
           console.error("Gemini AI Audio Speech-to-Text failed:", gErr);
+          lastAiErr = gErr.message || String(gErr);
         } finally {
           if (tempAudioPath) {
             try { fs.unlinkSync(tempAudioPath); } catch (e) {}
@@ -425,12 +457,34 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
             try { await ai.files.delete({ name: uploadedGeminiFile.name }); } catch (e) {}
           }
         }
+
+        if (mode === "force_ai") {
+          let cleanErr = lastAiErr || "Could not process audio track.";
+          if (cleanErr.includes("RESOURCE_EXHAUSTED") || cleanErr.includes("Quota exceeded") || cleanErr.includes("429")) {
+            cleanErr = "Gemini API rate limit or daily quota exceeded (Google Free Tier limit: 20 requests/day). Please wait a minute before retrying or provide a paid/different API key.";
+          }
+          return res.status(500).json({
+            error: `Gemini AI Speech-to-Text failed: ${cleanErr}`,
+            videoTitle: title,
+            coverUrl: thumbnail,
+            youtubeId: videoId,
+            youtubeDuration: videoLengthSeconds,
+          });
+        }
       }
 
-      // If no AI key set or AI generation fails, return a clear, informative Russian error response
+      const uiLang = (req.body.uiLang || "en").toLowerCase();
+      const isRu = uiLang.startsWith("ru");
+
+      const fallbackTitle = isRu ? `${title} (Субтитры отсутствуют)` : `${title} (No Subtitles Available)`;
+      const fallbackText = isRu
+        ? `У этого видео на YouTube отсутствуют готовые субтитры.\n\nДля включения автоматического распознавания речи ИИ укажите ваш рабочий Gemini API Key (начинается на AIza...) при запуске Docker контейнера (-e GEMINI_API_KEY="AIzaSy...") или в настройках приложения.`
+        : `This YouTube video does not have ready-made subtitles.\n\nTo enable automatic AI Speech-to-Text transcription, please provide a valid Gemini API Key (starts with AIza...) when starting the Docker container (-e GEMINI_API_KEY="AIzaSy...") or in application settings.`;
+
+      // If no AI key set or AI generation fails, return informative localized fallback response
       return res.json({
-        title: `${title} (Субтитры отсутствуют)`,
-        text: `У этого видео на YouTube отсутствуют готовые субтитры.\n\nДля включения автоматического распознавания речи ИИ укажите ваш рабочий Gemini API Key (начинается на AIza...) при запуске Docker контейнера (-e GEMINI_API_KEY="AIzaSy...") или в настройках приложения.`,
+        title: fallbackTitle,
+        text: fallbackText,
         coverUrl: thumbnail,
         youtubeId: videoId,
         youtubeDuration: videoLengthSeconds,
@@ -438,8 +492,8 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
       });
     }
 
-    // Join lines with double newline as requested
-    const formattedText = lines.join("\n\n");
+    // Join subtitle cue lines with single newline
+    const formattedText = lines.join("\n");
 
     return res.json({
       title: title,

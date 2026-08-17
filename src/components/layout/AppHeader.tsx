@@ -4,6 +4,9 @@ import { useAuth } from '../../context/AuthContext';
 import { settingsStore } from '../../db';
 import { useTranslation } from 'react-i18next';
 import { getLanguageFlagEmoji, renderCircularFlag } from '../LibraryHome';
+import AccountSwitcherDropdown from '../AccountSwitcherDropdown';
+
+import WhisperNotificationDropdown from '../WhisperNotificationDropdown';
 
 interface AppHeaderProps {
   isFocusMode: boolean;
@@ -19,14 +22,17 @@ interface AppHeaderProps {
   isDarkMode: boolean;
   setIsDarkMode: (isDark: boolean) => void;
   setShowLocalLoginModal: (show: boolean) => void;
+  onOpenProfileSettings?: () => void;
   storageMode: "local" | "cloud" | "server";
   isSyncing: boolean;
+  localSyncError?: boolean;
   selectedTargetLanguage: string;
   onSelectTargetLanguage: (lang: string) => void;
   availableTargetLanguages: string[];
   languageFlags?: Record<string, string>;
   onOpenManageLanguages?: () => void;
   lessonCountByLanguage?: Record<string, number>;
+  onOpenBook?: (bookId: string) => void;
 }
 
 export default function AppHeader({
@@ -40,17 +46,20 @@ export default function AppHeader({
   isDarkMode,
   setIsDarkMode,
   setShowLocalLoginModal,
+  onOpenProfileSettings,
   storageMode,
   isSyncing,
+  localSyncError = false,
   selectedTargetLanguage,
   onSelectTargetLanguage,
   availableTargetLanguages,
   languageFlags,
   onOpenManageLanguages,
   lessonCountByLanguage = {},
+  onOpenBook,
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const langDropdownRef = useRef<HTMLDivElement>(null);
@@ -186,18 +195,9 @@ export default function AppHeader({
               </div>
             )}
           </div>
-
-          {/* Language Toggle Button (UI Interface Translation EN/RU) */}
-          <button
-            onClick={() => {
-              const newLang = i18n.language.startsWith('en') ? 'ru' : 'en';
-              i18n.changeLanguage(newLang);
-            }}
-            className="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-teal-600 dark:text-teal-400 border-zinc-200/60 dark:border-zinc-800/80 font-bold text-xs uppercase"
-            title={i18n.language.startsWith('en') ? t('header.switch_to_ru', 'Switch to Russian') : t('header.switch_to_en', 'Switch to English')}
-          >
-            {i18n.language.startsWith('en') ? 'EN' : 'RU'}
-          </button>
+          
+          {/* Background Tasks / Whisper Notification Bell */}
+          <WhisperNotificationDropdown onOpenBook={onOpenBook} />
 
           {/* Dark Mode Toggle Button */}
           <button
@@ -223,45 +223,21 @@ export default function AppHeader({
               <span className="text-[10px] text-zinc-400 font-bold hidden sm:inline">{t('header.checking', 'Checking...')}</span>
             </div>
           ) : activeUser ? (
-            <div className="flex items-center gap-2 px-3 py-1 bg-teal-50 dark:bg-teal-900/20 border border-teal-200/50 dark:border-teal-900 rounded-xl relative shadow-3xs">
-              {activeUser.photoURL ? (
-                <img
-                  src={activeUser.photoURL}
-                  alt="User avatar"
-                  className="w-5.5 h-5.5 rounded-full border border-teal-400"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-5.5 h-5.5 rounded-full bg-teal-100 dark:bg-teal-950/40 flex items-center justify-center text-[10px] font-black text-teal-700 dark:text-teal-300">
-                  {(activeUser.displayName || activeUser.email || "U").substring(0, 1).toUpperCase()}
-                </div>
-              )}
-              <div className="flex flex-col text-left justify-center min-w-0 pr-1">
-                <span className="text-[9px] font-black text-teal-700 dark:text-teal-300 flex items-center gap-1 leading-none">
-                  {storageMode === "cloud" ? "☁️ cloud" : storageMode === "server" ? "🖥️ server" : "📱 local"}
-                  {isSyncing && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse shrink-0" />}
-                </span>
-                <span className="text-[7.5px] text-zinc-400 dark:text-zinc-500 font-bold truncate max-w-[100px] leading-tight block mt-0.5" title={activeUser.displayName || activeUser.email || ""}>
-                  {activeUser.displayName || activeUser.email || "user"}
-                </span>
-              </div>
-              <button
-                onClick={() => {
-                  logout().catch(err => console.error(err));
-                }}
-                className="text-[9px] font-bold text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-1.5 py-0.5 rounded transition cursor-pointer"
-                title={t('header.exit', 'Выйти')}
-              >
-                {t('header.exit', 'Exit')}
-              </button>
-            </div>
+            <AccountSwitcherDropdown
+              onOpenProfileSettings={() => onOpenProfileSettings?.()}
+              onOpenAddAccount={(prefillUser) => setShowLocalLoginModal(true)}
+              localSyncError={localSyncError}
+              isSyncing={isSyncing}
+              onSyncErrorClick={() => setShowLocalLoginModal(true)}
+            />
           ) : (
             <button
               onClick={() => setShowLocalLoginModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-[10px] font-bold rounded-xl transition duration-150 cursor-pointer shadow-3xs"
               title={t('header.login_title', 'Войдите, чтобы сохранить результаты')}
             >
-              {t('header.login', '☁️ Войти (Sync)')}
+              <span>👤</span>
+              <span>{t('header.login', 'Войти')}</span>
             </button>
           )}
         </div>

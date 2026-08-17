@@ -14,6 +14,7 @@ interface VocabContextType {
   getLinkedWordsFor: (word: string, lang?: string) => string[];
   handleUpdateStatusDirect: (word: string, newStatus: WordStatus, lang?: string) => void;
   handleDeleteMultipleVocabItems: (words: string[], lang?: string) => void;
+  handleMassImportIgnoredWords: (words: string[], lang?: string) => number;
   handleWordClick: (word: string, context: string) => void;
 }
 
@@ -53,27 +54,46 @@ export function VocabProvider({ children }: { children: ReactNode }) {
       }
     }
     loadVocab();
+
+    const handleLogout = () => {
+      setVocab({});
+      setWordLinks({});
+      setSelectedWord(null);
+      setContextSentence("");
+    };
+
+    window.addEventListener("lectura:user_logout", handleLogout);
+    return () => {
+      window.removeEventListener("lectura:user_logout", handleLogout);
+    };
   }, []);
 
-  // Auto-save vocab changes to IndexedDB safely
+  // Auto-save vocab changes to IndexedDB and localStorage safely
   useEffect(() => {
     if (isLoaded) {
       vocabStore.setItem('words', vocab).catch(console.error);
+      try {
+        localStorage.setItem("vocab_clone_words", JSON.stringify(vocab));
+      } catch (_) {}
     }
   }, [vocab, isLoaded]);
 
-  // Auto-save wordLinks changes to IndexedDB safely
+  // Auto-save wordLinks changes to IndexedDB and localStorage safely
   useEffect(() => {
     if (isLoaded) {
       vocabStore.setItem('aliases', wordLinks).catch(console.error);
+      try {
+        localStorage.setItem("vocab_clone_aliases", JSON.stringify(wordLinks));
+      } catch (_) {}
     }
   }, [wordLinks, isLoaded]);
 
-  const getLinkedWordsFor = (word: string, lang = "spanish"): string[] => {
+  const getLinkedWordsFor = (word: string, lang = "spanish", customLinks?: Record<string, string>): string[] => {
     if (!word) return [];
     const cleanInputWord = word.toLowerCase().trim().replace(/^[a-zA-Z]+_/, "");
     const activeLang = lang.toLowerCase();
     const result = new Set<string>([cleanInputWord]);
+    const linksMap = customLinks || wordLinks;
 
     const prefix = `${activeLang}_`;
     const targetKey = `${prefix}${cleanInputWord}`;
@@ -81,18 +101,18 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     // Forward chain search
     let currentKey = targetKey;
     let guard = 0;
-    while (wordLinks[currentKey] && guard < 10) {
-      const nextPrefixedWord = wordLinks[currentKey];
-      const cleanNext = nextPrefixedWord.replace(/^[a-zA-Z]+_/, "");
+    while (linksMap[currentKey] && guard < 10) {
+      const nextPrefixedWord = linksMap[currentKey];
+      const cleanNext = nextPrefixedWord.replace(/^[a-zA-Z]+_/, "").toLowerCase();
       result.add(cleanNext);
       currentKey = nextPrefixedWord;
       guard++;
     }
 
     // Backward chain search
-    Object.entries(wordLinks).forEach(([fromKey, toKey]) => {
-      const cleanFrom = fromKey.replace(/^[a-zA-Z]+_/, "");
-      const cleanTo = String(toKey || "").replace(/^[a-zA-Z]+_/, "");
+    Object.entries(linksMap).forEach(([fromKey, toKey]) => {
+      const cleanFrom = fromKey.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+      const cleanTo = String(toKey || "").replace(/^[a-zA-Z]+_/, "").toLowerCase();
       if (result.has(cleanTo)) {
         result.add(cleanFrom);
       }
@@ -120,7 +140,8 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         const updated: VocabItem = {
           word: linkedWord,
           status: newStatus,
-          translation: existingTrans || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : "Pending translation"),
+          translation: existingTrans || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : ""),
+          definition: existing?.definition,
           ipa: existing ? existing.ipa : "",
           grammar: existing ? existing.grammar : "",
           contextRelation: existing ? existing.contextRelation : "",
@@ -146,6 +167,13 @@ export function VocabProvider({ children }: { children: ReactNode }) {
 
         nextVocab[targetLangKey] = updated;
       });
+
+      try {
+        localStorage.setItem("vocab_clone_words", JSON.stringify(nextVocab));
+      } catch (_) {}
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: nextVocab }));
+      }
 
       return nextVocab;
     });
@@ -192,8 +220,68 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         delete copy[k];
       });
 
+      try {
+        localStorage.setItem("vocab_clone_words", JSON.stringify(copy));
+      } catch (_) {}
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: copy }));
+      }
+
       return copy;
     });
+  };
+
+  const handleMassImportIgnoredWords = (words: string[], lang = "spanish"): number => {
+    if (!words || words.length === 0) return 0;
+    const activeLang = lang.toLowerCase();
+    let importedCount = 0;
+
+    setVocab((prev) => {
+      const nextVocab = { ...prev };
+      const now = Date.now();
+
+      words.forEach((rawWord) => {
+        if (!rawWord || !rawWord.trim()) return;
+        const cleanWord = rawWord.trim().toLowerCase().replace(/^[a-zA-Z]+_/, "");
+        if (!cleanWord) return;
+
+        const targetLangKey = `${activeLang}_${cleanWord}`;
+        const existing = nextVocab[targetLangKey];
+
+        // Only add or update to ignored
+        nextVocab[targetLangKey] = {
+          word: cleanWord,
+          status: "ignored",
+          translation: existing?.translation && existing.translation !== "Pending translation" ? existing.translation : "[Ignored]",
+          definition: existing?.definition,
+          ipa: existing?.ipa || "",
+          grammar: existing?.grammar || "",
+          contextRelation: existing?.contextRelation || "",
+          examples: existing?.examples || [],
+          createdAt: existing?.createdAt || now,
+          tags: Array.from(new Set([...(existing?.tags || []), "imported-ignored"])),
+          imageUrl: existing?.imageUrl || null,
+          spellingCorrectCount: existing?.spellingCorrectCount || 0,
+          spellingIncorrectCount: existing?.spellingIncorrectCount || 0,
+          spellingAccentCount: existing?.spellingAccentCount || 0,
+          lastSpelledCorrectly: existing?.lastSpelledCorrectly || null,
+          lastSpelledWithAccentError: existing?.lastSpelledWithAccentError || null,
+          spellingExclude: existing?.spellingExclude ?? false,
+        };
+        importedCount++;
+      });
+
+      try {
+        localStorage.setItem("vocab_clone_words", JSON.stringify(nextVocab));
+      } catch (_) {}
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: nextVocab }));
+      }
+
+      return nextVocab;
+    });
+
+    return importedCount;
   };
 
   const wordClickDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -225,6 +313,7 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         getLinkedWordsFor,
         handleUpdateStatusDirect,
         handleDeleteMultipleVocabItems,
+        handleMassImportIgnoredWords,
         handleWordClick,
       }}
     >

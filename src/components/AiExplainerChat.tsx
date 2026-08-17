@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Sparkles, ChevronUp, ChevronDown, Loader2, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeJsonParse } from "../utils";
+import { useToast } from "../context/ToastContext";
+import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 
 interface AiExplainerChatProps {
   word: string | null;
@@ -27,6 +29,7 @@ export default function AiExplainerChat({
   onSaveExplanation,
 }: AiExplainerChatProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [askAiOpen, setAskAiOpen] = useState(true);
   const [customQuestion, setCustomQuestion] = useState("");
   const [customAiLoading, setCustomAiLoading] = useState(false);
@@ -41,29 +44,39 @@ export default function AiExplainerChat({
     }
 
     try {
-      const endpoint = "/api/explain";
-      const bodyParams: any = {
-        word,
-        context: sentence || word,
-        targetLanguage,
-        translationLanguage,
-        aiProvider: settings?.aiProvider || "gemini",
-        localAiUrl: settings?.localAiUrl || "http://localhost:11434/api/generate",
-        localAiModel: settings?.localAiModel || "phi3.5",
-        customQuestion: questionText.trim(),
-      };
+      const profiles = getOrCreateAiProfiles(settings);
+      const data = await executeAiWithFailover(
+        profiles,
+        async (profile) => {
+          const response = await fetch("/api/explain", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              word,
+              context: sentence || word,
+              targetLanguage,
+              translationLanguage,
+              aiProfile: profile,
+              customQuestion: questionText.trim(),
+            }),
+          });
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyParams),
-      });
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const err: any = new Error(errData.error || "Failed to get explanation from AI.");
+            err.status = response.status;
+            throw err;
+          }
 
-      if (!response.ok) {
-        throw new Error("Failed to get explanation from AI.");
-      }
+          return safeJsonParse(response);
+        },
+        {
+          onFallback: (from, to) => {
+            showToast(t("settings.ai_fallback_toast", "Quota for {{from}} exceeded. Request completed via {{to}}.", { from: from.name, to: to.name }), "info");
+          }
+        }
+      );
 
-      const data = await safeJsonParse(response);
       onExplanationReceived(data, questionText);
     } catch (err: any) {
       console.error(err);

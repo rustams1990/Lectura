@@ -36,10 +36,15 @@ import {
   Trash2,
   Podcast,
   Radio,
-  Headphones
+  Headphones,
+  Zap
 } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
+import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
+import { whisperQueueService } from "../services/whisperQueueService";
 
 export const ICON_MAP: Record<string, React.ComponentType<any>> = {
   youtube: Youtube,
@@ -131,11 +136,37 @@ export default function ImportLessonForm({
   settings,
   defaultTargetLanguage
 }: ImportLessonFormProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { user: activeUser } = useAuth();
+  const { showToast } = useToast();
   // Navigation: standard, youtube or file
   const [activeTab, setActiveTab] = useState<"standard" | "youtube" | "file" | "url">(
     editingLesson ? "standard" : (initialWebUrl ? "url" : "file")
   );
+
+  const handleWhisperQueueSubmit = async () => {
+    const url = youtubeUrlInput.trim();
+    if (!url) {
+      showToast(t('import.error_empty_url', 'Please enter a valid YouTube URL'), 'error');
+      return;
+    }
+
+    try {
+      await whisperQueueService.enqueueTask({
+        sourceUrl: url,
+        title: title.trim() || "YouTube Video",
+        language: targetLanguage || "auto",
+        userId: activeUser?.id || "default_user",
+        model: (settings as any)?.whisperModel || "base",
+        threads: (settings as any)?.whisperThreads || 2,
+        vad: (settings as any)?.whisperVad !== false,
+      });
+      showToast(t('import.whisper_queued_toast', 'Task added to Faster-Whisper background queue ⚡'), 'success');
+      onCancel(); // Non-blocking close!
+    } catch (err: any) {
+      showToast(err.message || 'Failed to queue Whisper task', 'error');
+    }
+  };
 
   const [title, setTitle] = useState(editingLesson?.title || "");
   const [text, setText] = useState(editingLesson?.text || "");
@@ -207,7 +238,6 @@ export default function ImportLessonForm({
   const [dragActive, setDragActive] = useState(false);
   const [importImages, setImportImages] = useState(false);
   const [pendingImages, setPendingImages] = useState<Record<string, { dataUrl: string; width: string; height: string }>>({});
-  const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
 
   const [selectedType, setSelectedType] = useState<string>(
     editingLesson?.lessonType ||
@@ -226,7 +256,7 @@ export default function ImportLessonForm({
     setWebSuccess(null);
 
     try {
-      const userApiKey = localStorage.getItem("vocab_clone_gemini_key") || "";
+      const userApiKey = settings?.geminiApiKey || localStorage.getItem("vocab_clone_gemini_key") || "";
       const response = await fetch("/api/import-url", {
         method: "POST",
         headers: {
@@ -303,6 +333,41 @@ export default function ImportLessonForm({
     setIsFileLoading(true);
     setFileError(null);
     setFileSuccess(null);
+
+    // If media file (audio/video), queue directly to Faster-Whisper
+    const isAudioOrVideo = /\.(mp3|m4a|wav|ogg|flac|aac|wma|webm|mp4|mkv|mov|avi)$/i.test(file.name) || file.type.startsWith("audio/") || file.type.startsWith("video/");
+    if (isAudioOrVideo) {
+      const audioReader = new FileReader();
+      audioReader.onload = async (e) => {
+        try {
+          const dataUrl = e.target?.result as string;
+          if (!dataUrl) throw new Error("Failed to read audio file");
+          const base64Str = dataUrl.split(",")[1];
+
+          await whisperQueueService.enqueueTask({
+            fileBase64: base64Str,
+            filename: file.name,
+            title: title.trim() || file.name.replace(/\.[^/.]+$/, ""),
+            language: targetLanguage || "auto",
+            userId: activeUser?.id || "default_user",
+            model: (settings as any)?.whisperModel || "base",
+            threads: (settings as any)?.whisperThreads || 2,
+            vad: (settings as any)?.whisperVad !== false,
+          });
+          showToast(t('import.whisper_file_queued_toast', 'Audio file "{{name}}" queued for Faster-Whisper transcription ⚡', { name: file.name }), 'success');
+          onCancel();
+        } catch (err: any) {
+          setFileError(err.message || t('import.whisper_queue_failed', 'Failed to queue audio file'));
+          setIsFileLoading(false);
+        }
+      };
+      audioReader.onerror = () => {
+        setFileError("Failed to read file from disk");
+        setIsFileLoading(false);
+      };
+      audioReader.readAsDataURL(file);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -461,17 +526,17 @@ export default function ImportLessonForm({
   const [isGeneratingFallback, setIsGeneratingFallback] = useState(false);
 
   const PRESET_COVERS = [
-    "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80", // Books stack
-    "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80", // Study focus
-    "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=400&q=80", // Open textbook
-    "https://images.unsplash.com/photo-1474366521946-c3d4b507abf2?auto=format&fit=crop&w=400&q=80", // Notebooks
-    "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=400&q=80", // Vintage books
+    "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=640&h=360&q=80", // Books stack (16:9)
+    "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=640&h=360&q=80", // Study focus (16:9)
+    "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=640&h=360&q=80", // Open textbook (16:9)
+    "https://images.unsplash.com/photo-1474366521946-c3d4b507abf2?auto=format&fit=crop&w=640&h=360&q=80", // Notebooks (16:9)
+    "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=640&h=360&q=80", // Vintage books (16:9)
   ];
 
   const [ytLoadingMode, setYtLoadingMode] = useState<"auto" | "force_ai" | null>(null);
   const [ytProgress, setYtProgress] = useState<number>(0);
   const [ytStageText, setYtStageText] = useState<string>("");
-  const [ytChunkSentences, setYtChunkSentences] = useState<boolean>(true);
+  const [ytChunkSentences, setYtChunkSentences] = useState<boolean>(false);
 
   const handleYtFetch = async (e?: React.MouseEvent, modeChoice: "auto" | "force_ai" = "auto") => {
     if (e) e.preventDefault();
@@ -504,7 +569,7 @@ export default function ImportLessonForm({
           setYtStageText(isAi ? t('import.stage_ai', 'Gemini AI Speech-to-Text transcribing...') : t('import.stage_parsing', 'Parsing and cleaning subtitles...'));
           return prev + (isAi ? 1.5 : 2.5);
         } else if (prev < 95) {
-          setYtStageText(t('import.stage_format', 'Formatting timestamped sentences...'));
+          setYtStageText(t('import.stage_format', 'Processing timestamped subtitles...'));
           return prev + 0.8;
         }
         return 95;
@@ -512,16 +577,19 @@ export default function ImportLessonForm({
     }, speed);
 
     try {
+      const userApiKey = settings?.geminiApiKey || localStorage.getItem("vocab_clone_gemini_key") || "";
       const response = await fetch("/api/youtube-subtitles", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-gemini-key": userApiKey,
         },
         body: JSON.stringify({
           url: youtubeUrlInput.trim(),
           targetLanguage,
           mode: modeChoice,
-          chunkSentences: ytChunkSentences
+          chunkSentences: ytChunkSentences,
+          uiLang: i18n.language || "en"
         }),
       });
 
@@ -567,7 +635,14 @@ export default function ImportLessonForm({
       setSelectedType("youtube");
       
       if (data.isFallback) {
-        setYtSuccessMessage(t('import.fallback_gen_success', '✓ Subtitles not found, but AI generated a full study text for this video!'));
+        setFallbackData({
+          title: data.title,
+          coverUrl: data.coverUrl || "",
+          youtubeId: data.youtubeId || null,
+          youtubeDuration: data.youtubeDuration || null
+        });
+        setCanGenerateFallback(true);
+        setYtError(t('import.yt_no_subs_notice', 'YouTube captions missing. You can generate a study text using Gemini AI below or set your API key in Settings for automatic speech-to-text.'));
       } else if (modeChoice === "force_ai") {
         setYtSuccessMessage(t('import.yt_ai_success', '✓ Gemini AI Speech-to-Text transcribed the video audio with timestamps successfully!'));
       } else {
@@ -592,23 +667,35 @@ export default function ImportLessonForm({
     setIsGeneratingFallback(true);
     setYtError(null);
     try {
-      const response = await fetch("/api/youtube-fallback-generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const profiles = getOrCreateAiProfiles(settings);
+      const data = await executeAiWithFailover(
+        profiles,
+        async (profile) => {
+          const response = await fetch("/api/youtube-fallback-generate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              title: fallbackData.title,
+              targetLanguage,
+              aiProfile: profile,
+            }),
+          });
+          const resData = await safeJsonParse(response);
+          if (!response.ok) {
+            const err: any = new Error(resData.error || t('import.failed_generate_lesson', 'Failed to generate lesson text.'));
+            err.status = response.status;
+            throw err;
+          }
+          return resData;
         },
-        body: JSON.stringify({
-          title: fallbackData.title,
-          targetLanguage,
-          aiProvider: settings?.aiProvider || "gemini",
-          localAiUrl: settings?.localAiUrl || "http://localhost:11434/api/generate",
-          localAiModel: settings?.localAiModel || "phi3.5",
-        }),
-      });
-      const data = await safeJsonParse(response);
-      if (!response.ok) {
-        throw new Error(data.error || t('import.failed_generate_lesson', 'Failed to generate lesson text.'));
-      }
+        {
+          onFallback: (from, to) => {
+            showToast(t("settings.ai_fallback_toast", "Quota for {{from}} exceeded. Request completed via {{to}}.", { from: from.name, to: to.name }), "info");
+          }
+        }
+      );
       setTitle(fallbackData.title);
       setText(data.text || "");
 
@@ -670,7 +757,7 @@ export default function ImportLessonForm({
     setAudioUploadError(null);
 
     try {
-      const userApiKey = localStorage.getItem("vocab_clone_gemini_key") || "";
+      const userApiKey = settings?.geminiApiKey || localStorage.getItem("vocab_clone_gemini_key") || "";
       let response: Response;
 
       if (audioRawFile) {
@@ -1220,15 +1307,14 @@ export default function ImportLessonForm({
               className="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/25"
             />
 
-
-            {/* Action Buttons: YouTube Subtitles vs AI Speech-to-Text */}
+            {/* Action Buttons: YouTube Subtitles vs AI Speech-to-Text vs Faster-Whisper Background */}
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
                 id="btn-youtube-fetch"
                 disabled={isYtLoading}
                 onClick={(e) => handleYtFetch(e, "auto")}
-                className="flex-1 py-2.5 px-4 bg-red-50/80 hover:bg-red-100/90 dark:bg-red-950/30 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 font-extrabold text-xs rounded-xl border border-red-200/80 dark:border-red-800/40 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                className="flex-1 py-2.5 px-3 bg-red-50/80 hover:bg-red-100/90 dark:bg-red-950/30 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 font-extrabold text-xs rounded-xl border border-red-200/80 dark:border-red-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
                 title={t('import.yt_auto_tooltip', 'Import official or auto-generated YouTube subtitles (falls back to AI if missing)')}
               >
                 {isYtLoading && (ytLoadingMode === "auto" || !ytLoadingMode) ? (
@@ -1249,7 +1335,7 @@ export default function ImportLessonForm({
                 id="btn-youtube-ai-fetch"
                 disabled={isYtLoading}
                 onClick={(e) => handleYtFetch(e, "force_ai")}
-                className="flex-1 py-2.5 px-4 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                className="flex-1 py-2.5 px-3 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
                 title={t('import.yt_ai_tooltip', 'Directly transcribe video speech into timestamped sentences using Gemini AI Speech-to-Text')}
               >
                 {isYtLoading && ytLoadingMode === "force_ai" ? (
@@ -1263,6 +1349,18 @@ export default function ImportLessonForm({
                     {t('import.yt_ai_btn', 'Import with AI (Gemini STT)')}
                   </>
                 )}
+              </button>
+
+              <button
+                type="button"
+                id="btn-youtube-whisper-fetch"
+                disabled={isYtLoading}
+                onClick={handleWhisperQueueSubmit}
+                className="flex-1 py-2.5 px-3 bg-emerald-50/90 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                title={t('import.yt_whisper_tooltip', 'Enqueue in background and transcribe locally using Faster-Whisper CPU')}
+              >
+                <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                {t('import.yt_whisper_btn', '⚡ Transcribe with Whisper')}
               </button>
             </div>
 
@@ -1483,105 +1581,6 @@ export default function ImportLessonForm({
               {webSuccess}
             </div>
           )}
-
-          {/* Bookmarklet Integration Box */}
-          <div className="mt-4 p-4 border border-teal-100/80 dark:border-teal-950/40 bg-teal-50/15 dark:bg-teal-950/10 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400 font-bold" />
-                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                  {t('import.bookmarklet_title', 'Quick import from any site (Bookmarklet)')}
-                </span>
-              </div>
-              <span className="text-[9px] bg-teal-100/60 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full font-bold">
-                {t('import.one_click', 'One-click')}
-              </span>
-            </div>
-
-            <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed font-sans">
-              {t('import.bookmarklet_desc', 'A bookmarklet is a smart bookmark button in your browser bar. To install it, choose one of the options below:')}
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-0.5">
-              {/* Option A: Open in new tab */}
-              <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
-                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                  {t('import.option1_title', 'Option 1: New tab (Recommended)')}
-                </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`javascript:(function(){var url=window.location.href;var appUrl='${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/';window.open(appUrl+'?import_url='+encodeURIComponent(url),'_blank');})();`}
-                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-heavy text-[11px] rounded-lg shadow-sm cursor-grab active:cursor-grabbing select-none hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-1 transition-all"
-                    title={t('import.drag_to_bar', 'Drag me to your bookmark bar')}
-                  >
-                    <Globe className="w-3.5 h-3.5" />
-                    📥 {t('import.import_new_tab', 'Import to Lectura (New Tab)')}
-                  </a>
-                </div>
-                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-sans leading-normal">
-                  {t('import.option1_desc', 'Opens clean text in a new tab, leaving original article open.')}
-                </p>
-              </div>
-
-              {/* Option B: Open in same tab */}
-              <div className="p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
-                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                  {t('import.option2_title', 'Option 2: Current tab (Reliable)')}
-                </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`javascript:(function(){var url=window.location.href;var appUrl='${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/';window.location.href=appUrl+'?import_url='+encodeURIComponent(url);})();`}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-heavy text-[11px] rounded-lg shadow-sm cursor-grab active:cursor-grabbing select-none hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-1 transition-all"
-                    title={t('import.drag_to_bar', 'Drag me to your bookmark bar')}
-                  >
-                    <Globe className="w-3.5 h-3.5" />
-                    📥 {t('import.import_same_tab', 'Import to Lectura (Same Tab)')}
-                  </a>
-                </div>
-                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-sans leading-normal">
-                  {t('import.option2_desc', 'Redirects current page to Lectura. Protected against popup blockers.')}
-                </p>
-              </div>
-            </div>
-
-            {/* Manual Installation (Copy-Paste) */}
-            <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                  {t('import.manual_setup', 'Can\'t drag? Set up manually:')}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const code = `javascript:(function(){var url=window.location.href;var appUrl='${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/';window.open(appUrl+'?import_url='+encodeURIComponent(url),'_blank');})();`;
-                    navigator.clipboard.writeText(code);
-                    setCopiedBookmarklet(true);
-                    setTimeout(() => setCopiedBookmarklet(false), 2000);
-                  }}
-                  className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold flex items-center gap-1.5 cursor-pointer"
-                >
-                  {copiedBookmarklet ? t('import.copied', '✓ Copied!') : t('import.copy_code', 'Copy code')}
-                </button>
-              </div>
-              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal font-sans">
-                {t('import.manual_step1', '1. Create any temporary bookmark in browser')} (<kbd className="px-1 bg-zinc-200 dark:bg-zinc-800 rounded">Ctrl+D</kbd>).<br />
-                {t('import.manual_step2', '2. Right click the created bookmark and select Edit')}.<br />
-                {t('import.manual_step3', '3. Clear URL field, paste copied code, and rename it to Lectura')}.
-              </p>
-            </div>
-
-            {/* Crucial troubleshooting checklist */}
-            <div className="p-3 bg-yellow-50/35 dark:bg-yellow-950/10 border border-yellow-200/30 dark:border-yellow-900/20 rounded-xl space-y-1 font-sans">
-              <div className="text-[10px] font-bold text-yellow-850 dark:text-yellow-405">
-                ⚠️ {t('import.bm_troubleshoot_title', 'Why bookmarklet may not react to click:')}
-              </div>
-              <ul className="text-[10px] text-zinc-500 dark:text-zinc-400 list-disc list-inside space-y-1 leading-normal font-sans">
-                <li>{t('import.bm_troubleshoot_1', 'You clicked the bookmark on an empty browser tab (chrome://newtab) or settings page. Browser security policies block bookmarklets on internal pages.')}</li>
-                <li>{t('import.bm_troubleshoot_2', 'You are testing on highly restricted sites (e.g. GitHub or Chrome Web Store) that restrict third-party scripts via Content Security Policy (CSP).')}</li>
-                <li><strong>{t('import.bm_troubleshoot_test', 'Test it:')}</strong> {t('import.bm_troubleshoot_3', 'Go to any article on Wikipedia or news website and click the bookmark there!')}</li>
-              </ul>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1603,7 +1602,7 @@ export default function ImportLessonForm({
             <input 
               id="file-loader"
               type="file"
-              accept=".pdf,.epub"
+              accept=".pdf,.epub,.mp3,.m4a,.wav,.ogg,.flac,.aac,.mp4,.mkv,.webm"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -1615,7 +1614,7 @@ export default function ImportLessonForm({
                     {t('import.parsing_book', 'Reading and analyzing document...')}
                   </h4>
                   <p className="text-[10px] text-zinc-500 mt-1 max-w-sm">
-                    {t('import.parsing_desc', 'Extracting chapters, cleaning markup, and formatting book text. May take a few seconds.')}
+                    {t('import.parsing_desc', 'Extracting chapters, audio or formatting text. May take a few seconds.')}
                   </p>
                 </div>
               </div>
@@ -1626,10 +1625,10 @@ export default function ImportLessonForm({
                 </div>
                 <div>
                   <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-widest leading-normal">
-                    {t('import.upload_book_file', 'Upload book file (PDF, EPUB)')}
+                    {t('import.upload_book_file', 'Upload Book or Audio/Video File')}
                   </h4>
                   <p className="text-[11px] text-zinc-500 mt-1.5 max-w-md font-sans">
-                    {t('import.drag_file_here', 'Drag your .pdf or .epub file here or click to select')}
+                    {t('import.drag_file_here', 'Drag your .pdf, .epub book or .mp3, .m4a, .mp4 media file here to transcribe with Faster-Whisper')}
                   </p>
                 </div>
               </div>
@@ -1706,21 +1705,31 @@ export default function ImportLessonForm({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            {/* Real-time cover preview */}
-            <div className="md:col-span-3 flex justify-center items-center">
-              <div className="w-20 h-28 bg-zinc-200 dark:bg-zinc-800 rounded-xl overflow-hidden shadow-xs border border-zinc-300 dark:border-zinc-700 flex flex-col items-center justify-center relative">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            {/* Real-time cover preview (supports both vertical books and 16:9 YouTube video thumbnails) */}
+            <div className="md:col-span-4 flex justify-center items-center">
+              <div className="w-full max-w-[190px] h-28 bg-zinc-900 dark:bg-zinc-950 rounded-xl overflow-hidden shadow-xs border border-zinc-200 dark:border-zinc-800 flex items-center justify-center relative">
                 {coverUrl ? (
-                  <img 
-                    src={coverUrl} 
-                    alt="Cover preview" 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      console.warn("Cover image failed to load:", coverUrl);
-                    }}
-                  />
+                  <>
+                    {/* Ambient backdrop */}
+                    <img 
+                      src={coverUrl} 
+                      alt="" 
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 select-none pointer-events-none"
+                    />
+                    {/* Foreground sharp image shown completely (cover for articles, contain for books) */}
+                    <img 
+                      src={coverUrl} 
+                      alt="Cover preview" 
+                      className={`relative z-10 ${selectedType === 'article' ? 'w-full h-full object-cover' : 'max-w-full max-h-full object-contain'} rounded shadow-sm select-none`}
+                      onError={(e) => {
+                        console.warn("Cover image failed to load:", coverUrl);
+                      }}
+                    />
+                  </>
                 ) : (
-                  <span className="text-[10px] text-zinc-500 font-extrabold text-center px-1">
+                  <span className="text-[10px] text-zinc-400 font-extrabold text-center px-1">
                     {t('import.no_cover', 'No cover')}
                   </span>
                 )}
@@ -1728,7 +1737,7 @@ export default function ImportLessonForm({
             </div>
 
             {/* URL entry or preset selector */}
-            <div className="md:col-span-9 space-y-2.5">
+            <div className="md:col-span-8 space-y-2.5">
               <div className="flex gap-2">
                 <input
                   type="text"

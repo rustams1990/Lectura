@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Lectura - Менеджер и Конвертер баз авто-игнора</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: #0b1120; color: #f8fafc; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .container { width: 100%; max-width: 1100px; background: #1e293b; border-radius: 20px; padding: 26px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border: 1px solid #334155; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    h1 { font-size: 22px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 10px; }
+    p.subtitle { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+    
+    .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; background: #0f172a; padding: 14px; border-radius: 14px; border: 1px solid #334155; align-items: center; justify-content: space-between; }
+    .toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .file-status-badge { font-size: 12px; background: #1e293b; color: #38bdf8; padding: 6px 12px; border-radius: 8px; border: 1px solid #0284c7; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    
+    .panel { display: flex; flex-direction: column; gap: 8px; }
+    label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #cbd5e1; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center; }
+    
+    textarea { width: 100%; height: 380px; background: #0f172a; border: 1px solid #334155; border-radius: 12px; color: #e2e8f0; padding: 14px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; resize: vertical; outline: none; transition: border-color 0.2s; }
+    textarea:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
+    
+    .badges-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .stat-badge { font-size: 11px; font-weight: 700; background: #0369a1; color: #e0f2fe; padding: 3px 10px; border-radius: 999px; }
+    .stat-badge.success { background: #065f46; color: #a7f3d0; }
+    .stat-badge.warning { background: #854d0e; color: #fef08a; }
+    .stat-badge.info { background: #1e3a8a; color: #93c5fd; }
+
+    .summary-card { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 12px 16px; margin-top: 16px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #94a3b8; align-items: center; }
+    .summary-card strong { color: #f8fafc; font-size: 13px; }
+
+    .duplicates-box { margin-top: 14px; padding: 14px 16px; background: #451a03/40; border: 1px solid #b45309; border-radius: 12px; font-size: 12px; color: #fde68a; display: none; }
+    .duplicates-box h4 { font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+    .duplicates-list { max-height: 80px; overflow-y: auto; background: #1e293b/80; padding: 8px 12px; border-radius: 8px; font-family: monospace; color: #fcd34d; word-break: break-all; margin-top: 6px; border: 1px solid #78350f; }
+
+    .buttons { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    button { padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 8px; user-select: none; }
+    button:active { transform: scale(0.98); }
+    .btn-primary { background: #0284c7; color: white; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-success { background: #059669; color: white; }
+    .btn-success:hover { background: #047857; }
+    .btn-secondary { background: #334155; color: #f8fafc; border: 1px solid #475569; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-danger { background: #dc2626/20; color: #fca5a5; border: 1px solid #dc2626/40; }
+    .btn-danger:hover { background: #dc2626/40; }
+
+    .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; }
+    .file-input-wrapper input[type=file] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+
+    .notice { font-size: 12px; color: #38bdf8; background: rgba(2, 132, 199, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); padding: 12px 16px; border-radius: 12px; margin-top: 20px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>🛡️ Lectura — Менеджер баз авто-игнора</h1>
+        <p class="subtitle">Открывайте файл базы, добавляйте новые слова без риска потерять исходные данные, находите и фильтруйте дубликаты.</p>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="file-input-wrapper">
+          <button class="btn-primary">📁 Открыть базовый .json файл</button>
+          <input type="file" id="filePicker" accept=".json,.txt,.csv" onchange="handleOpenFile(event)">
+        </div>
+        <div id="fileBadge" class="file-status-badge" style="display: none;">
+          <span>📄 База: <b id="currentFileName">gaming.json</b> (<span id="baseWordCount">0</span> слов)</span>
+        </div>
+      </div>
+      <button id="unloadBtn" class="btn-danger" style="display: none;" onclick="unloadBaseFile()">✕ Выгрузить файл</button>
+    </div>
+    
+    <div class="grid">
+      <div class="panel">
+        <label>
+          <span>Вставка новых слов (в столбик или через запятую)</span>
+          <div class="badges-row">
+            <span id="inputCount" class="stat-badge">0 новых</span>
+          </div>
+        </label>
+        <textarea id="inputText" placeholder="Вставьте сюда новые слова для добавления в базу...
+(Они автоматически объединятся с открытым файлом без дубликатов)."></textarea>
+      </div>
+
+      <div class="panel">
+        <label>
+          <span>Итоговый результат JSON (База + Новые слова)</span>
+          <div class="badges-row">
+            <span id="outputCount" class="stat-badge success">0 слов всего</span>
+            <span id="dupBadge" class="stat-badge warning" style="display: none;">0 дубликатов</span>
+          </div>
+        </label>
+        <textarea id="outputText" readonly placeholder="Здесь формируется готовый отсортированный JSON-массив..."></textarea>
+      </div>
+    </div>
+
+    <!-- Live Summary Card -->
+    <div class="summary-card">
+      <div>В базовом файле: <strong id="sumBaseCount">0</strong></div>
+      <div>•</div>
+      <div>Введено новых: <strong id="sumNewCount">0</strong></div>
+      <div>•</div>
+      <div>Дубликатов отсеяно: <strong id="sumDupCount" style="color: #fde68a;">0</strong></div>
+      <div>•</div>
+      <div>Итоговый размер базы: <strong id="sumTotalCount" style="color: #38bdf8;">0</strong></div>
+    </div>
+
+    <!-- Duplicate Alert Box -->
+    <div id="duplicateBox" class="duplicates-box">
+      <h4>⚠️ Обнаружены и объединены дубликаты (<span id="dupCountText">0</span>):</h4>
+      <p>Следующие слова уже присутствуют в базе или повторялись во вводе:</p>
+      <div id="duplicateList" class="duplicates-list"></div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn-primary" onclick="copyResult()">📋 Скопировать JSON</button>
+      <button class="btn-success" onclick="downloadJSON()">💾 Сохранить / Скачать .json</button>
+      <button class="btn-secondary" onclick="clearInputOnly()">🧹 Очистить только поле ввода</button>
+      <button class="btn-danger" onclick="clearEverything()">🗑️ Сбросить всё</button>
+    </div>
+
+    <div class="notice">
+      💡 <b>Категории файлов в Lectura:</b><br>
+      • 🎮 <code>gaming.json</code> — консоли, платформы, игры<br>
+      • 💻 <code>tech.json</code> — IT-бренды, аппаратные протоколы<br>
+      • 🎵 <code>music.json</code> — музыкальные группы, исполнители<br>
+      • 🎬 <code>cinema.json</code> — фильмы, сериалы, персонажи<br>
+      • 🏷️ <code>brands.json</code> — авто, одежда, еда, косметика<br>
+      • 🏙️ <code>cities.json</code> — мировые города и столицы<br>
+      • 👤 <code>names.json</code> — однозначные личные имена<br>
+      • 🧩 <code>misc.json</code> — разное (работает всегда в фоне)<br>
+      • 🛠️ <code>typos.json</code> — опечатки/мусор распознавания субтитров (работает всегда в фоне)
+    </div>
+  </div>
+
+  <script>
+    const PROTECTED = new Set([
+      'apple', 'zoom', 'nice', 'valve', 'blizzard', 'steam', 'switch', 'hades',
+      'celeste', 'canon', 'safari', 'docker', 'chrome', 'edge', 'opera', 'led',
+      'ram', 'war', 'god', 'boss', 'drop', 'loot', 'cool', 'like', 'link',
+      'chat', 'cloud', 'server', 'stream', 'style', 'team', 'party', 'test',
+      'brand', 'meeting', 'deadline', 'target', 'gap', 'shell', 'oracle', 'subway',
+      'chase', 'bell', 'deal', 'dell', 'reading', 'bath', 'split', 'intel',
+      'discord', 'fedora', 'overwatch', 'insomniac', 'play', 'tree', 'skill',
+      'music', 'guerra', 'box', 'boxes', 'boxing', 'will', 'may', 'bill', 'grace',
+      'hope', 'rose', 'mark', 'rich', 'faith', 'joy', 'art', 'rosa', 'blanca',
+      'dolores', 'esperanza', 'sol', 'victoria', 'cruz', 'angel', 'flor', 'luz',
+      'spain', 'españa', 'germany', 'alemania', 'france', 'francia', 'italy', 'italia',
+      'russia', 'rusia', 'россия', 'china', 'japan', 'japon', 'mexico', 'méxico',
+      'usa', 'uk', 'canada', 'brazil', 'argentina', 'colombia', 'peru', 'perú'
+    ]);
+
+    let baseWordsSet = new Set();
+    let loadedFileName = "gaming.json";
+
+    const input = document.getElementById('inputText');
+    const output = document.getElementById('outputText');
+    const inputCount = document.getElementById('inputCount');
+    const outputCount = document.getElementById('outputCount');
+    const dupBadge = document.getElementById('dupBadge');
+    const duplicateBox = document.getElementById('duplicateBox');
+    const duplicateList = document.getElementById('duplicateList');
+    const dupCountText = document.getElementById('dupCountText');
+    const fileBadge = document.getElementById('fileBadge');
+    const unloadBtn = document.getElementById('unloadBtn');
+    const currentFileName = document.getElementById('currentFileName');
+    const baseWordCount = document.getElementById('baseWordCount');
+    const sumBaseCount = document.getElementById('sumBaseCount');
+    const sumNewCount = document.getElementById('sumNewCount');
+    const sumDupCount = document.getElementById('sumDupCount');
+    const sumTotalCount = document.getElementById('sumTotalCount');
+
+    function parseTokens(text) {
+      if (!text) return [];
+      const raw = text.split(/[\r\n,;\t"'/\\()[\]{}|<>+=*&^%$#@!~`?:]+|\s+/);
+      const res = [];
+      for (const t of raw) {
+        const clean = t.trim().toLowerCase();
+        if (clean.length >= 2 && !clean.includes(' ') && !PROTECTED.has(clean)) {
+          res.push(clean);
+        }
+      }
+      return res;
+    }
+
+    function recompute() {
+      const inputText = input.value;
+      const inputTokens = parseTokens(inputText);
+
+      const mergedSet = new Set(baseWordsSet);
+      const duplicatesSet = new Set();
+      let newTokensCount = 0;
+
+      for (const token of inputTokens) {
+        newTokensCount++;
+        if (mergedSet.has(token)) {
+          duplicatesSet.add(token);
+        } else {
+          mergedSet.add(token);
+        }
+      }
+
+      const sortedResult = Array.from(mergedSet).sort();
+      output.value = sortedResult.length > 0 ? JSON.stringify(sortedResult, null, 2) : '';
+
+      // Update UI counts
+      inputCount.textContent = newTokensCount + ' новых';
+      outputCount.textContent = sortedResult.length + ' слов всего';
+      sumBaseCount.textContent = baseWordsSet.size;
+      sumNewCount.textContent = newTokensCount;
+      sumDupCount.textContent = duplicatesSet.size;
+      sumTotalCount.textContent = sortedResult.length;
+
+      if (duplicatesSet.size > 0) {
+        dupBadge.style.display = 'inline-block';
+        dupBadge.textContent = duplicatesSet.size + ' дубликатов';
+        duplicateBox.style.display = 'block';
+        dupCountText.textContent = duplicatesSet.size;
+        duplicateList.textContent = Array.from(duplicatesSet).sort().join(', ');
+      } else {
+        dupBadge.style.display = 'none';
+        duplicateBox.style.display = 'none';
+      }
+    }
+
+    input.addEventListener('input', recompute);
+
+    function handleOpenFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      loadedFileName = file.name;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        try {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed)) {
+            baseWordsSet = new Set(parseTokens(parsed.join(' ')));
+          } else {
+            baseWordsSet = new Set(parseTokens(content));
+          }
+        } catch {
+          baseWordsSet = new Set(parseTokens(content));
+        }
+
+        // Show badge
+        currentFileName.textContent = loadedFileName;
+        baseWordCount.textContent = baseWordsSet.size;
+        fileBadge.style.display = 'inline-flex';
+        unloadBtn.style.display = 'inline-flex';
+
+        recompute();
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    function unloadBaseFile() {
+      baseWordsSet.clear();
+      fileBadge.style.display = 'none';
+      unloadBtn.style.display = 'none';
+      loadedFileName = 'gaming.json';
+      recompute();
+    }
+
+    function clearInputOnly() {
+      input.value = '';
+      recompute();
+    }
+
+    function clearEverything() {
+      input.value = '';
+      baseWordsSet.clear();
+      fileBadge.style.display = 'none';
+      unloadBtn.style.display = 'none';
+      loadedFileName = 'gaming.json';
+      recompute();
+    }
+
+    function copyResult() {
+      if (!output.value) return;
+      navigator.clipboard.writeText(output.value);
+      alert('✅ Скопировано в буфер обмена!');
+    }
+
+    function downloadJSON() {
+      if (!output.value) return;
+      const blob = new Blob([output.value], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = loadedFileName.endsWith('.json') ? loadedFileName : `${loadedFileName}.json`;
+      a.click();
+    }
+  </script>
+</body>
+</html>

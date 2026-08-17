@@ -13,6 +13,7 @@ export interface ExampleSentence {
 export interface VocabItem {
   word: string;
   translation: string;
+  definition?: string; // Dictionary definition in the target language (stored at the lemma/parent level)
   ipa: string;
   grammar: string;
   contextRelation: string;
@@ -46,12 +47,14 @@ export interface Lesson {
   isArchived?: boolean;
   coverUrl?: string | null;
   youtubeId?: string | null;
+  localVideoUrl?: string | null;
   youtubeDuration?: number | null;
   audioDuration?: number | null;
   lessonType?: string; // e.g. "youtube" | "book" | "article" or custom string
   pinned?: boolean;
   translationText?: string | null;
   detectedPhrases?: Record<string, { translation: string; explanation: string; type?: string }>;
+  text_lemmas?: Record<string, string>;
   difficulty?: string | null;
   difficultyExplanation?: string | null;
   createdAt?: number;
@@ -76,6 +79,27 @@ export interface LanguageListeningStat {
   totalSeconds: number;
 }
 
+export interface AIProfile {
+  id: string;
+  name: string;               // e.g. "Gemini Основной", "Gemini Резерв", "Groq Llama-3"
+  provider: 'gemini' | 'openai' | 'groq' | 'ollama' | 'custom';
+  apiKey: string;
+  model?: string;             // e.g. "gemini-2.0-flash", "gpt-4o-mini", "llama-3.3-70b-versatile"
+  baseUrl?: string;           // e.g. "http://localhost:11434/api/generate" or custom OpenAI base url
+  isEnabled: boolean;
+  priority: number;           // 1, 2, 3...
+}
+
+export interface IgnoreCategorySettings {
+  gaming: boolean;
+  tech_brands: boolean;
+  music: boolean;
+  cinema: boolean;
+  brands: boolean;
+  names_cities: boolean;
+  anglicisms: boolean;
+}
+
 export interface ReaderSettings {
   fontSize: "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   lineHeight: "normal" | "relaxed" | "loose" | "extra-loose";
@@ -95,23 +119,41 @@ export interface ReaderSettings {
   autoPunctuationSplit?: boolean;
   idiomHighlightStyle?: "badge" | "underline" | "icon" | "hover";
   aiProvider?: "gemini" | "local";
+  geminiApiKey?: string;
   localAiUrl?: string;
   localAiModel?: string;
+  aiProfiles?: AIProfile[];
   showDetailedVocabularyStats?: boolean;
   mainStatsMetric?: "comprehension" | "vocabulary";
   showProgressBar?: boolean;
   dailyGoalMinutes?: number; // 0 means disabled, used as global fallback
   dailyGoalsByLanguage?: Record<string, number>; // Maps language code (e.g. "Spanish") to goal minutes
   onlyPatterns?: boolean; // When true, stats & known words count use Parents Only (lemmas) grouping
+  dimBookCovers?: boolean; // When true, dims book covers in library with a dark gradient overlay
+  whisperModel?: "tiny" | "base" | "small" | "medium";
+  whisperThreads?: number;
+  whisperVad?: boolean;
+  showWhisperMiniTelemetry?: boolean;
+  ignoreCategories?: IgnoreCategorySettings;
 }
 
-export interface Dictionary {
+export interface DictionaryItem {
   id: string;
   name: string;
   urlTemplate: string;
   displayType: "popup" | "new_tab" | "window_popup";
   enabled?: boolean;
+  order?: number;
 }
+
+export type Dictionary = DictionaryItem;
+
+export interface TabDictionaryPreferences {
+  meaning: DictionaryItem[];
+  definition: DictionaryItem[];
+}
+
+export type UserDictionaryPreferences = Record<string, TabDictionaryPreferences>;
 
 export interface HistoryEntry {
   id: string;

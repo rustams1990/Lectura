@@ -3,17 +3,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Lesson } from "../types";
 import { safeJsonParse, getBCP47LanguageTag, FLAG_EMOJI_TO_CODE } from "../utils";
 import { useToast } from "../context/ToastContext";
 import { APP_VERSION } from "../version";
 import { 
   X, Check, Globe, HelpCircle, Save, RotateCcw, Trash2, Link, 
-  Maximize2, Sparkles, Database, HardDrive, Download, Upload, ShieldAlert,
-  Wifi, Copy, RefreshCw, TrendingUp, Headphones, Languages
+  Maximize2, Sparkles, Database, HardDrive, Download, Upload,
+  Wifi, Copy, RefreshCw, TrendingUp, Headphones, Languages, AlertTriangle, UserCheck, ChevronDown, Lightbulb,
+  ArrowUp, ArrowDown, Key, Eye, EyeOff, Plus, CheckCircle2, XCircle, Loader2, Zap, Server, ShieldAlert, Cpu, ExternalLink, Activity
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../context/AuthContext";
+import { UserAvatarDisplay } from "./ProfileModal";
+import { AIProfile } from "../types";
+import { 
+  getOrCreateAiProfiles, testAiProfileConnection, 
+  isProfileOnCooldown, getCooldownRemainingSeconds 
+} from "../services/aiFailoverService";
+import WhisperSettingsManager from "./WhisperSettingsManager";
+import IgnoreListsSettingsManager from "./IgnoreListsSettingsManager";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -24,20 +34,21 @@ interface SettingsModalProps {
   onResetLanguageFlags: () => void;
   // New properties for managing word variation links & scaling
   wordLinks: Record<string, string>;
-  onDeleteWordLink: (sourceKey: string) => void;
+  onDeleteWordLink?: (sourceKey: string) => void;
   zoomScale: number;
   onZoomScaleChange: (scale: number) => void;
   layoutWidthMode?: "standard" | "wide" | "ultra" | "full";
   onLayoutWidthModeChange?: (mode: "standard" | "wide" | "ultra" | "full") => void;
 
-  // Storage / Backup and Offline capabilities props
-  storageMode: "cloud" | "local" | "server";
-  onStorageModeChange: (mode: "cloud" | "local" | "server") => void;
+  // Storage / Backup and Profile capabilities props
+  storageMode: "local" | "server" | "cloud";
+  onStorageModeChange: (mode: "local" | "server") => void;
   localSyncKey: string;
   onLocalSyncKeyChange: (key: string) => void;
   localSyncError: boolean;
-  firebaseUser: any;
   activeUser?: any;
+  onOpenAuthModal?: () => void;
+  onLogout?: () => void;
   vocab: Record<string, any>;
   lessonTypes: any[];
   listeningSeconds: number;
@@ -49,8 +60,17 @@ interface SettingsModalProps {
     wordLinks: Record<string, string>;
     listeningSeconds?: number;
     languageFlags?: Record<string, string>;
+    history?: any[];
+    readerSettings?: Record<string, any>;
+    pinnedLanguages?: string[];
+    hiddenLanguages?: string[];
+    selectedTargetLanguage?: string;
   }) => void;
-  onClearAllData: () => void;
+  history?: any[];
+  pinnedLanguages?: string[];
+  hiddenLanguages?: string[];
+  selectedTargetLanguage?: string;
+  onClearAllData?: () => void;
   onManualSync?: () => Promise<void>;
   isSyncing?: boolean;
   settings?: Record<string, any>;
@@ -292,8 +312,9 @@ export default function SettingsModal({
   localSyncKey,
   onLocalSyncKeyChange,
   localSyncError,
-  firebaseUser,
   activeUser,
+  onOpenAuthModal,
+  onLogout,
   vocab,
   lessonTypes,
   listeningSeconds,
@@ -304,11 +325,26 @@ export default function SettingsModal({
   isSyncing = false,
   settings,
   onSettingsChange,
+  history,
+  pinnedLanguages,
+  hiddenLanguages,
+  selectedTargetLanguage,
 }: SettingsModalProps) {
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
+  const { updateProfile } = useAuth();
+  const [hintInput, setHintInput] = useState<string>(activeUser?.passwordHint || "");
+  const [isSavingHint, setIsSavingHint] = useState<boolean>(false);
+  const [hintSavedSuccess, setHintSavedSuccess] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (activeUser) {
+      setHintInput(activeUser.passwordHint || "");
+    }
+  }, [activeUser]);
+
   const [customInputs, setCustomInputs] = useState<Record<string, string>>({});
-  const [activeSettingsTab, setActiveSettingsTab] = useState<"flags" | "interface" | "patterns" | "storage">("flags");
+  const [activeSettingsTab, setActiveSettingsTab] = useState<"flags" | "interface" | "audio" | "ai" | "whisper" | "stats" | "ignore_lists" | "storage">("flags");
   const [importStatus, setImportStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -317,104 +353,22 @@ export default function SettingsModal({
   const [listeningSaveMsg, setListeningSaveMsg] = useState<string | null>(null);
   const [showAllFlagsMap, setShowAllFlagsMap] = useState<Record<string, boolean>>({});
 
-  // States for local Wi-Fi Peer-to-Peer Transfer
-  const [wifiSyncPin, setWifiSyncPin] = useState<string | null>(null);
-  const [wifiSyncLoading, setWifiSyncLoading] = useState<boolean>(false);
-  const [inputWifiPin, setInputWifiPin] = useState<string>("");
-  const [wifiSyncStatus, setWifiSyncStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
-
-  const handleLocalWifiShare = async () => {
-    setWifiSyncLoading(true);
-    setWifiSyncStatus({ type: "idle" });
-    try {
-      const payload = {
-        lessons,
-        lessonTypes,
-        vocab,
-        wordLinks,
-        listeningSeconds,
-        languageFlags,
-      };
-
-      const res = await fetch("/api/local-sync/share", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-local-sync-key": localSyncKey
-        },
-        body: JSON.stringify({ data: payload })
-      });
-
-      if (!res.ok) {
-        throw new Error(t("settings.err_register_sync", "Failed to register sync code on server."));
-      }
-
-      const body = await safeJsonParse(res);
-      setWifiSyncPin(body.code);
-      setWifiSyncStatus({
-        type: "success",
-        message: t("settings.sync_code_gen", "Sync code generated! Valid for 15 minutes.")
-      });
-    } catch (err: any) {
-      console.error(err);
-      setWifiSyncStatus({
-        type: "error",
-        message: err.message || t("settings.err_gen_session", "Error generating local sync session.")
-      });
-    } finally {
-      setWifiSyncLoading(false);
-    }
-  };
-
-  const handleLocalWifiRetrieve = async () => {
-    if (!inputWifiPin.trim() || inputWifiPin.trim().length !== 6) {
-      setWifiSyncStatus({
-        type: "error",
-        message: t("settings.err_enter_pin", "Please enter a valid 6-digit code.")
-      });
-      return;
-    }
-
-    setWifiSyncLoading(true);
-    setWifiSyncStatus({ type: "idle" });
-    try {
-      const res = await fetch(`/api/local-sync/retrieve/${inputWifiPin.trim()}`, {
-        headers: {
-          "x-local-sync-key": localSyncKey
-        }
-      });
-      if (!res.ok) {
-        const errJson = await safeJsonParse(res).catch(() => ({}));
-        throw new Error(errJson.error || t("settings.err_load_code", "Failed to load data for this code."));
-      }
-
-      const body = await safeJsonParse(res);
-      if (!body.data) {
-        throw new Error(t("settings.err_empty_payload", "Server returned an empty data package."));
-      }
-
-      onImportData(body.data);
-      setWifiSyncStatus({
-        type: "success",
-        message: `${t("settings.sync_success", "Sync complete! Successfully transferred:")} ${body.data.lessons?.length || 0} ${t("settings.books_unit", "books")}, ${Object.keys(body.data.vocab || body.data.lingqs || {}).length || 0} ${t("settings.words_unit", "words & links!")}`
-      });
-      setInputWifiPin("");
-      setWifiSyncPin(null);
-    } catch (err: any) {
-      console.error(err);
-      setWifiSyncStatus({
-        type: "error",
-        message: err.message || t("settings.err_download_data", "Error downloading local data.")
-      });
-    } finally {
-      setWifiSyncLoading(false);
-    }
-  };
+  const [confirmImport, setConfirmImport] = useState<{
+    data: any;
+    dateFormatted: string;
+    username?: string;
+    lessonsCount: number;
+    wordsCount: number;
+  } | null>(null);
 
   const handleExportDataLocal = () => {
     try {
+      const rawUsername = activeUser?.username || activeUser?.email?.split("@")[0] || activeUser?.displayName || "";
+      const cleanUsername = rawUsername.replace(/[^a-zA-Z0-9_-]/g, "");
+
       const backupFile = {
         version: "1.0",
+        username: cleanUsername || undefined,
         exportDate: new Date().toISOString(),
         lessons,
         lessonTypes,
@@ -422,15 +376,24 @@ export default function SettingsModal({
         wordLinks,
         listeningSeconds,
         languageFlags,
+        history: history || [],
+        readerSettings: settings || null,
+        pinnedLanguages: pinnedLanguages || [],
+        hiddenLanguages: hiddenLanguages || [],
+        selectedTargetLanguage: selectedTargetLanguage || null,
       };
 
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupFile, null, 2));
+      const jsonString = JSON.stringify(backupFile, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
       const downloadAnchor = document.createElement("a");
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `smart_learner_backup_${new Date().toISOString().substring(0, 10)}.json`);
+      downloadAnchor.href = url;
+      const dateStr = new Date().toISOString().substring(0, 10);
+      downloadAnchor.download = cleanUsername ? `lectura_backup_${cleanUsername}_${dateStr}.json` : `lectura_backup_${dateStr}.json`;
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+      URL.revokeObjectURL(url);
     } catch (e: any) {
       console.error("Failed to export backup JSON:", e);
       showToast(`${t("settings.err_export_backup", "Error exporting backup:")} ${e.message || String(e)}`, "error");
@@ -451,24 +414,69 @@ export default function SettingsModal({
         if (
           !parsed || 
           (typeof parsed !== "object") ||
-          (!parsed.lessons && !parsed.vocab && !parsed.lingqs && !parsed.wordLinks && !parsed.lessonTypes)
+          (!parsed.lessons && !parsed.vocab && !parsed.words && !parsed.wordLinks && !parsed.lessonTypes)
         ) {
           throw new Error(t("settings.err_invalid_structure", "Invalid backup file structure. Must contain at least one list: lessons, words, or links."));
         }
 
-        onImportData(parsed);
-        setImportStatus({
-          type: "success",
-          message: `${t("settings.import_success", "Import complete! Loaded:")} ${parsed.lessons?.length || 0} ${t("settings.lessons_unit", "lessons")}, ${Object.keys(parsed.vocab || parsed.lingqs || {}).length || 0} ${t("settings.words_unit", "words.")}`
+        let dateFormatted = "Не указана";
+        if (parsed.exportDate) {
+          try {
+            const d = new Date(parsed.exportDate);
+            if (!isNaN(d.getTime())) {
+              dateFormatted = d.toLocaleString(i18n.language === "ru" ? "ru-RU" : "en-US", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit"
+              });
+            }
+          } catch (_) {}
+        } else if (file.lastModified) {
+          try {
+            const d = new Date(file.lastModified);
+            dateFormatted = d.toLocaleString(i18n.language === "ru" ? "ru-RU" : "en-US", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit"
+            });
+          } catch (_) {}
+        }
+
+        const lessonsCount = parsed.lessons?.length || 0;
+        const wordsCount = Object.keys(parsed.vocab || parsed.words || {}).length || 0;
+
+        setConfirmImport({
+          data: parsed,
+          dateFormatted,
+          username: parsed.username || undefined,
+          lessonsCount,
+          wordsCount
         });
       } catch (err: any) {
         setImportStatus({
           type: "error",
           message: `${t("settings.err_read_backup", "Error reading backup file:")} ${err.message || String(err)}`
         });
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleExecuteImport = () => {
+    if (!confirmImport) return;
+    const { data, lessonsCount, wordsCount } = confirmImport;
+    onImportData(data);
+    setImportStatus({
+      type: "success",
+      message: `${t("settings.import_success", "Import complete! Loaded:")} ${lessonsCount} ${t("settings.lessons_unit", "lessons")}, ${wordsCount} ${t("settings.words_unit", "words.")}`
+    });
+    setConfirmImport(null);
   };
 
   // Detect all unique target languages in the user library that actually have materials (lessons)
@@ -534,36 +542,76 @@ export default function SettingsModal({
         </div>
 
         {/* Modal Tabs Header */}
-        <div className="flex border-b border-zinc-100 dark:border-zinc-800 bg-zinc-55 dark:bg-zinc-950/30 px-6 select-none shrink-0 gap-1 overflow-x-auto">
+        <div className="flex border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30 px-3 sm:px-6 select-none shrink-0 gap-1 overflow-x-auto">
           <button
             onClick={() => setActiveSettingsTab("flags")}
-            className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
               activeSettingsTab === "flags"
                 ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            🚩 {t('settings.tab_flags', 'LANGUAGE FLAGS')}
+            🚩 {t('settings.tab_flags', 'Language Flags')}
           </button>
           <button
             onClick={() => setActiveSettingsTab("interface")}
-            className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
               activeSettingsTab === "interface"
                 ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            📐 {t('settings.tab_ui', 'UI (SCALE)')}
+            📐 {t('settings.tab_ui', 'Interface')}
           </button>
           <button
-            onClick={() => setActiveSettingsTab("patterns")}
-            className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
-              activeSettingsTab === "patterns"
+            onClick={() => setActiveSettingsTab("audio")}
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+              activeSettingsTab === "audio"
                 ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            🔗 {t('settings.tab_links', 'WORD LINKS')}
+            🎙️ {t('settings.tab_audio', 'Audio (TTS)')}
+          </button>
+          <button
+            onClick={() => setActiveSettingsTab("ai")}
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+              activeSettingsTab === "ai"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
+            }`}
+          >
+            ✨ {t('settings.tab_ai', 'AI Assistant')}
+          </button>
+          <button
+            onClick={() => setActiveSettingsTab("whisper")}
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+              activeSettingsTab === "whisper"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
+            }`}
+          >
+            ⚡ {t('settings.tab_whisper', 'Whisper (STT)')}
+          </button>
+          <button
+            onClick={() => setActiveSettingsTab("stats")}
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+              activeSettingsTab === "stats"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
+            }`}
+          >
+            📊 {t('settings.tab_stats', 'Statistics')}
+          </button>
+          <button
+            onClick={() => setActiveSettingsTab("ignore_lists")}
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+              activeSettingsTab === "ignore_lists"
+                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
+                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
+            }`}
+          >
+            🛡️ {t('settings.tab_ignore_lists', 'Игнор-листы')}
           </button>
           <button
             onClick={() => {
@@ -571,13 +619,13 @@ export default function SettingsModal({
               setImportStatus({ type: "idle" });
               setSyncStatus(null);
             }}
-            className={`py-3 px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 cursor-pointer ${
+            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
               activeSettingsTab === "storage"
                 ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            💾 {t('settings.tab_storage', 'STORAGE (LOCAL & CLOUD)')}
+            💾 {t('settings.tab_storage', 'Data & Sync')}
           </button>
         </div>
 
@@ -700,42 +748,50 @@ export default function SettingsModal({
           {/* Active Tab: Interface Scale */}
           {activeSettingsTab === "interface" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Language Switcher */}
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-5">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl text-indigo-600 dark:text-indigo-400 shrink-0">
-                    <Languages className="w-5 h-5" />
+              {/* Scalable UI Language Selector */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+                      <Languages className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                        {t('settings.language', 'Interface Language')}
+                      </h4>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                        {t('settings.language_desc', 'Choose the app language. Changes apply immediately.')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      {t('settings.language', 'Interface Language')}
-                    </h4>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                      {t('settings.language_desc', 'Choose the app language. Changes apply immediately.')}
-                    </p>
+
+                  {/* Scalable Select Dropdown */}
+                  <div className="w-full sm:w-64 shrink-0">
+                    <div className="relative">
+                      <select
+                        value={(i18n.language || "ru").startsWith("ru") ? "ru" : "en"}
+                        onChange={(e) => {
+                          const lang = e.target.value;
+                          i18n.changeLanguage(lang);
+                          try {
+                            localStorage.setItem("i18nextLng", lang);
+                          } catch (_) {}
+                        }}
+                        aria-label="Interface Language"
+                        className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold py-2.5 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition cursor-pointer shadow-3xs"
+                      >
+                        <option value="ru" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇷🇺 Русский (Russian)
+                        </option>
+                        <option value="en" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇬🇧 English
+                        </option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => i18n.changeLanguage('ru')}
-                    className={`py-2 px-3 rounded-xl border text-sm font-bold transition-all ${
-                      i18n.language === 'ru'
-                        ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
-                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
-                    }`}
-                  >
-                    🇷🇺 Русский
-                  </button>
-                  <button
-                    onClick={() => i18n.changeLanguage('en')}
-                    className={`py-2 px-3 rounded-xl border text-sm font-bold transition-all ${
-                      i18n.language === 'en'
-                        ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
-                        : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
-                    }`}
-                  >
-                    🇬🇧 English
-                  </button>
                 </div>
               </div>
 
@@ -833,8 +889,37 @@ export default function SettingsModal({
                 </div>
               </div>
 
+              {/* Book Covers Dimming Filter Option */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                    {t("settings.dim_covers_label", "Затемнение обложек в библиотеке")}
+                  </h4>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    {t("settings.dim_covers_desc", "Накладывать затемняющий градиентный фильтр на обложки книг для контраста текста (по умолчанию выключено).")}
+                  </p>
+                </div>
 
+                <button
+                  type="button"
+                  onClick={() => onSettingsChange?.({ dimBookCovers: !settings?.dimBookCovers })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    settings?.dimBookCovers ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      settings?.dimBookCovers ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
 
+          {/* Active Tab: Audio & TTS */}
+          {activeSettingsTab === "audio" && (
+            <div className="space-y-6 animate-in fade-in duration-200">
               {/* TTS Engine Selector */}
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
                 <div className="flex items-start gap-3">
@@ -1093,220 +1178,141 @@ export default function SettingsModal({
                     </div>
                   );
                 })()}
+              </div>
+            </div>
+          )}
 
-                {/* AI Settings Section */}
-                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-5">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                        {t("settings.ai_title", "AI Settings (AI Provider)")}
-                      </h4>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                        {t("settings.ai_desc", "Select which AI network to use for translation, grammar explanations, idioms, and story generation.")}
-                      </p>
-                    </div>
+          {/* Active Tab: AI Assistant */}
+          {activeSettingsTab === "ai" && (
+            <AIProfilesManager
+              settings={settings}
+              onSettingsChange={onSettingsChange}
+              t={t}
+            />
+          )}
+
+          {/* Active Tab: Local Whisper STT */}
+          {activeSettingsTab === "whisper" && (
+            <WhisperSettingsManager
+              settings={settings}
+              onSettingsChange={onSettingsChange}
+              t={t}
+            />
+          )}
+
+          {/* Active Tab: Book Card Statistics */}
+          {activeSettingsTab === "stats" && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Book Card Stats Section */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+                    <TrendingUp className="w-5 h-5" />
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => onSettingsChange?.({ aiProvider: "gemini" })}
-                      className={`text-left p-4 rounded-2xl border-2 transition-all cursor-pointer ${
-                        (settings?.aiProvider || "gemini") === "gemini"
-                          ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30"
-                          : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-teal-300 dark:hover:border-teal-700"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl shrink-0">✨</span>
-                        <div className="flex-1 min-w-0">
-                          <span className={`text-sm font-black block ${ (settings?.aiProvider || "gemini") === "gemini" ? "text-teal-700 dark:text-teal-300" : "text-zinc-800 dark:text-zinc-100" }`}>
-                            Gemini AI
-                          </span>
-                          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 leading-normal">
-                            {t("settings.ai_gemini_desc", "Uses Google Gemini cloud model.")}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onSettingsChange?.({ aiProvider: "local" })}
-                      className={`text-left p-4 rounded-2xl border-2 transition-all cursor-pointer ${
-                        (settings?.aiProvider || "gemini") === "local"
-                          ? "border-teal-500 bg-teal-50 dark:bg-teal-950/30"
-                          : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-teal-300 dark:hover:border-teal-700"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl shrink-0">💻</span>
-                        <div className="flex-1 min-w-0">
-                          <span className={`text-sm font-black block ${ (settings?.aiProvider || "gemini") === "local" ? "text-teal-700 dark:text-teal-300" : "text-zinc-800 dark:text-zinc-100" }`}>
-                            {t("settings.ai_local_label", "Local AI")}
-                          </span>
-                          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 leading-normal">
-                            {t("settings.ai_local_desc", "Requests are sent to a local Ollama server.")}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                      {t("settings.detailed_stats", "Detailed stats on book cards")}
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
+                      {t("settings.detailed_stats_desc", "Show separate comprehension stats (by total words) and vocabulary stats (by unique lemmas) on book cards.")}
+                    </p>
                   </div>
-
-                  {(settings?.aiProvider || "gemini") === "local" && (
-                    <div className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-4 shadow-3xs animate-in fade-in duration-150">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                          {t("settings.ai_server_url", "Local server URL (Ollama URL)")}
-                        </label>
-                        <input
-                          type="text"
-                          value={settings?.localAiUrl || "http://localhost:11434/api/generate"}
-                          onChange={(e) => onSettingsChange?.({ localAiUrl: e.target.value })}
-                          onBlur={(e) => {
-                            let cleaned = e.target.value.trim();
-                            if (cleaned) {
-                              if (!/^https?:\/\//i.test(cleaned)) {
-                                cleaned = "http://" + cleaned;
-                              }
-                              onSettingsChange?.({ localAiUrl: cleaned });
-                            }
-                          }}
-                          placeholder="http://localhost:11434/api/generate"
-                          className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                          {t("settings.ai_model_name", "Model name")}
-                        </label>
-                        <input
-                          type="text"
-                          value={settings?.localAiModel || "phi3.5"}
-                          onChange={(e) => onSettingsChange?.({ localAiModel: e.target.value })}
-                          placeholder="phi3.5"
-                          className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                {/* Book Card Stats Section */}
-                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
-                      <TrendingUp className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                        {t("settings.detailed_stats", "Detailed stats on book cards")}
-                      </h4>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                        {t("settings.detailed_stats_desc", "Show separate comprehension stats (by total words) and vocabulary stats (by unique lemmas) on book cards.")}
-                      </p>
+                <div className="flex flex-col gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                      {t("settings.enable_detailed", "Enable detailed stats (Vocabulary & New %)")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSettingsChange?.({ showDetailedVocabularyStats: settings?.showDetailedVocabularyStats === false })}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        settings?.showDetailedVocabularyStats !== false ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          settings?.showDetailedVocabularyStats !== false ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                      {t("settings.main_stat_label", "Show on the main book card bar:")}
+                    </span>
+                    <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 font-sans shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => onSettingsChange?.({ mainStatsMetric: "comprehension" })}
+                        className={`h-7 px-3 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                          (settings?.mainStatsMetric || "comprehension") === "comprehension"
+                            ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                        title={t("settings.show_comprehension", "Show comprehension percentage by total words")}
+                      >
+                        {t("settings.understood_label", "Understood")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSettingsChange?.({ mainStatsMetric: "vocabulary" })}
+                        className={`h-7 px-3 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                          settings?.mainStatsMetric === "vocabulary"
+                            ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                        title={t("settings.show_vocabulary", "Show unique vocabulary percentage")}
+                      >
+                        {t("settings.vocab_label", "Vocabulary")}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                        {t("settings.enable_detailed", "Enable detailed stats (Vocabulary & New %)")}
+                  <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
+
+                  {/* Vocabulary Counting Mode: All Forms vs Parents Only */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
+                        {t("settings.vocab_count_mode_label", "Vocabulary Counting Mode:")}
                       </span>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
+                        {settings?.onlyPatterns
+                          ? t("settings.vocab_count_mode_parents_desc", "Counting root/parent words (be, been, is = 1 parent word)")
+                          : t("settings.vocab_count_mode_all_desc", "Counting all word forms separately (be, been, is = 3 words)")}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 font-sans shrink-0">
                       <button
                         type="button"
-                        onClick={() => onSettingsChange?.({ showDetailedVocabularyStats: settings?.showDetailedVocabularyStats === false })}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          settings?.showDetailedVocabularyStats !== false ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
+                        onClick={() => onSettingsChange?.({ onlyPatterns: false })}
+                        className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                          !settings?.onlyPatterns
+                            ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700 font-black"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                         }`}
                       >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            settings?.showDetailedVocabularyStats !== false ? "translate-x-5" : "translate-x-0"
-                          }`}
-                        />
+                        <span>🔤</span>
+                        <span>{t("settings.all_forms", "All Forms")}</span>
                       </button>
-                    </div>
-
-                    <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                        {t("settings.main_stat_label", "Show on the main book card bar:")}
-                      </span>
-                      <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 font-sans shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => onSettingsChange?.({ mainStatsMetric: "comprehension" })}
-                          className={`h-7 px-3 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                            (settings?.mainStatsMetric || "comprehension") === "comprehension"
-                              ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
-                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                          }`}
-                          title={t("settings.show_comprehension", "Show comprehension percentage by total words")}
-                        >
-                          {t("settings.understood_label", "Understood")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onSettingsChange?.({ mainStatsMetric: "vocabulary" })}
-                          className={`h-7 px-3 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                            settings?.mainStatsMetric === "vocabulary"
-                              ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
-                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                          }`}
-                          title={t("settings.show_vocabulary", "Show unique vocabulary percentage")}
-                        >
-                          {t("settings.vocab_label", "Vocabulary")}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
-
-                    {/* Vocabulary Counting Mode: All Forms vs Parents Only */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
-                          {t("settings.vocab_count_mode_label", "Vocabulary Counting Mode:")}
-                        </span>
-                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
-                          {settings?.onlyPatterns
-                            ? t("settings.vocab_count_mode_parents_desc", "Counting root/parent words (be, been, is = 1 parent word)")
-                            : t("settings.vocab_count_mode_all_desc", "Counting all word forms separately (be, been, is = 3 words)")}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 font-sans shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => onSettingsChange?.({ onlyPatterns: false })}
-                          className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                            !settings?.onlyPatterns
-                              ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700 font-black"
-                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                          }`}
-                        >
-                          <span>🔤</span>
-                          <span>{t("settings.all_forms", "All Forms")}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onSettingsChange?.({ onlyPatterns: true })}
-                          className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                            settings?.onlyPatterns
-                              ? "bg-teal-600 text-white shadow-xs font-black"
-                              : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                          }`}
-                        >
-                          <span>🔗</span>
-                          <span>{t("settings.parents_only", "Parents Only")}</span>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onSettingsChange?.({ onlyPatterns: true })}
+                        className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                          settings?.onlyPatterns
+                            ? "bg-teal-600 text-white shadow-xs font-black"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                      >
+                        <span>🔗</span>
+                        <span>{t("settings.parents_only", "Parents Only")}</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1314,301 +1320,151 @@ export default function SettingsModal({
             </div>
           )}
 
-          {/* Active Tab: Patterns & Word Links list with deletion */}
-          {activeSettingsTab === "patterns" && (
-            <div className="space-y-5 animate-in fade-in duration-200">
-              {/* Mode Selector Card */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-50 dark:bg-zinc-950/40 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
-                <div className="space-y-0.5">
-                  <h5 className="text-xs font-black text-zinc-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                    <span>{settings?.onlyPatterns ? "🔗" : "🔤"}</span>
-                    <span>{t("settings.vocab_count_mode_label", "Vocabulary Counting Mode:")}</span>
-                  </h5>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
-                    {settings?.onlyPatterns
-                      ? t("settings.vocab_count_mode_parents_desc", "Counting root/parent words (be, been, is = 1 parent word)")
-                      : t("settings.vocab_count_mode_all_desc", "Counting all word forms separately (be, been, is = 3 words)")}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => onSettingsChange?.({ onlyPatterns: false })}
-                    className={`h-8 px-3 flex items-center gap-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      !settings?.onlyPatterns
-                        ? "bg-teal-50 border border-teal-200 dark:bg-teal-950/60 dark:border-teal-800 text-teal-700 dark:text-teal-400 font-black shadow-2xs"
-                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                    }`}
-                  >
-                    <span>🔤</span>
-                    <span>{t("settings.all_forms", "All Forms")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onSettingsChange?.({ onlyPatterns: true })}
-                    className={`h-8 px-3 flex items-center gap-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      settings?.onlyPatterns
-                        ? "bg-teal-600 text-white shadow-xs font-black"
-                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                    }`}
-                  >
-                    <span>🔗</span>
-                    <span>{t("settings.parents_only", "Parents Only")}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed bg-zinc-50 dark:bg-zinc-950/30 p-4.5 rounded-2xl border border-zinc-100/50 dark:border-zinc-800/40">
-                <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
-                  <Link className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight mb-1">
-                    {t("settings.word_links_title", "Word Links (Morphological Patterns)")}
-                  </h4>
-                  <p className="text-[11px] font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
-                    {t("settings.word_links_desc", "Here you can view and delete previously configured word form links (e.g., zorros ➔ zorro). Linked words share translations and stats, preventing duplicates in the dictionary.")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Word links list */}
-              <div className="space-y-2">
-                {(() => {
-                  // Only gather language-prefixed keys like "spanish_zorros" which represent a unique scoped link
-                  const languageSpecificLinks = Object.keys(wordLinks).filter(
-                    (key) => key.includes("_")
-                  );
-
-                  if (languageSpecificLinks.length === 0) {
-                    return (
-                      <div className="text-center py-14 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 text-zinc-400">
-                        <span className="text-3xl block mb-2 opacity-60 filter grayscale">🔗</span>
-                        <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
-                          {t("settings.no_word_links", "No word links found")}
-                        </p>
-                        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-2 leading-relaxed max-w-sm mx-auto font-medium">
-                          {t("settings.no_word_links_desc", "You can link morphological forms to their root in the word panel while reading.")}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900/40 max-h-[320px] overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
-                      {languageSpecificLinks.map((key) => {
-                        const targetKey = wordLinks[key];
-                        if (!targetKey) return null;
-
-                        const underscoreIdx = key.indexOf("_");
-                        const lang = underscoreIdx !== -1 ? key.substring(0, underscoreIdx) : "spanish";
-                        const srcWord = underscoreIdx !== -1 ? key.substring(underscoreIdx + 1) : key;
-
-                        const tUnderscoreIdx = targetKey.indexOf("_");
-                        const dstWord = tUnderscoreIdx !== -1 ? targetKey.substring(tUnderscoreIdx + 1) : targetKey;
-
-                        const flag = (languageFlags[lang.toLowerCase()] && languageFlags[lang.toLowerCase()] !== "📖") ? languageFlags[lang.toLowerCase()] : (DEFAULT_FALLBACK_FLAGS[lang.toLowerCase()] || "🇵🇹");
-
-                        return (
-                          <div 
-                            key={key} 
-                            className="flex items-center justify-between p-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-950/20 transition-all text-xs"
-                          >
-                            <div className="flex items-center gap-3">
-                              {/* Language Icon Badge */}
-                              <span className="w-6.5 h-6.5 rounded-lg bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-[13px] leading-none select-none border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
-                                {renderFlagImg(flag, 16)}
-                              </span>
-                              
-                              <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-zinc-800 dark:text-zinc-200 capitalize font-mono shrink-0">
-                                  {srcWord}
-                                </span>
-                                <span className="text-zinc-400 font-bold shrink-0">➔</span>
-                                <span className="font-black text-teal-600 dark:text-teal-400 capitalize font-mono shrink-0">
-                                  {dstWord}
-                                </span>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (confirm(t("settings.confirm_delete_link", `Are you sure you want to delete the link for "${srcWord}" ➔ "${dstWord}"?`))) {
-                                  onDeleteWordLink(key);
-                                }
-                              }}
-                              className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/35 rounded-lg transition-colors cursor-pointer shrink-0"
-                              title={t("settings.delete_link", "Delete link pattern")}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
+          {/* Active Tab: Noise Filtering & Ignore Lists */}
+          {activeSettingsTab === "ignore_lists" && (
+            <IgnoreListsSettingsManager
+              settings={settings as any}
+              onSettingsChange={onSettingsChange}
+              availableLanguages={detectedLanguages.length > 0 ? detectedLanguages : ["Spanish", "English", "French", "German", "Russian"]}
+              selectedTargetLanguage={selectedTargetLanguage}
+              t={t}
+            />
           )}
 
           {/* Active Tab: Database & Storage Settings */}
           {activeSettingsTab === "storage" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
-              {/* Part 1: Choose active database system */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
-                  {t("settings.current_storage_mode", "Current data storage mode")}
-                </label>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {/* Option A: Local Storage */}
-                  <div 
-                    onClick={() => onStorageModeChange("local")}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
-                      storageMode === "local"
-                        ? "border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/10 shadow-md scale-[1.02]"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 bg-white dark:bg-zinc-900/40"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-xl shrink-0 ${
-                        storageMode === "local" 
-                          ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400"
-                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                      }`}>
-                        <HardDrive className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white flex items-center gap-1.5">
-                          {t('settings.local_browser', 'Local Browser')}
-                          {storageMode === "local" && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />}
-                        </h4>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                          {t('settings.local_desc', 'Data is stored locally in your browser cache. High performance, 100% privacy, offline access.')}
-                        </p>
-                      </div>
-                    </div>
-                    {storageMode === "local" && (
-                      <div className="mt-3 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> {t('settings.active_local', 'Active: Local Storage')}
-                      </div>
-                    )}
+              {/* Part 1: User Profile & Database Sync */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                    <h4 className="text-xs sm:text-sm font-black text-zinc-800 dark:text-white uppercase tracking-wider">
+                      {t('settings.profile_and_sync', 'Профиль и Синхронизация')}
+                    </h4>
                   </div>
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/60">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                    {t('settings.sync_active', 'Синхронизация активна')}
+                  </span>
+                </div>
 
-                  {/* Option C: Node.js Local Network Server (PC & Tablet Shared storage) */}
-                  <div 
-                    onClick={() => onStorageModeChange("server")}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
-                      storageMode === "server"
-                        ? "border-sky-500 bg-sky-50/20 dark:bg-sky-950/10 shadow-md scale-[1.02]"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-sky-305 dark:hover:border-sky-900 bg-white dark:bg-zinc-900/40"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-xl shrink-0 ${
-                        storageMode === "server" 
-                          ? "bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 animate-pulse"
-                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                      }`}>
-                        <Wifi className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white flex items-center gap-1.5">
-                          {t('settings.local_network', 'Local Network (Wi-Fi)')}
-                          {storageMode === "server" && <span className="w-2 h-2 bg-sky-500 rounded-full animate-ping" />}
-                        </h4>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                          {t("settings.server_desc", "Recommended for PC + Tablet! Saves data to the running server. All your devices share the same books and words without internet.")}
-                        </p>
-                      </div>
-                    </div>
-                    {storageMode === "server" ? (
-                      <div className="mt-3">
-                        <div className="text-[10px] font-black uppercase text-sky-600 dark:text-sky-400 flex items-center gap-1">
-                          <Check className="w-3.5 h-3.5" /> {t("settings.active_server", "Active: Local Server")}
+                {activeUser ? (
+                  <div className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 space-y-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <UserAvatarDisplay
+                          avatarUrl={activeUser.avatarUrl}
+                          name={activeUser.displayName || activeUser.username || activeUser.email}
+                          size="md"
+                        />
+                        <div>
+                          <div className="text-xs font-black text-zinc-900 dark:text-white">
+                            {activeUser.displayName || activeUser.username || activeUser.email || "Пользователь"}
+                          </div>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            {t('settings.profile_sync_desc', 'Все материалы, слова и прогресс автоматически сохраняются в вашей базе данных SQLite.')}
+                          </p>
                         </div>
-                        
-                        {activeUser ? (
-                          <div className="mt-3 pt-3 border-t border-zinc-100/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
-                            <div className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
-                              {t("settings.authorized_as", "Authorized as")} <span className="text-zinc-800 dark:text-zinc-200">{activeUser.displayName || activeUser.email}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="mt-3 pt-3 border-t border-zinc-100/45 dark:border-zinc-800/40" onClick={(e) => e.stopPropagation()}>
-                            <label className="text-[9px] font-bold uppercase text-zinc-400 dark:text-zinc-500 block mb-1">
-                              {t("settings.auth_key", "Authorization key (password)")}
-                            </label>
-                            <input
-                              type="password"
-                              value={localSyncKey}
-                              onChange={(e) => onLocalSyncKeyChange(e.target.value)}
-                              placeholder={t("settings.secret_key", "Secret key...")}
-                              className="w-full px-3 py-1.5 text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-sky-500 text-zinc-800 dark:text-zinc-200"
-                            />
-                            {localSyncError && (
-                              <div className="text-[10px] text-red-500 font-semibold mt-1">
-                                {t("settings.wrong_key", "⚠️ Invalid key or access denied!")}
-                              </div>
-                            )}
-                          </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {onOpenAuthModal && (
+                          <button
+                            type="button"
+                            onClick={onOpenAuthModal}
+                            className="flex-1 sm:flex-initial px-3.5 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl font-bold text-xs transition cursor-pointer"
+                          >
+                            {t('settings.switch_profile', 'Сменить профиль')}
+                          </button>
+                        )}
+                        {onLogout && (
+                          <button
+                            type="button"
+                            onClick={onLogout}
+                            className="px-3.5 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-xl font-bold text-xs transition cursor-pointer"
+                          >
+                            {t('settings.logout', 'Выйти')}
+                          </button>
                         )}
                       </div>
-                    ) : (
-                      <div className="mt-3 text-[10px] font-medium text-zinc-400 dark:text-zinc-400">
-                        {t("settings.click_to_enable", "Click to enable")}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Option B: Cloud Storage */}
-                  <div 
-                    onClick={() => onStorageModeChange("cloud")}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
-                      storageMode === "cloud"
-                        ? "border-teal-500 bg-teal-50/20 dark:bg-teal-950/10 shadow-md scale-[1.02]"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-teal-300 bg-white dark:bg-zinc-900/40"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-xl shrink-0 ${
-                        storageMode === "cloud" 
-                          ? "bg-teal-100 dark:bg-teal-950 text-teal-600 dark:text-teal-400"
-                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                      }`}>
-                        <Database className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs sm:text-sm font-extrabold text-zinc-800 dark:text-white">
-                          {t('settings.cloud_firebase', 'Google Firebase Cloud')}
-                        </h4>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                          {t("settings.cloud_desc", "Syncs on phones, tablets and PCs when logged in. Requires internet and OAuth permissions.")}
-                        </p>
-                      </div>
                     </div>
-                    {storageMode === "cloud" ? (
-                      <div className="mt-3 text-[10px] font-black uppercase text-teal-600 dark:text-teal-400 flex items-center gap-1">
-                        {firebaseUser ? (
-                          <>
-                            <Check className="w-3.5 h-3.5" /> {t("settings.syncing_as", "Syncing:")}: {firebaseUser.email}
-                          </>
-                        ) : (
-                          <span className="text-amber-500 text-[10px] lowercase leading-tight block">
-                            {t("settings.login_required", "⚠️ Login required via the 'Sign In' button on the top bar")}
+
+                    {/* Password Hint Field */}
+                    <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
+                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                          <span>{t('auth.password_hint_label', 'Подсказка к паролю:')}</span>
+                        </label>
+                        {hintSavedSuccess && (
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> {t('auth.password_hint_saved', 'Сохранено')}
                           </span>
                         )}
                       </div>
-                    ) : (
-                      <div className="mt-3 text-[10px] font-medium text-zinc-400">
-                        {t("settings.click_to_enable_cloud", "Click to enable cloud")}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={hintInput}
+                          onChange={(e) => {
+                            setHintInput(e.target.value);
+                            setHintSavedSuccess(false);
+                          }}
+                          placeholder={t('auth.placeholder_password_hint', 'Подсказка к паролю (например: девичья фамилия матери)')}
+                          className="flex-1 text-xs px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                        <button
+                          type="button"
+                          disabled={isSavingHint}
+                          onClick={async () => {
+                            if (!updateProfile) return;
+                            setIsSavingHint(true);
+                            try {
+                              const res = await updateProfile({ passwordHint: hintInput.trim() || null });
+                              if (res.success) {
+                                setHintSavedSuccess(true);
+                                showToast(t('auth.password_hint_saved', 'Подсказка к паролю сохранена!'), 'success');
+                                setTimeout(() => setHintSavedSuccess(false), 3000);
+                              } else {
+                                showToast(res.error || 'Ошибка при сохранении', 'error');
+                              }
+                            } catch (e: any) {
+                              showToast(e.message || 'Ошибка', 'error');
+                            } finally {
+                              setIsSavingHint(false);
+                            }
+                          }}
+                          className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 shadow-sm shrink-0"
+                        >
+                          {t('auth.password_hint_save_btn', 'Сохранить')}
+                        </button>
                       </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800">
+                    <div>
+                      <div className="text-xs font-black text-zinc-900 dark:text-white">
+                        {t('settings.guest_profile', 'Гостевой режим')}
+                      </div>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {t('settings.guest_desc', 'Войдите или создайте аккаунт, чтобы сохранять материалы и синхронизировать прогресс чтения между устройствами.')}
+                      </p>
+                    </div>
+
+                    {onOpenAuthModal && (
+                      <button
+                        type="button"
+                        onClick={onOpenAuthModal}
+                        className="w-full sm:w-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs transition cursor-pointer shadow-sm shrink-0"
+                      >
+                        {t('settings.login_or_register', 'Войти в профиль')}
+                      </button>
                     )}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Part 2: Local JSON backups: export and import files on computer */}
@@ -1668,166 +1524,6 @@ export default function SettingsModal({
                 )}
               </div>
 
-              {/* Part 2.5: Local Wi-Fi Quick Synchronization */}
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Wifi className="w-4 h-4 text-sky-500" />
-                  <h4 className="text-xs sm:text-sm font-black text-zinc-800 dark:text-white uppercase tracking-wider">
-                    {t('settings.wifi_transfer', 'Wi-Fi Local Transfer (Two-way)')}
-                  </h4>
-                </div>
-                
-                <p className="text-[11px] text-zinc-500 leading-relaxed font-semibold">
-                  {t("settings.wifi_desc", "Transfer data in either direction! Generate a PIN on the sending device and enter it on the receiving device. Your books, words and stats sync instantly.")}
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1.5">
-                  {/* Sender side */}
-                  <div className="p-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5">
-                    <span className="text-[9px] font-black uppercase text-zinc-400 block tracking-wider">
-                      {t("settings.step1_export", "Step 1: Export (Sender Device)")}
-                    </span>
-                    <p className="text-[10px] text-zinc-500 leading-tight">
-                      {t("settings.step1_desc", "Generate a temporary PIN on the device you want to transfer your vocabulary from.")}
-                    </p>
-                    {wifiSyncPin ? (
-                      <div className="p-2.5 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900 text-center rounded-xl space-y-1">
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 block">{t("settings.your_wifi_pin", "Your Wi-Fi PIN code:")}</span>
-                        <div className="text-2xl font-black tracking-widest text-teal-600 dark:text-teal-400 font-mono">
-                          {wifiSyncPin}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(wifiSyncPin);
-                            showToast(t("settings.code_copied", "Code copied to clipboard"), "success");
-                          }}
-                          className="text-[9px] text-teal-600 dark:text-teal-400 underline font-bold cursor-pointer"
-                        >
-                          {t("settings.copy_code", "Copy code")}
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={wifiSyncLoading}
-                        onClick={handleLocalWifiShare}
-                        className="w-full py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-extrabold text-xs rounded-xl transition duration-150 cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${wifiSyncLoading ? "animate-spin" : ""}`} />
-                        <span>{wifiSyncLoading ? t("settings.preparing", "Preparing...") : t("settings.generate_pin", "Generate PIN Code")}</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Receiver side */}
-                  <div className="p-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2.5 flex flex-col justify-between">
-                    <div className="space-y-1.5">
-                      <span className="text-[9px] font-black uppercase text-zinc-400 block tracking-wider">
-                        {t("settings.step2_import", "Step 2: Import (Receiver Device)")}
-                      </span>
-                      <p className="text-[10px] text-zinc-500 leading-tight">
-                        {t("settings.step2_desc", "Enter this code on another device to receive and merge all changes.")}
-                      </p>
-                    </div>
-
-                    <div className="flex gap-1.5 pt-1">
-                      <input
-                        type="text"
-                        maxLength={6}
-                        placeholder="000000"
-                        value={inputWifiPin}
-                        onChange={(e) => setInputWifiPin(e.target.value.replace(/\D/g, ""))}
-                        className="min-w-0 flex-1 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 font-black text-sm rounded-lg text-center tracking-widest font-mono focus:outline-none focus:border-sky-500 bg-white"
-                      />
-                      <button
-                        type="button"
-                        disabled={wifiSyncLoading || inputWifiPin.length !== 6}
-                        onClick={handleLocalWifiRetrieve}
-                        className="px-4 py-1.5 bg-sky-500 hover:bg-sky-600 disabled:bg-zinc-100 dark:disabled:bg-zinc-800 text-white disabled:text-zinc-400 font-extrabold text-xs rounded-lg transition duration-155 cursor-pointer flex items-center gap-1 shrink-0"
-                      >
-                        {wifiSyncLoading ? t("settings.connecting", "Connecting...") : t("settings.receive", "Receive")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {wifiSyncStatus.type !== "idle" && (
-                  <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${
-                    wifiSyncStatus.type === "success"
-                      ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 text-emerald-800 dark:text-emerald-305"
-                      : "bg-red-50/50 dark:bg-red-950/20 border-red-250 text-red-805 dark:text-red-350"
-                  }`}>
-                    {wifiSyncStatus.message}
-                  </div>
-                )}
-              </div>
-
-              {/* Part 3: Manual cloud upload of local dataset */}
-              {storageMode === "cloud" && firebaseUser && (
-                <div className="p-4 rounded-xl border border-teal-200/50 bg-teal-50/10 dark:border-teal-900 dark:bg-teal-950/10 flex flex-col sm:flex-row items-center justify-between gap-3.5">
-                  <div className="space-y-1 sm:max-w-md text-center sm:text-left">
-                    <span className="text-[9px] font-black uppercase text-teal-600 dark:text-teal-400 block tracking-widest">
-                      {t("settings.cloud_push", "Cloud Sync (Cloud Push)")}
-                    </span>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight font-medium">
-                      {t("settings.cloud_push_desc", "Upload all current local library materials directly to your Firebase cloud storage. This will merge your data.")}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={isSyncing}
-                    onClick={async () => {
-                      if (onManualSync) {
-                        try {
-                          setSyncStatus(t("settings.syncing", "Syncing..."));
-                          await onManualSync();
-                          setSyncStatus(t("settings.sync_done", "Done! Data is safe in the cloud."));
-                        } catch (e: any) {
-                          setSyncStatus(`Error: ${e.message || String(e)}`);
-                        }
-                      }
-                    }}
-                    className="shrink-0 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-3xs"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    {isSyncing ? t("settings.syncing", "Syncing...") : syncStatus || t("settings.force_sync", "Force Cloud Sync")}
-                  </button>
-                </div>
-              )}
-
-              {/* Part 4: Secure Data Purge / Clear all local data */}
-              <div className="border border-red-150 dark:border-red-900/60 rounded-2xl p-5 bg-red-50/5 dark:bg-red-950/5 space-y-3 shadow-inner">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-red-500 animate-pulse" />
-                  <span className="text-[10px] font-black uppercase bg-red-500/10 dark:bg-red-500/20 text-red-650 dark:text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full tracking-widest leading-none">
-                    {t('settings.danger_zone', 'Danger Area')}
-                  </span>
-                </div>
-                
-                <p className="text-zinc-500 dark:text-zinc-400 text-[11px] leading-relaxed font-medium">
-                  {t("settings.danger_desc", "Clicking the button below will PERMANENTLY delete ALL your locally saved materials (lessons, vocabulary, word links and accumulated stats) from this computer. It is recommended to download a JSON backup first.")}
-                </p>
-
-                <button 
-                  type="button"
-                  onClick={() => {
-                    if (confirm(t('settings.confirm_delete_all', 'WARNING! You will lose all local progress. Are you sure you want to delete all lessons, words and stats from this computer?'))) {
-                      if (confirm(t('settings.confirm_delete_all2', 'Absolutely sure? This will erase all local data in your browser. Cloud data will remain intact (if logged in to Cloud mode). Erase local cache?'))) {
-                        onClearAllData();
-                        setImportStatus({
-                          type: "success",
-                          message: t("settings.cache_cleared", "Local cache fully cleared! Local library has been reset.")
-                        });
-                      }
-                    }
-                  }}
-                  className="px-4 py-2 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 hover:text-red-700 text-red-600 font-extrabold text-[11px] rounded-xl border border-red-200/50 dark:border-red-900/40 transition duration-150 cursor-pointer shadow-3xs"
-                >
-                  {t('settings.delete_all_local', 'Delete all local data from device')}
-                </button>
-              </div>
-
             </div>
           )}
 
@@ -1862,7 +1558,7 @@ export default function SettingsModal({
               </button>
             ) : activeSettingsTab === "storage" ? (
               <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest font-mono flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 px-2.5 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
-                {t("settings.mode_label", "Mode:")} <span className="text-teal-600 dark:text-teal-400 font-black">{storageMode === "cloud" ? t("settings.mode_cloud", "CLOUD ☁️") : storageMode === "server" ? t("settings.mode_server", "SERVER 🖥️") : t("settings.mode_local", "LOCAL 💻")}</span>
+                {t("settings.profile_label", "Profile:")} <span className="text-teal-600 dark:text-teal-400 font-black">{activeUser ? (activeUser.displayName || activeUser.username || activeUser.email) : t("settings.guest_profile", "Guest")}</span>
               </div>
             ) : (
               <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest font-mono">
@@ -1885,6 +1581,753 @@ export default function SettingsModal({
         </div>
 
       </div>
+
+      {/* Restoration Confirmation Modal Overlay */}
+      {confirmImport && (
+        <div className="fixed inset-0 z-60 overflow-y-auto flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm transition-opacity"
+            onClick={() => setConfirmImport(null)}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                  {t('settings.restore_backup_title', 'Restore Backup')}
+                </h4>
+                <p className="text-xs text-zinc-500 font-medium">
+                  {t('settings.restore_backup_subtitle', 'Confirm data restoration')}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col gap-2.5 text-xs">
+              <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-500">{t('settings.backup_date', 'Backup date:')}</span>
+                <span className="font-bold font-mono text-teal-600 dark:text-teal-400">{confirmImport.dateFormatted}</span>
+              </div>
+              {confirmImport.username && (
+                <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                  <span className="font-medium text-zinc-500">{t('settings.backup_user', 'User:')}</span>
+                  <span className="font-bold font-mono text-zinc-900 dark:text-white">@{confirmImport.username}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-500">{t('settings.backup_lessons', 'Books / lessons:')}</span>
+                <span className="font-bold font-mono">{confirmImport.lessonsCount}</span>
+              </div>
+              <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-500">{t('settings.backup_words', 'Vocabulary cards:')}</span>
+                <span className="font-bold font-mono">{confirmImport.wordsCount}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              {confirmImport.username
+                ? t('settings.restore_confirm_text_user', 'Are you sure you want to restore backup of user @{{user}} from {{date}}? Your current books, vocabulary, and history will be updated from this file.', { user: confirmImport.username, date: confirmImport.dateFormatted })
+                : t('settings.restore_confirm_text', 'Are you sure you want to restore backup from {{date}}? Your current books, vocabulary, and history will be updated from this file.', { date: confirmImport.dateFormatted })}
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmImport(null)}
+                className="px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                {t('common.cancel', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteImport}
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl transition shadow-sm cursor-pointer"
+              >
+                {t('settings.restore_btn_confirm', 'Restore Backup')}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const PROVIDER_PRESETS: Record<string, {
+  name: string;
+  provider: AIProfile["provider"];
+  model: string;
+  baseUrl?: string;
+  badge: string;
+  color: string;
+  icon: string;
+  keyUrl?: string;
+  keyUrlLabel?: string;
+  isFree?: boolean;
+}> = {
+  gemini: {
+    name: "Google Gemini",
+    provider: "gemini",
+    model: "gemini-2.5-flash",
+    badge: "Cloud / Fast",
+    color: "teal",
+    icon: "✨",
+    keyUrl: "https://aistudio.google.com/app/apikey",
+    keyUrlLabel: "Google AI Studio (Free)",
+    isFree: true
+  },
+  groq: {
+    name: "Groq Cloud",
+    provider: "groq",
+    model: "llama-3.3-70b-versatile",
+    baseUrl: "https://api.groq.com/openai/v1",
+    badge: "Ultra Fast",
+    color: "amber",
+    icon: "🚀",
+    keyUrl: "https://console.groq.com/keys",
+    keyUrlLabel: "Groq Console (Free)",
+    isFree: true
+  },
+  ollama: {
+    name: "Ollama (Local)",
+    provider: "ollama",
+    model: "phi3.5",
+    baseUrl: "http://localhost:11434/api/generate",
+    badge: "Offline",
+    color: "indigo",
+    icon: "💻",
+    keyUrl: "https://ollama.com",
+    keyUrlLabel: "Ollama (Free / Offline)",
+    isFree: true
+  },
+  openai: {
+    name: "OpenAI",
+    provider: "openai",
+    model: "gpt-4o-mini",
+    baseUrl: "https://api.openai.com/v1",
+    badge: "Cloud",
+    color: "emerald",
+    icon: "⚡",
+    keyUrl: "https://platform.openai.com/api-keys",
+    keyUrlLabel: "OpenAI Platform",
+    isFree: false
+  },
+  custom: {
+    name: "Custom (OpenAI)",
+    provider: "custom",
+    model: "default",
+    baseUrl: "http://localhost:11434/v1",
+    badge: "Custom",
+    color: "purple",
+    icon: "🔌",
+    keyUrl: "https://openrouter.ai/keys",
+    keyUrlLabel: "OpenRouter (Free models)",
+    isFree: true
+  }
+};
+
+const PROVIDER_MODELS: Record<AIProfile["provider"], { id: string; label: string }[]> = {
+  gemini: [
+    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Recommended)" },
+    { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+    { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+    { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+    { id: "__custom__", label: "Custom (Type model name)..." },
+  ],
+  openai: [
+    { id: "gpt-4o-mini", label: "GPT-4o Mini (Fast & Cheap)" },
+    { id: "gpt-4o", label: "GPT-4o (Flagship)" },
+    { id: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+    { id: "o3-mini", label: "o3-mini (Reasoning)" },
+    { id: "__custom__", label: "Custom (Type model name)..." },
+  ],
+  groq: [
+    { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
+    { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant (Ultra Fast)" },
+    { id: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+    { id: "gemma2-9b-it", label: "Gemma 2 9B IT" },
+    { id: "__custom__", label: "Custom (Type model name)..." },
+  ],
+  ollama: [
+    { id: "phi3.5", label: "phi3.5 (Recommended / Lightweight)" },
+    { id: "llama3.2", label: "llama3.2" },
+    { id: "llama3.1", label: "llama3.1" },
+    { id: "qwen2.5", label: "qwen2.5" },
+    { id: "mistral", label: "mistral" },
+    { id: "__custom__", label: "Custom (Type model name)..." },
+  ],
+  custom: [
+    { id: "default", label: "default" },
+    { id: "__custom__", label: "Custom (Type model name)..." },
+  ]
+};
+
+export function GeminiLogoIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="gemini_logo_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#1BA1E3" />
+          <stop offset="50%" stopColor="#5B73F2" />
+          <stop offset="100%" stopColor="#D96570" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z"
+        fill="url(#gemini_logo_grad)"
+      />
+    </svg>
+  );
+}
+
+export function OpenAILogoIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.607 1.5-2.602-1.5z"/>
+    </svg>
+  );
+}
+
+export function GroqLogoIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.237 2.636 7.855 6.356 9.312l1.64-3.527C7.68 16.71 6.2 14.54 6.2 12c0-3.204 2.596-5.8 5.8-5.8s5.8 2.596 5.8 5.8c0 1.956-.97 3.686-2.46 4.74l2.42 3.07C20.12 18.06 21.8 15.23 21.8 12c0-5.523-4.477-10-9.8-10zm.5 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
+    </svg>
+  );
+}
+
+export function OllamaLogoIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M9.5 2C8.67 2 8 2.67 8 3.5V6H7C5.9 6 5 6.9 5 8v1.5c0 .83.67 1.5 1.5 1.5H7v5c0 1.1.9 2 2 2h1v3c0 .55.45 1 1 1s1-.45 1-1v-3h2v3c0 .55.45 1 1 1s1-.45 1-1v-3h1c1.1 0 2-.9 2-2v-5h.5c.83 0 1.5-.67 1.5-1.5V8c0-1.1-.9-2-2-2h-1V3.5C17 2.67 16.33 2 15.5 2h-1c-.83 0-1.5.67-1.5 1.5V6h-1V3.5C12 2.67 11.33 2 10.5 2h-1zM9 8h1v2H9V8zm5 0h1v2h-1V8z" />
+    </svg>
+  );
+}
+
+export function OpenRouterLogoIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+      <path d="M2 12h20" />
+    </svg>
+  );
+}
+
+export function CustomAiLogoIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <rect x="9" y="9" width="6" height="6" />
+      <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" />
+    </svg>
+  );
+}
+
+export function ProviderLogo({ provider, className = "w-4 h-4" }: { provider: string; className?: string }) {
+  switch (provider) {
+    case "gemini":
+      return <GeminiLogoIcon className={className} />;
+    case "openai":
+      return <OpenAILogoIcon className={`${className} text-[#10A37F]`} />;
+    case "groq":
+      return <GroqLogoIcon className={`${className} text-[#F55036]`} />;
+    case "ollama":
+      return <OllamaLogoIcon className={`${className} text-zinc-800 dark:text-zinc-200`} />;
+    default:
+      return <CustomAiLogoIcon className={`${className} text-purple-600 dark:text-purple-400`} />;
+  }
+}
+
+interface AIProfilesManagerProps {
+  settings?: any;
+  onSettingsChange?: (newSettings: any) => void;
+  t: any;
+}
+
+function AIProfilesManager({ settings, onSettingsChange, t }: AIProfilesManagerProps) {
+  const { showToast } = useToast();
+  const profiles = useMemo(() => getOrCreateAiProfiles(settings), [settings?.aiProfiles, settings?.geminiApiKey, settings?.localAiUrl]);
+  const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
+  const [testingState, setTestingState] = useState<Record<string, { loading?: boolean; success?: boolean; latencyMs?: number; error?: string }>>({});
+  const [customModelEditing, setCustomModelEditing] = useState<Record<string, boolean>>({});
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [, setTick] = useState(0);
+
+  // Periodic tick for remaining cooldown counters
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const saveProfiles = (newProfiles: AIProfile[]) => {
+    const reindexed = newProfiles.map((p, idx) => ({ ...p, priority: idx + 1 }));
+    const firstGemini = reindexed.find(p => p.provider === "gemini" && p.apiKey);
+    const firstOllama = reindexed.find(p => p.provider === "ollama");
+
+    onSettingsChange?.({
+      aiProfiles: reindexed,
+      geminiApiKey: firstGemini?.apiKey || settings?.geminiApiKey,
+      localAiUrl: firstOllama?.baseUrl || settings?.localAiUrl,
+      localAiModel: firstOllama?.model || settings?.localAiModel,
+    });
+  };
+
+  const handleToggleEnabled = (id: string) => {
+    const updated = profiles.map(p => p.id === id ? { ...p, isEnabled: !p.isEnabled } : p);
+    saveProfiles(updated);
+  };
+
+  const handleMove = (index: number, direction: "up" | "down") => {
+    const targetIdx = direction === "up" ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= profiles.length) return;
+    const updated = [...profiles];
+    const temp = updated[index];
+    updated[index] = updated[targetIdx];
+    updated[targetIdx] = temp;
+    saveProfiles(updated);
+  };
+
+  const handleUpdateField = (id: string, field: keyof AIProfile, value: any) => {
+    const updated = profiles.map(p => {
+      if (p.id !== id) return p;
+      const updatedProfile = { ...p, [field]: value };
+      // If changing provider, apply sensible default model and baseUrl
+      if (field === "provider" && PROVIDER_PRESETS[value]) {
+        updatedProfile.model = PROVIDER_PRESETS[value].model;
+        if (PROVIDER_PRESETS[value].baseUrl) {
+          updatedProfile.baseUrl = PROVIDER_PRESETS[value].baseUrl;
+        }
+      }
+      return updatedProfile;
+    });
+    saveProfiles(updated);
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    if (profiles.length <= 1) {
+      // Keep at least one empty profile
+      const reset = [{
+        id: `profile_${Date.now()}`,
+        name: "Gemini (Main)",
+        provider: "gemini" as const,
+        apiKey: "",
+        model: "gemini-2.5-flash",
+        isEnabled: true,
+        priority: 1,
+      }];
+      saveProfiles(reset);
+      return;
+    }
+    const updated = profiles.filter(p => p.id !== id);
+    saveProfiles(updated);
+  };
+
+  const handleAddProfile = (presetKey: string) => {
+    const preset = PROVIDER_PRESETS[presetKey] || PROVIDER_PRESETS.gemini;
+    const newId = `profile_${preset.provider}_${Date.now().toString(36)}`;
+    const newProfile: AIProfile = {
+      id: newId,
+      name: `${preset.name} #${profiles.filter(p => p.provider === preset.provider).length + 1}`,
+      provider: preset.provider,
+      apiKey: "",
+      model: preset.model,
+      baseUrl: preset.baseUrl,
+      isEnabled: true,
+      priority: profiles.length + 1,
+    };
+    saveProfiles([...profiles, newProfile]);
+    setShowAddMenu(false);
+  };
+
+  const handleTestKey = async (profile: AIProfile) => {
+    setTestingState(prev => ({ ...prev, [profile.id]: { loading: true } }));
+    const result = await testAiProfileConnection(profile);
+    setTestingState(prev => ({ ...prev, [profile.id]: { loading: false, ...result } }));
+    if (result.success) {
+      showToast(t("settings.ai_test_success", "Working") + ` (${result.latencyMs}ms)`, "success");
+    } else {
+      showToast(t("settings.ai_test_failed", "Failed") + `: ${result.error}`, "error");
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Header Banner */}
+      <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-3.5">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+              {t("settings.ai_profiles_title", "AI Keys & Providers (Auto-Failover on Rate Limits)")}
+            </h4>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+              {t("settings.ai_profiles_desc", "Configure multiple AI keys or providers. When a key hits rate limits (HTTP 429 / Quota Exceeded), Lectura automatically switches to the next enabled key in the list.")}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Links for Free API keys & Services */}
+        <div className="pt-3 border-t border-zinc-200/60 dark:border-zinc-800/80 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="font-bold text-zinc-500 dark:text-zinc-400 text-[10px] uppercase tracking-wider mr-1">
+            {t("settings.free_api_keys_label", "Free AI Keys & Services:")}
+          </span>
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 font-semibold text-[11px] border border-teal-200/60 dark:border-teal-800/60 transition shadow-2xs"
+          >
+            <GeminiLogoIcon className="w-3.5 h-3.5 shrink-0" />
+            <span>Google AI Studio</span>
+            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+          </a>
+          <a
+            href="https://console.groq.com/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-semibold text-[11px] border border-amber-200/60 dark:border-amber-800/60 transition shadow-2xs"
+          >
+            <GroqLogoIcon className="w-3.5 h-3.5 text-[#F55036] shrink-0" />
+            <span>Groq Cloud</span>
+            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+          </a>
+          <a
+            href="https://openrouter.ai/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-semibold text-[11px] border border-purple-200/60 dark:border-purple-800/60 transition shadow-2xs"
+          >
+            <OpenRouterLogoIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>OpenRouter</span>
+            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+          </a>
+          <a
+            href="https://ollama.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px] border border-indigo-200/60 dark:border-indigo-800/60 transition shadow-2xs"
+          >
+            <OllamaLogoIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <span>Ollama</span>
+            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+          </a>
+          <a
+            href="https://platform.openai.com/api-keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px] border border-emerald-200/60 dark:border-emerald-800/60 transition shadow-2xs"
+          >
+            <OpenAILogoIcon className="w-3.5 h-3.5 text-[#10A37F] shrink-0" />
+            <span>OpenAI</span>
+            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+          </a>
+        </div>
+      </div>
+
+      {/* Profiles Dynamic List */}
+      <div className="space-y-3">
+        {profiles.map((profile, index) => {
+          const isVisible = !!visibleKeys[profile.id];
+          const testStatus = testingState[profile.id];
+          const remainingCooldown = getCooldownRemainingSeconds(profile.id);
+          const isOnCooldown = remainingCooldown > 0;
+          const presetInfo = PROVIDER_PRESETS[profile.provider] || PROVIDER_PRESETS.gemini;
+
+          return (
+            <div
+              key={profile.id}
+              className={`p-4 rounded-2xl border transition-all ${
+                profile.isEnabled
+                  ? "bg-white dark:bg-zinc-900/90 border-zinc-200 dark:border-zinc-800 shadow-3xs"
+                  : "bg-zinc-50/70 dark:bg-zinc-950/30 border-zinc-200/50 dark:border-zinc-800/40 opacity-75"
+              }`}
+            >
+              {/* Card Header */}
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+                <div className="flex items-center gap-2 min-w-0">
+                  {/* Reorder Buttons & Priority Badge */}
+                  <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl shrink-0">
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      onClick={() => handleMove(index, "up")}
+                      title={t("settings.ai_move_up", "Move Up")}
+                      className="p-1 hover:bg-white dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none rounded-lg transition cursor-pointer"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-[10px] font-black font-mono text-zinc-600 dark:text-zinc-300 px-1">
+                      #{index + 1}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={index === profiles.length - 1}
+                      onClick={() => handleMove(index, "down")}
+                      title={t("settings.ai_move_down", "Move Down")}
+                      className="p-1 hover:bg-white dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none rounded-lg transition cursor-pointer"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Profile Name input */}
+                  <input
+                    type="text"
+                    value={profile.name}
+                    onChange={(e) => handleUpdateField(profile.id, "name", e.target.value)}
+                    placeholder={t("settings.ai_profile_name", "Profile Name")}
+                    className="text-xs font-black text-zinc-800 dark:text-zinc-100 bg-transparent border-b border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-teal-500 focus:outline-none px-1 py-0.5 max-w-[200px] truncate"
+                  />
+
+                  {/* Provider Icon/Tag */}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0 flex items-center gap-1.5">
+                    <ProviderLogo provider={profile.provider} className="w-3.5 h-3.5 shrink-0" />
+                    <span>{profile.provider.toUpperCase()}</span>
+                  </span>
+
+                  {/* Cooldown Tag */}
+                  {isOnCooldown && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 shrink-0 flex items-center gap-1 animate-pulse">
+                      <ShieldAlert className="w-3 h-3" />
+                      <span>{t("settings.ai_cooldown_badge", "Cooldown: {{seconds}}s", { seconds: remainingCooldown })}</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Actions: Enable Toggle & Delete */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={profile.isEnabled}
+                      onChange={() => handleToggleEnabled(profile.id)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(profile.id, profile.name)}
+                    title={t("settings.ai_delete_profile", "Delete profile")}
+                    className="p-1.5 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Card Inputs Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-3">
+                {/* Provider Selector */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                    {t("settings.ai_provider", "Provider")}
+                  </label>
+                  <div className="relative flex items-center">
+                    <div className="absolute left-2.5 pointer-events-none flex items-center">
+                      <ProviderLogo provider={profile.provider} className="w-3.5 h-3.5 shrink-0" />
+                    </div>
+                    <select
+                      value={profile.provider}
+                      onChange={(e) => handleUpdateField(profile.id, "provider", e.target.value as any)}
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                    >
+                      <option value="gemini">Google Gemini</option>
+                      <option value="openai">OpenAI (ChatGPT)</option>
+                      <option value="groq">Groq Cloud</option>
+                      <option value="ollama">Ollama (Local)</option>
+                      <option value="custom">Custom (OpenAI Compatible)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Model Selector & Custom input */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                    {t("settings.ai_model", "Model")}
+                  </label>
+                  <div className="space-y-1.5">
+                    {(() => {
+                      const isPresetModel = (PROVIDER_MODELS[profile.provider] || []).some(m => m.id === profile.model && m.id !== "__custom__");
+                      const isCustom = customModelEditing[profile.id] || !isPresetModel;
+
+                      return (
+                        <>
+                          <select
+                            value={isCustom ? "__custom__" : (profile.model || presetInfo.model)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "__custom__") {
+                                setCustomModelEditing(prev => ({ ...prev, [profile.id]: true }));
+                              } else {
+                                setCustomModelEditing(prev => ({ ...prev, [profile.id]: false }));
+                                handleUpdateField(profile.id, "model", val);
+                              }
+                            }}
+                            className="w-full px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+                          >
+                            {(PROVIDER_MODELS[profile.provider] || []).map(m => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                          </select>
+
+                          {isCustom && (
+                            <input
+                              type="text"
+                              value={profile.model || ""}
+                              onChange={(e) => handleUpdateField(profile.id, "model", e.target.value.trim())}
+                              placeholder={presetInfo.model}
+                              className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-teal-500/80 dark:border-teal-500/60 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono text-[11px]"
+                              autoFocus
+                            />
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* API Key */}
+                <div className={`space-y-1 ${profile.provider === "ollama" ? "sm:col-span-2 lg:col-span-1" : ""}`}>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center justify-between">
+                    <span>{t("settings.ai_api_key", "API Key")}</span>
+                    <div className="flex items-center gap-1.5 normal-case font-medium">
+                      {presetInfo.keyUrl && (
+                        <a
+                          href={presetInfo.keyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-bold flex items-center gap-0.5"
+                        >
+                          <span>{presetInfo.isFree ? t("settings.get_free_key", "Get free key") : t("settings.get_key", "Get key")}</span>
+                          <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                        </a>
+                      )}
+                      {profile.provider === "ollama" && (
+                        <span className="text-[9px] text-zinc-400 font-normal lowercase">(optional)</span>
+                      )}
+                    </div>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={isVisible ? "text" : "password"}
+                      value={profile.apiKey || ""}
+                      onChange={(e) => handleUpdateField(profile.id, "apiKey", e.target.value.trim())}
+                      placeholder={profile.provider === "gemini" ? "AIzaSy..." : profile.provider === "groq" ? "gsk_..." : "sk-..."}
+                      className="w-full pl-2.5 pr-8 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono text-[11px]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVisibleKeys(prev => ({ ...prev, [profile.id]: !isVisible }))}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-0.5 cursor-pointer"
+                    >
+                      {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Base URL (For Ollama and Custom providers) */}
+                {(profile.provider === "custom" || profile.provider === "ollama" || profile.provider === "groq") && (
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                      {t("settings.ai_base_url", "Base URL Endpoint")}
+                    </label>
+                    <input
+                      type="text"
+                      value={profile.baseUrl || ""}
+                      onChange={(e) => handleUpdateField(profile.id, "baseUrl", e.target.value.trim())}
+                      placeholder={presetInfo.baseUrl || "http://localhost:11434/v1"}
+                      className="w-full px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono text-[11px]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Card Footer: Test connection & status */}
+              <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-zinc-100 dark:border-zinc-800/80">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={testStatus?.loading}
+                    onClick={() => handleTestKey(profile)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-[11px] font-bold transition cursor-pointer disabled:opacity-50 border border-zinc-200/50 dark:border-zinc-700/50"
+                  >
+                    {testStatus?.loading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600 dark:text-teal-400" />
+                    ) : (
+                      <Activity className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                    )}
+                    <span>{t("settings.ai_test_connection", "Test")}</span>
+                  </button>
+
+                  {testStatus && !testStatus.loading && (
+                    <div className="flex items-center gap-1 text-[11px] font-semibold">
+                      {testStatus.success ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{t("settings.ai_test_success", "Working")} ({testStatus.latencyMs}ms)</span>
+                        </span>
+                      ) : (
+                        <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1 max-w-[300px] truncate" title={testStatus.error}>
+                          <XCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{testStatus.error}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                  Priority: #{index + 1}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add Profile Controls */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowAddMenu(!showAddMenu)}
+          className="w-full py-3 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-950/60 border border-teal-200/80 dark:border-teal-800/60 text-teal-700 dark:text-teal-300 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
+        >
+          <Plus className="w-4 h-4" />
+          <span>{t("settings.add_ai_profile", "+ Add AI Key / Provider")}</span>
+        </button>
+
+        {showAddMenu && (
+          <div className="absolute left-0 right-0 bottom-full mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-2 shadow-xl z-20 grid grid-cols-1 sm:grid-cols-2 gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+            {Object.entries(PROVIDER_PRESETS).map(([key, item]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => handleAddProfile(key)}
+                className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left transition cursor-pointer"
+              >
+                <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg shrink-0 flex items-center justify-center">
+                  <ProviderLogo provider={item.provider} className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-zinc-800 dark:text-zinc-100">{item.name}</div>
+                  <div className="text-[10px] text-zinc-400 truncate">{item.model} • {item.badge}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

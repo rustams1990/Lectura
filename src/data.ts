@@ -63,5 +63,5 @@ export const BUILT_IN_LESSONS: Lesson[] = [
 ];
 
 export const LANGUAGES_SUPPORTED = [
-  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic", "Ukrainian", "Portuguese", "Kazakh"
+  "Spanish", "French", "German", "Japanese", "English", "Italian", "Russian", "Chinese", "Arabic", "Ukrainian", "Portuguese", "Kazakh", "Finnish", "Hungarian", "Czech", "Romanian", "Vietnamese", "Persian"
 ];

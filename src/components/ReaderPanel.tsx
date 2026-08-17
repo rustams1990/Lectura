@@ -14,6 +14,7 @@ import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../
 import { segmentSentenceTokens } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
 import { useTranslation } from "react-i18next";
+import { ignoreListManager } from "../services/ignoreListService";
 
 interface ReaderPanelProps {
   key?: string;
@@ -79,22 +80,22 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     subText: "text-zinc-700 dark:text-zinc-300",
   },
   cream: {
-    container: "bg-[#fcf8f2] text-[#3b2b1a] border-[#f3e9d8]",
+    container: "bg-[#fcf8f2] dark:bg-zinc-900 text-[#3b2b1a] dark:text-zinc-200 border-[#f3e9d8] dark:border-zinc-800/80",
     barBg: "bg-transparent",
-    pillBg: "bg-transparent text-[#3b2b1a]",
-    subBadgeBg: "bg-[#f4e8d3] text-[#4a3622]",
-    selectBg: "bg-[#fcf8f2] text-teal-700 border-[#e8d7bb]",
-    divider: "border-[#eddcb9]",
-    subText: "text-[#4a3622]",
+    pillBg: "bg-transparent text-[#3b2b1a] dark:text-zinc-200",
+    subBadgeBg: "bg-[#f4e8d3] dark:bg-zinc-800/60 text-[#4a3622] dark:text-zinc-300",
+    selectBg: "bg-[#fcf8f2] dark:bg-zinc-800 text-teal-700 dark:text-teal-400 border-[#e8d7bb] dark:border-zinc-700",
+    divider: "border-[#eddcb9] dark:border-zinc-800/80",
+    subText: "text-[#4a3622] dark:text-zinc-400",
   },
   sepia: {
-    container: "bg-[#f5ebd0] text-[#432d16] border-[#ebdcb3]",
+    container: "bg-[#f5ebd0] dark:bg-zinc-900 text-[#432d16] dark:text-zinc-200 border-[#ebdcb3] dark:border-zinc-800/80",
     barBg: "bg-transparent",
-    pillBg: "bg-transparent text-[#432d16]",
-    subBadgeBg: "bg-[#e8daae] text-[#4a3217]",
-    selectBg: "bg-[#f5ebd0] text-teal-800 border-[#dbca98]",
-    divider: "border-[#e0cea1]",
-    subText: "text-[#4a3217]",
+    pillBg: "bg-transparent text-[#432d16] dark:text-zinc-200",
+    subBadgeBg: "bg-[#e8daae] dark:bg-zinc-800/60 text-[#4a3217] dark:text-zinc-300",
+    selectBg: "bg-[#f5ebd0] dark:bg-zinc-800 text-teal-800 dark:text-teal-400 border-[#dbca98] dark:border-zinc-700",
+    divider: "border-[#e0cea1] dark:border-zinc-800/80",
+    subText: "text-[#4a3217] dark:text-zinc-400",
   },
   slate: {
     container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
@@ -116,11 +117,10 @@ const widthMap = {
 const getWordStatusClass = (
   status: string,
   _theme: string = "default",
-  hasWordLink: boolean = false,
+  _hasWordLink: boolean = false,
   isPhrase: boolean = false,
   hasIdiomUnderline: boolean = false
 ): string => {
-  const isDotted = hasWordLink;
   const baseRounding = isPhrase ? "rounded px-1" : "rounded-md px-1 py-[1.5px]";
 
   if (status === "ignored" || status === "known") {
@@ -128,53 +128,32 @@ const getWordStatusClass = (
   }
 
   if (status === "1") {
-    const borderClass = hasIdiomUnderline
-      ? ""
-      : isDotted
-      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
-      : "border-b-2 border-[#f3a4b0]";
-    return `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#f3a4b0] dark:border-rose-500/80";
+    return `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "2") {
-    const borderClass = hasIdiomUnderline
-      ? ""
-      : isDotted
-      ? "border-b-2 border-dotted border-amber-700 dark:border-amber-300"
-      : "border-b-2 border-[#f0d46d]";
-    return `bg-[#f0d46d]/45 dark:bg-amber-950/35 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#f0d46d] dark:border-amber-400/80";
+    return `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "3" || (status as any) === "learning") {
-    const borderClass = hasIdiomUnderline
-      ? ""
-      : isDotted
-      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
-      : "border-b-2 border-[#a6d896]";
-    return `bg-[#a6d896]/45 dark:bg-emerald-950/35 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 ${baseRounding} font-medium ${borderClass} cursor-pointer transition-colors`;
+    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#a6d896] dark:border-emerald-400/80";
+    return `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 ${baseRounding} font-medium ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "4") {
-    const borderClass = hasIdiomUnderline
-      ? ""
-      : isDotted
-      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
-      : "border-b-2 border-[#204bf4] dark:border-blue-400";
-    return `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-100 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#204bf4] dark:border-blue-400/80";
+    return `bg-[#99bce8] dark:bg-blue-950/60 hover:bg-[#86b0e3] dark:hover:bg-blue-900/60 text-blue-950 dark:text-blue-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "5") {
-    const borderClass = hasIdiomUnderline
-      ? ""
-      : isDotted
-      ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400"
-      : "border-b-2 border-[#a882dd] dark:border-purple-400";
-    return `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
+    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#a882dd] dark:border-purple-400/80";
+    return `bg-[#c5aee2] dark:bg-purple-950/60 hover:bg-[#b096d2] dark:hover:bg-purple-900/60 text-purple-950 dark:text-purple-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
   // Status 0 / default (New / Unknown word)
-  const borderClass = isDotted ? "border-b-2 border-dotted border-amber-600 dark:border-amber-400" : "";
-  return `bg-[#cbeeff] dark:bg-sky-900/35 hover:bg-[#addbff] dark:hover:bg-sky-900/50 text-sky-900 dark:text-sky-200 ${baseRounding} ${borderClass} cursor-pointer transition-colors`;
+  return `bg-[#cbeeff] dark:bg-sky-950/70 hover:bg-[#addbff] dark:hover:bg-sky-900/60 text-sky-900 dark:text-sky-300 ${baseRounding} cursor-pointer transition-colors`;
 };
 
 const getPhraseTypeLabel = (type: string | undefined, t: any) => {
@@ -248,6 +227,7 @@ function ReaderPanel({
     word: string;
     parentWord?: string;
     translation: string;
+    definition?: string;
     tags?: string[];
     grammar?: string;
     imageUrl?: string | null;
@@ -256,6 +236,7 @@ function ReaderPanel({
     position?: "above" | "below";
     phraseText?: string;
     phraseTranslation?: string;
+    phraseDefinition?: string;
     phraseStatus?: WordStatus;
     phraseTags?: string[];
     detectedPhraseText?: string;
@@ -530,6 +511,12 @@ function ReaderPanel({
       if (normLq) {
         return normLq.status;
       }
+    }
+
+    // Check system auto-ignore lists (Gaming, Tech Brands, Names/Cities, Anglicisms)
+    const autoIgnore = ignoreListManager.checkAutoIgnore(key, settings, lesson.targetLanguage);
+    if (autoIgnore.isIgnored) {
+      return "ignored";
     }
 
     return "new"; // defaults to blue 'new'
@@ -1010,6 +997,7 @@ function ReaderPanel({
                   position: showBelow ? "below" : "above",
                   phraseText: phraseMatch.phrase,
                   phraseTranslation: phraseMatch.vocabItem.translation,
+                  phraseDefinition: phraseMatch.vocabItem.definition,
                   phraseStatus: phraseMatch.vocabItem.status,
                   phraseTags: phraseMatch.vocabItem.tags,
                 });
@@ -1125,15 +1113,15 @@ function ReaderPanel({
                     styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2px] hover:blur-none hover:opacity-100 duration-300`;
                   }
                 } else if (status === "1") {
-                  styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/30 hover:bg-[#f3a4b0]/70 text-rose-900 dark:text-rose-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "2") {
-                  styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/30 hover:bg-[#f0d46d]/70 text-amber-900 dark:text-amber-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "3" || (status as any) === "learning") {
-                  styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/30 hover:bg-[#a6d896]/70 text-emerald-900 dark:text-emerald-200 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "4") {
-                  styleClass = `bg-[#99bce8] dark:bg-blue-900/40 hover:bg-[#86b0e3] text-blue-950 dark:text-blue-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#99bce8] dark:bg-blue-950/60 hover:bg-[#86b0e3] dark:hover:bg-blue-900/60 text-blue-950 dark:text-blue-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 } else if (status === "5") {
-                  styleClass = `bg-[#c5aee2] dark:bg-purple-900/40 hover:bg-[#b096d2] text-purple-950 dark:text-purple-200 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  styleClass = `bg-[#c5aee2] dark:bg-purple-950/60 hover:bg-[#b096d2] dark:hover:bg-purple-900/60 text-purple-950 dark:text-purple-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
                 }
 
                 if (isPhraseActive) {
@@ -1424,22 +1412,32 @@ function ReaderPanel({
                       const rect = e.currentTarget.getBoundingClientRect();
                       setHoveredWordId(wordId);
 
-                      const key = resolveWord(cleanWord);
+                      const cleanWordLower = cleanWord.toLowerCase();
                       const lang = lesson.targetLanguage.toLowerCase();
+                      const exactVocab = vocab[`${lang}_${cleanWordLower}`] || vocab[cleanWordLower];
+                      const key = resolveWord(cleanWord);
                       const langKey = `${lang}_${key}`;
-                      const lq = vocab[langKey];
+                      const parentVocab = vocab[langKey] || vocab[key];
+                      const lq = exactVocab || parentVocab;
                       
                       const showBelow = rect.bottom < window.innerHeight - 280;
                       const posY = showBelow ? rect.bottom + 6 : rect.top - 6;
 
                       if (lq) {
-                        const rawBaseWord = wordLinks[`${lang}_${cleanWord.toLowerCase()}`];
+                        const rawBaseWord = wordLinks[`${lang}_${cleanWordLower}`] || (wordLinks[cleanWordLower] ? wordLinks[cleanWordLower] : "");
                         const baseWord = rawBaseWord ? rawBaseWord.replace(/^[a-zA-Z]+_/, "") : "";
+
+                        // Resolve definition: own entry first, then parent entry
+                        const resolvedDefinition: string =
+                          exactVocab?.definition ||
+                          (parentVocab && parentVocab !== exactVocab ? parentVocab.definition : undefined) ||
+                          "";
                         
                         setHoveredWordObj({
                           word: cleanWord,
-                          parentWord: baseWord || undefined,
+                          parentWord: (baseWord && baseWord.toLowerCase() !== cleanWordLower) ? baseWord : undefined,
                           translation: lq.translation,
+                          definition: resolvedDefinition || undefined,
                           tags: lq.tags,
                           grammar: lq.grammar,
                           imageUrl: lq.imageUrl || undefined,
@@ -1767,11 +1765,30 @@ function ReaderPanel({
                   Status: {hoveredWordObj.phraseStatus || "new"}
                 </span>
               </div>
-              {hoveredWordObj.phraseTranslation && (
-                <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words whitespace-pre-wrap font-semibold bg-amber-500/5 dark:bg-amber-400/5 p-2 rounded-lg border border-amber-500/15 dark:border-amber-400/15">
-                  {normalizeTranslationSemicolons(hoveredWordObj.phraseTranslation)}
+              {hoveredWordObj.phraseDefinition && (
+                <div className="text-[10px] italic text-zinc-500 dark:text-zinc-400 leading-snug break-words bg-teal-50/40 dark:bg-teal-950/20 px-2 py-1.5 rounded-lg border border-teal-100/40 dark:border-teal-900/30">
+                  <span className="not-italic mr-1 opacity-60">📖</span>{hoveredWordObj.phraseDefinition}
                 </div>
               )}
+              {(() => {
+                const rawTrans = (hoveredWordObj.phraseTranslation || "").trim();
+                const isValidTrans = rawTrans && rawTrans !== "Pending translation" && !rawTrans.startsWith("[");
+                if (isValidTrans) {
+                  return (
+                    <div className="text-[11px] text-zinc-700 dark:text-zinc-200 leading-snug break-words whitespace-pre-wrap font-semibold bg-amber-500/5 dark:bg-amber-400/5 p-2 rounded-lg border border-amber-500/15 dark:border-amber-400/15">
+                      {normalizeTranslationSemicolons(rawTrans)}
+                    </div>
+                  );
+                }
+                if (!hoveredWordObj.phraseDefinition) {
+                  return (
+                    <div className="text-[10.5px] italic text-zinc-400 dark:text-zinc-500 leading-snug px-1 pb-0.5">
+                      {t('reader.no_translation_yet', '— No translation yet')}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           ) : null}
 
@@ -1800,7 +1817,7 @@ function ReaderPanel({
             </div>
           ) : null}
 
-          {(hoveredWordObj.translation || hoveredWordObj.parentWord || hoveredWordObj.imageUrl) ? (
+          {hoveredWordObj.word ? (
             <div className={`flex flex-col gap-1.5 ${(hoveredWordObj.phraseText || hoveredWordObj.detectedPhraseText) ? "mt-1 pt-2 border-t border-dashed border-zinc-100 dark:border-zinc-800/80" : ""}`}>
               <div className="flex items-center justify-between gap-2 pb-1.5">
                 <div className="flex items-baseline gap-1 min-w-0">
@@ -1845,11 +1862,32 @@ function ReaderPanel({
                 </div>
               )}
 
-              {hoveredWordObj.translation && (
-                <div className="text-[11px] text-zinc-650 dark:text-zinc-300 leading-snug break-words whitespace-pre-wrap font-medium">
-                  {normalizeTranslationSemicolons(hoveredWordObj.translation)}
+              {hoveredWordObj.definition && (
+                <div className="text-[10px] italic text-zinc-500 dark:text-zinc-400 leading-snug break-words bg-teal-50/40 dark:bg-teal-950/20 px-2 py-1.5 rounded-lg border border-teal-100/40 dark:border-teal-900/30">
+                  <span className="not-italic mr-1 opacity-60">📖</span>{hoveredWordObj.definition}
                 </div>
               )}
+
+              {(() => {
+                const rawTrans = (hoveredWordObj.translation || "").trim();
+                const isValidTrans = rawTrans && rawTrans !== "Pending translation" && !rawTrans.startsWith("[");
+                if (isValidTrans) {
+                  return (
+                    <div className="text-[11px] text-zinc-650 dark:text-zinc-300 leading-snug break-words whitespace-pre-wrap font-medium">
+                      {normalizeTranslationSemicolons(rawTrans)}
+                    </div>
+                  );
+                }
+                // If there is neither a definition nor a valid translation, render a subtle localized hint
+                if (!hoveredWordObj.definition) {
+                  return (
+                    <div className="text-[10.5px] italic text-zinc-400 dark:text-zinc-500 leading-snug">
+                      {t('reader.no_translation_yet', '— No translation yet')}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           ) : null}
         </TooltipPortal>

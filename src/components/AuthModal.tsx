@@ -1,384 +1,435 @@
-import React, { useState } from "react";
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, googleProvider } from "../firebase";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
+import { Globe, X, Lightbulb, ArrowLeft, Loader2, KeyRound } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLocalServerLogin: () => void;
+  initialUsername?: string;
 }
 
-const isLocalHostname = (): boolean => {
-  if (typeof window === "undefined") return false;
-  const hostname = window.location.hostname;
-  return (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname.startsWith("192.168.") ||
-    hostname.startsWith("10.") ||
-    hostname.startsWith("172.")
-  );
-};
+const UI_LANGUAGES = [
+  { code: "ru", name: "Русский", flag: "🇷🇺" },
+  { code: "en", name: "English", flag: "🇬🇧" },
+];
 
-export default function AuthModal({ isOpen, onClose, onLocalServerLogin }: AuthModalProps) {
-  const { user: activeUser, setStorageMode, loginLocalServer, registerLocalServer } = useAuth();
-  const { t } = useTranslation();
+export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initialUsername = "" }: AuthModalProps) {
+  const { loginLocalServer, registerLocalServer } = useAuth();
+  const { t, i18n } = useTranslation();
   
   const [authError, setAuthError] = useState<string | null>(null);
-  const [isLocalServerRegister, setIsLocalServerRegister] = useState<boolean>(false);
-  const [localServerEmail, setLocalServerEmail] = useState<string>("");
-  const [localServerPassword, setLocalServerPassword] = useState<string>("");
-  const [localServerConfirmPassword, setLocalServerConfirmPassword] = useState<string>("");
-  const [isLocalServerAuthLoading, setIsLocalServerAuthLoading] = useState<boolean>(false);
-  
-  const [emailInput, setEmailInput] = useState<string>("");
-  const [passwordInput, setPasswordInput] = useState<string>("");
-  const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>("");
-  const [isEmailRegister, setIsEmailRegister] = useState<boolean>(false);
-  const [emailAuthLoading, setEmailAuthLoading] = useState<boolean>(false);
+  const [isRegister, setIsRegister] = useState<boolean>(false);
+  const [isForgotMode, setIsForgotMode] = useState<boolean>(false);
 
-  const [authModalTab, setAuthModalTab] = useState<"local" | "cloud">(() => {
-    return isLocalHostname() ? "local" : "cloud";
-  });
+  const [emailOrUsername, setEmailOrUsername] = useState<string>(initialUsername);
+  const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
+  const [passwordHint, setPasswordHint] = useState<string>("");
+  const [selectedAvatar, setSelectedAvatar] = useState<string>("🦊");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleServerAuthSubmit = async (
-    emailInputVal: string,
-    passwordInputVal: string,
-    confirmPasswordInputVal: string,
-    isRegisterVal: boolean
-  ) => {
-    const email = emailInputVal.trim();
-    const password = passwordInputVal.trim();
-    const confirmPassword = confirmPasswordInputVal.trim();
+  // Forgot password hint state
+  const [forgotUsername, setForgotUsername] = useState<string>("");
+  const [isHintLoading, setIsHintLoading] = useState<boolean>(false);
+  const [hintResult, setHintResult] = useState<{ searched: boolean; hint: string | null } | null>(null);
 
-    if (!email || !password) {
+  useEffect(() => {
+    if (initialUsername) {
+      setEmailOrUsername(initialUsername);
+    }
+  }, [initialUsername, isOpen]);
+
+  const cleanLegacyFirebaseKeys = () => {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith("firebase:") || key.startsWith("persist:firebase"))) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (_) {}
+  };
+
+  const handleLanguageChange = (lang: string) => {
+    i18n.changeLanguage(lang);
+    try {
+      localStorage.setItem("i18nextLng", lang);
+    } catch (_) {}
+  };
+
+  // Fetch hint for given username
+  const fetchPasswordHint = async (usernameToQuery: string) => {
+    const cleanQuery = usernameToQuery.trim();
+    if (!cleanQuery) return;
+    setIsHintLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`/api/auth/password-hint?username=${encodeURIComponent(cleanQuery)}`);
+      const data = await res.json();
+      setHintResult({
+        searched: true,
+        hint: data && data.hint ? String(data.hint) : null,
+      });
+    } catch (err: any) {
+      console.error("Fetch password hint error:", err);
+      setHintResult({
+        searched: true,
+        hint: null,
+      });
+    } finally {
+      setIsHintLoading(false);
+    }
+  };
+
+  const handleOpenForgotMode = () => {
+    setIsForgotMode(true);
+    setAuthError(null);
+    const initialUser = emailOrUsername.trim();
+    setForgotUsername(initialUser);
+    setHintResult(null);
+    if (initialUser) {
+      fetchPasswordHint(initialUser);
+    }
+  };
+
+  const handleForgotSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotUsername.trim()) {
+      setAuthError(t('auth.error_empty', 'Пожалуйста, введите email/логин.'));
+      return;
+    }
+    fetchPasswordHint(forgotUsername);
+  };
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanUser = emailOrUsername.trim();
+    const cleanPass = password.trim();
+    const cleanConfirm = confirmPassword.trim();
+    const cleanHint = passwordHint.trim();
+
+    if (!cleanUser || !cleanPass) {
       setAuthError(t('auth.error_empty', 'Пожалуйста, введите email/логин и пароль.'));
       return;
     }
 
-    if (isRegisterVal) {
-      if (!confirmPassword) {
+    if (isRegister) {
+      if (!cleanConfirm) {
         setAuthError(t('auth.error_empty_confirm', 'Пожалуйста, повторите пароль.'));
         return;
       }
-      if (password !== confirmPassword) {
+      if (cleanPass !== cleanConfirm) {
         setAuthError(t('auth.error_passwords_dont_match', 'Пароли не совпадают.'));
+        return;
+      }
+      if (cleanPass.length < 4) {
+        setAuthError(t('auth.error_password_length', 'Пароль должен содержать не менее 4 символов.'));
         return;
       }
     }
 
     setAuthError(null);
-    setIsLocalServerAuthLoading(true);
+    setIsLoading(true);
 
     try {
-      if (auth.currentUser) {
-        await auth.signOut();
-      }
+      cleanLegacyFirebaseKeys();
 
-      const result = isRegisterVal
-        ? await registerLocalServer(email, password)
-        : await loginLocalServer(email, password);
+      const result = isRegister
+        ? await registerLocalServer(cleanUser, cleanPass, cleanHint, selectedAvatar)
+        : await loginLocalServer(cleanUser, cleanPass);
 
       if (!result.success) {
         throw new Error(result.error || "Ошибка авторизации");
       }
 
       onLocalServerLogin();
-      setLocalServerEmail("");
-      setLocalServerPassword("");
-      setLocalServerConfirmPassword("");
+      setEmailOrUsername("");
+      setPassword("");
+      setConfirmPassword("");
+      setPasswordHint("");
+      setIsForgotMode(false);
       onClose();
     } catch (err: any) {
-      console.error("Local server auth error:", err);
+      console.error("Server auth error:", err);
       setAuthError(err.message || String(err));
     } finally {
-      setIsLocalServerAuthLoading(false);
+      setIsLoading(false);
     }
   };
 
   if (!isOpen) return null;
 
+  const currentLang = (i18n.language || "ru").startsWith("ru") ? "ru" : "en";
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-5 animate-in zoom-in-95 duration-150">
-        <button
-          onClick={() => {
-            onClose();
-            setAuthError(null);
-          }}
-          className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer text-base font-bold"
-        >
-          &times;
-        </button>
-
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center mx-auto text-xl">
-            🔑
-          </div>
-          <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight">
-            {t('auth.title', 'Авторизация и Профиль')}
-          </h3>
-        </div>
-
-        {/* Tab selection */}
-        <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-          <button
-            onClick={() => setAuthModalTab("local")}
-            className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-colors ${
-              authModalTab === "local"
-                ? "text-teal-600 dark:text-teal-400 border-b-2 border-teal-500"
-                : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-            }`}
-          >
-            {t('auth.local_profile', '💻 Локальный Профиль')}
-          </button>
-          <button
-            onClick={() => setAuthModalTab("cloud")}
-            className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-colors ${
-              authModalTab === "cloud"
-                ? "text-teal-600 dark:text-teal-400 border-b-2 border-teal-500"
-                : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-            }`}
-          >
-            {t('auth.cloud_profile', '☁️ Облако (Google / Email)')}
-          </button>
-        </div>
-
-        {authError && (
-          <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
-            <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
-            <p className="mb-2">{authError}</p>
-          </div>
-        )}
-
-        <div className="space-y-4">
-          {authModalTab === "local" ? (
-            <div className="space-y-4 pt-2">
-              <div className="text-center space-y-1">
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal">
-                  {t('auth.local_description', 'Войдите или зарегистрируйтесь на вашем локальном сервере. Данные будут храниться и синхронизироваться через вашу собственную базу данных SQLite.')}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
-                <div className="flex justify-between items-center">
-                  <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                    {t('auth.server_profile', 'Профиль на Сервере:')}
-                  </label>
-                  <button
-                    onClick={() => {
-                      setIsLocalServerRegister(!isLocalServerRegister);
-                      setLocalServerConfirmPassword("");
-                      setAuthError(null);
-                    }}
-                    className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline transition cursor-pointer"
-                  >
-                    {isLocalServerRegister ? t('auth.login', 'Вход') : t('auth.register', 'Регистрация')}
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  <input
-                    type="email"
-                    value={localServerEmail}
-                    onChange={(e) => setLocalServerEmail(e.target.value)}
-                    placeholder={t('auth.placeholder_email', 'Email адрес или логин')}
-                    disabled={isLocalServerAuthLoading}
-                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
-                  />
-                  <input
-                    type="password"
-                    value={localServerPassword}
-                    onChange={(e) => setLocalServerPassword(e.target.value)}
-                    placeholder={t('auth.placeholder_password', 'Пароль')}
-                    disabled={isLocalServerAuthLoading}
-                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
-                    onKeyDown={async (e) => {
-                      if (e.key === "Enter" && !isLocalServerRegister) {
-                        await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerConfirmPassword, isLocalServerRegister);
-                      }
-                    }}
-                  />
-                  {isLocalServerRegister && (
-                    <input
-                      type="password"
-                      value={localServerConfirmPassword}
-                      onChange={(e) => setLocalServerConfirmPassword(e.target.value)}
-                      placeholder={t('auth.placeholder_confirm_password', 'Повторите пароль')}
-                      disabled={isLocalServerAuthLoading}
-                      className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50 font-bold"
-                      onKeyDown={async (e) => {
-                        if (e.key === "Enter") {
-                          await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerConfirmPassword, isLocalServerRegister);
-                        }
-                      }}
-                    />
-                  )}
-
-                  <button
-                    onClick={async () => {
-                      await handleServerAuthSubmit(localServerEmail, localServerPassword, localServerConfirmPassword, isLocalServerRegister);
-                    }}
-                    disabled={isLocalServerAuthLoading}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/10"
-                  >
-                    {isLocalServerAuthLoading ? (
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <span>💻</span>
-                    )}
-                    <span>{isLocalServerRegister ? t('auth.btn_register_server', 'Создать аккаунт на сервере') : t('auth.btn_login_server', 'Войти в профиль сервера')}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4 pt-2">
-              {/* Option A: Google Sign In */}
-              <div>
-                <button
-                  onClick={async () => {
-                    setAuthError(null);
-                    try {
-                      await signInWithPopup(auth, googleProvider);
-                      setStorageMode("cloud");
-                      onClose();
-                    } catch (err: any) {
-                      console.error("Local PC Sign-In with popup error:", err);
-                      setAuthError(err.message || String(err));
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer shadow-md shadow-teal-600/10"
+        
+        {/* Top Header: Unified Scalable Language Selector & Close */}
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/60 dark:border-zinc-700/60 transition hover:border-teal-400/60">
+            <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+            <select
+              value={currentLang}
+              onChange={(e) => handleLanguageChange(e.target.value)}
+              aria-label="Interface Language"
+              className="bg-transparent text-xs font-black text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer py-0.5"
+            >
+              {UI_LANGUAGES.map((lang) => (
+                <option 
+                  key={lang.code} 
+                  value={lang.code}
+                  className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold"
                 >
-                  <span>☁️</span> {t('auth.btn_google', 'Войти через Google Account')}
-                </button>
+                  {lang.flag} {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => {
+              onClose();
+              setAuthError(null);
+              setIsForgotMode(false);
+              setHintResult(null);
+            }}
+            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* View Mode 1: Forgot Password Hint View */}
+        {isForgotMode ? (
+          <div className="space-y-4 animate-in fade-in duration-150">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/50 dark:border-amber-800/50 flex items-center justify-center mx-auto text-xl text-amber-500">
+                💡
+              </div>
+              <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight">
+                {t('auth.forgot_password_title', 'Подсказка к паролю')}
+              </h3>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal px-2">
+                {t('auth.forgot_password_desc', 'Введите логин или email, чтобы увидеть подсказку к вашему паролю.')}
+              </p>
+            </div>
+
+            {authError && (
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
+                <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
+                <p>{authError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleForgotSubmit} className="space-y-3">
+              <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                    {t('auth.account', 'Аккаунт:')}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={forgotUsername}
+                      onChange={(e) => {
+                        setForgotUsername(e.target.value);
+                        setHintResult(null);
+                      }}
+                      placeholder={t('auth.placeholder_email', 'Email адрес или логин')}
+                      disabled={isHintLoading}
+                      autoFocus
+                      className="flex-1 text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isHintLoading || !forgotUsername.trim()}
+                      className="px-3.5 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 shadow-sm flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      {isHintLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5" />}
+                      <span>{t('auth.btn_get_hint', 'Показать')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Hint result output card */}
+                {hintResult && (
+                  <div className="pt-2 animate-in fade-in zoom-in-95 duration-150">
+                    {hintResult.hint ? (
+                      <div className="p-3.5 bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 dark:border-amber-600/40 rounded-xl text-left space-y-1">
+                        <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-black text-[11px]">
+                          <Lightbulb className="w-3.5 h-3.5 shrink-0" />
+                          <span>{t('auth.hint_found_title', 'Подсказка к вашему паролю:')}</span>
+                        </div>
+                        <p className="text-xs font-bold text-zinc-900 dark:text-amber-100 pl-5 break-words select-all">
+                          «{hintResult.hint}»
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-3.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-left space-y-1">
+                        <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 font-black text-[11px]">
+                          <Lightbulb className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                          <span>{t('auth.no_hint_title', 'Подсказка не найдена')}</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 pl-5 leading-normal">
+                          {t('auth.no_hint_desc', 'Подсказка для этого аккаунта не была настроена.')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-zinc-100 dark:border-zinc-800"></div>
-                <span className="flex-shrink mx-3 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest font-mono">{t('auth.or', 'или')}</span>
-                <div className="flex-grow border-t border-zinc-100 dark:border-zinc-800"></div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotMode(false);
+                  setAuthError(null);
+                  if (forgotUsername.trim()) {
+                    setEmailOrUsername(forgotUsername.trim());
+                  }
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{t('auth.btn_back_to_login', 'Вернуться к входу')}</span>
+              </button>
+            </form>
+          </div>
+        ) : (
+          /* View Mode 2: Standard Login & Registration Forms */
+          <>
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center mx-auto text-xl">
+                🔑
               </div>
+              <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight">
+                {isRegister ? t('auth.title_register', 'Создать профиль') : t('auth.title', 'Вход в профиль')}
+              </h3>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal px-2">
+                {t('auth.local_description', 'Войдите или создайте аккаунт, чтобы сохранять материалы и синхронизировать прогресс чтения между устройствами.')}
+              </p>
+            </div>
 
-              {/* Option B: Email & Password */}
+            {authError && (
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
+                <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
+                <p>{authError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4 pt-1">
               <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
                 <div className="flex justify-between items-center">
                   <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                    {t('auth.email_login', 'Вход по Email:')}
+                    {isRegister ? t('auth.new_account', 'Новый аккаунт:') : t('auth.account', 'Аккаунт:')}
                   </label>
                   <button
+                    type="button"
                     onClick={() => {
-                      setIsEmailRegister(!isEmailRegister);
-                      setConfirmPasswordInput("");
+                      setIsRegister(!isRegister);
+                      setConfirmPassword("");
+                      setPasswordHint("");
                       setAuthError(null);
                     }}
                     className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline transition cursor-pointer"
                   >
-                    {isEmailRegister ? t('auth.login', 'Вход') : t('auth.register', 'Регистрация')}
+                    {isRegister ? t('auth.login', 'Уже есть аккаунт? Войти') : t('auth.register', 'Регистрация')}
                   </button>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <input
-                    type="email"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder={t('auth.placeholder_email_only', 'Email адрес')}
-                    disabled={emailAuthLoading}
-                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                    type="text"
+                    value={emailOrUsername}
+                    onChange={(e) => setEmailOrUsername(e.target.value)}
+                    placeholder={t('auth.placeholder_email', 'Email адрес или логин')}
+                    disabled={isLoading}
+                    autoFocus
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
                   />
                   <input
                     type="password"
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder={t('auth.placeholder_password_6', 'Пароль (от 6 символов)')}
-                    disabled={emailAuthLoading}
-                    className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t('auth.placeholder_password', 'Пароль')}
+                    disabled={isLoading}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
                   />
-                  {isEmailRegister && (
-                    <input
-                      type="password"
-                      value={confirmPasswordInput}
-                      onChange={(e) => setConfirmPasswordInput(e.target.value)}
-                      placeholder={t('auth.placeholder_confirm_password', 'Повторите пароль')}
-                      disabled={emailAuthLoading}
-                      className="w-full text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50 font-bold"
-                    />
+                  {isRegister && (
+                    <>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder={t('auth.placeholder_confirm_password', 'Повторите пароль')}
+                        disabled={isLoading}
+                        className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                      />
+                      <input
+                        type="text"
+                        value={passwordHint}
+                        onChange={(e) => setPasswordHint(e.target.value)}
+                        placeholder={t('auth.placeholder_password_hint', 'Подсказка к паролю (например: девичья фамилия матери)')}
+                        disabled={isLoading}
+                        className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
+                      />
+                      <div className="space-y-1 pt-0.5">
+                        <label className="text-[9px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
+                          {t('profile.avatar', 'Аватар:')}
+                        </label>
+                        <div className="flex gap-1.5 overflow-x-auto py-1 custom-scrollbar">
+                          {["🦊", "🦉", "🐱", "🐼", "🚀", "👑", "⚡", "🌟", "🎨", "📚"].map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => setSelectedAvatar(emoji)}
+                              className={`w-7 h-7 rounded-full text-xs flex items-center justify-center cursor-pointer transition shrink-0 ${
+                                selectedAvatar === emoji
+                                  ? "bg-teal-100 dark:bg-teal-950 border-2 border-teal-500 scale-110 shadow-xs"
+                                  : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100"
+                              }`}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {!isRegister && (
+                    <div className="flex justify-end pt-0.5">
+                      <button
+                        type="button"
+                        onClick={handleOpenForgotMode}
+                        className="text-[11px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <KeyRound className="w-3 h-3" />
+                        <span>{t('auth.forgot_password', 'Забыли пароль?')}</span>
+                      </button>
+                    </div>
                   )}
 
                   <button
-                    onClick={async () => {
-                      const email = emailInput.trim();
-                      const password = passwordInput.trim();
-                      const confirmPassword = confirmPasswordInput.trim();
-                      if (!email || !password) {
-                        setAuthError(t('auth.error_empty', 'Пожалуйста, введите email и пароль.'));
-                        return;
-                      }
-                      if (password.length < 6) {
-                        setAuthError(t('auth.error_password_length', 'Пароль должен содержать не менее 6 символов.'));
-                        return;
-                      }
-                      if (isEmailRegister) {
-                        if (!confirmPassword) {
-                          setAuthError(t('auth.error_empty_confirm', 'Пожалуйста, повторите пароль.'));
-                          return;
-                        }
-                        if (password !== confirmPassword) {
-                          setAuthError(t('auth.error_passwords_dont_match', 'Пароли не совпадают.'));
-                          return;
-                        }
-                      }
-
-                      setAuthError(null);
-                      setEmailAuthLoading(true);
-                      try {
-                        if (isEmailRegister) {
-                          await createUserWithEmailAndPassword(auth, email, password);
-                        } else {
-                          await signInWithEmailAndPassword(auth, email, password);
-                        }
-                        setStorageMode("cloud");
-                        setEmailInput("");
-                        setPasswordInput("");
-                        setConfirmPasswordInput("");
-                        onClose();
-                      } catch (err: any) {
-                        console.error("Email auth error:", err);
-                        let friendlyMsg = err.message || String(err);
-                        if (err.code === "auth/email-already-in-use") {
-                          friendlyMsg = t('auth.error_email_in_use', 'Этот адрес почты уже зарегистрирован.');
-                        } else if (err.code === "auth/invalid-email") {
-                          friendlyMsg = t('auth.error_invalid_email', 'Неверный формат email адреса.');
-                        } else if (err.code === "auth/operation-not-allowed") {
-                          friendlyMsg = t('auth.error_operation_not_allowed', 'Вход по Email отключен в настройках Firebase.');
-                        } else if (err.code === "auth/weak-password") {
-                          friendlyMsg = t('auth.error_weak_password', 'Слишком простой пароль. Нужно не менее 6 символов.');
-                        } else if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-                          friendlyMsg = t('auth.error_wrong_password', 'Неверный логин или пароль.');
-                        }
-                        setAuthError(friendlyMsg);
-                      } finally {
-                        setEmailAuthLoading(false);
-                      }
-                    }}
-                    disabled={emailAuthLoading}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-zinc-700 hover:bg-zinc-800 active:scale-98 text-white font-bold text-xs transition duration-150 cursor-pointer disabled:opacity-50"
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/10 mt-2"
                   >
-                    {emailAuthLoading ? (
+                    {isLoading ? (
                       <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <span>🔒</span>
+                      <span>👤</span>
                     )}
-                    <span>{isEmailRegister ? t('auth.btn_register_cloud', 'Создать аккаунт и войти') : t('auth.btn_login_cloud', 'Войти в облако')}</span>
+                    <span>{isRegister ? t('auth.btn_register', 'Создать аккаунт') : t('auth.btn_login', 'Войти в аккаунт')}</span>
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

@@ -115,12 +115,12 @@ export default function MatchPairsModal({
     setShowSuccessScreen(false);
   };
 
-  // Reset when filter or round changes
+  // Reset when modal opens, filter changes, or user clicks Next Round
   useEffect(() => {
     if (isOpen) {
       setupRound();
     }
-  }, [isOpen, timeFilter, round, filteredWords.length]);
+  }, [isOpen, timeFilter, round]);
 
   // Handle card selection
   const handleCardClick = (card: CardItem) => {
@@ -159,21 +159,6 @@ export default function MatchPairsModal({
       if (selectedWordCard.wordKey === selectedTransCard.wordKey) {
         // Correct match!
         const matchKey = selectedWordCard.wordKey;
-        
-        // Trigger SRS Status upgrade callback
-        if (onUpdateStatus) {
-          const matchedItem = currentPairs.find((p) => p.word.toLowerCase() === matchKey);
-          if (matchedItem) {
-            const curStatus = matchedItem.status;
-            let nextStatus: WordStatus = "1";
-            if (curStatus === "1") nextStatus = "2";
-            else if (curStatus === "2") nextStatus = "3";
-            else if (curStatus === "3") nextStatus = "4";
-            else if (curStatus === "4") nextStatus = "5";
-            else if (curStatus === "5") nextStatus = "known";
-            onUpdateStatus(matchedItem.word, nextStatus);
-          }
-        }
 
         // Timeout to let animations sync
         setTimeout(() => {
@@ -205,16 +190,6 @@ export default function MatchPairsModal({
       }
     }
   }, [selectedWordCard, selectedTransCard, currentPairs, onUpdateStatus]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

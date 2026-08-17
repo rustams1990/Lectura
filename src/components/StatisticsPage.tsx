@@ -899,7 +899,7 @@ function StatisticsPage({
         grammar: lq.grammar || "",
         ipa: lq.ipa || "",
         contextRelation: lq.contextRelation || "",
-        status: lq.status || "known",
+        status: lq.status || "new",
         createdAt: typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : Date.now(),
         tags: Array.isArray(lq.tags) ? lq.tags.filter(t => typeof t === "string") : [],
         examples: Array.isArray(lq.examples) ? lq.examples : [],
@@ -1301,11 +1301,15 @@ function StatisticsPage({
         }
 
         setProfileMessage(
-          `Успешно! Проанализировано ${relevantLessons.length} уроков (${tokens.length} {t('stats_page.words', 'words')}оупотреблений). Автоматически обновлено ${updatedCount} {t('stats_page.words', 'words')}(а) в {t('stats_page.words', 'words')}аре добавлением CEFR-тегов важности (A1, A2, B1, B2, C1).`
+          t('stats_page.profiler_success', "Successfully analyzed {{lessonsCount}} lessons ({{tokensCount}} words). Automatically updated {{updatedCount}} words in dictionary with CEFR priority tags (A1, A2, B1, B2, C1).", {
+            lessonsCount: relevantLessons.length,
+            tokensCount: tokens.length,
+            updatedCount: updatedCount,
+          })
         );
       } catch (err) {
         console.error("Vocabulary profiling failed", err);
-        setProfileMessage("Ошибка при проведении частотного анализа.");
+        setProfileMessage(t('stats_page.profiler_error', "Error running frequency analysis."));
       } finally {
         setIsProfiling(false);
       }
@@ -1512,7 +1516,7 @@ function StatisticsPage({
       return filteredVocabularyList;
     }
 
-    const grouped = new Map<string, VocabItem>();
+    const grouped = new Map<string, VocabItem & { _rawWord?: string; _allFamilyWords?: string[] }>();
     filteredVocabularyList.forEach((item) => {
       const resolved = resolveWordToPattern(item.word);
       const existing = grouped.get(resolved);
@@ -1521,6 +1525,8 @@ function StatisticsPage({
         grouped.set(resolved, {
           ...item,
           word: resolved, // display word as base pattern e.g. "uva"
+          _rawWord: item.word,
+          _allFamilyWords: [item.word],
         });
       } else {
         // Merge entries: keep higher rank status
@@ -1549,11 +1555,18 @@ function StatisticsPage({
           }
         }
 
+        const familyWords = existing._allFamilyWords || [existing.word];
+        if (!familyWords.includes(item.word)) {
+          familyWords.push(item.word);
+        }
+
         grouped.set(resolved, {
           ...(useNewer ? item : existing),
           word: resolved,
           translation: mergedTranslation,
           createdAt: Math.max(existing.createdAt || 0, item.createdAt || 0),
+          _rawWord: existing._rawWord || item.word,
+          _allFamilyWords: familyWords,
         });
       }
     });
@@ -3065,6 +3078,17 @@ function StatisticsPage({
                                 </button>
                                 <button
                                   type="button"
+                                  onClick={() => {
+                                    const family = (item as any)._allFamilyWords || [(item as any)._rawWord || item.word];
+                                    family.forEach((w: string) => onDeleteVocab(w, selectedStatsLang));
+                                  }}
+                                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-zinc-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                                  title={t('stats_page.delete_word_title', 'Delete word from dictionary')}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => setEditingWord(null)}
                                   className="p-1 px-1.5 text-zinc-500 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 rounded-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center"
                                   title={t('stats_page.cancel_edit', 'Cancel editing')}
@@ -3084,7 +3108,10 @@ function StatisticsPage({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => onDeleteVocab(item.word, selectedStatsLang)}
+                                  onClick={() => {
+                                    const family = (item as any)._allFamilyWords || [(item as any)._rawWord || item.word];
+                                    family.forEach((w: string) => onDeleteVocab(w, selectedStatsLang));
+                                  }}
                                   className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-zinc-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
                                   title={t('stats_page.delete_word_title', 'Delete word from dictionary')}
                                 >

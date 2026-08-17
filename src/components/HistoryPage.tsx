@@ -289,7 +289,16 @@ function HistoryPage({
     for (const item of sorted) {
       const lesson = lessons.find((l) => l.id === item.lessonId);
       const savedProg = localStorage.getItem(`vocab_progress_${item.lessonId}`);
-      const isProg100 = savedProg ? parseFloat(savedProg) >= 100 : false;
+      let isProg100 = false;
+      if (savedProg) {
+        try {
+          const parsed = JSON.parse(savedProg);
+          const val = typeof parsed === "number" ? parsed : (parsed && typeof parsed === "object" && parsed.progress !== undefined) ? parseFloat(parsed.progress) : parseFloat(savedProg);
+          isProg100 = !isNaN(val) && val >= 100;
+        } catch (_) {
+          isProg100 = parseFloat(savedProg) >= 100;
+        }
+      }
       const isLessonDone =
         item.status === "completed" ||
         item.actionType === "complete" ||

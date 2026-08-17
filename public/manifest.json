@@ -1,7 +1,7 @@
 {
   "short_name": "Lectura",
   "name": "Lectura",
-  "description": "Интерактивная система чтения книг, статей и видео с мгновенным контекстным переводом, озвучкой и умным словарем на базе Google Gemini ИИ.",
+  "description": "Lectura",
   "icons": [
     {
       "src": "/icon-192.png",

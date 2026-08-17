@@ -10,6 +10,9 @@ import youtubeRouter from "./routes/youtube.ts";
 import authRouter from "./routes/auth.ts";
 import dbRouter from "./routes/db.ts";
 import mediaRouter from "./routes/media.ts";
+import whisperRouter from "./routes/whisper.ts";
+import wordnetRouter from "./routes/wordnet.ts";
+import { frequencyRouter } from "./routes/frequency.ts";
 import { APP_VERSION } from "./src/version.ts";
 
 dotenv.config();
@@ -34,9 +37,9 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: "100mb" }));
-  app.use(express.urlencoded({ limit: "100mb", extended: true }));
-  app.use(express.raw({ type: ["audio/*", "application/octet-stream"], limit: "100mb" }));
+  app.use(express.json({ limit: "25mb" }));
+  app.use(express.urlencoded({ limit: "25mb", extended: true }));
+  app.use(express.raw({ type: ["audio/*", "application/octet-stream"], limit: "25mb" }));
 
   app.post("/api/log", (req, res) => {
     console.log("BROWSER ERROR:", req.body);
@@ -99,6 +102,9 @@ async function startServer() {
   app.use("/api", youtubeRouter);
   app.use("/api", dbRouter);
   app.use("/api", mediaRouter);
+  app.use("/api/whisper", whisperRouter);
+  app.use("/api/wordnet", wordnetRouter);
+  app.use("/api/frequency", frequencyRouter);
   app.use("/api/auth", authRouter);
 
   // ============================================================

@@ -240,29 +240,82 @@ export function useReaderPagination({
     return [segments];
   }, [segments, pageSize, hasTimestamps, isCjk]);
 
+  const parseSavedProgressPage = (raw: string | null): number => {
+    if (!raw) return 0;
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "number") return parsed;
+      if (parsed && typeof parsed === "object" && parsed.progress !== undefined) {
+        const p = parseInt(parsed.progress, 10);
+        return !isNaN(p) && p >= 0 ? p : 0;
+      }
+      const num = parseInt(raw, 10);
+      return !isNaN(num) && num >= 0 ? num : 0;
+    } catch (_) {
+      const num = parseInt(raw, 10);
+      return !isNaN(num) && num >= 0 ? num : 0;
+    }
+  };
+
   const [currentPageIdx, setCurrentPageIdx] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(`vocab_progress_${lesson.id}`);
-      if (saved !== null) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 0) return parsed;
-      }
+      return parseSavedProgressPage(saved);
     } catch (e) {
       console.error("Failed to load progress:", e);
+      return 0;
     }
-    return 0;
   });
 
   const didUserNavigateRef = useRef(false);
 
+  const flushReadingProgress = (pageIdx: number) => {
+    if (!lesson.id) return;
+    const valid = Math.min(Math.max(0, pageIdx), Math.max(0, pages.length - 1));
+    const updatedAt = Date.now();
+    const payload = JSON.stringify({ progress: valid, updatedAt });
+    safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, payload);
+    try {
+      const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+      const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (syncKey) headers["x-sync-key"] = syncKey;
+
+      fetch("/api/progress", {
+        method: "POST",
+        headers,
+        keepalive: true,
+        body: JSON.stringify({
+          type: "reading",
+          lessonId: lesson.id,
+          progress: valid,
+          updatedAt
+        })
+      }).catch(() => {});
+    } catch (_) {}
+  };
+
   useEffect(() => {
     if (!lesson.id || pages.length === 0) return;
     const savedRaw = localStorage.getItem(`vocab_progress_${lesson.id}`);
-    const savedPage = savedRaw !== null ? parseInt(savedRaw, 10) : 0;
+    const savedPage = parseSavedProgressPage(savedRaw);
     if (currentPageIdx === 0 && savedPage > 0 && !didUserNavigateRef.current) return;
-    const valid = Math.min(Math.max(0, currentPageIdx), pages.length - 1);
-    safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, valid.toString());
+    flushReadingProgress(currentPageIdx);
   }, [currentPageIdx, pages.length, lesson.id]);
+
+  useEffect(() => {
+    const handleFlush = () => {
+      flushReadingProgress(currentPageIdx);
+    };
+    window.addEventListener("visibilitychange", handleFlush);
+    window.addEventListener("pagehide", handleFlush);
+    return () => {
+      window.removeEventListener("visibilitychange", handleFlush);
+      window.removeEventListener("pagehide", handleFlush);
+      flushReadingProgress(currentPageIdx);
+    };
+  }, [currentPageIdx, lesson.id, pages.length]);
 
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);

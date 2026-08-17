@@ -9,12 +9,19 @@ import * as pdfParseModule from "pdf-parse";
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
 import { formatGeminiTranscript } from "./youtube.ts";
+import ytdlp from "yt-dlp-exec";
+import { getDbConnection } from "./dbConnection.ts";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
 const IMAGE_CACHE_DIR = path.join(DATA_DIR, "image_cache");
 if (!fs.existsSync(IMAGE_CACHE_DIR)) {
   fs.mkdirSync(IMAGE_CACHE_DIR, { recursive: true });
+}
+
+const VIDEO_STORAGE_DIR = path.join(DATA_DIR, "media", "videos");
+if (!fs.existsSync(VIDEO_STORAGE_DIR)) {
+  fs.mkdirSync(VIDEO_STORAGE_DIR, { recursive: true });
 }
 
 // EPUB Parser Helpers
@@ -921,6 +928,307 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
   } catch (err: any) {
     console.error("Audio Transcription error:", err);
     return res.status(500).json({ error: "Ошибка распознавания речи: " + (err.message || String(err)) });
+  }
+});
+
+// In-memory lock and progress tracker
+const activeDownloads = new Map<string, Promise<{ url: string; isAudio: boolean; filename: string; sizeBytes: number }>>();
+const downloadProgressMap = new Map<string, { percent: number; speed: string; eta: string; status: string }>();
+
+// ============================================================================
+// Media Downloader & Range Streaming (YouTube restricted / offline playback)
+// ============================================================================
+
+/**
+ * GET /api/media/progress
+ * Returns real-time percentage and download speed for active downloads.
+ */
+router.get("/media/progress", (req: Request, res: Response) => {
+  const { videoId, lessonId, onlyAudio } = req.query;
+  const cleanVideoId = (videoId ? String(videoId) : "").replace(/[^a-zA-Z0-9_-]/g, "");
+  const fileId = lessonId ? String(lessonId).replace(/[^a-zA-Z0-9_-]/g, "") : cleanVideoId;
+  const isAudio = onlyAudio === "true" || onlyAudio === "1";
+  const ext = isAudio ? "m4a" : "mp4";
+  const lockKey = `${fileId}_${ext}`;
+
+  const isDownloading = activeDownloads.has(lockKey);
+  const progress = downloadProgressMap.get(lockKey) || { percent: isDownloading ? 5 : 0, speed: "", eta: "", status: isDownloading ? "downloading" : "idle" };
+
+  return res.json({
+    downloading: isDownloading,
+    percent: progress.percent,
+    speed: progress.speed,
+    eta: progress.eta,
+    status: progress.status
+  });
+});
+
+/**
+ * POST /api/media/download
+ * Downloads YouTube video (720p mp4) or audio (m4a) using yt-dlp with real-time progress.
+ */
+router.post("/media/download", async (req: Request, res: Response) => {
+  try {
+    const { videoId, lessonId, onlyAudio } = req.body;
+    if (!videoId && !lessonId) {
+      return res.status(400).json({ error: "Параметр videoId или lessonId обязателен" });
+    }
+
+    const cleanVideoId = (videoId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!cleanVideoId || cleanVideoId.length !== 11) {
+      return res.status(400).json({ error: "Некорректный формат YouTube videoId" });
+    }
+
+    const fileId = lessonId ? String(lessonId).replace(/[^a-zA-Z0-9_-]/g, "") : cleanVideoId;
+    const isAudio = !!onlyAudio;
+    const ext = isAudio ? "m4a" : "mp4";
+    const filename = `${fileId}.${ext}`;
+    const targetFilePath = path.join(VIDEO_STORAGE_DIR, filename);
+
+    // If file is already downloaded and valid, return ready immediately
+    if (fs.existsSync(targetFilePath)) {
+      const stat = fs.statSync(targetFilePath);
+      if (stat.size > 100000) {
+        return res.json({
+          ready: true,
+          url: `/api/media/stream/${filename}`,
+          filename,
+          isAudio,
+          sizeBytes: stat.size
+        });
+      }
+    }
+
+    // Race condition prevention: check if this file is already downloading
+    const lockKey = `${fileId}_${ext}`;
+    let downloadPromise = activeDownloads.get(lockKey);
+
+    if (!downloadPromise) {
+      downloadProgressMap.set(lockKey, { percent: 1, speed: "", eta: "", status: "starting" });
+
+      downloadPromise = new Promise((resolve, reject) => {
+        const videoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
+        const tempPath = path.join(VIDEO_STORAGE_DIR, `${fileId}_tmp_${Date.now()}.${ext}`);
+
+        const ytArgs: Record<string, any> = {
+          output: tempPath,
+          noPlaylist: true,
+          newline: true,
+          noWarnings: true,
+        };
+
+        if (isAudio) {
+          ytArgs.format = "bestaudio[ext=m4a]/bestaudio/best";
+        } else {
+          ytArgs.format = "best[height<=720][ext=mp4]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
+        }
+
+        let processErrorMsg = "";
+
+        const cp = (ytdlp as any).exec(videoUrl, ytArgs);
+
+        cp.stdout?.on("data", (data: Buffer) => {
+          const text = data.toString();
+          // Match lines like: [download]  45.2% of ~  25.40MiB at  3.50MiB/s ETA 00:05
+          const match = text.match(/\[download\]\s+([\d\.]+)%(?:\s+of\s+~?\s*([\d\.]+[A-Za-z]+))?(?:\s+at\s+([\d\.]+[A-Za-z]+\/s))?(?:\s+ETA\s+(\S+))?/);
+          if (match) {
+            const pct = parseFloat(match[1]);
+            const speed = match[3] || "";
+            const eta = match[4] || "";
+            downloadProgressMap.set(lockKey, {
+              percent: !isNaN(pct) ? pct : 50,
+              speed,
+              eta,
+              status: "downloading"
+            });
+          }
+        });
+
+        cp.stderr?.on("data", (data: Buffer) => {
+          const text = data.toString();
+          if (text.includes("ERROR:") || text.includes("Error")) {
+            processErrorMsg += " " + text.trim();
+          }
+        });
+
+        cp.on("close", (code: number) => {
+          activeDownloads.delete(lockKey);
+          downloadProgressMap.delete(lockKey);
+
+          if (code === 0 && fs.existsSync(tempPath)) {
+            try {
+              if (fs.existsSync(targetFilePath)) {
+                try { fs.unlinkSync(targetFilePath); } catch (_) {}
+              }
+              fs.renameSync(tempPath, targetFilePath);
+
+              // Update lesson record in SQLite if lessonId is given
+              if (lessonId) {
+                try {
+                  const db = getDbConnection("default");
+                  if (isAudio) {
+                    db.prepare("UPDATE lessons SET audioUrl = ? WHERE id = ?").run(`/api/media/stream/${filename}`, lessonId);
+                  } else {
+                    db.prepare("UPDATE lessons SET localVideoUrl = ? WHERE id = ?").run(`/api/media/stream/${filename}`, lessonId);
+                  }
+                } catch (dbErr) {
+                  console.warn("Could not update lesson media URL in SQLite:", dbErr);
+                }
+              }
+
+              const stat = fs.existsSync(targetFilePath) ? fs.statSync(targetFilePath) : null;
+              resolve({
+                url: `/api/media/stream/${filename}`,
+                filename,
+                isAudio,
+                sizeBytes: stat?.size || 0
+              });
+            } catch (err: any) {
+              reject(new Error("Ошибка перемещения скачанного файла: " + err.message));
+            }
+          } else {
+            if (fs.existsSync(tempPath)) {
+              try { fs.unlinkSync(tempPath); } catch (_) {}
+            }
+            reject(new Error(processErrorMsg || `yt-dlp завершился с кодом ошибки ${code}`));
+          }
+        });
+
+        cp.on("error", (err: Error) => {
+          activeDownloads.delete(lockKey);
+          downloadProgressMap.delete(lockKey);
+          if (fs.existsSync(tempPath)) {
+            try { fs.unlinkSync(tempPath); } catch (_) {}
+          }
+          reject(err);
+        });
+      });
+
+      activeDownloads.set(lockKey, downloadPromise);
+    }
+
+    const result = await downloadPromise;
+
+    return res.json({
+      ready: true,
+      url: result.url,
+      filename: result.filename,
+      isAudio: result.isAudio,
+      sizeBytes: result.sizeBytes
+    });
+  } catch (err: any) {
+    console.error("Media download error:", err);
+    return res.status(500).json({ error: err.message || "Ошибка загрузки медиа через yt-dlp" });
+  }
+});
+
+/**
+ * GET /api/media/status
+ * Check if media file is already downloaded or currently in progress.
+ */
+router.get("/media/status", (req: Request, res: Response) => {
+  const { videoId, lessonId, onlyAudio } = req.query;
+  const cleanVideoId = (videoId ? String(videoId) : "").replace(/[^a-zA-Z0-9_-]/g, "");
+  const fileId = lessonId ? String(lessonId).replace(/[^a-zA-Z0-9_-]/g, "") : cleanVideoId;
+  const isAudio = onlyAudio === "true" || onlyAudio === "1";
+  const ext = isAudio ? "m4a" : "mp4";
+  const filename = `${fileId}.${ext}`;
+  const targetFilePath = path.join(VIDEO_STORAGE_DIR, filename);
+
+  const lockKey = `${fileId}_${ext}`;
+  const isDownloading = activeDownloads.has(lockKey);
+
+  if (fs.existsSync(targetFilePath)) {
+    const stat = fs.statSync(targetFilePath);
+    if (stat.size > 100000) {
+      return res.json({
+        exists: true,
+        ready: true,
+        downloading: false,
+        url: `/api/media/stream/${filename}`,
+        filename,
+        isAudio,
+        sizeBytes: stat.size
+      });
+    }
+  }
+
+  // Also check if .mp4 exists when onlyAudio wasn't explicitly requested
+  if (!isAudio) {
+    const audioFilename = `${fileId}.m4a`;
+    const audioPath = path.join(VIDEO_STORAGE_DIR, audioFilename);
+    if (fs.existsSync(audioPath)) {
+      const stat = fs.statSync(audioPath);
+      if (stat.size > 100000) {
+        return res.json({
+          exists: true,
+          ready: true,
+          downloading: false,
+          url: `/api/media/stream/${audioFilename}`,
+          filename: audioFilename,
+          isAudio: true,
+          sizeBytes: stat.size
+        });
+      }
+    }
+  }
+
+  return res.json({
+    exists: false,
+    ready: false,
+    downloading: isDownloading
+  });
+});
+
+/**
+ * GET /api/media/stream/:filename
+ * Stream video/audio files with HTTP 206 Partial Content (Range header) for fast seeking.
+ */
+router.get("/media/stream/:filename", (req: Request, res: Response) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(VIDEO_STORAGE_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "Media file not found" });
+  }
+
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  const ext = path.extname(filename).toLowerCase();
+  let contentType = "video/mp4";
+  if (ext === ".m4a" || ext === ".aac") contentType = "audio/mp4";
+  else if (ext === ".mp3") contentType = "audio/mpeg";
+  else if (ext === ".webm") contentType = "video/webm";
+
+  res.setHeader("Accept-Ranges", "bytes");
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+    if (isNaN(start) || isNaN(end) || start >= fileSize || end >= fileSize || start > end) {
+      res.status(416).setHeader("Content-Range", `bytes */${fileSize}`);
+      return res.end();
+    }
+
+    const chunksize = end - start + 1;
+    const fileStream = fs.createReadStream(filePath, { start, end });
+
+    res.writeHead(206, {
+      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+      "Content-Length": chunksize,
+      "Content-Type": contentType,
+    });
+    fileStream.pipe(res);
+  } else {
+    res.writeHead(200, {
+      "Content-Length": fileSize,
+      "Content-Type": contentType,
+    });
+    fs.createReadStream(filePath).pipe(res);
   }
 });
 

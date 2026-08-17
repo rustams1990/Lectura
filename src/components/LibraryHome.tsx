@@ -11,28 +11,11 @@ import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedu
 import { segmentSentenceTokens } from "../tokenizer";
 import { useTranslation } from "react-i18next";
 import StatsWidget from "./StatsWidget";
+import { ignoreListManager } from "../services/ignoreListService";
 
-export function getDifficultyBadgeStyles(level: string) {
-  const lvl = (level || "").toUpperCase();
-  if (lvl.startsWith("A1")) {
-    return "border-emerald-500/30 text-emerald-400 dark:text-emerald-300 bg-emerald-500/10";
-  }
-  if (lvl.startsWith("A2")) {
-    return "border-teal-500/30 text-teal-400 dark:text-teal-300 bg-teal-500/10";
-  }
-  if (lvl.startsWith("B1")) {
-    return "border-cyan-500/30 text-cyan-450 dark:text-cyan-300 bg-cyan-500/10";
-  }
-  if (lvl.startsWith("B2")) {
-    return "border-blue-500/30 text-blue-400 dark:text-blue-300 bg-blue-500/10";
-  }
-  if (lvl.startsWith("C1")) {
-    return "border-indigo-500/30 text-indigo-450 dark:text-indigo-300 bg-indigo-500/10";
-  }
-  if (lvl.startsWith("C2")) {
-    return "border-violet-500/30 text-violet-450 dark:text-violet-300 bg-violet-500/10";
-  }
-  return "border-zinc-500/30 text-zinc-400 dark:text-zinc-300 bg-zinc-500/10";
+export function getDifficultyBadgeStyles(_level?: string) {
+  // Clean, unified, high-contrast style matching the language pill with backdrop-blur
+  return "bg-black/50 backdrop-blur-md text-white font-black border border-white/10 shadow-xs";
 }
 
 interface LibraryHomeProps {
@@ -93,7 +76,8 @@ function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wo
     }
 
     uniqueTotalWords.add(resolvedKey);
-    if (item && (item.status === "known" || item.status === "ignored")) {
+    const isAutoIgnored = !item && ignoreListManager.checkAutoIgnore(resolvedKey, undefined, lang).isIgnored;
+    if ((item && (item.status === "known" || item.status === "ignored")) || isAutoIgnored) {
       knownCount++;
       uniqueKnownWords.add(resolvedKey);
     } else {
@@ -258,7 +242,7 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "Ł",
     };
   }
-  if (l.includes("swed") || l.includes("se")) {
+  if (l === "se" || l === "sv" || l.includes("swed") || l.includes("svenska") || l.includes("шведский")) {
     return {
       gradient: "from-blue-600 via-sky-500 to-yellow-400",
       accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
@@ -266,7 +250,7 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "Å",
     };
   }
-  if (l.includes("hind") || l.includes("hi")) {
+  if (l === "hi" || l.includes("hind") || l.includes("хинди") || l.includes("हिन्दी")) {
     return {
       gradient: "from-orange-600 via-amber-600 to-emerald-700",
       accent: "bg-orange-100 text-orange-950 dark:bg-orange-950/45 dark:text-orange-300",
@@ -274,7 +258,7 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "अ",
     };
   }
-  if (l.includes("gree") || l.includes("el")) {
+  if (l === "el" || l.includes("gree") || l.includes("греческий") || l.includes("ελλην")) {
     return {
       gradient: "from-blue-600 via-sky-600 to-blue-800",
       accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
@@ -282,12 +266,60 @@ const getLanguageCoverPreset = (lang: string) => {
       character: "Ω",
     };
   }
-  if (l.includes("hebr") || l.includes("he")) {
+  if (l === "he" || l.includes("hebr") || l.includes("иврит") || l.includes("עברית")) {
     return {
       gradient: "from-blue-600 via-sky-500 to-slate-200",
       accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
       emoji: "🇮🇱",
       character: "א",
+    };
+  }
+  if (l === "fi" || l.includes("finn") || l.includes("суоми") || l.includes("финский") || l.includes("suomi")) {
+    return {
+      gradient: "from-blue-700 via-sky-600 to-slate-100",
+      accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
+      emoji: "🇫🇮",
+      character: "Ä",
+    };
+  }
+  if (l === "hu" || l.includes("hung") || l.includes("magyar") || l.includes("венгерский")) {
+    return {
+      gradient: "from-emerald-600 via-slate-100 to-red-600",
+      accent: "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/45 dark:text-emerald-300",
+      emoji: "🇭🇺",
+      character: "Gy",
+    };
+  }
+  if (l === "cs" || l === "cz" || l.includes("cze") || l.includes("чешский") || l.includes("češ")) {
+    return {
+      gradient: "from-blue-600 via-slate-100 to-red-600",
+      accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
+      emoji: "🇨🇿",
+      character: "Ř",
+    };
+  }
+  if (l === "ro" || l.includes("roma") || l.includes("румынский") || l.includes("român")) {
+    return {
+      gradient: "from-blue-700 via-amber-500 to-red-600",
+      accent: "bg-blue-100 text-blue-950 dark:bg-blue-950/45 dark:text-blue-300",
+      emoji: "🇷🇴",
+      character: "Ș",
+    };
+  }
+  if (l === "vi" || l === "vn" || l.includes("viet") || l.includes("вьетнамский") || l.includes("tiếng việt")) {
+    return {
+      gradient: "from-red-600 via-amber-500 to-red-700",
+      accent: "bg-red-100 text-red-950 dark:bg-red-950/45 dark:text-red-300",
+      emoji: "🇻🇳",
+      character: "Đ",
+    };
+  }
+  if (l === "fa" || l.includes("pers") || l.includes("fars") || l.includes("персидский") || l.includes("фарси") || l.includes("فارسی")) {
+    return {
+      gradient: "from-emerald-700 via-green-600 to-red-600",
+      accent: "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/45 dark:text-emerald-300",
+      emoji: "🇮🇷",
+      character: "پ",
     };
   }
   // Fallbacks for other languages
@@ -395,7 +427,7 @@ function LibraryHome({
         if (!parentGroups.has(parentGroupKey)) {
           parentGroups.set(parentGroupKey, []);
         }
-        parentGroups.get(parentGroupKey)!.push(lq.status || "known");
+        parentGroups.get(parentGroupKey)!.push(lq.status || "new");
       });
 
       parentGroups.forEach((statuses) => {
@@ -587,6 +619,14 @@ function LibraryHome({
     const nextGoal = goals[nextIndex === -1 ? 0 : nextIndex];
     setDailyGoal(nextGoal);
     safeLocalStorageSetItem("vocab_clone_daily_word_goal", nextGoal.toString());
+    try {
+      const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+      const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (syncKey) headers["x-sync-key"] = syncKey;
+      fetch("/api/user-metadata", { method: "PUT", headers, body: JSON.stringify({ dailyWordGoal: nextGoal }) }).catch(() => {});
+    } catch (_) {}
   };
 
   const handleNextTip = (e: React.MouseEvent) => {
@@ -647,7 +687,8 @@ function LibraryHome({
         }
       }
 
-      if (item && (item.status === "known" || item.status === "ignored")) {
+      const isAutoIgnored = !item && ignoreListManager.checkAutoIgnore(resolvedKey, undefined, lang).isIgnored;
+      if ((item && (item.status === "known" || item.status === "ignored")) || isAutoIgnored) {
         knownCount++;
       }
     });
@@ -1373,16 +1414,39 @@ function LibraryHome({
                 
                 {/* Book Cover Banner */}
                 <div 
-                  className={`relative aspect-video bg-gradient-to-br ${cover.gradient} p-4 text-white flex flex-col justify-between overflow-hidden select-none bg-cover bg-center`}
-                  style={lesson.coverUrl ? { backgroundImage: `url("${lesson.coverUrl}")` } : undefined}
+                  className={`relative aspect-video ${lesson.coverUrl ? 'bg-zinc-950' : `bg-gradient-to-br ${cover.gradient}`} p-4 text-white flex flex-col justify-between overflow-hidden select-none`}
                 >
-                  {/* Overlay shadow for text contrast when using images */}
+                  {/* Ambient blurred backdrop for cover images */}
                   {lesson.coverUrl && (
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-900/40 to-transparent z-0"></div>
+                    <img 
+                      src={lesson.coverUrl} 
+                      alt="" 
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 select-none pointer-events-none"
+                    />
+                  )}
+
+                  {/* Sharp image: 'article' fills completely (object-cover) without letterbox gaps, other types preserve aspect ratio (object-contain) */}
+                  {lesson.coverUrl && (
+                    <img 
+                      src={lesson.coverUrl} 
+                      alt="" 
+                      className={`absolute inset-0 w-full h-full ${lesson.lessonType === 'article' || lesson.lessonType === 'website' ? 'object-cover' : 'object-contain'} z-0 select-none pointer-events-none drop-shadow-md`}
+                    />
+                  )}
+
+                  {/* Optional dark overlay shadow for text contrast when enabled in settings */}
+                  {lesson.coverUrl && settings?.dimBookCovers && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-900/30 to-zinc-950/30 z-[1] pointer-events-none"></div>
+                  )}
+
+                  {/* Subtle bottom gradient only for title contrast when dimming is disabled (default) */}
+                  {lesson.coverUrl && !settings?.dimBookCovers && (
+                    <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/65 via-black/25 to-transparent z-[1] pointer-events-none"></div>
                   )}
 
                   {/* Spine inner shade overlay */}
-                  <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent"></div>
+                  <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent z-[2] pointer-events-none"></div>
                   
                   {/* Decorative background monogram text (only shown on gradients) */}
                   {!lesson.coverUrl && (
@@ -1400,9 +1464,8 @@ function LibraryHome({
                       </span>
                       {lesson.difficulty && (
                         <span 
-                          className={`text-[9px] font-extrabold leading-none px-2 py-1 rounded-full border border-white/10 flex items-center justify-center shadow-xs cursor-default select-none shrink-0 ${
-                            getDifficultyBadgeStyles(lesson.difficulty)
-                          }`}
+                          className="text-[9.5px] font-black leading-none px-2 py-1 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 flex items-center justify-center shadow-xs cursor-default select-none shrink-0"
+                          title={lesson.difficultyExplanation || `Уровень сложности: ${lesson.difficulty}`}
                         >
                           {lesson.difficulty}
                         </span>

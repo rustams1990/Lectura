@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { sanitizeSubtitleText } from "./subtitleSanitizer";
+
 export interface SubtitleItem {
   text: string;
   start: number; // time in seconds
@@ -43,20 +45,7 @@ export function isAbbreviationOrNumber(word: string): boolean {
 export function cleanSentenceText(text: string): string {
   if (!text) return "";
 
-  let cleaned = text
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#160;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    // Fix spaces before punctuation: "spicy ." -> "spicy.", "So ," -> "So,"
-    .replace(/\s+([.,!?:;])/g, "$1")
-    // Collapse multiple consecutive spaces
-    .replace(/\s+/g, " ")
-    .trim();
+  let cleaned = sanitizeSubtitleText(text);
 
   if (cleaned.length > 0) {
     // Capitalize first letter of sentence block

@@ -8,28 +8,6 @@ import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
-import { onAuthStateChanged, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, googleProvider, db } from "./firebase";
-import { onSnapshot, collection, doc, getDocs } from "firebase/firestore";
-import { 
-  saveVocab, 
-  deleteVocab, 
-  deleteMultipleVocabs,
-  saveLesson, 
-  deleteLesson, 
-  saveProfileStats, 
-  saveWordRangeLink, 
-  deleteWordRangeLink,
-  saveLessonType,
-  deleteLessonType,
-  loadUserData, 
-  uploadLocalToCloud,
-  saveProfileSettings,
-  decodeDocId,
-  clearAllUserDataOnFirestore,
-  handleFirestoreError,
-  OperationType
-} from "./firebaseService";
 import AppSidebar from "./components/layout/AppSidebar";
 import AppHeader from "./components/layout/AppHeader";
 import ManageLanguagesModal from "./components/ManageLanguagesModal";
@@ -52,6 +30,7 @@ import StatisticsPage from "./components/StatisticsPage";
 import HistoryPage from "./components/HistoryPage";
 import SettingsModal from "./components/SettingsModal";
 import AuthModal from "./components/AuthModal";
+import ProfileModal from "./components/ProfileModal";
 import PwaInstallBanner from "./components/PwaInstallBanner";
 import {
   setLessonImages,
@@ -64,6 +43,7 @@ import FocusPinnedPlayer from "./components/FocusPinnedPlayer";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
 import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
+import { whisperQueueService } from "./services/whisperQueueService";
 import { useTranslation, Trans } from "react-i18next";
 
 const readerThemes = {
@@ -75,18 +55,18 @@ const readerThemes = {
     border: "border-zinc-200 dark:border-zinc-800",
   },
   cream: {
-    pageBg: "bg-[#faf5eb]",
-    text: "text-[#3d2c16]",
-    headerBg: "bg-[#fcf8f2]/90 border-[#eddcb9]",
-    cardBg: "bg-[#fcf8f2]",
-    border: "border-[#eddcb9]",
+    pageBg: "bg-[#faf5eb] dark:bg-zinc-950",
+    text: "text-[#3d2c16] dark:text-zinc-100",
+    headerBg: "bg-[#fcf8f2]/90 dark:bg-zinc-900/60 border-[#eddcb9] dark:border-zinc-800",
+    cardBg: "bg-[#fcf8f2] dark:bg-zinc-900",
+    border: "border-[#eddcb9] dark:border-zinc-800",
   },
   sepia: {
-    pageBg: "bg-[#f5edd0]",
-    text: "text-[#4d3319]",
-    headerBg: "bg-[#f5ebd0]/90 border-[#e0cea1]",
-    cardBg: "bg-[#f5ebd0]",
-    border: "border-[#e0cea1]",
+    pageBg: "bg-[#f5edd0] dark:bg-zinc-950",
+    text: "text-[#4d3319] dark:text-zinc-100",
+    headerBg: "bg-[#f5ebd0]/90 dark:bg-zinc-900/60 border-[#e0cea1] dark:border-zinc-800",
+    cardBg: "bg-[#f5ebd0] dark:bg-zinc-900",
+    border: "border-[#e0cea1] dark:border-zinc-800",
   },
   slate: {
     pageBg: "bg-slate-100/90 dark:bg-slate-950",
@@ -122,6 +102,7 @@ export default function App() {
     isSidebarOpen, setIsSidebarOpen
   } = useUIStore();
   const { t } = useTranslation();
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [isAppLoaded, setIsAppLoaded] = useState(false);
 
   // Detect mobile/tablet vs desktop (< 1024px = tablet/phone, ≥ 1024px = desktop)
@@ -170,6 +151,18 @@ export default function App() {
     handleDeleteMultipleVocabItems,
     handleWordClick,
   } = useVocab();
+
+  const vocabRef = useRef<Record<string, VocabItem>>(vocab);
+  useEffect(() => {
+    vocabRef.current = vocab;
+    safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(vocab));
+  }, [vocab]);
+
+  const wordLinksRef = useRef<Record<string, string>>(wordLinks);
+  useEffect(() => {
+    wordLinksRef.current = wordLinks;
+    safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(wordLinks));
+  }, [wordLinks]);
 
   const { showToast } = useToast();
 
@@ -384,6 +377,117 @@ export default function App() {
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [isDetectingIdioms, setIsDetectingIdioms] = useState<boolean>(false);
   const lastLocalChangeTime = useRef<number>(0);
+  const lastSyncSuccessTime = useRef<number>(Date.now());
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const activeLessonIdRef = useRef(activeLessonId);
+  activeLessonIdRef.current = activeLessonId;
+
+  // Browser History & Back Button (popstate) Integration
+  const isPopStateRef = useRef(false);
+  const isInitialMount = useRef(true);
+
+  // Initialize history state on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.history.state) {
+      window.history.replaceState({ tab: activeTab, lessonId: activeLessonId }, "");
+    }
+  }, []);
+
+  // Push history state whenever activeTab, activeLessonId, or modals change (unless triggered by popstate)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (isPopStateRef.current) {
+      isPopStateRef.current = false;
+      return;
+    }
+
+    const currentState = window.history.state;
+    const isSame =
+      currentState?.tab === activeTab &&
+      currentState?.lessonId === activeLessonId &&
+      currentState?.settings === showSettingsModal &&
+      currentState?.importForm === showImportForm &&
+      currentState?.matchPairs === showMatchPairsModal &&
+      currentState?.focusMode === isFocusMode;
+
+    if (!isSame) {
+      window.history.pushState(
+        {
+          tab: activeTab,
+          lessonId: activeLessonId,
+          settings: showSettingsModal,
+          importForm: showImportForm,
+          matchPairs: showMatchPairsModal,
+          focusMode: isFocusMode,
+        },
+        ""
+      );
+    }
+  }, [activeTab, activeLessonId, showSettingsModal, showImportForm, showMatchPairsModal, isFocusMode]);
+
+  // Handle browser Back / Forward buttons (popstate)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = (e: PopStateEvent) => {
+      isPopStateRef.current = true;
+      const state = e.state;
+
+      // Close any open modals first if they were open in current UI
+      if (showSettingsModal && !state?.settings) {
+        setShowSettingsModal(false);
+        return;
+      }
+      if (showImportForm && !state?.importForm) {
+        setShowImportForm(false);
+        return;
+      }
+      if (showMatchPairsModal && !state?.matchPairs) {
+        setShowMatchPairsModal(false);
+        return;
+      }
+      if (isFocusMode && !state?.focusMode) {
+        setIsFocusMode(false);
+        return;
+      }
+      if (selectedWord) {
+        setSelectedWord(null);
+      }
+
+      // Handle tab & lesson navigation
+      if (state && state.tab) {
+        setActiveTab(state.tab);
+        if (state.lessonId) {
+          setActiveLessonId(state.lessonId);
+        }
+      } else {
+        // Fallback to library if no state or navigated to root
+        setActiveTab("library");
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [
+    showSettingsModal,
+    showImportForm,
+    showMatchPairsModal,
+    isFocusMode,
+    selectedWord,
+    setActiveTab,
+    setShowSettingsModal,
+    setShowImportForm,
+    setShowMatchPairsModal,
+    setIsFocusMode,
+    setSelectedWord,
+  ]);
+
   const [showIosInstallBanner, setShowIosInstallBanner] = useState<boolean>(false);
   const [languageFlags, setLanguageFlags] = useState<Record<string, string>>({});
 
@@ -400,11 +504,13 @@ export default function App() {
       ttsEngine: "google",
       ttsLocale: "en-US",
       aiProvider: "gemini",
+      geminiApiKey: localStorage.getItem("vocab_clone_gemini_key") || "",
       localAiUrl: "http://localhost:11434/api/generate",
       localAiModel: "phi3.5",
       showDetailedVocabularyStats: true,
       mainStatsMetric: "comprehension",
       showProgressBar: true,
+      dimBookCovers: false,
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");
@@ -431,11 +537,9 @@ export default function App() {
     return false;
   });
 
-  // Firebase Auth & Cloud Sync States
+  // Auth & Sync States
   const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [cloudOfflineWarning, setCloudOfflineWarning] = useState<boolean>(false);
-  const [cloudOfflineError, setCloudOfflineError] = useState<string | null>(null);
   const {
     user: activeUser,
     serverToken,
@@ -485,7 +589,7 @@ export default function App() {
           } catch(e) {}
         }
 
-        try { localStorage.removeItem('lingq_clone_reading_history'); } catch(_) {}
+        try { localStorage.removeItem('vocab_clone_reading_history'); } catch(_) {}
 
         const cleanInitialHistory = dedupeHistory(Array.isArray(initialHistory) ? initialHistory : []);
         setHistory(cleanInitialHistory);
@@ -579,7 +683,11 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (!unmounted && data && data.version && data.version !== APP_VERSION) {
-            console.log(`[VersionCheck] Server updated to ${data.version} (current: ${APP_VERSION}). Purging PWA SW cache and reloading...`);
+            console.log(`[VersionCheck] Server updated to ${data.version} (current: ${APP_VERSION}).`);
+            // If user is currently in active reader mode, do NOT disrupt reading session
+            if (activeTabRef.current === "read") {
+              return;
+            }
             if ("serviceWorker" in navigator) {
               try {
                 const regs = await navigator.serviceWorker.getRegistrations();
@@ -609,6 +717,37 @@ export default function App() {
       clearInterval(interval);
     };
   }, []);
+
+  // Multi-Device Wake-up / Focus Sync (when device unlocks or tab becomes visible)
+  useEffect(() => {
+    let focusTimer: any = null;
+    const handleWakeup = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (storageMode !== "server" || localSyncError) return;
+      if (isServerLoadInProgress.current || isSyncing) return;
+
+      const now = Date.now();
+      // Strict debounce & cooldown: at least 8s since last sync and 5s since last local change
+      if (now - lastSyncSuccessTime.current < 8000 || now - lastLocalChangeTime.current < 5000) {
+        return;
+      }
+
+      if (focusTimer) clearTimeout(focusTimer);
+      focusTimer = setTimeout(() => {
+        if (typeof document !== "undefined" && document.visibilityState === "visible" && !isServerLoadInProgress.current) {
+          loadDataFromLocalServer().catch(() => {});
+        }
+      }, 300);
+    };
+
+    window.addEventListener("focus", handleWakeup);
+    document.addEventListener("visibilitychange", handleWakeup);
+    return () => {
+      window.removeEventListener("focus", handleWakeup);
+      document.removeEventListener("visibilitychange", handleWakeup);
+      if (focusTimer) clearTimeout(focusTimer);
+    };
+  }, [storageMode, localSyncError, isSyncing]);
 
   const activeUserId = (activeUser as any)?.uid || (activeUser as any)?.id || null;
   const prevUserIdRef = useRef<string | null>(activeUserId);
@@ -685,6 +824,7 @@ export default function App() {
         return;
       }
       if (res.ok) {
+        lastSyncSuccessTime.current = Date.now();
         const body = await safeJsonParse(res);
         if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
           setIsSyncing(false);
@@ -695,21 +835,8 @@ export default function App() {
           const normalizedCloudVocab = normalizeVocabRecord(d.vocab);
           const normalizedCloudWordLinks = normalizeWordLinksRecord(d.wordLinks);
           if (d.lessons && Array.isArray(d.lessons)) {
-            // Show server lessons IMMEDIATELY — don't block on IndexedDB read
             setLessons(d.lessons);
             lessonsStore.setItem("lessons", d.lessons).catch(() => {});
-            // Async background: check for locally-cached lessons not yet synced to server
-            lessonsStore.getItem<Lesson[]>("lessons").then((cachedLessons) => {
-              if (!cachedLessons || cachedLessons.length === 0) return;
-              const serverLessonIds = new Set(d.lessons.map((l: Lesson) => l.id));
-              const missingCustom = cachedLessons.filter((cl: Lesson) => !cl.isBuiltIn && !serverLessonIds.has(cl.id));
-              if (missingCustom.length > 0) {
-                const mergedLessons = [...d.lessons, ...missingCustom];
-                setLessons(mergedLessons);
-                lessonsStore.setItem("lessons", mergedLessons).catch(() => {});
-                syncDataToLocalServer(mergedLessons).catch(() => {});
-              }
-            }).catch(() => {});
           }
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
           setVocab(normalizedCloudVocab);
@@ -736,6 +863,14 @@ export default function App() {
             if (!serverInitialLoadComplete.current) {
               setSelectedTargetLanguage(d.selectedTargetLanguage);
               safeLocalStorageSetItem("vocab_global_target_language", d.selectedTargetLanguage);
+            }
+          }
+
+          if (d.dictionaryPreferences && typeof d.dictionaryPreferences === "object") {
+            for (const [langKey, prefs] of Object.entries(d.dictionaryPreferences)) {
+              if (prefs && typeof prefs === "object") {
+                safeLocalStorageSetItem(`vocab_clone_dict_prefs_${langKey}`, JSON.stringify(prefs));
+              }
             }
           }
 
@@ -767,9 +902,25 @@ export default function App() {
           if (d.readingProgress && typeof d.readingProgress === "object") {
             for (const [lessonId, val] of Object.entries(d.readingProgress)) {
               if (val !== undefined && val !== null) {
+                // If user is actively reading this lesson, preserve current reader page
+                if (activeTabRef.current === "read" && activeLessonIdRef.current === lessonId) {
+                  continue;
+                }
                 safeLocalStorageSetItem(`vocab_progress_${lessonId}`, String(val));
               }
             }
+          }
+
+          if (d.customTags && Array.isArray(d.customTags)) {
+            safeLocalStorageSetItem("vocab_clone_custom_tags", JSON.stringify(d.customTags));
+          }
+
+          if (d.dailyWordGoal) {
+            safeLocalStorageSetItem("vocab_clone_daily_word_goal", String(d.dailyWordGoal));
+          }
+
+          if (d.lastActiveLessonId && typeof d.lastActiveLessonId === "string") {
+            safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", d.lastActiveLessonId);
           }
 
           serverInitialLoadComplete.current = true;
@@ -792,11 +943,24 @@ export default function App() {
     }
   };
 
+  // Auto-refresh books list when a background Whisper transcription finishes
+  useEffect(() => {
+    let lastCompletedCount = whisperQueueService.getState().completedTasks.length;
+    const unsub = whisperQueueService.subscribe(() => {
+      const state = whisperQueueService.getState();
+      if (state.completedTasks.length > lastCompletedCount) {
+        lastCompletedCount = state.completedTasks.length;
+        loadDataFromLocalServer(true);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const syncDataToLocalServer = async (
     currentLessons = lessonsRef.current,
     currentTypes = lessonTypes,
-    currentVocab = vocab,
-    currentLinks = wordLinks,
+    currentVocab = vocabRef.current,
+    currentLinks = wordLinksRef.current,
     currentListening = listeningSeconds,
     currentFlags = languageFlags,
     currentHistory = historyRef.current,
@@ -804,7 +968,8 @@ export default function App() {
     currentSettings = readerSettings,
     currentPinned = pinnedLanguages,
     currentHidden = hiddenLanguages,
-    currentSelectedLang = selectedTargetLanguage
+    currentSelectedLang = selectedTargetLanguage,
+    deletedWordKeys?: string[]
   ) => {
     if (storageMode !== "server") return;
     if (localSyncError) return;
@@ -823,9 +988,10 @@ export default function App() {
         postHeaders["Authorization"] = `Bearer ${savedToken}`;
       }
 
-      // Collect video & reading progress maps from localStorage
+      // Collect video & reading progress & dictionary preferences maps from localStorage
       const videoProgress: Record<string, string> = {};
       const readingProgress: Record<string, string> = {};
+      const dictionaryPreferences: Record<string, any> = {};
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -837,9 +1003,25 @@ export default function App() {
             const lessonId = key.replace("vocab_progress_", "");
             const val = localStorage.getItem(key);
             if (val !== null) readingProgress[lessonId] = val;
+          } else if (key?.startsWith("vocab_clone_dict_prefs_")) {
+            const langKey = key.replace("vocab_clone_dict_prefs_", "");
+            const val = localStorage.getItem(key);
+            if (val) {
+              try { dictionaryPreferences[langKey] = JSON.parse(val); } catch (_) {}
+            }
           }
         }
       } catch (_) {}
+
+      let customTags = undefined;
+      const rawTags = localStorage.getItem("vocab_clone_custom_tags");
+      if (rawTags) {
+        try { customTags = JSON.parse(rawTags); } catch (_) {}
+      }
+
+      const rawGoal = localStorage.getItem("vocab_clone_daily_word_goal");
+      const dailyWordGoal = rawGoal ? parseInt(rawGoal, 10) : undefined;
+      const lastActiveLessonId = localStorage.getItem("vocab_clone_last_active_lesson_id") || undefined;
 
       const res = await fetch("/api/server-db", {
         method: "POST",
@@ -857,9 +1039,14 @@ export default function App() {
             pinnedLanguages: currentPinned,
             hiddenLanguages: currentHidden,
             selectedTargetLanguage: currentSelectedLang,
+            dictionaryPreferences,
+            customTags,
+            dailyWordGoal,
+            lastActiveLessonId,
             videoProgress,
             readingProgress,
             deletedLessonIds,
+            deletedWordKeys,
           },
         }),
       });
@@ -875,268 +1062,28 @@ export default function App() {
     }
   };
 
-  // Synchronize Cloud Firestore with Local Cache on mount/auth change
+  // Synchronize with Local Server / Local Cache on mount and mode change
   useEffect(() => {
-    // In server mode: skip Firebase entirely — data is loaded by loadDataFromLocalServer()
-    // Firebase onAuthStateChanged takes 5-15s to resolve and would block all data loading
     if (storageMode === "server") {
       loadDataFromLocalServer();
-      return;
+    } else {
+      // Local browser storage
+      const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
+      const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
+      const localWordsStr = localStorage.getItem("vocab_clone_words");
+      const localListeningStr = localStorage.getItem("vocab_clone_listening");
+      const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
+      const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
+
+      const userDel = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
+      setLessons(safeParse(localLessonsStr, userDel ? [] : BUILT_IN_LESSONS));
+      setLessonTypes(ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]));
+      setVocab(normalizeVocabRecord(safeParse(localWordsStr, {})));
+      setListeningSeconds(localListeningStr ? parseFloat(localListeningStr) || 0 : 0);
+      setWordLinks(normalizeWordLinksRecord(safeParse(localAliasesStr, {})));
+      setLanguageFlags(safeParse(localFlagsStr, {}));
     }
-
-    let unsubscribes: (() => void)[] = [];
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Clear previous active snapshots first
-      unsubscribes.forEach((unsub) => unsub());
-      unsubscribes = [];
-
-      if (firebaseUser && storageMode === "cloud") {
-        setIsSyncing(true);
-        try {
-          if (!db) {
-            throw new Error("Firestore database instance (db) is offline or undefined");
-          }
-
-          const cloudData = await loadUserData(firebaseUser.uid);
-          
-          // Get local storage data
-          const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
-          const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
-          const localWordsStr = localStorage.getItem("vocab_clone_words");
-          const localListeningStr = localStorage.getItem("vocab_clone_listening");
-          const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
-          const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
-
-          const userDeletedLessons = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
-          const lLessons = safeParse(localLessonsStr, userDeletedLessons ? [] : BUILT_IN_LESSONS) as Lesson[];
-          const lTypes = ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]);
-          const lWords = normalizeVocabRecord(safeParse(localWordsStr, {}));
-          const lListening = localListeningStr ? parseFloat(localListeningStr) || 0 : 0;
-          const lWordLinks = normalizeWordLinksRecord(safeParse(localAliasesStr, {}));
-          const lLanguageFlags = safeParse(localFlagsStr, {});
-
-          // Merge logic: find missing custom items locally and upload them to the cloud
-          const cloudLessonIds = new Set(cloudData.lessons.map(l => l.id));
-          const missingLessons = lLessons.filter(l => !l.isBuiltIn && !cloudLessonIds.has(l.id));
-
-          const cloudTypeIds = new Set(cloudData.lessonTypes.map(t => t.id));
-          const missingTypes = lTypes.filter(t => !cloudTypeIds.has(t.id));
-
-          const missingWords: Record<string, VocabItem> = {};
-          for (const [key, wordItem] of Object.entries(lWords)) {
-            if (!cloudData.vocab[key]) {
-              missingWords[key] = wordItem;
-            }
-          }
-
-          const missingLinks: Record<string, string> = {};
-          for (const [key, target] of Object.entries(lWordLinks)) {
-            if (!cloudData.wordLinks[key]) {
-              missingLinks[key] = target;
-            }
-          }
-
-          // If there are missing items, upload them (merge local progress into cloud)
-          const needsUpload = 
-            missingLessons.length > 0 || 
-            missingTypes.length > 0 || 
-            Object.keys(missingWords).length > 0 || 
-            Object.keys(missingLinks).length > 0;
-
-          if (needsUpload) {
-            await uploadLocalToCloud(
-              firebaseUser.uid,
-              missingLessons,
-              missingTypes,
-              missingWords,
-              missingLinks,
-              Math.max(lListening, cloudData.listeningSeconds),
-              { ...cloudData.languageFlags, ...lLanguageFlags }
-            );
-          }
-
-          // Setup real-time Firestore listeners to instantly synchronize devices (computer, tablet, etc.)
-          const unsubLessons = onSnapshot(
-            collection(db, "users", firebaseUser.uid, "lessons"),
-            (snapshot) => {
-              const processLessonsSnapshot = async () => {
-                const cloudLessonsList: Lesson[] = [];
-                const lessonsToFetchImagesFor: Lesson[] = [];
-
-                snapshot.forEach((doc) => {
-                  const lesson = doc.data() as Lesson;
-                  if (lesson.text && lesson.text.includes("[IMG_REF:")) {
-                    lessonsToFetchImagesFor.push(lesson);
-                  } else {
-                    cloudLessonsList.push(lesson);
-                  }
-                });
-
-                if (lessonsToFetchImagesFor.length > 0) {
-                  for (const lesson of lessonsToFetchImagesFor) {
-                    // Guard: Check if the user is still of the same identity and is authenticated before running subcollection getDocs
-                    if (!auth.currentUser || auth.currentUser.uid !== firebaseUser.uid) {
-                      return;
-                    }
-                    try {
-                      const imagesSnap = await getDocs(collection(db, "users", firebaseUser.uid, "lessons", lesson.id, "images"));
-                      const imagesMap: Record<string, string> = {};
-                      imagesSnap.forEach(imgDoc => {
-                        imagesMap[imgDoc.id] = imgDoc.data().dataUrl;
-                      });
-                      mergeLessonImages(lesson.id, imagesMap);
-                    } catch (err) {
-                      console.error("Failed to load images for lesson", lesson.id, err);
-                    }
-                    cloudLessonsList.push(lesson);
-                  }
-                  setLessonImagesVersion((v) => v + 1);
-                }
-
-                // Always update state (even if empty list) to keep UI in sync
-                const snapshotIds = snapshot.docs.map(doc => doc.id);
-                cloudLessonsList.sort((a, b) => snapshotIds.indexOf(a.id) - snapshotIds.indexOf(b.id));
-                setLessons(cloudLessonsList);
-              };
-
-              processLessonsSnapshot().catch((err) => {
-                console.error("Error processing real-time lessons snapshot:", err);
-              });
-            },
-            (error) => {
-              console.error("Firestore real-time sync lessons failed:", error);
-              try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}/lessons`); } catch(e){}
-            }
-          );
-          unsubscribes.push(unsubLessons);
-
-          const unsubTypes = onSnapshot(
-            collection(db, "users", firebaseUser.uid, "lessonTypes"),
-            (snapshot) => {
-              const cloudTypes: LessonType[] = [];
-              snapshot.forEach((doc) => {
-                cloudTypes.push(doc.data() as LessonType);
-              });
-              if (cloudTypes.length > 0) {
-                setLessonTypes(cloudTypes);
-              }
-            },
-            (error) => {
-              console.error("Firestore real-time sync lessonTypes failed:", error);
-              try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}/lessonTypes`); } catch(e){}
-            }
-          );
-          unsubscribes.push(unsubTypes);
-
-          const unsubVocabItems = onSnapshot(
-            collection(db, "users", firebaseUser.uid, "lingqs"),
-            (snapshot) => {
-              const cloudVocab: Record<string, VocabItem> = {};
-              snapshot.forEach((doc) => {
-                const data = doc.data() as VocabItem;
-                if (data.word) {
-                  data.word = data.word.replace(/^[a-zA-Z]+_/, "");
-                }
-                cloudVocab[decodeDocId(doc.id)] = data;
-              });
-              setVocab(normalizeVocabRecord(cloudVocab));
-            },
-            (error) => {
-              console.error("Firestore real-time sync vocab failed:", error);
-              try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}/lingqs`); } catch(e){}
-            }
-          );
-          unsubscribes.push(unsubVocabItems);
-
-          const unsubLinks = onSnapshot(
-            collection(db, "users", firebaseUser.uid, "wordLinks"),
-            (snapshot) => {
-              const cloudWordLinks: Record<string, string> = {};
-              snapshot.forEach((doc) => {
-                const data = doc.data();
-                if (data.sourceWord && data.targetWord) {
-                  cloudWordLinks[data.sourceWord] = data.targetWord;
-                }
-              });
-              setWordLinks(normalizeWordLinksRecord(cloudWordLinks));
-            },
-            (error) => {
-              console.error("Firestore real-time sync wordLinks failed:", error);
-              try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}/wordLinks`); } catch(e){}
-            }
-          );
-          unsubscribes.push(unsubLinks);
-
-          const unsubProfile = onSnapshot(
-            doc(db, "users", firebaseUser.uid),
-            (docSnap) => {
-              if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (typeof data.listeningSeconds === "number") {
-                  setListeningSeconds(data.listeningSeconds);
-                }
-                if (data.languageFlags) {
-                  setLanguageFlags(data.languageFlags);
-                }
-              }
-            },
-            (error) => {
-              console.error("Firestore real-time sync profile failed:", error);
-              try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`); } catch(e){}
-            }
-          );
-          unsubscribes.push(unsubProfile);
-
-          setCloudOfflineWarning(false);
-          setCloudOfflineError(null);
-        } catch (err: any) {
-          console.error("Failed to sync offline user details to remote container; falling back to local storage:", err);
-          setCloudOfflineWarning(true);
-          setCloudOfflineError(err instanceof Error ? err.message : String(err));
-
-          // Robust local fallback: Keep current active in-memory state safe. No-op to avoid data clobbering.
-
-          // setLessons(safeParse(localLessonsStr, BUILT_IN_LESSONS));
-
-
-
-
-
-        } finally {
-          setIsSyncing(false);
-        }
-      } else {
-        setCloudOfflineWarning(false);
-        setCloudOfflineError(null);
-        if (storageMode === "server") {
-          // Local Dev Server Shared DB
-          loadDataFromLocalServer();
-        } else {
-          // Not authenticated: Fall back to local browser storage
-          const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
-          const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
-          const localWordsStr = localStorage.getItem("vocab_clone_words");
-          const localListeningStr = localStorage.getItem("vocab_clone_listening");
-          const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
-          const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
-
-          const userDel = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
-          setLessons(safeParse(localLessonsStr, userDel ? [] : BUILT_IN_LESSONS));
-          setLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES));
-          setVocab(normalizeVocabRecord(safeParse(localWordsStr, {})));
-          setListeningSeconds(localListeningStr ? parseFloat(localListeningStr) || 0 : 0);
-          setWordLinks(normalizeWordLinksRecord(safeParse(localAliasesStr, {})));
-          setLanguageFlags(safeParse(localFlagsStr, {}));
-        }
-      }
-    });
-
-    return () => {
-      unsubscribeAuth();
-      unsubscribes.forEach((unsub) => unsub());
-    };
-  }, [storageMode]);
+  }, [storageMode, activeUser]);
 
   // Debounced Auto-save to Local Dev Server whenever major modules change
   useEffect(() => {
@@ -1144,13 +1091,29 @@ export default function App() {
     if (!serverInitialLoadComplete.current) return;
 
     const delayDebounceFn = setTimeout(() => {
-      syncDataToLocalServer(lessonsRef.current);
-    }, 1500);
+      syncDataToLocalServer(lessonsRef.current, lessonTypes, vocabRef.current, wordLinksRef.current);
+    }, 1200);
 
     return () => clearTimeout(delayDebounceFn);
   }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, history, storageMode, localSyncKey, localSyncError, selectedTargetLanguage]);
 
-  // Dynamic automatic syncing of tablet/PC changes over local network (polls on tab changes, focus, and every 8s when visible)
+  // Listen to immediate vocab updates from VocabContext / components
+  useEffect(() => {
+    const handleVocabUpdated = (e: any) => {
+      lastLocalChangeTime.current = Date.now();
+      const updatedVocab = e.detail || vocabRef.current;
+      vocabRef.current = updatedVocab;
+      if (storageMode === "server") {
+        syncDataToLocalServer(lessonsRef.current, lessonTypes, updatedVocab, wordLinksRef.current).catch((err) =>
+          console.error("Failed to sync vocab update with server:", err)
+        );
+      }
+    };
+    window.addEventListener("lectura:vocab_updated", handleVocabUpdated);
+    return () => window.removeEventListener("lectura:vocab_updated", handleVocabUpdated);
+  }, [storageMode, lessonTypes]);
+
+  // Dynamic automatic syncing of tablet/PC changes over local network (polls on window focus and every 10s when visible)
   // Note: We do NOT call loadDataFromLocalServer() on mount here — onAuthStateChanged already does the initial load.
   // This avoids a duplicate parallel fetch race on startup that caused UI flickering.
   useEffect(() => {
@@ -1169,14 +1132,14 @@ export default function App() {
       if (document.visibilityState === "visible") {
         loadDataFromLocalServer();
       }
-    }, 8000);
+    }, 10000);
 
     return () => {
       window.removeEventListener("visibilitychange", handleFocusOrVisible);
       window.removeEventListener("focus", handleFocusOrVisible);
       clearInterval(interval);
     };
-  }, [storageMode, localSyncKey, localSyncError, serverToken, activeTab]);
+  }, [storageMode, localSyncKey, localSyncError, serverToken]);
 
 
 
@@ -1194,23 +1157,14 @@ export default function App() {
       if (prev.some((t) => t.id.toLowerCase() === newType.id.toLowerCase())) return prev;
       return [...prev, newType];
     });
-    if (auth.currentUser && storageMode === "cloud") {
-      saveLessonType(auth.currentUser.uid, newType).catch((err) => console.error(err));
-    }
   };
 
   const handleDeleteLessonType = (typeId: string) => {
     setLessonTypes((prev) => prev.filter((t) => t.id !== typeId));
-    if (auth.currentUser && storageMode === "cloud") {
-      deleteLessonType(auth.currentUser.uid, typeId).catch((err) => console.error(err));
-    }
   };
 
   const handleUpdateLessonType = (updatedType: LessonType) => {
     setLessonTypes((prev) => prev.map((t) => t.id === updatedType.id ? updatedType : t));
-    if (auth.currentUser && storageMode === "cloud") {
-      saveLessonType(auth.currentUser.uid, updatedType).catch((err) => console.error(err));
-    }
   };
 
   useEffect(() => {
@@ -1255,74 +1209,66 @@ export default function App() {
     setActiveLesson(activeLesson || null);
   }, [activeLesson, setActiveLesson]);
 
-  // When Cream or Sepia background tone is selected in reader view, disable dark mode override so the full page & UI render in clean Cream / Sepia light styling
-  const isReadThemeLightOverride = (
-    activeTab === "read" && 
-    Boolean(activeLesson) && 
-    (readerSettings.readerTheme === "cream" || readerSettings.readerTheme === "sepia")
-  );
-  const shouldApplyDarkClass = isDarkMode && !isReadThemeLightOverride;
-
   useEffect(() => {
     try {
       localStorage.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
     } catch (_) {}
-    if (shouldApplyDarkClass) {
+    settingsStore.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
+    if (isDarkMode) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [isDarkMode, shouldApplyDarkClass]);
+  }, [isDarkMode]);
 
   const activeLessonWords = useMemo(() => {
     if (!activeLesson || typeof activeLesson.text !== "string") return [];
+    const textLower = activeLesson.text.toLowerCase();
     const regex = /[\p{L}\p{M}'’]+/gu;
-    const tokens = activeLesson.text.toLowerCase().match(regex) || [];
-    
+    const tokens = textLower.match(regex) || [];
+    const tokenSet = new Set(tokens);
     const lang = (activeLesson.targetLanguage || "spanish").toLowerCase();
-    const uniqueKeys = new Set<string>();
-    
-    tokens.forEach((t) => {
-      const lower = t.trim();
-      if (!lower) return;
-      const langKey = `${lang}_${lower}`;
-      const resolved = wordLinks[langKey] || lower;
-      const cleanKey = resolved.replace(/^[a-zA-Z]+_/, "");
+    const bookVocabItemsMap = new Map<string, VocabItem>();
+
+    // Fast check over vocab items
+    for (const key of Object.keys(vocab)) {
+      const item = vocab[key];
+      if (!item || !["1", "2", "3", "4", "5", "learning"].includes(item.status)) continue;
       
-      uniqueKeys.add(`${lang}_${cleanKey}`);
-      uniqueKeys.add(cleanKey); // fallback legacy
-    });
-    
-    // Support multi-word phrases (idioms, phrasal verbs, collocations) from tokens (sliding window)
-    for (let i = 0; i < tokens.length; i++) {
-      for (let len = 2; len <= 8; len++) {
-        if (i + len > tokens.length) break;
-        const candidatePhrase = tokens.slice(i, i + len).join(" ");
-        uniqueKeys.add(`${lang}_${candidatePhrase}`);
-        uniqueKeys.add(candidatePhrase); // fallback legacy
+      const wordLower = item.word.toLowerCase();
+      // Direct word match in book tokens
+      if (tokenSet.has(wordLower)) {
+        bookVocabItemsMap.set(wordLower, item);
+        continue;
+      }
+      // Multi-word phrase match in book text
+      if (wordLower.includes(" ") && textLower.includes(wordLower)) {
+        bookVocabItemsMap.set(wordLower, item);
+        continue;
+      }
+      // Word links / lemma match
+      const langKey = `${lang}_${wordLower}`;
+      if (wordLinks[langKey]) {
+        const resolved = wordLinks[langKey].replace(/^[a-zA-Z]+_/, "");
+        if (tokenSet.has(resolved)) {
+          bookVocabItemsMap.set(wordLower, item);
+        }
       }
     }
 
-    // Support AI detected phrases explicitly
+    // Explicit detected phrases
     if (activeLesson.detectedPhrases) {
       Object.keys(activeLesson.detectedPhrases).forEach((phrase) => {
-        const lowerPhrase = phrase.toLowerCase().trim();
-        uniqueKeys.add(`${lang}_${lowerPhrase}`);
-        uniqueKeys.add(lowerPhrase); // fallback legacy
+        const phraseLower = phrase.toLowerCase().trim();
+        const lq = vocab[`${lang}_${phraseLower}`] || vocab[phraseLower];
+        if (lq && ["1", "2", "3", "4", "5", "learning"].includes(lq.status)) {
+          bookVocabItemsMap.set(phraseLower, lq);
+        }
       });
     }
-    
-    const bookVocabItemsMap = new Map<string, VocabItem>();
-    
-    uniqueKeys.forEach((key) => {
-      const lq = vocab[key];
-      if (lq && ["1", "2", "3", "4", "5", "learning"].includes(lq.status)) {
-        bookVocabItemsMap.set(lq.word.toLowerCase(), lq);
-      }
-    });
-    
+
     return Array.from(bookVocabItemsMap.values());
-  }, [activeLesson, vocab, wordLinks]);
+  }, [activeLesson?.id, activeLesson?.text, activeLesson?.targetLanguage, activeLesson?.detectedPhrases, vocab, wordLinks]);
 
   const activeLessonImagesMap = useMemo(() => {
     if (!activeLesson?.id) return {};
@@ -1339,17 +1285,23 @@ export default function App() {
     if (!selectedWord) return null;
     const key = selectedWord.toLowerCase();
     const lang = (activeLesson?.targetLanguage || "spanish").toLowerCase();
-    const resolved = wordLinks[`${lang}_${key}`] || key;
-    const cleanResolved = resolved.replace(/^[a-zA-Z]+_/, "");
     
-    // Check direct match
-    const directMatch = vocab[`${lang}_${cleanResolved}`];
-    if (directMatch) return directMatch;
+    // 1. Check direct exact match for selected word first (e.g. wrote -> писал)
+    const exactMatch = vocab[`${lang}_${key}`] || vocab[key];
+    if (exactMatch) return exactMatch;
 
-    // Check normalized contraction base word for inheritance
-    const normalized = normalizeContraction(cleanResolved, lang);
-    if (normalized !== cleanResolved) {
-      const normMatch = vocab[`${lang}_${normalized}`];
+    // 2. Check linked parent lemma form if exact match not found (e.g. write -> писать)
+    const resolved = wordLinks[`${lang}_${key}`] || (wordLinks[key] ? wordLinks[key] : null);
+    if (resolved) {
+      const cleanResolved = resolved.replace(/^[a-zA-Z]+_/, "");
+      const parentMatch = vocab[`${lang}_${cleanResolved}`] || vocab[cleanResolved];
+      if (parentMatch) return parentMatch;
+    }
+
+    // 3. Check normalized contraction base word for inheritance
+    const normalized = normalizeContraction(key, lang);
+    if (normalized !== key) {
+      const normMatch = vocab[`${lang}_${normalized}`] || vocab[normalized];
       if (normMatch) return normMatch;
     }
 
@@ -1383,7 +1335,7 @@ export default function App() {
         if (!parentGroups.has(parentGroupKey)) {
           parentGroups.set(parentGroupKey, []);
         }
-        parentGroups.get(parentGroupKey)!.push(item.status || "known");
+        parentGroups.get(parentGroupKey)!.push(item.status || "new");
       });
 
       parentGroups.forEach((statuses) => {
@@ -1466,6 +1418,41 @@ export default function App() {
     setActiveTab("read");
   };
 
+  const handleOpenWhisperBook = async (bookId: string) => {
+    try {
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || localStorage.getItem("local_sync_key") || "";
+      const localSyncKey = localStorage.getItem("local_sync_key") || "";
+      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const syncUser = savedUser ? (savedUser.uid || savedUser.email || "default") : (activeUser ? (activeUser.id || activeUser.email || "default") : "default");
+
+      const fetchHeaders: Record<string, string> = {
+        "x-local-sync-key": localSyncKey,
+        "x-local-sync-user": syncUser
+      };
+      if (savedToken) {
+        fetchHeaders["Authorization"] = `Bearer ${savedToken}`;
+      }
+      const res = await fetch("/api/server-db", {
+        headers: fetchHeaders
+      });
+      if (res.ok) {
+        const body = await safeJsonParse(res);
+        if (body.status === "ok" && body.data?.lessons) {
+          setLessons(body.data.lessons);
+          lessonsStore.setItem("lessons", body.data.lessons).catch(() => {});
+          const targetLesson = body.data.lessons.find((l: any) => l.id === bookId);
+          if (targetLesson && targetLesson.targetLanguage) {
+            setSelectedTargetLanguage(targetLesson.targetLanguage);
+          }
+        }
+      }
+    } catch (_) {}
+
+    setActiveLessonId(bookId);
+    setActiveTab("read");
+  };
+
   const handleSaveWordLink = (from: string, to: string, lang?: string) => {
     lastLocalChangeTime.current = Date.now();
     const lowerFrom = from.toLowerCase();
@@ -1482,75 +1469,62 @@ export default function App() {
 
     setWordLinks(nextWordLinks);
 
-    if (auth.currentUser && storageMode === "cloud") {
-      saveWordRangeLink(auth.currentUser.uid, sourceKey, targetKey).catch((err) => console.error(err));
-    }
-
-    // Instantly sync the statuses of linked items to avoid split status profiles
+    // Instantly sync the statuses and definitions of linked items to avoid split status profiles
     setVocab((prev) => {
-      const fromVocab = prev[sourceKey] || prev[lowerFrom];
-      const toVocab = prev[targetKey] || prev[lowerTo];
+      const familyWords = Array.from(new Set([
+        lowerFrom,
+        lowerTo,
+        ...getLinkedWordsFor(lowerTo, activeLang, nextWordLinks),
+        ...getLinkedWordsFor(lowerFrom, activeLang, nextWordLinks)
+      ]));
 
-      if (!fromVocab && !toVocab) {
-        if (storageMode === "server") {
-          syncDataToLocalServer(lessons, lessonTypes, prev, nextWordLinks).catch((err) => console.error(err));
+      // Search across ALL words in the entire family in `prev` to find the definition
+      let targetDefinition: string | undefined = undefined;
+      for (const fw of familyWords) {
+        const item = prev[`${activeLang}_${fw}`] || prev[`english_${fw}`] || prev[`spanish_${fw}`] || prev[`french_${fw}`] || prev[`german_${fw}`] || prev[fw];
+        if (item?.definition && item.definition.trim() !== "") {
+          targetDefinition = item.definition.trim();
+          break;
         }
-        return prev;
       }
 
-      // Find best available status / translation configuration
-      const sourceOfTruth = fromVocab || toVocab;
-      if (!sourceOfTruth) return prev;
+      // Find best available status / translation configuration (prefer target/parent lemma)
+      let targetStatus: WordStatus = "2";
+      for (const fw of familyWords) {
+        const item = prev[`${activeLang}_${fw}`] || prev[`english_${fw}`] || prev[`spanish_${fw}`] || prev[`french_${fw}`] || prev[`german_${fw}`] || prev[fw];
+        if (item?.status && item.status !== "new") {
+          targetStatus = item.status;
+          break;
+        }
+      }
 
       const nextVocab = { ...prev };
-      const updatedFrom: VocabItem = {
-        word: lowerFrom,
-        status: sourceOfTruth.status,
-        translation: fromVocab?.translation || sourceOfTruth.translation || "[Known]",
-        ipa: fromVocab?.ipa || sourceOfTruth.ipa || "",
-        grammar: fromVocab?.grammar || sourceOfTruth.grammar || "",
-        contextRelation: fromVocab?.contextRelation || sourceOfTruth.contextRelation || "",
-        examples: fromVocab?.examples || sourceOfTruth.examples || [],
-        createdAt: fromVocab?.createdAt || sourceOfTruth.createdAt || Date.now(),
-        tags: fromVocab?.tags || sourceOfTruth.tags || [],
-        imageUrl: fromVocab?.imageUrl || sourceOfTruth.imageUrl || null,
-      };
 
-      const updatedTo: VocabItem = {
-        word: lowerTo,
-        status: sourceOfTruth.status,
-        translation: toVocab?.translation || sourceOfTruth.translation || "[Known]",
-        ipa: toVocab?.ipa || sourceOfTruth.ipa || "",
-        grammar: toVocab?.grammar || sourceOfTruth.grammar || "",
-        contextRelation: toVocab?.contextRelation || sourceOfTruth.contextRelation || "",
-        examples: toVocab?.examples || sourceOfTruth.examples || [],
-        createdAt: toVocab?.createdAt || sourceOfTruth.createdAt || Date.now(),
-        tags: toVocab?.tags || sourceOfTruth.tags || [],
-        imageUrl: toVocab?.imageUrl || sourceOfTruth.imageUrl || null,
-      };
-
-      // Clean up legacy non-prefixed keys or case variations
-      const keysToDelete: string[] = [];
-      Object.keys(nextVocab).forEach((k) => {
-        const kLower = k.trim().toLowerCase();
-        if ((kLower === lowerFrom && k !== sourceKey) || (kLower === lowerTo && k !== targetKey)) {
-          keysToDelete.push(k);
-          delete nextVocab[k];
+      familyWords.forEach((linkedWord) => {
+        const k = `${activeLang}_${linkedWord}`;
+        const existing = prev[k] || prev[linkedWord];
+        if (existing) {
+          nextVocab[k] = {
+            ...existing,
+            status: existing.status && existing.status !== "new" ? existing.status : targetStatus,
+            definition: targetDefinition || existing.definition || undefined,
+          };
+        } else {
+          nextVocab[k] = {
+            word: linkedWord,
+            status: targetStatus,
+            translation: "",
+            definition: targetDefinition || undefined,
+            ipa: "",
+            grammar: "",
+            contextRelation: "",
+            examples: [],
+            createdAt: Date.now(),
+            tags: [],
+            imageUrl: null,
+          };
         }
       });
-
-      nextVocab[sourceKey] = updatedFrom;
-      nextVocab[targetKey] = updatedTo;
-
-      if (auth.currentUser && storageMode === "cloud") {
-        saveVocab(auth.currentUser.uid, sourceKey, updatedFrom).catch((err) => console.error(err));
-        saveVocab(auth.currentUser.uid, targetKey, updatedTo).catch((err) => console.error(err));
-        if (keysToDelete.length > 0) {
-          deleteMultipleVocabs(auth.currentUser.uid, keysToDelete).catch((err) =>
-            console.error("Failed to delete legacy keys from cloud in handleSaveWordLink:", err)
-          );
-        }
-      }
 
       if (storageMode === "server") {
         syncDataToLocalServer(lessons, lessonTypes, nextVocab, nextWordLinks).catch((err) => console.error(err));
@@ -1580,10 +1554,6 @@ export default function App() {
       
       return copy;
     });
-    if (auth.currentUser && storageMode === "cloud") {
-      deleteWordRangeLink(auth.currentUser.uid, sourceKey).catch((err) => console.error(err));
-      deleteWordRangeLink(auth.currentUser.uid, lowerFrom).catch((err) => console.error(err));
-    }
   };
 
   const handleSaveVocabItem = (newVocabItem: VocabItem, lang?: string) => {
@@ -1600,35 +1570,36 @@ export default function App() {
 
     setVocab((prev) => {
       const nextVocab = { ...prev };
-      const keysToDelete: string[] = [];
       
+      // Inherit existing family definition if this update didn't specify one
+      let effectiveItem = { ...newVocabItem };
+      if (effectiveItem.definition === undefined) {
+        for (const lw of linkedWords) {
+          const k = `${activeLang}_${lw}`;
+          const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
+          if (ex?.definition && ex.definition.trim() !== "") {
+            effectiveItem.definition = ex.definition.trim();
+            break;
+          }
+        }
+      }
+
       linkedWords.forEach((linkedWord) => {
         const targetLangKey = `${activeLang}_${linkedWord}`;
         const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
 
-        const updatedVocabItem: VocabItem = buildVocabItem(newVocabItem, linkedWord, existing);
+        const updatedVocabItem: VocabItem = buildVocabItem(effectiveItem, linkedWord, existing);
 
         // Clean up legacy non-prefixed key or case variations from local state
         Object.keys(nextVocab).forEach((k) => {
           const kLower = k.trim().toLowerCase();
           if (kLower === linkedWord.toLowerCase() && k !== targetLangKey) {
-            keysToDelete.push(k);
             delete nextVocab[k];
           }
         });
 
         nextVocab[targetLangKey] = updatedVocabItem;
-
-        if (auth.currentUser && storageMode === "cloud") {
-          saveVocab(auth.currentUser.uid, targetLangKey, updatedVocabItem).catch((err) => console.error(err));
-        }
       });
-
-      if (auth.currentUser && storageMode === "cloud" && keysToDelete.length > 0) {
-        deleteMultipleVocabs(auth.currentUser.uid, keysToDelete).catch((err) =>
-          console.error("Failed to delete legacy keys from cloud during save:", err)
-        );
-      }
 
       if (storageMode === "server") {
         syncDataToLocalServer(lessons, lessonTypes, nextVocab, wordLinks).catch((err) =>
@@ -1664,11 +1635,24 @@ export default function App() {
         const cleanWord = newVocabItem.word.replace(/^[a-zA-Z]+_/, "").toLowerCase();
         const linkedWords = getLinkedWordsFor(cleanWord, activeLang);
 
+        // Inherit existing family definition if this update didn't specify one
+        let effectiveItem = { ...newVocabItem };
+        if (effectiveItem.definition === undefined) {
+          for (const lw of linkedWords) {
+            const k = `${activeLang}_${lw}`;
+            const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
+            if (ex?.definition && ex.definition.trim() !== "") {
+              effectiveItem.definition = ex.definition.trim();
+              break;
+            }
+          }
+        }
+
         linkedWords.forEach((linkedWord) => {
           const targetLangKey = `${activeLang}_${linkedWord}`;
           const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
 
-          const updatedVocabItem: VocabItem = buildVocabItem(newVocabItem, linkedWord, existing);
+          const updatedVocabItem: VocabItem = buildVocabItem(effectiveItem, linkedWord, existing);
 
           // Clean up legacy non-prefixed key or case variations from local state
           const targetLower = linkedWord.toLowerCase();
@@ -1691,22 +1675,8 @@ export default function App() {
           if (!list.includes(targetLangKey)) {
             list.push(targetLangKey);
           }
-
-          if (auth.currentUser && storageMode === "cloud") {
-            cloudPromises.push(saveVocab(auth.currentUser.uid, targetLangKey, updatedVocabItem));
-          }
         });
       });
-
-      if (cloudPromises.length > 0) {
-        Promise.all(cloudPromises).catch((err) => console.error("Cloud batch save error:", err));
-      }
-
-      if (auth.currentUser && storageMode === "cloud" && keysToDelete.length > 0) {
-        deleteMultipleVocabs(auth.currentUser.uid, keysToDelete).catch((err) =>
-          console.error("Failed to delete legacy keys from cloud during save:", err)
-        );
-      }
 
       if (storageMode === "server") {
         syncDataToLocalServer(lessons, lessonTypes, nextVocab, wordLinks).catch((err) =>
@@ -1750,12 +1720,8 @@ export default function App() {
         delete copy[k];
       });
 
-      if (uniqueCleanKeys.length > 0) {
-        if (auth.currentUser && storageMode === "cloud") {
-          deleteMultipleVocabs(auth.currentUser.uid, uniqueCleanKeys).catch((err) => console.error(err));
-        } else if (storageMode === "server") {
-          syncDataToLocalServer(lessons, lessonTypes, copy, wordLinks).catch((err) => console.error(err));
-        }
+      if (uniqueCleanKeys.length > 0 && storageMode === "server") {
+        syncDataToLocalServer(lessons, lessonTypes, copy, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettings, pinnedLanguages, hiddenLanguages, selectedTargetLanguage, uniqueCleanKeys).catch((err) => console.error(err));
       }
 
       return copy;
@@ -1824,28 +1790,11 @@ export default function App() {
       };
       copy[targetLangKeyNew] = updatedVocabItem;
 
-      // Update backend / Firestore / Server
-      if (uniqueDropKeys.length > 0) {
-        if (auth.currentUser && storageMode === "cloud") {
-          // Delete old keys from cloud first, then save the new key
-          deleteMultipleVocabs(auth.currentUser.uid, uniqueDropKeys)
-            .then(() => {
-              saveVocab(auth.currentUser.uid!, targetLangKeyNew, updatedVocabItem).catch((err) =>
-                console.error("Failed to save renamed word to cloud:", err)
-              );
-            })
-            .catch((err) => {
-              console.error("Failed to delete older word keys during rename:", err);
-              saveVocab(auth.currentUser.uid!, targetLangKeyNew, updatedVocabItem).catch((err) =>
-                console.error(err)
-              );
-            });
-        } else if (storageMode === "server") {
-          // In server mode, sync the resulting local state to local_server_db
-          syncDataToLocalServer(lessons, lessonTypes, copy, wordLinks).catch((err) =>
-            console.error("Failed to sync renamed word with server:", err)
-          );
-        }
+      // In server mode, sync the resulting local state to local_server_db
+      if (uniqueDropKeys.length > 0 && storageMode === "server") {
+        syncDataToLocalServer(lessons, lessonTypes, copy, wordLinks).catch((err) =>
+          console.error("Failed to sync renamed word with server:", err)
+        );
       }
 
       return copy;
@@ -1884,9 +1833,6 @@ export default function App() {
 
     setActiveLessonId(lessonWithDate.id);
     setShowImportForm(false);
-    if (auth.currentUser && storageMode === "cloud") {
-      saveLesson(auth.currentUser.uid, lessonWithDate, images).catch((err) => console.error(err));
-    }
     if (storageMode === "server") {
       syncDataToLocalServer(updatedLessons.length > 0 ? updatedLessons : [lessonWithDate, ...lessons]).catch((err) => console.error(err));
     }
@@ -1925,14 +1871,12 @@ export default function App() {
           ...activeLesson,
           detectedPhrases: data.detectedPhrases
         };
+        setActiveLesson(updatedLesson);
         setLessons((prev) => {
           const next = prev.map((l) => (l.id === activeLesson.id ? updatedLesson : l));
           lessonsStore.setItem("lessons", next);
           return next;
         });
-        if (auth.currentUser && storageMode === "cloud") {
-          saveLesson(auth.currentUser.uid, updatedLesson).catch((err) => console.error(err));
-        }
         if (storageMode === "server") {
           syncDataToLocalServer(
             lessons.map((l) => (l.id === activeLesson.id ? updatedLesson : l))
@@ -1944,6 +1888,75 @@ export default function App() {
       showToast(t('app.idioms_error', "Ошибка при распознавании идиом: ") + (e.message || String(e)), "error");
     } finally {
       setIsDetectingIdioms(false);
+    }
+  };
+
+  const [isLemmatizingText, setIsLemmatizingText] = useState(false);
+
+  const handleAiLemmatizeText = async () => {
+    if (!activeLesson) return;
+    setIsLemmatizingText(true);
+    try {
+      const response = await fetch("/api/lemmatize-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: activeLesson.text,
+          targetLanguage: activeLesson.targetLanguage,
+          aiProvider: readerSettings.aiProvider || "gemini",
+          localAiUrl: readerSettings.localAiUrl || "http://localhost:11434/api/generate",
+          localAiModel: readerSettings.localAiModel || "phi3.5",
+        })
+      });
+      if (!response.ok) {
+        let errMsg = "Failed to lemmatize text with AI";
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) errMsg = errData.error;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+      const data = await response.json();
+      if (data.lemmas) {
+        lastLocalChangeTime.current = Date.now();
+        const updatedLesson = {
+          ...activeLesson,
+          text_lemmas: {
+            ...(activeLesson.text_lemmas || {}),
+            ...data.lemmas
+          }
+        };
+
+        const langLower = activeLesson.targetLanguage.toLowerCase();
+        const newLinks = { ...wordLinks };
+        Object.entries(data.lemmas).forEach(([child, parent]) => {
+          if (child && parent && typeof parent === "string") {
+            const key = `${langLower}_${child.toLowerCase()}`;
+            const targetKey = `${langLower}_${parent.toLowerCase()}`;
+            newLinks[key] = targetKey;
+          }
+        });
+        setWordLinks(newLinks);
+        vocabStore.setItem("aliases", newLinks);
+
+        setActiveLesson(updatedLesson);
+        setLessons((prev) => {
+          const next = prev.map((l) => (l.id === activeLesson.id ? updatedLesson : l));
+          lessonsStore.setItem("lessons", next);
+          return next;
+        });
+        if (storageMode === "server") {
+          syncDataToLocalServer(
+            lessons.map((l) => (l.id === activeLesson.id ? updatedLesson : l))
+          ).catch((err) => console.error(err));
+        }
+        showToast(t('app.lemmatize_success', "✓ AI предразбор лемм завершён успешно!"), "success");
+      }
+    } catch (e: any) {
+      console.error("AI Lemmatize Text failed:", e);
+      showToast(t('app.lemmatize_error', "Ошибка предразбора лемм: ") + (e.message || String(e)), "error");
+    } finally {
+      setIsLemmatizingText(false);
     }
   };
 
@@ -1963,9 +1976,6 @@ export default function App() {
     // Switch active lesson if necessary
     if (activeLessonId === idToDelete && remaining.length > 0) {
       setActiveLessonId(remaining[0].id);
-    }
-    if (auth.currentUser && storageMode === "cloud") {
-      deleteLesson(auth.currentUser.uid, idToDelete).catch((err) => console.error(err));
     }
     // Immediately sync to local server so the polling interval doesn't restore the deleted lesson
     if (storageMode === "server") {
@@ -1994,10 +2004,6 @@ export default function App() {
     lessonsStore.setItem("lessons", next).catch(() => {});
     safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
 
-    const toggledLesson = next.find((l) => l.id === idToToggle);
-    if (toggledLesson && auth.currentUser && storageMode === "cloud") {
-      saveLesson(auth.currentUser.uid, toggledLesson).catch((err) => console.error(err));
-    }
     if (storageMode === "server") {
       syncDataToLocalServer(next).catch((err) => console.error(err));
     }
@@ -2024,10 +2030,6 @@ export default function App() {
     lessonsStore.setItem("lessons", next).catch(() => {});
     safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(next));
 
-    const toggledLesson = next.find((l) => l.id === idToToggle);
-    if (toggledLesson && auth.currentUser && storageMode === "cloud") {
-      saveLesson(auth.currentUser.uid, toggledLesson).catch((err) => console.error(err));
-    }
     if (storageMode === "server") {
       syncDataToLocalServer(next).catch((err) => console.error(err));
     }
@@ -2044,9 +2046,6 @@ export default function App() {
             audioUrl,
             audioBase64: audioUrl === "" ? null : (base64 || l.audioBase64),
           };
-          if (auth.currentUser && storageMode === "cloud") {
-            saveLesson(auth.currentUser.uid, updated).catch((err) => console.error(err));
-          }
           return updated;
         }
         return l;
@@ -2061,9 +2060,6 @@ export default function App() {
   const handleListeningTick = (seconds: number) => {
     setListeningSeconds((prev) => {
       const nextVal = Math.round((prev + seconds) * 10) / 10;
-      if (auth.currentUser && storageMode === "cloud") {
-        saveProfileStats(auth.currentUser.uid, nextVal).catch((err) => console.error(err));
-      }
       safeLocalStorageSetItem("vocab_clone_listening", nextVal.toString());
       settingsStore.setItem("vocab_clone_listening", nextVal.toString());
       return nextVal;
@@ -2333,48 +2329,18 @@ export default function App() {
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
         setShowLocalLoginModal={setShowLocalLoginModal}
+        onOpenProfileSettings={() => setShowProfileModal(true)}
         storageMode={storageMode}
         isSyncing={isSyncing}
+        localSyncError={localSyncError}
         selectedTargetLanguage={selectedTargetLanguage}
         onSelectTargetLanguage={handleSelectTargetLanguage}
         availableTargetLanguages={availableTargetLanguages}
         languageFlags={languageFlags}
         onOpenManageLanguages={() => setIsManageLanguagesOpen(true)}
         lessonCountByLanguage={lessonCountByLanguage}
+        onOpenBook={handleOpenWhisperBook}
       />
-
-      {cloudOfflineWarning && (
-        <div id="banner-cloud-offline-warning" className={`mx-auto px-4 sm:px-6 pt-4 transition-all duration-300 ${layoutContainerClass}`}>
-          <div className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-3xs">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 animate-pulse">
-                <HelpCircle className="w-5 h-5 opacity-80" />
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-extrabold text-amber-800 dark:text-amber-400 leading-none">
-                  {t('app.offline_title', 'Cloud connection not established (Working in local mode)')}
-                </h4>
-                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5 leading-relaxed">
-                  <Trans i18nKey="app.offline_desc">
-                    Could not connect to Google Firebase cloud database. All features are active, and your data is <strong>saved locally</strong> in browser cache. Sync will resume automatically when connection is restored!
-                  </Trans>
-                </p>
-                {cloudOfflineError && (
-                  <p className="text-[10px] bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/10 p-2 rounded-xl text-amber-800 dark:text-amber-300 font-mono mt-2 break-all">
-                    {t('app.offline_error_details', 'Error details: ')}{cloudOfflineError}
-                  </p>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => setCloudOfflineWarning(false)}
-              className="text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 px-3 py-1.5 rounded-xl transition cursor-pointer self-stretch sm:self-auto text-center border border-amber-500/10"
-            >
-              {t('app.collapse', 'Свернуть')}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main Body */}
       <main className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass}`}>
@@ -2400,9 +2366,6 @@ export default function App() {
                     const next = prev.map((l) => (l.id === editingLesson.id ? newOrUpdated : l));
                     return next;
                   });
-                  if (auth.currentUser && storageMode === "cloud") {
-                    saveLesson(auth.currentUser.uid, newOrUpdated, images).catch((err) => console.error(err));
-                  }
                   if (storageMode === "server") {
                     syncDataToLocalServer(
                       lessons.map((l) => (l.id === editingLesson.id ? newOrUpdated : l))
@@ -2433,6 +2396,15 @@ export default function App() {
                 setActiveLessonId(id);
                 setSelectedWord(null);
                 setActiveTab("read");
+                safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", id);
+                try {
+                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (token) headers["Authorization"] = `Bearer ${token}`;
+                  if (syncKey) headers["x-sync-key"] = syncKey;
+                  fetch("/api/user-metadata", { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
+                } catch (_) {}
               }}
               onOpenImportForm={() => setShowImportForm(true)}
               onDeleteLesson={handleDeleteLesson}
@@ -2526,6 +2498,7 @@ export default function App() {
             wordLinks={wordLinks}
             vocab={vocab}
             handleSaveVocabItem={handleSaveVocabItem}
+            onSaveMultipleVocabs={handleSaveVocabItems}
             handleDeleteVocabItem={handleDeleteVocabItem}
             handleSaveWordLink={handleSaveWordLink}
             handleDeleteWordLink={handleDeleteWordLink}
@@ -2535,6 +2508,8 @@ export default function App() {
             currentReaderTheme={currentReaderTheme}
             handleDetectIdioms={handleDetectIdioms}
             isDetectingIdioms={isDetectingIdioms}
+            handleAiLemmatizeText={handleAiLemmatizeText}
+            isLemmatizingText={isLemmatizingText}
           />
         )}
       </main>
@@ -2564,14 +2539,14 @@ export default function App() {
             [lang.toLowerCase()]: flag
           };
           setLanguageFlags(nextFlags);
-          if (auth.currentUser && storageMode === "cloud") {
-            saveProfileSettings(auth.currentUser.uid, { languageFlags: nextFlags }).catch(err => console.error(err));
+          if (storageMode === "server") {
+            syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, nextFlags).catch(err => console.error(err));
           }
         }}
         onResetLanguageFlags={() => {
           setLanguageFlags({});
-          if (auth.currentUser && storageMode === "cloud") {
-            saveProfileSettings(auth.currentUser.uid, { languageFlags: {} }).catch(err => console.error(err));
+          if (storageMode === "server") {
+            syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, {}).catch(err => console.error(err));
           }
         }}
         wordLinks={wordLinks}
@@ -2585,30 +2560,37 @@ export default function App() {
         localSyncKey={localSyncKey}
         onLocalSyncKeyChange={setLocalSyncKey}
         localSyncError={localSyncError}
-        firebaseUser={activeUser}
         activeUser={activeUser}
+        onOpenAuthModal={() => setShowLocalLoginModal(true)}
+        onLogout={async () => { await logout(); }}
         vocab={vocab}
         lessonTypes={lessonTypes}
         listeningSeconds={listeningSeconds}
+        history={history}
+        pinnedLanguages={pinnedLanguages}
+        hiddenLanguages={hiddenLanguages}
+        selectedTargetLanguage={selectedTargetLanguage}
         onListeningSecondsChange={(seconds) => {
           setListeningSeconds(seconds);
           safeLocalStorageSetItem("vocab_clone_listening", seconds.toString());
           settingsStore.setItem("vocab_clone_listening", seconds.toString());
-          if (auth.currentUser && storageMode === "cloud") {
-            saveProfileStats(auth.currentUser.uid, seconds).catch((err) => console.error(err));
-          }
           if (storageMode === "server") {
             syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, seconds, languageFlags).catch((err) => console.error(err));
           }
         }}
         onImportData={(imported: any) => {
-          const importedVocab = imported.vocab || imported.lingqs || imported.lingq;
+          const importedVocab = imported.vocab || imported.words;
           const parsedVocab = importedVocab ? normalizeVocabRecord(importedVocab) : vocab;
           const parsedWordLinks = imported.wordLinks ? normalizeWordLinksRecord(imported.wordLinks) : wordLinks;
           const parsedLessons = imported.lessons || lessons;
           const parsedLessonTypes = imported.lessonTypes || lessonTypes;
           const parsedListeningSeconds = imported.listeningSeconds !== undefined ? imported.listeningSeconds : listeningSeconds;
           const parsedLanguageFlags = imported.languageFlags || languageFlags;
+          const parsedHistory = imported.history && Array.isArray(imported.history) ? dedupeHistory(imported.history) : history;
+          const parsedReaderSettings = imported.readerSettings || readerSettings;
+          const parsedPinnedLanguages = imported.pinnedLanguages || pinnedLanguages;
+          const parsedHiddenLanguages = imported.hiddenLanguages || hiddenLanguages;
+          const parsedSelectedTargetLanguage = imported.selectedTargetLanguage || selectedTargetLanguage;
 
           if (imported.lessons) {
             setLessons(imported.lessons);
@@ -2629,6 +2611,32 @@ export default function App() {
             setLanguageFlags(imported.languageFlags);
           }
 
+          if (imported.history && Array.isArray(imported.history)) {
+            setHistory(parsedHistory);
+            historyRef.current = parsedHistory;
+            safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(parsedHistory));
+            settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(parsedHistory)).catch(() => {});
+          }
+          if (imported.readerSettings) {
+            setReaderSettings(prev => ({ ...prev, ...imported.readerSettings }));
+            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(imported.readerSettings));
+            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(imported.readerSettings)).catch(() => {});
+          }
+          if (imported.pinnedLanguages) {
+            setPinnedLanguages(imported.pinnedLanguages);
+            safeLocalStorageSetItem("vocab_clone_pinned_languages", JSON.stringify(imported.pinnedLanguages));
+            settingsStore.setItem("vocab_clone_pinned_languages", JSON.stringify(imported.pinnedLanguages)).catch(() => {});
+          }
+          if (imported.hiddenLanguages) {
+            setHiddenLanguages(imported.hiddenLanguages);
+            safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(imported.hiddenLanguages));
+            settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(imported.hiddenLanguages)).catch(() => {});
+          }
+          if (imported.selectedTargetLanguage) {
+            setSelectedTargetLanguage(imported.selectedTargetLanguage);
+            safeLocalStorageSetItem("vocab_global_target_language", imported.selectedTargetLanguage);
+          }
+
           // Force update local storage instantly
           if (imported.lessons) safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(imported.lessons));
           if (imported.lessonTypes) safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(imported.lessonTypes));
@@ -2646,21 +2654,14 @@ export default function App() {
               parsedVocab,
               parsedWordLinks,
               parsedListeningSeconds,
-              parsedLanguageFlags
+              parsedLanguageFlags,
+              parsedHistory,
+              undefined,
+              parsedReaderSettings,
+              parsedPinnedLanguages,
+              parsedHiddenLanguages,
+              parsedSelectedTargetLanguage
             ).catch(err => console.error("Local server import sync error:", err));
-          }
-
-          // Upload to cloud if logged in and cloud sync is active
-          if (storageMode === "cloud" && activeUser) {
-            uploadLocalToCloud(
-              activeUser.uid,
-              parsedLessons,
-              parsedLessonTypes,
-              parsedVocab,
-              parsedWordLinks,
-              parsedListeningSeconds,
-              parsedLanguageFlags
-            ).catch(err => console.error("Cloud import sync error:", err));
           }
         }}
         onClearAllData={async () => {
@@ -2680,17 +2681,7 @@ export default function App() {
           localStorage.removeItem("vocab_clone_listening");
           localStorage.removeItem("vocab_clone_language_flags");
 
-          // Clear Cloud Firestore database if in Cloud Mode
-          if (storageMode === "cloud" && activeUser) {
-            try {
-              setIsSyncing(true);
-              await clearAllUserDataOnFirestore(activeUser.uid);
-            } catch (err) {
-              console.error("Failed to clear Cloud database:", err);
-            } finally {
-              setIsSyncing(false);
-            }
-          } else if (storageMode === "server") {
+          if (storageMode === "server") {
             try {
               setIsSyncing(true);
               const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
@@ -2715,23 +2706,6 @@ export default function App() {
             }
           }
         }}
-        onManualSync={async () => {
-          if (activeUser) {
-            try {
-              await uploadLocalToCloud(
-                activeUser.uid,
-                lessons,
-                lessonTypes,
-                vocab,
-                wordLinks,
-                listeningSeconds,
-                languageFlags
-              );
-            } catch (err) {
-              console.error("Manual cloud sync failed:", err);
-            }
-          }
-        }}
         isSyncing={isSyncing}
         settings={readerSettings}
         onSettingsChange={(patch) => setReaderSettings(prev => ({ ...prev, ...patch }))}
@@ -2744,6 +2718,12 @@ export default function App() {
         onLocalServerLogin={() => {
           serverInitialLoadComplete.current = false;
         }}
+      />
+
+      {/* User Profile Settings & Avatar Modal */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
       />
       {/* Floating draggable/resizable YouTube player window */}
       {activeLesson && activeLesson.youtubeId && showYoutubePlayer && activeTab === "read" && (

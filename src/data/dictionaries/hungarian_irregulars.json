@@ -1,0 +1,46 @@
+{
+  "vagyok": ["lenni", "van"],
+  "vagy": ["lenni", "van"],
+  "van": ["lenni", "van"],
+  "vagyunk": ["lenni", "van"],
+  "vagytok": ["lenni", "van"],
+  "vannak": ["lenni", "van"],
+  "volt": ["lenni", "van"],
+  "voltam": ["lenni", "van"],
+  "voltak": ["lenni", "van"],
+  "lesz": ["lenni", "van"],
+
+  "menet": ["menni"],
+  "ment": ["menni"],
+  "mentem": ["menni"],
+  "mentek": ["menni"],
+
+  "jött": ["jönni"],
+  "jöttem": ["jönni"],
+  "jöttek": ["jönni"],
+
+  "tett": ["tenni"],
+  "tettem": ["tenni"],
+  "tettek": ["tenni"],
+
+  "vett": ["venni"],
+  "vettem": ["venni"],
+  "vettek": ["venni"],
+
+  "evett": ["enni"],
+  "evettem": ["enni"],
+  "ettek": ["enni"],
+
+  "ivott": ["inni"],
+  "ivottem": ["inni"],
+  "ittak": ["inni"],
+
+  "házak": ["ház"],
+  "házban": ["ház"],
+  "házból": ["ház"],
+  "házra": ["ház"],
+
+  "emberek": ["ember"],
+  "embernek": ["ember"],
+  "emberrel": ["ember"]
+}

@@ -23,7 +23,18 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
 
   const currentStatus: "in_progress" | "completed" = useMemo(() => {
     const savedProg = localStorage.getItem(`vocab_progress_${lesson.id}`);
-    const isProg100 = savedProg ? parseFloat(savedProg) >= 100 : false;
+    let progVal = 0;
+    if (savedProg) {
+      try {
+        const parsed = JSON.parse(savedProg);
+        if (typeof parsed === "number") progVal = parsed;
+        else if (parsed && typeof parsed === "object" && parsed.progress !== undefined) progVal = parseFloat(parsed.progress);
+        else progVal = parseFloat(savedProg);
+      } catch (_) {
+        progVal = parseFloat(savedProg);
+      }
+    }
+    const isProg100 = !isNaN(progVal) && progVal >= 100;
     const histEntry = (history || []).find((h) => h.lessonId === lesson.id);
     if (isProg100 || histEntry?.status === "completed" || histEntry?.actionType === "complete") {
       return "completed";

@@ -4,6 +4,7 @@ import fs from "fs";
 import Database from "better-sqlite3";
 import { getDbConnection, SQLITE_DB_PATH } from "./dbConnection.ts";
 import { resolveUserId, requireLocalSyncKey, requireAuth } from "./auth.ts";
+import { analyzeTextComplexity } from "../server/frequency/frequencyService.ts";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
@@ -201,14 +202,7 @@ export function getLocalServerDb(userId: string = "default") {
   try {
     const db = getDbConnection(userId);
 
-    // Count only records belonging to this specific user
-    const wordsCount = (db.prepare("SELECT count(*) as count FROM words WHERE user_id = ?").get(userId) as { count: number }).count;
-    const lessonsCount = (db.prepare("SELECT count(*) as count FROM lessons WHERE user_id = ?").get(userId) as { count: number }).count;
-
-    if (wordsCount === 0 && lessonsCount === 0) {
-      console.log(`[getLocalServerDb] No data found for user "${userId}". Returning empty.`);
-      return null;
-    }
+    // Retrieve user data strictly scoped by user_id
 
     // Listening seconds — per user
     const listeningRow = db.prepare(
@@ -223,8 +217,10 @@ export function getLocalServerDb(userId: string = "default") {
       languageFlags[row.code] = row.flag;
     }
 
-    // Lessons — strictly this user's
-    const lessonsRows = db.prepare("SELECT * FROM lessons WHERE user_id = ?").all(userId) as any[];
+    // Lessons — strictly this user's, newest first (Whisper books appear at the top)
+    const lessonsRows = db.prepare(
+      "SELECT *, rowid FROM lessons WHERE user_id = ? ORDER BY COALESCE(createdAt, rowid * 1000) DESC"
+    ).all(userId) as any[];
     const updateAudioStmt = db.prepare("UPDATE lessons SET audioUrl = ?, audioBase64 = NULL WHERE id = ? AND user_id = ?");
 
     const lessons = lessonsRows.map((l) => {
@@ -243,6 +239,26 @@ export function getLocalServerDb(userId: string = "default") {
         }
       }
 
+      let lessonDifficulty = l.difficulty;
+      let lessonDifficultyExplanation = l.difficultyExplanation;
+
+      // Automatic CEFR calculation via offline frequency table if difficulty is missing
+      if (!lessonDifficulty && typeof l.text === "string" && l.text.trim().length > 0) {
+        try {
+          const langCode = (l.targetLanguage || "en").toLowerCase();
+          const comp = analyzeTextComplexity(l.text, langCode.startsWith("en") ? "en" : langCode);
+          if (comp && comp.cefrOverall) {
+            lessonDifficulty = comp.cefrOverall;
+            lessonDifficultyExplanation = `A1-A2: ${comp.coverage.a1_a2}%, B1-B2: ${comp.coverage.b1_b2}%, C1-C2: ${comp.coverage.c1_c2}%, Rare: ${comp.coverage.rare}%`;
+            // Persist in background
+            try {
+              db.prepare("UPDATE lessons SET difficulty = ?, difficultyExplanation = ? WHERE id = ? AND user_id = ?")
+                .run(lessonDifficulty, lessonDifficultyExplanation, l.id, userId);
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+
       return {
         id: l.id,
         title: l.title,
@@ -255,12 +271,14 @@ export function getLocalServerDb(userId: string = "default") {
         isArchived: l.isArchived === 1,
         coverUrl: l.coverUrl,
         youtubeId: l.youtubeId,
+        localVideoUrl: l.localVideoUrl || null,
         lessonType: l.lessonType,
         pinned: l.pinned === 1,
         translationText: l.translationText,
         detectedPhrases: l.detectedPhrases ? JSON.parse(l.detectedPhrases) : {},
-        difficulty: l.difficulty,
-        difficultyExplanation: l.difficultyExplanation,
+        difficulty: lessonDifficulty,
+        difficultyExplanation: lessonDifficultyExplanation,
+        createdAt: l.createdAt ?? (l.rowid ? l.rowid * 1000 : undefined),
       };
     });
 
@@ -269,11 +287,12 @@ export function getLocalServerDb(userId: string = "default") {
 
     // Words — strictly this user's
     const wordsRows = db.prepare("SELECT * FROM words WHERE user_id = ?").all(userId) as any[];
-    const lingqs: Record<string, any> = {};
+    const vocabWords: Record<string, any> = {};
     for (const w of wordsRows) {
-      lingqs[w.id] = {
+      vocabWords[w.id] = {
         word: w.word,
         translation: w.translation || "",
+        definition: (w.definition && typeof w.definition === "string" && w.definition.trim() !== "") ? w.definition.trim() : undefined,
         ipa: w.ipa || "",
         grammar: w.grammar || "",
         contextRelation: w.contextRelation || "",
@@ -338,6 +357,10 @@ export function getLocalServerDb(userId: string = "default") {
     let pinnedLanguages = null;
     let hiddenLanguages = null;
     let selectedTargetLanguage = null;
+    let dictionaryPreferences = null;
+    let customTags: string[] = [];
+    let dailyWordGoal: number | null = null;
+    let lastActiveLessonId: string | null = null;
 
     for (const row of metadataRows) {
       if (row.key.startsWith("youtube_progress_")) {
@@ -352,13 +375,21 @@ export function getLocalServerDb(userId: string = "default") {
         try { hiddenLanguages = JSON.parse(row.value); } catch (_) {}
       } else if (row.key === "selectedTargetLanguage" && row.value) {
         selectedTargetLanguage = row.value;
+      } else if (row.key === "dictionaryPreferences" && row.value) {
+        try { dictionaryPreferences = JSON.parse(row.value); } catch (_) {}
+      } else if (row.key === "customTags" && row.value) {
+        try { customTags = JSON.parse(row.value); } catch (_) {}
+      } else if (row.key === "dailyWordGoal" && row.value) {
+        dailyWordGoal = parseInt(row.value, 10) || null;
+      } else if (row.key === "lastActiveLessonId" && row.value) {
+        lastActiveLessonId = row.value;
       }
     }
 
     return {
       lessons,
       lessonTypes,
-      vocab: lingqs,
+      vocab: vocabWords,
       wordLinks,
       listeningSeconds,
       languageFlags,
@@ -369,6 +400,10 @@ export function getLocalServerDb(userId: string = "default") {
       pinnedLanguages,
       hiddenLanguages,
       selectedTargetLanguage,
+      dictionaryPreferences,
+      customTags,
+      dailyWordGoal,
+      lastActiveLessonId,
     };
   } catch (e) {
     console.error("Error loading SQLite database data:", e);
@@ -380,7 +415,7 @@ export function getLocalServerDb(userId: string = "default") {
 export function saveLocalServerDb(userId: string = "default", data: any) {
   try {
     console.log(`[saveLocalServerDb] Attempting to save for userId: "${userId}"`);
-    console.log(`[saveLocalServerDb] Data details - lessons: ${(data.lessons || []).length}, vocab words: ${Object.keys(data.vocab || data.lingqs || {}).length}`);
+    console.log(`[saveLocalServerDb] Data details - lessons: ${(data.lessons || []).length}, vocab words: ${Object.keys(data.vocab || {}).length}`);
     const db = getDbConnection(userId);
 
     const insertLanguage = db.prepare(`
@@ -395,10 +430,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, user_id, language_code, word, translation, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+        id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
         spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
         srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -407,8 +442,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertLessonType = db.prepare(`
@@ -426,56 +461,52 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         insertLanguage.run(lang, name, flag as string);
       }
 
-      const lingqs = data.vocab || data.lingqs || {};
-      for (const [key, value] of Object.entries(lingqs)) {
+      const vocabWords = data.vocab || {};
+      for (const [key, value] of Object.entries(vocabWords)) {
         const match = key.match(/^([a-zA-Z]+)_(.*)$/);
         const lang = match ? match[1] : "english";
         const val = value as any;
         const wordVal = cleanWordPrefix(val.word || (match ? match[2] : key));
 
-        ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
-
-        const existingWord = db.prepare("SELECT translation, ipa, grammar, contextRelation, examples FROM words WHERE user_id = ? AND id = ?").get(userId, key) as any;
-
-        const isPlaceholder = (s?: string) => !s || s.trim() === "" || s === "Pending translation" || (s.trim().startsWith("[") && s.trim().endsWith("]"));
-        let finalTranslation = val.translation || "";
-        if (isPlaceholder(finalTranslation) && existingWord && !isPlaceholder(existingWord.translation)) {
-          finalTranslation = existingWord.translation;
+        if (!wordVal || wordVal.length > 80 || /[\r\n\t]/.test(wordVal)) {
+          continue;
         }
 
-        let finalIpa = val.ipa || (existingWord ? existingWord.ipa || "" : "");
-        let finalGrammar = val.grammar || (existingWord ? existingWord.grammar || "" : "");
-        let finalContextRelation = val.contextRelation || (existingWord ? existingWord.contextRelation || "" : "");
+        const tagsJson = (val.tags && Array.isArray(val.tags) && val.tags.length > 0) ? JSON.stringify(val.tags) : null;
+        const examplesJson = (val.examples && Array.isArray(val.examples) && val.examples.length > 0) ? JSON.stringify(val.examples) : null;
 
+        ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
         insertWord.run(
           key,
           userId,
           lang,
           wordVal,
-          finalTranslation,
-          finalIpa,
-          finalGrammar,
-          finalContextRelation,
-          val.status || "known",
+          val.translation || "",
+          (val.definition && typeof val.definition === "string" && val.definition.trim() !== "") ? val.definition.trim() : null,
+          val.ipa || "",
+          val.grammar || "",
+          val.contextRelation || "",
+          val.status || "new",
           val.createdAt || Date.now(),
-          JSON.stringify(val.tags || []),
+          tagsJson,
           val.imageUrl || null,
-          JSON.stringify(val.examples || []),
+          examplesJson,
           val.spellingCorrectCount || 0,
           val.spellingIncorrectCount || 0,
           val.spellingAccentCount || 0,
-          val.lastSpelledCorrectly !== undefined ? (val.lastSpelledCorrectly === true ? 1 : (val.lastSpelledCorrectly === false ? 0 : null)) : null,
+          val.lastSpelledCorrectly === true ? 1 : val.lastSpelledCorrectly === false ? 0 : null,
           val.lastSpelledWithAccentError ? 1 : 0,
           val.spellingExclude ? 1 : 0,
-          typeof val.srsNextReview === "number" ? val.srsNextReview : null,
-          typeof val.srsInterval === "number" ? val.srsInterval : null,
-          typeof val.srsEaseFactor === "number" ? val.srsEaseFactor : null,
-          typeof val.srsRepetitions === "number" ? val.srsRepetitions : null
+          val.srsNextReview || null,
+          val.srsInterval || null,
+          val.srsEaseFactor || null,
+          val.srsRepetitions || null
         );
       }
 
       const links = data.wordLinks || {};
       for (const [key, val] of Object.entries(links)) {
+        if (!val || typeof val !== "string") continue;
         const matchKey = key.match(/^([a-zA-Z]+)_(.*)$/);
         const matchVal = (val as string).match(/^([a-zA-Z]+)_(.*)$/);
         
@@ -492,6 +523,26 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       if (data.deletedLessonIds && Array.isArray(data.deletedLessonIds) && data.deletedLessonIds.length > 0) {
+        // Cascade delete local media files (audio & videos)
+        const VIDEO_STORAGE_DIR = path.join(DATA_DIR, "media", "videos");
+        for (const delId of data.deletedLessonIds) {
+          try {
+            const audioPathMp3 = path.join(AUDIO_STORAGE_DIR, `audio_${delId}.mp3`);
+            if (fs.existsSync(audioPathMp3)) fs.unlinkSync(audioPathMp3);
+            const audioPathM4a = path.join(AUDIO_STORAGE_DIR, `audio_${delId}.m4a`);
+            if (fs.existsSync(audioPathM4a)) fs.unlinkSync(audioPathM4a);
+
+            if (fs.existsSync(VIDEO_STORAGE_DIR)) {
+              const videoMp4 = path.join(VIDEO_STORAGE_DIR, `${delId}.mp4`);
+              if (fs.existsSync(videoMp4)) fs.unlinkSync(videoMp4);
+              const videoM4a = path.join(VIDEO_STORAGE_DIR, `${delId}.m4a`);
+              if (fs.existsSync(videoM4a)) fs.unlinkSync(videoM4a);
+            }
+          } catch (e) {
+            console.error("Failed to delete local media files for lesson:", delId, e);
+          }
+        }
+
         const placeholders = data.deletedLessonIds.map(() => "?").join(",");
         db.prepare(`DELETE FROM lessons WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedLessonIds);
         const insertMeta = db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, '1')");
@@ -536,12 +587,15 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           finalIsArchived,
           l.coverUrl || null,
           l.youtubeId || null,
+          l.localVideoUrl || null,
           l.lessonType || null,
           finalPinned,
           l.translationText || null,
           JSON.stringify(l.detectedPhrases || {}),
           l.difficulty || null,
-          l.difficultyExplanation || null
+          l.difficultyExplanation || null,
+          // Preserve existing createdAt if present, else use current time
+          (typeof l.createdAt === "number" && l.createdAt > 0) ? l.createdAt : Date.now()
         );
       }
 
@@ -580,10 +634,73 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         insertMetadata.run(userId, "selectedTargetLanguage", data.selectedTargetLanguage);
       }
 
+      if (data.dictionaryPreferences && typeof data.dictionaryPreferences === "object") {
+        let existingPrefs: Record<string, any> = {};
+        const existingRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'dictionaryPreferences'").get(userId) as { value: string } | undefined;
+        if (existingRow?.value) {
+          try { existingPrefs = JSON.parse(existingRow.value) || {}; } catch (_) {}
+        }
+        const mergedPrefs = { ...existingPrefs };
+        for (const [langKey, tabPrefs] of Object.entries(data.dictionaryPreferences)) {
+          if (tabPrefs && typeof tabPrefs === "object") {
+            mergedPrefs[langKey] = {
+              ...(mergedPrefs[langKey] || {}),
+              ...(tabPrefs as any),
+            };
+          }
+        }
+        insertMetadata.run(userId, "dictionaryPreferences", JSON.stringify(mergedPrefs));
+      }
+
+      if (data.customTags && Array.isArray(data.customTags)) {
+        insertMetadata.run(userId, "customTags", JSON.stringify(data.customTags));
+      }
+
+      if (data.dailyWordGoal !== undefined && data.dailyWordGoal !== null) {
+        insertMetadata.run(userId, "dailyWordGoal", String(data.dailyWordGoal));
+      }
+
+      if (data.lastActiveLessonId && typeof data.lastActiveLessonId === "string") {
+        insertMetadata.run(userId, "lastActiveLessonId", data.lastActiveLessonId);
+      }
+
+      const getMetaStmt = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = ?");
+
       if (data.videoProgress && typeof data.videoProgress === "object") {
         for (const [lessonId, val] of Object.entries(data.videoProgress)) {
           if (val !== undefined && val !== null) {
-            insertMetadata.run(userId, `youtube_progress_${lessonId}`, String(val));
+            const key = `youtube_progress_${lessonId}`;
+            const existingRow = getMetaStmt.get(userId, key) as { value: string } | undefined;
+
+            let incomingUpdatedAt = Date.now();
+            let incomingProgress = val;
+            if (typeof val === "object" && val !== null && "progress" in val) {
+              incomingProgress = (val as any).progress;
+              if (typeof (val as any).updatedAt === "number") incomingUpdatedAt = (val as any).updatedAt;
+            } else if (typeof val === "string") {
+              try {
+                const parsed = JSON.parse(val);
+                if (parsed && typeof parsed === "object" && "progress" in parsed) {
+                  incomingProgress = parsed.progress;
+                  if (typeof parsed.updatedAt === "number") incomingUpdatedAt = parsed.updatedAt;
+                }
+              } catch (_) {}
+            }
+
+            let shouldSave = true;
+            if (existingRow?.value) {
+              try {
+                const existingParsed = JSON.parse(existingRow.value);
+                if (existingParsed && typeof existingParsed.updatedAt === "number" && existingParsed.updatedAt > incomingUpdatedAt) {
+                  shouldSave = false;
+                }
+              } catch (_) {}
+            }
+
+            if (shouldSave) {
+              const payload = JSON.stringify({ progress: incomingProgress, updatedAt: incomingUpdatedAt });
+              insertMetadata.run(userId, key, payload);
+            }
           }
         }
       }
@@ -591,7 +708,38 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       if (data.readingProgress && typeof data.readingProgress === "object") {
         for (const [lessonId, val] of Object.entries(data.readingProgress)) {
           if (val !== undefined && val !== null) {
-            insertMetadata.run(userId, `vocab_progress_${lessonId}`, String(val));
+            const key = `vocab_progress_${lessonId}`;
+            const existingRow = getMetaStmt.get(userId, key) as { value: string } | undefined;
+
+            let incomingUpdatedAt = Date.now();
+            let incomingProgress = val;
+            if (typeof val === "object" && val !== null && "progress" in val) {
+              incomingProgress = (val as any).progress;
+              if (typeof (val as any).updatedAt === "number") incomingUpdatedAt = (val as any).updatedAt;
+            } else if (typeof val === "string") {
+              try {
+                const parsed = JSON.parse(val);
+                if (parsed && typeof parsed === "object" && "progress" in parsed) {
+                  incomingProgress = parsed.progress;
+                  if (typeof parsed.updatedAt === "number") incomingUpdatedAt = parsed.updatedAt;
+                }
+              } catch (_) {}
+            }
+
+            let shouldSave = true;
+            if (existingRow?.value) {
+              try {
+                const existingParsed = JSON.parse(existingRow.value);
+                if (existingParsed && typeof existingParsed.updatedAt === "number" && existingParsed.updatedAt > incomingUpdatedAt) {
+                  shouldSave = false;
+                }
+              } catch (_) {}
+            }
+
+            if (shouldSave) {
+              const payload = JSON.stringify({ progress: incomingProgress, updatedAt: incomingUpdatedAt });
+              insertMetadata.run(userId, key, payload);
+            }
           }
         }
       }
@@ -646,22 +794,6 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
     return false;
   }
 }
-
-// Temporary store for local Wi-Fi fast data synchronization (expires after 15 mins)
-interface SyncSession {
-  data: any;
-  createdAt: number;
-}
-const localSyncSessions = new Map<string, SyncSession>();
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [code, session] of localSyncSessions.entries()) {
-    if (now - session.createdAt > 15 * 60 * 1000) {
-      localSyncSessions.delete(code);
-    }
-  }
-}, 5 * 60 * 1000);
 
 // ============================================================
 // Database & Dictionary Endpoints
@@ -955,39 +1087,173 @@ router.delete("/server-db", (req: Request, res: Response) => {
   }
 });
 
-// 5. Register Local Data for Wi-Fi Fast Sync and Get PIN
-router.post("/local-sync/share", requireLocalSyncKey, (req: Request, res: Response) => {
-  const { data } = req.body;
-  if (!data) {
-    return res.status(400).json({ error: "Data is required" });
+// 5. Get Dictionary Preferences (Granular fetch)
+router.get("/dictionary-preferences", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
   }
 
-  let pinCodeCode = "";
-  for (let i = 0; i < 6; i++) {
-    pinCodeCode += Math.floor(Math.random() * 10).toString();
+  try {
+    const db = getDbConnection(userId);
+    const row = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'dictionaryPreferences'").get(userId) as { value: string } | undefined;
+    const preferences = row?.value ? JSON.parse(row.value) : {};
+    return res.json({ status: "ok", data: preferences });
+  } catch (err: any) {
+    console.error("[GET /api/dictionary-preferences] Error:", err);
+    return res.status(500).json({ error: "Failed to fetch dictionary preferences" });
   }
-
-  localSyncSessions.set(pinCodeCode, {
-    data,
-    createdAt: Date.now()
-  });
-
-  return res.json({ code: pinCodeCode });
 });
 
-// 6. Retrieve Data Using PIN
-router.get("/local-sync/retrieve/:code", requireLocalSyncKey, (req: Request, res: Response) => {
-  const { code } = req.params;
-  if (!code) {
-    return res.status(400).json({ error: "Code is required" });
+// 8. Update Dictionary Preferences (Granular patch with Deep Merge)
+router.put("/dictionary-preferences", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
   }
 
-  const session = localSyncSessions.get(code);
-  if (!session) {
-    return res.status(404).json({ error: "Код не найден или срок его действия (15 мин) истек. Пожалуйста, создайте новый код на вашем ПК." });
+  const { langKey, tab, dictionaries, preferences } = req.body;
+
+  try {
+    const db = getDbConnection(userId);
+    const row = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'dictionaryPreferences'").get(userId) as { value: string } | undefined;
+    let existingPrefs: Record<string, any> = {};
+    if (row?.value) {
+      try { existingPrefs = JSON.parse(row.value) || {}; } catch (_) {}
+    }
+
+    const mergedPrefs = { ...existingPrefs };
+
+    if (langKey && tab && Array.isArray(dictionaries)) {
+      // Granular single tab update (e.g. langKey: "es_en", tab: "definition", dictionaries: [...])
+      mergedPrefs[langKey] = {
+        ...(mergedPrefs[langKey] || {}),
+        [tab]: dictionaries
+      };
+    } else if (langKey && preferences && typeof preferences === "object") {
+      // Lang preferences update
+      mergedPrefs[langKey] = {
+        ...(mergedPrefs[langKey] || {}),
+        ...preferences
+      };
+    } else if (preferences && typeof preferences === "object") {
+      // Full object merge
+      for (const [k, v] of Object.entries(preferences)) {
+        if (v && typeof v === "object") {
+          mergedPrefs[k] = {
+            ...(mergedPrefs[k] || {}),
+            ...(v as any)
+          };
+        }
+      }
+    } else {
+      return res.status(400).json({ error: "Invalid payload. Required { langKey, tab, dictionaries } or { preferences }" });
+    }
+
+    db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'dictionaryPreferences', ?)").run(
+      userId,
+      JSON.stringify(mergedPrefs)
+    );
+
+    return res.json({ status: "success", data: mergedPrefs });
+  } catch (err: any) {
+    console.error("[PUT /api/dictionary-preferences] Error:", err);
+    return res.status(500).json({ error: "Failed to save dictionary preferences" });
+  }
+});
+
+// 9. Update User Metadata (customTags, dailyWordGoal, lastActiveLessonId)
+router.put("/user-metadata", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
   }
 
-  return res.json({ data: session.data });
+  const { customTags, dailyWordGoal, lastActiveLessonId } = req.body;
+
+  try {
+    const db = getDbConnection(userId);
+    const insertMeta = db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, ?)");
+
+    db.transaction(() => {
+      if (customTags !== undefined && Array.isArray(customTags)) {
+        insertMeta.run(userId, "customTags", JSON.stringify(customTags));
+      }
+      if (dailyWordGoal !== undefined && dailyWordGoal !== null) {
+        insertMeta.run(userId, "dailyWordGoal", String(dailyWordGoal));
+      }
+      if (lastActiveLessonId !== undefined && typeof lastActiveLessonId === "string") {
+        insertMeta.run(userId, "lastActiveLessonId", lastActiveLessonId);
+      }
+    })();
+
+    return res.json({ status: "success" });
+  } catch (err: any) {
+    console.error("[PUT /api/user-metadata] Error:", err);
+    return res.status(500).json({ error: "Failed to save user metadata" });
+  }
+});
+
+// 10. Update Lesson Progress with LWW timestamp conflict protection
+router.post("/progress", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { type, lessonId, progress, updatedAt } = req.body;
+  if (!type || !lessonId || progress === undefined) {
+    return res.status(400).json({ error: "Required { type: 'reading' | 'video', lessonId, progress }" });
+  }
+
+  const incomingUpdatedAt = typeof updatedAt === "number" ? updatedAt : Date.now();
+  const key = type === "video" ? `youtube_progress_${lessonId}` : `vocab_progress_${lessonId}`;
+
+  try {
+    const db = getDbConnection(userId);
+    const existingRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = ?").get(userId, key) as { value: string } | undefined;
+
+    let shouldSave = true;
+    if (existingRow?.value) {
+      try {
+        const existingParsed = JSON.parse(existingRow.value);
+        if (existingParsed && typeof existingParsed.updatedAt === "number" && existingParsed.updatedAt > incomingUpdatedAt) {
+          shouldSave = false;
+        }
+      } catch (_) {}
+    }
+
+    if (shouldSave) {
+      const payload = JSON.stringify({ progress, updatedAt: incomingUpdatedAt });
+      db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, ?)").run(userId, key, payload);
+      return res.json({ status: "success", progress, updatedAt: incomingUpdatedAt });
+    } else {
+      return res.json({ status: "stale_ignored", message: "Newer progress already recorded on server" });
+    }
+  } catch (err: any) {
+    console.error("[POST /api/progress] Error:", err);
+    return res.status(500).json({ error: "Failed to update progress" });
+  }
 });
 
 export default router;

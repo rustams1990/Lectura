@@ -124,14 +124,14 @@ export const FLAG_EMOJI_TO_CODE: Record<string, string> = {
   "🇫🇷": "fr", "🇷🇺": "ru", "🇮🇹": "it", "🇵🇹": "pt", "🇺🇦": "ua", "🇵🇱": "pl",
   "🇸🇪": "se", "🇳🇱": "nl", "🇧🇪": "be", "🇬🇷": "gr", "🇮🇪": "ie", "🇧🇾": "by",
   "🇸🇲": "sm", "🇻🇦": "va", "🇲🇨": "mc", "🇱🇮": "li", "🇱🇺": "lu", "🇫🇮": "fi",
-  "🇨🇾": "cy",
+  "🇨🇾": "cy", "🇨🇿": "cz", "🇷🇴": "ro", "🇭🇺": "hu",
 
   // Asia / Middle East / Pacific
   "🇯🇵": "jp", "🇨🇳": "cn", "🇹🇼": "tw", "🇰🇷": "kr", "🇰🇵": "kp", "🇹🇷": "tr",
   "🇸🇦": "sa", "🇦🇪": "ae", "🇪🇬": "eg", "🇮🇶": "iq", "🇯🇴": "jo", "🇱🇧": "lb",
   "🇲🇦": "ma", "🇩🇿": "dz", "🇹🇳": "tn", "🇶🇦": "qa", "🇰🇼": "kw", "🇴🇲": "om",
   "🇧🇭": "bh", "🇮🇳": "in", "🇮🇱": "il", "🇰🇿": "kz", "🇰🇬": "kg", "🇦🇺": "au", "🇳🇿": "nz",
-  "🇸🇬": "sg", "🇲🇴": "mo", "🇭🇰": "hk", "🇹🇱": "tl",
+  "🇸🇬": "sg", "🇲🇴": "mo", "🇭🇰": "hk", "🇹🇱": "tl", "🇻🇳": "vn", "🇮🇷": "ir",
 
   // Africa
   "🇿🇦": "za", "🇸🇳": "sn", "🇨🇮": "ci", "🇨🇲": "cm", "🇲🇬": "mg", "🇨🇩": "cd",
@@ -259,14 +259,30 @@ export function getEffectiveLocalTtsVoice(languageName: string, settings?: any):
   return settings?.localTtsVoice || DEFAULT_LANG_VOICES[baseLangCode] || "af_sarah";
 }
 
+import { settingsStore, vocabStore, lessonsStore } from "./db";
+
 /**
- * Safely writes to localStorage wrapping it in a try-catch to prevent crashes if quota is exceeded
+ * Safely writes to localStorage wrapping it in a try-catch to prevent crashes if quota is exceeded.
+ * Automatically falls back to IndexedDB (localforage) so that large vocabularies and history never get lost.
  */
 export function safeLocalStorageSetItem(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch (err) {
-    console.error(`Failed to save key "${key}" to localStorage (possibly quota exceeded):`, err);
+    console.warn(`[Storage Fallback] Failed to save key "${key}" to localStorage (quota exceeded). Writing to IndexedDB...`, err);
+    try {
+      if (key === "vocab_clone_words") {
+        try { vocabStore.setItem("words", JSON.parse(value)); } catch (_) { vocabStore.setItem("words", value); }
+      } else if (key === "vocab_clone_aliases") {
+        try { vocabStore.setItem("aliases", JSON.parse(value)); } catch (_) { vocabStore.setItem("aliases", value); }
+      } else if (key === "vocab_clone_lessons") {
+        try { lessonsStore.setItem("lessons", JSON.parse(value)); } catch (_) { lessonsStore.setItem("lessons", value); }
+      } else if (key === "vocab_clone_lessontypes") {
+        try { lessonsStore.setItem("lessontypes", JSON.parse(value)); } catch (_) { lessonsStore.setItem("lessontypes", value); }
+      } else {
+        settingsStore.setItem(key, value).catch(() => {});
+      }
+    } catch (_) {}
   }
 }
 
@@ -368,17 +384,25 @@ export function normalizeVocabRecord(record: Record<string, any> | any[] | undef
         : "";
 
     if (rawStatus === "1" || rawStatus === "2" || rawStatus === "3" || rawStatus === "4" || rawStatus === "5" || rawStatus === "known" || rawStatus === "ignored" || rawStatus === "new") {
-      cleanStatus = rawStatus;
+      cleanStatus = rawStatus as any;
     } else if (rawStatus === "learning") {
       cleanStatus = "1";
     } else {
-      cleanStatus = "known";
+      cleanStatus = "new";
+    }
+
+    let normGrammar = typeof value.grammar === "string" ? value.grammar : "";
+    if (cleanWord.toLowerCase() === "do" || cleanWord.toLowerCase() === "does" || cleanWord.toLowerCase() === "did" || cleanWord.toLowerCase() === "doing") {
+      if (!normGrammar || normGrammar.toLowerCase() === "adjective") {
+        normGrammar = "Verb";
+      }
     }
 
     normalized[cleanKey] = {
       word: cleanWord,
       translation: typeof value.translation === "string" ? value.translation : "",
-      grammar: typeof value.grammar === "string" ? value.grammar : "",
+      definition: typeof value.definition === "string" && value.definition.trim() !== "" ? value.definition.trim() : undefined,
+      grammar: normGrammar,
       ipa: typeof value.ipa === "string" ? value.ipa : "",
       contextRelation: typeof value.contextRelation === "string" ? value.contextRelation : "",
       status: cleanStatus,
@@ -490,6 +514,29 @@ export function buildVocabItem(
 ): import("./types").VocabItem {
   const isPlaceholder = (str?: string) => !str || str.trim() === "" || str === "Pending translation" || (str.trim().startsWith("[") && str.trim().endsWith("]"));
 
+  const isTargetWord = newItem.word.trim().toLowerCase() === word.trim().toLowerCase();
+
+  let finalTranslation = "";
+  if (isTargetWord) {
+    // Target word being edited explicitly gets user's translation input
+    if (newItem.translation !== undefined && !isPlaceholder(newItem.translation)) {
+      finalTranslation = newItem.translation.trim();
+    } else if (existing?.translation && !isPlaceholder(existing.translation)) {
+      finalTranslation = existing.translation.trim();
+    } else {
+      finalTranslation = newItem.translation || "";
+    }
+  } else {
+    // Linked family words preserve their existing contextual translation if set
+    if (existing?.translation && !isPlaceholder(existing.translation)) {
+      finalTranslation = existing.translation.trim();
+    } else if (newItem.translation !== undefined && !isPlaceholder(newItem.translation)) {
+      finalTranslation = newItem.translation.trim();
+    } else {
+      finalTranslation = "";
+    }
+  }
+
   const pickString = (newVal: string | undefined, existingVal: string | undefined, fallback: string): string => {
     if (newVal !== undefined && !isPlaceholder(newVal)) return newVal;
     if (existingVal !== undefined && !isPlaceholder(existingVal)) return existingVal;
@@ -514,12 +561,34 @@ export function buildVocabItem(
     return fallback;
   };
 
-  return {
-    word,
-    status:                    newItem.status,
-    translation:               pickString(newItem.translation,               existing?.translation,               ""),
-    ipa:                       pickString(newItem.ipa,                       existing?.ipa,                       ""),
-    grammar:                   pickString(newItem.grammar,                   existing?.grammar,                   ""),
+  let finalGrammar = pickString(newItem.grammar, existing?.grammar, "");
+  if (word.toLowerCase() === "do" || word.toLowerCase() === "does" || word.toLowerCase() === "did" || word.toLowerCase() === "doing") {
+    if (!finalGrammar || finalGrammar.toLowerCase() === "adjective") {
+      finalGrammar = "Verb";
+    }
+  }
+    if (word.toLowerCase() === "feel" && (finalTranslation.trim().toLowerCase() === "чувствовал" || finalTranslation.trim().toLowerCase() === "чувствовала")) {
+      finalTranslation = "чувствовать / ощущать";
+    }
+
+  let finalDefinition: string | undefined = undefined;
+  if (newItem.definition !== undefined && typeof newItem.definition === "string" && newItem.definition.trim() !== "") {
+    finalDefinition = newItem.definition.trim();
+  } else if (existing?.definition && typeof existing.definition === "string" && existing.definition.trim() !== "") {
+    finalDefinition = existing.definition.trim();
+  } else if (newItem.definition === "") {
+    finalDefinition = undefined;
+  }
+
+  let resolvedStatus = newItem.status || existing?.status || "new";
+
+    return {
+      word,
+      status:                    resolvedStatus,
+      translation:               finalTranslation,
+      definition:                finalDefinition,
+      ipa:                       (newItem.ipa && newItem.ipa.trim() !== "") ? newItem.ipa : (existing?.ipa || ""),
+      grammar:                   finalGrammar,
     contextRelation:           pickString(newItem.contextRelation,           existing?.contextRelation,           ""),
     examples:                  pickArray(newItem.examples,                  existing?.examples,                  []),
     createdAt:                 pick(newItem.createdAt,                 existing?.createdAt,                 Date.now()),

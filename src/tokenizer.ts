@@ -45,16 +45,88 @@ export interface Token {
   isWord: boolean;
 }
 
+export function fuseJapaneseTokens(tokens: Token[]): Token[] {
+  if (!tokens || tokens.length <= 1) return tokens;
+
+  let currentTokens = tokens;
+
+  // Multi-pass fusion (up to 3 passes to catch chain splits like 跳ね + ま + した)
+  for (let pass = 0; pass < 3; pass++) {
+    const fused: Token[] = [];
+    let i = 0;
+    let mergedAny = false;
+
+    while (i < currentTokens.length) {
+      let curr = currentTokens[i];
+
+      if (i + 1 < currentTokens.length) {
+        const next = currentTokens[i + 1];
+
+        if (curr.isWord && next.isWord) {
+          const cStr = curr.raw;
+          const nStr = next.raw;
+
+          let shouldFuse = false;
+
+          // Rule 1: -ま / -で / -いま / -せんで / -まし + -した / -しょう / -す
+          if (
+            (nStr === "した" && (cStr.endsWith("ま") || cStr.endsWith("で") || cStr.endsWith("いま") || cStr.endsWith("せんで") || cStr.endsWith("まし") || cStr === "で" || cStr === "ま")) ||
+            (nStr === "しょう" && cStr.endsWith("ま")) ||
+            (nStr === "す" && (cStr.endsWith("ま") || cStr.endsWith("で"))) ||
+            (nStr === "ん" && (cStr.endsWith("ませ") || cStr.endsWith("せん"))) ||
+            (nStr === "でした" && (cStr.endsWith("せん") || cStr.endsWith("で")))
+          ) {
+            shouldFuse = true;
+          }
+          // Rule 2: Verb Ren'youkei or Te-form stem + -ました / -ます / -ましょう / -いました / -ています / -ていました
+          else if (
+            (nStr === "ました" || nStr === "ます" || nStr === "ましょう" || nStr === "いました" || nStr === "います" || nStr === "ていました") &&
+            (/[いきしちにびみりえけせてねべめれ]$/.test(cStr) || cStr.endsWith("て") || cStr.endsWith("で"))
+          ) {
+            shouldFuse = true;
+          }
+          // Rule 3: -て + -い / -いた / -いる / -います / -いました
+          else if (
+            (cStr.endsWith("て") || cStr.endsWith("で")) &&
+            (nStr === "い" || nStr === "いた" || nStr === "いる" || nStr === "います" || nStr === "いました" || nStr === "いま")
+          ) {
+            shouldFuse = true;
+          }
+
+          if (shouldFuse) {
+            curr = {
+              raw: curr.raw + next.raw,
+              clean: (curr.clean + next.clean).toLowerCase(),
+              isWord: true,
+            };
+            i++; // Skip next
+            mergedAny = true;
+          }
+        }
+      }
+
+      fused.push(curr);
+      i++;
+    }
+
+    currentTokens = fused;
+    if (!mergedAny) break;
+  }
+
+  return currentTokens;
+}
+
 export function segmentSentenceTokens(sentText: string, langName: string = ""): Token[] {
   const isCjk = isCjkLanguage(langName) || isCjkText(sentText);
 
   if (isCjk) {
     const locale = getLocaleFromLanguage(langName);
+    let tokens: Token[] = [];
     if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
       try {
         const segmenter = new Intl.Segmenter(locale, { granularity: "word" });
         const segments = Array.from(segmenter.segment(sentText));
-        return segments.map((s) => {
+        tokens = segments.map((s) => {
           const str = s.segment;
           const isPunct = /^[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n\r]+$/g.test(str);
           const isDigit = /^\d+$/.test(str);
@@ -70,15 +142,24 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
       }
     }
     // Fallback if Intl.Segmenter is not supported
-    return sentText.split("").map((char) => {
-      const isPunct = /[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n]/g.test(char);
-      const isDigit = /^\d+$/.test(char);
-      return {
-        raw: char,
-        clean: (isPunct || isDigit) ? "" : char,
-        isWord: !isPunct && !isDigit,
-      };
-    });
+    if (tokens.length === 0) {
+      tokens = sentText.split("").map((char) => {
+        const isPunct = /[.,\/#!$%\^&\*;:{}=\-_`~()"?、。！？」『』 \t\n]/g.test(char);
+        const isDigit = /^\d+$/.test(char);
+        return {
+          raw: char,
+          clean: (isPunct || isDigit) ? "" : char,
+          isWord: !isPunct && !isDigit,
+        };
+      });
+    }
+
+    const normLang = langName.toLowerCase();
+    if (locale === "ja" || normLang.includes("ja") || normLang.includes("japan") || normLang.includes("япон") || normLang.includes("日本語") || /[\u3040-\u30ff]/.test(sentText)) {
+      tokens = fuseJapaneseTokens(tokens);
+    }
+
+    return tokens;
   } else {
     const parts = sentText.split(/(\s+)/);
     return parts.map((part) => {

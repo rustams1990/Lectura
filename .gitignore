@@ -18,3 +18,7 @@ image_cache/
 # Backups
 21.06*
 Резервы/
+
+# Temporary downloaded dictionary source files
+tools/dictionaries/*.dic
+tools/dictionaries/*_50k.txt

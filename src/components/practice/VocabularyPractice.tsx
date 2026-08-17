@@ -15,6 +15,7 @@ import WordExplainer from "../WordExplainer";
 import FlashcardMode from "./FlashcardMode";
 import SpellingMode from "./SpellingMode";
 import { LANGUAGES_SUPPORTED } from "../../data";
+import { executeAiWithFailover, getOrCreateAiProfiles } from "../../services/aiFailoverService";
 
 
 
@@ -542,27 +543,39 @@ export default function VocabularyPractice({
     setGenError(null);
 
     try {
-      const response = await fetch("/api/generate-story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          words: selectedWords,
-          targetLanguage: selectedPracticeLang,
-          translationLanguage: "Russian",
-          level: storyLevel,
-          genre: storyGenre,
-          aiProvider: settings?.aiProvider || "gemini",
-          localAiUrl: settings?.localAiUrl || "http://localhost:11434/api/generate",
-          localAiModel: settings?.localAiModel || "phi3.5",
-        })
-      });
+      const profiles = getOrCreateAiProfiles(settings);
+      const data = await executeAiWithFailover(
+        profiles,
+        async (profile) => {
+          const response = await fetch("/api/generate-story", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              words: selectedWords,
+              targetLanguage: selectedPracticeLang,
+              translationLanguage: "Russian",
+              level: storyLevel,
+              genre: storyGenre,
+              aiProfile: profile,
+            })
+          });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || t('practice.conn_error', 'Ошибка соединения с сервером'));
-      }
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const err: any = new Error(errData.error || t('practice.conn_error', 'Ошибка соединения с сервером'));
+            err.status = response.status;
+            throw err;
+          }
 
-      const data = await response.json();
+          return response.json();
+        },
+        {
+          onFallback: (from, to) => {
+            showToast(t("settings.ai_fallback_toast", "Quota for {{from}} exceeded. Request completed via {{to}}.", { from: from.name, to: to.name }), "info");
+          }
+        }
+      );
+
       if (!data.text || !data.title) {
         throw new Error(t('practice.invalid_ai_response', 'Неверный формат ответа от ИИ'));
       }

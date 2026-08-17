@@ -1,0 +1,107 @@
+{
+  "är": ["vara"],
+  "var": ["vara"],
+  "varit": ["vara"],
+  "vare": ["vara"],
+
+  "har": ["ha"],
+  "hade": ["ha"],
+  "haft": ["ha"],
+
+  "blir": ["bli"],
+  "blev": ["bli"],
+  "blivit": ["bli"],
+
+  "kommer": ["komma"],
+  "kom": ["komma"],
+  "kommit": ["komma"],
+
+  "går": ["gå"],
+  "gick": ["gå"],
+  "gått": ["gå"],
+
+  "ser": ["se"],
+  "såg": ["se"],
+  "sett": ["se"],
+
+  "gör": ["göra"],
+  "gjorde": ["göra"],
+  "gjort": ["göra"],
+
+  "tar": ["ta"],
+  "tog": ["ta"],
+  "tagit": ["ta"],
+
+  "får": ["få"],
+  "fick": ["få"],
+  "fått": ["få"],
+
+  "säger": ["säga"],
+  "sade": ["säga"],
+  "sa": ["säga"],
+  "sagt": ["säga"],
+
+  "vet": ["veta"],
+  "visste": ["veta"],
+  "vetat": ["veta"],
+
+  "kan": ["kunna"],
+  "kunde": ["kunna"],
+  "kunnat": ["kunna"],
+
+  "vill": ["vilja"],
+  "ville": ["vilja"],
+  "velat": ["vilja"],
+
+  "ska": ["skola"],
+  "skall": ["skola"],
+  "skulle": ["skola"],
+  "skolat": ["skola"],
+
+  "måste": ["måste"],
+  "måst": ["måste"],
+
+  "bör": ["böra"],
+  "borde": ["böra"],
+  "bort": ["böra"],
+
+  "skriver": ["skriva"],
+  "skrev": ["skriva"],
+  "skrivit": ["skriva"],
+
+  "läser": ["läsa"],
+  "läste": ["läsa"],
+  "läst": ["läsa"],
+
+  "dricker": ["dricka"],
+  "drack": ["dricka"],
+  "druckit": ["dricka"],
+
+  "äter": ["äta"],
+  "åt": ["äta"],
+  "ätit": ["äta"],
+
+  "finner": ["finna"],
+  "fann": ["finna"],
+  "funnit": ["finna"],
+
+  "finns": ["finnas"],
+  "fanns": ["finnas"],
+  "funnits": ["finnas"],
+
+  "ligger": ["ligga"],
+  "låg": ["ligga"],
+  "legat": ["ligga"],
+
+  "sitter": ["sitta"],
+  "satt": ["sitta"],
+  "suttit": ["sitta"],
+
+  "står": ["stå"],
+  "stod": ["stå"],
+  "stått": ["stå"],
+
+  "håller": ["hålla"],
+  "höll": ["hålla"],
+  "hållit": ["hålla"]
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw } from "lucide-react";
+import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw, Download, AlertTriangle, Loader2, HardDrive, Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
@@ -19,7 +19,7 @@ export default function YoutubePlayerWindow({
   onVideoEnded,
 }: YoutubePlayerWindowProps) {
   const { t } = useTranslation();
-  const { setCurrentTime, seekToTime, setSeekToTime } = useLesson();
+  const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
   const lastTickTimeRef = useRef<number | null>(null);
   if (!youtubeId) return null;
@@ -31,6 +31,14 @@ export default function YoutubePlayerWindow({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
+  // Local media & embed restriction states
+  const [localMediaUrl, setLocalMediaUrl] = useState<string | null>(lesson.localVideoUrl || null);
+  const [useLocalMedia, setUseLocalMedia] = useState<boolean>(!!lesson.localVideoUrl);
+  const [isEmbedBlocked, setIsEmbedBlocked] = useState<boolean>(false);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ percent: number; speed: string; eta: string }>({ percent: 0, speed: "", eta: "" });
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
   // Default window dimensions in pixels (440px wide, 248px content height + 44px header = 292px)
   const [size, setSize] = useState({ width: 440, height: 292 });
   const [position, setPosition] = useState({ x: 20, y: 150 });
@@ -38,10 +46,143 @@ export default function YoutubePlayerWindow({
 
   const windowRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
+  const videoElRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const initTimeoutRef = useRef<any>(null);
   const trackingIntervalRef = useRef<any>(null);
+  const progressPollIntervalRef = useRef<any>(null);
   const lastContextTimeRef = useRef<number>(0);
+  const lastStorageSaveTimeRef = useRef<number>(0);
+
+  // Parse saved progress
+  const parseSavedVideoProgress = (raw: string | null): number => {
+    if (!raw) return 0;
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "number") return parsed > 2 ? Math.floor(parsed) : 0;
+      if (parsed && typeof parsed === "object" && parsed.progress !== undefined) {
+        const sec = parseFloat(parsed.progress);
+        return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+      }
+      const sec = parseFloat(raw);
+      return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+    } catch (_) {
+      const sec = parseFloat(raw);
+      return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+    }
+  };
+
+  const saveProgressNow = (time: number) => {
+    if (time === undefined || isNaN(time) || time <= 2) return;
+    try {
+      const seconds = Math.floor(time);
+      const updatedAt = Date.now();
+      const payload = JSON.stringify({ progress: seconds, updatedAt });
+      localStorage.setItem(`youtube_progress_${lesson.id}`, payload);
+      settingsStore.setItem(`youtube_progress_${lesson.id}`, payload).catch(() => {});
+      lastStorageSaveTimeRef.current = Date.now();
+      window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: payload } }));
+
+      const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+      const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (syncKey) headers["x-sync-key"] = syncKey;
+
+      fetch("/api/progress", {
+        method: "POST",
+        headers,
+        keepalive: true,
+        body: JSON.stringify({
+          type: "video",
+          lessonId: lesson.id,
+          progress: seconds,
+          updatedAt
+        })
+      }).catch(() => {});
+    } catch (e) {}
+  };
+
+  // Check if media is already downloaded on backend
+  useEffect(() => {
+    if (lesson.localVideoUrl) {
+      setLocalMediaUrl(lesson.localVideoUrl);
+      setUseLocalMedia(true);
+      return;
+    }
+
+    let isSubscribed = true;
+    fetch(`/api/media/status?videoId=${youtubeId}&lessonId=${lesson.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!isSubscribed) return;
+        if (data.exists && data.url) {
+          setLocalMediaUrl(data.url);
+        }
+        if (data.downloading) {
+          setIsDownloading(true);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [lesson.id, lesson.localVideoUrl, youtubeId]);
+
+  // Handler for downloading media via yt-dlp with live progress polling
+  const handleDownloadMedia = async (onlyAudio: boolean = false) => {
+    setIsDownloading(true);
+    setDownloadError(null);
+    setDownloadProgress({ percent: 1, speed: "", eta: "" });
+
+    // Start progress polling interval
+    if (progressPollIntervalRef.current) clearInterval(progressPollIntervalRef.current);
+    progressPollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/media/progress?videoId=${youtubeId}&lessonId=${lesson.id}&onlyAudio=${onlyAudio ? "1" : "0"}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data.percent === "number") {
+            setDownloadProgress({
+              percent: Math.min(100, Math.max(1, Math.round(data.percent))),
+              speed: data.speed || "",
+              eta: data.eta || ""
+            });
+          }
+        }
+      } catch (_) {}
+    }, 400);
+
+    try {
+      const res = await fetch("/api/media/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId: youtubeId,
+          lessonId: lesson.id,
+          onlyAudio,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || t('explainer.yt_download_error', 'Не удалось скачать медиафайл'));
+      }
+      setDownloadProgress({ percent: 100, speed: "", eta: "" });
+      setLocalMediaUrl(data.url);
+      setUseLocalMedia(true);
+      setIsEmbedBlocked(false);
+    } catch (err: any) {
+      console.error("Failed to download media with yt-dlp:", err);
+      setDownloadError(err.message || t('explainer.yt_download_error', 'Ошибка загрузки'));
+    } finally {
+      if (progressPollIntervalRef.current) {
+        clearInterval(progressPollIntervalRef.current);
+        progressPollIntervalRef.current = null;
+      }
+      setIsDownloading(false);
+    }
+  };
 
   // Load YouTube Player API script
   useEffect(() => {
@@ -59,6 +200,8 @@ export default function YoutubePlayerWindow({
 
   // Initialize YT Player on dynamic placeholder once DOM is ready and API loaded
   useEffect(() => {
+    if (useLocalMedia) return;
+
     let isUnmounted = false;
 
     const container = containerRef.current;
@@ -72,19 +215,6 @@ export default function YoutubePlayerWindow({
     placeholder.id = `yt-player-iframe-${lesson.id}`;
     container.appendChild(placeholder);
 
-    let lastStorageSaveTime = 0;
-
-    const saveProgressNow = (time: number) => {
-      if (time === undefined || isNaN(time) || time <= 2) return;
-      try {
-        const val = Math.floor(time).toString();
-        localStorage.setItem(`youtube_progress_${lesson.id}`, val);
-        settingsStore.setItem(`youtube_progress_${lesson.id}`, val).catch(() => {});
-        lastStorageSaveTime = Date.now();
-        window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: val } }));
-      } catch (e) {}
-    };
-
     const startTrackingTime = () => {
       lastTickTimeRef.current = Date.now();
       if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
@@ -97,14 +227,11 @@ export default function YoutubePlayerWindow({
                 lastContextTimeRef.current = time;
                 setCurrentTime(time);
               }
-              // Throttled save: write to localStorage at most once every 3 seconds during playback
-              if (Date.now() - lastStorageSaveTime >= 3000) {
+              if (Date.now() - lastStorageSaveTimeRef.current >= 3000) {
                 saveProgressNow(time);
               }
             }
-          } catch (e) {
-            // ignore temporary access issues
-          }
+          } catch (e) {}
         }
 
         // Track listening time
@@ -116,16 +243,15 @@ export default function YoutubePlayerWindow({
           }
           lastTickTimeRef.current = now;
         }
-      }, 250);
+      }, 500);
     };
 
     const stopTrackingTime = () => {
-      lastTickTimeRef.current = null;
       if (trackingIntervalRef.current) {
         clearInterval(trackingIntervalRef.current);
         trackingIntervalRef.current = null;
       }
-      // Instant save on pause / stop
+      lastTickTimeRef.current = null;
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {
           const time = playerRef.current.getCurrentTime();
@@ -145,12 +271,7 @@ export default function YoutubePlayerWindow({
       let startSeconds = 0;
       try {
         const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
-        if (savedProgress) {
-          const seconds = parseFloat(savedProgress);
-          if (!isNaN(seconds) && seconds > 2) {
-            startSeconds = Math.floor(seconds);
-          }
-        }
+        startSeconds = parseSavedVideoProgress(savedProgress);
       } catch (e) {}
 
       if (YT && YT.Player) {
@@ -170,14 +291,16 @@ export default function YoutubePlayerWindow({
               onReady: (event: any) => {
                 if (isUnmounted) return;
                 const player = event.target;
+                if (playbackRate && player && typeof player.setPlaybackRate === "function") {
+                  try { player.setPlaybackRate(playbackRate); } catch (e) {}
+                }
+
                 let currentStartSeconds = startSeconds;
                 try {
                   const freshSaved = localStorage.getItem(`youtube_progress_${lesson.id}`);
-                  if (freshSaved) {
-                    const sec = parseFloat(freshSaved);
-                    if (!isNaN(sec) && sec > 2) {
-                      currentStartSeconds = Math.floor(sec);
-                    }
+                  const parsedFresh = parseSavedVideoProgress(freshSaved);
+                  if (parsedFresh > 2) {
+                    currentStartSeconds = parsedFresh;
                   }
                 } catch (e) {}
 
@@ -217,6 +340,14 @@ export default function YoutubePlayerWindow({
                   if (onVideoEnded) onVideoEnded();
                 }
               },
+              onError: (event: any) => {
+                if (isUnmounted) return;
+                console.warn("YouTube Player error:", event.data);
+                // 101 / 150: Embed restricted by owner. 2 / 5 / 100: invalid / blocked.
+                if (event.data === 101 || event.data === 150 || event.data === 100 || event.data === 2 || event.data === 5) {
+                  setIsEmbedBlocked(true);
+                }
+              }
             },
           });
         } catch (error) {
@@ -240,7 +371,6 @@ export default function YoutubePlayerWindow({
         trackingIntervalRef.current = null;
       }
 
-      // Instant save on unmount
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {
           const time = playerRef.current.getCurrentTime();
@@ -255,18 +385,21 @@ export default function YoutubePlayerWindow({
           playerRef.current.destroy();
           playerRef.current = null;
         }
-      } catch (err) {
-        // ignore destroy errors on cleanup
-      }
+      } catch (err) {}
     };
-  }, [youtubeId, iframeKey, lesson.id]);
+  }, [youtubeId, iframeKey, lesson.id, useLocalMedia]);
 
-  // Handle outside seek instructions matching timing jumps
+  // Synchronize seekToTime to active player (HTML5 video or YouTube iframe)
   const effectiveSeek = seekToTime;
 
   useEffect(() => {
-    if (effectiveSeek !== null && effectiveSeek !== undefined && playerRef.current) {
-      if (typeof playerRef.current.seekTo === "function") {
+    if (effectiveSeek !== null && effectiveSeek !== undefined) {
+      if (useLocalMedia && videoElRef.current) {
+        try {
+          videoElRef.current.currentTime = effectiveSeek;
+          videoElRef.current.play().catch(() => {});
+        } catch (e) {}
+      } else if (playerRef.current && typeof playerRef.current.seekTo === "function") {
         try {
           playerRef.current.seekTo(effectiveSeek, true);
           if (typeof playerRef.current.playVideo === "function") {
@@ -275,50 +408,39 @@ export default function YoutubePlayerWindow({
         } catch (e) {
           console.error("Seeking YouTube video failed:", e);
         }
-        if (seekToTime !== null && seekToTime !== undefined) {
-          setSeekToTime(null);
-        }
       }
     }
-  }, [effectiveSeek, seekToTime, setSeekToTime]);
+  }, [effectiveSeek, useLocalMedia]);
+
+  // Synchronize playbackRate (speed) across HTML5 video and YouTube iframe
+  useEffect(() => {
+    const rate = playbackRate || 1;
+    if (useLocalMedia && videoElRef.current) {
+      try {
+        videoElRef.current.playbackRate = rate;
+      } catch (e) {}
+    } else if (playerRef.current && typeof playerRef.current.setPlaybackRate === "function") {
+      try {
+        playerRef.current.setPlaybackRate(rate);
+      } catch (e) {}
+    }
+  }, [playbackRate, useLocalMedia]);
 
   // Helper to read the current interface zoom factor
   const getZoomFactor = (): number => {
     if (typeof document !== "undefined" && document.body) {
-      const rect = document.body.getBoundingClientRect();
-      const offsetWidth = document.body.offsetWidth;
-      if (rect && offsetWidth > 0) {
-        const ratio = rect.width / offsetWidth;
-        if (ratio > 0.1 && ratio < 10) {
-          return ratio;
-        }
+      const zoomProp = (document.body.style as any).zoom;
+      if (zoomProp) {
+        const val = parseFloat(zoomProp);
+        if (!isNaN(val) && val > 0) return val;
+      }
+      const scaleMatch = document.body.style.transform?.match(/scale\(([^)]+)\)/);
+      if (scaleMatch && scaleMatch[1]) {
+        const val = parseFloat(scaleMatch[1]);
+        if (!isNaN(val) && val > 0) return val;
       }
     }
-    // Fallback to style parsing
-    if (typeof document !== "undefined") {
-      let htmlScale = 1.0;
-      let bodyScale = 1.0;
-      
-      const htmlZoom = (document.documentElement?.style as any)?.zoom;
-      if (htmlZoom) {
-        const match = htmlZoom.match(/^(\d+(?:\.\d+)?)(%|)$/);
-        if (match) {
-          const val = parseFloat(match[1]);
-          htmlScale = match[2] === "%" ? val / 100 : val;
-        }
-      }
-      
-      const bodyZoom = (document.body?.style as any)?.zoom;
-      if (bodyZoom) {
-        const match = bodyZoom.match(/^(\d+(?:\.\d+)?)(%|)$/);
-        if (match) {
-          const val = parseFloat(match[1]);
-          bodyScale = match[2] === "%" ? val / 100 : val;
-        }
-      }
-      return htmlScale * bodyScale;
-    }
-    return 1.0;
+    return 1;
   };
 
   // Position initialized to bottom-right corner when first loading, adjusted for interface zoom
@@ -331,13 +453,12 @@ export default function YoutubePlayerWindow({
       setPosition({ x: initialX, y: initialY });
     };
 
-    // Use a tiny timeout to ensure the DOM and style zoom have fully settled on mount
     const timer = setTimeout(handleInitialLayout, 50);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep window in bounds when screen size or zoom changes
+  // Keep window in bounds when screen size changes
   useEffect(() => {
     const handleResize = () => {
       const s = getZoomFactor();
@@ -352,65 +473,43 @@ export default function YoutubePlayerWindow({
     };
 
     window.addEventListener("resize", handleResize);
-
-    // Observe zoom style changes on body/html to instantly adapt
-    let observer: MutationObserver | null = null;
-    if (typeof MutationObserver !== "undefined") {
-      observer = new MutationObserver(() => {
-        handleResize();
-      });
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
-      if (document.body) {
-        observer.observe(document.body, { attributes: true, attributeFilter: ["style"] });
-      }
-    }
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      if (observer) {
-        observer.disconnect();
-      }
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, [size.width, size.height, isMinimized]);
 
   // Handle Dragging
-  const handleDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    // Only allow dragging through the header or dedicated handle, not through sub-buttons
-    const target = e.target as HTMLElement;
-    if (target.closest("button") || target.closest("select")) {
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("svg")) {
       return;
     }
 
-    e.preventDefault();
     setIsDragging(true);
 
     const isTouch = e.type.startsWith("touch");
     const clientX = isTouch ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
     const clientY = isTouch ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
 
+    const startX = clientX;
+    const startY = clientY;
+    const startPosX = position.x;
+    const startPosY = position.y;
+
     const s = getZoomFactor();
-    const startOffsetLeft = clientX - position.x * s;
-    const startOffsetTop = clientY - position.y * s;
 
     const handleDragMove = (moveEvent: MouseEvent | TouchEvent) => {
-      const isTouch = moveEvent.type.startsWith("touch");
-      const curX = isTouch ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
-      const curY = isTouch ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
+      const isTouchMove = moveEvent.type.startsWith("touch");
+      const curX = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
+      const curY = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
 
-      let nextX = (curX - startOffsetLeft) / s;
-      let nextY = (curY - startOffsetTop) / s;
+      const deltaX = (curX - startX) / s;
+      const deltaY = (curY - startY) / s;
 
-      // Keep inside generous viewport boundaries
-      // Let the user move almost entirely off-screen sideways, keeping at least 120px visible
       const minX = -size.width + 120;
       const maxX = window.innerWidth / s - 120;
-
-      // Keep at least the header (44px) on screen at the bottom and top
       const minY = 4;
-      const maxY = window.innerHeight / s - 44; 
+      const maxY = window.innerHeight / s - 44;
 
-      nextX = Math.max(minX, Math.min(maxX, nextX));
-      nextY = Math.max(minY, Math.min(maxY, nextY));
+      const nextX = Math.max(minX, Math.min(maxX, startPosX + deltaX));
+      const nextY = Math.max(minY, Math.min(maxY, startPosY + deltaY));
 
       setPosition({ x: nextX, y: nextY });
     };
@@ -429,8 +528,10 @@ export default function YoutubePlayerWindow({
     document.addEventListener("touchend", handleDragEnd);
   };
 
-  // Handle Drag/Manual Resizing - keeping aspect ratio (16:9) of video perfectly intact!
-  const handleResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
+  type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+  // Handle Drag/Manual Resizing from any edge or corner - keeping aspect ratio (16:9) of video perfectly intact!
+  const handleResizeStart = (direction: ResizeDirection) => (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsResizing(true);
@@ -440,37 +541,79 @@ export default function YoutubePlayerWindow({
     const clientY = isTouch ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
 
     const startWidth = size.width;
+    const startHeight = size.height;
+    const startPosX = position.x;
+    const startPosY = position.y;
     const startX = clientX;
     const startY = clientY;
 
     const s = getZoomFactor();
+    const minWidth = 260;
+    const maxWidth = Math.max(minWidth, Math.min(window.innerWidth / s - 20, 1100));
 
     const handleResizeMove = (moveEvent: MouseEvent | TouchEvent) => {
-      const isTouch = moveEvent.type.startsWith("touch");
-      const curX = isTouch ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
-      const curY = isTouch ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
+      const isTouchMove = moveEvent.type.startsWith("touch");
+      const curX = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
+      const curY = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
 
-      const deltaX = curX - startX;
-      const deltaY = curY - startY;
+      const deltaX = (curX - startX) / s;
+      const deltaY = (curY - startY) / s;
 
-      // Calculate horizontal and vertical scaled deltas
-      const dragX = deltaX;
-      const dragY = deltaY * (16 / 9);
+      let deltaW = 0;
 
-      // Use the dominant displacement to ensure comfortable drag progression from any angle
-      const deltaAdjusted = Math.abs(dragX) > Math.abs(dragY) ? dragX : dragY;
+      switch (direction) {
+        case "e":
+          deltaW = deltaX;
+          break;
+        case "w":
+          deltaW = -deltaX;
+          break;
+        case "s":
+          deltaW = deltaY * (16 / 9);
+          break;
+        case "n":
+          deltaW = -deltaY * (16 / 9);
+          break;
+        case "se":
+          deltaW = Math.abs(deltaX) > Math.abs(deltaY * (16 / 9)) ? deltaX : deltaY * (16 / 9);
+          break;
+        case "sw":
+          deltaW = Math.abs(-deltaX) > Math.abs(deltaY * (16 / 9)) ? -deltaX : deltaY * (16 / 9);
+          break;
+        case "ne":
+          deltaW = Math.abs(deltaX) > Math.abs(-deltaY * (16 / 9)) ? deltaX : -deltaY * (16 / 9);
+          break;
+        case "nw":
+          deltaW = Math.abs(-deltaX) > Math.abs(-deltaY * (16 / 9)) ? -deltaX : -deltaY * (16 / 9);
+          break;
+      }
 
-      // Convert delta from screen pixels to zoomed coordinate space
-      const deltaAdjustedZoomed = deltaAdjusted / s;
-
-      // Width limits from 260px wide to 850px wide, taking scale into account
-      let nextWidth = Math.max(260, Math.min(window.innerWidth / s - 20, startWidth + deltaAdjustedZoomed));
-      
-      // Keep perfect 16:9 ratio of the video content!
+      const nextWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaW));
       const contentHeight = Math.round((nextWidth * 9) / 16);
-      const nextHeight = contentHeight + 44; // add the header bar height
+      const nextHeight = contentHeight + 44;
+
+      // Calculate anchor position shifts based on edge
+      let nextX = startPosX;
+      let nextY = startPosY;
+
+      if (direction === "w" || direction === "nw" || direction === "sw") {
+        nextX = startPosX - (nextWidth - startWidth);
+      }
+      if (direction === "n" || direction === "nw" || direction === "ne") {
+        nextY = startPosY - (nextHeight - startHeight);
+      }
+
+      // Viewport boundaries clamping so window isn't pushed offscreen
+      const minX = -nextWidth + 120;
+      const maxX = window.innerWidth / s - 120;
+      const minY = 4;
+      const maxY = window.innerHeight / s - 44;
+
+      nextX = Math.max(minX, Math.min(maxX, nextX));
+      nextY = Math.max(minY, Math.min(maxY, nextY));
 
       setSize({ width: nextWidth, height: nextHeight });
+      setPosition({ x: nextX, y: nextY });
     };
 
     const handleResizeEnd = () => {
@@ -524,7 +667,7 @@ export default function YoutubePlayerWindow({
         }`}
         title={t('explainer.yt_drag', 'Перетащите плеер удерживая левую кнопку мыши')}
       >
-        <div className="flex items-center gap-2 max-w-[50%]">
+        <div className="flex items-center gap-2 max-w-[45%]">
           <GripHorizontal className="w-4 h-4 text-zinc-400 dark:text-zinc-600" />
           <Tv className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
           <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200 truncate" title={lesson.title}>
@@ -534,6 +677,48 @@ export default function YoutubePlayerWindow({
 
         {/* Control toolbar */}
         <div className="flex items-center gap-1">
+          {/* Toggle between Local Video and YouTube Stream if local is ready */}
+          {!isMinimized && localMediaUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                setUseLocalMedia(prev => !prev);
+                setIsEmbedBlocked(false);
+              }}
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 transition-colors cursor-pointer mr-1 ${
+                useLocalMedia
+                  ? "bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-300 dark:border-teal-800"
+                  : "bg-zinc-200/60 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:text-zinc-800"
+              }`}
+              title={useLocalMedia ? t('explainer.yt_source_local', 'Локальное видео') : t('explainer.yt_source_youtube', 'YouTube онлайн')}
+            >
+              {useLocalMedia ? (
+                <>
+                  <HardDrive className="w-2.5 h-2.5" />
+                  <span>MP4</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-2.5 h-2.5" />
+                  <span>YT</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Quick download button if not yet downloaded and not blocked */}
+          {!isMinimized && !localMediaUrl && !isEmbedBlocked && (
+            <button
+              type="button"
+              disabled={isDownloading}
+              onClick={() => handleDownloadMedia(false)}
+              className="p-1 rounded-md text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
+              title={t('explainer.yt_download_tooltip', 'Скачать видео на сервер для офлайн-просмотра')}
+            >
+              {isDownloading ? <Loader2 className="w-3 h-3 animate-spin text-teal-500" /> : <Download className="w-3 h-3" />}
+            </button>
+          )}
+
           {/* Presets */}
           {!isMinimized && (
             <div className="flex items-center bg-zinc-200/50 dark:bg-zinc-900/60 rounded-md p-0.5 mr-1 text-[9px] font-bold text-zinc-500">
@@ -567,7 +752,10 @@ export default function YoutubePlayerWindow({
           {/* Refresh player */}
           <button
             type="button"
-            onClick={() => setIframeKey((prev) => prev + 1)}
+            onClick={() => {
+              setIsEmbedBlocked(false);
+              setIframeKey((prev) => prev + 1);
+            }}
             className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             title={t('explainer.yt_refresh', 'Обновить видео')}
           >
@@ -596,7 +784,7 @@ export default function YoutubePlayerWindow({
         </div>
       </div>
 
-      {/* Embed YouTube player container */}
+      {/* Embed Media Player Container */}
       <div 
         style={{
           height: isMinimized ? "0px" : `${size.height - 44}px`,
@@ -605,35 +793,227 @@ export default function YoutubePlayerWindow({
         }} 
         className="w-full bg-black relative flex-1 transition-all duration-150 overflow-hidden"
       >
-        {/* Dedicated YouTube player container - completely untouched by React's children reconciliation */}
-        <div 
-          ref={containerRef}
-          className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
-        />
+        {/* Case 1: Playing Local HTML5 Video */}
+        {useLocalMedia && localMediaUrl ? (
+          <div className="w-full h-full flex items-center justify-center bg-black relative">
+            <video
+              ref={videoElRef}
+              src={localMediaUrl}
+              controls
+              playsInline
+              className="w-full h-full object-contain bg-black"
+              onLoadedMetadata={() => {
+                if (videoElRef.current) {
+                  videoElRef.current.playbackRate = playbackRate || 1;
+                  let startSec = 0;
+                  try {
+                    const raw = localStorage.getItem(`youtube_progress_${lesson.id}`);
+                    startSec = parseSavedVideoProgress(raw);
+                  } catch (e) {}
+                  if (startSec > 2) {
+                    videoElRef.current.currentTime = startSec;
+                  }
+                }
+              }}
+              onTimeUpdate={() => {
+                if (videoElRef.current) {
+                  const time = videoElRef.current.currentTime;
+                  if (Math.abs(time - lastContextTimeRef.current) >= 0.5) {
+                    lastContextTimeRef.current = time;
+                    setCurrentTime(time);
+                  }
+                  if (Date.now() - lastStorageSaveTimeRef.current >= 3000) {
+                    saveProgressNow(time);
+                  }
+                }
+                if (lastTickTimeRef.current) {
+                  const now = Date.now();
+                  const delta = (now - lastTickTimeRef.current) / 1000;
+                  if (delta > 0 && delta < 5 && onListeningTick) {
+                    onListeningTick(delta);
+                  }
+                  lastTickTimeRef.current = now;
+                }
+              }}
+              onPlay={() => {
+                lastTickTimeRef.current = Date.now();
+              }}
+              onPause={() => {
+                lastTickTimeRef.current = null;
+                if (videoElRef.current) {
+                  saveProgressNow(videoElRef.current.currentTime);
+                }
+              }}
+              onEnded={() => {
+                try {
+                  localStorage.removeItem(`youtube_progress_${lesson.id}`);
+                  settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
+                  window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));
+                } catch (e) {}
+                if (onVideoEnded) onVideoEnded();
+              }}
+            />
+          </div>
+        ) : isEmbedBlocked ? (
+          /* Case 2: YouTube Embedding Restricted (Errors 101/150) -> Informative Card & Local Download Action */
+          <div className="absolute inset-0 z-50 w-full h-full flex flex-col items-center justify-center p-4 text-center bg-zinc-950 text-white select-none overflow-y-auto">
+            <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-2.5 text-amber-400">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
 
-        {/* Guard overlay: active when dragging/resizing so mouse track events never fail on top of the iframe */}
-        {(isDragging || isResizing) && (
-          <div className="absolute inset-0 bg-transparent z-40 cursor-grabbing" />
+            <h4 className="text-xs font-bold text-amber-200 mb-1 max-w-[90%]">
+              {t('explainer.yt_embed_blocked_title', 'Владелец видео ограничил его просмотр на других сайтах')}
+            </h4>
+
+            <p className="text-[10px] text-zinc-400 max-w-[85%] mb-3 leading-relaxed">
+              {t('explainer.yt_embed_blocked_desc', 'Вы можете скачать медиафайл локально на сервер для бесшовного воспроизведения без ограничений.')}
+            </p>
+
+            {isDownloading ? (
+              <div className="flex flex-col items-center gap-2 p-3 bg-zinc-900/90 rounded-xl border border-zinc-800 w-full max-w-[280px]">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-teal-400" />
+                    <span className="text-[11px] font-bold text-teal-200">
+                      {t('explainer.yt_downloading_msg', 'Загрузка с YouTube...')}
+                    </span>
+                  </div>
+                  <span className="text-[12px] font-black text-teal-400 font-mono">
+                    {downloadProgress.percent}%
+                  </span>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-zinc-800/80 rounded-full h-2 overflow-hidden border border-zinc-700/60 p-0.5">
+                  <div
+                    className="bg-gradient-to-r from-teal-500 via-teal-400 to-emerald-400 h-full rounded-full transition-all duration-300 shadow-sm shadow-teal-500/50"
+                    style={{ width: `${Math.max(4, Math.min(100, downloadProgress.percent))}%` }}
+                  />
+                </div>
+
+                {/* Speed & ETA */}
+                <div className="flex items-center justify-between text-[9px] text-zinc-400 font-mono w-full px-0.5">
+                  <span>{downloadProgress.speed || t('explainer.yt_download_wait', 'Подготовка файла...')}</span>
+                  {downloadProgress.eta ? <span>ETA: {downloadProgress.eta}</span> : null}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 w-full max-w-[260px]">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadMedia(false)}
+                    className="flex-1 py-1.5 px-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[10px] font-bold shadow-md shadow-teal-900/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>{t('explainer.yt_download_video', 'Скачать видео (720p)')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadMedia(true)}
+                    className="py-1.5 px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-[10px] font-bold border border-zinc-700 transition-all cursor-pointer active:scale-95"
+                    title={t('explainer.yt_download_audio', 'Только аудио (M4A)')}
+                  >
+                    <span>{t('explainer.yt_download_audio', 'Аудио (M4A)')}</span>
+                  </button>
+                </div>
+
+                {downloadError && (
+                  <div className="p-2 bg-red-950/40 border border-red-800/60 rounded-lg text-[9px] text-red-300 text-left">
+                    <p className="font-semibold">{t('explainer.yt_download_error', 'Не удалось скачать видео')}:</p>
+                    <p className="text-red-400 mt-0.5 truncate">{downloadError}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadMedia(false)}
+                      className="mt-1 text-teal-400 hover:underline text-[9px] font-bold cursor-pointer"
+                    >
+                      {t('explainer.yt_retry', 'Повторить попытку')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Case 3: Standard YouTube Player Iframe */
+          <>
+            <div 
+              ref={containerRef}
+              className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
+            />
+
+            {/* Guard overlay: active when dragging/resizing so mouse track events never fail on top of the iframe */}
+            {(isDragging || isResizing) && (
+              <div className="absolute inset-0 bg-transparent z-40 cursor-grabbing" />
+            )}
+          </>
         )}
-
-        {/* Custom Proportional Resize Handle icon on Bottom-Right */}
-        <div
-          onMouseDown={handleResizeStart}
-          onTouchStart={handleResizeStart}
-          className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize z-50 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none"
-          title={t('explainer.yt_resize', 'Потяните для изменения размера (сохраняет 16:9)')}
-        >
-          {/* Visual indicators for drag handle */}
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            className="fill-current text-zinc-400 opacity-60 group-hover:opacity-100 transition-opacity"
-          >
-            <path d="M8 8L2 8M8 8L8 2M8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </div>
       </div>
+
+      {/* ── Multi-Directional Resize Handles (Opera-style PiP — completely invisible, changing only cursor) ── */}
+      {!isMinimized && (
+        <>
+          {/* Top Edge */}
+          <div
+            onMouseDown={handleResizeStart("n")}
+            onTouchStart={handleResizeStart("n")}
+            className="absolute top-0 inset-x-3 h-2 cursor-ns-resize z-50 bg-transparent"
+          />
+          {/* Bottom Edge */}
+          <div
+            onMouseDown={handleResizeStart("s")}
+            onTouchStart={handleResizeStart("s")}
+            className="absolute bottom-0 inset-x-3 h-2.5 cursor-ns-resize z-50 bg-transparent"
+          />
+          {/* Left Edge */}
+          <div
+            onMouseDown={handleResizeStart("w")}
+            onTouchStart={handleResizeStart("w")}
+            className="absolute left-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent"
+          />
+          {/* Right Edge */}
+          <div
+            onMouseDown={handleResizeStart("e")}
+            onTouchStart={handleResizeStart("e")}
+            className="absolute right-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent"
+          />
+          {/* Top-Left Corner */}
+          <div
+            onMouseDown={handleResizeStart("nw")}
+            onTouchStart={handleResizeStart("nw")}
+            className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-50 bg-transparent"
+          />
+          {/* Top-Right Corner */}
+          <div
+            onMouseDown={handleResizeStart("ne")}
+            onTouchStart={handleResizeStart("ne")}
+            className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent"
+          />
+          {/* Bottom-Left Corner */}
+          <div
+            onMouseDown={handleResizeStart("sw")}
+            onTouchStart={handleResizeStart("sw")}
+            className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent"
+          />
+          {/* Bottom-Right Corner & Visual Grip */}
+          <div
+            onMouseDown={handleResizeStart("se")}
+            onTouchStart={handleResizeStart("se")}
+            className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none"
+            title={t('explainer.yt_resize', 'Потяните для изменения размера (сохраняет 16:9)')}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              className="fill-current text-zinc-400 opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none"
+            >
+              <path d="M8 8L2 8M8 8L8 2M8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+        </>
+      )}
     </div>
   );
 }
