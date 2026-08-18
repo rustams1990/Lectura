@@ -34,7 +34,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
       - name: Build Web Assets
         run: npm run build
@@ -42,20 +42,17 @@ jobs:
       - name: Sync Capacitor Android
         run: |
           npx cap sync android
-          # Patch dynamic capacitor-cordova-android-plugins to match AGP 8.7.3 and Java 17
           if [ -f "android/capacitor-cordova-android-plugins/build.gradle" ]; then
             sed -i 's/8\.13\.0/8.7.3/g' android/capacitor-cordova-android-plugins/build.gradle
             sed -i 's/VERSION_21/VERSION_17/g' android/capacitor-cordova-android-plugins/build.gradle
             sed -i 's/36/34/g' android/capacitor-cordova-android-plugins/build.gradle
           fi
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x android/gradlew
-
       - name: Build Android APK
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Prepare APK Output
         run: |
