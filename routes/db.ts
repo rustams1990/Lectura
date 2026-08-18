@@ -259,6 +259,10 @@ export function getLocalServerDb(userId: string = "default") {
         } catch (_) {}
       }
 
+      if (l && typeof l.wordTimestamps === 'string') {
+        try { l.wordTimestamps = JSON.parse(l.wordTimestamps); } catch (_) { l.wordTimestamps = null; }
+      }
+
       return {
         id: l.id,
         title: l.title,
@@ -279,6 +283,9 @@ export function getLocalServerDb(userId: string = "default") {
         difficulty: lessonDifficulty,
         difficultyExplanation: lessonDifficultyExplanation,
         createdAt: l.createdAt ?? (l.rowid ? l.rowid * 1000 : undefined),
+        wordTimestamps: l.wordTimestamps,
+        channelName: l.channelName || null,
+        channelAvatarUrl: l.channelAvatarUrl || null,
       };
     });
 
@@ -442,8 +449,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertLessonType = db.prepare(`
@@ -595,7 +602,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           l.difficulty || null,
           l.difficultyExplanation || null,
           // Preserve existing createdAt if present, else use current time
-          (typeof l.createdAt === "number" && l.createdAt > 0) ? l.createdAt : Date.now()
+          (typeof l.createdAt === "number" && l.createdAt > 0) ? l.createdAt : Date.now(),
+          l.wordTimestamps ? JSON.stringify(l.wordTimestamps) : null,
+          l.channelName || null,
+          l.channelAvatarUrl || null
         );
       }
 

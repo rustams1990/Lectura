@@ -240,6 +240,87 @@ function setupSchema(db: Database.Database) {
   if (!lessonsCols.includes("createdAt")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN createdAt INTEGER;`); } catch (_) {}
   }
+  if (!lessonsCols.includes("wordTimestamps")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN wordTimestamps TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("channelName")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN channelName TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("channelAvatarUrl")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN channelAvatarUrl TEXT;`); } catch (_) {}
+  }
+
+  // Auto-enrich existing lessons missing channelName or title
+  setTimeout(async () => {
+    try {
+      const unpopulated = db.prepare(`
+        SELECT id, youtubeId, title, coverUrl FROM lessons 
+        WHERE youtubeId IS NOT NULL AND (channelName IS NULL OR channelName = '' OR title = 'YouTube Video')
+      `).all() as any[];
+
+      for (const row of unpopulated) {
+        try {
+          let channelName: string | null = null;
+          let newTitle = row.title;
+          let avatarUrl: string | null = null;
+
+          // 1. Try YouTube oEmbed
+          try {
+            const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${row.youtubeId}&format=json`);
+            if (res.ok) {
+              const data: any = await res.json();
+              if (data.author_name) channelName = data.author_name;
+              if (data.title && (row.title === "YouTube Video" || !row.title)) newTitle = data.title;
+              if (data.author_url) {
+                try {
+                  const cRes = await fetch(data.author_url, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                  });
+                  if (cRes.ok) {
+                    const cHtml = await cRes.text();
+                    const ogImg = cHtml.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i)
+                               || cHtml.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i);
+                    if (ogImg) avatarUrl = ogImg[1];
+                  }
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+
+          // 2. Fallback: scrape watch page if oEmbed was blocked or unauthorized
+          if (!channelName || channelName === "YouTube Video") {
+            try {
+              const watchRes = await fetch(`https://www.youtube.com/watch?v=${row.youtubeId}`, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Accept-Language': 'en-US,en;q=0.9'
+                }
+              });
+              if (watchRes.ok) {
+                const html = await watchRes.text();
+                const itemprop = html.match(/<link itemprop="name" content="([^"]+)">/i);
+                const ownerMatch = html.match(/"ownerChannelName"\s*:\s*"([^"]+)"/i) || html.match(/"author"\s*:\s*"([^"]+)"/i);
+                if (itemprop && itemprop[1]) {
+                  channelName = itemprop[1];
+                } else if (ownerMatch && ownerMatch[1]) {
+                  channelName = ownerMatch[1];
+                }
+                const avatarMatch = html.match(/https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[a-zA-Z0-9_\-=]+/);
+                if (avatarMatch && !avatarUrl) {
+                  avatarUrl = avatarMatch[0];
+                }
+              }
+            } catch (_) {}
+          }
+
+          if (channelName) {
+            db.prepare("UPDATE lessons SET channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl), title = ? WHERE id = ?")
+              .run(channelName, avatarUrl, newTitle, row.id);
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }, 1000);
 
   // reading_history: user_id column
   const historyCols = (db.prepare("PRAGMA table_info(reading_history)").all() as any[]).map(c => c.name);

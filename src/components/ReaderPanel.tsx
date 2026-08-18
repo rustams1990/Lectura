@@ -15,6 +15,7 @@ import { segmentSentenceTokens } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
 import { useTranslation } from "react-i18next";
 import { ignoreListManager } from "../services/ignoreListService";
+import { compareWords } from "../utils/stringUtils";
 
 interface ReaderPanelProps {
   key?: string;
@@ -564,7 +565,7 @@ function ReaderPanel({
     });
 
     if (unknownSortMode === "alpha") {
-      return [...result].sort((a, b) => a.localeCompare(b));
+      return [...result].sort((a, b) => compareWords(a, b, lesson.targetLanguage || "spanish", "asc"));
     }
     return result;
   }, [lesson.text, lesson.targetLanguage, vocab, wordLinks, isCjk, unknownSortMode]);

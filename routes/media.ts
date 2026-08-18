@@ -883,12 +883,17 @@ router.post("/transcribe-audio", async (req: Request, res: Response) => {
         mimeType: mimeType || "audio/mp3"
       });
 
-      const prompt = `Listen carefully to this entire audio recording${filename ? ` ("${filename}")` : ""}.
-Transcribe all spoken words accurately from the very beginning (0:00) ALL THE WAY TO THE VERY END of the audio file${targetLanguage ? ` (target study language: "${targetLanguage}")` : ""}.
-For EVERY single spoken sentence or dialogue phrase, provide the exact start timestamp in seconds or minutes (e.g. 0s\t..., 15s\t..., 1m15s\t..., 15m40s\t..., 25m10s\t...).
-Do NOT stop early. Continue generating timestamped entries for the entire duration of the audio recording until the final closing words.
+      const prompt = `You are a professional transcription service. Listen to this entire audio recording${filename ? ` ("${filename}")` : ""}${targetLanguage ? ` in ${targetLanguage}` : ""} from START to FINISH.
 
-IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not provide titles, introductory explanations, translation notes, bracketed remarks, or markdown code blocks.`;
+Your ONLY task: output a timestamped transcript where each line starts with the REAL audio timestamp (the exact position in the audio file where that sentence begins).
+
+Rules:
+- Timestamps MUST match the actual audio position exactly — do NOT estimate or guess, use what you hear.
+- Format: \`M:SS sentence text\` — for example: \`0:07 Hola, bienvenidos al podcast.\`
+- One sentence per line. Each line must start with its correct timestamp.
+- Do NOT merge multiple minutes into a single line.
+- Do NOT skip any content. Transcribe everything from 0:00 to the very last word.
+- Do NOT add headers, titles, notes, or markdown. Plain timestamped lines only.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -902,7 +907,8 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
           prompt
         ],
         config: {
-          maxOutputTokens: 8192
+          maxOutputTokens: 65536,
+          thinkingConfig: { thinkingBudget: 0 }
         }
       });
 
@@ -1015,10 +1021,11 @@ router.post("/media/download", async (req: Request, res: Response) => {
           noPlaylist: true,
           newline: true,
           noWarnings: true,
+          extractorArgs: "youtube:player_client=ios,web,mweb",
         };
 
         if (isAudio) {
-          ytArgs.format = "bestaudio[ext=m4a]/bestaudio/best";
+          ytArgs.format = "ba/b";
         } else {
           ytArgs.format = "best[height<=720][ext=mp4]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
         }
@@ -1109,13 +1116,7 @@ router.post("/media/download", async (req: Request, res: Response) => {
 
     const result = await downloadPromise;
 
-    return res.json({
-      ready: true,
-      url: result.url,
-      filename: result.filename,
-      isAudio: result.isAudio,
-      sizeBytes: result.sizeBytes
-    });
+    return res.json(result);
   } catch (err: any) {
     console.error("Media download error:", err);
     return res.status(500).json({ error: err.message || "Ошибка загрузки медиа через yt-dlp" });
@@ -1181,13 +1182,9 @@ router.get("/media/status", (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/media/stream/:filename
- * Stream video/audio files with HTTP 206 Partial Content (Range header) for fast seeking.
+ * Helper function to stream any media file with Range headers (HTTP 206 Partial Content)
  */
-router.get("/media/stream/:filename", (req: Request, res: Response) => {
-  const filename = path.basename(req.params.filename);
-  const filePath = path.join(VIDEO_STORAGE_DIR, filename);
-
+function streamFile(filePath: string, req: Request, res: Response, defaultContentType?: string) {
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "Media file not found" });
   }
@@ -1196,8 +1193,8 @@ router.get("/media/stream/:filename", (req: Request, res: Response) => {
   const fileSize = stat.size;
   const range = req.headers.range;
 
-  const ext = path.extname(filename).toLowerCase();
-  let contentType = "video/mp4";
+  const ext = path.extname(filePath).toLowerCase();
+  let contentType = defaultContentType || "video/mp4";
   if (ext === ".m4a" || ext === ".aac") contentType = "audio/mp4";
   else if (ext === ".mp3") contentType = "audio/mpeg";
   else if (ext === ".webm") contentType = "video/webm";
@@ -1229,6 +1226,143 @@ router.get("/media/stream/:filename", (req: Request, res: Response) => {
       "Content-Type": contentType,
     });
     fs.createReadStream(filePath).pipe(res);
+  }
+}
+
+/**
+ * GET /api/media/stream/:filename
+ * Stream video/audio files with HTTP 206 Partial Content (Range header) for fast seeking.
+ */
+router.get("/media/stream/:filename", (req: Request, res: Response) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(VIDEO_STORAGE_DIR, filename);
+  return streamFile(filePath, req, res);
+});
+
+/**
+ * GET /api/media/youtube-stream/:videoId
+ * Provides direct audio stream for a YouTube video in GlobalAudioPlayer / background playlist.
+ * If file already exists locally, streams it immediately with 206 Partial Content.
+ * If not, fetches the audio via yt-dlp on-demand and streams it.
+ */
+router.get("/media/youtube-stream/:videoId", async (req: Request, res: Response) => {
+  try {
+    const cleanVideoId = (req.params.videoId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!cleanVideoId || cleanVideoId.length !== 11) {
+      return res.status(400).json({ error: "Invalid video ID format" });
+    }
+    const lessonId = req.query.lessonId ? String(req.query.lessonId).replace(/[^a-zA-Z0-9_-]/g, "") : cleanVideoId;
+    const filename = `${lessonId}.m4a`;
+    const targetFilePath = path.join(VIDEO_STORAGE_DIR, filename);
+
+    // 1. Check if local media file is already downloaded
+    if (fs.existsSync(targetFilePath)) {
+      const stat = fs.statSync(targetFilePath);
+      if (stat.size > 50000) {
+        return streamFile(targetFilePath, req, res, "audio/mp4");
+      }
+    }
+
+    // Also check cleanVideoId.m4a or mp4
+    for (const altExt of ["m4a", "mp4"]) {
+      const altPath = path.join(VIDEO_STORAGE_DIR, `${cleanVideoId}.${altExt}`);
+      if (fs.existsSync(altPath)) {
+        const stat = fs.statSync(altPath);
+        if (stat.size > 50000) {
+          return streamFile(altPath, req, res, altExt === "m4a" ? "audio/mp4" : "video/mp4");
+        }
+      }
+    }
+
+    // 2. On-demand download with yt-dlp
+    const lockKey = `${lessonId}_m4a`;
+    let downloadPromise = activeDownloads.get(lockKey);
+
+    if (!downloadPromise) {
+      downloadProgressMap.set(lockKey, { percent: 1, speed: "", eta: "", status: "starting" });
+
+      downloadPromise = new Promise((resolve, reject) => {
+        const videoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
+        const tempPath = path.join(VIDEO_STORAGE_DIR, `${lessonId}_tmp_${Date.now()}.m4a`);
+
+        const ytArgs: Record<string, any> = {
+          output: tempPath,
+          noPlaylist: true,
+          newline: true,
+          noWarnings: true,
+          format: "ba/b",
+          extractorArgs: "youtube:player_client=ios,web,mweb",
+        };
+
+        let processErrorMsg = "";
+        const cp = (ytdlp as any).exec(videoUrl, ytArgs);
+
+        cp.stdout?.on("data", (data: Buffer) => {
+          const text = data.toString();
+          const match = text.match(/\[download\]\s+([\d\.]+)%/);
+          if (match) {
+            const pct = parseFloat(match[1]);
+            downloadProgressMap.set(lockKey, {
+              percent: !isNaN(pct) ? pct : 50,
+              speed: "",
+              eta: "",
+              status: "downloading"
+            });
+          }
+        });
+
+        cp.stderr?.on("data", (data: Buffer) => {
+          const text = data.toString();
+          if (text.includes("ERROR:") || text.includes("Error")) {
+            processErrorMsg += " " + text.trim();
+          }
+        });
+
+        cp.on("close", (code: number) => {
+          activeDownloads.delete(lockKey);
+          downloadProgressMap.delete(lockKey);
+
+          if (code === 0 && fs.existsSync(tempPath)) {
+            try {
+              if (fs.existsSync(targetFilePath)) {
+                try { fs.unlinkSync(targetFilePath); } catch (_) {}
+              }
+              fs.renameSync(tempPath, targetFilePath);
+
+              if (lessonId) {
+                try {
+                  const db = getDbConnection("default");
+                  db.prepare("UPDATE lessons SET audioUrl = ? WHERE id = ?").run(`/api/media/stream/${filename}`, lessonId);
+                } catch (_) {}
+              }
+
+              const stat = fs.existsSync(targetFilePath) ? fs.statSync(targetFilePath) : null;
+              resolve({
+                url: `/api/media/stream/${filename}`,
+                filename,
+                isAudio: true,
+                sizeBytes: stat?.size || 0
+              });
+            } catch (err: any) {
+              reject(err);
+            }
+          } else {
+            if (fs.existsSync(tempPath)) {
+              try { fs.unlinkSync(tempPath); } catch (_) {}
+            }
+            reject(new Error(processErrorMsg || `yt-dlp exited with code ${code}`));
+          }
+        });
+      });
+
+      activeDownloads.set(lockKey, downloadPromise);
+    }
+
+    await downloadPromise;
+    return streamFile(targetFilePath, req, res, "audio/mp4");
+  } catch (err: any) {
+    console.error("[YouTube Audio Stream Error]:", err?.message || err);
+    return res.status(500).json({ error: err?.message || "Error resolving YouTube stream" });
   }
 });
 

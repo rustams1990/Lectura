@@ -22,3 +22,13 @@ image_cache/
 # Temporary downloaded dictionary source files
 tools/dictionaries/*.dic
 tools/dictionaries/*_50k.txt
+
+# Media and Models
+media/
+models/
+scratch/
+audio_files/
+*.part
+*.m4a
+*.mp4
+

@@ -40,6 +40,10 @@ import {
 } from "./lessonImagesStore";
 import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import FocusPinnedPlayer from "./components/FocusPinnedPlayer";
+import GlobalAudioPlayer from "./components/player/GlobalAudioPlayer";
+import BottomAudioBar from "./components/player/BottomAudioBar";
+import QueueModal from "./components/player/QueueModal";
+import { usePlaylistStore } from "./store/playlistStore";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
 import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
@@ -136,6 +140,7 @@ export default function App() {
   }, [lessons]);
 
   const [lessonTypes, setLessonTypes] = useState<LessonType[]>(DEFAULT_LESSON_TYPES);
+  const hasActiveQueue = usePlaylistStore((state) => state.queue.length > 0);
 
   const {
     vocab,
@@ -349,6 +354,8 @@ export default function App() {
           actionType: nextActionType,
           status: nextStatus,
           durationSeconds: (existing.durationSeconds || 0) + (durationSeconds || 0),
+          channelName: existing.channelName || targetLesson.channelName || null,
+          channelAvatarUrl: existing.channelAvatarUrl || targetLesson.channelAvatarUrl || null,
         };
       } else {
         const newEntry: HistoryEntry = {
@@ -362,6 +369,8 @@ export default function App() {
           actionType: isAudioOrVideo ? "listen" : (actionType === "complete" ? "read" : actionType),
           status: actionType === "complete" ? "completed" : "in_progress",
           durationSeconds: durationSeconds || 0,
+          channelName: targetLesson.channelName || null,
+          channelAvatarUrl: targetLesson.channelAvatarUrl || null,
         };
         updated = [newEntry, ...prev];
       }
@@ -513,6 +522,7 @@ export default function App() {
       dimBookCovers: false,
       dateFormat: "auto",
       timeFormat: "auto",
+      firstDayOfWeek: "auto",
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");
@@ -2345,7 +2355,12 @@ export default function App() {
       />
 
       {/* Main Body */}
-      <main className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass}`}>
+      <main 
+        className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass} ${
+          hasActiveQueue ? "pb-36 sm:pb-32" : ""
+        }`}
+        style={hasActiveQueue ? { paddingBottom: "max(8rem, calc(6rem + env(safe-area-inset-bottom)))" } : undefined}
+      >
         
         {/* Dynamic Achievements HUD Panel */}
         {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && activeTab !== "library" && <StatsWidget stats={calculatedStats} />}
@@ -2755,6 +2770,21 @@ export default function App() {
         showIosInstallBanner={showIosInstallBanner} 
         setShowIosInstallBanner={setShowIosInstallBanner} 
       />
+
+      {/* Global Background Audio Player Engine & Media Session API */}
+      <GlobalAudioPlayer onListeningTick={handleListeningTick} />
+
+      {/* Floating Bottom Audio Bar */}
+      <BottomAudioBar
+        onOpenLesson={(id) => {
+          setActiveLessonId(id);
+          setSelectedWord(null);
+          setActiveTab("read");
+        }}
+      />
+
+      {/* Play Queue Management Drawer / Modal */}
+      <QueueModal />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { settingsStore } from '../../db';
 import { useTranslation } from 'react-i18next';
 import { getLanguageFlagEmoji, renderCircularFlag } from '../LibraryHome';
+import { getLocalizedLanguageName } from '../../utils/stringUtils';
 import AccountSwitcherDropdown from '../AccountSwitcherDropdown';
 
 import WhisperNotificationDropdown from '../WhisperNotificationDropdown';
@@ -59,7 +60,7 @@ export default function AppHeader({
   onOpenBook,
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const langDropdownRef = useRef<HTMLDivElement>(null);
@@ -92,7 +93,7 @@ export default function AppHeader({
           </button>
 
           <a
-            href="#/library"
+            href="/"
             onClick={(e) => {
               if (
                 e.button === 0 &&
@@ -132,7 +133,11 @@ export default function AppHeader({
               title={t('header.select_target_language', 'Select target language')}
             >
               {renderCircularFlag(getLanguageFlagEmoji(selectedTargetLanguage, languageFlags), selectedTargetLanguage === "All")}
-              <span className="hidden md:inline font-black">{selectedTargetLanguage === "All" ? t('header.all_languages', 'All Languages') : selectedTargetLanguage}</span>
+              <span className="hidden md:inline font-black">
+                {selectedTargetLanguage === "All"
+                  ? t('header.all_languages', 'All Languages')
+                  : getLocalizedLanguageName(selectedTargetLanguage, i18n.language)}
+              </span>
               <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-150 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -161,7 +166,11 @@ export default function AppHeader({
                       >
                         <div className="flex items-center gap-2.5">
                           {renderCircularFlag(getLanguageFlagEmoji(lang, languageFlags), lang === "All")}
-                          <span>{lang === "All" ? t('header.all_languages', 'All Languages') : lang}</span>
+                          <span>
+                            {lang === "All"
+                              ? t('header.all_languages', 'All Languages')
+                              : getLocalizedLanguageName(lang, i18n.language)}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           {count > 0 && lang !== "All" && (
@@ -188,7 +197,7 @@ export default function AppHeader({
                       className="w-full px-3 py-2 text-xs font-extrabold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 flex items-center gap-2 transition-colors cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>{t('header.add_new_language', 'Add a new language')}</span>
+                      <span>{t('header.add_new_language', '+ Add a new language')}</span>
                     </button>
                   </>
                 )}

@@ -38,7 +38,7 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
         </div>
         <div className="min-w-0 flex-1">
           <span className="text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
-            {t('stats.listening_today', 'LISTENING TIME (TODAY)')}
+            {t('stats.listening_today', 'Listening Time (Today)')}
           </span>
           <div className="flex items-baseline gap-2 flex-wrap mt-0.5">
             <span className="text-xl font-black text-zinc-900 dark:text-zinc-100">

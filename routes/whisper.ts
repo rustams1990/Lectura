@@ -20,7 +20,7 @@ export interface WhisperQueueItem {
   title: string;
   sourceUrl?: string;
   filePath?: string;
-  sourceType: "youtube" | "file";
+  sourceType: "youtube" | "podcast" | "file";
   model: string;
   language?: string;
   threads?: number;
@@ -32,6 +32,8 @@ export interface WhisperQueueItem {
   totalDuration: number;
   etaSeconds: number;
   stageText: string;
+  channelName?: string;
+  channelAvatarUrl?: string;
   createdBookId?: string;
   error?: string;
   createdAt: number;
@@ -71,8 +73,6 @@ export function formatWhisperToLecturaParagraphs(segments: any[]): string {
   if (!segments || segments.length === 0) return "";
 
   const paragraphs: string[] = [];
-  let currentTimestamp = "";
-  let currentBuffer: string[] = [];
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
@@ -84,22 +84,7 @@ export function formatWhisperToLecturaParagraphs(segments: any[]): string {
     const secs = Math.floor(startSec % 60);
     const tsStr = `${mins}:${secs.toString().padStart(2, "0")}`;
 
-    if (!currentTimestamp) {
-      currentTimestamp = tsStr;
-    }
-
-    currentBuffer.push(text);
-
-    // Group sentences into paragraphs of ~3-4 sentences or when pause/time gap is large
-    const nextSeg = segments[i + 1];
-    const isBigGap = nextSeg && (nextSeg.start - seg.end > 2.5);
-    const isBufferFull = currentBuffer.length >= 3;
-
-    if (isBufferFull || isBigGap || i === segments.length - 1) {
-      paragraphs.push(`${currentTimestamp} ${currentBuffer.join(" ")}`);
-      currentBuffer = [];
-      currentTimestamp = "";
-    }
+    paragraphs.push(`${tsStr} ${text}`);
   }
 
   return paragraphs.join("\n\n");
@@ -138,6 +123,27 @@ async function processQueue() {
             if (oembedData.thumbnail_url && !activeItem.thumbnail) {
               activeItem.thumbnail = oembedData.thumbnail_url;
             }
+            // Extract channel name from oEmbed
+            if (oembedData.author_name && !activeItem.channelName) {
+              activeItem.channelName = oembedData.author_name;
+            }
+            // Extract channel avatar from channel page
+            if (oembedData.author_url && !activeItem.channelAvatarUrl) {
+              try {
+                const channelRes = await fetch(oembedData.author_url, {
+                  headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
+                });
+                if (channelRes.ok) {
+                  const channelHtml = await channelRes.text();
+                  // og:image on YouTube channel page is the channel avatar
+                  const ogImgMatch = channelHtml.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+                                  || channelHtml.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+                  if (ogImgMatch) {
+                    activeItem.channelAvatarUrl = ogImgMatch[1];
+                  }
+                }
+              } catch (_) {}
+            }
             broadcastSse("queue_update", { queue, activeItem });
           }
         } catch (_) {}
@@ -167,6 +173,154 @@ async function processQueue() {
         throw new Error("Could not find extracted audio file from YouTube");
       }
       tempAudioPath = path.join(uploadDir, matchingFile);
+    } else if (activeItem.sourceType === "podcast" && activeItem.sourceUrl) {
+      activeItem.stageText = "Downloading podcast audio stream...";
+      broadcastSse("queue_update", { queue, activeItem });
+
+      const podcastUrl = activeItem.sourceUrl;
+      let directAudioUrl: string | null = null;
+
+      // Direct media link check
+      if (/\.(mp3|m4a|aac|ogg|wav)(\?.*)?$/i.test(podcastUrl)) {
+        directAudioUrl = podcastUrl;
+      } else {
+        try {
+          const pageRes = await fetch(podcastUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept-Language": "en-US,en;q=0.9,es;q=0.8,ru;q=0.7"
+            }
+          });
+          if (pageRes.ok) {
+            const html = await pageRes.text();
+
+            // Extract Title
+            const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+                                  html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i) ||
+                                  html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+            if (ogTitleMatch && (!activeItem.title || activeItem.title === "Podcast Episode")) {
+              activeItem.title = ogTitleMatch[1].replace(/<[^>]+>/g, "").replace(/\s*-\s*Apple Podcasts.*$/i, "").trim();
+            }
+
+            // Extract Cover Image
+            const ogImgMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
+                               html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+            if (ogImgMatch && !activeItem.thumbnail) {
+              activeItem.thumbnail = ogImgMatch[1];
+            }
+
+            // Extract podcast show name (e.g. "Español a la Mexicana")
+            const partOfSeriesMatch = html.match(/"partOfSeries"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/i)
+                                   || html.match(/"seriesName"\s*:\s*"([^"]+)"/i)
+                                   || html.match(/"collectionName"\s*:\s*"([^"]+)"/i);
+            if (partOfSeriesMatch && !activeItem.channelName) {
+              activeItem.channelName = partOfSeriesMatch[1].trim();
+            }
+
+            if (!activeItem.channelName) {
+              // Try parsing show name from page <title> (e.g. "Episode Title - Show Name - Apple Podcasts")
+              const rawTitle = (html.match(/<title>([^<]+)<\/title>/i)?.[1] || "").trim();
+              if (rawTitle.includes(" - ")) {
+                const parts = rawTitle.split(" - ").map(p => p.trim());
+                if (parts.length >= 3 && parts[parts.length - 1].toLowerCase().includes("apple podcast")) {
+                  activeItem.channelName = parts[parts.length - 2];
+                } else if (parts.length >= 2) {
+                  activeItem.channelName = parts[1];
+                }
+              }
+            }
+
+            if (!activeItem.channelName) {
+              const authorMatch = html.match(/<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i);
+              if (authorMatch && !authorMatch[1].toLowerCase().includes("apple")) {
+                activeItem.channelName = authorMatch[1].trim();
+              }
+            }
+
+            // For podcast avatar, reuse the cover image
+            if (ogImgMatch && !activeItem.channelAvatarUrl) {
+              activeItem.channelAvatarUrl = ogImgMatch[1];
+            }
+
+            // Extract Direct Audio URL
+            const assetUrlMatch = html.match(/"assetUrl"\s*:\s*"(https?:\/\/[^"]+)"/i);
+            if (assetUrlMatch) {
+              directAudioUrl = assetUrlMatch[1];
+            } else {
+              const audioMatches = html.match(/https?:\/\/[^\s"']+\.(?:mp3|m4a|aac|ogg)[^\s"']*/gi);
+              if (audioMatches && audioMatches.length > 0) {
+                directAudioUrl = audioMatches[0];
+              }
+            }
+            broadcastSse("queue_update", { queue, activeItem });
+          }
+        } catch (fetchErr: any) {
+          console.warn("[Whisper Podcast Fetch Warn]:", fetchErr.message);
+        }
+      }
+
+      if (!directAudioUrl) {
+        // Fallback: try yt-dlp for Apple Podcasts / Spotify / other JS-heavy pages
+        try {
+          activeItem.stageText = "Trying yt-dlp fallback for podcast...";
+          broadcastSse("queue_update", { queue, activeItem });
+          const outPattern = path.join(uploadDir, `podcast_ytdlp_${activeItem.id}.%(ext)s`);
+          await (ytdlp as any)(podcastUrl, {
+            format: "ba[ext=m4a]/ba[ext=mp3]/bestaudio/best",
+            output: outPattern,
+            noCheckCertificate: true,
+            addHeader: [
+              "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ]
+          });
+          const ytdlpFiles = fs.readdirSync(uploadDir);
+          const ytdlpMatch = ytdlpFiles.find(f => f.startsWith(`podcast_ytdlp_${activeItem!.id}.`));
+          if (ytdlpMatch) {
+            // Copy to persistent storage
+            const DATA_DIR2 = process.env.DATA_DIR || process.cwd();
+            const audioStorageDir2 = path.join(DATA_DIR2, "audio_files");
+            if (!fs.existsSync(audioStorageDir2)) fs.mkdirSync(audioStorageDir2, { recursive: true });
+            const audioFileName2 = `podcast_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp3`;
+            const diskPath2 = path.join(audioStorageDir2, audioFileName2);
+            fs.copyFileSync(path.join(uploadDir, ytdlpMatch), diskPath2);
+            try { fs.unlinkSync(path.join(uploadDir, ytdlpMatch)); } catch (_) {}
+            tempAudioPath = diskPath2;
+            (activeItem as any).persistedAudioUrl = `/api/audio-files/${audioFileName2}`;
+            broadcastSse("queue_update", { queue, activeItem });
+          } else {
+            throw new Error("yt-dlp did not produce output file");
+          }
+        } catch (ytdlpErr: any) {
+          throw new Error(`Could not find audio for this podcast. HTML scraping and yt-dlp both failed: ${ytdlpErr.message}`);
+        }
+      } else {
+        // Direct URL found via HTML scrape — download it
+        const DATA_DIR = process.env.DATA_DIR || process.cwd();
+        const audioStorageDir = path.join(DATA_DIR, "audio_files");
+        if (!fs.existsSync(audioStorageDir)) {
+          fs.mkdirSync(audioStorageDir, { recursive: true });
+        }
+
+        const audioFileName = `podcast_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp3`;
+        const diskPath = path.join(audioStorageDir, audioFileName);
+
+        const audioFetch = await fetch(directAudioUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          }
+        });
+
+        if (!audioFetch.ok) {
+          throw new Error(`Failed to download podcast audio stream (HTTP ${audioFetch.status})`);
+        }
+
+        const arrayBuf = await audioFetch.arrayBuffer();
+        fs.writeFileSync(diskPath, Buffer.from(arrayBuf));
+
+        tempAudioPath = diskPath;
+        (activeItem as any).persistedAudioUrl = `/api/audio-files/${audioFileName}`;
+        broadcastSse("queue_update", { queue, activeItem });
+      }
     } else if (activeItem.filePath && fs.existsSync(activeItem.filePath)) {
       tempAudioPath = activeItem.filePath;
     } else {
@@ -296,8 +450,10 @@ async function processQueue() {
       broadcastSse("task_error", activeItem);
     }
   } finally {
-    // Cleanup temporary audio file
-    if (tempAudioPath && fs.existsSync(tempAudioPath)) {
+    // Only delete temp audio if it is NOT the persisted podcast audio file
+    const persistedUrl: string | undefined = (activeItem as any)?.persistedAudioUrl;
+    const isPersisted = persistedUrl && tempAudioPath && tempAudioPath.includes("audio_files");
+    if (tempAudioPath && !isPersisted && fs.existsSync(tempAudioPath)) {
       try { fs.unlinkSync(tempAudioPath); } catch (_) {}
     }
 
@@ -356,12 +512,24 @@ async function persistWhisperBook(item: WhisperQueueItem, event: any): Promise<s
     coverUrl = `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`;
   }
 
+  const resolvedAudioUrl = (item as any).persistedAudioUrl || null;
+
+  const wordTimestamps: Array<{ w: string; s: number; e: number }> = [];
+  for (const seg of (event.segments || [])) {
+    for (const w of (seg.words || [])) {
+      if (w.word && typeof w.start === 'number') {
+        wordTimestamps.push({ w: w.word.trim(), s: w.start, e: w.end });
+      }
+    }
+  }
+  const wordTimestampsJson = wordTimestamps.length > 0 ? JSON.stringify(wordTimestamps) : null;
+
   try {
     const insertStmt = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `);
 
@@ -370,7 +538,7 @@ async function persistWhisperBook(item: WhisperQueueItem, event: any): Promise<s
       user,
       item.title || "Whisper Transcription",
       formattedContent || event.text || "",
-      null, // audioUrl
+      resolvedAudioUrl, // audioUrl
       null, // audioBase64
       resolvedTargetLang,
       "Russian", // translationLanguage
@@ -379,13 +547,16 @@ async function persistWhisperBook(item: WhisperQueueItem, event: any): Promise<s
       coverUrl,
       ytId,
       null, // localVideoUrl
-      item.sourceType === "youtube" ? "youtube" : "podcast",
+      item.sourceType === "youtube" ? "youtube" : (item.sourceType === "podcast" ? "podcast" : "book"),
       0, // pinned
       null, // translationText
       JSON.stringify({}), // detectedPhrases
       null, // difficulty
       null, // difficultyExplanation
-      now  // createdAt — ensures Whisper books sort to the top as newest
+      now, // createdAt — ensures Whisper books sort to the top as newest
+      wordTimestampsJson,
+      item.channelName || null,
+      item.channelAvatarUrl || null
     );
 
     console.log(`[Whisper] Successfully saved lesson '${item.title}' (ID: ${bookId}, Lang: ${resolvedTargetLang}, User: ${user}) to SQLite`);
@@ -417,9 +588,20 @@ router.get("/events", (req: Request, res: Response) => {
 // 2. Queue Submission Endpoint (JSON supporting sourceUrl or fileBase64)
 router.post("/queue", async (req: Request, res: Response) => {
   try {
-    const { title, sourceUrl, fileBase64, filename, model, language, threads, vad, userId, thumbnail } = req.body;
+    const { title, sourceUrl, fileBase64, filename, model, language, threads, vad, userId, thumbnail, sourceType: explicitSourceType } = req.body;
 
-    const isYoutube = !!sourceUrl && typeof sourceUrl === "string" && sourceUrl.includes("http");
+    let resolvedSourceType: "youtube" | "podcast" | "file" = "file";
+    if (explicitSourceType === "podcast" || explicitSourceType === "youtube" || explicitSourceType === "file") {
+      resolvedSourceType = explicitSourceType;
+    } else if (sourceUrl && typeof sourceUrl === "string") {
+      if (sourceUrl.includes("podcasts.apple.com") || sourceUrl.includes("spotify.com") || sourceUrl.includes("podcast") || /\.(mp3|m4a|aac|ogg)(\?.*)?$/i.test(sourceUrl)) {
+        resolvedSourceType = "podcast";
+      } else {
+        resolvedSourceType = "youtube";
+      }
+    }
+
+    const hasUrl = !!sourceUrl && typeof sourceUrl === "string" && sourceUrl.includes("http");
     let localFilePath: string | undefined = undefined;
 
     if (fileBase64 && typeof fileBase64 === "string") {
@@ -431,20 +613,20 @@ router.post("/queue", async (req: Request, res: Response) => {
       localFilePath = targetPath;
     }
 
-    const itemTitle = (title || "").trim() || (isYoutube ? "YouTube Video" : (filename || "Audio Lesson"));
+    const itemTitle = (title || "").trim() || (resolvedSourceType === "youtube" ? "YouTube Video" : (resolvedSourceType === "podcast" ? "Podcast Episode" : (filename || "Audio Lesson")));
 
     const newItem: WhisperQueueItem = {
       id: `whisper_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       userId: userId || "default_user",
       title: itemTitle,
-      sourceUrl: isYoutube ? sourceUrl : undefined,
+      sourceUrl: hasUrl ? sourceUrl : undefined,
       filePath: localFilePath,
-      sourceType: isYoutube ? "youtube" : "file",
+      sourceType: resolvedSourceType,
       model: model || "base",
       language: language || "auto",
       threads: threads ? parseInt(threads, 10) : 2,
       vad: vad === false || vad === "false" ? false : true,
-      thumbnail: thumbnail || (isYoutube && sourceUrl ? `https://img.youtube.com/vi/${sourceUrl.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/)?.[1] || ""}/hqdefault.jpg` : ""),
+      thumbnail: thumbnail || (resolvedSourceType === "youtube" && sourceUrl ? `https://img.youtube.com/vi/${sourceUrl.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/)?.[1] || ""}/hqdefault.jpg` : ""),
       status: "queued",
       progress: 0,
       currentTime: 0,

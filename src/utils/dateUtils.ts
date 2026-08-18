@@ -24,7 +24,13 @@ export function resolveLocale(appLocale?: string): string {
     if (norm === 'fr' || norm.startsWith('fr-')) return 'fr-FR';
     if (norm === 'de' || norm.startsWith('de-')) return 'de-DE';
     if (norm === 'it' || norm.startsWith('it-')) return 'it-IT';
-    if (norm === 'pt' || norm.startsWith('pt-')) return 'pt-PT';
+    if (norm === 'pt' || norm.startsWith('pt-')) return 'pt-BR';
+    if (norm === 'zh' || norm.startsWith('zh-')) return 'zh-CN';
+    if (norm === 'ja' || norm.startsWith('ja-')) return 'ja-JP';
+    if (norm === 'ko' || norm.startsWith('ko-')) return 'ko-KR';
+    if (norm === 'pl' || norm.startsWith('pl-')) return 'pl-PL';
+    if (norm === 'tr' || norm.startsWith('tr-')) return 'tr-TR';
+    if (norm === 'uk' || norm.startsWith('uk-')) return 'uk-UA';
     return appLocale;
   }
   if (typeof navigator !== 'undefined' && navigator.language) {
@@ -140,4 +146,51 @@ export function getLocalTodayDateString(): string {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+export type FirstDayOfWeekOption = 'auto' | 'monday' | 'sunday';
+
+/**
+ * Returns 1 for Monday or 0 for Sunday based on preference or locale convention.
+ */
+export function getFirstDayOfWeek(pref?: FirstDayOfWeekOption, appLocale?: string): 0 | 1 {
+  if (pref === 'monday') return 1;
+  if (pref === 'sunday') return 0;
+
+  // Auto resolution based on locale convention
+  const locale = resolveLocale(appLocale).toLowerCase();
+  // Locales where Sunday is traditionally the first day of the week
+  if (locale === 'en-us' || locale === 'en-ca' || locale.startsWith('en-us') || locale.startsWith('en-ca') || locale === 'he' || locale.startsWith('he-') || locale === 'ar-sa') {
+    return 0; // Sunday
+  }
+  return 1; // Monday (ISO-8601 standard for Russia, Europe, CIS, Latin America)
+}
+
+/**
+ * Generates an array of 7 localized weekday names starting from the designated first day (1 = Monday, 0 = Sunday).
+ */
+export function getWeekDayLabels(
+  firstDay: 0 | 1 = 1,
+  appLocale?: string,
+  format: 'narrow' | 'short' | 'long' = 'short'
+): string[] {
+  const locale = resolveLocale(appLocale);
+  const formatter = new Intl.DateTimeFormat(locale, { weekday: format });
+  
+  // Reference dates: 2026-08-16 is Sunday, 2026-08-17 is Monday
+  const sundayRef = new Date(2026, 7, 16);
+  const mondayRef = new Date(2026, 7, 17);
+
+  const baseRef = firstDay === 0 ? sundayRef : mondayRef;
+  const labels: string[] = [];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(baseRef);
+    d.setDate(baseRef.getDate() + i);
+    const raw = formatter.format(d);
+    const capitalized = raw.charAt(0).toUpperCase() + raw.slice(1).replace(/\.$/, '');
+    labels.push(capitalized);
+  }
+
+  return labels;
 }

@@ -11,8 +11,19 @@ interface AuthModalProps {
 }
 
 const UI_LANGUAGES = [
-  { code: "ru", name: "Русский", flag: "🇷🇺" },
   { code: "en", name: "English", flag: "🇬🇧" },
+  { code: "de", name: "Deutsch", flag: "🇩🇪" },
+  { code: "es", name: "Español", flag: "🇪🇸" },
+  { code: "fr", name: "Français", flag: "🇫🇷" },
+  { code: "it", name: "Italiano", flag: "🇮🇹" },
+  { code: "pl", name: "Polski", flag: "🇵🇱" },
+  { code: "pt", name: "Português", flag: "🇧🇷" },
+  { code: "ru", name: "Русский", flag: "🇷🇺" },
+  { code: "tr", name: "Türkçe", flag: "🇹🇷" },
+  { code: "uk", name: "Українська", flag: "🇺🇦" },
+  { code: "zh", name: "简体中文", flag: "🇨🇳" },
+  { code: "ja", name: "日本語", flag: "🇯🇵" },
+  { code: "ko", name: "한국어", flag: "🇰🇷" },
 ];
 
 export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initialUsername = "" }: AuthModalProps) {
@@ -161,7 +172,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
 
   if (!isOpen) return null;
 
-  const currentLang = (i18n.language || "ru").startsWith("ru") ? "ru" : "en";
+  const currentLang = ["en", "de", "es", "fr", "it", "pl", "pt", "ru", "tr", "uk", "zh", "ja", "ko"].includes(i18n.language) ? i18n.language : (i18n.language?.slice(0, 2) || "en");
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200">

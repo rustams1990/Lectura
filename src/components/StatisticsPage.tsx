@@ -37,7 +37,8 @@ import {
   Upload
 } from "lucide-react";
 import { useTranslation, Trans } from "react-i18next";
-import { formatDate, formatFriendlyDate, formatTime } from "../utils/dateUtils";
+import { formatDate, formatFriendlyDate, formatTime, getFirstDayOfWeek, getWeekDayLabels, resolveLocale } from "../utils/dateUtils";
+import { compareWords } from "../utils/stringUtils";
 
 interface StatisticsPageProps {
   vocab: Record<string, VocabItem>;
@@ -78,7 +79,7 @@ function StatisticsPage({
   const [vocabSearch, setVocabSearch] = useState("");
   const [contextSearchQuery, setContextSearchQuery] = useState("");
   const [vocabFilter, setVocabFilter] = useState<string>("all");
-  const [vocabSort, setVocabSort] = useState<"newest" | "oldest" | "alphabetical" | "level_desc" | "level_asc">("newest");
+  const [vocabSort, setVocabSort] = useState<"newest" | "oldest" | "alphabetical" | "alphabetical_desc" | "level_desc" | "level_asc">("newest");
   const [onlyPatterns, setOnlyPatternsState] = useState<boolean>(() => !!readerSettings?.onlyPatterns);
 
   useEffect(() => {
@@ -995,18 +996,20 @@ function StatisticsPage({
     });
 
     // 2. Generate the last 24 weeks containing 7 days each
+    const firstDay = getFirstDayOfWeek(readerSettings?.firstDayOfWeek, i18n.language); // 1 = Monday, 0 = Sunday
     const cells: { dateStr: string; date: Date; count: number; words: string[] }[] = [];
     const today = new Date();
     
-    // Find nearest Sunday of the current week (to have clean columns)
-    const dayOfWeek = today.getDay();
-    const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+    // Find nearest end day of the current week (to have clean 7-day columns)
+    const dayOfWeek = today.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+    const lastDayOfWeek = firstDay === 1 ? 0 : 6;
+    const daysToEndOfWeek = (lastDayOfWeek - dayOfWeek + 7) % 7;
     const endDate = new Date(today);
-    endDate.setDate(today.getDate() + daysToSunday);
+    endDate.setDate(today.getDate() + daysToEndOfWeek);
     
     // We want 24 weeks, so 24 * 7 = 168 days
     const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - 167); // Monday 24 weeks ago
+    startDate.setDate(endDate.getDate() - 167);
     
     const tempDate = new Date(startDate);
     for (let i = 0; i < 168; i++) {
@@ -1121,9 +1124,10 @@ function StatisticsPage({
       maxInADay,
       longestStreak,
       currentStreak,
+      firstDay,
       dailyCounts
     };
-  }, [statsArray]);
+  }, [statsArray, readerSettings?.firstDayOfWeek, i18n.language]);
 
   const monthlyGrowth = useMemo(() => {
     const list: { name: string; count: number }[] = [];
@@ -1499,7 +1503,10 @@ function StatisticsPage({
         return (a.createdAt || 0) - (b.createdAt || 0);
       }
       if (vocabSort === "alphabetical") {
-        return a.word.localeCompare(b.word);
+        return compareWords(a.word, b.word, selectedStatsLang, "asc");
+      }
+      if (vocabSort === "alphabetical_desc") {
+        return compareWords(a.word, b.word, selectedStatsLang, "desc");
       }
       if (vocabSort === "level_desc") {
         return getStatusWeight(b.status) - getStatusWeight(a.status);
@@ -1951,7 +1958,7 @@ function StatisticsPage({
                 let lastMonthName = "";
                 return heatmapData.columns.map((week, wIdx) => {
                   const firstDay = week[0].date;
-                  const monthName = firstDay.toLocaleDateString("en-US", { month: "short" });
+                  const monthName = new Intl.DateTimeFormat(resolveLocale(i18n.language), { month: "short" }).format(firstDay);
                   
                   // Only display month name when it changes
                   if (monthName !== lastMonthName) {
@@ -1973,15 +1980,20 @@ function StatisticsPage({
 
             <div className="flex gap-1.5 items-start">
               {/* Day names left labels */}
-              <div className="flex flex-col text-[8px] font-black text-zinc-400 select-none space-y-[4.5px] mt-0.5 w-[22px] text-right shrink-0">
-                <span>{t('stats_page.mon', 'Mon')}</span>
-                <span className="opacity-0">Tue</span>
-                <span>{t('stats_page.wed', 'Wed')}</span>
-                <span className="opacity-0">Thu</span>
-                <span>{t('stats_page.fri', 'Fri')}</span>
-                <span className="opacity-0">Sat</span>
-                <span>{t('stats_page.sun', 'Sun')}</span>
-              </div>
+              {(() => {
+                const weekDayLabels = getWeekDayLabels(heatmapData.firstDay, i18n.language, 'short');
+                return (
+                  <div className="flex flex-col text-[8px] font-black text-zinc-400 select-none space-y-[4.5px] mt-0.5 w-[22px] text-right shrink-0">
+                    <span>{weekDayLabels[0]}</span>
+                    <span className="opacity-0">{weekDayLabels[1]}</span>
+                    <span>{weekDayLabels[2]}</span>
+                    <span className="opacity-0">{weekDayLabels[3]}</span>
+                    <span>{weekDayLabels[4]}</span>
+                    <span className="opacity-0">{weekDayLabels[5]}</span>
+                    <span>{weekDayLabels[6]}</span>
+                  </div>
+                );
+              })()}
 
               {/* Heatmap Matrix with Columns representing weeks */}
               <div className="flex-1 overflow-x-auto pb-1 scrollbar-thin flex gap-1 select-none">
@@ -2014,7 +2026,7 @@ function StatisticsPage({
                           className={`w-[11.5px] h-[11.5px] rounded-xs border transition-all duration-100 shrink-0 cursor-pointer ${cellColor} ${
                             isSelected ? "ring-2 ring-teal-500 ring-offset-1 dark:ring-offset-zinc-900 scale-125 z-10 font-bold" : ""
                           }`}
-                          title={`${day.date.toLocaleDateString("en-US", { day: "2-digit", month: "short" })}: ${count} ${t('stats_page.words', 'words')}`}
+                          title={`${formatFriendlyDate(day.date, { datePref: readerSettings?.dateFormat, appLocale: i18n.language })}: ${count} ${t('stats_page.words', 'words')}`}
                         />
                       );
                     })}
@@ -2045,7 +2057,7 @@ function StatisticsPage({
             if (!resolvedWords) return null;
             
             const wordsList = resolvedWords.words;
-            const fullDateStr = resolvedWords.date.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
+            const fullDateStr = new Intl.DateTimeFormat(resolveLocale(i18n.language), { weekday: "long", day: "numeric", month: "short", year: "numeric" }).format(resolvedWords.date);
             
             return (
               <div className="bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/60 p-3.5 rounded-xl animate-in slide-in-from-top-2 duration-200 font-sans space-y-2">
@@ -2483,7 +2495,8 @@ function StatisticsPage({
             >
               <option value="newest">📅 {t('stats_page.sort_newest', 'Newest first')}</option>
               <option value="oldest">📅 {t('stats_page.sort_oldest', 'Oldest first')}</option>
-              <option value="alphabetical">🔤 {t('stats_page.sort_alpha', 'Alphabetical')}</option>
+              <option value="alphabetical">🔤 {t('stats_page.sort_alpha_asc', 'Alphabetical (A-Z)')}</option>
+              <option value="alphabetical_desc">🔤 {t('stats_page.sort_alpha_desc', 'Alphabetical (Z-A)')}</option>
               <option value="level_desc">📈 {t('stats_page.sort_status_desc', 'Status (Descending)')}</option>
               <option value="level_asc">📉 {t('stats_page.sort_status_asc', 'Status (Ascending)')}</option>
             </select>

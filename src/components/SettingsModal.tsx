@@ -18,8 +18,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
 import { UserAvatarDisplay } from "./ProfileModal";
-import { AIProfile, DateFormatOption, TimeFormatOption } from "../types";
-import { formatDate, formatTime } from "../utils/dateUtils";
+import { AIProfile, DateFormatOption, TimeFormatOption, FirstDayOfWeekOption, BackupSettings, BackupFileInfo } from "../types";
+import { formatDate, formatTime, getFirstDayOfWeek, resolveLocale } from "../utils/dateUtils";
 import { 
   getOrCreateAiProfiles, testAiProfileConnection, 
   isProfileOnCooldown, getCooldownRemainingSeconds 
@@ -334,7 +334,7 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
-  const { updateProfile } = useAuth();
+  const { updateProfile, serverToken } = useAuth();
   const [hintInput, setHintInput] = useState<string>(activeUser?.passwordHint || "");
   const [isSavingHint, setIsSavingHint] = useState<boolean>(false);
   const [hintSavedSuccess, setHintSavedSuccess] = useState<boolean>(false);
@@ -350,6 +350,213 @@ export default function SettingsModal({
   const [importStatus, setImportStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Automatic & Server Backups State
+  const [backupSettings, setBackupSettings] = useState<BackupSettings>({
+    enabled: true,
+    intervalHours: 24,
+    maxKeep: 5,
+    lastBackupTime: null,
+  });
+  const [isLoadingBackupSettings, setIsLoadingBackupSettings] = useState<boolean>(false);
+  const [serverBackups, setServerBackups] = useState<BackupFileInfo[]>([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState<boolean>(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState<boolean>(false);
+  const [confirmRestoreBackup, setConfirmRestoreBackup] = useState<BackupFileInfo | null>(null);
+  const [isRestoringServerBackup, setIsRestoringServerBackup] = useState<boolean>(false);
+
+  const getAuthHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {
+      "x-local-sync-key": localSyncKey || "",
+      "x-local-sync-user": activeUser?.id || activeUser?.email || "default",
+    };
+    if (serverToken) {
+      headers["Authorization"] = `Bearer ${serverToken}`;
+    }
+    return headers;
+  };
+
+  const fetchBackupSettings = async () => {
+    try {
+      setIsLoadingBackupSettings(true);
+      const res = await fetch("/api/settings/backup", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "ok" && json.data) {
+          setBackupSettings(json.data);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch backup settings:", err);
+    } finally {
+      setIsLoadingBackupSettings(false);
+    }
+  };
+
+  const updateBackupSettings = async (patch: Partial<BackupSettings>) => {
+    setBackupSettings((prev) => ({ ...prev, ...patch }));
+    try {
+      const res = await fetch("/api/settings/backup", {
+        method: "PATCH",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "success" && json.data) {
+          setBackupSettings(json.data);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update backup settings:", err);
+    }
+  };
+
+  const fetchServerBackups = async () => {
+    try {
+      setIsLoadingBackups(true);
+      const res = await fetch("/api/backups", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "ok" && Array.isArray(json.data)) {
+          setServerBackups(json.data);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch server backups:", err);
+      showToast(t("settings.err_fetch_backups", "Failed to fetch backups from server"), "error");
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  };
+
+  const handleCreateServerBackup = async () => {
+    try {
+      setIsCreatingBackup(true);
+      const res = await fetch("/api/backups/create", {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "success") {
+          showToast(t("settings.backup_created_success", "Backup created successfully!"), "success");
+          fetchServerBackups();
+          fetchBackupSettings();
+        }
+      } else {
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error || t("settings.err_export_backup", "Error creating backup"), "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || String(err), "error");
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
+  const handleExecuteRestoreServerBackup = async () => {
+    if (!confirmRestoreBackup) return;
+    try {
+      setIsRestoringServerBackup(true);
+      const res = await fetch(`/api/backups/restore/${encodeURIComponent(confirmRestoreBackup.filename)}`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "success" && json.data) {
+          onImportData(json.data);
+          showToast(t("settings.restore_success", "Data restored successfully from backup!"), "success");
+          setConfirmRestoreBackup(null);
+          fetchServerBackups();
+        }
+      } else {
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error || t("settings.err_restore_backup", "Failed to restore backup"), "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || String(err), "error");
+    } finally {
+      setIsRestoringServerBackup(false);
+    }
+  };
+
+  const handleDownloadServerBackup = async (filename: string) => {
+    try {
+      const res = await fetch(`/api/backups/download/${encodeURIComponent(filename)}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        showToast(t("settings.err_export_backup", "Error downloading backup"), "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || String(err), "error");
+    }
+  };
+
+  const handleDeleteServerBackup = async (filename: string) => {
+    if (!confirm(t("settings.delete_backup_confirm", "Are you sure you want to delete backup file \"{{filename}}\"?", { filename }))) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/backups/${encodeURIComponent(filename)}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        showToast(t("settings.backup_deleted_success", "Backup file deleted."), "success");
+        fetchServerBackups();
+      } else {
+        showToast(t("settings.err_delete_backup", "Failed to delete backup"), "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || String(err), "error");
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (!bytes || bytes <= 0) return "0 B";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const formatBackupDateTime = (timestamp: number | string): string => {
+    try {
+      const d = new Date(timestamp);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleString(resolveLocale(i18n.language), {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+    } catch (_) {}
+    return String(timestamp);
+  };
+
+  useEffect(() => {
+    if (isOpen && activeSettingsTab === "storage") {
+      fetchBackupSettings();
+      fetchServerBackups();
+    }
+  }, [isOpen, activeSettingsTab]);
 
   const [listeningMinsInput, setListeningMinsInput] = useState<string>(Math.round((listeningSeconds || 0) / 60).toString());
   const [listeningSaveMsg, setListeningSaveMsg] = useState<string | null>(null);
@@ -426,7 +633,7 @@ export default function SettingsModal({
           try {
             const d = new Date(parsed.exportDate);
             if (!isNaN(d.getTime())) {
-              dateFormatted = d.toLocaleString(i18n.language === "ru" ? "ru-RU" : "en-US", {
+              dateFormatted = d.toLocaleString(resolveLocale(i18n.language), {
                 year: "numeric",
                 month: "2-digit",
                 day: "2-digit",
@@ -438,7 +645,7 @@ export default function SettingsModal({
         } else if (file.lastModified) {
           try {
             const d = new Date(file.lastModified);
-            dateFormatted = d.toLocaleString(i18n.language === "ru" ? "ru-RU" : "en-US", {
+            dateFormatted = d.toLocaleString(resolveLocale(i18n.language), {
               year: "numeric",
               month: "2-digit",
               day: "2-digit",
@@ -771,7 +978,7 @@ export default function SettingsModal({
                   <div className="w-full sm:w-64 shrink-0">
                     <div className="relative">
                       <select
-                        value={(i18n.language || "ru").startsWith("ru") ? "ru" : "en"}
+                        value={["en", "de", "es", "fr", "it", "pl", "pt", "ru", "tr", "uk", "zh", "ja", "ko"].includes(i18n.language) ? i18n.language : (i18n.language?.slice(0, 2) || "en")}
                         onChange={(e) => {
                           const lang = e.target.value;
                           i18n.changeLanguage(lang);
@@ -782,11 +989,44 @@ export default function SettingsModal({
                         aria-label="Interface Language"
                         className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold py-2.5 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition cursor-pointer shadow-3xs"
                       >
+                        <option value="en" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇬🇧 English
+                        </option>
+                        <option value="de" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇩🇪 Deutsch (German)
+                        </option>
+                        <option value="es" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇪🇸 Español (Spanish)
+                        </option>
+                        <option value="fr" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇫🇷 Français (French)
+                        </option>
+                        <option value="it" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇮🇹 Italiano (Italian)
+                        </option>
+                        <option value="pl" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇵🇱 Polski (Polish)
+                        </option>
+                        <option value="pt" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇧🇷 Português (Portuguese)
+                        </option>
                         <option value="ru" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
                           🇷🇺 Русский (Russian)
                         </option>
-                        <option value="en" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
-                          🇬🇧 English
+                        <option value="tr" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇹🇷 Türkçe (Turkish)
+                        </option>
+                        <option value="uk" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇺🇦 Українська (Ukrainian)
+                        </option>
+                        <option value="zh" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇨🇳 简体中文 (Chinese)
+                        </option>
+                        <option value="ja" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇯🇵 日本語 (Japanese)
+                        </option>
+                        <option value="ko" className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-bold py-1">
+                          🇰🇷 한국어 (Korean)
                         </option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
@@ -825,7 +1065,7 @@ export default function SettingsModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
                   {/* Date Format Selector */}
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -886,6 +1126,37 @@ export default function SettingsModal({
                         </option>
                         <option value="12h">
                           {t('settings.time_12h', '12-hour (10:30 PM)')} — {formatTime(new Date(), { timePref: '12h' })}
+                        </option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* First Day of Week Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      {t('settings.first_day_of_week', 'First Day of the Week')}
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={(settings?.firstDayOfWeek as string) || "auto"}
+                        onChange={(e) => {
+                          const val = e.target.value as FirstDayOfWeekOption;
+                          onSettingsChange?.({ firstDayOfWeek: val });
+                        }}
+                        aria-label="First Day of the Week"
+                        className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold py-2.5 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition cursor-pointer shadow-3xs"
+                      >
+                        <option value="auto">
+                          {t('settings.format_auto', 'Automatic (by language)')} ({getFirstDayOfWeek('auto', i18n.language) === 1 ? t('settings.first_day_monday', 'Monday') : t('settings.first_day_sunday', 'Sunday')})
+                        </option>
+                        <option value="monday">
+                          {t('settings.first_day_monday', 'Monday (Europe, CIS)')}
+                        </option>
+                        <option value="sunday">
+                          {t('settings.first_day_sunday', 'Sunday (US, Canada)')}
                         </option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
@@ -1590,7 +1861,7 @@ export default function SettingsModal({
                     title={t("settings.export_title", "Export database to computer")}
                   >
                     <Download className="w-4 h-4 text-teal-500" />
-                    <span>{t('settings.download_json', 'Download backup (.json)')}</span>
+                    <span>{t('settings.download_json', 'Download copy (.json)')}</span>
                   </button>
 
                   {/* Import Button */}
@@ -1623,6 +1894,196 @@ export default function SettingsModal({
                     {importStatus.message}
                   </div>
                 )}
+
+                {/* --- Section 1: Automatic Scheduled Backups Configuration --- */}
+                <div className="pt-4 border-t border-zinc-200/70 dark:border-zinc-800/70 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
+                        {t('settings.auto_backups_title', 'Automatic Scheduled Backups')}
+                      </span>
+                    </div>
+                    {/* Toggle Switch */}
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={backupSettings.enabled}
+                        onChange={(e) => updateBackupSettings({ enabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                    </label>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">
+                    {t('settings.auto_backups_desc', 'Lectura will automatically create full JSON snapshots of your library and vocabulary according to the schedule.')}
+                  </p>
+
+                  {/* Interval & Copies Selectors Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white dark:bg-zinc-900 p-3.5 rounded-xl border border-zinc-200/70 dark:border-zinc-800/70 shadow-3xs">
+                    {/* Interval Dropdown */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                        {t('settings.backup_interval', 'Backup interval:')}
+                      </label>
+                      <select
+                        value={backupSettings.intervalHours}
+                        disabled={!backupSettings.enabled}
+                        onChange={(e) => updateBackupSettings({ intervalHours: Number(e.target.value) })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 font-medium focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50 cursor-pointer"
+                      >
+                        <option value={6}>{t('settings.interval_6h', 'Every 6 hours')}</option>
+                        <option value={12}>{t('settings.interval_12h', 'Every 12 hours')}</option>
+                        <option value={24}>{t('settings.interval_24h', 'Daily (24 hours)')}</option>
+                        <option value={72}>{t('settings.interval_72h', 'Every 3 days')}</option>
+                        <option value={168}>{t('settings.interval_168h', 'Weekly (7 days)')}</option>
+                      </select>
+                    </div>
+
+                    {/* Max Keep Copies */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                        {t('settings.keep_copies', 'Keep last:')}
+                      </label>
+                      <select
+                        value={backupSettings.maxKeep}
+                        disabled={!backupSettings.enabled}
+                        onChange={(e) => updateBackupSettings({ maxKeep: Number(e.target.value) })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 font-medium focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50 cursor-pointer"
+                      >
+                        <option value={3}>{t('settings.copies_count', '{{count}} copies', { count: 3 })}</option>
+                        <option value={5}>{t('settings.copies_count', '{{count}} copies', { count: 5 })}</option>
+                        <option value={10}>{t('settings.copies_count', '{{count}} copies', { count: 10 })}</option>
+                        <option value={20}>{t('settings.copies_count', '{{count}} copies', { count: 20 })}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Status & Manual Trigger Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5 text-xs">
+                    <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      <span className="font-medium">{t('settings.last_backup', 'Last backup:')}</span>
+                      <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">
+                        {backupSettings.lastBackupTime ? formatBackupDateTime(backupSettings.lastBackupTime) : t('settings.backup_never', 'Never')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCreateServerBackup}
+                      disabled={isCreatingBackup}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-950/70 border border-teal-200/60 dark:border-teal-800/60 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50 shadow-3xs"
+                    >
+                      {isCreatingBackup ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                      <span>{isCreatingBackup ? t('settings.creating_backup', 'Creating backup...') : t('settings.create_backup_now', 'Create backup now')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* --- Section 2: Available Backups on Disk --- */}
+                <div className="pt-4 border-t border-zinc-200/70 dark:border-zinc-800/70 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Database className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
+                        {t('settings.available_backups', 'Available Backups on Disk')}
+                      </span>
+                      {serverBackups.length > 0 && (
+                        <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold px-1.5 py-0.2 rounded-full font-mono">
+                          {serverBackups.length}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={fetchServerBackups}
+                      disabled={isLoadingBackups}
+                      className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-200/60 dark:hover:bg-zinc-800 transition cursor-pointer"
+                      title="Refresh"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBackups ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Backups List container */}
+                  {isLoadingBackups ? (
+                    <div className="p-4 text-center text-xs text-zinc-400 flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-teal-500" />
+                      <span>Loading backups...</span>
+                    </div>
+                  ) : serverBackups.length === 0 ? (
+                    <div className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl text-center text-[11px] text-zinc-400 font-medium">
+                      {t('settings.no_backups_found', 'No backup files saved on disk yet.')}
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {serverBackups.map((b) => (
+                        <div
+                          key={b.filename}
+                          className="flex items-center justify-between p-2.5 bg-white dark:bg-zinc-900 border border-zinc-200/70 dark:border-zinc-800/70 rounded-xl gap-2 hover:border-zinc-300 dark:hover:border-zinc-700 transition"
+                        >
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate font-mono">
+                                {b.filename}
+                              </span>
+                              {/* Type Badge */}
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
+                                b.type === 'auto'
+                                  ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800'
+                                  : b.type === 'pre-restore'
+                                  ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800'
+                                  : 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                              }`}>
+                                {b.type === 'auto' ? t('settings.badge_auto', 'Auto') : b.type === 'pre-restore' ? t('settings.badge_pre_restore', 'Safety Snapshot') : t('settings.badge_manual', 'Manual')}
+                              </span>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                {formatFileSize(b.size)}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-zinc-400 flex items-center gap-2 mt-0.5 font-medium">
+                              <span>{formatBackupDateTime(b.createdAt)}</span>
+                              {b.lessonsCount !== undefined && (
+                                <span>• {b.lessonsCount} {t('settings.lessons_unit', 'lessons')}</span>
+                              )}
+                              {b.wordsCount !== undefined && (
+                                <span>• {b.wordsCount} {t('settings.words_unit', 'words')}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRestoreBackup(b)}
+                              className="p-1.5 text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-lg transition cursor-pointer"
+                              title={t('settings.restore_backup_btn', 'Restore')}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadServerBackup(b.filename)}
+                              className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition cursor-pointer"
+                              title={t('settings.download_backup_btn', 'Download')}
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteServerBackup(b.filename)}
+                              className="p-1.5 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition cursor-pointer"
+                              title={t('settings.delete_backup_btn', 'Delete')}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
             </div>
@@ -1747,6 +2208,80 @@ export default function SettingsModal({
                 className="px-5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl transition shadow-sm cursor-pointer"
               >
                 {t('settings.restore_btn_confirm', 'Restore Backup')}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Server Backup Restoration Confirmation Modal Overlay */}
+      {confirmRestoreBackup && (
+        <div className="fixed inset-0 z-60 overflow-y-auto flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm transition-opacity"
+            onClick={() => !isRestoringServerBackup && setConfirmRestoreBackup(null)}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                  {t('settings.restore_server_backup_title', 'Restore Server Backup')}
+                </h4>
+                <p className="text-xs text-zinc-500 font-medium">
+                  {t('settings.restore_backup_subtitle', 'Confirm data restoration')}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex flex-col gap-2.5 text-xs">
+              <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-500">{t('settings.backup_date', 'Backup date:')}</span>
+                <span className="font-bold font-mono text-teal-600 dark:text-teal-400">{formatBackupDateTime(confirmRestoreBackup.createdAt)}</span>
+              </div>
+              <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium text-zinc-500">Файл:</span>
+                <span className="font-bold font-mono text-zinc-900 dark:text-white truncate max-w-[200px]">{confirmRestoreBackup.filename}</span>
+              </div>
+              {confirmRestoreBackup.lessonsCount !== undefined && (
+                <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                  <span className="font-medium text-zinc-500">{t('settings.backup_lessons', 'Books / lessons:')}</span>
+                  <span className="font-bold font-mono">{confirmRestoreBackup.lessonsCount}</span>
+                </div>
+              )}
+              {confirmRestoreBackup.wordsCount !== undefined && (
+                <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                  <span className="font-medium text-zinc-500">{t('settings.backup_words', 'Vocabulary cards:')}</span>
+                  <span className="font-bold font-mono">{confirmRestoreBackup.wordsCount}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              {t('settings.restore_server_backup_confirm', 'Restoring from this backup will update your books, vocabulary, links and progress. A safety snapshot will be created automatically before restoring. Continue?')}
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isRestoringServerBackup}
+                onClick={() => setConfirmRestoreBackup(null)}
+                className="px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                {t('common.cancel', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={isRestoringServerBackup}
+                onClick={handleExecuteRestoreServerBackup}
+                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isRestoringServerBackup ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                <span>{isRestoringServerBackup ? t('settings.restoring_backup', 'Restoring data...') : t('settings.restore_btn_confirm', 'Restore Backup')}</span>
               </button>
             </div>
 

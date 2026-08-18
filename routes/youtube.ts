@@ -148,6 +148,60 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
         .replace(/&#160;/g, " ");
     }
 
+    let channelName: string | null = null;
+    let channelAvatarUrl: string | null = null;
+
+    // Fetch official oEmbed data (100% reliable, never blocked)
+    try {
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+      if (oembedRes.ok) {
+        const oembedData: any = await oembedRes.json();
+        if (oembedData.author_name) {
+          channelName = oembedData.author_name;
+        }
+        if (oembedData.title && (title === "YouTube Video" || !title)) {
+          title = oembedData.title;
+        }
+        if (oembedData.author_url) {
+          try {
+            const cRes = await fetch(oembedData.author_url, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9"
+              }
+            });
+            if (cRes.ok) {
+              const cHtml = await cRes.text();
+              const ogImgMatch = cHtml.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i)
+                              || cHtml.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i);
+              if (ogImgMatch) channelAvatarUrl = ogImgMatch[1];
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    // Fallback parsing from HTML if oEmbed didn't provide it
+    if (!channelName && playerResponseMatch) {
+      try {
+        const parsed = JSON.parse(playerResponseMatch[1]);
+        if (parsed?.videoDetails?.author) {
+          channelName = parsed.videoDetails.author;
+        }
+      } catch (e) {}
+    }
+    if (!channelName) {
+      const channelMatch = html.match(/"author"\s*:\s*"([^"]+)"/) || html.match(/<link itemprop="name" content="([^"]+)">/i);
+      if (channelMatch) channelName = channelMatch[1];
+    }
+    
+    if (!channelAvatarUrl) {
+      const avatarMatch = html.match(/"avatar"\s*:\s*\{\s*"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/);
+      if (avatarMatch) {
+        channelAvatarUrl = avatarMatch[1];
+      }
+    }
+
     let langCode = "es";
     const targetLower = (targetLanguage || "spanish").toLowerCase();
     if (targetLower.startsWith("span") || targetLower === "es") langCode = "es";
@@ -442,7 +496,9 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
                 coverUrl: thumbnail,
                 youtubeId: videoId,
                 youtubeDuration: videoLengthSeconds,
-                isFallback: false
+                isFallback: false,
+                channelName,
+                channelAvatarUrl
               });
             }
           }
@@ -488,7 +544,9 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
         coverUrl: thumbnail,
         youtubeId: videoId,
         youtubeDuration: videoLengthSeconds,
-        isFallback: true
+        isFallback: true,
+        channelName,
+        channelAvatarUrl
       });
     }
 
@@ -500,7 +558,9 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
       text: formattedText,
       coverUrl: thumbnail,
       youtubeId: videoId,
-      youtubeDuration: videoLengthSeconds
+      youtubeDuration: videoLengthSeconds,
+      channelName,
+      channelAvatarUrl
     });
   } catch (err: any) {
     console.error("YouTube importing subtitle error:", err);

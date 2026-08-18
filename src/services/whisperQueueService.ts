@@ -5,7 +5,7 @@ export interface WhisperQueueItem {
   userId: string;
   title: string;
   sourceUrl?: string;
-  sourceType: "youtube" | "file";
+  sourceType: "youtube" | "podcast" | "file";
   model: string;
   language?: string;
   threads?: number;
@@ -17,6 +17,8 @@ export interface WhisperQueueItem {
   totalDuration: number;
   etaSeconds: number;
   stageText: string;
+  channelName?: string;
+  channelAvatarUrl?: string;
   createdBookId?: string;
   error?: string;
   createdAt: number;

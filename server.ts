@@ -13,6 +13,8 @@ import mediaRouter from "./routes/media.ts";
 import whisperRouter from "./routes/whisper.ts";
 import wordnetRouter from "./routes/wordnet.ts";
 import { frequencyRouter } from "./routes/frequency.ts";
+import backupRouter from "./routes/backup.ts";
+import { startBackupScheduler } from "./server/backupService.ts";
 import { APP_VERSION } from "./src/version.ts";
 
 dotenv.config();
@@ -69,21 +71,79 @@ async function startServer() {
   });
 
 
-  // Static Audio Storage route (serves audio files directly from disk to keep RAM usage minimal)
+  // Static Audio Storage & Streaming route (serves audio files directly from disk with HTTP 206 Range support)
   const AUDIO_STORAGE_DIR = path.join(DATA_DIR, "audio_files");
   if (!fs.existsSync(AUDIO_STORAGE_DIR)) {
     fs.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
   }
 
-  app.get("/api/audio-files/:filename", (req, res) => {
-    const filename = path.basename(req.params.filename);
-    const filePath = path.join(AUDIO_STORAGE_DIR, filename);
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).json({ error: "Audio file not found" });
+  const serveAudioFile = (req: express.Request, res: express.Response) => {
+    const rawFilename = path.basename(req.params.filename || "");
+    let filePath = path.join(AUDIO_STORAGE_DIR, rawFilename);
+
+    // If file doesn't exist directly (e.g. extension was omitted to bypass download managers), probe extensions
+    if (!fs.existsSync(filePath)) {
+      const candidates = [".mp3", ".m4a", ".aac", ".ogg", ".wav", ".webm"];
+      for (const ext of candidates) {
+        const testPath = path.join(AUDIO_STORAGE_DIR, `${rawFilename}${ext}`);
+        if (fs.existsSync(testPath)) {
+          filePath = testPath;
+          break;
+        }
+      }
     }
-  });
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "Audio file not found" });
+    }
+
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+    const ext = path.extname(filePath).toLowerCase();
+
+    let mimeType = "audio/mpeg";
+    if (ext === ".m4a" || ext === ".aac") mimeType = "audio/mp4";
+    else if (ext === ".ogg") mimeType = "audio/ogg";
+    else if (ext === ".wav") mimeType = "audio/wav";
+    else if (ext === ".webm") mimeType = "audio/webm";
+
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+      if (start >= fileSize || end >= fileSize) {
+        res.status(416).setHeader("Content-Range", `bytes */${fileSize}`);
+        return res.end();
+      }
+
+      const chunksize = end - start + 1;
+      const fileStream = fs.createReadStream(filePath, { start, end });
+
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Content-Length": chunksize,
+        "Content-Type": mimeType,
+      });
+
+      fileStream.pipe(res);
+    } else {
+      res.writeHead(200, {
+        "Content-Length": fileSize,
+        "Content-Type": mimeType,
+      });
+      fs.createReadStream(filePath).pipe(res);
+    }
+  };
+
+  app.get("/api/audio-files/:filename", serveAudioFile);
+  app.get("/api/audio-stream/:filename", serveAudioFile);
 
   // Periodic Garbage Collection sweep (every 3 minutes) if --expose-gc is enabled
   setInterval(() => {
@@ -106,6 +166,10 @@ async function startServer() {
   app.use("/api/wordnet", wordnetRouter);
   app.use("/api/frequency", frequencyRouter);
   app.use("/api/auth", authRouter);
+  app.use("/api", backupRouter);
+
+  // Start background automated backup scheduler
+  startBackupScheduler();
 
   // ============================================================
   // Frontend Middleware (Vite Dev Server / Production Static Files)

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, memo } from "react";
-import { HistoryEntry, Lesson, ReaderSettings } from "../types";
+import { HistoryEntry, Lesson, ReaderSettings, ActivitySourceMode, CustomActivityCategory } from "../types";
 import { 
   History, 
   Search, 
@@ -27,12 +27,16 @@ import {
   Target,
   Flame,
   Play,
+  Radio,
+  Tv,
+  Mic,
+  Volume2,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
-import { formatDateTime } from "../utils/dateUtils";
+import { formatDateTime, resolveLocale } from "../utils/dateUtils";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -48,6 +52,46 @@ const getPageNumbers = (current: number, total: number) => {
   }
   return [1, "...", current - 1, current, current + 1, "...", total];
 };
+
+const ACTIVITY_LANGUAGES = [
+  { code: "es", name: "Spanish", native: "Español", flag: "🇪🇸" },
+  { code: "en", name: "English", native: "English", flag: "🇬🇧" },
+  { code: "fr", name: "French", native: "Français", flag: "🇫🇷" },
+  { code: "de", name: "German", native: "Deutsch", flag: "🇩🇪" },
+  { code: "it", name: "Italian", native: "Italiano", flag: "🇮🇹" },
+  { code: "pt", name: "Portuguese", native: "Português", flag: "🇵🇹" },
+  { code: "ru", name: "Russian", native: "Русский", flag: "🇷🇺" },
+  { code: "zh", name: "Chinese", native: "中文", flag: "🇨🇳" },
+  { code: "ja", name: "Japanese", native: "日本語", flag: "🇯🇵" },
+  { code: "ko", name: "Korean", native: "한국어", flag: "🇰🇷" },
+  { code: "tr", name: "Turkish", native: "Türkçe", flag: "🇹🇷" },
+  { code: "uk", name: "Ukrainian", native: "Українська", flag: "🇺🇦" },
+  { code: "ar", name: "Arabic", native: "العربية", flag: "🇸🇦" },
+  { code: "nl", name: "Dutch", native: "Nederlands", flag: "🇳🇱" },
+  { code: "pl", name: "Polish", native: "Polski", flag: "🇵🇱" },
+  { code: "sv", name: "Swedish", native: "Svenska", flag: "🇸🇪" },
+  { code: "el", name: "Greek", native: "Ελληνικά", flag: "🇬🇷" },
+  { code: "cs", name: "Czech", native: "Čeština", flag: "🇨🇿" },
+  { code: "hi", name: "Hindi", native: "हिन्दी", flag: "🇮🇳" },
+  { code: "vi", name: "Vietnamese", native: "Tiếng Việt", flag: "🇻🇳" },
+  { code: "kk", name: "Kazakh", native: "Қазақша", flag: "🇰🇿" }
+];
+
+const ACTIVITY_CATEGORIES: Array<{
+  id: CustomActivityCategory;
+  labelKey: string;
+  defaultLabel: string;
+  icon: any;
+  color: string;
+  defaultActionType: "read" | "listen" | "study" | "speak";
+}> = [
+  { id: "video", labelKey: "history_page.cat_video", defaultLabel: "Video (YouTube, Netflix)", icon: Tv, color: "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/50", defaultActionType: "listen" },
+  { id: "podcast", labelKey: "history_page.cat_podcast", defaultLabel: "Podcast / Audio", icon: Headphones, color: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/50", defaultActionType: "listen" },
+  { id: "book", labelKey: "history_page.cat_book", defaultLabel: "Book / Reading", icon: BookOpen, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/50", defaultActionType: "read" },
+  { id: "grammar", labelKey: "history_page.cat_grammar", defaultLabel: "Grammar / Exercises", icon: FileText, color: "text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-900/50", defaultActionType: "study" },
+  { id: "speaking", labelKey: "history_page.cat_speaking", defaultLabel: "Speaking / Tutor", icon: MessageSquare, color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/50", defaultActionType: "speak" },
+  { id: "other", labelKey: "history_page.cat_other", defaultLabel: "Other Activity", icon: Sparkles, color: "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900/50", defaultActionType: "read" },
+];
 
 interface HistoryPageProps {
   history: HistoryEntry[];
@@ -75,6 +119,7 @@ function HistoryPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [channelsLimit, setChannelsLimit] = useState<number | "all">(5);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -127,13 +172,15 @@ function HistoryPage({
     return Array.from(monthsSet).sort().reverse();
   }, [history]);
 
+  const [selectedChannel, setSelectedChannel] = useState<string>("all");
+
+  // Month navigation helpers
   const formatMonthName = (monthKey: string) => {
-    if (monthKey === "all") return t('history_page.all_months', "All Months");
+    if (monthKey === "all") return t('history_page.all_months', "All Time");
     try {
       const [year, month] = monthKey.split("-");
       const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
-      const monthName = d.toLocaleString(i18n.language.startsWith("en") ? "en-US" : "ru-RU", { month: "long", year: "numeric" });
-      return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+      return d.toLocaleDateString(resolveLocale(i18n.language), { month: "long", year: "numeric" });
     } catch {
       return monthKey;
     }
@@ -144,9 +191,12 @@ function HistoryPage({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Form states for Modal
+  const [formMode, setFormMode] = useState<ActivitySourceMode>("library");
+  const [formCategory, setFormCategory] = useState<CustomActivityCategory>("video");
   const [formLessonId, setFormLessonId] = useState("");
   const [formCustomTitle, setFormCustomTitle] = useState("");
-  const [formActionType, setFormActionType] = useState<"read" | "listen">("read");
+  const [formLanguage, setFormLanguage] = useState("Spanish");
+  const [formActionType, setFormActionType] = useState<"read" | "listen" | "complete" | "study" | "speak">("read");
   const [formStatus, setFormStatus] = useState<"in_progress" | "completed">("in_progress");
   const [formMinutes, setFormMinutes] = useState("10");
   const [formNotes, setFormNotes] = useState("");
@@ -158,9 +208,13 @@ function HistoryPage({
   // Populate form when editing an entry
   const startEditEntry = (entry: HistoryEntry) => {
     setEditingEntry(entry);
+    const isCustom = entry.mode === "custom" || entry.lessonId === "custom" || !lessons.some((l) => l.id === entry.lessonId);
+    setFormMode(isCustom ? "custom" : "library");
+    setFormCategory(entry.category || "video");
     setFormLessonId(entry.lessonId);
-    setFormCustomTitle(entry.lessonTitle);
-    setFormActionType(entry.actionType === "listen" ? "listen" : "read");
+    setFormCustomTitle(entry.customTitle || entry.lessonTitle);
+    setFormLanguage(entry.targetLanguage || "Spanish");
+    setFormActionType(entry.actionType || "read");
     setFormStatus((entry.status === "completed" || entry.actionType === "complete") ? "completed" : "in_progress");
     setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
     setFormNotes(entry.notes || "");
@@ -188,8 +242,12 @@ function HistoryPage({
   // Reset form when opening create modal
   const startCreateEntry = () => {
     setEditingEntry(null);
+    setFormMode("library");
+    setFormCategory("video");
     setFormLessonId(lessons[0]?.id || "");
-    setFormCustomTitle(lessons[0]?.title || t('history_page.lesson_default', "Lesson"));
+    setFormCustomTitle("");
+    const defaultLang = selectedLanguage !== "all" ? selectedLanguage : (lessons[0]?.targetLanguage || "Spanish");
+    setFormLanguage(defaultLang);
     setFormActionType("read");
     setFormStatus("in_progress");
     setFormMinutes("15");
@@ -209,11 +267,33 @@ function HistoryPage({
   const handleSaveEntry = (e: React.FormEvent) => {
     e.preventDefault();
     const durationSeconds = Math.max(0, (parseInt(formMinutes, 10) || 0) * 60);
-    const selectedLesson = lessons.find((l) => l.id === formLessonId);
-    const title = selectedLesson ? selectedLesson.title : (formCustomTitle || t('history_page.lesson_default_short', "Lesson"));
-    const targetLang = selectedLesson ? selectedLesson.targetLanguage : "Spanish";
-    const coverUrl = selectedLesson ? selectedLesson.coverUrl : null;
-    const lessonType = selectedLesson ? selectedLesson.lessonType : "article";
+
+    let title = "";
+    let targetLang = "Spanish";
+    let coverUrl: string | null = null;
+    let lessonType = "article";
+    let channelName: string | null = null;
+    let channelAvatarUrl: string | null = null;
+    let lessonId = "custom";
+
+    if (formMode === "library") {
+      const selectedLesson = lessons.find((l) => l.id === formLessonId);
+      title = selectedLesson ? selectedLesson.title : (formCustomTitle.trim() || t('history_page.lesson_default_short', "Lesson"));
+      targetLang = selectedLesson ? selectedLesson.targetLanguage : (formLanguage || "Spanish");
+      coverUrl = selectedLesson ? selectedLesson.coverUrl : null;
+      lessonType = selectedLesson ? (selectedLesson.lessonType || "article") : "article";
+      channelName = selectedLesson ? (selectedLesson.channelName || null) : null;
+      channelAvatarUrl = selectedLesson ? (selectedLesson.channelAvatarUrl || null) : null;
+      lessonId = formLessonId || "custom";
+    } else {
+      // Custom Activity
+      title = formCustomTitle.trim() || t('history_page.custom_activity_default', "Custom Activity");
+      targetLang = formLanguage || "Spanish";
+      lessonId = "custom";
+      lessonType = formCategory;
+      channelName = null;
+      channelAvatarUrl = null;
+    }
 
     let timestamp = new Date().toISOString();
     if (formDateOnly) {
@@ -231,7 +311,7 @@ function HistoryPage({
         h.id === editingEntry.id
           ? {
               ...h,
-              lessonId: formLessonId || h.lessonId,
+              lessonId,
               lessonTitle: title,
               targetLanguage: targetLang,
               coverUrl,
@@ -242,6 +322,11 @@ function HistoryPage({
               notes: formNotes.trim(),
               tags: parsedTags,
               timestamp,
+              channelName,
+              channelAvatarUrl,
+              mode: formMode,
+              category: formMode === "custom" ? formCategory : undefined,
+              customTitle: formMode === "custom" ? title : undefined,
             }
           : h
       );
@@ -251,7 +336,7 @@ function HistoryPage({
       // Create new entry
       const newEntry: HistoryEntry = {
         id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        lessonId: formLessonId || "custom",
+        lessonId,
         lessonTitle: title,
         targetLanguage: targetLang,
         coverUrl,
@@ -262,6 +347,11 @@ function HistoryPage({
         notes: formNotes.trim(),
         tags: parsedTags,
         timestamp,
+        channelName,
+        channelAvatarUrl,
+        mode: formMode,
+        category: formMode === "custom" ? formCategory : undefined,
+        customTitle: formMode === "custom" ? title : undefined,
       };
       onUpdateHistory([newEntry, ...history]);
       setIsCreateModalOpen(false);
@@ -487,6 +577,77 @@ function HistoryPage({
       }));
   }, [scopedHistory, getItemLanguage]);
 
+  // Channel / Source Analytics
+  const channelStats = useMemo(() => {
+    const channelMap: Record<
+      string,
+      {
+        name: string;
+        avatarUrl?: string | null;
+        durationSeconds: number;
+        lessonIds: Set<string>;
+        sessionCount: number;
+      }
+    > = {};
+
+    let totalDuration = 0;
+
+    scopedHistory.forEach((item) => {
+      const lesson = lessons.find((l) => l.id === item.lessonId);
+      const rawName =
+        lesson?.channelName?.trim() ||
+        item.channelName?.trim() ||
+        (lesson?.youtubeId || lesson?.lessonType === "youtube"
+          ? (lesson?.title && lesson.title !== "YouTube Video" ? lesson.title : t("history_page.youtube_source", "YouTube"))
+          : lesson?.lessonType === "podcast"
+          ? (lesson?.title || t("history_page.podcast_source", "Podcast"))
+          : null);
+
+      if (!rawName) return;
+
+      const avatarUrl =
+        lesson?.channelAvatarUrl ||
+        item.channelAvatarUrl ||
+        lesson?.coverUrl ||
+        item.coverUrl ||
+        null;
+
+      if (!channelMap[rawName]) {
+        channelMap[rawName] = {
+          name: rawName,
+          avatarUrl,
+          durationSeconds: 0,
+          lessonIds: new Set<string>(),
+          sessionCount: 0,
+        };
+      } else if (!channelMap[rawName].avatarUrl && avatarUrl) {
+        channelMap[rawName].avatarUrl = avatarUrl;
+      }
+
+      const dur = item.durationSeconds || 0;
+      channelMap[rawName].durationSeconds += dur;
+      channelMap[rawName].sessionCount += 1;
+      if (item.lessonId) {
+        channelMap[rawName].lessonIds.add(item.lessonId);
+      }
+      totalDuration += dur;
+    });
+
+    const list = Object.values(channelMap).map((ch) => ({
+      name: ch.name,
+      avatarUrl: ch.avatarUrl,
+      durationSeconds: ch.durationSeconds,
+      videoCount: ch.lessonIds.size || ch.sessionCount,
+      sharePercent: totalDuration > 0 ? (ch.durationSeconds / totalDuration) * 100 : 0,
+    }));
+
+    return list.sort((a, b) => b.durationSeconds - a.durationSeconds);
+  }, [scopedHistory, lessons, t]);
+
+  const displayedChannels = useMemo(() => {
+    if (channelsLimit === "all") return channelStats;
+    return channelStats.slice(0, channelsLimit);
+  }, [channelStats, channelsLimit]);
 
   // Dynamic card title
   const timeCardTitle = useMemo(() => {
@@ -522,7 +683,11 @@ function HistoryPage({
         const matchesTitle = item.lessonTitle.toLowerCase().includes(q);
         const matchesNote = (item.notes || "").toLowerCase().includes(q);
         const matchesLang = getItemLanguage(item).toLowerCase().includes(q);
-        if (!matchesTitle && !matchesNote && !matchesLang) return false;
+        const matchedLesson = lessons.find((l) => l.id === item.lessonId);
+        const matchesChannel =
+          (item.channelName || "").toLowerCase().includes(q) ||
+          (matchedLesson?.channelName || "").toLowerCase().includes(q);
+        if (!matchesTitle && !matchesNote && !matchesLang && !matchesChannel) return false;
       }
       return true;
     });
@@ -533,7 +698,7 @@ function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [scopedHistory, filterType, searchQuery]);
+  }, [scopedHistory, filterType, searchQuery, getItemLanguage, lessons]);
 
   const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -756,6 +921,117 @@ function HistoryPage({
         </div>
       )}
 
+      {/* Channels & Sources Analytics Table */}
+      {channelStats.length > 0 && (
+        <div className="bg-white dark:bg-zinc-900/60 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-4 shadow-xs">
+          {/* Header row */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl">
+                <Radio className="w-4 h-4" />
+              </div>
+              <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                {t('history_page.channels_title', 'Channels')}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 self-end sm:self-auto">
+              <div className="flex items-center gap-2">
+                <span>{t('history_page.channels_show', 'Show')}</span>
+                <select
+                  value={channelsLimit}
+                  onChange={(e) => setChannelsLimit(e.target.value === "all" ? "all" : parseInt(e.target.value, 10))}
+                  aria-label={t('history_page.channels_show', 'Show channels limit')}
+                  className="bg-zinc-100 dark:bg-zinc-800 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-200 font-bold rounded-xl px-2.5 py-1 text-xs cursor-pointer outline-none focus:ring-2 focus:ring-amber-500/30"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value="all">{t('history_page.channels_show_all', 'All')}</option>
+                </select>
+              </div>
+              <span className="text-zinc-400 dark:text-zinc-500 font-medium">
+                {t('history_page.total_sources', 'Total sources: {{count}}', { count: channelStats.length })}
+              </span>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-zinc-100 dark:border-zinc-800/80 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                  <th className="pb-3 font-bold">{t('history_page.col_source', 'Source')}</th>
+                  <th className="pb-3 font-bold text-center sm:text-left">{t('history_page.col_time', 'Time')}</th>
+                  <th className="pb-3 font-bold text-center">{t('history_page.col_videos', 'Videos')}</th>
+                  <th className="pb-3 font-bold text-right pr-2 min-w-[120px]">{t('history_page.col_share', 'Share')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-medium">
+                {displayedChannels.map((channel) => (
+                  <tr
+                    key={channel.name}
+                    onClick={() => setSearchQuery(channel.name)}
+                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer group"
+                    title={t('history_page.filter_by_channel', 'Click to filter history by this channel')}
+                  >
+                    {/* Source: Avatar + Name */}
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-3">
+                        {channel.avatarUrl ? (
+                          <img
+                            src={channel.avatarUrl}
+                            alt={channel.name}
+                            className="w-9 h-9 rounded-full object-cover shrink-0 border border-zinc-200 dark:border-zinc-700 shadow-xs"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                            {channel.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors block truncate">
+                            {channel.name}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Time */}
+                    <td className="py-3 px-2 text-center sm:text-left font-mono font-bold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                      {formatDuration(channel.durationSeconds)}
+                    </td>
+
+                    {/* Videos / Lessons Count */}
+                    <td className="py-3 px-2 text-center font-bold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                      {channel.videoCount}
+                    </td>
+
+                    {/* Share progress bar + % */}
+                    <td className="py-3 pl-2 pr-2 text-right">
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="w-24 sm:w-32 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(3, channel.sharePercent)}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-zinc-500 dark:text-zinc-400">
+                          {channel.sharePercent.toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Filters & Search Control Bar */}
       <div className="p-3 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
         {/* Row 1: Filter Type Segmented Tabs + Search Input */}
@@ -968,31 +1244,68 @@ function HistoryPage({
         <div className="space-y-3">
           {paginatedHistory.map((item) => {
             const matchedLesson = lessons.find((l) => l.id === item.lessonId);
+            const isCustom = item.mode === "custom" || item.lessonId === "custom" || !matchedLesson;
             const isCompleted = item.status === "completed" || item.actionType === "complete";
-            const isListening = item.actionType === "listen";
+            const isListening = item.actionType === "listen" || item.category === "podcast" || item.category === "video";
+            const isStudy = item.actionType === "study" || item.category === "grammar";
+            const isSpeak = item.actionType === "speak" || item.category === "speaking";
+
+            const displayTitle = item.customTitle || item.lessonTitle;
 
             const typeBadgeColor = isListening
               ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
+              : isStudy
+              ? "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900"
+              : isSpeak
+              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
               : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900";
 
             return (
               <div
                 key={item.id}
                 onClick={() => matchedLesson && onOpenLesson(matchedLesson.id)}
-                className="group relative p-4 bg-white dark:bg-zinc-900/70 hover:bg-teal-50/20 dark:hover:bg-zinc-800/60 rounded-2xl border border-zinc-100 dark:border-zinc-800 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-3xs hover:shadow-xs hover:border-teal-200 dark:hover:border-teal-900/50"
+                className={`group relative p-4 bg-white dark:bg-zinc-900/70 hover:bg-teal-50/20 dark:hover:bg-zinc-800/60 rounded-2xl border border-zinc-100 dark:border-zinc-800 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-3xs hover:shadow-xs hover:border-teal-200 dark:hover:border-teal-900/50 ${
+                  matchedLesson ? "cursor-pointer" : ""
+                }`}
               >
                 {/* Left side: Cover + Title + Details */}
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  {/* Thumbnail Cover */}
+                  {/* Thumbnail Cover / Category Icon */}
                   <div className="w-16 h-11 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
                     {item.coverUrl ? (
                       <img
                         src={item.coverUrl}
-                        alt={item.lessonTitle}
+                        alt={displayTitle}
                         className="w-full h-full object-cover"
                       />
+                    ) : item.category === "video" ? (
+                      <div className="w-full h-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
+                        <Tv className="w-5 h-5 text-rose-500" />
+                      </div>
+                    ) : item.category === "podcast" ? (
+                      <div className="w-full h-full bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center">
+                        <Headphones className="w-5 h-5 text-purple-500" />
+                      </div>
+                    ) : item.category === "book" ? (
+                      <div className="w-full h-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-emerald-500" />
+                      </div>
+                    ) : item.category === "grammar" ? (
+                      <div className="w-full h-full bg-sky-50 dark:bg-sky-950/50 flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-sky-500" />
+                      </div>
+                    ) : item.category === "speaking" ? (
+                      <div className="w-full h-full bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center">
+                        <MessageSquare className="w-5 h-5 text-amber-500" />
+                      </div>
+                    ) : isListening ? (
+                      <div className="w-full h-full bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center">
+                        <Headphones className="w-5 h-5 text-purple-500" />
+                      </div>
                     ) : (
-                      <FileText className="w-5 h-5 text-zinc-400" />
+                      <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-zinc-400" />
+                      </div>
                     )}
                   </div>
 
@@ -1000,9 +1313,42 @@ function HistoryPage({
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${typeBadgeColor}`}>
-                        {isListening ? <Headphones className="w-3 h-3" /> : <BookOpen className="w-3 h-3" />}
-                        {isListening ? t('history_page.activity_listening', "Listening") : t('history_page.activity_reading', "Reading")}
+                        {isListening ? (
+                          <Headphones className="w-3 h-3" />
+                        ) : isStudy ? (
+                          <FileText className="w-3 h-3" />
+                        ) : isSpeak ? (
+                          <MessageSquare className="w-3 h-3" />
+                        ) : (
+                          <BookOpen className="w-3 h-3" />
+                        )}
+                        {isListening
+                          ? t('history_page.activity_listening', "Listening")
+                          : isStudy
+                          ? t('history_page.activity_study', "Study")
+                          : isSpeak
+                          ? t('history_page.activity_speaking', "Speaking")
+                          : t('history_page.activity_reading', "Reading")}
                       </span>
+
+                      {isCustom && item.category && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700">
+                          {item.category === "video" && <Tv className="w-3 h-3 text-rose-500" />}
+                          {item.category === "podcast" && <Headphones className="w-3 h-3 text-purple-500" />}
+                          {item.category === "book" && <BookOpen className="w-3 h-3 text-emerald-500" />}
+                          {item.category === "grammar" && <FileText className="w-3 h-3 text-sky-500" />}
+                          {item.category === "speaking" && <MessageSquare className="w-3 h-3 text-amber-500" />}
+                          {item.category === "other" && <Sparkles className="w-3 h-3 text-teal-500" />}
+                          <span>{t(`history_page.cat_${item.category}`, item.category)}</span>
+                        </span>
+                      )}
+
+                      {isCustom && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 bg-teal-50/60 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200/60 dark:border-teal-900/50">
+                          <Globe className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                          <span>{t('history_page.external_badge', 'External Activity')}</span>
+                        </span>
+                      )}
 
                       {isCompleted && (
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900">
@@ -1019,6 +1365,22 @@ function HistoryPage({
                         <Calendar className="w-3 h-3 text-zinc-400" />
                         {formatDate(item.timestamp)}
                       </span>
+
+                      {(item.channelName || matchedLesson?.channelName) && (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-md border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-1.5">
+                          {(item.channelAvatarUrl || matchedLesson?.channelAvatarUrl) ? (
+                            <img
+                              src={item.channelAvatarUrl || matchedLesson?.channelAvatarUrl || ""}
+                              alt=""
+                              className="w-3.5 h-3.5 rounded-full object-cover shrink-0"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            />
+                          ) : (
+                            <Radio className="w-2.5 h-2.5 shrink-0" />
+                          )}
+                          <span className="truncate max-w-[140px]">{item.channelName || matchedLesson?.channelName}</span>
+                        </span>
+                      )}
                       
                       {item.tags && item.tags.length > 0 && item.tags.map(t => (
                         <span key={t} className="text-[10px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-400 px-2 py-0.5 rounded-md border border-teal-100 dark:border-teal-900/50 flex items-center gap-1">
@@ -1029,7 +1391,7 @@ function HistoryPage({
                     </div>
 
                     <h4 className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                      {item.lessonTitle}
+                      {displayTitle}
                     </h4>
 
                     {/* Duration & Notes */}
@@ -1195,31 +1557,168 @@ function HistoryPage({
             </div>
 
             <form onSubmit={handleSaveEntry} className="space-y-4">
-              {/* Lesson Select */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  {t('history_page.select_lesson', 'Select Lesson')}
-                </label>
-                <select
-                  value={formLessonId}
-                  onChange={(e) => {
-                    setFormLessonId(e.target.value);
-                    const l = lessons.find((item) => item.id === e.target.value);
-                    if (l) setFormCustomTitle(l.title);
+              {/* Mode Switcher: Library Lesson vs Custom Activity */}
+              <div className="grid grid-cols-2 p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-2xl gap-1 border border-zinc-200/60 dark:border-zinc-700/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormMode("library");
+                    if (!formLessonId && lessons.length > 0) {
+                      setFormLessonId(lessons[0].id);
+                      setFormCustomTitle(lessons[0].title);
+                    }
                   }}
-                  className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    formMode === "library"
+                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
+                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  }`}
                 >
-                  {lessons.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.title} ({l.targetLanguage})
-                    </option>
-                  ))}
-                  <option value="custom">{t('history_page.custom_lesson', '-- Custom Lesson / Custom Name --')}</option>
-                </select>
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{t('history_page.mode_library', 'Library Lesson')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormMode("custom");
+                    if (formActionType === "read" && formCategory === "video") {
+                      setFormActionType("listen");
+                    }
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    formMode === "custom"
+                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
+                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{t('history_page.mode_custom', 'Custom Activity')}</span>
+                </button>
               </div>
 
-              {/* Custom Title if selected */}
-              {formLessonId === "custom" && (
+              {/* Mode: Library Lesson */}
+              {formMode === "library" ? (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    {t('history_page.select_lesson', 'Select Lesson')}
+                  </label>
+                  <select
+                    value={formLessonId}
+                    onChange={(e) => {
+                      setFormLessonId(e.target.value);
+                      const l = lessons.find((item) => item.id === e.target.value);
+                      if (l) setFormCustomTitle(l.title);
+                    }}
+                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                  >
+                    {lessons.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.channelName ? `[${l.channelName}] ` : ""}{l.title} ({l.targetLanguage})
+                      </option>
+                    ))}
+                    <option value="custom">{t('history_page.custom_lesson', '-- Custom Lesson / Custom Name --')}</option>
+                  </select>
+
+                  {/* Selected Lesson Channel Badge */}
+                  {(() => {
+                    const currentSelected = lessons.find((l) => l.id === formLessonId);
+                    const chName = currentSelected?.channelName || (editingEntry?.lessonId === formLessonId ? editingEntry?.channelName : null);
+                    const chAvatar = currentSelected?.channelAvatarUrl || (editingEntry?.lessonId === formLessonId ? editingEntry?.channelAvatarUrl : null);
+                    if (!chName) return null;
+                    return (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2.5 py-1 rounded-lg border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-2 shadow-3xs">
+                          {chAvatar ? (
+                            <img
+                              src={chAvatar}
+                              alt=""
+                              className="w-4 h-4 rounded-full object-cover shrink-0 border border-amber-300 dark:border-amber-700"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            />
+                          ) : (
+                            <Radio className="w-3 h-3 shrink-0" />
+                          )}
+                          <span>{chName}</span>
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                /* Mode: Custom External Activity */
+                <div className="space-y-3">
+                  {/* Custom Title Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                      {t('history_page.activity_title', 'Activity Title')} *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formCustomTitle}
+                      onChange={(e) => setFormCustomTitle(e.target.value)}
+                      placeholder={t('history_page.activity_title_placeholder', 'e.g. Netflix: Dark S01E01, Paper Book: El Quijote...')}
+                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    />
+                  </div>
+
+                  {/* Language Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                      {t('history_page.language_select', 'Target Language')}
+                    </label>
+                    <select
+                      value={formLanguage}
+                      onChange={(e) => setFormLanguage(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    >
+                      {ACTIVITY_LANGUAGES.map((lang) => (
+                        <option key={lang.code} value={lang.name}>
+                          {lang.flag} {lang.name} ({lang.native})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Category / Source Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                      {t('history_page.activity_category', 'Category / Source')}
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {ACTIVITY_CATEGORIES.map((cat) => {
+                        const Icon = cat.icon;
+                        const isSelected = formCategory === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setFormCategory(cat.id);
+                              setFormActionType(cat.defaultActionType);
+                            }}
+                            className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-700 dark:text-teal-300 font-bold shadow-xs ring-1 ring-teal-500/30"
+                                : "bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700"
+                            }`}
+                          >
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
+                              <Icon className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[11px] truncate leading-tight">
+                              {t(cat.labelKey, cat.defaultLabel)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Title if selected in library mode */}
+              {formMode === "library" && formLessonId === "custom" && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
                     {t('history_page.lesson_name', 'Lesson / Activity Name')}
@@ -1248,6 +1747,8 @@ function HistoryPage({
                   >
                     <option value="read">{t('history_page.type_reading', '📖 Reading')}</option>
                     <option value="listen">{t('history_page.type_listening', '🎧 Listening')}</option>
+                    <option value="study">{t('history_page.type_study', '✍️ Study / Grammar')}</option>
+                    <option value="speak">{t('history_page.type_speaking', '🗣️ Speaking')}</option>
                   </select>
                 </div>
 

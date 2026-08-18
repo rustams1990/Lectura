@@ -146,6 +146,14 @@ export default function WhisperNotificationDropdown({ onOpenBook }: WhisperNotif
                     <h5 className="text-xs font-black text-zinc-800 dark:text-zinc-100 truncate" title={activeItem.title}>
                       {activeItem.title}
                     </h5>
+                    {activeItem.channelName && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {activeItem.channelAvatarUrl && (
+                          <img src={activeItem.channelAvatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+                        )}
+                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium truncate">{activeItem.channelName}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5 mt-0.5 text-[10px] font-bold">
                       {activeItem.status === "downloading_model" ? (
                         <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
@@ -237,9 +245,19 @@ export default function WhisperNotificationDropdown({ onOpenBook }: WhisperNotif
                       <span className="text-[9px] font-black font-mono px-1.5 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 shrink-0">
                         #{idx + 1}
                       </span>
-                      <span className="truncate font-semibold text-zinc-700 dark:text-zinc-200 text-[11px]" title={item.title}>
-                        {item.title}
-                      </span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate font-semibold text-zinc-700 dark:text-zinc-200 text-[11px]" title={item.title}>
+                          {item.title}
+                        </span>
+                        {item.channelName && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {item.channelAvatarUrl && (
+                              <img src={item.channelAvatarUrl} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+                            )}
+                            <span className="text-[9px] text-zinc-500 dark:text-zinc-400 font-medium truncate">{item.channelName}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -287,6 +305,14 @@ export default function WhisperNotificationDropdown({ onOpenBook }: WhisperNotif
                         <div className="text-xs font-bold text-zinc-800 dark:text-zinc-100 truncate" title={item.title}>
                           {item.title}
                         </div>
+                        {item.channelName && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {item.channelAvatarUrl && (
+                              <img src={item.channelAvatarUrl} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+                            )}
+                            <span className="text-[9px] text-zinc-500 dark:text-zinc-400 font-medium truncate">{item.channelName}</span>
+                          </div>
+                        )}
                         <div className="text-[10px] text-zinc-400 flex items-center gap-1.5 mt-0.5">
                           <span className="font-mono">{item.model}</span>
                           {item.status === "completed" ? (

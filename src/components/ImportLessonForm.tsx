@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { Lesson, LessonType, ReaderSettings } from "../types";
 import { safeJsonParse, safeLocalStorageSetItem } from "../utils";
+import { resolveTargetLanguage } from "../utils/languageUtils";
 import { LANGUAGES_SUPPORTED } from "../data";
 import {
   PlusCircle,
@@ -154,7 +155,33 @@ export default function ImportLessonForm({
     try {
       await whisperQueueService.enqueueTask({
         sourceUrl: url,
+        sourceType: "youtube",
         title: title.trim() || "YouTube Video",
+        language: targetLanguage || "auto",
+        userId: activeUser?.id || "default_user",
+        model: (settings as any)?.whisperModel || "base",
+        threads: (settings as any)?.whisperThreads || 2,
+        vad: (settings as any)?.whisperVad !== false,
+      });
+      showToast(t('import.whisper_queued_toast', 'Task added to Faster-Whisper background queue ⚡'), 'success');
+      onCancel(); // Non-blocking close!
+    } catch (err: any) {
+      showToast(err.message || 'Failed to queue Whisper task', 'error');
+    }
+  };
+
+  const handlePodcastWhisperSubmit = async () => {
+    const url = webUrlInput.trim();
+    if (!url) {
+      showToast(t('import.error_empty_podcast_url', 'Please enter a valid Podcast or Apple Podcasts URL'), 'error');
+      return;
+    }
+
+    try {
+      await whisperQueueService.enqueueTask({
+        sourceUrl: url,
+        sourceType: "podcast",
+        title: title.trim() || "Podcast Episode",
         language: targetLanguage || "auto",
         userId: activeUser?.id || "default_user",
         model: (settings as any)?.whisperModel || "base",
@@ -177,9 +204,12 @@ export default function ImportLessonForm({
     if (globalTarget && globalTarget !== "All") return globalTarget;
     return localStorage.getItem("vocab_default_target_language") || "Spanish";
   });
-  const [translationLanguage, setTranslationLanguage] = useState(
-    editingLesson?.translationLanguage || localStorage.getItem("vocab_default_translation_language") || "Russian"
-  );
+  const [translationLanguage, setTranslationLanguage] = useState(() => {
+    if (editingLesson?.translationLanguage) return editingLesson.translationLanguage;
+    const remembered = localStorage.getItem("vocab_default_translation_language");
+    if (remembered) return remembered;
+    return resolveTargetLanguage(targetLanguage, null, null, i18n.language);
+  });
 
   useEffect(() => {
     if (!editingLesson && defaultTargetLanguage && defaultTargetLanguage !== "All") {
@@ -191,11 +221,11 @@ export default function ImportLessonForm({
     localStorage.getItem("vocab_default_target_language") || "Spanish"
   );
   const [savedTranslationLang, setSavedTranslationLang] = useState(
-    localStorage.getItem("vocab_default_translation_language") || "Russian"
+    localStorage.getItem("vocab_default_translation_language") || ""
   );
 
   const isTargetLanguageRemembered = targetLanguage === savedTargetLang;
-  const isTranslationLanguageRemembered = translationLanguage === savedTranslationLang;
+  const isTranslationLanguageRemembered = Boolean(savedTranslationLang && translationLanguage === savedTranslationLang);
 
   const handleRememberTargetLanguage = () => {
     safeLocalStorageSetItem("vocab_default_target_language", targetLanguage);
@@ -229,6 +259,8 @@ export default function ImportLessonForm({
   const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
   const [youtubeId, setYoutubeId] = useState<string | null>(editingLesson?.youtubeId || null);
   const [youtubeDuration, setYoutubeDuration] = useState<number | null>(editingLesson?.youtubeDuration || null);
+  const [channelName, setChannelName] = useState<string | null>(editingLesson?.channelName || null);
+  const [channelAvatarUrl, setChannelAvatarUrl] = useState<string | null>(editingLesson?.channelAvatarUrl || null);
   const [webScreenshotAsCover, setWebScreenshotAsCover] = useState(true);
 
   // File import states
@@ -609,6 +641,8 @@ export default function ImportLessonForm({
           if (data.youtubeDuration) {
             setYoutubeDuration(data.youtubeDuration);
           }
+          if (data.channelName) setChannelName(data.channelName);
+          if (data.channelAvatarUrl) setChannelAvatarUrl(data.channelAvatarUrl);
           setFallbackData({
             title: data.videoTitle,
             coverUrl: data.coverUrl || "",
@@ -632,6 +666,8 @@ export default function ImportLessonForm({
       if (data.youtubeDuration) {
         setYoutubeDuration(data.youtubeDuration);
       }
+      if (data.channelName) setChannelName(data.channelName);
+      if (data.channelAvatarUrl) setChannelAvatarUrl(data.channelAvatarUrl);
       setSelectedType("youtube");
       
       if (data.isFallback) {
@@ -933,6 +969,8 @@ export default function ImportLessonForm({
       coverUrl: coverUrl || null,
       youtubeId,
       youtubeDuration,
+      channelName,
+      channelAvatarUrl,
       lessonType: selectedType,
       isBuiltIn: editingLesson?.isBuiltIn || false,
       isArchived: editingLesson?.isArchived || false,
@@ -1472,32 +1510,49 @@ export default function ImportLessonForm({
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="space-y-2">
             <input
               type="url"
               value={webUrlInput}
               onChange={(e) => setWebUrlInput(e.target.value)}
               placeholder="https://podcasts.apple.com/us/podcast/..."
-              className="flex-1 px-3.5 py-2.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-purple-500/25"
+              className="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-purple-500/25"
             />
-            <button
-              type="button"
-              disabled={isWebLoading}
-              onClick={handleWebImport}
-              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-heavy text-xs rounded-xl flex items-center gap-1.5 shadow-sm hover:shadow-md cursor-pointer transition-all shrink-0 active:scale-97"
-            >
-              {isWebLoading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {t('import.importing', 'Importing...')}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                  {t('import.import_btn', 'Import')}
-                </>
-              )}
-            </button>
+            
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                id="btn-podcast-ai-import"
+                disabled={isWebLoading}
+                onClick={handleWebImport}
+                className="flex-1 py-2.5 px-3 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                title={t('import.podcast_ai_tooltip', 'Import and transcribe audio with Gemini AI Speech-to-Text')}
+              >
+                {isWebLoading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600 dark:text-purple-400" />
+                    {t('import.importing', 'Importing...')}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                    {t('import.podcast_ai_btn', 'Import with AI (Gemini STT)')}
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                id="btn-podcast-whisper-fetch"
+                disabled={isWebLoading}
+                onClick={handlePodcastWhisperSubmit}
+                className="flex-1 py-2.5 px-3 bg-emerald-50/90 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                title={t('import.podcast_whisper_tooltip', 'Enqueue in background and transcribe locally using Faster-Whisper CPU')}
+              >
+                <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                {t('import.podcast_whisper_btn', '⚡ Transcribe with Whisper')}
+              </button>
+            </div>
           </div>
 
           {webError && (
@@ -1696,6 +1751,20 @@ export default function ImportLessonForm({
           ></textarea>
         </div>
 
+        {channelName && (
+          <div className="flex items-center gap-2.5 p-3 bg-zinc-50 dark:bg-zinc-950/65 rounded-xl border border-zinc-100 dark:border-zinc-800 animate-in fade-in zoom-in-95 duration-200">
+            {channelAvatarUrl && (
+              <img src={channelAvatarUrl} alt="Channel Avatar" className="w-8 h-8 rounded-full object-cover shrink-0 shadow-xs border border-zinc-200 dark:border-zinc-700" />
+            )}
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t('import.channel', 'Channel / Author')}</span>
+              <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                {channelName}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Cover Customizer */}
         <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
@@ -1854,43 +1923,6 @@ export default function ImportLessonForm({
                 </button>
               </div>
 
-              {/* AI Speech-to-Text Action Card */}
-              <div className="p-3 bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-sky-500/10 border border-teal-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-teal-600 text-white rounded-lg shrink-0">
-                    <Sparkles className="w-4 h-4 animate-pulse" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-black text-zinc-900 dark:text-white">
-                      {t('import.create_subtitles_ai', 'Generate subtitles from audio with Gemini AI')}
-                    </h5>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
-                      {!text.trim()
-                        ? t('import.ai_subtitles_desc_empty', 'Book text is empty. AI will transcribe audio and create sentences with timecodes!')
-                        : t('import.ai_subtitles_desc_existing', 'AI will transcribe audio and re-generate sentences with sync timecodes.')}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={isTranscribingAudio}
-                  onClick={handleTranscribeAudio}
-                  className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:opacity-60 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer whitespace-nowrap"
-                >
-                  {isTranscribingAudio ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      {t('import.transcribing', 'Transcribing audio...')}
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-amber-300" />
-                      {t('import.create_subtitles_btn', 'Generate subtitles (Gemini AI)')}
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

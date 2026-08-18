@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { X, Search, Plus, Check, Globe, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getLanguageFlagEmoji, renderCircularFlag } from "./LibraryHome";
+import { getLocalizedLanguageName } from "../utils/stringUtils";
 
 export interface LanguageOption {
   code: string;
@@ -62,18 +63,22 @@ export default function ManageLanguagesModal({
   lessonCountByLanguage = {},
   languageFlags,
 }: ManageLanguagesModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
 
   if (!isOpen) return null;
 
+  const currentUiLang = i18n.language || 'en';
+
   const filteredLanguages = ALL_SUPPORTED_LANGUAGES.filter((l) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
+    const localized = getLocalizedLanguageName(l.code, currentUiLang).toLowerCase();
     return (
       l.name.toLowerCase().includes(q) ||
       l.nativeName.toLowerCase().includes(q) ||
-      l.code.toLowerCase().includes(q)
+      l.code.toLowerCase().includes(q) ||
+      localized.includes(q)
     );
   });
 
@@ -91,10 +96,10 @@ export default function ManageLanguagesModal({
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white">
-                {t("header.add_new_language", "Manage Languages")}
+                {t("manageLanguages.title", "Manage Languages")}
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold">
-                {t("header.select_language_desc", "Add or remove languages from your dropdown")}
+                {t("manageLanguages.subtitle", "Add or remove languages from your dropdown")}
               </p>
             </div>
           </div>
@@ -114,7 +119,7 @@ export default function ManageLanguagesModal({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t("header.search_languages", "Search languages...")}
+              placeholder={t("manageLanguages.searchPlaceholder", "Search languages...")}
               className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
@@ -145,7 +150,7 @@ export default function ManageLanguagesModal({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-black text-zinc-900 dark:text-white">
-                        {lang.name}
+                        {getLocalizedLanguageName(lang.code, currentUiLang)}
                       </span>
                       <span className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500">
                         • {lang.nativeName}
@@ -153,7 +158,7 @@ export default function ManageLanguagesModal({
                     </div>
                     {bookCount > 0 && (
                       <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 block mt-0.5">
-                        {bookCount} {bookCount === 1 ? "book" : "books"}
+                        {t("manageLanguages.booksCount", { count: bookCount, defaultValue: `${bookCount} ${bookCount === 1 ? 'book' : 'books'}` })}
                       </span>
                     )}
                   </div>
@@ -174,7 +179,7 @@ export default function ManageLanguagesModal({
                             : "bg-zinc-100 dark:bg-zinc-800 hover:bg-teal-500 hover:text-white text-zinc-700 dark:text-zinc-200"
                         }`}
                       >
-                        {isCurrentSelected ? "Active" : "Select"}
+                        {isCurrentSelected ? t("manageLanguages.active", "Active") : t("manageLanguages.select", "Select")}
                       </button>
 
                       <button
@@ -200,7 +205,7 @@ export default function ManageLanguagesModal({
                       className="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 hover:bg-teal-600 hover:text-white rounded-xl text-[10px] font-black transition-all border border-teal-200/60 dark:border-teal-900 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Add
+                      {t("manageLanguages.add", "Add")}
                     </button>
                   )}
                 </div>
@@ -215,7 +220,7 @@ export default function ManageLanguagesModal({
             onClick={onClose}
             className="px-5 py-2 text-xs font-bold bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 rounded-xl transition-all cursor-pointer"
           >
-            {t("common.done", "Done")}
+            {t("manageLanguages.done", "Done")}
           </button>
         </div>
       </div>

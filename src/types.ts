@@ -58,6 +58,9 @@ export interface Lesson {
   difficulty?: string | null;
   difficultyExplanation?: string | null;
   createdAt?: number;
+  wordTimestamps?: Array<{ w: string; s: number; e: number }> | null;
+  channelName?: string | null;
+  channelAvatarUrl?: string | null;
 }
 
 export interface LessonType {
@@ -137,10 +140,12 @@ export interface ReaderSettings {
   ignoreCategories?: IgnoreCategorySettings;
   dateFormat?: DateFormatOption;
   timeFormat?: TimeFormatOption;
+  firstDayOfWeek?: FirstDayOfWeekOption;
 }
 
 export type DateFormatOption = 'auto' | 'DD/MM/YYYY' | 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 export type TimeFormatOption = 'auto' | '12h' | '24h';
+export type FirstDayOfWeekOption = 'auto' | 'monday' | 'sunday';
 
 export interface DictionaryItem {
   id: string;
@@ -160,6 +165,9 @@ export interface TabDictionaryPreferences {
 
 export type UserDictionaryPreferences = Record<string, TabDictionaryPreferences>;
 
+export type ActivitySourceMode = 'library' | 'custom';
+export type CustomActivityCategory = 'video' | 'podcast' | 'book' | 'grammar' | 'speaking' | 'other';
+
 export interface HistoryEntry {
   id: string;
   lessonId: string;
@@ -168,10 +176,34 @@ export interface HistoryEntry {
   coverUrl?: string | null;
   targetLanguage: string;
   timestamp: string; // ISO string date
-  actionType: "read" | "listen" | "complete";
+  actionType: "read" | "listen" | "complete" | "study" | "speak";
   status?: "in_progress" | "completed";
   durationSeconds?: number;
   notes?: string;
   tags?: string[];
+  channelName?: string | null;
+  channelAvatarUrl?: string | null;
+  mode?: ActivitySourceMode;
+  category?: CustomActivityCategory;
+  customTitle?: string;
+}
+
+export interface BackupSettings {
+  enabled: boolean;
+  intervalHours: number;
+  maxKeep: number;
+  lastBackupTime: string | null;
+}
+
+export interface BackupFileInfo {
+  filename: string;
+  size: number;
+  createdAt: number;
+  isAuto: boolean;
+  type: "auto" | "manual" | "pre-restore" | "custom";
+  exportDate?: string;
+  lessonsCount?: number;
+  wordsCount?: number;
+  username?: string;
 }
 

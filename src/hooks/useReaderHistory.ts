@@ -89,6 +89,8 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
           status: newStatus,
           actionType: isAudioOrVideoLesson ? "listen" : (newStatus === "completed" ? "complete" : updated[existingIdx].actionType),
           timestamp: now,
+          channelName: updated[existingIdx].channelName || lesson.channelName || null,
+          channelAvatarUrl: updated[existingIdx].channelAvatarUrl || lesson.channelAvatarUrl || null,
         };
       } else {
         const newEntry: HistoryEntry = {
@@ -102,6 +104,8 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
           actionType: isAudioOrVideoLesson ? "listen" : (newStatus === "completed" ? "complete" : "read"),
           status: newStatus,
           durationSeconds: 0,
+          channelName: lesson.channelName || null,
+          channelAvatarUrl: lesson.channelAvatarUrl || null,
         };
         updated = [newEntry, ...(history || [])];
       }
@@ -131,6 +135,8 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
           actionType: isAudioOrVideoLesson ? "listen" : existing.actionType,
           durationSeconds: (existing.durationSeconds || 0) + addedSeconds,
           notes: notes ? (existing.notes ? `${existing.notes}; ${notes}` : notes) : existing.notes,
+          channelName: existing.channelName || lesson.channelName || null,
+          channelAvatarUrl: existing.channelAvatarUrl || lesson.channelAvatarUrl || null,
         };
       } else {
         const newEntry: HistoryEntry = {
@@ -145,6 +151,8 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
           status: currentStatus,
           durationSeconds: addedSeconds,
           notes: notes || undefined,
+          channelName: lesson.channelName || null,
+          channelAvatarUrl: lesson.channelAvatarUrl || null,
         };
         updated = [newEntry, ...(history || [])];
       }

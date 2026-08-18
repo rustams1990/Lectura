@@ -18,6 +18,8 @@ import { useTranslation, Trans } from "react-i18next";
 import { useToast } from "../context/ToastContext";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 import { ignoreListManager } from "../services/ignoreListService";
+import { compareWords } from "../utils/stringUtils";
+import { resolveTargetLanguage } from "../utils/languageUtils";
 
 const sanitizeGrammarTag = (tag: string) => {
   if (!tag) return "";
@@ -598,7 +600,6 @@ function WordExplainer({
   const [imageOpen, setImageOpen] = useState(false);
   const [aiTabOpen, setAiTabOpen] = useState(false);
   const [examplesTabOpen, setExamplesTabOpen] = useState(false);
-  const [wordnetTabOpen, setWordnetTabOpen] = useState(false);
   const [imageUrlValue, setImageUrlValue] = useState<string | null>(null);
   // Frequency & CEFR data state
   const [frequencyData, setFrequencyData] = useState<{ rank?: number; cefr: string; found: boolean } | null>(null);
@@ -714,15 +715,25 @@ function WordExplainer({
     return [];
   });
 
+  const pinnedLang = typeof window !== "undefined" ? localStorage.getItem("vocab_default_translation_language") : null;
+  const effectiveTranslationLanguage = useMemo(() => {
+    return resolveTargetLanguage(
+      targetLanguage,
+      translationLanguage,
+      pinnedLang,
+      i18n.language
+    );
+  }, [targetLanguage, translationLanguage, pinnedLang, i18n.language]);
+
   // Third-party Dictionaries Preferences (Meaning & Definition separation + Multi-device sync)
   const [dictPreferences, setDictPreferences] = useState<TabDictionaryPreferences>(() => {
-    return normalizeDictionaryPreferences(null, targetLanguage, translationLanguage);
+    return normalizeDictionaryPreferences(null, targetLanguage, effectiveTranslationLanguage);
   });
   const [manageDictsTab, setManageDictsTab] = useState<"meaning" | "definition">("meaning");
 
   const activeLangKey = useMemo(() => {
-    return `${(targetLanguage || "unknown").toLowerCase()}_${(translationLanguage || "unknown").toLowerCase()}`;
-  }, [targetLanguage, translationLanguage]);
+    return `${(targetLanguage || "unknown").toLowerCase()}_${(effectiveTranslationLanguage || "unknown").toLowerCase()}`;
+  }, [targetLanguage, effectiveTranslationLanguage]);
 
   const activePrefsStorageKey = useMemo(() => {
     return `vocab_clone_dict_prefs_${activeLangKey}`;
@@ -744,7 +755,7 @@ function WordExplainer({
     if (savedPrefs) {
       try {
         const parsed = JSON.parse(savedPrefs);
-        setDictPreferences(normalizeDictionaryPreferences(parsed, targetLanguage, translationLanguage));
+        setDictPreferences(normalizeDictionaryPreferences(parsed, targetLanguage, effectiveTranslationLanguage));
       } catch (err) {
         console.error("Error parsing saved dictionary preferences:", err);
       }
@@ -753,12 +764,12 @@ function WordExplainer({
       if (legacySaved) {
         try {
           const parsedLegacy = JSON.parse(legacySaved);
-          const normalized = normalizeDictionaryPreferences(parsedLegacy, targetLanguage, translationLanguage);
+          const normalized = normalizeDictionaryPreferences(parsedLegacy, targetLanguage, effectiveTranslationLanguage);
           setDictPreferences(normalized);
           safeLocalStorageSetItem(activePrefsStorageKey, JSON.stringify(normalized));
         } catch (_) {}
       } else {
-        setDictPreferences(normalizeDictionaryPreferences(null, targetLanguage, translationLanguage));
+        setDictPreferences(normalizeDictionaryPreferences(null, targetLanguage, effectiveTranslationLanguage));
       }
     }
 
@@ -776,7 +787,7 @@ function WordExplainer({
         if (res.ok) {
           const json = await res.json();
           if (json?.data && json.data[activeLangKey] && isMounted) {
-            const serverNormalized = normalizeDictionaryPreferences(json.data[activeLangKey], targetLanguage, translationLanguage);
+            const serverNormalized = normalizeDictionaryPreferences(json.data[activeLangKey], targetLanguage, effectiveTranslationLanguage);
             setDictPreferences(serverNormalized);
             safeLocalStorageSetItem(activePrefsStorageKey, JSON.stringify(serverNormalized));
           }
@@ -787,7 +798,7 @@ function WordExplainer({
     return () => {
       isMounted = false;
     };
-  }, [targetLanguage, translationLanguage, activePrefsStorageKey, activeLangKey]);
+  }, [targetLanguage, effectiveTranslationLanguage, activePrefsStorageKey, activeLangKey]);
 
   // Helper to open dictionary with safe URI encoding for diacritics and special characters
   const handleOpenDictionary = (dict: DictionaryItem, wordToLookup: string) => {
@@ -930,7 +941,7 @@ function WordExplainer({
 
     if (window.confirm(msg)) {
       const defaults = manageDictsTab === "meaning"
-        ? getDefaultMeaningDictionaries(targetLanguage, translationLanguage)
+        ? getDefaultMeaningDictionaries(targetLanguage, effectiveTranslationLanguage)
         : getDefaultDefinitionDictionaries(targetLanguage);
 
       const nextPrefs: TabDictionaryPreferences = {
@@ -971,7 +982,7 @@ function WordExplainer({
               word,
               sentence: sentence || word,
               targetLanguage,
-              translationLanguage,
+              translationLanguage: effectiveTranslationLanguage,
               aiProfile: profile,
             })
           });
@@ -1154,7 +1165,7 @@ function WordExplainer({
         const bStartsWith = b.lower.startsWith(query);
         if (aStartsWith && !bStartsWith) return -1;
         if (!aStartsWith && bStartsWith) return 1;
-        return a.lower.localeCompare(b.lower);
+        return compareWords(a.lower, b.lower, targetLanguage || "spanish", "asc");
       })
       .slice(0, 10);
   }, [parentWordInput, searchCandidates, word]);
@@ -1362,7 +1373,7 @@ function WordExplainer({
                 word,
                 context: sentence || word,
                 targetLanguage,
-                translationLanguage,
+                translationLanguage: effectiveTranslationLanguage,
                 aiProfile: profile,
               }),
             });
@@ -1384,7 +1395,7 @@ function WordExplainer({
         const bodyParams: any = {
           word,
           targetLanguage,
-          translationLanguage,
+          translationLanguage: effectiveTranslationLanguage,
           source: translationSource,
           context: translationSource === "google" ? (sentence || word) : undefined,
         };
@@ -2331,30 +2342,6 @@ function WordExplainer({
           <span>Family+</span>
         </button>
 
-        {/* WN+ button for WordNet Semantic Network (English only or general) */}
-        {targetLanguage.toLowerCase().startsWith("en") && (
-          <button
-            type="button"
-            onClick={() => {
-              setWordnetTabOpen(!wordnetTabOpen);
-              setTagsOpen(false);
-              setImageOpen(false);
-              setAiTabOpen(false);
-              setFamilyTabOpen(false);
-              setExamplesTabOpen(false);
-            }}
-            className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
-              wordnetTabOpen
-                ? "bg-teal-600 text-white border-teal-600 shadow-3xs"
-                : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
-            }`}
-            title="WordNet Semantic Synsets & Network"
-          >
-            <Network className="w-2.5 h-2.5" />
-            <span>WN+</span>
-          </button>
-        )}
-
         {/* Ctx+ button to toggle example usages panel */}
         {examplesValue.length > 0 && (
           <button
@@ -2365,7 +2352,6 @@ function WordExplainer({
               setImageOpen(false);
               setAiTabOpen(false);
               setFamilyTabOpen(false);
-              setWordnetTabOpen(false);
             }}
             className={`px-2 py-0.5 text-[10px] font-bold rounded-md border flex items-center gap-0.5 transition-all cursor-pointer ${
               examplesTabOpen
@@ -2434,77 +2420,6 @@ function WordExplainer({
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* WordNet Semantic Network Dedicated Tab (WN+) */}
-        {wordnetTabOpen && word && (
-          <div className="animate-in fade-in duration-200">
-            <WordNetSynsetsView
-              word={(isLinked && linkedParent) ? linkedParent : word}
-              onApplyDefinition={(def, posName) => {
-                setDefinitionValue(def);
-                
-                // Map WordNet POS to standard grammar tag (Noun, Verb, Adjective, Adverb)
-                const posToGrammarMap: Record<string, string> = {
-                  noun: "Noun",
-                  verb: "Verb",
-                  adjective: "Adjective",
-                  adverb: "Adverb"
-                };
-                const newGrammar = (posName && posToGrammarMap[posName]) ? posToGrammarMap[posName] : grammarValue;
-                if (newGrammar) {
-                  setGrammarValue(newGrammar);
-                }
-                const updatedTags = (newGrammar && !selectedTags.includes(newGrammar)) 
-                  ? [...selectedTags, newGrammar] 
-                  : selectedTags;
-                if (newGrammar && !selectedTags.includes(newGrammar)) {
-                  setSelectedTags(updatedTags);
-                }
-
-                if (!word) return;
-                const wordLower = word.toLowerCase();
-                const langKey = targetLanguage.toLowerCase();
-                const rawParentKey = wordLinks[`${langKey}_${wordLower}`] || wordLinks[wordLower] || "";
-                const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
-                const targetWord = (parentWord && parentWord !== wordLower) ? parentWord : wordLower;
-                const langPrefix = `${langKey}_`;
-                const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || null;
-                const nextStatus = status === "new" ? "2" : status;
-                if (status === "new") setStatus("2");
-
-                if (existingTarget) {
-                  onSaveVocab({ 
-                    ...existingTarget, 
-                    definition: def.trim(),
-                    grammar: newGrammar || existingTarget.grammar,
-                    tags: updatedTags
-                  });
-                } else {
-                  const newVocab: VocabItem = {
-                    word: targetWord,
-                    translation: translationValue.trim() || "",
-                    definition: def.trim(),
-                    ipa: ipaValue || "",
-                    grammar: newGrammar || "",
-                    contextRelation: contextRelationValue || "",
-                    status: nextStatus,
-                    examples: examplesValue,
-                    createdAt: Date.now(),
-                    tags: updatedTags,
-                    imageUrl: imageUrlValue,
-                  };
-                  onSaveVocab(newVocab);
-                }
-              }}
-              onApplySynonym={(syn) => {
-                if (onWordClick) onWordClick(syn, sentence || "");
-              }}
-              onWordClick={(w) => {
-                if (onWordClick) onWordClick(w, sentence || "");
-              }}
-            />
           </div>
         )}
 
@@ -2996,7 +2911,7 @@ function WordExplainer({
             word={word}
             sentence={sentence}
             targetLanguage={targetLanguage}
-            translationLanguage={translationLanguage}
+            translationLanguage={effectiveTranslationLanguage}
             settings={settings}
             customAnswer={customAnswer}
             onCustomAnswerChange={setCustomAnswer}

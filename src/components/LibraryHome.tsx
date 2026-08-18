@@ -5,11 +5,14 @@
 
 import React, { useState, useMemo, memo } from "react";
 import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat } from "../types";
-import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown } from "lucide-react";
+import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones } from "lucide-react";
 import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory } from "../utils";
+import { getLocalizedLanguageName } from "../utils/stringUtils";
 import { segmentSentenceTokens } from "../tokenizer";
 import { useTranslation } from "react-i18next";
+import { useToast } from "../context/ToastContext";
+import { usePlaylistStore, PlaylistItem, isValidAudioUrl } from "../store/playlistStore";
 import StatsWidget from "./StatsWidget";
 import { ignoreListManager } from "../services/ignoreListService";
 
@@ -396,6 +399,8 @@ function LibraryHome({
   isLoading = false,
 }: LibraryHomeProps) {
   const { t, i18n } = useTranslation();
+  const { showToast } = useToast();
+  const { setQueue } = usePlaylistStore();
   const [searchQuery, setSearchQuery] = useState("");
   const selectedLanguage = selectedTargetLanguage;
 
@@ -520,11 +525,11 @@ function LibraryHome({
       : dedupedHist;
 
     const totalListeningSeconds = langHist
-      .filter((item) => item.actionType === "listen")
+      .filter((item) => item.actionType === "listen" || item.category === "podcast" || item.category === "video")
       .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
 
     const todayListeningSeconds = langHist
-      .filter((item) => item.actionType === "listen" && isToday(item.timestamp))
+      .filter((item) => (item.actionType === "listen" || item.category === "podcast" || item.category === "video") && isToday(item.timestamp))
       .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
 
     return {
@@ -557,7 +562,8 @@ function LibraryHome({
     };
 
     dedupedHist.forEach((item) => {
-      if (item.actionType !== "listen" || !item.durationSeconds) return;
+      const isListening = item.actionType === "listen" || item.category === "podcast" || item.category === "video";
+      if (!isListening || !item.durationSeconds) return;
       const rawLang = item.targetLanguage || "Spanish";
       const langKey = rawLang.charAt(0).toUpperCase() + rawLang.slice(1).toLowerCase();
 
@@ -851,7 +857,8 @@ function LibraryHome({
       const matchesSearch =
         lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lesson.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lesson.targetLanguage.toLowerCase().includes(searchQuery.toLowerCase());
+        lesson.targetLanguage.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        getLocalizedLanguageName(lesson.targetLanguage, i18n.language).toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesLanguage =
         selectedLanguage === "All" || lesson.targetLanguage === selectedLanguage;
@@ -942,6 +949,58 @@ function LibraryHome({
     });
     return map;
   }, [paginatedLessons, vocab, wordLinks]);
+
+  const handlePlayAllFiltered = () => {
+    const candidateItems: PlaylistItem[] = filteredLessons
+      .filter((l) => isValidAudioUrl(l.audioUrl, l.audioBase64, l.youtubeId, l.localVideoUrl))
+      .map((l) => ({
+        id: l.id,
+        title: l.title,
+        bookTitle: l.title,
+        audioUrl: l.audioUrl || l.localVideoUrl || '',
+        audioBase64: l.audioBase64,
+        youtubeId: l.youtubeId,
+        localVideoUrl: l.localVideoUrl,
+        coverUrl: l.coverUrl,
+        targetLanguage: l.targetLanguage,
+        lessonType: l.lessonType,
+        channelName: l.channelName,
+      }));
+
+    if (candidateItems.length === 0) {
+      showToast(t('player.no_audio_available', 'No audio materials available for playback'), 'warning');
+      return;
+    }
+
+    const res = setQueue(candidateItems, 0, true);
+    if (res.started && res.count > 0) {
+      showToast(t('player.started_playlist', 'Playing {{count}} tracks in queue', { count: res.count }), 'success');
+    }
+  };
+
+  const handlePlaySingleLesson = (lesson: Lesson) => {
+    if (!isValidAudioUrl(lesson.audioUrl, lesson.audioBase64, lesson.youtubeId, lesson.localVideoUrl)) {
+      showToast(t('player.no_audio_available', 'No audio materials available for playback'), 'warning');
+      return;
+    }
+
+    const item: PlaylistItem = {
+      id: lesson.id,
+      title: lesson.title,
+      bookTitle: lesson.title,
+      audioUrl: lesson.audioUrl || lesson.localVideoUrl || '',
+      audioBase64: lesson.audioBase64,
+      youtubeId: lesson.youtubeId,
+      localVideoUrl: lesson.localVideoUrl,
+      coverUrl: lesson.coverUrl,
+      targetLanguage: lesson.targetLanguage,
+      lessonType: lesson.lessonType,
+      channelName: lesson.channelName,
+    };
+
+    setQueue([item], 0, true);
+    showToast(t('player.now_playing', 'Now playing: {{title}}', { title: lesson.title }), 'success');
+  };
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -1259,14 +1318,26 @@ function LibraryHome({
             </div>
 
             {!showArchived && (
-              <button
-                type="button"
-                onClick={onOpenImportForm}
-                className="ml-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 active:scale-97 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-teal-100/30 dark:shadow-none"
-              >
-                <Plus className="w-4 h-4" />
-                {t('library.create_book', 'Create book')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handlePlayAllFiltered}
+                  className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/80 active:scale-97 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-3xs"
+                  title={t('player.play_all_title', 'Play all audio lessons continuously')}
+                >
+                  <Headphones className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  <span>{t('player.play_all', 'Play All')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onOpenImportForm}
+                  className="ml-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 active:scale-97 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-teal-100/30 dark:shadow-none"
+                >
+                  <Plus className="w-4 h-4" />
+                  {t('library.create_book', 'Create book')}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1333,7 +1404,7 @@ function LibraryHome({
                       : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                   }`}
                 >
-                  {num} {i18n.language.startsWith("en") ? (num === 1 ? t("library.books_count", "book") : t("library.books_count_plural", "books")) : (num >= 2 && num <= 4 ? t("library.books_ru_234", "книги") : t("library.books_ru_many", "книг"))}
+                  {num} {i18n.language.startsWith("ru") ? (num >= 2 && num <= 4 ? t("library.books_ru_234", "книги") : t("library.books_ru_many", "книг")) : (num === 1 ? t("library.books_count", "book") : t("library.books_count_plural", "books"))}
                 </button>
               );
             })}
@@ -1468,7 +1539,7 @@ function LibraryHome({
                     <div className="flex items-center gap-1.5 max-w-[65%]">
                       <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/45 backdrop-blur-md pl-1.5 pr-2.5 py-1 rounded-full border border-white/5 truncate">
                         {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage, languageFlags))}
-                        <span className="truncate">{lesson.targetLanguage}</span>
+                        <span className="truncate">{getLocalizedLanguageName(lesson.targetLanguage, i18n.language)}</span>
                       </span>
                       {lesson.difficulty && (
                         <span 
@@ -1657,6 +1728,21 @@ function LibraryHome({
                       className="flex-1 py-2 bg-zinc-100 hover:bg-teal-600 dark:bg-zinc-800 group-hover:bg-teal-600 group-hover:text-white dark:group-hover:bg-teal-600 font-extrabold text-xs rounded-xl text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-98"
                     >
                       <BookOpen className="w-3.5 h-3.5" />{t("library.read_btn", "Read")}</button>
+
+                    {/* Quick Play Audio Button if available */}
+                    {isValidAudioUrl(lesson.audioUrl, lesson.audioBase64, lesson.youtubeId, lesson.localVideoUrl) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePlaySingleLesson(lesson);
+                        }}
+                        className="p-2 border border-teal-200/80 dark:border-teal-800/80 bg-teal-50/80 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-600 dark:text-teal-400 rounded-xl transition-all cursor-pointer"
+                        title={t('player.play_now', 'Play audio')}
+                      >
+                        <Headphones className="w-3.5 h-3.5" />
+                      </button>
+                    )}
 
                     {/* Archive / Restore Button */}
                     <button
