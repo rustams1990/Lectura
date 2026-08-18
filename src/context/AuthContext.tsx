@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { safeLocalStorageSetItem } from "../utils";
 import { clearLocalUserDataCache } from "../db";
+import { resolveServerUrl } from "../utils/mobileServerBridge";
 
 export interface LocalUser {
   id: string;
@@ -148,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const res = await fetch("/api/auth/me", {
+        const res = await fetch(resolveServerUrl("/api/auth/me"), {
           headers: {
             Authorization: `Bearer ${savedToken}`,
           },
@@ -187,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginLocalServer = async (username: string, password = ""): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(resolveServerUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: username, username, password }),
@@ -217,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerLocalServer = async (username: string, password = "", passwordHint = "", avatarUrl = ""): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(resolveServerUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: username, username, password, passwordHint: passwordHint || undefined, avatarUrl: avatarUrl || undefined }),
@@ -250,7 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!serverToken) {
         return { success: false, error: "Не авторизован" };
       }
-      const res = await fetch("/api/auth/profile", {
+      const res = await fetch(resolveServerUrl("/api/auth/profile"), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -276,7 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!serverToken) {
         return { success: false, error: "Не авторизован" };
       }
-      const res = await fetch("/api/auth/change-password", {
+      const res = await fetch(resolveServerUrl("/api/auth/change-password"), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -304,7 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!serverToken) {
         return { success: false, error: "Не авторизован" };
       }
-      const res = await fetch("/api/auth/avatar-upload", {
+      const res = await fetch(resolveServerUrl("/api/auth/avatar-upload"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -330,7 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const switchAccount = async (targetToken: string): Promise<{ success: boolean; error?: string; is401?: boolean; expiredAccount?: SavedAccount }> => {
     const account = savedAccounts.find(a => a.token === targetToken);
     try {
-      const res = await fetch("/api/auth/me", {
+      const res = await fetch(resolveServerUrl("/api/auth/me"), {
         headers: {
           Authorization: `Bearer ${targetToken}`,
         },
@@ -362,7 +363,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (options?: { all?: boolean }) => {
     if (serverToken) {
       try {
-        await fetch("/api/auth/logout", {
+        await fetch(resolveServerUrl("/api/auth/logout"), {
           method: "POST",
           headers: { Authorization: `Bearer ${serverToken}` },
         });

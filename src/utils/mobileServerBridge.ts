@@ -2,52 +2,56 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 
 const PREF_SERVER_URL_KEY = 'lectura_mobile_server_url';
-const DEFAULT_SERVER_URL = typeof window !== 'undefined' ? window.location.origin : 'http://192.168.0.83:8586';
+export const DEFAULT_SERVER_URL = 'http://192.168.0.83:8586';
 
 let currentServerBaseUrl = '';
-
-/**
- * Initialize and get the configured Server Base URL for native mobile apps.
- */
-export async function initMobileServerUrl(): Promise<string> {
-  if (!Capacitor.isNativePlatform()) {
-    currentServerBaseUrl = '';
-    return '';
-  }
-
-  try {
-    const { value } = await Preferences.get({ key: PREF_SERVER_URL_KEY });
-    if (value && value.trim().length > 0) {
-      currentServerBaseUrl = sanitizeServerUrl(value.trim());
-    } else {
-      // Fallback default
-      currentServerBaseUrl = sanitizeServerUrl(DEFAULT_SERVER_URL);
-      await Preferences.set({ key: PREF_SERVER_URL_KEY, value: currentServerBaseUrl });
-    }
-  } catch (err) {
-    console.warn('[MobileServerBridge] Failed to load server url from Preferences:', err);
-    currentServerBaseUrl = sanitizeServerUrl(DEFAULT_SERVER_URL);
-  }
-
-  // Hook global fetch for native mobile
-  setupNativeFetchInterceptor();
-
-  return currentServerBaseUrl;
-}
 
 /**
  * Returns current server base URL (e.g. "http://192.168.0.83:8586")
  */
 export function getServerBaseUrl(): string {
-  if (!Capacitor.isNativePlatform()) {
-    return '';
-  }
   if (!currentServerBaseUrl) {
     try {
       const saved = localStorage.getItem(PREF_SERVER_URL_KEY);
-      if (saved) currentServerBaseUrl = sanitizeServerUrl(saved);
+      if (saved && saved.trim().length > 0 && !saved.includes('localhost')) {
+        currentServerBaseUrl = sanitizeServerUrl(saved);
+      }
     } catch (_) {}
   }
+
+  if (!currentServerBaseUrl) {
+    if (Capacitor.isNativePlatform()) {
+      currentServerBaseUrl = DEFAULT_SERVER_URL;
+    } else if (typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')) {
+      currentServerBaseUrl = window.location.origin;
+    } else {
+      currentServerBaseUrl = DEFAULT_SERVER_URL;
+    }
+  }
+
+  return currentServerBaseUrl;
+}
+
+/**
+ * Initialize and get the configured Server Base URL for native mobile apps.
+ */
+export async function initMobileServerUrl(): Promise<string> {
+  try {
+    const { value } = await Preferences.get({ key: PREF_SERVER_URL_KEY });
+    if (value && value.trim().length > 0 && !value.includes('localhost')) {
+      currentServerBaseUrl = sanitizeServerUrl(value.trim());
+      localStorage.setItem(PREF_SERVER_URL_KEY, currentServerBaseUrl);
+    } else {
+      currentServerBaseUrl = getServerBaseUrl();
+      await Preferences.set({ key: PREF_SERVER_URL_KEY, value: currentServerBaseUrl });
+      localStorage.setItem(PREF_SERVER_URL_KEY, currentServerBaseUrl);
+    }
+  } catch (err) {
+    console.warn('[MobileServerBridge] Failed to load server url from Preferences:', err);
+    currentServerBaseUrl = getServerBaseUrl();
+  }
+
+  setupNativeFetchInterceptor();
   return currentServerBaseUrl;
 }
 
@@ -58,7 +62,9 @@ export async function setServerBaseUrl(newUrl: string): Promise<boolean> {
   const sanitized = sanitizeServerUrl(newUrl);
   currentServerBaseUrl = sanitized;
   try {
-    localStorage.setItem(PREF_SERVER_URL_KEY, sanitized);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PREF_SERVER_URL_KEY, sanitized);
+    }
     await Preferences.set({ key: PREF_SERVER_URL_KEY, value: sanitized });
     return true;
   } catch (err) {
@@ -121,7 +127,7 @@ export async function testServerConnection(url: string): Promise<{ ok: boolean; 
   }
 }
 
-function sanitizeServerUrl(url: string): string {
+export function sanitizeServerUrl(url: string): string {
   if (!url) return '';
   let s = url.trim();
   // Remove trailing slashes
@@ -134,7 +140,7 @@ function sanitizeServerUrl(url: string): string {
 }
 
 let isFetchIntercepted = false;
-function setupNativeFetchInterceptor() {
+export function setupNativeFetchInterceptor() {
   if (isFetchIntercepted || typeof window === 'undefined') return;
   isFetchIntercepted = true;
 
@@ -144,7 +150,7 @@ function setupNativeFetchInterceptor() {
       const base = getServerBaseUrl();
       if (base) {
         if (typeof input === 'string') {
-          if (input.startsWith('/')) {
+          if (input.startsWith('/') && !input.startsWith('//')) {
             input = `${base}${input}`;
           }
         } else if (input instanceof URL) {
@@ -157,3 +163,6 @@ function setupNativeFetchInterceptor() {
     return originalFetch(input, init);
   };
 }
+
+// Automatically setup interceptor on module load
+setupNativeFetchInterceptor();

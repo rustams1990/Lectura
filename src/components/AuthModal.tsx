@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
-import { Globe, X, Lightbulb, ArrowLeft, Loader2, KeyRound } from "lucide-react";
+import { Globe, X, Lightbulb, ArrowLeft, Loader2, Server, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { getServerBaseUrl, setServerBaseUrl, testServerConnection, resolveServerUrl } from "../utils/mobileServerBridge";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -41,6 +42,12 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
   const [selectedAvatar, setSelectedAvatar] = useState<string>("🦊");
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  // Server URL Configuration
+  const [serverUrl, setServerUrlState] = useState<string>(() => getServerBaseUrl() || "http://192.168.0.83:8586");
+  const [isTestingServer, setIsTestingServer] = useState<boolean>(false);
+  const [serverStatus, setServerStatus] = useState<{ ok?: boolean; message?: string; version?: string } | null>(null);
+  const [showServerConfig, setShowServerConfig] = useState<boolean>(false);
+
   // Forgot password hint state
   const [forgotUsername, setForgotUsername] = useState<string>("");
   const [isHintLoading, setIsHintLoading] = useState<boolean>(false);
@@ -52,22 +59,34 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
     }
   }, [initialUsername, isOpen]);
 
-  const cleanLegacyFirebaseKeys = () => {
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith("firebase:") || key.startsWith("persist:firebase"))) {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch (_) {}
-  };
+  useEffect(() => {
+    if (isOpen) {
+      const current = getServerBaseUrl() || "http://192.168.0.83:8586";
+      setServerUrlState(current);
+    }
+  }, [isOpen]);
 
   const handleLanguageChange = (lang: string) => {
     i18n.changeLanguage(lang);
     try {
       localStorage.setItem("i18nextLng", lang);
     } catch (_) {}
+  };
+
+  const handleServerUrlChange = (val: string) => {
+    setServerUrlState(val);
+    setServerStatus(null);
+    setServerBaseUrl(val);
+  };
+
+  const handleTestServer = async () => {
+    if (!serverUrl.trim()) return;
+    setIsTestingServer(true);
+    setServerStatus(null);
+    await setServerBaseUrl(serverUrl.trim());
+    const res = await testServerConnection(serverUrl.trim());
+    setServerStatus(res);
+    setIsTestingServer(false);
   };
 
   // Fetch hint for given username
@@ -77,7 +96,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
     setIsHintLoading(true);
     setAuthError(null);
     try {
-      const res = await fetch(`/api/auth/password-hint?username=${encodeURIComponent(cleanQuery)}`);
+      const res = await fetch(resolveServerUrl(`/api/auth/password-hint?username=${encodeURIComponent(cleanQuery)}`));
       const data = await res.json();
       setHintResult({
         searched: true,
@@ -141,11 +160,14 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
       }
     }
 
-    setAuthError(null);
     setIsLoading(true);
+    setAuthError(null);
 
     try {
-      cleanLegacyFirebaseKeys();
+      // Ensure server URL is saved before making the network request
+      if (serverUrl.trim()) {
+        await setServerBaseUrl(serverUrl.trim());
+      }
 
       const result = isRegister
         ? await registerLocalServer(cleanUser, cleanPass, cleanHint, selectedAvatar)
@@ -176,7 +198,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-5 animate-in zoom-in-95 duration-150">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4 animate-in zoom-in-95 duration-150 max-h-[95vh] overflow-y-auto custom-scrollbar">
         
         {/* Top Header: Unified Scalable Language Selector & Close */}
         <div className="flex items-center justify-between w-full">
@@ -229,43 +251,43 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
             </div>
 
             {authError && (
-              <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed">
                 <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
                 <p>{authError}</p>
               </div>
             )}
 
-            <form onSubmit={handleForgotSubmit} className="space-y-3">
-              <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                    {t('auth.account', 'Аккаунт:')}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={forgotUsername}
-                      onChange={(e) => {
-                        setForgotUsername(e.target.value);
-                        setHintResult(null);
-                      }}
-                      placeholder={t('auth.placeholder_email', 'Email адрес или логин')}
-                      disabled={isHintLoading}
-                      autoFocus
-                      className="flex-1 text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 disabled:opacity-50"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isHintLoading || !forgotUsername.trim()}
-                      className="px-3.5 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 shadow-sm flex items-center justify-center gap-1.5 shrink-0"
-                    >
-                      {isHintLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5" />}
-                      <span>{t('auth.btn_get_hint', 'Показать')}</span>
-                    </button>
-                  </div>
+            <form onSubmit={handleForgotSubmit} className="space-y-3.5 text-left">
+              <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3">
+                <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                  {t('auth.forgot_input_label', 'Ваш логин или email:')}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={forgotUsername}
+                    onChange={(e) => {
+                      setForgotUsername(e.target.value);
+                      setHintResult(null);
+                    }}
+                    placeholder={t('auth.placeholder_email', 'Email адрес или логин')}
+                    disabled={isHintLoading}
+                    autoFocus
+                    className="flex-1 text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 dark:text-zinc-100 disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isHintLoading || !forgotUsername.trim()}
+                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 shadow-xs"
+                  >
+                    {isHintLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <span>{t('auth.btn_find_hint', 'Найти')}</span>
+                    )}
+                  </button>
                 </div>
 
-                {/* Hint result output card */}
                 {hintResult && (
                   <div className="pt-2 animate-in fade-in zoom-in-95 duration-150">
                     {hintResult.hint ? (
@@ -312,7 +334,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
         ) : (
           /* View Mode 2: Standard Login & Registration Forms */
           <>
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-1.5">
               <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center mx-auto text-xl">
                 🔑
               </div>
@@ -324,6 +346,87 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
               </p>
             </div>
 
+            {/* Server Connection Selector Card */}
+            <div className="bg-zinc-50 dark:bg-zinc-950/80 p-3 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/80 space-y-2 text-left">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300 font-bold text-[11px]">
+                  <Server className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                  <span>{t('settings.server_url', 'Сервер Lectura (LAN / IP):')}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowServerConfig(!showServerConfig)}
+                  className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold cursor-pointer"
+                >
+                  {showServerConfig ? t('common.hide', 'Скрыть') : t('common.edit', 'Изменить')}
+                </button>
+              </div>
+
+              {showServerConfig ? (
+                <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={serverUrl}
+                      onChange={(e) => handleServerUrlChange(e.target.value)}
+                      placeholder="http://192.168.0.83:8586"
+                      className="flex-1 text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleTestServer}
+                      disabled={isTestingServer}
+                      className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      <span>{t('settings.server_test', 'Тест')}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleServerUrlChange('http://192.168.0.83:8586')}
+                      className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
+                    >
+                      192.168.0.83:8586
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleServerUrlChange('https://lectura.local')}
+                      className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
+                    >
+                      https://lectura.local
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-[11px] font-mono text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
+                  <span className="truncate">{serverUrl || "http://192.168.0.83:8586"}</span>
+                  <button
+                    type="button"
+                    onClick={handleTestServer}
+                    disabled={isTestingServer}
+                    className="text-[10px] text-teal-600 dark:text-teal-400 font-sans font-bold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-2"
+                  >
+                    {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                    <span>{t('settings.server_test', 'Проверить')}</span>
+                  </button>
+                </div>
+              )}
+
+              {serverStatus && (
+                <div className={`flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-lg ${
+                  serverStatus.ok
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50"
+                    : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50"
+                }`}>
+                  {serverStatus.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{serverStatus.message} {serverStatus.version ? `(${serverStatus.version})` : ''}</span>
+                </div>
+              )}
+            </div>
+
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
                 <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
@@ -331,7 +434,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <form onSubmit={handleSubmit} className="space-y-3 pt-1">
               <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
                 <div className="flex justify-between items-center">
                   <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
@@ -418,26 +521,28 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                         onClick={handleOpenForgotMode}
                         className="text-[11px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:underline cursor-pointer flex items-center gap-1"
                       >
-                        <KeyRound className="w-3 h-3" />
-                        <span>{t('auth.forgot_password', 'Забыли пароль?')}</span>
+                        <Lightbulb className="w-3 h-3" />
+                        <span>{t('auth.btn_forgot_password', 'Забыли пароль?')}</span>
                       </button>
                     </div>
                   )}
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-black text-xs transition duration-150 cursor-pointer disabled:opacity-50 shadow-md shadow-teal-600/10 mt-2"
-                  >
-                    {isLoading ? (
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <span>👤</span>
-                    )}
-                    <span>{isRegister ? t('auth.btn_register', 'Создать аккаунт') : t('auth.btn_login', 'Войти в аккаунт')}</span>
-                  </button>
                 </div>
               </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white font-black text-xs transition cursor-pointer shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{t('common.processing', 'Обработка...')}</span>
+                  </>
+                ) : (
+                  <span>{isRegister ? t('auth.btn_register', 'Создать профиль') : t('auth.btn_login', 'Войти')}</span>
+                )}
+              </button>
             </form>
           </>
         )}
