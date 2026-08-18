@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lectura</string>
+    <string name="title_activity_main">Lectura</string>
+    <string name="package_name">com.rustams1990.lectura</string>
+    <string name="custom_url_scheme">com.rustams1990.lectura</string>
+</resources>

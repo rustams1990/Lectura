@@ -206,6 +206,10 @@
     "minutes": "Minutes",
     "min": "min",
     "listening_saved": "✓ Listening time updated successfully!",
+    "server_connection": "Адрес сервера (Mobile & Local Network)",
+    "server_connection_desc": "Укажите адрес вашего сервера Lectura (например, http://192.168.0.83:8586 или https://lectura.local). Все запросы к API, аудио и обложкам будут направляться на этот адрес.",
+    "test_and_save_server": "Проверить и Сохранить",
+    "server_connected": "Сервер успешно подключен!",
     "auto_backups_title": "Автоматические бэкапы по расписанию",
     "auto_backups_desc": "Lectura будет автоматически создавать полные JSON-копии вашей библиотеки и словаря по расписанию.",
     "enable_auto_backups": "Включить автобэкапы",
@@ -1326,5 +1330,16 @@
     "repeat_one": "Повторять трек",
     "speed": "Скорость",
     "single_track": "Аудиоурок"
+  },
+  "updater": {
+    "title": "Доступно обновление",
+    "current_vs_new": "Текущая: {{current}} → Новая: {{latest}}",
+    "whats_new": "Что нового в этом выпуске:",
+    "no_changelog": "Улучшения производительности и исправления ошибок.",
+    "btn_update": "Скачать и установить обновление {{size}}",
+    "starting": "Запуск скачивания...",
+    "download_started": "Скачивание запущено в фоне. Установщик откроется автоматически.",
+    "view_on_github": "Открыть на GitHub",
+    "dont_ask_again": "Не напоминать для этой версии"
   }
 }

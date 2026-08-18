@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import './i18n';
+import { initMobileServerUrl } from './utils/mobileServerBridge';
+
+// Initialize native mobile server URL bridge
+initMobileServerUrl().catch((err) => console.warn('Mobile server init warning:', err));
 
 // Global error handlers to capture any elusive uncaught exceptions or network errors
 window.addEventListener("error", (event) => {

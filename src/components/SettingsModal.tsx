@@ -26,6 +26,7 @@ import {
 } from "../services/aiFailoverService";
 import WhisperSettingsManager from "./WhisperSettingsManager";
 import IgnoreListsSettingsManager from "./IgnoreListsSettingsManager";
+import { getServerBaseUrl, setServerBaseUrl, testServerConnection } from "../utils/mobileServerBridge";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -364,6 +365,11 @@ export default function SettingsModal({
   const [isCreatingBackup, setIsCreatingBackup] = useState<boolean>(false);
   const [confirmRestoreBackup, setConfirmRestoreBackup] = useState<BackupFileInfo | null>(null);
   const [isRestoringServerBackup, setIsRestoringServerBackup] = useState<boolean>(false);
+
+  // Mobile Server Connection URL State
+  const [mobileServerInput, setMobileServerInput] = useState<string>(() => getServerBaseUrl() || (typeof window !== "undefined" ? window.location.origin : "http://192.168.0.83:8586"));
+  const [testingMobileServer, setTestingMobileServer] = useState<boolean>(false);
+  const [mobileServerStatus, setMobileServerStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
   const getAuthHeaders = (): Record<string, string> => {
     const headers: Record<string, string> = {
@@ -1835,6 +1841,60 @@ export default function SettingsModal({
                         {t('settings.login_or_register', 'Войти в профиль')}
                       </button>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile & Network Server Connection URL */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Server className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  <h4 className="text-xs sm:text-sm font-black text-zinc-800 dark:text-white uppercase tracking-wider">
+                    {t('settings.server_connection', 'Адрес сервера (Mobile & Local Network)')}
+                  </h4>
+                </div>
+
+                <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">
+                  {t('settings.server_connection_desc', 'Укажите адрес вашего сервера Lectura (например, http://192.168.0.83:8586 или https://lectura.local). Все запросы к API, аудио и обложкам будут направляться на этот адрес.')}
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={mobileServerInput}
+                    onChange={(e) => {
+                      setMobileServerInput(e.target.value);
+                      setMobileServerStatus(null);
+                    }}
+                    placeholder="http://192.168.0.83:8586"
+                    className="flex-1 text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    disabled={testingMobileServer}
+                    onClick={async () => {
+                      setTestingMobileServer(true);
+                      const res = await testServerConnection(mobileServerInput);
+                      setMobileServerStatus(res);
+                      setTestingMobileServer(false);
+                      if (res.ok) {
+                        await setServerBaseUrl(mobileServerInput);
+                        showToast(t('settings.server_connected', 'Сервер успешно подключен!'), 'success');
+                      } else {
+                        showToast(res.message, 'error');
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 shadow-sm flex items-center justify-center gap-1.5 shrink-0"
+                  >
+                    {testingMobileServer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
+                    <span>{t('settings.test_and_save_server', 'Проверить и Сохранить')}</span>
+                  </button>
+                </div>
+
+                {mobileServerStatus && (
+                  <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${mobileServerStatus.ok ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800' : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+                    {mobileServerStatus.ok ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                    <span>{mobileServerStatus.message}</span>
                   </div>
                 )}
               </div>

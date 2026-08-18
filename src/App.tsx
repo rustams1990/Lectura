@@ -43,6 +43,8 @@ import FocusPinnedPlayer from "./components/FocusPinnedPlayer";
 import GlobalAudioPlayer from "./components/player/GlobalAudioPlayer";
 import BottomAudioBar from "./components/player/BottomAudioBar";
 import QueueModal from "./components/player/QueueModal";
+import InAppUpdateModal from "./components/InAppUpdateModal";
+import { checkForGitHubUpdate, GitHubReleaseInfo } from "./services/inAppUpdaterService";
 import { usePlaylistStore } from "./store/playlistStore";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
@@ -552,6 +554,23 @@ export default function App() {
   // Auth & Sync States
   const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // In-App Auto Updater State
+  const [availableUpdate, setAvailableUpdate] = useState<GitHubReleaseInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Automatic background update check on app launch
+    const timer = setTimeout(() => {
+      checkForGitHubUpdate(false).then((release) => {
+        if (release && release.hasUpdate) {
+          setAvailableUpdate(release);
+          setShowUpdateModal(true);
+        }
+      });
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
   const {
     user: activeUser,
     serverToken,
@@ -2785,6 +2804,13 @@ export default function App() {
 
       {/* Play Queue Management Drawer / Modal */}
       <QueueModal />
+
+      {/* In-App Auto-Updater Modal from GitHub Releases */}
+      <InAppUpdateModal
+        release={availableUpdate}
+        isOpen={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
+      />
     </div>
   );
 }

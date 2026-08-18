@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { resolveServerUrl } from '../utils/mobileServerBridge';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -61,9 +62,9 @@ export function resolveAudioSrc(
     src = `/api/media/youtube-stream/${youtubeId.trim()}${lessonId ? `?lessonId=${lessonId}` : ''}`;
   }
   if (src.startsWith('/api/audio-files/')) {
-    return src.replace('/api/audio-files/', '/api/audio-stream/').replace(/\.(mp3|m4a|aac|ogg|wav|webm)$/i, '');
+    src = src.replace('/api/audio-files/', '/api/audio-stream/').replace(/\.(mp3|m4a|aac|ogg|wav|webm)$/i, '');
   }
-  return src;
+  return resolveServerUrl(src);
 }
 
 interface PlaylistState {

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { usePlaylistStore, resolveAudioSrc } from '../../store/playlistStore';
 import { useLesson } from '../../context/LessonContext';
+import { startNativeForegroundAudio, stopNativeForegroundAudio } from '../../services/nativeAudioBridge';
 
 interface GlobalAudioPlayerProps {
   onListeningTick?: (seconds: number) => void;
@@ -477,6 +478,17 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
     if (!('mediaSession' in navigator)) return;
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
   }, [isPlaying]);
+
+  // 10. Native Mobile Android Foreground Service Sync
+  useEffect(() => {
+    if (isPlaying && currentTrack) {
+      const title = currentTrack.title || 'Lectura';
+      const artist = currentTrack.channelName || currentTrack.bookTitle || 'Audiobook / Podcast';
+      startNativeForegroundAudio(title, artist);
+    } else {
+      stopNativeForegroundAudio();
+    }
+  }, [isPlaying, currentTrack?.title, currentTrack?.channelName, currentTrack?.bookTitle]);
 
   return (
     <>
