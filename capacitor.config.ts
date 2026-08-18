@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Lectura',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
+    androidScheme: 'http',
     cleartext: true,
     allowNavigation: [
       '*.local',
@@ -30,7 +30,7 @@ const config: CapacitorConfig = {
   },
   plugins: {
     CapacitorHttp: {
-      enabled: false, // We use native WebView fetch with custom security config
+      enabled: true,
     },
   },
 };

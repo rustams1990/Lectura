@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 
 const PREF_SERVER_URL_KEY = 'lectura_mobile_server_url';
@@ -101,11 +101,30 @@ export function resolveServerUrl(url?: string | null): string {
 }
 
 /**
- * Tests health connection to the server URL.
+ * Tests health connection to the server URL with native HTTP fallback.
  */
 export async function testServerConnection(url: string): Promise<{ ok: boolean; message: string; version?: string }> {
+  const cleanUrl = sanitizeServerUrl(url);
+  if (!cleanUrl) {
+    return { ok: false, message: 'Invalid URL' };
+  }
+
   try {
-    const cleanUrl = sanitizeServerUrl(url);
+    if (Capacitor.isNativePlatform()) {
+      const nativeRes = await CapacitorHttp.get({
+        url: `${cleanUrl}/api/health`,
+        headers: { 'Accept': 'application/json' },
+        connectTimeout: 6000,
+        readTimeout: 6000,
+      });
+
+      if (nativeRes.status >= 200 && nativeRes.status < 300) {
+        const data = nativeRes.data || {};
+        return { ok: true, message: 'Connected successfully', version: data.version || 'v2.x' };
+      }
+      return { ok: false, message: `Server returned HTTP ${nativeRes.status}` };
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
