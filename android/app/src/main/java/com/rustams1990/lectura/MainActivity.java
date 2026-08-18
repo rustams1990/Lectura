@@ -9,8 +9,6 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(LecturaAudioPlugin.class);
-        registerPlugin(LecturaUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Configure WebView settings for audio and media streaming
