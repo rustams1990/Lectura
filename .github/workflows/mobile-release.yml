@@ -40,7 +40,14 @@ jobs:
         run: npm run build
 
       - name: Sync Capacitor Android
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          # Patch dynamic capacitor-cordova-android-plugins to match AGP 8.7.3 and Java 17
+          if [ -f "android/capacitor-cordova-android-plugins/build.gradle" ]; then
+            sed -i 's/8\.13\.0/8.7.3/g' android/capacitor-cordova-android-plugins/build.gradle
+            sed -i 's/VERSION_21/VERSION_17/g' android/capacitor-cordova-android-plugins/build.gradle
+            sed -i 's/36/34/g' android/capacitor-cordova-android-plugins/build.gradle
+          fi
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
