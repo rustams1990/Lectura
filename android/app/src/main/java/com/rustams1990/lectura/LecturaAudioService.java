@@ -14,9 +14,17 @@ import android.os.PowerManager;
 import androidx.core.app.NotificationCompat;
 
 public class LecturaAudioService extends Service {
+    public static final String ACTION_PLAY_PAUSE = "com.rustams1990.lectura.ACTION_PLAY_PAUSE";
+    public static final String ACTION_SEEK_BACK = "com.rustams1990.lectura.ACTION_SEEK_BACK";
+    public static final String ACTION_SEEK_FORWARD = "com.rustams1990.lectura.ACTION_SEEK_FORWARD";
+    public static final String ACTION_STOP = "com.rustams1990.lectura.ACTION_STOP";
+
     private static final String CHANNEL_ID = "lectura_background_audio";
     private static final int NOTIFICATION_ID = 481516;
     private PowerManager.WakeLock wakeLock;
+    private boolean isPlaying = true;
+    private String currentTitle = "Lectura Audio";
+    private String currentArtist = "Playing in background";
 
     @Override
     public void onCreate() {
@@ -32,57 +40,106 @@ public class LecturaAudioService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent != null ? intent.getAction() : null;
-        if ("STOP".equals(action)) {
+        if (intent == null) return START_STICKY;
+
+        String action = intent.getAction();
+        if (ACTION_STOP.equals(action)) {
             stopForegroundAudio();
             stopSelf();
             return START_NOT_STICKY;
         }
 
-        String title = intent != null && intent.getStringExtra("title") != null
-                ? intent.getStringExtra("title")
-                : "Lectura Audio";
-        String artist = intent != null && intent.getStringExtra("artist") != null
-                ? intent.getStringExtra("artist")
-                : "Playing in background";
+        if (ACTION_PLAY_PAUSE.equals(action)) {
+            isPlaying = !isPlaying;
+            LecturaAudioPlugin.onNativeAction("play_pause");
+            updateNotification(currentTitle, currentArtist, isPlaying);
+            return START_STICKY;
+        } else if (ACTION_SEEK_BACK.equals(action)) {
+            LecturaAudioPlugin.onNativeAction("seek_backward");
+            return START_STICKY;
+        } else if (ACTION_SEEK_FORWARD.equals(action)) {
+            LecturaAudioPlugin.onNativeAction("seek_forward");
+            return START_STICKY;
+        }
 
-        startForegroundAudio(title, artist);
+        if (intent.hasExtra("title") && intent.getStringExtra("title") != null) {
+            currentTitle = intent.getStringExtra("title");
+        }
+        if (intent.hasExtra("artist") && intent.getStringExtra("artist") != null) {
+            currentArtist = intent.getStringExtra("artist");
+        }
+        if (intent.hasExtra("isPlaying")) {
+            isPlaying = intent.getBooleanExtra("isPlaying", true);
+        }
+
+        startForegroundAudio(currentTitle, currentArtist, isPlaying);
         return START_STICKY;
     }
 
-    private void startForegroundAudio(String title, String artist) {
+    private void startForegroundAudio(String title, String artist, boolean playing) {
         if (wakeLock != null && !wakeLock.isHeld()) {
             wakeLock.acquire(24 * 60 * 60 * 1000L); // Max 24 hours
         }
 
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        notificationIntent.setAction(Intent.ACTION_MAIN);
-        notificationIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-        notificationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-                this, 0, notificationIntent,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                        ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-                        : PendingIntent.FLAG_UPDATE_CURRENT
-        );
-
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(title)
-                .setContentText(artist)
-                .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentIntent(pendingIntent)
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .build();
+        Notification notification = buildNotification(title, artist, playing);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
+    }
+
+    private void updateNotification(String title, String artist, boolean playing) {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            Notification notification = buildNotification(title, artist, playing);
+            manager.notify(NOTIFICATION_ID, notification);
+        }
+    }
+
+    private Notification buildNotification(String title, String artist, boolean playing) {
+        Intent openAppIntent = new Intent(this, MainActivity.class);
+        openAppIntent.setAction(Intent.ACTION_MAIN);
+        openAppIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        openAppIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+        int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+                : PendingIntent.FLAG_UPDATE_CURRENT;
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, openAppIntent, flags);
+
+        // Action PendingIntents
+        Intent backIntent = new Intent(this, LecturaAudioService.class).setAction(ACTION_SEEK_BACK);
+        PendingIntent pBackIntent = PendingIntent.getService(this, 1, backIntent, flags);
+
+        Intent playPauseIntent = new Intent(this, LecturaAudioService.class).setAction(ACTION_PLAY_PAUSE);
+        PendingIntent pPlayPauseIntent = PendingIntent.getService(this, 2, playPauseIntent, flags);
+
+        Intent fwdIntent = new Intent(this, LecturaAudioService.class).setAction(ACTION_SEEK_FORWARD);
+        PendingIntent pFwdIntent = PendingIntent.getService(this, 3, fwdIntent, flags);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(artist)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentIntent(pendingIntent)
+                .setOngoing(playing)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .addAction(android.R.drawable.ic_media_rew, "-10s", pBackIntent)
+                .addAction(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, playing ? "Pause" : "Play", pPlayPauseIntent)
+                .addAction(android.R.drawable.ic_media_ff, "+10s", pFwdIntent);
+
+        try {
+            androidx.media.app.NotificationCompat.MediaStyle mediaStyle = new androidx.media.app.NotificationCompat.MediaStyle()
+                    .setShowActionsInCompactView(0, 1, 2);
+            builder.setStyle(mediaStyle);
+        } catch (Throwable ignored) {}
+
+        return builder.build();
     }
 
     private void stopForegroundAudio() {
@@ -110,7 +167,7 @@ public class LecturaAudioService extends Service {
                     "Lectura Audio Playback",
                     NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Keeps audio playback active while the screen is locked");
+            channel.setDescription("Audio playback controls on lock screen and notification shade");
             channel.setShowBadge(false);
             channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
 

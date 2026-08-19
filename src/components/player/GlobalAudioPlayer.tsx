@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { usePlaylistStore, resolveAudioSrc } from '../../store/playlistStore';
 import { useLesson } from '../../context/LessonContext';
-import { startNativeForegroundAudio, stopNativeForegroundAudio } from '../../services/nativeAudioBridge';
+import { startNativeForegroundAudio, stopNativeForegroundAudio, registerNativeAudioActionListener } from '../../services/nativeAudioBridge';
 
 interface GlobalAudioPlayerProps {
   onListeningTick?: (seconds: number) => void;
@@ -479,12 +479,25 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
   }, [isPlaying]);
 
-  // 10. Native Mobile Android Foreground Service Sync
+  // 10. Native Mobile Android Foreground Service Sync & Action Handlers
   useEffect(() => {
-    if (isPlaying && currentTrack) {
+    const unregister = registerNativeAudioActionListener((action) => {
+      if (action === 'play_pause') {
+        setIsPlaying(!isPlaying);
+      } else if (action === 'seek_backward') {
+        seekDelta(-10);
+      } else if (action === 'seek_forward') {
+        seekDelta(10);
+      }
+    });
+    return () => unregister();
+  }, [isPlaying, setIsPlaying, seekDelta]);
+
+  useEffect(() => {
+    if (currentTrack) {
       const title = currentTrack.title || 'Lectura';
       const artist = currentTrack.channelName || currentTrack.bookTitle || 'Audiobook / Podcast';
-      startNativeForegroundAudio(title, artist);
+      startNativeForegroundAudio(title, artist, isPlaying);
     } else {
       stopNativeForegroundAudio();
     }
