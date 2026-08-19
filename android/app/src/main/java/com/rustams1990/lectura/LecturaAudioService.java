@@ -5,12 +5,12 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
-import android.content.pm.ServiceInfo;
 import android.support.v4.media.MediaBrowserCompat;
-import android.support.v4.media.MediaDescriptionCompat;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
@@ -33,12 +33,21 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
     private static final int    NOTIFICATION_ID = 481516;
     private static final String ROOT_ID         = "lectura_media_root";
 
+    // Shared state (set by Plugin before startForegroundService)
+    public static volatile Bitmap pendingCover = null;
+
+    private static LecturaAudioService instance;
+    public static LecturaAudioService getInstance() { return instance; }
+
     private MediaSessionCompat mediaSession;
     private PowerManager.WakeLock wakeLock;
 
-    private boolean isPlaying    = true;
+    private boolean isPlaying     = true;
     private String  currentTitle  = "Lectura Audio";
     private String  currentArtist = "Playing";
+    private long    currentPositionMs = 0;
+    private long    durationMs        = 0;
+    private Bitmap  coverBitmap       = null;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -47,26 +56,30 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         createNotificationChannel();
 
-        // Build MediaSession
         mediaSession = new MediaSessionCompat(this, "LecturaAudioService");
         mediaSession.setFlags(
                 MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS |
                 MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
         );
         mediaSession.setCallback(new MediaSessionCompat.Callback() {
-            @Override public void onPlay()  { dispatchAction("play_pause"); }
-            @Override public void onPause() { dispatchAction("play_pause"); }
-            @Override public void onSkipToNext()     { dispatchAction("seek_forward"); }
-            @Override public void onSkipToPrevious() { dispatchAction("seek_backward"); }
-            @Override public void onFastForward()    { dispatchAction("seek_forward"); }
-            @Override public void onRewind()         { dispatchAction("seek_backward"); }
-            @Override public void onStop()  { stopSelf(); }
+            @Override public void onPlay()           { togglePlayPause(); }
+            @Override public void onPause()          { togglePlayPause(); }
+            @Override public void onFastForward()    { seekAction("seek_forward"); }
+            @Override public void onRewind()         { seekAction("seek_backward"); }
+            @Override public void onSkipToNext()     { seekAction("seek_forward"); }
+            @Override public void onSkipToPrevious() { seekAction("seek_backward"); }
+            @Override public void onStop()           { stopSelf(); }
+            @Override public void onSeekTo(long pos) {
+                currentPositionMs = pos;
+                LecturaAudioPlugin.onNativeAction("seek_to:" + (pos / 1000));
+                updatePlaybackState();
+                updateNotification();
+            }
         });
         mediaSession.setActive(true);
-
-        // Required: link MediaBrowserServiceCompat token to MediaSession
         setSessionToken(mediaSession.getSessionToken());
 
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
@@ -76,13 +89,15 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         }
     }
 
-    private void dispatchAction(String action) {
+    private void togglePlayPause() {
+        isPlaying = !isPlaying;
+        LecturaAudioPlugin.onNativeAction("play_pause");
+        updatePlaybackState();
+        updateNotification();
+    }
+
+    private void seekAction(String action) {
         LecturaAudioPlugin.onNativeAction(action);
-        if ("play_pause".equals(action)) {
-            isPlaying = !isPlaying;
-            updatePlaybackState();
-            updateNotification();
-        }
     }
 
     @Override
@@ -90,27 +105,23 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         if (intent == null) return START_STICKY;
 
         String action = intent.getAction();
-        if (ACTION_STOP.equals(action)) {
-            stopSelf();
-            return START_NOT_STICKY;
-        }
-        if (ACTION_PLAY_PAUSE.equals(action)) {
-            dispatchAction("play_pause");
-            return START_STICKY;
-        }
-        if (ACTION_SEEK_BACK.equals(action)) {
-            dispatchAction("seek_backward");
-            return START_STICKY;
-        }
-        if (ACTION_SEEK_FORWARD.equals(action)) {
-            dispatchAction("seek_forward");
-            return START_STICKY;
-        }
+        if (ACTION_STOP.equals(action))         { stopSelf(); return START_NOT_STICKY; }
+        if (ACTION_PLAY_PAUSE.equals(action))   { togglePlayPause(); return START_STICKY; }
+        if (ACTION_SEEK_BACK.equals(action))    { seekAction("seek_backward"); return START_STICKY; }
+        if (ACTION_SEEK_FORWARD.equals(action)) { seekAction("seek_forward");  return START_STICKY; }
 
-        // Regular start (called from JS)
+        // Normal start with metadata from JS
         if (intent.hasExtra("title"))    currentTitle  = intent.getStringExtra("title");
         if (intent.hasExtra("artist"))   currentArtist = intent.getStringExtra("artist");
         if (intent.hasExtra("isPlaying"))isPlaying     = intent.getBooleanExtra("isPlaying", true);
+        if (intent.hasExtra("position")) currentPositionMs = intent.getIntExtra("position", 0) * 1000L;
+        if (intent.hasExtra("duration")) durationMs        = intent.getIntExtra("duration", 0) * 1000L;
+
+        // Pick up cover set by Plugin (downloaded on background thread)
+        if (pendingCover != null) {
+            coverBitmap = pendingCover;
+            pendingCover = null;
+        }
 
         updateMetadata();
         updatePlaybackState();
@@ -118,8 +129,18 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         return START_STICKY;
     }
 
+    /** Called from LecturaAudioPlugin.updatePosition() every ~3 seconds */
+    public void onPositionUpdate(int positionSec, int durationSec, boolean playing) {
+        currentPositionMs = positionSec * 1000L;
+        durationMs        = durationSec * 1000L;
+        isPlaying         = playing;
+        updatePlaybackState();
+        // No need to rebuild the full notification just for position
+    }
+
     @Override
     public void onDestroy() {
+        instance = null;
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         if (mediaSession != null) {
             mediaSession.setActive(false);
@@ -130,12 +151,11 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // MediaBrowserServiceCompat – required overrides (browse tree not used)
+    // MediaBrowserServiceCompat
     // ─────────────────────────────────────────────────────────────────────────
 
     @Override
-    public BrowserRoot onGetRoot(@NonNull String clientPackageName,
-                                 int clientUid,
+    public BrowserRoot onGetRoot(@NonNull String clientPackageName, int clientUid,
                                  @Nullable Bundle rootHints) {
         return new BrowserRoot(ROOT_ID, null);
     }
@@ -152,11 +172,18 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
 
     private void updateMetadata() {
         if (mediaSession == null) return;
-        mediaSession.setMetadata(new MediaMetadataCompat.Builder()
+        MediaMetadataCompat.Builder b = new MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE,  currentTitle)
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentArtist)
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM,  "Lectura")
-                .build());
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM,  "Lectura");
+        if (durationMs > 0) {
+            b.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs);
+        }
+        if (coverBitmap != null) {
+            b.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, coverBitmap);
+            b.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, coverBitmap);
+        }
+        mediaSession.setMetadata(b.build());
     }
 
     private void updatePlaybackState() {
@@ -168,13 +195,13 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
                        PlaybackStateCompat.ACTION_FAST_FORWARD |
                        PlaybackStateCompat.ACTION_REWIND |
+                       PlaybackStateCompat.ACTION_SEEK_TO |
                        PlaybackStateCompat.ACTION_STOP;
-        int state = isPlaying
-                ? PlaybackStateCompat.STATE_PLAYING
-                : PlaybackStateCompat.STATE_PAUSED;
+        int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING
+                              : PlaybackStateCompat.STATE_PAUSED;
         mediaSession.setPlaybackState(new PlaybackStateCompat.Builder()
                 .setActions(actions)
-                .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+                .setState(state, currentPositionMs, isPlaying ? 1.0f : 0.0f)
                 .build());
     }
 
@@ -200,25 +227,23 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
                 ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
                 : PendingIntent.FLAG_UPDATE_CURRENT;
 
-        // Tap notification → open app
         Intent openApp = new Intent(this, MainActivity.class);
         openApp.setAction(Intent.ACTION_MAIN);
         openApp.addCategory(Intent.CATEGORY_LAUNCHER);
         openApp.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent openIntent = PendingIntent.getActivity(this, 0, openApp, piFlags);
 
-        // Action intents
-        PendingIntent piBack  = PendingIntent.getService(this, 1,
+        PendingIntent piBack = PendingIntent.getService(this, 1,
                 new Intent(this, LecturaAudioService.class).setAction(ACTION_SEEK_BACK), piFlags);
-        PendingIntent piPP    = PendingIntent.getService(this, 2,
+        PendingIntent piPP   = PendingIntent.getService(this, 2,
                 new Intent(this, LecturaAudioService.class).setAction(ACTION_PLAY_PAUSE), piFlags);
-        PendingIntent piFwd   = PendingIntent.getService(this, 3,
+        PendingIntent piFwd  = PendingIntent.getService(this, 3,
                 new Intent(this, LecturaAudioService.class).setAction(ACTION_SEEK_FORWARD), piFlags);
 
-        int ppIcon  = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+        int ppIcon    = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
         String ppLabel = isPlaying ? "Pause" : "Play";
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(currentTitle)
                 .setContentText(currentArtist)
                 .setSmallIcon(android.R.drawable.ic_media_play)
@@ -226,13 +251,19 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
                 .setOngoing(isPlaying)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .addAction(android.R.drawable.ic_media_rew,  "-10s",   piBack)
+                .addAction(android.R.drawable.ic_media_rew,  "-10s",  piBack)
                 .addAction(ppIcon, ppLabel, piPP)
-                .addAction(android.R.drawable.ic_media_ff,   "+10s",   piFwd)
+                .addAction(android.R.drawable.ic_media_ff,  "+10s",  piFwd)
                 .setStyle(new MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
-                        .setShowActionsInCompactView(0, 1, 2))
-                .build();
+                        .setShowActionsInCompactView(0, 1, 2));
+
+        // Cover art as large icon
+        if (coverBitmap != null) {
+            builder.setLargeIcon(coverBitmap);
+        }
+
+        return builder.build();
     }
 
     private void createNotificationChannel() {

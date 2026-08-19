@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { usePlaylistStore, resolveAudioSrc } from '../../store/playlistStore';
 import { useLesson } from '../../context/LessonContext';
-import { startNativeForegroundAudio, stopNativeForegroundAudio, registerNativeAudioActionListener } from '../../services/nativeAudioBridge';
+import { startNativeForegroundAudio, stopNativeForegroundAudio, registerNativeAudioActionListener, updateNativeAudioPosition } from '../../services/nativeAudioBridge';
 
 interface GlobalAudioPlayerProps {
   onListeningTick?: (seconds: number) => void;
@@ -32,6 +32,8 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
     playPrev,
     seekDelta,
     seek,
+    currentTime,
+    duration,
   } = usePlaylistStore();
 
   const {
@@ -497,11 +499,20 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
     if (currentTrack) {
       const title = currentTrack.title || 'Lectura';
       const artist = currentTrack.channelName || currentTrack.bookTitle || 'Audiobook / Podcast';
-      startNativeForegroundAudio(title, artist, isPlaying);
+      startNativeForegroundAudio(title, artist, isPlaying, currentTrack.coverUrl, currentTime, duration);
     } else {
       stopNativeForegroundAudio();
     }
-  }, [isPlaying, currentTrack?.title, currentTrack?.channelName, currentTrack?.bookTitle]);
+  }, [isPlaying, currentTrack?.title, currentTrack?.channelName, currentTrack?.bookTitle, currentTrack?.coverUrl, duration]);
+
+  // Update position on native every 3 seconds while playing
+  useEffect(() => {
+    if (!currentTrack || !isPlaying) return;
+    const interval = setInterval(() => {
+      updateNativeAudioPosition(currentTime, duration, isPlaying);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isPlaying, currentTrack, currentTime, duration]);
 
   return (
     <>
