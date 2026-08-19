@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.support.v4.media.session.MediaSessionCompat;
 import androidx.core.app.NotificationCompat;
 
 public class LecturaAudioService extends Service {
@@ -22,6 +23,7 @@ public class LecturaAudioService extends Service {
     private static final String CHANNEL_ID = "lectura_background_audio";
     private static final int NOTIFICATION_ID = 481516;
     private PowerManager.WakeLock wakeLock;
+    private MediaSessionCompat mediaSession;
     private boolean isPlaying = true;
     private String currentTitle = "Lectura Audio";
     private String currentArtist = "Playing in background";
@@ -30,6 +32,9 @@ public class LecturaAudioService extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
+
+        mediaSession = new MediaSessionCompat(this, "LecturaAudioService");
+        mediaSession.setActive(true);
 
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (powerManager != null) {
@@ -126,8 +131,7 @@ public class LecturaAudioService extends Service {
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentIntent(pendingIntent)
                 .setOngoing(playing)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .addAction(android.R.drawable.ic_media_rew, "-10s", pBackIntent)
                 .addAction(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, playing ? "Pause" : "Play", pPlayPauseIntent)
@@ -135,8 +139,26 @@ public class LecturaAudioService extends Service {
 
         try {
             androidx.media.app.NotificationCompat.MediaStyle mediaStyle = new androidx.media.app.NotificationCompat.MediaStyle()
-                    .setShowActionsInCompactView(0, 1, 2);
+                    .setShowActionsInCompactView(0, 1, 2)
+                    .setMediaSession(mediaSession.getSessionToken());
             builder.setStyle(mediaStyle);
+            
+            // Set basic playback state so Android 11+ shows the media player correctly
+            android.support.v4.media.session.PlaybackStateCompat.Builder stateBuilder = new android.support.v4.media.session.PlaybackStateCompat.Builder()
+                    .setActions(android.support.v4.media.session.PlaybackStateCompat.ACTION_PLAY |
+                            android.support.v4.media.session.PlaybackStateCompat.ACTION_PAUSE |
+                            android.support.v4.media.session.PlaybackStateCompat.ACTION_PLAY_PAUSE |
+                            android.support.v4.media.session.PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
+                            android.support.v4.media.session.PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+                    .setState(playing ? android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING : android.support.v4.media.session.PlaybackStateCompat.STATE_PAUSED,
+                            android.support.v4.media.session.PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1.0f);
+            mediaSession.setPlaybackState(stateBuilder.build());
+
+            // Set metadata so title/artist show up in Android 11+ Quick Settings player
+            android.support.v4.media.MediaMetadataCompat.Builder metadataBuilder = new android.support.v4.media.MediaMetadataCompat.Builder()
+                    .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_TITLE, title)
+                    .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ARTIST, artist);
+            mediaSession.setMetadata(metadataBuilder.build());
         } catch (Throwable ignored) {}
 
         return builder.build();
@@ -151,6 +173,9 @@ public class LecturaAudioService extends Service {
 
     @Override
     public void onDestroy() {
+        if (mediaSession != null) {
+            mediaSession.release();
+        }
         stopForegroundAudio();
         super.onDestroy();
     }
