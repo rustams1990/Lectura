@@ -26,6 +26,7 @@ interface AppHeaderProps {
   onOpenProfileSettings?: () => void;
   storageMode: "local" | "cloud" | "server";
   isSyncing: boolean;
+  syncProgress?: import("../AccountSwitcherDropdown").SyncProgressInfo;
   localSyncError?: boolean;
   selectedTargetLanguage: string;
   onSelectTargetLanguage: (lang: string) => void;
@@ -34,6 +35,7 @@ interface AppHeaderProps {
   onOpenManageLanguages?: () => void;
   lessonCountByLanguage?: Record<string, number>;
   onOpenBook?: (bookId: string) => void;
+  onManualSync?: () => void;
 }
 
 export default function AppHeader({
@@ -50,6 +52,7 @@ export default function AppHeader({
   onOpenProfileSettings,
   storageMode,
   isSyncing,
+  syncProgress,
   localSyncError = false,
   selectedTargetLanguage,
   onSelectTargetLanguage,
@@ -58,6 +61,7 @@ export default function AppHeader({
   onOpenManageLanguages,
   lessonCountByLanguage = {},
   onOpenBook,
+  onManualSync,
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
   const { t, i18n } = useTranslation();
@@ -237,7 +241,9 @@ export default function AppHeader({
               onOpenAddAccount={(prefillUser) => setShowLocalLoginModal(true)}
               localSyncError={localSyncError}
               isSyncing={isSyncing}
+              syncProgress={syncProgress}
               onSyncErrorClick={() => setShowLocalLoginModal(true)}
+              onManualSync={onManualSync}
             />
           ) : (
             <button

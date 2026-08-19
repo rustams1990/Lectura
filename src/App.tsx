@@ -7,6 +7,7 @@ import { useUIStore } from "./store/uiStore";
 import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
+import { App as CapApp } from "@capacitor/app";
 import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import AppSidebar from "./components/layout/AppSidebar";
@@ -555,10 +556,101 @@ export default function App() {
   // Auth & Sync States
   const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<{
+    isSyncing: boolean;
+    percent: number;
+    message?: string;
+    error?: boolean;
+    lastSyncTime?: number | null;
+  }>({
+    isSyncing: false,
+    percent: 100,
+    message: "В сети",
+    error: false,
+    lastSyncTime: null,
+  });
 
   // In-App Auto Updater State
   const [availableUpdate, setAvailableUpdate] = useState<GitHubReleaseInfo | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+
+  // Native Android Back Button & Edge Swipe Gesture Handling
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let cleanupFn: (() => void) | null = null;
+    CapApp.addListener("backButton", () => {
+      // 1. Close active modals if open
+      if (showProfileModal) {
+        setShowProfileModal(false);
+        return;
+      }
+      if (showLocalLoginModal) {
+        setShowLocalLoginModal(false);
+        return;
+      }
+      if (showUpdateModal) {
+        setShowUpdateModal(false);
+        return;
+      }
+      if (showSettingsModal) {
+        setShowSettingsModal(false);
+        return;
+      }
+      if (showMatchPairsModal) {
+        setShowMatchPairsModal(false);
+        return;
+      }
+      if (isManageLanguagesOpen) {
+        setIsManageLanguagesOpen(false);
+        return;
+      }
+
+      // 2. Clear selected word if explainer panel is open
+      if (selectedWord) {
+        setSelectedWord(null);
+        return;
+      }
+
+      // 3. Close sidebar drawer if open
+      if (isSidebarOpen) {
+        setIsSidebarOpen(false);
+        return;
+      }
+
+      // 4. Close import book form if open
+      if (showImportForm) {
+        setShowImportForm(false);
+        return;
+      }
+
+      // 5. Navigate back to Library if currently in Reader / Practice / Stats / History
+      if (activeTab !== "library") {
+        setActiveTab("library");
+        return;
+      }
+
+      // 6. If already at the root Library screen, exit app
+      CapApp.exitApp();
+    }).then((handle) => {
+      cleanupFn = () => handle.remove();
+    });
+
+    return () => {
+      if (cleanupFn) cleanupFn();
+    };
+  }, [
+    activeTab,
+    showProfileModal,
+    showLocalLoginModal,
+    showUpdateModal,
+    showSettingsModal,
+    showMatchPairsModal,
+    isManageLanguagesOpen,
+    selectedWord,
+    isSidebarOpen,
+    showImportForm,
+  ]);
 
   useEffect(() => {
     // Automatic background update check on app launch
@@ -832,6 +924,13 @@ export default function App() {
 
     isServerLoadInProgress.current = true;
     setIsSyncing(true);
+    setSyncProgress({
+      isSyncing: true,
+      percent: 25,
+      message: "Подключение к серверу...",
+      error: false,
+      lastSyncTime: lastSyncSuccessTime.current,
+    });
     if (!serverInitialLoadComplete.current) {
       setIsInitialServerLoading(true);
     }
@@ -856,9 +955,23 @@ export default function App() {
       if (res.status === 401 || res.status === 403) {
         setLocalSyncError(true);
         setIsSyncing(false);
+        setSyncProgress({
+          isSyncing: false,
+          percent: 0,
+          message: "Ошибка доступа (401/403)",
+          error: true,
+          lastSyncTime: lastSyncSuccessTime.current,
+        });
         return;
       }
       if (res.ok) {
+        setSyncProgress({
+          isSyncing: true,
+          percent: 65,
+          message: "Синхронизация словаря и книг...",
+          error: false,
+          lastSyncTime: lastSyncSuccessTime.current,
+        });
         lastSyncSuccessTime.current = Date.now();
         const body = await safeJsonParse(res);
         if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
@@ -968,13 +1081,34 @@ export default function App() {
         }
       } else {
         setIsSyncing(false);
+        setSyncProgress(prev => ({
+          ...prev,
+          isSyncing: false,
+          percent: 0,
+          message: `Ошибка HTTP ${res.status}`,
+          error: true,
+        }));
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load or seed dataset from local server:", e);
+      setSyncProgress(prev => ({
+        ...prev,
+        isSyncing: false,
+        percent: 0,
+        message: e?.message || "Ошибка подключения",
+        error: true,
+      }));
     } finally {
       isServerLoadInProgress.current = false;
       setIsSyncing(false);
       setIsInitialServerLoading(false);
+      setSyncProgress(prev => ({
+        ...prev,
+        isSyncing: false,
+        percent: prev.error ? 0 : 100,
+        message: prev.error ? (prev.message || "Ошибка") : "В сети",
+        lastSyncTime: prev.error ? prev.lastSyncTime : Date.now(),
+      }));
     }
   };
 
@@ -1087,13 +1221,36 @@ export default function App() {
       });
       if (res.status === 401 || res.status === 403) {
         setLocalSyncError(true);
+        setSyncProgress(prev => ({
+          ...prev,
+          isSyncing: false,
+          percent: 0,
+          message: "Ошибка доступа (401/403)",
+          error: true,
+        }));
         return;
       }
       if (res.ok) {
         lastLocalChangeTime.current = Date.now();
+        lastSyncSuccessTime.current = Date.now();
+        setSyncProgress(prev => ({
+          ...prev,
+          isSyncing: false,
+          percent: 100,
+          message: "В сети",
+          error: false,
+          lastSyncTime: Date.now(),
+        }));
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to auto-sync with local dev server:", e);
+      setSyncProgress(prev => ({
+        ...prev,
+        isSyncing: false,
+        percent: 0,
+        message: e?.message || "Ошибка отправки",
+        error: true,
+      }));
     }
   };
 
@@ -2367,6 +2524,7 @@ export default function App() {
         onOpenProfileSettings={() => setShowProfileModal(true)}
         storageMode={storageMode}
         isSyncing={isSyncing}
+        syncProgress={syncProgress}
         localSyncError={localSyncError}
         selectedTargetLanguage={selectedTargetLanguage}
         onSelectTargetLanguage={handleSelectTargetLanguage}
@@ -2375,6 +2533,7 @@ export default function App() {
         onOpenManageLanguages={() => setIsManageLanguagesOpen(true)}
         lessonCountByLanguage={lessonCountByLanguage}
         onOpenBook={handleOpenWhisperBook}
+        onManualSync={() => loadDataFromLocalServer()}
       />
 
       {/* Main Body */}

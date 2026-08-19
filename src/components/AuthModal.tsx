@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
 import { Globe, X, Lightbulb, ArrowLeft, Loader2, Server, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { getServerBaseUrl, setServerBaseUrl, testServerConnection, resolveServerUrl } from "../utils/mobileServerBridge";
 
 interface AuthModalProps {
@@ -346,86 +347,88 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
               </p>
             </div>
 
-            {/* Server Connection Selector Card */}
-            <div className="bg-zinc-50 dark:bg-zinc-950/80 p-3 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/80 space-y-2 text-left">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300 font-bold text-[11px]">
-                  <Server className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                  <span>{t('settings.server_url', 'Сервер Lectura (LAN / IP):')}</span>
+            {/* Server Connection Selector Card (Native Mobile Only) */}
+            {Capacitor.isNativePlatform() && (
+              <div className="bg-zinc-50 dark:bg-zinc-950/80 p-3 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/80 space-y-2 text-left">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300 font-bold text-[11px]">
+                    <Server className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                    <span>{t('settings.server_url', 'Сервер Lectura (LAN / IP):')}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowServerConfig(!showServerConfig)}
+                    className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold cursor-pointer"
+                  >
+                    {showServerConfig ? t('common.hide', 'Скрыть') : t('common.edit', 'Изменить')}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowServerConfig(!showServerConfig)}
-                  className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold cursor-pointer"
-                >
-                  {showServerConfig ? t('common.hide', 'Скрыть') : t('common.edit', 'Изменить')}
-                </button>
-              </div>
 
-              {showServerConfig ? (
-                <div className="space-y-2 pt-1 animate-in fade-in duration-150">
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text"
-                      value={serverUrl}
-                      onChange={(e) => handleServerUrlChange(e.target.value)}
-                      placeholder="http://192.168.0.83:8586"
-                      className="flex-1 text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-mono"
-                    />
+                {showServerConfig ? (
+                  <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={serverUrl}
+                        onChange={(e) => handleServerUrlChange(e.target.value)}
+                        placeholder="http://192.168.0.83:8586"
+                        className="flex-1 text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleTestServer}
+                        disabled={isTestingServer}
+                        className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                        <span>{t('settings.server_test', 'Тест')}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleServerUrlChange('http://192.168.0.83:8586')}
+                        className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
+                      >
+                        192.168.0.83:8586
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleServerUrlChange('https://lectura.local')}
+                        className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
+                      >
+                        https://lectura.local
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-[11px] font-mono text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
+                    <span className="truncate">{serverUrl || "http://192.168.0.83:8586"}</span>
                     <button
                       type="button"
                       onClick={handleTestServer}
                       disabled={isTestingServer}
-                      className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="text-[10px] text-teal-600 dark:text-teal-400 font-sans font-bold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-2"
                     >
-                      {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                      <span>{t('settings.server_test', 'Тест')}</span>
+                      {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                      <span>{t('settings.server_test', 'Проверить')}</span>
                     </button>
                   </div>
+                )}
 
-                  <div className="flex flex-wrap gap-1.5 pt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => handleServerUrlChange('http://192.168.0.83:8586')}
-                      className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
-                    >
-                      192.168.0.83:8586
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleServerUrlChange('https://lectura.local')}
-                      className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
-                    >
-                      https://lectura.local
-                    </button>
+                {serverStatus && (
+                  <div className={`flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-lg ${
+                    serverStatus.ok
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50"
+                      : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50"
+                  }`}>
+                    {serverStatus.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                    <span>{serverStatus.message} {serverStatus.version ? `(${serverStatus.version})` : ''}</span>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-[11px] font-mono text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
-                  <span className="truncate">{serverUrl || "http://192.168.0.83:8586"}</span>
-                  <button
-                    type="button"
-                    onClick={handleTestServer}
-                    disabled={isTestingServer}
-                    className="text-[10px] text-teal-600 dark:text-teal-400 font-sans font-bold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-2"
-                  >
-                    {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                    <span>{t('settings.server_test', 'Проверить')}</span>
-                  </button>
-                </div>
-              )}
-
-              {serverStatus && (
-                <div className={`flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-lg ${
-                  serverStatus.ok
-                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50"
-                    : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50"
-                }`}>
-                  {serverStatus.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                  <span>{serverStatus.message} {serverStatus.version ? `(${serverStatus.version})` : ''}</span>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
