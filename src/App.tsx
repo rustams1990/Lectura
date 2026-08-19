@@ -6,6 +6,7 @@
 import { useUIStore } from "./store/uiStore";
 import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import AppSidebar from "./components/layout/AppSidebar";
@@ -705,8 +706,11 @@ export default function App() {
     };
   }, [storageMode, isAuthLoading, localSyncError]);
 
-  // Periodic background check for new server version to auto-reload browser tab seamlessly
+  // Periodic background check for new server version to auto-reload browser tab seamlessly (Web PWA only)
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      return;
+    }
     let unmounted = false;
     const checkVersion = async () => {
       try {
@@ -742,7 +746,7 @@ export default function App() {
     };
 
     checkVersion();
-    const interval = setInterval(checkVersion, 15000);
+    const interval = setInterval(checkVersion, 30000);
     return () => {
       unmounted = true;
       clearInterval(interval);
