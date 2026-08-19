@@ -259,12 +259,14 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
                 .setSmallIcon(R.drawable.ic_play_arrow)
                 .setContentIntent(openIntent)
                 .setOngoing(isPlaying)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOnlyAlertOnce(true)
                 .addAction(R.drawable.ic_replay_10,  "-10s",  piBack)
                 .addAction(ppIcon, ppLabel, piPP)
                 .addAction(R.drawable.ic_forward_10,  "+10s",  piFwd)
-                .setStyle(new MediaStyle()
+                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
                         .setShowActionsInCompactView(0, 1, 2));
 
