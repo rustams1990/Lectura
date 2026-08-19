@@ -884,6 +884,11 @@ export default function App() {
       if (prevUserIdRef.current !== activeUserId) {
         prevUserIdRef.current = activeUserId;
         serverInitialLoadComplete.current = false;
+        // Clear any previous error so a fresh login always triggers a clean sync
+        setLocalSyncError(false);
+        // Give the auth system 600ms to write the token to localStorage before syncing
+        setTimeout(() => loadDataFromLocalServer(), 600);
+        return;
       }
       loadDataFromLocalServer();
     }
@@ -910,7 +915,8 @@ export default function App() {
     if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
       return;
     }
-    if (localSyncError) return;
+    // Only block on error if we already successfully loaded once — first-time login should always retry
+    if (localSyncError && serverInitialLoadComplete.current) return;
     // Prevent parallel simultaneous fetches (e.g. two useEffects firing at once on startup)
     if (isServerLoadInProgress.current) return;
     // Only skip the isAuthLoading wait if a token is already saved in localStorage
