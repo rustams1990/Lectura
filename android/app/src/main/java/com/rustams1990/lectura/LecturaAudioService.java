@@ -185,8 +185,9 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         if (durationMs > 0) {
             b.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs);
         }
-        // Use DISPLAY_ICON for clean thumbnail without background watermark overlay
         if (coverBitmap != null) {
+            b.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, coverBitmap);
+            b.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, coverBitmap);
             b.putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, coverBitmap);
         }
         mediaSession.setMetadata(b.build());
@@ -254,23 +255,22 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         String ppLabel = isPlaying ? "Pause" : "Play";
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_play_arrow)
                 .setContentTitle(currentTitle)
                 .setContentText(currentArtist)
-                .setSmallIcon(R.drawable.ic_play_arrow)
-                .setContentIntent(openIntent)
                 .setOngoing(isPlaying)
                 .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOnlyAlertOnce(true)
+                .setContentIntent(openIntent)
                 .addAction(R.drawable.ic_replay_10,  "-10s",  piBack)
                 .addAction(ppIcon, ppLabel, piPP)
                 .addAction(R.drawable.ic_forward_10,  "+10s",  piFwd)
-                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
+                .setStyle(new MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
                         .setShowActionsInCompactView(0, 1, 2));
 
-        // Clean square thumbnail artwork on the side
         if (coverBitmap != null) {
             builder.setLargeIcon(coverBitmap);
         }
