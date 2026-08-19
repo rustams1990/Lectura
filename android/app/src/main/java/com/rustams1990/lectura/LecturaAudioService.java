@@ -72,6 +72,13 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
             @Override public void onSkipToNext()     { seekAction("seek_forward"); }
             @Override public void onSkipToPrevious() { seekAction("seek_backward"); }
             @Override public void onStop()           { stopSelf(); }
+            @Override public void onCustomAction(String action, Bundle extras) {
+                if (ACTION_SEEK_BACK.equals(action)) {
+                    seekAction("seek_backward");
+                } else if (ACTION_SEEK_FORWARD.equals(action)) {
+                    seekAction("seek_forward");
+                }
+            }
             @Override public void onSeekTo(long pos) {
                 currentPositionMs = pos;
                 LecturaAudioPlugin.onNativeAction("seek_to:" + (pos / 1000));
@@ -135,7 +142,6 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         durationMs        = durationSec * 1000L;
         isPlaying         = playing;
         updatePlaybackState();
-        // No need to rebuild the full notification just for position
     }
 
     @Override
@@ -179,9 +185,9 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         if (durationMs > 0) {
             b.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs);
         }
+        // Use DISPLAY_ICON for clean thumbnail without background watermark overlay
         if (coverBitmap != null) {
-            b.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, coverBitmap);
-            b.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, coverBitmap);
+            b.putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, coverBitmap);
         }
         mediaSession.setMetadata(b.build());
     }
@@ -191,18 +197,22 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         long actions = PlaybackStateCompat.ACTION_PLAY |
                        PlaybackStateCompat.ACTION_PAUSE |
                        PlaybackStateCompat.ACTION_PLAY_PAUSE |
-                       PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
-                       PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
                        PlaybackStateCompat.ACTION_FAST_FORWARD |
                        PlaybackStateCompat.ACTION_REWIND |
                        PlaybackStateCompat.ACTION_SEEK_TO |
                        PlaybackStateCompat.ACTION_STOP;
         int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING
                               : PlaybackStateCompat.STATE_PAUSED;
-        mediaSession.setPlaybackState(new PlaybackStateCompat.Builder()
+        
+        PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
                 .setActions(actions)
                 .setState(state, currentPositionMs, isPlaying ? 1.0f : 0.0f)
-                .build());
+                .addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                        ACTION_SEEK_BACK, "-10s", R.drawable.ic_replay_10).build())
+                .addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                        ACTION_SEEK_FORWARD, "+10s", R.drawable.ic_forward_10).build());
+
+        mediaSession.setPlaybackState(stateBuilder.build());
     }
 
     private void startForegroundWithNotification() {
@@ -240,25 +250,25 @@ public class LecturaAudioService extends MediaBrowserServiceCompat {
         PendingIntent piFwd  = PendingIntent.getService(this, 3,
                 new Intent(this, LecturaAudioService.class).setAction(ACTION_SEEK_FORWARD), piFlags);
 
-        int ppIcon    = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+        int ppIcon    = isPlaying ? R.drawable.ic_pause : R.drawable.ic_play_arrow;
         String ppLabel = isPlaying ? "Pause" : "Play";
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(currentTitle)
                 .setContentText(currentArtist)
-                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setSmallIcon(R.drawable.ic_play_arrow)
                 .setContentIntent(openIntent)
                 .setOngoing(isPlaying)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .addAction(android.R.drawable.ic_media_rew,  "-10s",  piBack)
+                .addAction(R.drawable.ic_replay_10,  "-10s",  piBack)
                 .addAction(ppIcon, ppLabel, piPP)
-                .addAction(android.R.drawable.ic_media_ff,  "+10s",  piFwd)
+                .addAction(R.drawable.ic_forward_10,  "+10s",  piFwd)
                 .setStyle(new MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
                         .setShowActionsInCompactView(0, 1, 2));
 
-        // Cover art as large icon
+        // Clean square thumbnail artwork on the side
         if (coverBitmap != null) {
             builder.setLargeIcon(coverBitmap);
         }

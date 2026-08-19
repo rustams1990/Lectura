@@ -490,10 +490,15 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
         seekDelta(-10);
       } else if (action === 'seek_forward') {
         seekDelta(10);
+      } else if (action.startsWith('seek_to:')) {
+        const targetSec = parseFloat(action.split(':')[1]);
+        if (!isNaN(targetSec)) {
+          seek(targetSec);
+        }
       }
     });
     return () => unregister();
-  }, [isPlaying, setIsPlaying, seekDelta]);
+  }, [isPlaying, setIsPlaying, seekDelta, seek]);
 
   useEffect(() => {
     if (currentTrack) {
