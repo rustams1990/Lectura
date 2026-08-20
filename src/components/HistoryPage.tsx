@@ -98,11 +98,14 @@ const ACTIVITY_CATEGORIES: Array<{
   { id: "other", labelKey: "history_page.cat_other", defaultLabel: "Other Activity", icon: Sparkles, color: "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900/50", defaultActionType: "read" },
 ];
 
+import AssignChannelModal from "./AssignChannelModal";
+
 interface HistoryPageProps {
   history: HistoryEntry[];
   lessons: Lesson[];
   onOpenLesson: (lessonId: string) => void;
   onUpdateHistory: (updatedHistory: HistoryEntry[]) => void;
+  onUpdateLessons?: (updatedLessons: Lesson[]) => void;
   readerSettings: ReaderSettings;
   onUpdateSettings: (newSettings: ReaderSettings) => void;
 }
@@ -112,6 +115,7 @@ function HistoryPage({
   lessons,
   onOpenLesson,
   onUpdateHistory,
+  onUpdateLessons,
   readerSettings,
   onUpdateSettings,
 }: HistoryPageProps) {
@@ -123,12 +127,14 @@ function HistoryPage({
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [selectedChannelFilter, setSelectedChannelFilter] = useState<string | null>(null);
+  const [assignModalChannel, setAssignModalChannel] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [channelsLimit, setChannelsLimit] = useState<number | "all">(5);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, selectedPeriod, customDate, selectedLanguage, selectedMonth, searchQuery, selectedTag]);
+  }, [filterType, selectedPeriod, customDate, selectedLanguage, selectedMonth, searchQuery, selectedTag, selectedChannelFilter]);
 
   const availableTags = useMemo(() => {
     const tagsSet = new Set<string>();
@@ -893,6 +899,22 @@ function HistoryPage({
           (matchedLesson?.channelName || "").toLowerCase().includes(q);
         if (!matchesTitle && !matchesNote && !matchesLang && !matchesChannel) return false;
       }
+      if (selectedChannelFilter) {
+        const matchedLesson = lessons.find((l) => l.id === item.lessonId);
+        const chName = matchedLesson?.channelName?.trim() || (matchedLesson as any)?.channelTitle?.trim() || item.channelName?.trim() || "";
+        const isUnknownTarget =
+          selectedChannelFilter === t("history_page.unknown_youtube_channel", "Unknown YouTube Channel") ||
+          selectedChannelFilter === "Unknown YouTube Channel" ||
+          selectedChannelFilter === "Неизвестный YouTube канал" ||
+          selectedChannelFilter === "__unknown__";
+
+        if (isUnknownTarget) {
+          const isYt = matchedLesson?.youtubeId || matchedLesson?.lessonType === "youtube" || item.lessonType === "youtube";
+          if (chName || !isYt) return false;
+        } else {
+          if (chName.toLowerCase() !== selectedChannelFilter.toLowerCase()) return false;
+        }
+      }
       return true;
     });
 
@@ -902,7 +924,7 @@ function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [scopedHistory, filterType, searchQuery, getItemLanguage, lessons]);
+  }, [scopedHistory, filterType, searchQuery, selectedChannelFilter, getItemLanguage, lessons, t]);
 
   const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -1341,60 +1363,85 @@ function HistoryPage({
                   <th className="pb-2 font-bold text-center sm:text-left">{t('history_page.col_time', 'Time')}</th>
                   <th className="pb-2 font-bold text-center">{t('history_page.col_videos', 'Videos')}</th>
                   <th className="pb-2 font-bold text-right pr-2 min-w-[100px]">{t('history_page.col_share', 'Share')}</th>
+                  <th className="pb-2 font-bold text-right pr-1 w-16"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-medium">
-                {displayedChannels.map((channel) => (
-                  <tr
-                    key={channel.name}
-                    onClick={() => setSearchQuery(channel.name)}
-                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer group"
-                    title={t('history_page.filter_by_channel', 'Click to filter history by this channel')}
-                  >
-                    <td className="py-2.5 pr-3">
-                      <div className="flex items-center gap-2.5">
-                        {channel.avatarUrl ? (
-                          <img
-                            src={channel.avatarUrl}
-                            alt={channel.name}
-                            className="w-7 h-7 rounded-full object-cover shrink-0 border border-zinc-200 dark:border-zinc-700 shadow-3xs"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 text-white font-black text-[11px] flex items-center justify-center shrink-0 shadow-3xs">
-                            {channel.name.charAt(0).toUpperCase()}
+                {displayedChannels.map((channel) => {
+                  const isSelected = selectedChannelFilter === channel.name;
+                  return (
+                    <tr
+                      key={channel.name}
+                      onClick={() => setSelectedChannelFilter(isSelected ? null : channel.name)}
+                      className={`transition-colors cursor-pointer group ${
+                        isSelected
+                          ? "bg-amber-50/80 dark:bg-amber-950/40 ring-1 ring-amber-400/50 dark:ring-amber-600/50"
+                          : "hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40"
+                      }`}
+                      title={t('history_page.filter_by_channel', 'Click to filter history by this channel')}
+                    >
+                      <td className="py-2.5 pr-3">
+                        <div className="flex items-center gap-2.5">
+                          {channel.avatarUrl ? (
+                            <img
+                              src={channel.avatarUrl}
+                              alt={channel.name}
+                              className="w-7 h-7 rounded-full object-cover shrink-0 border border-zinc-200 dark:border-zinc-700 shadow-3xs"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 text-white font-black text-[11px] flex items-center justify-center shrink-0 shadow-3xs">
+                              {channel.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <span className={`font-bold transition-colors block truncate max-w-[200px] ${
+                              isSelected
+                                ? "text-amber-700 dark:text-amber-300"
+                                : "text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400"
+                            }`}>
+                              {channel.name}
+                            </span>
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <span className="font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors block truncate max-w-[200px]">
-                            {channel.name}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-2 text-center sm:text-left font-mono font-bold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                        {formatDuration(channel.durationSeconds)}
+                      </td>
+                      <td className="py-2.5 px-2 text-center font-bold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                        {channel.videoCount}
+                      </td>
+                      <td className="py-2.5 pl-2 pr-2 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="w-20 sm:w-28 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                            <div
+                              className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                              style={{ width: `${Math.max(3, channel.sharePercent)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400">
+                            {channel.sharePercent.toFixed(1)}%
                           </span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-2 text-center sm:text-left font-mono font-bold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-                      {formatDuration(channel.durationSeconds)}
-                    </td>
-                    <td className="py-2.5 px-2 text-center font-bold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
-                      {channel.videoCount}
-                    </td>
-                    <td className="py-2.5 pl-2 pr-2 text-right">
-                      <div className="flex flex-col items-end gap-0.5">
-                        <div className="w-20 sm:w-28 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                          <div
-                            className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(3, channel.sharePercent)}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400">
-                          {channel.sharePercent.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-2.5 pl-1 pr-2 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssignModalChannel(channel.name);
+                          }}
+                          className="px-2 py-1 text-[10px] font-bold rounded-lg bg-zinc-100 hover:bg-amber-100 dark:bg-zinc-800 dark:hover:bg-amber-950 text-zinc-600 dark:text-zinc-300 hover:text-amber-600 dark:hover:text-amber-400 transition cursor-pointer whitespace-nowrap"
+                          title={t('history_page.manage_channel_btn', 'Assign / Edit Channel')}
+                        >
+                          ✏️ {t('common.edit', 'Edit')}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1492,6 +1539,25 @@ function HistoryPage({
         </div>
       </div>
 
+      {/* Active Channel Filter Banner */}
+      {selectedChannelFilter && (
+        <div className="flex items-center justify-between p-3 px-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl text-xs font-bold text-amber-900 dark:text-amber-200 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <span>📺</span>
+            <span>
+              {t('history_page.filtered_by_channel', 'Filtered by channel:')}{' '}
+              <span className="underline font-black">{selectedChannelFilter}</span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedChannelFilter(null)}
+            className="text-xs px-2.5 py-1 rounded-xl bg-amber-200/70 dark:bg-amber-900/60 hover:bg-amber-300 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-100 transition cursor-pointer"
+          >
+            ✕ {t('common.clear', 'Show all')}
+          </button>
+        </div>
+      )}
 
       {/* History List */}
       {filteredHistory.length === 0 ? (
@@ -2173,6 +2239,19 @@ function HistoryPage({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Assign Channel to Videos Modal */}
+      {assignModalChannel !== null && (
+        <AssignChannelModal
+          isOpen={assignModalChannel !== null}
+          onClose={() => setAssignModalChannel(null)}
+          targetChannelName={assignModalChannel}
+          lessons={lessons}
+          history={history}
+          onUpdateLessons={onUpdateLessons}
+          onUpdateHistory={onUpdateHistory}
+        />
       )}
     </div>
   );

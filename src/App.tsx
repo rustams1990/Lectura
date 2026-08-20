@@ -2949,6 +2949,12 @@ export default function App() {
                 setActiveTab("read");
               }}
               onUpdateHistory={handleUpdateHistory}
+              onUpdateLessons={(updated) => {
+                setLessons(updated);
+                if (storageMode === "server") {
+                  syncDataToLocalServer(updated).catch((err) => console.error(err));
+                }
+              }}
               readerSettings={readerSettings}
               onUpdateSettings={setReaderSettings}
             />
