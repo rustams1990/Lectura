@@ -505,64 +505,78 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       const vocabWords = data.vocab || {};
-      for (const [key, value] of Object.entries(vocabWords)) {
-        const match = key.match(/^([a-zA-Z]+)_(.*)$/);
-        const lang = match ? match[1] : "english";
-        const val = value as any;
-        const wordVal = cleanWordPrefix(val.word || (match ? match[2] : key));
+      const incomingVocabKeys = Object.keys(vocabWords);
+      const existingWordCount = (db.prepare("SELECT COUNT(*) as count FROM words WHERE user_id = ?").get(userId) as any)?.count || 0;
 
-        if (!wordVal || wordVal.length > 80 || /[\r\n\t]/.test(wordVal)) {
-          continue;
+      if (existingWordCount > 0 && incomingVocabKeys.length === 0) {
+        console.warn(`[SAFETY GUARD] Blocked attempt to overwrite ${existingWordCount} words with 0 words for user ${userId}`);
+      } else if (incomingVocabKeys.length > 0) {
+        for (const [key, value] of Object.entries(vocabWords)) {
+          const match = key.match(/^([a-zA-Z]+)_(.*)$/);
+          const lang = match ? match[1] : "english";
+          const val = value as any;
+          const wordVal = cleanWordPrefix(val.word || (match ? match[2] : key));
+
+          if (!wordVal || wordVal.length > 80 || /[\r\n\t]/.test(wordVal)) {
+            continue;
+          }
+
+          const tagsJson = (val.tags && Array.isArray(val.tags) && val.tags.length > 0) ? JSON.stringify(val.tags) : null;
+          const examplesJson = (val.examples && Array.isArray(val.examples) && val.examples.length > 0) ? JSON.stringify(val.examples) : null;
+
+          ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
+          insertWord.run(
+            key,
+            userId,
+            lang,
+            wordVal,
+            val.translation || "",
+            (val.definition && typeof val.definition === "string" && val.definition.trim() !== "") ? val.definition.trim() : null,
+            val.ipa || "",
+            val.grammar || "",
+            val.contextRelation || "",
+            val.status || "new",
+            val.createdAt || Date.now(),
+            tagsJson,
+            val.imageUrl || null,
+            examplesJson,
+            val.spellingCorrectCount || 0,
+            val.spellingIncorrectCount || 0,
+            val.spellingAccentCount || 0,
+            val.lastSpelledCorrectly === true ? 1 : val.lastSpelledCorrectly === false ? 0 : null,
+            val.lastSpelledWithAccentError ? 1 : 0,
+            val.spellingExclude ? 1 : 0,
+            val.srsNextReview || null,
+            val.srsInterval || null,
+            val.srsEaseFactor || null,
+            val.srsRepetitions || null
+          );
         }
-
-        const tagsJson = (val.tags && Array.isArray(val.tags) && val.tags.length > 0) ? JSON.stringify(val.tags) : null;
-        const examplesJson = (val.examples && Array.isArray(val.examples) && val.examples.length > 0) ? JSON.stringify(val.examples) : null;
-
-        ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
-        insertWord.run(
-          key,
-          userId,
-          lang,
-          wordVal,
-          val.translation || "",
-          (val.definition && typeof val.definition === "string" && val.definition.trim() !== "") ? val.definition.trim() : null,
-          val.ipa || "",
-          val.grammar || "",
-          val.contextRelation || "",
-          val.status || "new",
-          val.createdAt || Date.now(),
-          tagsJson,
-          val.imageUrl || null,
-          examplesJson,
-          val.spellingCorrectCount || 0,
-          val.spellingIncorrectCount || 0,
-          val.spellingAccentCount || 0,
-          val.lastSpelledCorrectly === true ? 1 : val.lastSpelledCorrectly === false ? 0 : null,
-          val.lastSpelledWithAccentError ? 1 : 0,
-          val.spellingExclude ? 1 : 0,
-          val.srsNextReview || null,
-          val.srsInterval || null,
-          val.srsEaseFactor || null,
-          val.srsRepetitions || null
-        );
       }
 
       const links = data.wordLinks || {};
-      for (const [key, val] of Object.entries(links)) {
-        if (!val || typeof val !== "string") continue;
-        const matchKey = key.match(/^([a-zA-Z]+)_(.*)$/);
-        const matchVal = (val as string).match(/^([a-zA-Z]+)_(.*)$/);
-        
-        if (!matchKey && !matchVal) {
-          continue;
+      const incomingLinkKeys = Object.keys(links);
+      const existingLinksCount = (db.prepare("SELECT COUNT(*) as count FROM word_links WHERE user_id = ?").get(userId) as any)?.count || 0;
+
+      if (existingLinksCount > 0 && incomingLinkKeys.length === 0) {
+        console.warn(`[SAFETY GUARD] Blocked attempt to overwrite ${existingLinksCount} word_links with 0 links for user ${userId}`);
+      } else if (incomingLinkKeys.length > 0) {
+        for (const [key, val] of Object.entries(links)) {
+          if (!val || typeof val !== "string") continue;
+          const matchKey = key.match(/^([a-zA-Z]+)_(.*)$/);
+          const matchVal = (val as string).match(/^([a-zA-Z]+)_(.*)$/);
+          
+          if (!matchKey && !matchVal) {
+            continue;
+          }
+
+          const lang = matchKey ? matchKey[1] : matchVal![1];
+          const cleanFrom = cleanWordPrefix(key);
+          const cleanTo = cleanWordPrefix(val as string);
+
+          ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
+          insertWordLink.run(userId, lang, cleanFrom, cleanTo);
         }
-
-        const lang = matchKey ? matchKey[1] : matchVal![1];
-        const cleanFrom = cleanWordPrefix(key);
-        const cleanTo = cleanWordPrefix(val as string);
-
-        ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
-        insertWordLink.run(userId, lang, cleanFrom, cleanTo);
       }
 
       if (data.deletedLessonIds && Array.isArray(data.deletedLessonIds) && data.deletedLessonIds.length > 0) {
