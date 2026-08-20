@@ -375,6 +375,11 @@ export function getLocalServerDb(userId: string = "default") {
         notes: h.notes || undefined,
         channelName: h.channelName || null,
         channelAvatarUrl: h.channelAvatarUrl || null,
+        channelUrl: h.channelUrl || undefined,
+        category: h.category || undefined,
+        customTitle: h.customTitle || undefined,
+        mode: h.mode || undefined,
+        tags: h.tags ? (typeof h.tags === "string" ? JSON.parse(h.tags) : h.tags) : [],
       }));
     } catch (_) {}
 
@@ -823,8 +828,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       const insertHistory = db.prepare(`
         INSERT OR REPLACE INTO reading_history (
-          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
@@ -850,7 +855,12 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             h.durationSeconds || 0,
             h.notes || null,
             h.channelName || null,
-            h.channelAvatarUrl || null
+            h.channelAvatarUrl || null,
+            h.channelUrl || null,
+            h.category || null,
+            h.customTitle || null,
+            h.mode || null,
+            h.tags && Array.isArray(h.tags) ? JSON.stringify(h.tags) : null
           );
         }
       }

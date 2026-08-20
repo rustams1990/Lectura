@@ -475,12 +475,20 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
 
       merged[existingIdx] = {
         ...existing,
+        ...item,
         actionType: item.actionType || existing.actionType,
-        status: isCompleted ? "completed" : (existing.status || "in_progress"),
+        status: isCompleted ? "completed" : (item.status || existing.status || "in_progress"),
         durationSeconds: Math.max(existing.durationSeconds || 0, item.durationSeconds || 0),
-        notes: existing.notes || item.notes,
-        coverUrl: existing.coverUrl || item.coverUrl,
-        lessonTitle: existing.lessonTitle || item.lessonTitle,
+        notes: item.notes !== undefined && item.notes !== "" ? item.notes : existing.notes,
+        coverUrl: item.coverUrl || existing.coverUrl,
+        lessonTitle: item.lessonTitle || existing.lessonTitle,
+        channelName: item.channelName !== undefined ? item.channelName : (existing.channelName || null),
+        channelAvatarUrl: item.channelAvatarUrl !== undefined ? item.channelAvatarUrl : (existing.channelAvatarUrl || null),
+        channelUrl: (item as any).channelUrl !== undefined ? (item as any).channelUrl : ((existing as any).channelUrl || undefined),
+        tags: item.tags && item.tags.length > 0 ? item.tags : existing.tags,
+        customTitle: item.customTitle || existing.customTitle,
+        category: item.category || existing.category,
+        mode: item.mode || existing.mode,
       };
     } else {
       merged.push({

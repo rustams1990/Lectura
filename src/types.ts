@@ -216,6 +216,7 @@ export interface HistoryEntry {
   tags?: string[];
   channelName?: string | null;
   channelAvatarUrl?: string | null;
+  channelUrl?: string | null;
   mode?: ActivitySourceMode;
   category?: CustomActivityCategory;
   customTitle?: string;

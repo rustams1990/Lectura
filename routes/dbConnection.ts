@@ -386,7 +386,7 @@ function setupSchema(db: Database.Database) {
     } catch (_) {}
   }, 1000);
 
-  // reading_history: user_id, channelName, channelAvatarUrl columns
+  // reading_history: user_id, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags columns
   const historyCols = (db.prepare("PRAGMA table_info(reading_history)").all() as any[]).map(c => c.name);
   if (!historyCols.includes("user_id")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
@@ -396,6 +396,21 @@ function setupSchema(db: Database.Database) {
   }
   if (!historyCols.includes("channelAvatarUrl")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelAvatarUrl TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("channelUrl")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelUrl TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("category")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN category TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("customTitle")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN customTitle TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("mode")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN mode TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("tags")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN tags TEXT;`); } catch (_) {}
   }
 
   // Auto-backfill reading_history channelName and channelAvatarUrl from lessons table

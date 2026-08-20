@@ -106,7 +106,7 @@ interface HistoryPageProps {
   history: HistoryEntry[];
   lessons: Lesson[];
   onOpenLesson: (lessonId: string) => void;
-  onUpdateHistory: (updatedHistory: HistoryEntry[]) => void;
+  onUpdateHistory: (updatedHistory: HistoryEntry[], deletedIds?: string[]) => void;
   onUpdateLessons?: (updatedLessons: Lesson[]) => void;
   readerSettings: ReaderSettings;
   onUpdateSettings: (newSettings: ReaderSettings) => void;
@@ -453,7 +453,7 @@ function HistoryPage({
   const handleDeleteEntry = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm(t('history_page.confirm_delete', "Are you sure you want to delete this record from history?"))) {
-      onUpdateHistory(history.filter((h) => h.id !== id));
+      onUpdateHistory(history.filter((h) => h.id !== id), [id]);
     }
   };
 
@@ -525,11 +525,17 @@ function HistoryPage({
 
         merged[existingIdx] = {
           ...existing,
+          ...itemWithStatus,
           actionType: item.actionType || existing.actionType,
           status: isCompleted ? "completed" : (existing.status || "in_progress"),
           durationSeconds: Math.max(existing.durationSeconds || 0, itemWithStatus.durationSeconds || 0),
-          notes: existing.notes || itemWithStatus.notes,
-          tags: existing.tags || itemWithStatus.tags,
+          notes: itemWithStatus.notes !== undefined && itemWithStatus.notes !== "" ? itemWithStatus.notes : existing.notes,
+          tags: itemWithStatus.tags && itemWithStatus.tags.length > 0 ? itemWithStatus.tags : existing.tags,
+          channelName: itemWithStatus.channelName !== undefined ? itemWithStatus.channelName : existing.channelName,
+          channelAvatarUrl: itemWithStatus.channelAvatarUrl !== undefined ? itemWithStatus.channelAvatarUrl : existing.channelAvatarUrl,
+          channelUrl: (itemWithStatus as any).channelUrl !== undefined ? (itemWithStatus as any).channelUrl : (existing as any).channelUrl,
+          customTitle: itemWithStatus.customTitle || existing.customTitle,
+          category: itemWithStatus.category || existing.category,
         };
       } else {
         merged.push(itemWithStatus);

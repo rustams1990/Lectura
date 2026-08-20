@@ -314,12 +314,30 @@ export default function App() {
     historyRef.current = history;
   }, [history]);
 
-  const handleUpdateHistory = (newHistory: HistoryEntry[]) => {
+  const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
     const deduped = dedupeHistory(newHistory);
     setHistory(deduped);
+    historyRef.current = deduped;
     safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(deduped));
     settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(deduped)).catch(() => {});
-    syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, deduped).catch(() => {});
+    syncDataToLocalServer(
+      lessonsRef.current,
+      lessonTypes,
+      vocabRef.current,
+      wordLinksRef.current,
+      listeningSeconds,
+      languageFlags,
+      deduped,
+      undefined,
+      readerSettings,
+      pinnedLanguages,
+      hiddenLanguages,
+      selectedTargetLanguage,
+      undefined,
+      playlistsRef.current,
+      undefined,
+      deletedIds
+    ).catch(() => {});
   };
 
   const recordHistoryActivity = (
@@ -1185,7 +1203,8 @@ export default function App() {
     currentSelectedLang = selectedTargetLanguage,
     deletedWordKeys?: string[],
     currentPlaylists = playlistsRef.current,
-    deletedPlaylistIds?: string[]
+    deletedPlaylistIds?: string[],
+    deletedHistoryIds?: string[]
   ) => {
     if (storageMode !== "server") return;
     if (localSyncError) return;
@@ -1265,6 +1284,7 @@ export default function App() {
             deletedLessonIds,
             deletedPlaylistIds,
             deletedWordKeys,
+            deletedHistoryIds,
           },
         }),
       });
