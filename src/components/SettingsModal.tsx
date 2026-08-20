@@ -59,11 +59,11 @@ interface SettingsModalProps {
   listeningSeconds: number;
   onListeningSecondsChange?: (seconds: number) => void;
   onImportData: (imported: {
-    lessons: Lesson[];
+    lessons?: Lesson[];
     playlists?: Playlist[];
-    lessonTypes: any[];
-    vocab: Record<string, any>;
-    wordLinks: Record<string, string>;
+    lessonTypes?: any[];
+    vocab?: Record<string, any>;
+    wordLinks?: Record<string, string>;
     listeningSeconds?: number;
     languageFlags?: Record<string, string>;
     history?: any[];
@@ -587,6 +587,7 @@ export default function SettingsModal({
     lessonsCount: number;
     playlistsCount?: number;
     wordsCount: number;
+    historyCount?: number;
   } | null>(null);
 
   const handleExportDataLocal = () => {
@@ -678,6 +679,7 @@ export default function SettingsModal({
         const lessonsCount = parsed.lessons?.length || 0;
         const playlistsCount = parsed.playlists?.length || 0;
         const wordsCount = Object.keys(parsed.vocab || parsed.words || {}).length || 0;
+        const historyCount = Array.isArray(parsed.history) ? parsed.history.length : 0;
 
         setConfirmImport({
           data: parsed,
@@ -685,7 +687,8 @@ export default function SettingsModal({
           username: parsed.username || undefined,
           lessonsCount,
           playlistsCount,
-          wordsCount
+          wordsCount,
+          historyCount,
         });
       } catch (err: any) {
         setImportStatus({
@@ -697,6 +700,17 @@ export default function SettingsModal({
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleExecuteRestoreHistoryOnly = () => {
+    if (!confirmImport || !confirmImport.data?.history) return;
+    onImportData({ history: confirmImport.data.history });
+    const count = confirmImport.data.history.length;
+    setImportStatus({
+      type: "success",
+      message: `${t("settings.restore_history_success", "Activity history restored successfully!")} (${count} ${t("settings.history_records_unit", "records")})`
+    });
+    setConfirmImport(null);
   };
 
   const handleExecuteImport = () => {
@@ -2343,6 +2357,12 @@ export default function SettingsModal({
                 <span className="font-medium text-zinc-500">{t('settings.backup_words', 'Vocabulary cards:')}</span>
                 <span className="font-bold font-mono">{confirmImport.wordsCount}</span>
               </div>
+              {typeof confirmImport.historyCount === 'number' && confirmImport.historyCount > 0 && (
+                <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                  <span className="font-medium text-zinc-500">{t('settings.backup_history', 'Activity history:')}</span>
+                  <span className="font-bold font-mono text-amber-600 dark:text-amber-400">{confirmImport.historyCount}</span>
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
@@ -2351,7 +2371,7 @@ export default function SettingsModal({
                 : t('settings.restore_confirm_text', 'Are you sure you want to restore backup from {{date}}? Your current books, vocabulary, and history will be updated from this file.', { date: confirmImport.dateFormatted })}
             </p>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setConfirmImport(null)}
@@ -2359,12 +2379,22 @@ export default function SettingsModal({
               >
                 {t('common.cancel', 'Cancel')}
               </button>
+              {Boolean(confirmImport.historyCount && confirmImport.historyCount > 0) && (
+                <button
+                  type="button"
+                  onClick={handleExecuteRestoreHistoryOnly}
+                  className="px-4 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold text-xs rounded-xl transition cursor-pointer"
+                  title="Restore only activity history log without touching current books or vocabulary"
+                >
+                  {t('settings.restore_history_only_btn', 'Restore Only History')}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleExecuteImport}
                 className="px-5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl transition shadow-sm cursor-pointer"
               >
-                {t('settings.restore_btn_confirm', 'Restore Backup')}
+                {t('settings.restore_btn_confirm', 'Restore Everything')}
               </button>
             </div>
 

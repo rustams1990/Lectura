@@ -238,9 +238,13 @@ export default function PodcastsPage({
 
   const handlePlayTimelineEpisode = useCallback((ep: PodcastTimelineEpisode) => {
     const squareArtwork = ep.artworkUrl || ep.podcastArtwork || "";
+    const activeLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
+      ? selectedTargetLanguage
+      : ep.podcastLanguage || "es";
     setQueue(
       [{
         id: ep.guid,
+        guid: ep.guid,
         title: ep.title,
         audioUrl: ep.audioUrl,
         bookTitle: ep.podcastTitle || "Podcast",
@@ -248,11 +252,16 @@ export default function PodcastsPage({
         duration: ep.duration || undefined,
         lessonType: "podcast",
         channelName: ep.podcastAuthor || ep.podcastTitle || "Podcast",
+        description: ep.description,
+        pubDate: ep.pubDate,
+        transcriptUrl: ep.transcriptUrl,
+        hasTranscript: ep.hasTranscript,
+        targetLanguage: activeLang,
       }],
       0,
       true
     );
-  }, [setQueue]);
+  }, [setQueue, selectedTargetLanguage]);
 
   const handleImportTimelineEpisode = useCallback(async (ep: PodcastTimelineEpisode) => {
     const activeLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")

@@ -594,9 +594,13 @@ export default function PodcastChannelView({
   const handlePlay = useCallback((episode: PodcastEpisode) => {
     // Strictly use the square show/episode artwork for MediaSession and Android lock screen
     const squareArtwork = episode.artworkUrl || artworkUrl || currentFeedMeta?.artworkUrl || "";
+    const activeLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
+      ? selectedTargetLanguage
+      : currentFeedMeta?.language || "es";
     setQueue(
       [{
         id: episode.guid,
+        guid: episode.guid,
         title: episode.title,
         audioUrl: episode.audioUrl,
         bookTitle: title,
@@ -604,11 +608,16 @@ export default function PodcastChannelView({
         duration: episode.duration || undefined,
         lessonType: "podcast",
         channelName: author || title,
+        description: episode.description,
+        pubDate: episode.pubDate,
+        transcriptUrl: episode.transcriptUrl,
+        hasTranscript: episode.hasTranscript,
+        targetLanguage: activeLang,
       }],
       0,
       true
     );
-  }, [setQueue, title, artworkUrl, currentFeedMeta, author]);
+  }, [setQueue, title, artworkUrl, currentFeedMeta, author, selectedTargetLanguage]);
 
   // Integrated Whisper import with Background Job and Toast Action
   const handleImport = useCallback(async (episode: PodcastEpisode) => {

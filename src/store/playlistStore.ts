@@ -18,6 +18,11 @@ export interface PlaylistItem {
   targetLanguage?: string;
   lessonType?: string;
   channelName?: string | null;
+  guid?: string;
+  description?: string;
+  pubDate?: string;
+  transcriptUrl?: string;
+  hasTranscript?: boolean;
 }
 
 export function isValidAudioUrl(

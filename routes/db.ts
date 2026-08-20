@@ -831,22 +831,12 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       if (Array.isArray(data.history)) {
         const historyList = data.history;
-        const validIds = historyList.map((h: any) => h?.id).filter(Boolean);
-        
-        if (validIds.length > 0) {
-          const placeholders = validIds.map(() => "?").join(",");
-          db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id NOT IN (${placeholders})`).run(userId, ...validIds);
-        } else {
-          // If client sends empty history array [], wipe reading_history for this user
-          db.prepare(`DELETE FROM reading_history WHERE user_id = ?`).run(userId);
-        }
-
         for (const h of historyList) {
-          if (!h || !h.id || !h.lessonId) continue;
+          if (!h || !h.id) continue;
           insertHistory.run(
             h.id,
             userId,
-            h.lessonId,
+            h.lessonId || 'imported_record',
             h.lessonTitle || "Занятие",
             h.lessonType || null,
             h.coverUrl || null,

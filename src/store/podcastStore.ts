@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { PodcastSubscription, PodcastSearchResult, PodcastEpisode, PodcastFeedMeta, PodcastTimelineEpisode } from "../types";
 import { resolveServerUrl } from "../utils/mobileServerBridge";
 
+export type { PodcastEpisode };
+
 function buildHeaders(): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {

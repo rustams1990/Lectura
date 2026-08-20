@@ -3278,6 +3278,8 @@ export default function App() {
 
       {/* Fullscreen Mobile Audio Player (Now Playing / Sheet) */}
       <FullscreenAudioPlayerModal
+        lessons={lessons}
+        selectedTargetLanguage={selectedTargetLanguage}
         onOpenLesson={(id) => {
           setActiveLessonId(id);
           setSelectedWord(null);

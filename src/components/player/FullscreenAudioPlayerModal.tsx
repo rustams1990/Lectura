@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Play,
   Pause,
@@ -10,11 +10,18 @@ import {
   ChevronDown,
   BookOpen,
   Headphones,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { usePlaylistStore, RepeatMode } from '../../store/playlistStore';
+import { usePodcastStore } from '../../store/podcastStore';
+import { useToast } from '../../context/ToastContext';
+import { Lesson, PodcastEpisode } from '../../types';
 import { useTranslation } from 'react-i18next';
 
 interface FullscreenAudioPlayerModalProps {
+  lessons?: Lesson[];
+  selectedTargetLanguage?: string;
   onOpenLesson?: (lessonId: string) => void;
 }
 
@@ -27,8 +34,13 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
-export default function FullscreenAudioPlayerModal({ onOpenLesson }: FullscreenAudioPlayerModalProps) {
+export default function FullscreenAudioPlayerModal({
+  lessons = [],
+  selectedTargetLanguage,
+  onOpenLesson,
+}: FullscreenAudioPlayerModalProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const {
     queue,
     currentIndex,
@@ -52,9 +64,31 @@ export default function FullscreenAudioPlayerModal({ onOpenLesson }: FullscreenA
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
   const [dominantColor, setDominantColor] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const touchStartY = useRef<number | null>(null);
 
   const currentTrack = queue[currentIndex] || null;
+
+  // Check if current track corresponds to an imported lesson in user's library
+  const existingLesson = useMemo(() => {
+    if (!currentTrack || !lessons || lessons.length === 0) return null;
+    return (
+      lessons.find((l) => l.id === currentTrack.id) ||
+      lessons.find((l) => Boolean(currentTrack.guid && l.id === currentTrack.guid)) ||
+      lessons.find((l) => Boolean(currentTrack.guid && (l as any).podcastGuid === currentTrack.guid)) ||
+      lessons.find(
+        (l) =>
+          Boolean(
+            currentTrack.audioUrl &&
+              l.audioUrl &&
+              (l.audioUrl === currentTrack.audioUrl ||
+                l.audioUrl.includes(currentTrack.audioUrl) ||
+                currentTrack.audioUrl.includes(l.audioUrl))
+          )
+      ) ||
+      null
+    );
+  }, [currentTrack, lessons]);
 
   useEffect(() => {
     if (!isSeeking) {
@@ -147,10 +181,74 @@ export default function FullscreenAudioPlayerModal({ onOpenLesson }: FullscreenA
     setPlaybackRate(SPEED_PRESETS[nextIdx]);
   };
 
-  const handleOpenReader = () => {
-    if (onOpenLesson && currentTrack?.id) {
+  // Dynamic Action: Open existing lesson OR import streaming episode and open reader
+  const handleActionClick = async () => {
+    if (existingLesson) {
       collapsePlayer();
-      onOpenLesson(currentTrack.id);
+      onOpenLesson?.(existingLesson.id);
+      return;
+    }
+
+    // It's a streaming podcast episode not yet in library
+    if (isImporting) return;
+    setIsImporting(true);
+
+    try {
+      const activeLang =
+        currentTrack.targetLanguage ||
+        (selectedTargetLanguage && selectedTargetLanguage !== 'All' ? selectedTargetLanguage : 'es');
+      const taskId = `podcast_player_import_${currentTrack.guid || currentTrack.id}_${Date.now()}`;
+
+      const epObj: PodcastEpisode = {
+        guid: currentTrack.guid || currentTrack.id,
+        title: currentTrack.title,
+        audioUrl: currentTrack.audioUrl,
+        originalAudioUrl: currentTrack.audioUrl,
+        artworkUrl: currentTrack.coverUrl || '',
+        description: currentTrack.description || '',
+        duration: currentTrack.duration ?? null,
+        pubDate: currentTrack.pubDate || new Date().toISOString(),
+        transcriptUrl: currentTrack.transcriptUrl || '',
+        hasTranscript: currentTrack.hasTranscript || false,
+        fileSize: null,
+      };
+
+      const newLessonId = await usePodcastStore.getState().importEpisode(
+        epObj,
+        currentTrack.bookTitle || currentTrack.channelName || 'Podcast',
+        activeLang,
+        currentTrack.coverUrl || '',
+        activeLang,
+        taskId
+      );
+
+      if (newLessonId) {
+        showToast(
+          t('podcasts.episode_imported_toast', 'Episode "{{title}}" added to library', { title: currentTrack.title }),
+          'success'
+        );
+        collapsePlayer();
+        onOpenLesson?.(newLessonId);
+      } else {
+        showToast(
+          t('podcasts.episode_import_failed_toast', 'Failed to create lesson: {{error}}', {
+            title: currentTrack.title,
+            error: 'Could not generate lesson',
+          }),
+          'error'
+        );
+      }
+    } catch (err: any) {
+      console.error('Failed to import episode from player:', err);
+      showToast(
+        t('podcasts.episode_import_failed_toast', 'Failed to create lesson: {{error}}', {
+          title: currentTrack.title,
+          error: err.message || 'Error',
+        }),
+        'error'
+      );
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -256,7 +354,7 @@ export default function FullscreenAudioPlayerModal({ onOpenLesson }: FullscreenA
 
       {/* ── 3. Bottom Controls Container ─────────────────────────────── */}
       <div className="w-full max-w-md mx-auto flex flex-col shrink-0 pb-2">
-        {/* Track Title & Subtitle + Reader button */}
+        {/* Track Title & Subtitle + Dynamic Action Button */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0 flex-1">
             <span className="text-xs font-semibold text-teal-400 line-clamp-1 mb-1 uppercase tracking-wider">
@@ -267,15 +365,38 @@ export default function FullscreenAudioPlayerModal({ onOpenLesson }: FullscreenA
             </h2>
           </div>
 
-          {currentTrack.id && onOpenLesson && (
+          {onOpenLesson && (
             <button
               type="button"
-              onClick={handleOpenReader}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-teal-600 active:scale-95 text-white/90 hover:text-white border border-white/15 hover:border-teal-500 text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs backdrop-blur-sm"
-              title="Open Lesson in Reader"
+              onClick={handleActionClick}
+              disabled={isImporting}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs backdrop-blur-sm active:scale-95 ${
+                existingLesson
+                  ? 'bg-white/10 hover:bg-teal-600 text-white/90 hover:text-white border border-white/15 hover:border-teal-500'
+                  : isImporting
+                  ? 'bg-teal-500/30 text-teal-300 border border-teal-500/50 cursor-wait animate-pulse'
+                  : 'bg-teal-600 hover:bg-teal-500 text-white border border-teal-400/50 shadow-md hover:shadow-teal-600/30'
+              }`}
+              title={
+                existingLesson
+                  ? t('podcasts.open_lesson', 'Open lesson')
+                  : t('podcasts.import_and_open', 'Import & Open lesson')
+              }
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>{t('podcasts.open_lesson', 'Reader')}</span>
+              {isImporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : existingLesson ? (
+                <BookOpen className="w-3.5 h-3.5" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>
+                {isImporting
+                  ? t('podcasts.importing', 'Creating…')
+                  : existingLesson
+                  ? t('podcasts.open_lesson', 'Open lesson')
+                  : t('podcasts.import_and_open', 'Import & Open')}
+              </span>
             </button>
           )}
         </div>
