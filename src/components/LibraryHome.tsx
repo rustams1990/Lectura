@@ -2,7 +2,7 @@ import React, { useState, useMemo, memo, useRef, useEffect } from "react";
 import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat, Playlist } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones, LayoutGrid, X, MoreVertical, ListVideo } from "lucide-react";
 import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
-import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory } from "../utils";
+import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory, getUIPreviewCache, saveUIPreviewCache } from "../utils";
 import { getLocalizedLanguageName } from "../utils/stringUtils";
 import { segmentSentenceTokens } from "../tokenizer";
 import { useTranslation } from "react-i18next";
@@ -418,6 +418,20 @@ function LibraryHome({
 
   // Dynamic statistics calculation for selected target language
   const languageAwareStats = useMemo<AppStats>(() => {
+    const vocabKeys = Object.keys(vocab || {});
+    // Instant UI preview fallback when vocab is not yet loaded from server:
+    if (vocabKeys.length === 0) {
+      const preview = getUIPreviewCache();
+      if (preview && (preview.knownWordsCount > 0 || preview.activeWordsCount > 0)) {
+        return {
+          listeningSeconds: 0,
+          todayListeningSeconds: 0,
+          wordsKnownCount: preview.knownWordsCount,
+          wordsLearningCount: preview.activeWordsCount,
+        };
+      }
+    }
+
     const selectedLangLower = selectedLanguage !== "All" ? selectedLanguage.toLowerCase() : null;
     const onlyParents = !!settings?.onlyPatterns;
 
@@ -865,9 +879,34 @@ function LibraryHome({
     });
   }, [playlists, searchQuery, selectedLanguage, selectedLessonType, showArchived, i18n.language]);
 
-  // Active counts
-  const activeCount = lessons.filter(l => !l.isArchived).length + (playlists || []).filter(p => !p.isArchived).length;
-  const archivedCount = lessons.filter(l => l.isArchived).length + (playlists || []).filter(p => p.isArchived).length;
+  // Active counts with instant UI preview cache fallback before server load
+  const rawActiveCount = lessons.filter(l => !l.isArchived).length + (playlists || []).filter(p => !p.isArchived).length;
+  const rawArchivedCount = lessons.filter(l => l.isArchived).length + (playlists || []).filter(p => p.isArchived).length;
+  const preview = getUIPreviewCache();
+  const isDataAvailable = lessons.length > 0 || (playlists && playlists.length > 0) || Object.keys(vocab || {}).length > 0;
+
+  const activeCount = (!isDataAvailable && preview && preview.activeBooksCount > 0)
+    ? preview.activeBooksCount
+    : rawActiveCount;
+
+  const archivedCount = (!isDataAvailable && preview && preview.archivedBooksCount > 0)
+    ? preview.archivedBooksCount
+    : rawArchivedCount;
+
+  // Persist latest visual snapshot for future instant first renders
+  useEffect(() => {
+    if (isDataAvailable) {
+      const flagVariant = languageFlags[selectedLanguage.toLowerCase()] || undefined;
+      saveUIPreviewCache({
+        selectedLanguage,
+        selectedVariant: flagVariant,
+        activeBooksCount: rawActiveCount,
+        archivedBooksCount: rawArchivedCount,
+        knownWordsCount: languageAwareStats.wordsKnownCount,
+        activeWordsCount: languageAwareStats.wordsLearningCount,
+      });
+    }
+  }, [isDataAvailable, selectedLanguage, languageFlags, rawActiveCount, rawArchivedCount, languageAwareStats.wordsKnownCount, languageAwareStats.wordsLearningCount]);
 
   // Pagination logic
   // Установим пока 4 книги на страницу (позже можно вернуть 15), чтобы вы могли увидеть кнопки.

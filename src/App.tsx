@@ -53,7 +53,7 @@ import PodcastsPage from "./components/PodcastsPage";
 import { checkForGitHubUpdate, GitHubReleaseInfo } from "./services/inAppUpdaterService";
 import { usePlaylistStore } from "./store/playlistStore";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History, Mic2 } from "lucide-react";
-import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
+import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem, getUIPreviewCache, saveUIPreviewCache } from "./utils";
 import { resolveApiUrl } from "./utils/apiConfig";
 import { lessonsStore, vocabStore, settingsStore, playlistsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { whisperQueueService } from "./services/whisperQueueService";
@@ -190,12 +190,20 @@ export default function App() {
   const [listeningSeconds, setListeningSeconds] = useState<number>(0);
 
   const [selectedTargetLanguage, setSelectedTargetLanguage] = useState<string>(() => {
+    const preview = getUIPreviewCache();
+    if (preview?.selectedLanguage) {
+      return preview.selectedLanguage;
+    }
     return localStorage.getItem("vocab_global_target_language") || "All";
   });
 
   const handleSelectTargetLanguage = (lang: string) => {
     setSelectedTargetLanguage(lang);
     safeLocalStorageSetItem("vocab_global_target_language", lang);
+    saveUIPreviewCache({
+      selectedLanguage: lang,
+      selectedVariant: languageFlags[lang.toLowerCase()] || undefined,
+    });
     if (storageMode === "server") {
       syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettings, pinnedLanguages, hiddenLanguages, lang).catch(() => {});
     }
@@ -534,7 +542,22 @@ export default function App() {
   ]);
 
   const [showIosInstallBanner, setShowIosInstallBanner] = useState<boolean>(false);
-  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>({});
+  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem("vocab_clone_language_flags");
+      const parsed = saved ? JSON.parse(saved) : {};
+      const preview = getUIPreviewCache();
+      if (preview?.selectedLanguage && preview?.selectedVariant) {
+        const lKey = preview.selectedLanguage.toLowerCase();
+        if (!parsed[lKey]) {
+          parsed[lKey] = preview.selectedVariant;
+        }
+      }
+      return parsed;
+    } catch (_) {
+      return {};
+    }
+  });
 
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
     const defaults: ReaderSettings = {
@@ -1174,6 +1197,39 @@ export default function App() {
           if (d.lastActiveLessonId && typeof d.lastActiveLessonId === "string") {
             safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", d.lastActiveLessonId);
           }
+
+          // Update lightweight UI preview cache (READ-ONLY visual snapshot for fast startup)
+          try {
+            const targetLang = d.selectedTargetLanguage || selectedTargetLanguage;
+            const activeBooks = (d.lessons || []).filter((l: any) => !l.isArchived).length + (d.playlists || []).filter((p: any) => !p.isArchived).length;
+            const archivedBooks = (d.lessons || []).filter((l: any) => l.isArchived).length + (d.playlists || []).filter((p: any) => p.isArchived).length;
+            const flagVariant = d.languageFlags?.[targetLang.toLowerCase()] || undefined;
+
+            const langLower = targetLang !== "All" ? targetLang.toLowerCase() : null;
+            let knownCount = 0;
+            let activeWordsCount = 0;
+            if (d.vocab && typeof d.vocab === "object") {
+              Object.entries(d.vocab).forEach(([k, v]: [string, any]) => {
+                if (!v) return;
+                if (langLower) {
+                  const parts = k.split("_");
+                  const itemLang = parts.length > 1 ? parts[0].toLowerCase() : "spanish";
+                  if (itemLang !== langLower) return;
+                }
+                if (v.status === "known") knownCount++;
+                else if (["1", "2", "3", "4", "5", "learning"].includes(v.status)) activeWordsCount++;
+              });
+            }
+
+            saveUIPreviewCache({
+              selectedLanguage: targetLang,
+              selectedVariant: flagVariant,
+              activeBooksCount: activeBooks,
+              archivedBooksCount: archivedBooks,
+              knownWordsCount: knownCount,
+              activeWordsCount: activeWordsCount,
+            });
+          } catch (_) {}
 
           serverInitialLoadComplete.current = true;
         } else if (body.status === "empty") {

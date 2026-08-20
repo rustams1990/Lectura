@@ -691,3 +691,7 @@ export const isLocalHostname = (): boolean => {
     hostname.startsWith("172.")
   );
 };
+
+export { getUIPreviewCache, saveUIPreviewCache } from "./utils/uiPreviewCache";
+export type { UIPreviewCache } from "./utils/uiPreviewCache";
+
