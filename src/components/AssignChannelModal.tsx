@@ -260,6 +260,7 @@ export default function AssignChannelModal({
           ...h,
           channelName: trimmedName,
           channelAvatarUrl: avatar || h.channelAvatarUrl,
+          channelUrl: chUrl || (h as any).channelUrl || undefined,
         };
       }
       return h;

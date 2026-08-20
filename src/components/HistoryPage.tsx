@@ -396,31 +396,54 @@ function HistoryPage({
     const parsedTags = formTags.split(",").map(t => t.trim()).filter(Boolean);
 
     if (editingEntry) {
-      // Update existing entry
-      const updated = history.map((h) =>
-        h.id === editingEntry.id
-          ? {
-              ...h,
-              lessonId,
-              lessonTitle: title,
-              targetLanguage: targetLang,
-              coverUrl,
-              lessonType,
-              actionType: formActionType,
-              status: formStatus,
-              durationSeconds,
-              notes: formNotes.trim(),
-              tags: parsedTags,
-              timestamp,
-              channelName,
-              channelAvatarUrl,
-              channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
-              mode: formMode,
-              category: formMode === "custom" ? formCategory : undefined,
-              customTitle: formMode === "custom" ? title : undefined,
-            }
-          : h
-      );
+      // If a channel was assigned, determine the real lessonId to propagate to
+      // (editing entry may be "custom" mode but originally had a real lessonId)
+      const realLessonId = lessonId !== "custom" ? lessonId : editingEntry.lessonId;
+      const hasChannelChange = channelName !== null && channelName !== undefined && channelName.trim() !== "";
+
+      // Build the updated entry, preserving coverUrl if custom mode wiped it
+      const preservedCoverUrl = coverUrl || editingEntry.coverUrl || null;
+
+      const updated = history.map((h) => {
+        // Always update the entry being edited (full update)
+        if (h.id === editingEntry.id) {
+          return {
+            ...h,
+            lessonId,
+            lessonTitle: title,
+            targetLanguage: targetLang,
+            coverUrl: preservedCoverUrl,
+            lessonType,
+            actionType: formActionType,
+            status: formStatus,
+            durationSeconds,
+            notes: formNotes.trim(),
+            tags: parsedTags,
+            timestamp,
+            channelName,
+            channelAvatarUrl,
+            channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
+            mode: formMode,
+            category: formMode === "custom" ? formCategory : undefined,
+            customTitle: formMode === "custom" ? title : undefined,
+          };
+        }
+
+        // If a channel was assigned and this entry shares the same real lessonId —
+        // propagate channelName, channelAvatarUrl, channelUrl and coverUrl to it as well
+        if (hasChannelChange && realLessonId && realLessonId !== "custom" && h.lessonId === realLessonId) {
+          return {
+            ...h,
+            channelName,
+            channelAvatarUrl,
+            channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
+            // Also propagate the coverUrl if the sibling entry is missing it
+            coverUrl: h.coverUrl || preservedCoverUrl,
+          };
+        }
+
+        return h;
+      });
       onUpdateHistory(updated);
       setEditingEntry(null);
       setIsCreateModalOpen(false);
