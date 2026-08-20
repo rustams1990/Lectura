@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo, useRef, useEffect } from "react";
+import React, { useState, useMemo, memo, useRef, useEffect, useCallback } from "react";
 import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat, Playlist } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones, LayoutGrid, X, MoreVertical, ListVideo } from "lucide-react";
 import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
@@ -12,10 +12,80 @@ import StatsWidget from "./StatsWidget";
 import { ignoreListManager } from "../services/ignoreListService";
 import PlaylistCard from "./playlist/PlaylistCard";
 import AddToPlaylistModal from "./playlist/AddToPlaylistModal";
+import { BookCard, BookStats, CoverPreset } from "./library/BookCard";
 
 export function getDifficultyBadgeStyles(_level?: string) {
-  // Clean, unified, high-contrast style matching the language pill with backdrop-blur
-  return "bg-black/50 backdrop-blur-md text-white font-black border border-white/10 shadow-xs";
+  // Clean, unified, high-contrast style matching the language pill
+  return "bg-black/65 text-white font-black border border-white/10 shadow-xs";
+}
+
+const tokensCache = new Map<string, { tokens: ReturnType<typeof segmentSentenceTokens>; length: number; snippet: string }>();
+
+export function getCachedTokens(lessonId: string, cleanText: string, lang: string) {
+  const entry = tokensCache.get(lessonId);
+  const textLength = cleanText.length;
+  const snippet = cleanText.slice(0, 50);
+  if (entry && entry.length === textLength && entry.snippet === snippet) {
+    return entry.tokens;
+  }
+  const tokens = segmentSentenceTokens(cleanText, lang);
+  tokensCache.set(lessonId, { tokens, length: textLength, snippet });
+  if (tokensCache.size > 500) {
+    const firstKey = tokensCache.keys().next().value;
+    if (firstKey) tokensCache.delete(firstKey);
+  }
+  return tokens;
+}
+
+interface BookStatsCacheEntry {
+  stats: BookStats;
+  vocabRef: Record<string, VocabItem>;
+  wordLinksRef: Record<string, string>;
+  textLength: number;
+  textSnippet: string;
+  lang: string;
+}
+
+const statsCache = new Map<string, BookStatsCacheEntry>();
+
+export function getCachedBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>): BookStats {
+  if (!lesson || !lesson.id || typeof lesson.text !== "string") {
+    return calculateBookStats(lesson, vocab, wordLinks);
+  }
+
+  const cacheKey = lesson.id;
+  const entry = statsCache.get(cacheKey);
+  const lang = (lesson.targetLanguage || "spanish").toLowerCase();
+  const textLength = lesson.text.length;
+  const textSnippet = lesson.text.slice(0, 50);
+
+  if (
+    entry &&
+    entry.vocabRef === vocab &&
+    entry.wordLinksRef === wordLinks &&
+    entry.textLength === textLength &&
+    entry.textSnippet === textSnippet &&
+    entry.lang === lang
+  ) {
+    return entry.stats;
+  }
+
+  const computed = calculateBookStats(lesson, vocab, wordLinks);
+  statsCache.set(cacheKey, {
+    stats: computed,
+    vocabRef: vocab,
+    wordLinksRef: wordLinks,
+    textLength,
+    textSnippet,
+    lang,
+  });
+
+  if (statsCache.size > 500) {
+    const firstKey = statsCache.keys().next().value;
+    if (firstKey) statsCache.delete(firstKey);
+  }
+
+  return computed;
 }
 
 interface LibraryHomeProps {
@@ -46,12 +116,13 @@ interface LibraryHomeProps {
   isLoading?: boolean;
 }
 
-export function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>) {
-  const zero = { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, ignoredCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueIgnoredCount: 0, uniqueTotal: 0, total: 0, eligibleTokens: 0, eligibleLemmas: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
+export function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>): BookStats {
+  const zero: BookStats = { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, ignoredCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueIgnoredCount: 0, uniqueTotal: 0, total: 0, eligibleTokens: 0, eligibleLemmas: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
   if (typeof lesson.text !== "string") return zero;
 
   const cleanText = lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ");
-  const tokens = segmentSentenceTokens(cleanText, lesson.targetLanguage || "spanish");
+  const lang = (lesson.targetLanguage || "spanish").toLowerCase();
+  const tokens = getCachedTokens(lesson.id || cleanText.slice(0, 30), cleanText, lesson.targetLanguage || "spanish");
   const processedWords = tokens.filter(t => t.isWord && t.clean).map(t => t.clean);
 
   if (processedWords.length === 0) return zero;
@@ -59,7 +130,6 @@ export function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabIt
   let knownCount = 0;
   let unknownCount = 0;
   let ignoredCount = 0;
-  const lang = (lesson.targetLanguage || "spanish").toLowerCase();
 
   const uniqueKnownWords   = new Set<string>();
   const uniqueUnknownWords = new Set<string>();
@@ -826,13 +896,13 @@ function LibraryHome({
         return b.title.localeCompare(a.title, undefined, { sensitivity: "base" });
       }
       if (sortBy === "comprehension_high") {
-        const sA = calculateBookStats(a, vocab, wordLinks);
-        const sB = calculateBookStats(b, vocab, wordLinks);
+        const sA = getCachedBookStats(a, vocab, wordLinks);
+        const sB = getCachedBookStats(b, vocab, wordLinks);
         return sB.knownPct - sA.knownPct;
       }
       if (sortBy === "comprehension_low") {
-        const sA = calculateBookStats(a, vocab, wordLinks);
-        const sB = calculateBookStats(b, vocab, wordLinks);
+        const sA = getCachedBookStats(a, vocab, wordLinks);
+        const sB = getCachedBookStats(b, vocab, wordLinks);
         return sA.knownPct - sB.knownPct;
       }
       if (sortBy === "length_short") {
@@ -919,10 +989,10 @@ function LibraryHome({
 
   const isVocabAvailable = Boolean(vocab && Object.keys(vocab).length > 0);
   const computedStatsMap = useMemo(() => {
-    const map = new Map<string, any>();
+    const map = new Map<string, BookStats>();
     if (isVocabAvailable) {
       paginatedLessons.forEach((lesson) => {
-        map.set(lesson.id, calculateBookStats(lesson, vocab, wordLinks));
+        map.set(lesson.id, getCachedBookStats(lesson, vocab, wordLinks));
       });
     }
     return map;
@@ -1244,450 +1314,46 @@ function LibraryHome({
 
             {paginatedLessons.map((lesson) => {
               const cover = getLanguageCoverPreset(lesson.targetLanguage);
-            const wordCount = getWordCount(lesson.text || "");
-            const readTime = getReadingTime(lesson.text || "");
-            const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
-            const youtubeDurationVal = isYoutube ? (lesson.youtubeDuration || getYoutubeDurationFromText(lesson.text || "")) : null;
+              const wordCount = getWordCount(lesson.text || "");
+              const readTime = getReadingTime(lesson.text || "");
+              const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
+              const youtubeDurationVal = isYoutube ? (lesson.youtubeDuration || getYoutubeDurationFromText(lesson.text || "")) : null;
+              const effectiveAudioDuration = lesson.audioDuration || getMaxTimestampInText(lesson.text);
+              const bookStats = computedStatsMap.get(lesson.id) || getCachedBookStats(lesson, vocab, wordLinks);
 
-            const bookStats = computedStatsMap.get(lesson.id) || calculateBookStats(lesson, vocab, wordLinks);
-
-            return (
-              <div
-                id={`book-card-${lesson.id}`}
-                key={lesson.id}
-                onClick={() => onSelectLesson(lesson.id)}
-                className={`group relative bg-white dark:bg-zinc-900 rounded-2xl border ${
-                  lesson.pinned
-                    ? "border-amber-400 dark:border-amber-500/55 shadow-sm shadow-amber-100/10 ring-1 ring-amber-400/20"
-                    : "border-zinc-200 dark:border-zinc-800"
-                } hover:border-teal-200 dark:hover:border-teal-950 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden`}
-              >
-                {/* Book spine decorative border */}
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-black/20 via-transparent to-black/20 z-10"></div>
-
-                {deletingLessonId === lesson.id && (
-                  <div 
-                    onClick={(e) => e.stopPropagation()} 
-                    className="absolute inset-0 bg-zinc-950/95 backdrop-blur-md z-50 p-4 flex flex-col justify-between animate-in fade-in zoom-in-95 duration-150 text-white font-sans text-left"
-                  >
-                    <div className="flex flex-col items-center justify-center flex-1 text-center space-y-3">
-                      <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-500 shadow-inner">
-                        <Trash2 className="w-6 h-6 animate-pulse" />
-                      </div>
-                      <div className="space-y-1.5 px-1">
-                        <h4 className="text-xs font-black uppercase tracking-wider text-rose-400">{t("library.delete_book_title", "Delete book?")}</h4>
-                        <p className="text-[11px] text-zinc-300 leading-normal font-sans">
-                          {t("library.delete_book_confirm", "All saved words and progress for this book will be permanently deleted.")} <strong className="text-zinc-100 font-bold font-serif italic">"{lesson.title}"</strong>
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteLesson(lesson.id, e);
-                          setDeletingLessonId(null);
-                        }}
-                        className="flex-1 py-2 bg-red-600 hover:bg-red-700 active:scale-97 text-white font-black text-[11px] rounded-xl transition-all cursor-pointer shadow-md"
-                      >{t("library.confirm_delete", "Yes, delete")}</button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingLessonId(null);
-                        }}
-                        className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-97 text-zinc-300 border border-zinc-700/60 font-black text-[11px] rounded-xl transition-all cursor-pointer"
-                      >{t("library.cancel", "Cancel")}</button>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Book Cover Banner */}
-                <div 
-                  className={`relative aspect-video ${lesson.coverUrl ? 'bg-zinc-950' : `bg-gradient-to-br ${cover.gradient}`} p-4 text-white flex flex-col justify-between overflow-hidden select-none`}
-                >
-                  {/* Ambient blurred backdrop for cover images */}
-                  {lesson.coverUrl && (
-                    <img 
-                      src={lesson.coverUrl} 
-                      alt="" 
-                      aria-hidden="true"
-                      className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 select-none pointer-events-none"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (target.src.includes("/maxresdefault.jpg")) {
-                          target.src = target.src.replace("/maxresdefault.jpg", "/sddefault.jpg");
-                        } else if (target.src.includes("/sddefault.jpg")) {
-                          target.src = target.src.replace("/sddefault.jpg", "/hqdefault.jpg");
-                        }
-                      }}
-                    />
-                  )}
-
-                  {/* Sharp image: 'article' fills completely (object-cover) without letterbox gaps, other types preserve aspect ratio (object-contain) */}
-                  {lesson.coverUrl && (
-                    <img 
-                      src={lesson.coverUrl} 
-                      alt="" 
-                      className={`absolute inset-0 w-full h-full ${lesson.lessonType === 'article' || lesson.lessonType === 'website' ? 'object-cover' : 'object-contain'} z-0 select-none pointer-events-none drop-shadow-md`}
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (target.src.includes("/maxresdefault.jpg")) {
-                          target.src = target.src.replace("/maxresdefault.jpg", "/sddefault.jpg");
-                        } else if (target.src.includes("/sddefault.jpg")) {
-                          target.src = target.src.replace("/sddefault.jpg", "/hqdefault.jpg");
-                        }
-                      }}
-                    />
-                  )}
-
-                  {/* Optional dark overlay shadow for text contrast when enabled in settings */}
-                  {lesson.coverUrl && settings?.dimBookCovers && (
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-900/30 to-zinc-950/30 z-[1] pointer-events-none"></div>
-                  )}
-
-                  {/* Subtle bottom gradient only for title contrast when dimming is disabled (default) */}
-                  {lesson.coverUrl && !settings?.dimBookCovers && (
-                    <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/65 via-black/25 to-transparent z-[1] pointer-events-none"></div>
-                  )}
-
-                  {/* Spine inner shade overlay */}
-                  <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent z-[2] pointer-events-none"></div>
-                  
-                  {/* Decorative background monogram text (only shown on gradients) */}
-                  {!lesson.coverUrl && (
-                    <div className="absolute right-2 bottom-0 text-7xl font-black text-white/10 transform translate-x-2 translate-y-3 pointer-events-none select-none font-serif">
-                       {cover.character}
-                    </div>
-                  )}
-
-                  {/* Top line cover info */}
-                  <div className="flex items-center justify-between z-10 w-full animate-in fade-in duration-300">
-                    <div className="flex items-center gap-1.5 max-w-[65%]">
-                      <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/45 backdrop-blur-md pl-1.5 pr-2.5 py-1 rounded-full border border-white/5 truncate">
-                        {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage, languageFlags))}
-                        <span className="truncate">{getLocalizedLanguageName(lesson.targetLanguage, i18n.language)}</span>
-                      </span>
-                      {lesson.difficulty && (
-                        <span 
-                          className="text-[9.5px] font-black leading-none px-2 py-1 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 flex items-center justify-center shadow-xs cursor-default select-none shrink-0"
-                          title={lesson.difficultyExplanation || `Уровень сложности: ${lesson.difficulty}`}
-                        >
-                          {lesson.difficulty}
-                        </span>
-                      )}
-
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onTogglePinLesson(lesson.id, e);
-                        }}
-                        className={`p-1 rounded-lg backdrop-blur-md transition-all border leading-none cursor-pointer flex items-center justify-center ${
-                          lesson.pinned
-                            ? "bg-amber-500 text-white border-amber-400 font-extrabold shadow-sm hover:bg-amber-600 scale-110"
-                            : "bg-black/40 text-zinc-300 border-white/10 hover:bg-black/60 hover:text-white hover:scale-110"
-                        }`}
-                        title={lesson.pinned ? "Открепить книгу (Unpin Book)" : "Закрепить книгу (Pin Book)"}
-                      >
-                        <Pin className={`w-3 h-3 ${lesson.pinned ? "fill-white" : ""}`} />
-                      </button>
-                      {(() => {
-                        // If lessonType explicitly set, use it.
-                        // If not set but lesson has audio → infer "podcast".
-                        // Otherwise fall back to "book".
-                        const hasAudio = !!(lesson.audioUrl || lesson.audioBase64);
-                        const lType = lesson.lessonType || (hasAudio ? "podcast" : "book");
-                        const typeInfo = lessonTypes.find((t) => t.id === lType);
-                        const catLabel = getCategoryDisplayName(typeInfo?.id || lType, typeInfo?.name, t);
-                        const IconComponent = getCategoryIcon(typeInfo?.icon || (hasAudio ? "podcast" : "book"), catLabel);
-                        return (
-                          <span className="text-[10px] font-black leading-none bg-black/40 backdrop-blur-md px-2 py-1.5 rounded-lg flex items-center gap-1 select-none text-zinc-100 border border-white/5">
-                            <IconComponent className="w-3 h-3 text-teal-300" />
-                            <span>{catLabel}</span>
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Big Cover Title */}
-                  <div className="z-10 mt-auto">
-                    <h3 className="text-sm font-black line-clamp-3 tracking-tight leading-snug drop-shadow-md group-hover:text-teal-300 transition-colors">
-                      {lesson.title}
-                    </h3>
-                  </div>
-                </div>
-
-                {/* Details Section */}
-                <div className={`${booksPerRow >= 5 ? 'p-2.5 space-y-2' : 'p-4 space-y-3'} flex-auto flex flex-col justify-between`}>
-
-                  <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/20 p-2 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30 select-none">
-                    <div className="flex justify-between items-center text-[9px] uppercase font-black tracking-widest text-zinc-400">
-                      <span>{settings?.mainStatsMetric === "vocabulary" ? t("library.stat_vocab", "Vocabulary") : t("library.comprehension_caps", "Comprehension")}</span>
-                      <span className="text-zinc-600 dark:text-zinc-300 font-extrabold">
-                        {isVocabAvailable ? `${settings?.mainStatsMetric === "vocabulary" ? bookStats.knownVocabularyPct : bookStats.knownPct}%` : "--%"}
-                      </span>
-                    </div>
-
-                    {/* Proportional dual progress bar */}
-                    <div className="h-1.5 w-full rounded-full bg-sky-500/20 flex overflow-hidden">
-                      {!isVocabAvailable ? (
-                        <div className="h-full w-full bg-zinc-200/60 dark:bg-zinc-800/60 animate-pulse rounded-full" />
-                      ) : settings?.mainStatsMetric === "vocabulary" ? (
-                        <>
-                          <div 
-                            style={{ width: `${bookStats.knownVocabularyPct}%` }}
-                            className="bg-emerald-500 h-full transition-all duration-300 cursor-help"
-                            title={`Словарный запас: ${bookStats.knownVocabularyPct}% (Изучено: ${bookStats.uniqueKnownCount} лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
-                          />
-                          <div 
-                            style={{ width: `${bookStats.unknownVocabularyPct}%` }}
-                            className="bg-sky-400 h-full transition-all duration-300 cursor-help"
-                            title={`Новых слов: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} новых лемм из ${bookStats.eligibleLemmas})`}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <div 
-                            style={{ width: `${bookStats.knownPct}%` }}
-                            className="bg-emerald-500 h-full transition-all duration-300 cursor-help"
-                            title={`Понимание: ${bookStats.knownPct}% (Известно: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению токенов)`}
-                          />
-                          <div 
-                            style={{ width: `${bookStats.unknownPct}%` }}
-                            className="bg-sky-400 h-full transition-all duration-300 cursor-help"
-                            title={`Непонимание: ${bookStats.unknownPct}% (Неизвестно: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов)`}
-                          />
-                        </>
-                      )}
-                    </div>
-
-                    {Boolean(settings?.showDetailedVocabularyStats) ? (
-                      <div className="flex flex-col gap-0.5 text-[9px] font-extrabold font-sans">
-                        <div className="flex justify-between items-center">
-                          <span 
-                            title={`Известные слова: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
-                            className="text-emerald-500 hover:underline cursor-help"
-                          >
-                            {t("library.understood_stat", "Understood:")} {bookStats.knownPct}% ({bookStats.knownCount} / {bookStats.eligibleTokens} {t("library.words", "words")})
-                          </span>
-                          <span 
-                            title={`Неизвестные слова: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных лемм)`}
-                            className="text-sky-500 dark:text-sky-400 hover:underline cursor-help"
-                          >
-                            {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}% ({bookStats.unknownCount} {t("library.words", "words")})
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span 
-                            title={`Уникальные изученные леммы: ${bookStats.uniqueKnownCount} из ${bookStats.eligibleLemmas} подлежащих изучению`}
-                            className="text-emerald-500 dark:text-emerald-400 hover:underline cursor-help"
-                          >
-                            • {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}% ({bookStats.uniqueKnownCount} / {bookStats.eligibleLemmas} {t("library.unique", "unique")})
-                          </span>
-                          <span 
-                            title={`Новые уникальные леммы: ${bookStats.uniqueUnknownCount} из ${bookStats.eligibleLemmas}`}
-                            className="text-sky-500 dark:text-sky-400 hover:underline cursor-help"
-                          >
-                            • {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}% ({bookStats.uniqueUnknownCount} {t("library.unique", "unique")})
-                          </span>
-                        </div>
-                        {bookStats.ignoredCount > 0 && (
-                          <div className="flex justify-end">
-                            <span 
-                              title={`Пропущено как шум/имена: ${bookStats.ignoredCount} токенов, ${bookStats.uniqueIgnoredCount} уникальных лемм. Не входят в расчёт понимания.`}
-                              className="text-zinc-400 dark:text-zinc-600 hover:underline cursor-help"
-                            >
-                              • {t("library.ignored_stat", "Ignored:")} {bookStats.ignoredCount} ({bookStats.uniqueIgnoredCount} {t("library.unique", "unique")})
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex justify-between items-center text-[9px] font-extrabold font-sans">
-                        {settings?.mainStatsMetric === "vocabulary" ? (
-                          <>
-                            <span 
-                              title={`Известные слова: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению`}
-                              className="text-emerald-500 hover:underline cursor-help animate-none"
-                            >
-                              {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
-                            </span>
-                            <span 
-                              title={`Неизвестные слова: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов`}
-                              className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
-                            >
-                              {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}%
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span 
-                              title={`Словарный запас: ${bookStats.knownVocabularyPct}% (${bookStats.uniqueKnownCount} лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
-                              className="text-emerald-500 hover:underline cursor-help animate-none"
-                            >
-                              {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}%
-                            </span>
-                            <span 
-                              title={`Новых слов: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} новых уникальных лемм)`}
-                              className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
-                            >
-                              {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}%
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {(() => {
-                    const effectiveAudioDuration = lesson.audioDuration || getMaxTimestampInText(lesson.text);
-                    return (
-                      <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
-                        <span className="flex items-center gap-1">
-                          📚 {wordCount} {t("library.words", "words")}
-                        </span>
-                        {isYoutube && youtubeDurationVal ? (
-                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.yt_duration", "YouTube Video Duration")}>
-                            ⏱️ {formatDuration(youtubeDurationVal)}
-                          </span>
-                        ) : effectiveAudioDuration ? (
-                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.audio_duration", "Audio Duration")}>
-                            ⏱️ {formatDuration(effectiveAudioDuration)}
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.read_time", "Estimated Read Time")}>
-                            ⏱️ ~{readTime} {t("library.min", "min")}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Actions row: Neutral Read Button + 3-dots Menu */}
-                  <div className="flex gap-2 items-center pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                    <button
-                      type="button"
-                      id={`book-read-btn-${lesson.id}`}
-                      onClick={() => onSelectLesson(lesson.id)}
-                      className="flex-1 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 active:scale-98 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700/60 font-bold text-xs rounded-xl shadow-3xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <BookOpen className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                      <span>{bookStats.knownPct > 0 || bookStats.uniqueKnownCount > 0 ? t("library.continue_btn", "Continue") : t("library.read_btn", "Read")}</span>
-                    </button>
-
-                    {/* Secondary Actions 3-dots Menu */}
-                    <div className="relative font-sans" ref={openMenuLessonId === lesson.id ? menuRef : null}>
-                      <button
-                        type="button"
-                        id={`book-menu-btn-${lesson.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenuLessonId(openMenuLessonId === lesson.id ? null : lesson.id);
-                        }}
-                        className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
-                          openMenuLessonId === lesson.id
-                            ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white border-zinc-300 dark:border-zinc-600"
-                            : "bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200/60 dark:border-zinc-700/60"
-                        }`}
-                        title={t("common.more_actions", "More actions")}
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-
-                      {openMenuLessonId === lesson.id && (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 bottom-full mb-1.5 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 min-w-[175px] animate-in fade-in zoom-in-95 duration-100 space-y-0.5"
-                        >
-                          {/* Quick Play Audio option */}
-                          {isValidAudioUrl(lesson.audioUrl, lesson.audioBase64, lesson.youtubeId, lesson.localVideoUrl) && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuLessonId(null);
-                                handlePlaySingleLesson(lesson);
-                              }}
-                              className="w-full px-2.5 py-2 text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
-                            >
-                              <Headphones className="w-3.5 h-3.5" />
-                              <span>{t('player.play_now', 'Play audio')}</span>
-                            </button>
-                          )}
-
-                          {/* Edit book */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuLessonId(null);
-                              onEditLesson(lesson, e);
-                            }}
-                            className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-zinc-400" />
-                            <span>{t('library.edit_tooltip', 'Edit book')}</span>
-                          </button>
-
-                          {/* Add to playlist */}
-                          {playlists && playlists.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuLessonId(null);
-                                setPlaylistModalLesson(lesson);
-                              }}
-                              className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
-                            >
-                              <ListVideo className="w-3.5 h-3.5 text-zinc-400" />
-                              <span>{t('playlist.add_to_playlist_action', 'Add to playlist...')}</span>
-                            </button>
-                          )}
-
-                          {/* Archive / Restore */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuLessonId(null);
-                              onToggleArchiveLesson(lesson.id, e);
-                            }}
-                            className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
-                          >
-                            <Archive className="w-3.5 h-3.5 text-zinc-400" />
-                            <span>{lesson.isArchived ? t("library.restore_tooltip", "Restore to bookshelf") : t("library.archive_tooltip", "Move to archive")}</span>
-                          </button>
-
-                          <div className="border-t border-zinc-100 dark:border-zinc-800 my-1" />
-
-                          {/* Delete */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuLessonId(null);
-                              setDeletingLessonId(lesson.id);
-                            }}
-                            className="w-full px-2.5 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                            <span>{t('library.delete_tooltip', 'Delete book')}</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              return (
+                <BookCard
+                  key={lesson.id}
+                  lesson={lesson}
+                  bookStats={bookStats}
+                  isVocabAvailable={isVocabAvailable}
+                  cover={cover}
+                  languageFlags={languageFlags}
+                  settings={settings}
+                  booksPerRow={booksPerRow}
+                  isDeleting={deletingLessonId === lesson.id}
+                  isMenuOpen={openMenuLessonId === lesson.id}
+                  lessonTypes={lessonTypes}
+                  playlists={playlists}
+                  wordCount={wordCount}
+                  readTime={readTime}
+                  youtubeDurationVal={youtubeDurationVal}
+                  effectiveAudioDuration={effectiveAudioDuration}
+                  renderCircularFlag={renderCircularFlag}
+                  getLanguageFlagEmoji={getLanguageFlagEmoji}
+                  formatDuration={formatDuration}
+                  onSelectLesson={onSelectLesson}
+                  onDeleteLesson={onDeleteLesson}
+                  onToggleArchiveLesson={onToggleArchiveLesson}
+                  onTogglePinLesson={onTogglePinLesson}
+                  onEditLesson={onEditLesson}
+                  onOpenPlaylistModal={setPlaylistModalLesson}
+                  onPlaySingleLesson={handlePlaySingleLesson}
+                  onSetDeletingLessonId={setDeletingLessonId}
+                  onToggleMenu={setOpenMenuLessonId}
+                />
+              );
+            })}
 
           {/* Quick placeholder block for adding new books */}
           {!showArchived && currentPage === totalPages && (

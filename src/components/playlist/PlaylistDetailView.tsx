@@ -12,7 +12,7 @@ import { renderCircularFlag, getLanguageFlagEmoji } from "./PlaylistCard";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { usePlaylistStore } from "../../store/playlistStore";
 import { lessonsStore } from "../../db";
-import { calculateBookStats } from "../LibraryHome";
+import { calculateBookStats, getCachedBookStats } from "../LibraryHome";
 import AddMediaToPlaylistModal from "./AddMediaToPlaylistModal";
 
 export type PlaylistSortOption = 
@@ -1106,7 +1106,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 const hasLessonText = !!(lesson && lesson.text && lesson.text.length > 20);
                 const rawWordCount = hasLessonText ? lesson!.text.split(/\s+/).filter(Boolean).length : null;
                 const formattedWordCount = rawWordCount !== null ? (rawWordCount >= 1000 ? `${(rawWordCount / 1000).toFixed(1).replace('.0', '')}k` : `${rawWordCount}`) : null;
-                const bookStats = (hasLessonText && vocab && wordLinks) ? calculateBookStats(lesson!, vocab, wordLinks) : null;
+                const bookStats = (hasLessonText && vocab && wordLinks) ? getCachedBookStats(lesson!, vocab, wordLinks) : null;
 
                 return (
                   <div
