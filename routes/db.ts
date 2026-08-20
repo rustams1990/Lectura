@@ -1517,6 +1517,7 @@ router.patch("/history/:id", (req: Request, res: Response) => {
       }
     })();
 
+    console.log(`[SAVED TO DB] History ${id} updated with channel: ${updates.channelName || updates.channelTitle || 'unchanged'}`);
     return res.json({ status: "success", id });
   } catch (err: any) {
     console.error("[PATCH /api/history/:id] Error:", err);
@@ -1609,5 +1610,61 @@ router.post("/history/assign-channel", (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to assign channel in batch" });
   }
 });
+
+// 16. Granular Lesson Update (PATCH /api/lessons/:id and PUT)
+const updateLessonHandler = (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { id } = req.params;
+  const updates = req.body || {};
+  if (!id) return res.status(400).json({ error: "Missing lesson ID" });
+
+  try {
+    const db = getDbConnection(userId);
+    const channelTitle = updates.channelTitle || updates.channelName || null;
+    const channelAvatar = updates.channelAvatar || updates.channelAvatarUrl || null;
+    const channelUrl = updates.channelUrl || null;
+
+    db.transaction(() => {
+      // 1. Update lessons table
+      db.prepare(`
+        UPDATE lessons SET
+          channelName = COALESCE(?, channelName),
+          channelTitle = COALESCE(?, channelTitle),
+          channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+          channelUrl = COALESCE(?, channelUrl)
+        WHERE user_id = ? AND id = ?
+      `).run(channelTitle, channelTitle, channelAvatar, channelUrl, userId, id);
+
+      // 2. Also update all reading_history rows for this lessonId
+      if (channelTitle) {
+        db.prepare(`
+          UPDATE reading_history SET
+            channelName = ?,
+            channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+            channelUrl = COALESCE(?, channelUrl)
+          WHERE user_id = ? AND lessonId = ?
+        `).run(channelTitle, channelAvatar, channelUrl, userId, id);
+      }
+    })();
+
+    console.log(`[SAVED TO DB] Lesson ${id} updated with channel: ${channelTitle}`);
+    return res.json({ status: "success", id, channelTitle, channelAvatar, channelUrl });
+  } catch (err: any) {
+    console.error("[PATCH /api/lessons/:id] Error:", err);
+    return res.status(500).json({ error: "Failed to update lesson on server" });
+  }
+};
+
+router.patch("/lessons/:id", updateLessonHandler);
+router.put("/lessons/:id", updateLessonHandler);
 
 export default router;

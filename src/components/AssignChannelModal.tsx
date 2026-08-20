@@ -45,6 +45,7 @@ export default function AssignChannelModal({
   const [newChannelUrl, setNewChannelUrl] = useState<string>('');
   const [newChannelAvatarUrl, setNewChannelAvatarUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState<boolean>(false);
+  const [isSavingBatch, setIsSavingBatch] = useState<boolean>(false);
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<string>>(() => {
     return initialSelectedId ? new Set([initialSelectedId]) : new Set();
   });
@@ -250,48 +251,14 @@ export default function AssignChannelModal({
     }
   };
 
-  const handleSaveBatch = () => {
-    if (!newChannelName.trim() || selectedLessonIds.size === 0) return;
+  const handleSaveBatch = async () => {
+    if (!newChannelName.trim() || selectedLessonIds.size === 0 || isSavingBatch) return;
 
     const trimmedName = newChannelName.trim();
     const avatar = newChannelAvatarUrl || null;
     const chUrl = newChannelUrl.trim() || null;
 
-    // 1. Update Lessons
-    const updatedLessons = lessons.map((l) => {
-      if (selectedLessonIds.has(l.id)) {
-        return {
-          ...l,
-          channelName: trimmedName,
-          channelTitle: trimmedName,
-          channelAvatarUrl: avatar || l.channelAvatarUrl,
-          channelUrl: chUrl || l.channelUrl,
-        };
-      }
-      return l;
-    });
-
-    onUpdateLessons?.(updatedLessons);
-
-    // 2. Update History
-    const updatedHistory = history.map((h) => {
-      const isMatch =
-        selectedLessonIds.has(h.lessonId) ||
-        selectedLessonIds.has(h.id) ||
-        (h.lessonTitle && relevantLessons.some((rl) => selectedLessonIds.has(rl.id) && rl.title === h.lessonTitle));
-
-      if (isMatch) {
-        return {
-          ...h,
-          channelName: trimmedName,
-          channelAvatarUrl: avatar || h.channelAvatarUrl,
-          channelUrl: chUrl || (h as any).channelUrl || undefined,
-        };
-      }
-      return h;
-    });
-
-    // 3. Direct atomic write to SQLite on server for both lessons and history
+    setIsSavingBatch(true);
     try {
       const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
       const savedUserStr = localStorage.getItem("vocab_clone_local_user");
@@ -302,7 +269,9 @@ export default function AssignChannelModal({
         "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
       };
       if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
-      fetch(resolveApiUrl("/api/history/assign-channel"), {
+
+      // 1. Direct atomic write to SQLite on server for both lessons and history
+      const res = await fetch(resolveApiUrl("/api/history/assign-channel"), {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -312,10 +281,55 @@ export default function AssignChannelModal({
           channelAvatarUrl: avatar,
           channelUrl: chUrl,
         }),
-      }).catch(() => {});
-    } catch (_) {}
+      });
 
-    onClose();
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      // 2. Update Lessons
+      const updatedLessons = lessons.map((l) => {
+        if (selectedLessonIds.has(l.id)) {
+          return {
+            ...l,
+            channelName: trimmedName,
+            channelTitle: trimmedName,
+            channelAvatarUrl: avatar || l.channelAvatarUrl,
+            channelUrl: chUrl || l.channelUrl,
+          };
+        }
+        return l;
+      });
+
+      onUpdateLessons?.(updatedLessons);
+
+      // 3. Update History
+      const updatedHistory = history.map((h) => {
+        const isMatch =
+          selectedLessonIds.has(h.lessonId) ||
+          selectedLessonIds.has(h.id) ||
+          (h.lessonTitle && relevantLessons.some((rl) => selectedLessonIds.has(rl.id) && rl.title === h.lessonTitle));
+
+        if (isMatch) {
+          return {
+            ...h,
+            channelName: trimmedName,
+            channelAvatarUrl: avatar || h.channelAvatarUrl,
+            channelUrl: chUrl || (h as any).channelUrl || undefined,
+          };
+        }
+        return h;
+      });
+
+      onUpdateHistory?.(updatedHistory);
+      showToast(t('history_page.batch_saved', 'Канал успешно назначен выбранным видео'), 'success');
+      onClose();
+    } catch (err: any) {
+      console.error("Batch save error:", err);
+      showToast(t('history_page.batch_save_error', 'Ошибка сохранения на сервере: ') + (err.message || ''), 'error');
+    } finally {
+      setIsSavingBatch(false);
+    }
   };
 
   const isAllSelected = relevantLessons.length > 0 && selectedLessonIds.size === relevantLessons.length;
@@ -530,15 +544,24 @@ export default function AssignChannelModal({
           <button
             type="button"
             onClick={handleSaveBatch}
-            disabled={!newChannelName.trim() || selectedLessonIds.size === 0}
+            disabled={!newChannelName.trim() || selectedLessonIds.size === 0 || isSavingBatch}
             className="px-5 py-2.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
           >
-            <Check className="w-4 h-4" />
-            <span>
-              {t('history_page.apply_to_selected_btn', 'Apply to selected ({{count}})', {
-                count: selectedLessonIds.size,
-              })}
-            </span>
+            {isSavingBatch ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>{t('app.saving', 'Сохранение...')}</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                <span>
+                  {t('history_page.apply_to_selected_btn', 'Apply to selected ({{count}})', {
+                    count: selectedLessonIds.size,
+                  })}
+                </span>
+              </>
+            )}
           </button>
         </div>
       </div>

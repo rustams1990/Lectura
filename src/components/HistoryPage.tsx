@@ -247,6 +247,7 @@ function HistoryPage({
   const [formChannelUrl, setFormChannelUrl] = useState("");
   const [formChannelAvatarUrl, setFormChannelAvatarUrl] = useState<string | null>(null);
   const [isResolvingFormChannel, setIsResolvingFormChannel] = useState(false);
+  const [isSavingEntry, setIsSavingEntry] = useState(false);
 
   const handleResolveFormChannel = async () => {
     const rawUrl = formChannelUrl.trim();
@@ -363,8 +364,10 @@ function HistoryPage({
     setIsCreateModalOpen(true);
   };
 
-  const handleSaveEntry = (e: React.FormEvent) => {
+  const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingEntry) return;
+
     const durationSeconds = Math.max(0, (parseInt(formMinutes, 10) || 0) * 60);
 
     let title = "";
@@ -374,6 +377,8 @@ function HistoryPage({
     let channelName: string | null = null;
     let channelAvatarUrl: string | null = null;
     let lessonId = "custom";
+
+    let updatedLessons: Lesson[] | null = null;
 
     if (formMode === "library") {
       const selectedLesson = lessons.find((l) => l.id === formLessonId);
@@ -385,9 +390,8 @@ function HistoryPage({
       channelAvatarUrl = formChannelAvatarUrl || (selectedLesson ? selectedLesson.channelAvatarUrl || null : null);
       lessonId = formLessonId || "custom";
 
-      // If updating a library lesson, update the lesson in lessons state too
-      if (selectedLesson && onUpdateLessons) {
-        const updatedLessons = lessons.map((l) =>
+      if (selectedLesson) {
+        updatedLessons = lessons.map((l) =>
           l.id === selectedLesson.id
             ? {
                 ...l,
@@ -398,7 +402,6 @@ function HistoryPage({
               }
             : l
         );
-        onUpdateLessons(updatedLessons);
       }
     } else {
       // Custom Activity
@@ -427,68 +430,62 @@ function HistoryPage({
 
     const parsedTags = formTags.split(",").map(t => t.trim()).filter(Boolean);
 
-    if (editingEntry) {
-      // If a channel was assigned, determine the real lessonId to propagate to
-      // (editing entry may be "custom" mode but originally had a real lessonId)
-      const realLessonId = lessonId !== "custom" ? lessonId : editingEntry.lessonId;
-      const hasChannelChange = channelName !== null && channelName !== undefined && channelName.trim() !== "";
+    setIsSavingEntry(true);
+    try {
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-local-sync-key": "4815a16a23a42a",
+        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+      };
+      if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
 
-      // Build the updated entry, preserving coverUrl if custom mode wiped it
-      const preservedCoverUrl = coverUrl || editingEntry.coverUrl || null;
+      if (editingEntry) {
+        const realLessonId = lessonId !== "custom" ? lessonId : editingEntry.lessonId;
+        const hasChannelChange = channelName !== null && channelName !== undefined && channelName.trim() !== "";
+        const preservedCoverUrl = coverUrl || editingEntry.coverUrl || null;
 
-      const updated = history.map((h) => {
-        // Always update the entry being edited (full update)
-        if (h.id === editingEntry.id) {
-          return {
-            ...h,
-            lessonId,
-            lessonTitle: title,
-            targetLanguage: targetLang,
-            coverUrl: preservedCoverUrl,
-            lessonType,
-            actionType: formActionType,
-            status: formStatus,
-            durationSeconds,
-            notes: formNotes.trim(),
-            tags: parsedTags,
-            timestamp,
-            channelName,
-            channelAvatarUrl,
-            channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
-            mode: formMode,
-            category: formMode === "custom" ? formCategory : undefined,
-            customTitle: formMode === "custom" ? title : undefined,
-          };
-        }
+        const updated = history.map((h) => {
+          if (h.id === editingEntry.id) {
+            return {
+              ...h,
+              lessonId,
+              lessonTitle: title,
+              targetLanguage: targetLang,
+              coverUrl: preservedCoverUrl,
+              lessonType,
+              actionType: formActionType,
+              status: formStatus,
+              durationSeconds,
+              notes: formNotes.trim(),
+              tags: parsedTags,
+              timestamp,
+              channelName,
+              channelAvatarUrl,
+              channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
+              mode: formMode,
+              category: formMode === "custom" ? formCategory : undefined,
+              customTitle: formMode === "custom" ? title : undefined,
+            };
+          }
 
-        // If a channel was assigned and this entry shares the same real lessonId —
-        // propagate channelName, channelAvatarUrl, channelUrl and coverUrl to it as well
-        if (hasChannelChange && realLessonId && realLessonId !== "custom" && h.lessonId === realLessonId) {
-          return {
-            ...h,
-            channelName,
-            channelAvatarUrl,
-            channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
-            // Also propagate the coverUrl if the sibling entry is missing it
-            coverUrl: h.coverUrl || preservedCoverUrl,
-          };
-        }
+          if (hasChannelChange && realLessonId && realLessonId !== "custom" && h.lessonId === realLessonId) {
+            return {
+              ...h,
+              channelName,
+              channelAvatarUrl,
+              channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
+              coverUrl: h.coverUrl || preservedCoverUrl,
+            };
+          }
 
-        return h;
-      });
+          return h;
+        });
 
-      // Direct atomic write to SQLite on server
-      try {
-        const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-        const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          "x-local-sync-key": "4815a16a23a42a",
-          "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
-        };
-        if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
-        fetch(resolveApiUrl(`/api/history/${editingEntry.id}`), {
+        // 1. Direct atomic write to SQLite on server for history
+        const histRes = await fetch(resolveApiUrl(`/api/history/${editingEntry.id}`), {
           method: "PATCH",
           headers,
           body: JSON.stringify({
@@ -510,55 +507,95 @@ function HistoryPage({
             category: formMode === "custom" ? formCategory : undefined,
             customTitle: formMode === "custom" ? title : undefined,
           }),
-        }).catch(() => {});
-      } catch (_) {}
+        });
 
-      onUpdateHistory(updated);
-      setEditingEntry(null);
-      setIsCreateModalOpen(false);
-    } else {
-      // Create new entry
-      const newEntry: HistoryEntry = {
-        id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        lessonId,
-        lessonTitle: title,
-        targetLanguage: targetLang,
-        coverUrl,
-        lessonType,
-        actionType: formActionType,
-        status: formStatus,
-        durationSeconds,
-        notes: formNotes.trim(),
-        tags: parsedTags,
-        timestamp,
-        channelName,
-        channelAvatarUrl,
-        channelUrl: formChannelUrl.trim() || undefined,
-        mode: formMode,
-        category: formMode === "custom" ? formCategory : undefined,
-        customTitle: formMode === "custom" ? title : undefined,
-      };
+        if (!histRes.ok) {
+          throw new Error(`Server returned ${histRes.status}`);
+        }
 
-      // Direct atomic write to SQLite on server
-      try {
-        const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-        const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          "x-local-sync-key": "4815a16a23a42a",
-          "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+        // 2. Also patch the lesson if linked
+        if (realLessonId && realLessonId !== "custom") {
+          await fetch(resolveApiUrl(`/api/lessons/${realLessonId}`), {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({
+              channelTitle: channelName,
+              channelName: channelName,
+              channelAvatar: channelAvatarUrl,
+              channelAvatarUrl: channelAvatarUrl,
+              channelUrl: formChannelUrl.trim() || undefined,
+            }),
+          }).catch((e) => console.warn("Failed to patch lesson:", e));
+        }
+
+        onUpdateHistory(updated);
+        if (updatedLessons && onUpdateLessons) {
+          onUpdateLessons(updatedLessons);
+        }
+
+        showToast(t('history_page.entry_saved', 'Запись успешно сохранена'), 'success');
+        setEditingEntry(null);
+        setIsCreateModalOpen(false);
+      } else {
+        // Create new entry
+        const newEntry: HistoryEntry = {
+          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          lessonId,
+          lessonTitle: title,
+          targetLanguage: targetLang,
+          coverUrl,
+          lessonType,
+          actionType: formActionType,
+          status: formStatus,
+          durationSeconds,
+          notes: formNotes.trim(),
+          tags: parsedTags,
+          timestamp,
+          channelName,
+          channelAvatarUrl,
+          channelUrl: formChannelUrl.trim() || undefined,
+          mode: formMode,
+          category: formMode === "custom" ? formCategory : undefined,
+          customTitle: formMode === "custom" ? title : undefined,
         };
-        if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
-        fetch(resolveApiUrl(`/api/history/${newEntry.id}`), {
+
+        const createRes = await fetch(resolveApiUrl(`/api/history/${newEntry.id}`), {
           method: "PATCH",
           headers,
           body: JSON.stringify(newEntry),
-        }).catch(() => {});
-      } catch (_) {}
+        });
 
-      onUpdateHistory([newEntry, ...history]);
-      setIsCreateModalOpen(false);
+        if (!createRes.ok) {
+          throw new Error(`Server returned ${createRes.status}`);
+        }
+
+        if (lessonId && lessonId !== "custom") {
+          await fetch(resolveApiUrl(`/api/lessons/${lessonId}`), {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({
+              channelTitle: channelName,
+              channelName: channelName,
+              channelAvatar: channelAvatarUrl,
+              channelAvatarUrl: channelAvatarUrl,
+              channelUrl: formChannelUrl.trim() || undefined,
+            }),
+          }).catch((e) => console.warn("Failed to patch lesson:", e));
+        }
+
+        onUpdateHistory([newEntry, ...history]);
+        if (updatedLessons && onUpdateLessons) {
+          onUpdateLessons(updatedLessons);
+        }
+
+        showToast(t('history_page.entry_saved', 'Запись успешно создана'), 'success');
+        setIsCreateModalOpen(false);
+      }
+    } catch (err: any) {
+      console.error("Save history error:", err);
+      showToast(t('history_page.entry_save_error', 'Ошибка сохранения на сервере: ') + (err.message || ''), 'error');
+    } finally {
+      setIsSavingEntry(false);
     }
   };
 
@@ -2566,10 +2603,20 @@ function HistoryPage({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  disabled={isSavingEntry}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                 >
-                  <Check className="w-4 h-4" />
-                  {t('history_page.save', 'Save')}
+                  {isSavingEntry ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{t('app.saving', 'Сохранение...')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>{t('history_page.save', 'Save')}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
