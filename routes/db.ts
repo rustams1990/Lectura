@@ -1335,4 +1335,279 @@ router.post("/progress", (req: Request, res: Response) => {
   }
 });
 
+// 11. User Settings (GET /api/user/settings)
+router.get("/user/settings", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  try {
+    const db = getDbConnection(userId);
+    let settings: Record<string, any> = {};
+
+    const row = db.prepare("SELECT settings, updated_at FROM user_settings WHERE user_id = ?").get(userId) as any;
+    if (row?.settings) {
+      try { settings = JSON.parse(row.settings); } catch (_) {}
+    } else {
+      const metaRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'readerSettings'").get(userId) as any;
+      if (metaRow?.value) {
+        try { settings = JSON.parse(metaRow.value); } catch (_) {}
+      }
+    }
+
+    return res.json({ status: "success", settings, updatedAt: row?.updated_at || Date.now() });
+  } catch (err: any) {
+    console.error("[GET /api/user/settings] Error:", err);
+    return res.status(500).json({ error: "Failed to get user settings" });
+  }
+});
+
+// 12. User Settings (PATCH /api/user/settings and PUT)
+const updateUserSettingsHandler = (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const incomingSettings = req.body.settings || req.body;
+  if (!incomingSettings || typeof incomingSettings !== "object") {
+    return res.status(400).json({ error: "Invalid settings object" });
+  }
+
+  try {
+    const db = getDbConnection(userId);
+    const now = Date.now();
+
+    db.transaction(() => {
+      let mergedSettings: Record<string, any> = {};
+      const existingRow = db.prepare("SELECT settings FROM user_settings WHERE user_id = ?").get(userId) as any;
+      if (existingRow?.settings) {
+        try { mergedSettings = JSON.parse(existingRow.settings); } catch (_) {}
+      } else {
+        const metaRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'readerSettings'").get(userId) as any;
+        if (metaRow?.value) {
+          try { mergedSettings = JSON.parse(metaRow.value); } catch (_) {}
+        }
+      }
+
+      mergedSettings = { ...mergedSettings, ...incomingSettings };
+      const serialized = JSON.stringify(mergedSettings);
+
+      db.prepare("INSERT OR REPLACE INTO user_settings (user_id, settings, updated_at) VALUES (?, ?, ?)").run(userId, serialized, now);
+      db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'readerSettings', ?)").run(userId, serialized);
+    })();
+
+    return res.json({ status: "success", settings: incomingSettings, updatedAt: now });
+  } catch (err: any) {
+    console.error("[PATCH /api/user/settings] Error:", err);
+    return res.status(500).json({ error: "Failed to update user settings" });
+  }
+};
+router.patch("/user/settings", updateUserSettingsHandler);
+router.put("/user/settings", updateUserSettingsHandler);
+
+// 13. Granular History Update (PATCH /api/history/:id)
+router.patch("/history/:id", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { id } = req.params;
+  const updates = req.body;
+  if (!id) return res.status(400).json({ error: "Missing history entry ID" });
+
+  try {
+    const db = getDbConnection(userId);
+    
+    db.transaction(() => {
+      const existing = db.prepare("SELECT * FROM reading_history WHERE user_id = ? AND id = ?").get(userId, id) as any;
+      if (!existing) {
+        const insertStmt = db.prepare(`
+          INSERT OR REPLACE INTO reading_history (
+            id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        insertStmt.run(
+          id,
+          userId,
+          updates.lessonId || 'custom',
+          updates.lessonTitle || updates.customTitle || "Занятие",
+          updates.lessonType || updates.category || null,
+          updates.coverUrl || null,
+          updates.targetLanguage || "english",
+          updates.timestamp || new Date().toISOString(),
+          updates.actionType || "read",
+          updates.status || "in_progress",
+          updates.durationSeconds || 0,
+          updates.notes || null,
+          updates.channelName || null,
+          updates.channelAvatarUrl || null,
+          updates.channelUrl || null,
+          updates.category || null,
+          updates.customTitle || null,
+          updates.mode || null,
+          updates.tags ? JSON.stringify(updates.tags) : null
+        );
+      } else {
+        const nextChannelName = updates.channelName !== undefined ? updates.channelName : existing.channelName;
+        const nextChannelAvatar = updates.channelAvatarUrl !== undefined ? updates.channelAvatarUrl : existing.channelAvatarUrl;
+        const nextChannelUrl = updates.channelUrl !== undefined ? updates.channelUrl : existing.channelUrl;
+        const nextNotes = updates.notes !== undefined ? updates.notes : existing.notes;
+        const nextTitle = updates.lessonTitle !== undefined ? updates.lessonTitle : existing.lessonTitle;
+        const nextTargetLang = updates.targetLanguage !== undefined ? updates.targetLanguage : existing.targetLanguage;
+        const nextStatus = updates.status !== undefined ? updates.status : existing.status;
+        const nextActionType = updates.actionType !== undefined ? updates.actionType : existing.actionType;
+        const nextDuration = updates.durationSeconds !== undefined ? updates.durationSeconds : existing.durationSeconds;
+        const nextCoverUrl = updates.coverUrl !== undefined ? updates.coverUrl : existing.coverUrl;
+        const nextLessonType = updates.lessonType !== undefined ? updates.lessonType : existing.lessonType;
+        const nextLessonId = (updates.lessonId && updates.lessonId !== "custom") ? updates.lessonId : existing.lessonId;
+        const nextTags = updates.tags !== undefined ? (Array.isArray(updates.tags) ? JSON.stringify(updates.tags) : updates.tags) : existing.tags;
+        const nextMode = updates.mode !== undefined ? updates.mode : existing.mode;
+        const nextCategory = updates.category !== undefined ? updates.category : existing.category;
+        const nextCustomTitle = updates.customTitle !== undefined ? updates.customTitle : existing.customTitle;
+
+        db.prepare(`
+          UPDATE reading_history SET
+            lessonId = ?, lessonTitle = ?, lessonType = ?, coverUrl = ?, targetLanguage = ?,
+            actionType = ?, status = ?, durationSeconds = ?, notes = ?, channelName = ?,
+            channelAvatarUrl = ?, channelUrl = ?, category = ?, customTitle = ?, mode = ?, tags = ?
+          WHERE user_id = ? AND id = ?
+        `).run(
+          nextLessonId, nextTitle, nextLessonType, nextCoverUrl, nextTargetLang,
+          nextActionType, nextStatus, nextDuration, nextNotes, nextChannelName,
+          nextChannelAvatar, nextChannelUrl, nextCategory, nextCustomTitle, nextMode, nextTags,
+          userId, id
+        );
+
+        if (updates.channelName !== undefined && nextLessonId && nextLessonId !== "custom") {
+          db.prepare(`
+            UPDATE reading_history SET
+              channelName = ?,
+              channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+              channelUrl = COALESCE(?, channelUrl)
+            WHERE user_id = ? AND lessonId = ?
+          `).run(nextChannelName, nextChannelAvatar, nextChannelUrl, userId, nextLessonId);
+
+          db.prepare(`
+            UPDATE lessons SET
+              channelName = ?,
+              channelTitle = ?,
+              channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+              channelUrl = COALESCE(?, channelUrl)
+            WHERE user_id = ? AND id = ?
+          `).run(nextChannelName, nextChannelName, nextChannelAvatar, nextChannelUrl, userId, nextLessonId);
+        }
+      }
+    })();
+
+    return res.json({ status: "success", id });
+  } catch (err: any) {
+    console.error("[PATCH /api/history/:id] Error:", err);
+    return res.status(500).json({ error: "Failed to update history entry" });
+  }
+});
+
+// 14. Granular History Delete (DELETE /api/history/:id)
+router.delete("/history/:id", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { id } = req.params;
+  try {
+    const db = getDbConnection(userId);
+    db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
+    return res.json({ status: "success", id });
+  } catch (err: any) {
+    console.error("[DELETE /api/history/:id] Error:", err);
+    return res.status(500).json({ error: "Failed to delete history entry" });
+  }
+});
+
+// 15. Batch Assign Channel to Lessons & History (POST /api/history/assign-channel)
+router.post("/history/assign-channel", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { lessonIds, historyIds, channelName, channelAvatarUrl, channelUrl } = req.body;
+  if (!channelName || (!Array.isArray(lessonIds) && !Array.isArray(historyIds))) {
+    return res.status(400).json({ error: "Missing channelName or target IDs" });
+  }
+
+  try {
+    const db = getDbConnection(userId);
+    const trimmedName = String(channelName).trim();
+    const avatar = channelAvatarUrl || null;
+    const url = channelUrl || null;
+
+    db.transaction(() => {
+      if (Array.isArray(lessonIds) && lessonIds.length > 0) {
+        const placeholders = lessonIds.map(() => "?").join(",");
+        db.prepare(`
+          UPDATE lessons SET
+            channelName = ?,
+            channelTitle = ?,
+            channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+            channelUrl = COALESCE(?, channelUrl)
+          WHERE user_id = ? AND id IN (${placeholders})
+        `).run(trimmedName, trimmedName, avatar, url, userId, ...lessonIds);
+
+        db.prepare(`
+          UPDATE reading_history SET
+            channelName = ?,
+            channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+            channelUrl = COALESCE(?, channelUrl)
+          WHERE user_id = ? AND lessonId IN (${placeholders})
+        `).run(trimmedName, avatar, url, userId, ...lessonIds);
+      }
+
+      if (Array.isArray(historyIds) && historyIds.length > 0) {
+        const placeholders = historyIds.map(() => "?").join(",");
+        db.prepare(`
+          UPDATE reading_history SET
+            channelName = ?,
+            channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+            channelUrl = COALESCE(?, channelUrl)
+          WHERE user_id = ? AND id IN (${placeholders})
+        `).run(trimmedName, avatar, url, userId, ...historyIds);
+      }
+    })();
+
+    return res.json({ status: "success", count: (lessonIds?.length || 0) + (historyIds?.length || 0) });
+  } catch (err: any) {
+    console.error("[POST /api/history/assign-channel] Error:", err);
+    return res.status(500).json({ error: "Failed to assign channel in batch" });
+  }
+});
+
 export default router;

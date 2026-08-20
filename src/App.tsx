@@ -576,6 +576,31 @@ export default function App() {
     return defaults;
   });
 
+  const updateSettingsAndSync = (newSettingsOrFn: React.SetStateAction<ReaderSettings>) => {
+    setReaderSettings((prev) => {
+      const next = typeof newSettingsOrFn === "function" ? newSettingsOrFn(prev) : newSettingsOrFn;
+      safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(next));
+      settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
+      try {
+        const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+        const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "x-local-sync-key": localSyncKey,
+          "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+        };
+        if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+        fetch(resolveApiUrl("/api/user/settings"), {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ settings: next }),
+        }).catch(() => {});
+      } catch (_) {}
+      return next;
+    });
+  };
+
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("vocab_clone_dark_mode");
@@ -1088,7 +1113,21 @@ export default function App() {
           }
 
           if (d.history && Array.isArray(d.history)) {
-            const cleanHistory = dedupeHistory(d.history);
+            const mergedWithLocal = d.history.map((incomingItem: HistoryEntry) => {
+              const localMatch = historyRef.current.find(h => h.id === incomingItem.id);
+              if (localMatch) {
+                return {
+                  ...incomingItem,
+                  channelName: incomingItem.channelName || localMatch.channelName || null,
+                  channelAvatarUrl: incomingItem.channelAvatarUrl || localMatch.channelAvatarUrl || null,
+                  channelUrl: incomingItem.channelUrl || localMatch.channelUrl || undefined,
+                  notes: incomingItem.notes || localMatch.notes,
+                  tags: incomingItem.tags && incomingItem.tags.length > 0 ? incomingItem.tags : localMatch.tags,
+                };
+              }
+              return incomingItem;
+            });
+            const cleanHistory = dedupeHistory(mergedWithLocal);
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
@@ -2595,7 +2634,7 @@ export default function App() {
               onDeleteWordLink={handleDeleteWordLink}
               onClose={() => setSelectedWord(null)}
               settings={readerSettings}
-              onSettingsChange={(patch) => setReaderSettings(prev => ({ ...prev, ...patch }))}
+              onSettingsChange={(patch) => updateSettingsAndSync(prev => ({ ...prev, ...patch }))}
               onWordClick={handleWordClick}
               lessonText={activeLesson?.text}
               lessons={lessons}
@@ -2633,7 +2672,7 @@ export default function App() {
                   onDeleteWordLink={handleDeleteWordLink}
                   onClose={() => setSelectedWord(null)}
                   settings={readerSettings}
-                  onSettingsChange={(patch) => setReaderSettings(prev => ({ ...prev, ...patch }))}
+                  onSettingsChange={(patch) => updateSettingsAndSync(prev => ({ ...prev, ...patch }))}
                   onWordClick={handleWordClick}
                   lessonText={activeLesson?.text}
                   lessons={lessons}
@@ -2916,7 +2955,7 @@ export default function App() {
               selectedTargetLanguage={selectedTargetLanguage}
               onSelectTargetLanguage={handleSelectTargetLanguage}
               settings={readerSettings}
-              onUpdateSettings={(newSettings) => setReaderSettings(newSettings)}
+              onUpdateSettings={updateSettingsAndSync}
               isLoading={isInitialServerLoading && lessons.length === 0}
             />
           </div>
@@ -2938,7 +2977,7 @@ export default function App() {
               onDeleteWordLink={handleDeleteWordLink}
               onOpenLesson={handleOpenLesson}
               readerSettings={readerSettings}
-              onUpdateSettings={(newSettings) => setReaderSettings(newSettings)}
+              onUpdateSettings={updateSettingsAndSync}
             />
           </div>
         ) : activeTab === "practice" ? (
@@ -2978,7 +3017,7 @@ export default function App() {
                 }
               }}
               readerSettings={readerSettings}
-              onUpdateSettings={setReaderSettings}
+              onUpdateSettings={updateSettingsAndSync}
             />
           </div>
         ) : activeTab === "podcasts" ? (
@@ -3007,7 +3046,7 @@ export default function App() {
             activeLesson={activeLesson}
             activeLessonImagesMap={activeLessonImagesMap}
             readerSettings={readerSettings}
-            setReaderSettings={setReaderSettings}
+            setReaderSettings={updateSettingsAndSync}
             handleAudioUploaded={handleAudioUploaded}
             handleListeningTick={handleListeningTick}
             handleMediaEnded={handleMediaEnded}
@@ -3260,12 +3299,7 @@ export default function App() {
         isSyncing={isSyncing}
         settings={readerSettings}
         onSettingsChange={(patch) => {
-          setReaderSettings((prev) => {
-            const next = { ...prev, ...patch };
-            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(next));
-            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
-            return next;
-          });
+          updateSettingsAndSync((prev) => ({ ...prev, ...patch }));
         }}
       />
 

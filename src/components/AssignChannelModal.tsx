@@ -266,7 +266,29 @@ export default function AssignChannelModal({
       return h;
     });
 
-    onUpdateHistory?.(updatedHistory);
+    // 3. Direct atomic write to SQLite on server for both lessons and history
+    try {
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-local-sync-key": "4815a16a23a42a",
+        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+      };
+      if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+      fetch(resolveApiUrl("/api/history/assign-channel"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          lessonIds: Array.from(selectedLessonIds),
+          historyIds: Array.from(selectedLessonIds),
+          channelName: trimmedName,
+          channelAvatarUrl: avatar,
+          channelUrl: chUrl,
+        }),
+      }).catch(() => {});
+    } catch (_) {}
 
     onClose();
   };

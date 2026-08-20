@@ -450,6 +450,43 @@ function HistoryPage({
 
         return h;
       });
+
+      // Direct atomic write to SQLite on server
+      try {
+        const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+        const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "x-local-sync-key": "4815a16a23a42a",
+          "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+        };
+        if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+        fetch(resolveApiUrl(`/api/history/${editingEntry.id}`), {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            lessonId,
+            lessonTitle: title,
+            targetLanguage: targetLang,
+            coverUrl: preservedCoverUrl,
+            lessonType,
+            actionType: formActionType,
+            status: formStatus,
+            durationSeconds,
+            notes: formNotes.trim(),
+            tags: parsedTags,
+            timestamp,
+            channelName,
+            channelAvatarUrl,
+            channelUrl: formChannelUrl.trim() || undefined,
+            mode: formMode,
+            category: formMode === "custom" ? formCategory : undefined,
+            customTitle: formMode === "custom" ? title : undefined,
+          }),
+        }).catch(() => {});
+      } catch (_) {}
+
       onUpdateHistory(updated);
       setEditingEntry(null);
       setIsCreateModalOpen(false);
@@ -470,10 +507,30 @@ function HistoryPage({
         timestamp,
         channelName,
         channelAvatarUrl,
+        channelUrl: formChannelUrl.trim() || undefined,
         mode: formMode,
         category: formMode === "custom" ? formCategory : undefined,
         customTitle: formMode === "custom" ? title : undefined,
       };
+
+      // Direct atomic write to SQLite on server
+      try {
+        const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+        const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "x-local-sync-key": "4815a16a23a42a",
+          "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+        };
+        if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+        fetch(resolveApiUrl(`/api/history/${newEntry.id}`), {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(newEntry),
+        }).catch(() => {});
+      } catch (_) {}
+
       onUpdateHistory([newEntry, ...history]);
       setIsCreateModalOpen(false);
     }
@@ -482,6 +539,21 @@ function HistoryPage({
   const handleDeleteEntry = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm(t('history_page.confirm_delete', "Are you sure you want to delete this record from history?"))) {
+      try {
+        const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+        const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+        const headers: Record<string, string> = {
+          "x-local-sync-key": "4815a16a23a42a",
+          "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+        };
+        if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+        fetch(resolveApiUrl(`/api/history/${id}`), {
+          method: "DELETE",
+          headers,
+        }).catch(() => {});
+      } catch (_) {}
+
       onUpdateHistory(history.filter((h) => h.id !== id), [id]);
     }
   };

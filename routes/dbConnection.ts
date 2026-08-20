@@ -118,6 +118,12 @@ function setupSchema(db: Database.Database) {
       FOREIGN KEY(user_id) REFERENCES server_users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id TEXT PRIMARY KEY,
+      settings TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS podcast_subscriptions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL DEFAULT 'default',
