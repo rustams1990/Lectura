@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Lesson, LessonType, ReaderSettings, Playlist } from "../types";
 import { safeJsonParse, safeLocalStorageSetItem } from "../utils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
@@ -126,6 +126,7 @@ interface ImportLessonFormProps {
   settings?: ReaderSettings;
   defaultTargetLanguage?: string;
   playlists?: Playlist[];
+  lessons?: Lesson[];
   onAddPlaylist?: (playlist: Playlist) => void;
   onUpdatePlaylist?: (playlist: Playlist) => void;
 }
@@ -142,6 +143,7 @@ export default function ImportLessonForm({
   settings,
   defaultTargetLanguage,
   playlists = [],
+  lessons = [],
   onAddPlaylist,
   onUpdatePlaylist
 }: ImportLessonFormProps) {
@@ -267,9 +269,74 @@ export default function ImportLessonForm({
   const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
   const [youtubeId, setYoutubeId] = useState<string | null>(editingLesson?.youtubeId || null);
   const [youtubeDuration, setYoutubeDuration] = useState<number | null>(editingLesson?.youtubeDuration || null);
-  const [channelName, setChannelName] = useState<string | null>(editingLesson?.channelName || null);
+  const [channelName, setChannelName] = useState<string | null>(editingLesson?.channelName || (editingLesson as any)?.channelTitle || null);
   const [channelAvatarUrl, setChannelAvatarUrl] = useState<string | null>(editingLesson?.channelAvatarUrl || null);
+  const [channelUrl, setChannelUrl] = useState<string>(editingLesson?.channelUrl || "");
+  const [isResolvingChannel, setIsResolvingChannel] = useState<boolean>(false);
   const [webScreenshotAsCover, setWebScreenshotAsCover] = useState(true);
+
+  // Existing channels from library for autocomplete/instant matching
+  const existingChannels = useMemo(() => {
+    const map = new Map<string, { name: string; avatarUrl?: string | null; channelUrl?: string | null }>();
+    (lessons || []).forEach((l) => {
+      const name = l.channelName?.trim() || (l as any).channelTitle?.trim();
+      if (name) {
+        const key = name.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            name,
+            avatarUrl: l.channelAvatarUrl || null,
+            channelUrl: l.channelUrl || null,
+          });
+        } else {
+          const existing = map.get(key)!;
+          if (!existing.avatarUrl && l.channelAvatarUrl) {
+            existing.avatarUrl = l.channelAvatarUrl;
+          }
+          if (!existing.channelUrl && l.channelUrl) {
+            existing.channelUrl = l.channelUrl;
+          }
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [lessons]);
+
+  const handleResolveChannel = async (overrideUrl?: string) => {
+    const targetUrl = (overrideUrl !== undefined ? overrideUrl : channelUrl).trim();
+    if (!targetUrl) return;
+    setIsResolvingChannel(true);
+    try {
+      const res = await fetch(resolveApiUrl("/api/youtube/resolve-channel"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelUrl: targetUrl,
+          channelName: channelName || undefined,
+          youtubeId: youtubeId || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.channelName) setChannelName(data.channelName);
+        if (data.channelAvatarUrl) setChannelAvatarUrl(data.channelAvatarUrl);
+        if (data.channelUrl) setChannelUrl(data.channelUrl);
+      }
+    } catch (e) {
+      console.error("Error resolving channel:", e);
+    } finally {
+      setIsResolvingChannel(false);
+    }
+  };
+
+  const handleChannelNameChange = (val: string) => {
+    setChannelName(val);
+    const match = existingChannels.find((c) => c.name.toLowerCase() === val.trim().toLowerCase());
+    if (match) {
+      if (match.avatarUrl && !channelAvatarUrl) setChannelAvatarUrl(match.avatarUrl);
+      if (match.channelUrl && !channelUrl) setChannelUrl(match.channelUrl);
+    }
+  };
 
   // File import states
   const [fileError, setFileError] = useState<string | null>(null);
@@ -1129,8 +1196,10 @@ export default function ImportLessonForm({
       coverUrl: coverUrl || null,
       youtubeId,
       youtubeDuration,
-      channelName,
-      channelAvatarUrl,
+      channelName: channelName?.trim() || null,
+      channelTitle: channelName?.trim() || null,
+      channelAvatarUrl: channelAvatarUrl || null,
+      channelUrl: channelUrl?.trim() || null,
       lessonType: selectedType,
       isBuiltIn: editingLesson?.isBuiltIn || false,
       isArchived: editingLesson?.isArchived || false,
@@ -2121,19 +2190,86 @@ export default function ImportLessonForm({
           ></textarea>
         </div>
 
-        {channelName && (
-          <div className="flex items-center gap-2.5 p-3 bg-zinc-50 dark:bg-zinc-950/65 rounded-xl border border-zinc-100 dark:border-zinc-800 animate-in fade-in zoom-in-95 duration-200">
-            {channelAvatarUrl && (
-              <img src={channelAvatarUrl} alt="Channel Avatar" className="w-8 h-8 rounded-full object-cover shrink-0 shadow-xs border border-zinc-200 dark:border-zinc-700" />
-            )}
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t('import.channel', 'Channel / Author')}</span>
-              <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
-                {channelName}
+        {/* Channel / Author section with Autocomplete & Auto-resolver */}
+        <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📺</span>
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                {t('import.channel', 'Channel / Author')}
               </span>
             </div>
+            {channelAvatarUrl && (
+              <div className="flex items-center gap-2">
+                <img
+                  src={channelAvatarUrl}
+                  alt={channelName || "Avatar"}
+                  className="w-7 h-7 rounded-full object-cover border border-zinc-300 dark:border-zinc-700 shadow-xs"
+                />
+              </div>
+            )}
           </div>
-        )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">
+                {t('import.channel_name_label', 'Channel / Author Name')}
+              </label>
+              <input
+                type="text"
+                list="existing-channels-list"
+                value={channelName || ""}
+                onChange={(e) => handleChannelNameChange(e.target.value)}
+                placeholder={t('import.channel_name_placeholder', 'e.g. Andrea la Mexicana, Mr Salas')}
+                className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              />
+              <datalist id="existing-channels-list">
+                {existingChannels.map((c) => (
+                  <option key={c.name} value={c.name} />
+                ))}
+              </datalist>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">
+                {t('import.channel_url_label', 'Channel URL (YouTube)')}
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={channelUrl}
+                  onChange={(e) => setChannelUrl(e.target.value)}
+                  onBlur={() => {
+                    if (channelUrl && !channelAvatarUrl) {
+                      handleResolveChannel();
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleResolveChannel();
+                    }
+                  }}
+                  placeholder="https://youtube.com/@Channel"
+                  className="flex-1 px-3 py-2 text-xs font-mono bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleResolveChannel()}
+                  disabled={isResolvingChannel || !channelUrl.trim()}
+                  className="px-2.5 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl transition flex items-center gap-1 shrink-0 cursor-pointer"
+                  title="Auto-fetch channel name and avatar"
+                >
+                  {isResolvingChannel ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <span>{t('import.resolve_channel_btn', 'Find')}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Cover Customizer */}
         <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">

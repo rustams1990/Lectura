@@ -61,7 +61,10 @@ export interface Lesson {
   createdAt?: number;
   wordTimestamps?: Array<{ w: string; s: number; e: number }> | null;
   channelName?: string | null;
+  channelTitle?: string | null;
   channelAvatarUrl?: string | null;
+  channelUrl?: string | null;
+  author?: string | null;
   playlistId?: string | null;
 }
 

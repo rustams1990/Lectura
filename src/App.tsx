@@ -2743,6 +2743,7 @@ export default function App() {
             <ImportLessonForm
               editingLesson={editingLesson}
               playlists={playlists}
+              lessons={lessons}
               onAddPlaylist={handleAddPlaylist}
               onUpdatePlaylist={handleUpdatePlaylist}
               lessonTypes={lessonTypes}
@@ -2754,14 +2755,26 @@ export default function App() {
               onAddLesson={(newOrUpdated, images) => {
                 lastLocalChangeTime.current = Date.now();
                 if (editingLesson) {
-                  setLessons((prev) => {
-                    const next = prev.map((l) => (l.id === editingLesson.id ? newOrUpdated : l));
-                    return next;
+                  const nextLessons = lessons.map((l) => (l.id === editingLesson.id ? newOrUpdated : l));
+                  setLessons(nextLessons);
+                  setHistory((prev) => {
+                    const updatedHist = prev.map((h) => {
+                      if (h.lessonId === editingLesson.id) {
+                        return {
+                          ...h,
+                          lessonTitle: newOrUpdated.title,
+                          channelName: newOrUpdated.channelName || null,
+                          channelAvatarUrl: newOrUpdated.channelAvatarUrl || null,
+                        };
+                      }
+                      return h;
+                    });
+                    safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(updatedHist));
+                    settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(updatedHist)).catch(() => {});
+                    return updatedHist;
                   });
                   if (storageMode === "server") {
-                    syncDataToLocalServer(
-                      lessons.map((l) => (l.id === editingLesson.id ? newOrUpdated : l))
-                    ).catch((err) => console.error(err));
+                    syncDataToLocalServer(nextLessons).catch((err) => console.error(err));
                   }
                   setEditingLesson(null);
                 } else {

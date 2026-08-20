@@ -771,4 +771,85 @@ router.post("/youtube-playlist", async (req, res) => {
   }
 });
 
+router.post("/resolve-channel", async (req, res) => {
+  try {
+    const { channelUrl, channelName, youtubeId } = req.body || {};
+    let resolvedName: string | null = (channelName && typeof channelName === "string") ? channelName.trim() : null;
+    let resolvedAvatarUrl: string | null = null;
+    let resolvedUrl: string | null = (channelUrl && typeof channelUrl === "string") ? channelUrl.trim() : null;
+
+    // 1. If YouTube video ID is provided or URL has a video ID, try oEmbed first
+    let vId = youtubeId;
+    if (!vId && resolvedUrl) {
+      const vMatch = resolvedUrl.match(/(?:watch\?v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+      if (vMatch) vId = vMatch[1];
+    }
+
+    if (vId) {
+      try {
+        const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vId}&format=json`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
+        if (oembedRes.ok) {
+          const data: any = await oembedRes.json();
+          if (data.author_name && !resolvedName) resolvedName = data.author_name;
+          if (data.author_url && !resolvedUrl) resolvedUrl = data.author_url;
+        }
+      } catch (_) {}
+    }
+
+    // 2. If channelUrl is provided (e.g. https://www.youtube.com/@handle or /channel/...), fetch channel page
+    if (resolvedUrl) {
+      try {
+        let cleanUrl = resolvedUrl;
+        if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+          if (cleanUrl.startsWith("@")) {
+            cleanUrl = `https://www.youtube.com/${cleanUrl}`;
+          } else {
+            cleanUrl = `https://www.youtube.com/@${cleanUrl}`;
+          }
+        }
+        resolvedUrl = cleanUrl;
+
+        const chRes = await fetch(cleanUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9'
+          }
+        });
+        if (chRes.ok) {
+          const html = await chRes.text();
+          // Extract author/channel title
+          const titleMatch = html.match(/<meta\s+(?:property|name)=["']og:title["']\s+content=["']([^"']+)["']/i)
+                          || html.match(/<meta\s+name=["']title["']\s+content=["']([^"']+)["']/i)
+                          || html.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch && titleMatch[1]) {
+            let chTitle = titleMatch[1].replace(/ - YouTube$/, "").trim();
+            if (chTitle && !resolvedName) resolvedName = chTitle;
+          }
+
+          // Extract avatar (og:image or yt3.ggpht.com)
+          const ogImg = html.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i)
+                     || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i);
+          if (ogImg && ogImg[1]) {
+            resolvedAvatarUrl = ogImg[1];
+          } else {
+            const avatarMatch = html.match(/https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[a-zA-Z0-9_\-=]+/);
+            if (avatarMatch) resolvedAvatarUrl = avatarMatch[0];
+          }
+        }
+      } catch (_) {}
+    }
+
+    return res.json({
+      ok: true,
+      channelName: resolvedName || null,
+      channelAvatarUrl: resolvedAvatarUrl || null,
+      channelUrl: resolvedUrl || null,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message || "Failed to resolve channel" });
+  }
+});
+
 export default router;

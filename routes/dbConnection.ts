@@ -74,7 +74,8 @@ function setupSchema(db: Database.Database) {
       detectedPhrases TEXT,
       difficulty TEXT,
       difficultyExplanation TEXT,
-      createdAt INTEGER
+      createdAt INTEGER,
+      channelUrl TEXT
     );
 
     CREATE TABLE IF NOT EXISTS lesson_types (
@@ -279,6 +280,9 @@ function setupSchema(db: Database.Database) {
   }
   if (!lessonsCols.includes("channelAvatarUrl")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN channelAvatarUrl TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("channelUrl")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN channelUrl TEXT;`); } catch (_) {}
   }
   if (!lessonsCols.includes("playlistId")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN playlistId TEXT;`); } catch (_) {}
