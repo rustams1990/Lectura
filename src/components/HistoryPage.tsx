@@ -378,10 +378,16 @@ function HistoryPage({
       // Custom Activity
       title = formCustomTitle.trim() || t('history_page.custom_activity_default', "Custom Activity");
       targetLang = formLanguage || "Spanish";
-      lessonId = "custom";
+      // When EDITING an existing entry, preserve its original lessonId (don't reset to "custom").
+      // This ensures channel propagation and video counting work correctly.
+      lessonId = editingEntry ? (editingEntry.lessonId || "custom") : "custom";
       lessonType = formCategory;
       channelName = formChannelName.trim() || null;
       channelAvatarUrl = formChannelAvatarUrl || null;
+      // Preserve existing coverUrl when editing (custom mode wipes it otherwise)
+      if (editingEntry && !coverUrl) {
+        coverUrl = editingEntry.coverUrl || null;
+      }
     }
 
     let timestamp = new Date().toISOString();
@@ -969,9 +975,9 @@ function HistoryPage({
       const dur = item.durationSeconds || 0;
       channelMap[normKey].durationSeconds += dur;
       channelMap[normKey].sessionCount += 1;
-      if (item.lessonId) {
-        channelMap[normKey].lessonIds.add(item.lessonId);
-      }
+      // For counting unique videos: use real lessonId if available, otherwise item.id (unique per entry)
+      const countKey = (item.lessonId && item.lessonId !== "custom") ? item.lessonId : item.id;
+      channelMap[normKey].lessonIds.add(countKey);
       totalDuration += dur;
     });
 
