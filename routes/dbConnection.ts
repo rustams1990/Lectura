@@ -297,19 +297,32 @@ function setupSchema(db: Database.Database) {
   setTimeout(async () => {
     try {
       const unpopulated = db.prepare(`
-        SELECT id, youtubeId, title, coverUrl FROM lessons 
-        WHERE youtubeId IS NOT NULL AND (channelName IS NULL OR channelName = '' OR title = 'YouTube Video')
+        SELECT id, youtubeId, title, coverUrl, audioUrl FROM lessons 
+        WHERE (channelName IS NULL OR TRIM(channelName) = '' OR title = 'YouTube Video')
       `).all() as any[];
 
       for (const row of unpopulated) {
         try {
+          let yId = row.youtubeId;
+          if (!yId && row.coverUrl) {
+            const m = row.coverUrl.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+            if (m) yId = m[1];
+          }
+          if (!yId && row.audioUrl) {
+            const m = row.audioUrl.match(/(?:youtu\.be\/|v=|\/embed\/)([a-zA-Z0-9_-]{11})/);
+            if (m) yId = m[1];
+          }
+          if (!yId) continue;
+
           let channelName: string | null = null;
           let newTitle = row.title;
           let avatarUrl: string | null = null;
 
           // 1. Try YouTube oEmbed
           try {
-            const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${row.youtubeId}&format=json`);
+            const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${yId}&format=json`, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+            });
             if (res.ok) {
               const data: any = await res.json();
               if (data.author_name) channelName = data.author_name;
@@ -333,7 +346,7 @@ function setupSchema(db: Database.Database) {
           // 2. Fallback: scrape watch page if oEmbed was blocked or unauthorized
           if (!channelName || channelName === "YouTube Video") {
             try {
-              const watchRes = await fetch(`https://www.youtube.com/watch?v=${row.youtubeId}`, {
+              const watchRes = await fetch(`https://www.youtube.com/watch?v=${yId}`, {
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                   'Accept-Language': 'en-US,en;q=0.9'
@@ -357,8 +370,8 @@ function setupSchema(db: Database.Database) {
           }
 
           if (channelName) {
-            db.prepare("UPDATE lessons SET channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl), title = ? WHERE id = ?")
-              .run(channelName, avatarUrl, newTitle, row.id);
+            db.prepare("UPDATE lessons SET youtubeId = COALESCE(youtubeId, ?), channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl), title = ? WHERE id = ?")
+              .run(yId, channelName, avatarUrl, newTitle, row.id);
             try {
               db.prepare("UPDATE reading_history SET channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl) WHERE lessonId = ?")
                 .run(channelName, avatarUrl, row.id);

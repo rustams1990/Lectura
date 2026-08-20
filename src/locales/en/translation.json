@@ -1225,6 +1225,7 @@
     "channels_show_all": "All",
     "total_sources": "Total sources: {{count}}",
     "unknown_author": "Unknown Author",
+    "unknown_youtube_channel": "Unknown YouTube Channel",
     "col_source": "Source",
     "col_time": "Time",
     "col_videos": "Videos",

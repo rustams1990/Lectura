@@ -65,7 +65,7 @@ jobs:
         with:
           files: build-output/Lectura.apk
           name: ${{ startsWith(github.ref, 'refs/tags/v') && format('Lectura {0}', github.ref_name) || 'Lectura Latest' }}
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v2.99.51' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v2.99.52' }}
           draft: false
           prerelease: false
           generate_release_notes: true

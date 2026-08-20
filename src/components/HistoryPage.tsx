@@ -762,7 +762,10 @@ function HistoryPage({
       const lesson = lessons.find((l) => l.id === item.lessonId);
       let rawName: string | null =
         lesson?.channelName?.trim() ||
+        (lesson as any)?.channelTitle?.trim() ||
         item.channelName?.trim() ||
+        (lesson as any)?.author?.trim() ||
+        (lesson as any)?.podcastTitle?.trim() ||
         null;
 
       // If channel name is missing, attempt to extract author from title formats (e.g. "Author - Title" or "Title | Author")
@@ -782,9 +785,10 @@ function HistoryPage({
         }
       }
 
-      // If still not identified, show individual video title so items don't get lumped together into a generic bucket
+      // If still not identified, use Unknown YouTube Channel / Unknown Author (never video title)
       if (!rawName) {
-        rawName = item.lessonTitle || lesson?.title || t("history_page.unknown_author", "Unknown Author");
+        const isYt = lesson?.youtubeId || lesson?.lessonType === "youtube" || item.lessonType === "youtube";
+        rawName = isYt ? t("history_page.unknown_youtube_channel", "Unknown YouTube Channel") : t("history_page.unknown_author", "Unknown Author");
       }
 
       if (!rawName) return;

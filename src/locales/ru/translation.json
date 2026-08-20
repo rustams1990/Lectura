@@ -1225,6 +1225,7 @@
     "channels_show_all": "Все",
     "total_sources": "Всего источников: {{count}}",
     "unknown_author": "Без автора",
+    "unknown_youtube_channel": "Неизвестный YouTube канал",
     "col_source": "Источник",
     "col_time": "Время",
     "col_videos": "Видео / Уроки",
