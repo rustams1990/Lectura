@@ -21,39 +21,64 @@ interface VocabContextType {
 const VocabContext = createContext<VocabContextType | undefined>(undefined);
 
 export function VocabProvider({ children }: { children: ReactNode }) {
-  const [vocab, setVocab] = useState<Record<string, VocabItem>>({});
-  const [wordLinks, setWordLinks] = useState<Record<string, string>>({});
+  const [vocab, setVocab] = useState<Record<string, VocabItem>>(() => {
+    try {
+      const localWordsStr = localStorage.getItem("vocab_clone_words");
+      if (localWordsStr) return normalizeVocabRecord(JSON.parse(localWordsStr));
+    } catch (_) {}
+    return {};
+  });
+  const [wordLinks, setWordLinks] = useState<Record<string, string>>(() => {
+    try {
+      const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
+      if (localAliasesStr) return normalizeWordLinksRecord(JSON.parse(localAliasesStr));
+    } catch (_) {}
+    return {};
+  });
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [contextSentence, setContextSentence] = useState<string>("");
 
   useEffect(() => {
-    async function loadVocab() {
+    async function loadVocabAndLinks() {
       try {
-        const savedVocab = await vocabStore.getItem('words');
+        const [savedVocab, savedLinks] = await Promise.all([
+          vocabStore.getItem('words').catch(() => null),
+          vocabStore.getItem('aliases').catch(() => null),
+        ]);
+
+        let finalVocab: Record<string, VocabItem> | null = null;
+        let finalLinks: Record<string, string> | null = null;
+
         if (savedVocab) {
-          setVocab(normalizeVocabRecord(savedVocab));
+          finalVocab = normalizeVocabRecord(savedVocab);
         } else {
-          // Fallback to localStorage in case migration hasn't happened yet
           const localWordsStr = localStorage.getItem("vocab_clone_words");
-          if (localWordsStr) setVocab(normalizeVocabRecord(JSON.parse(localWordsStr)));
+          if (localWordsStr) {
+            try { finalVocab = normalizeVocabRecord(JSON.parse(localWordsStr)); } catch (_) {}
+          }
         }
 
-        const savedLinks = await vocabStore.getItem('aliases');
         if (savedLinks) {
-          setWordLinks(normalizeWordLinksRecord(savedLinks as Record<string, string>));
+          finalLinks = normalizeWordLinksRecord(savedLinks as Record<string, string>);
         } else {
           const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
-          if (localAliasesStr) setWordLinks(normalizeWordLinksRecord(JSON.parse(localAliasesStr)));
+          if (localAliasesStr) {
+            try { finalLinks = normalizeWordLinksRecord(JSON.parse(localAliasesStr)); } catch (_) {}
+          }
         }
+
+        // Publish both simultaneously to prevent intermediate recalculations
+        if (finalVocab) setVocab(finalVocab);
+        if (finalLinks) setWordLinks(finalLinks);
       } catch (e) {
-        console.error("Failed to load vocab from IndexedDB", e);
+        console.error("Failed to load vocab from storage", e);
       } finally {
         setIsLoaded(true);
       }
     }
-    loadVocab();
+    loadVocabAndLinks();
 
     const handleLogout = () => {
       setVocab({});

@@ -130,17 +130,15 @@ export default function App() {
 
   const [lessons, setLessons] = useState<Lesson[]>(() => {
     if (typeof window !== "undefined") {
-      const userDeleted = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
       const stored = localStorage.getItem("vocab_clone_lessons");
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         } catch {}
       }
-      if (userDeleted) return [];
     }
-    return BUILT_IN_LESSONS;
+    return [];
   });
 
   const lessonsRef = useRef<Lesson[]>(lessons);
@@ -579,6 +577,8 @@ export default function App() {
       mainStatsMetric: "comprehension",
       showProgressBar: true,
       dimBookCovers: false,
+      onlyPatterns: true,
+      vocabularyCountingMode: "parents_only",
       dateFormat: "auto",
       timeFormat: "auto",
       firstDayOfWeek: "auto",

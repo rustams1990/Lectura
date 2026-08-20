@@ -433,7 +433,7 @@ function LibraryHome({
     }
 
     const selectedLangLower = selectedLanguage !== "All" ? selectedLanguage.toLowerCase() : null;
-    const onlyParents = !!settings?.onlyPatterns;
+    const onlyParents = settings?.onlyPatterns !== false;
 
     let known = 0;
     let learning = 0;
@@ -917,13 +917,16 @@ function LibraryHome({
     currentPage * ITEMS_PER_PAGE
   );
 
+  const isVocabAvailable = Boolean(vocab && Object.keys(vocab).length > 0);
   const computedStatsMap = useMemo(() => {
     const map = new Map<string, any>();
-    paginatedLessons.forEach((lesson) => {
-      map.set(lesson.id, calculateBookStats(lesson, vocab, wordLinks));
-    });
+    if (isVocabAvailable) {
+      paginatedLessons.forEach((lesson) => {
+        map.set(lesson.id, calculateBookStats(lesson, vocab, wordLinks));
+      });
+    }
     return map;
-  }, [paginatedLessons, vocab, wordLinks]);
+  }, [paginatedLessons, vocab, wordLinks, isVocabAvailable]);
 
   const handlePlayAllFiltered = () => {
     const candidateItems: PlaylistItem[] = filteredLessons
@@ -1427,13 +1430,15 @@ function LibraryHome({
                     <div className="flex justify-between items-center text-[9px] uppercase font-black tracking-widest text-zinc-400">
                       <span>{settings?.mainStatsMetric === "vocabulary" ? t("library.stat_vocab", "Vocabulary") : t("library.comprehension_caps", "Comprehension")}</span>
                       <span className="text-zinc-600 dark:text-zinc-300 font-extrabold">
-                        {settings?.mainStatsMetric === "vocabulary" ? bookStats.knownVocabularyPct : bookStats.knownPct}%
+                        {isVocabAvailable ? `${settings?.mainStatsMetric === "vocabulary" ? bookStats.knownVocabularyPct : bookStats.knownPct}%` : "--%"}
                       </span>
                     </div>
 
                     {/* Proportional dual progress bar */}
                     <div className="h-1.5 w-full rounded-full bg-sky-500/20 flex overflow-hidden">
-                      {settings?.mainStatsMetric === "vocabulary" ? (
+                      {!isVocabAvailable ? (
+                        <div className="h-full w-full bg-zinc-200/60 dark:bg-zinc-800/60 animate-pulse rounded-full" />
+                      ) : settings?.mainStatsMetric === "vocabulary" ? (
                         <>
                           <div 
                             style={{ width: `${bookStats.knownVocabularyPct}%` }}
