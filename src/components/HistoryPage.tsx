@@ -44,6 +44,7 @@ import { formatDateTime, resolveLocale } from "../utils/dateUtils";
 import { formatAppDate, formatAppDateTime, formatAppTime } from "../utils/dateFormatter";
 import { AppDatePicker } from "./common/AppDatePicker";
 import { resolveApiUrl } from "../utils/apiConfig";
+import { useToast } from "../context/ToastContext";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -122,6 +123,7 @@ function HistoryPage({
   onUpdateSettings,
 }: HistoryPageProps) {
   const { t, i18n } = useTranslation();
+  const { showToast } = useToast();
   const [filterType, setFilterType] = useState<"all" | "read" | "listen" | "complete">("all");
   const [selectedPeriod, setSelectedPeriod] = useState<"all" | "today" | "yesterday" | "last7" | "thisMonth" | "custom">("all");
   const [customDate, setCustomDate] = useState<string>("");
@@ -247,25 +249,49 @@ function HistoryPage({
   const [isResolvingFormChannel, setIsResolvingFormChannel] = useState(false);
 
   const handleResolveFormChannel = async () => {
-    if (!formChannelUrl.trim()) return;
+    const rawUrl = formChannelUrl.trim();
+    if (!rawUrl) {
+      showToast(t('import.channel_url_required', 'Пожалуйста, введите ссылку на YouTube канал'), 'error');
+      return;
+    }
     setIsResolvingFormChannel(true);
     try {
-      const res = await fetch(resolveApiUrl('/api/youtube/resolve-channel'), {
+      const res = await fetch(resolveApiUrl('/api/youtube/channel-info'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channelUrl: formChannelUrl.trim(),
+          url: rawUrl,
+          channelUrl: rawUrl,
           channelName: formChannelName.trim() || undefined,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.channelName) setFormChannelName(data.channelName);
-        if (data.channelAvatarUrl) setFormChannelAvatarUrl(data.channelAvatarUrl);
-        if (data.channelUrl) setFormChannelUrl(data.channelUrl);
+
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const title = data.title || data.channelName;
+        const avatar = data.avatar || data.channelAvatarUrl;
+        const cleanUrl = data.channelUrl || rawUrl;
+
+        if (title) setFormChannelName(title);
+        if (avatar) setFormChannelAvatarUrl(avatar);
+        if (cleanUrl) setFormChannelUrl(cleanUrl);
+
+        showToast(
+          t('import.channel_found', 'Канал успешно найден: {{name}}', { name: title || 'YouTube' }),
+          'success'
+        );
+      } else {
+        showToast(
+          data.error || t('import.channel_not_found', 'Не удалось найти информацию о YouTube канале. Проверьте ссылку.'),
+          'error'
+        );
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to resolve channel:', err);
+      showToast(
+        t('import.channel_resolve_error', 'Ошибка при обращении к серверу для поиска канала.'),
+        'error'
+      );
     } finally {
       setIsResolvingFormChannel(false);
     }

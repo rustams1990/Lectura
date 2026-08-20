@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lesson, HistoryEntry } from '../types';
 import { resolveApiUrl } from '../utils/apiConfig';
+import { useToast } from '../context/ToastContext';
 import { X, Search, Check, CheckSquare, Square, Loader2, Tv } from 'lucide-react';
 
 interface AssignChannelModalProps {
@@ -26,6 +27,7 @@ export default function AssignChannelModal({
   onUpdateHistory,
 }: AssignChannelModalProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
 
   const isUnknownTarget = useMemo(() => {
     return (
@@ -192,25 +194,48 @@ export default function AssignChannelModal({
 
   const handleResolveChannel = async (overrideUrl?: string) => {
     const url = (overrideUrl !== undefined ? overrideUrl : newChannelUrl).trim();
-    if (!url) return;
+    if (!url) {
+      showToast(t('import.channel_url_required', 'Пожалуйста, введите ссылку на YouTube канал'), 'error');
+      return;
+    }
     setIsResolving(true);
     try {
-      const res = await fetch(resolveApiUrl('/api/youtube/resolve-channel'), {
+      const res = await fetch(resolveApiUrl('/api/youtube/channel-info'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          url,
           channelUrl: url,
           channelName: newChannelName || undefined,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.channelName) setNewChannelName(data.channelName);
-        if (data.channelAvatarUrl) setNewChannelAvatarUrl(data.channelAvatarUrl);
-        if (data.channelUrl) setNewChannelUrl(data.channelUrl);
+
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const title = data.title || data.channelName;
+        const avatar = data.avatar || data.channelAvatarUrl;
+        const cleanUrl = data.channelUrl || url;
+
+        if (title) setNewChannelName(title);
+        if (avatar) setNewChannelAvatarUrl(avatar);
+        if (cleanUrl) setNewChannelUrl(cleanUrl);
+
+        showToast(
+          t('import.channel_found', 'Канал успешно найден: {{name}}', { name: title || 'YouTube' }),
+          'success'
+        );
+      } else {
+        showToast(
+          data.error || t('import.channel_not_found', 'Не удалось найти информацию о YouTube канале. Проверьте ссылку.'),
+          'error'
+        );
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to resolve channel:', e);
+      showToast(
+        t('import.channel_resolve_error', 'Ошибка при обращении к серверу для поиска канала.'),
+        'error'
+      );
     } finally {
       setIsResolving(false);
     }

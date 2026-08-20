@@ -304,26 +304,48 @@ export default function ImportLessonForm({
 
   const handleResolveChannel = async (overrideUrl?: string) => {
     const targetUrl = (overrideUrl !== undefined ? overrideUrl : channelUrl).trim();
-    if (!targetUrl) return;
+    if (!targetUrl) {
+      showToast(t('import.channel_url_required', 'Пожалуйста, введите ссылку на YouTube канал'), 'error');
+      return;
+    }
     setIsResolvingChannel(true);
     try {
-      const res = await fetch(resolveApiUrl("/api/youtube/resolve-channel"), {
+      const res = await fetch(resolveApiUrl("/api/youtube/channel-info"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          url: targetUrl,
           channelUrl: targetUrl,
           channelName: channelName || undefined,
           youtubeId: youtubeId || undefined,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.channelName) setChannelName(data.channelName);
-        if (data.channelAvatarUrl) setChannelAvatarUrl(data.channelAvatarUrl);
-        if (data.channelUrl) setChannelUrl(data.channelUrl);
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const title = data.title || data.channelName;
+        const avatar = data.avatar || data.channelAvatarUrl;
+        const cleanUrl = data.channelUrl || targetUrl;
+
+        if (title) setChannelName(title);
+        if (avatar) setChannelAvatarUrl(avatar);
+        if (cleanUrl) setChannelUrl(cleanUrl);
+
+        showToast(
+          t('import.channel_found', 'Канал успешно найден: {{name}}', { name: title || 'YouTube' }),
+          'success'
+        );
+      } else {
+        showToast(
+          data.error || t('import.channel_not_found', 'Не удалось найти информацию о YouTube канале. Проверьте ссылку.'),
+          'error'
+        );
       }
     } catch (e) {
       console.error("Error resolving channel:", e);
+      showToast(
+        t('import.channel_resolve_error', 'Ошибка при обращении к серверу для поиска канала.'),
+        'error'
+      );
     } finally {
       setIsResolvingChannel(false);
     }
