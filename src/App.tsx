@@ -318,6 +318,8 @@ export default function App() {
     const deduped = dedupeHistory(newHistory);
     setHistory(deduped);
     historyRef.current = deduped;
+    // Mark immediately so loadDataFromLocalServer won't overwrite for 30s
+    lastLocalChangeTime.current = Date.now();
     safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(deduped));
     settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(deduped)).catch(() => {});
     syncDataToLocalServer(
@@ -898,8 +900,8 @@ export default function App() {
       if (isServerLoadInProgress.current || isSyncing) return;
 
       const now = Date.now();
-      // Strict debounce & cooldown: at least 8s since last sync and 5s since last local change
-      if (now - lastSyncSuccessTime.current < 8000 || now - lastLocalChangeTime.current < 5000) {
+      // Strict debounce & cooldown: at least 8s since last sync and 30s since last local change
+      if (now - lastSyncSuccessTime.current < 8000 || now - lastLocalChangeTime.current < 30000) {
         return;
       }
 
@@ -956,7 +958,7 @@ export default function App() {
   }, []);
 
   const loadDataFromLocalServer = async () => {
-    if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
+    if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 30000) {
       return;
     }
     // Only block on error if we already successfully loaded once — first-time login should always retry
@@ -1024,7 +1026,7 @@ export default function App() {
         });
         lastSyncSuccessTime.current = Date.now();
         const body = await safeJsonParse(res);
-        if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
+        if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 30000) {
           setIsSyncing(false);
           setSyncProgress({
             isSyncing: false,
