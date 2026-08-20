@@ -8,6 +8,7 @@ interface AssignChannelModalProps {
   isOpen: boolean;
   onClose: () => void;
   targetChannelName?: string | null;
+  initialSelectedId?: string | null;
   lessons: Lesson[];
   history: HistoryEntry[];
   onUpdateLessons?: (updatedLessons: Lesson[]) => void;
@@ -18,6 +19,7 @@ export default function AssignChannelModal({
   isOpen,
   onClose,
   targetChannelName,
+  initialSelectedId,
   lessons,
   history,
   onUpdateLessons,
@@ -25,17 +27,32 @@ export default function AssignChannelModal({
 }: AssignChannelModalProps) {
   const { t } = useTranslation();
 
-  const [newChannelName, setNewChannelName] = useState<string>('');
+  const isUnknownTarget = useMemo(() => {
+    return (
+      !targetChannelName ||
+      targetChannelName === '__unknown__' ||
+      targetChannelName === t('history_page.unknown_youtube_channel', 'Unknown YouTube Channel') ||
+      targetChannelName === 'Unknown YouTube Channel' ||
+      targetChannelName === 'Неизвестный YouTube канал'
+    );
+  }, [targetChannelName, t]);
+
+  const [newChannelName, setNewChannelName] = useState<string>(() => {
+    return (!isUnknownTarget && targetChannelName) ? targetChannelName : '';
+  });
   const [newChannelUrl, setNewChannelUrl] = useState<string>('');
   const [newChannelAvatarUrl, setNewChannelAvatarUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState<boolean>(false);
-  const [selectedLessonIds, setSelectedLessonIds] = useState<Set<string>>(new Set());
+  const [selectedLessonIds, setSelectedLessonIds] = useState<Set<string>>(() => {
+    return initialSelectedId ? new Set([initialSelectedId]) : new Set();
+  });
   const [searchFilter, setSearchFilter] = useState<string>('');
-  const [showOnlyUnassigned, setShowOnlyUnassigned] = useState<boolean>(true);
+  const [showOnlyUnassigned, setShowOnlyUnassigned] = useState<boolean>(isUnknownTarget);
 
-  // Existing channels from the entire library for quick suggestions
+  // Existing channels from the entire library & history for quick suggestions
   const existingChannels = useMemo(() => {
     const map = new Map<string, { name: string; avatarUrl?: string | null; channelUrl?: string | null }>();
+    
     lessons.forEach((l) => {
       const name = l.channelName?.trim() || (l as any).channelTitle?.trim();
       if (name) {
@@ -49,39 +66,110 @@ export default function AssignChannelModal({
         }
       }
     });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [lessons]);
 
-  // Lessons to display in modal
-  const relevantLessons = useMemo(() => {
-    const isUnknownTarget =
-      !targetChannelName ||
-      targetChannelName === '__unknown__' ||
-      targetChannelName === t('history_page.unknown_youtube_channel', 'Unknown YouTube Channel') ||
-      targetChannelName === 'Unknown YouTube Channel' ||
-      targetChannelName === 'Неизвестный YouTube канал';
-
-    return lessons.filter((l) => {
-      const isYtOrVideo = l.youtubeId || l.lessonType === 'youtube' || l.coverUrl?.includes('youtube');
-      const hasChannel = Boolean(l.channelName?.trim() || (l as any).channelTitle?.trim());
-
-      if (showOnlyUnassigned && hasChannel) return false;
-
-      if (!isUnknownTarget && targetChannelName) {
-        const ch = (l.channelName || (l as any).channelTitle || '').toLowerCase();
-        if (ch !== targetChannelName.toLowerCase() && hasChannel) return false;
+    history.forEach((h) => {
+      const name = h.channelName?.trim();
+      if (name) {
+        const key = name.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            name,
+            avatarUrl: h.channelAvatarUrl || null,
+            channelUrl: (h as any).channelUrl || null,
+          });
+        }
       }
-
-      if (searchFilter.trim()) {
-        const q = searchFilter.toLowerCase();
-        const titleMatch = (l.title || '').toLowerCase().includes(q);
-        const chMatch = (l.channelName || (l as any).channelTitle || '').toLowerCase().includes(q);
-        return titleMatch || chMatch;
-      }
-
-      return isYtOrVideo;
     });
-  }, [lessons, targetChannelName, showOnlyUnassigned, searchFilter, t]);
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [lessons, history]);
+
+  // If opening for a known target channel, preload its avatar & URL
+  React.useEffect(() => {
+    if (!isUnknownTarget && targetChannelName) {
+      setNewChannelName(targetChannelName);
+      const match = existingChannels.find((c) => c.name.toLowerCase() === targetChannelName.toLowerCase());
+      if (match) {
+        if (match.avatarUrl) setNewChannelAvatarUrl(match.avatarUrl);
+        if (match.channelUrl) setNewChannelUrl(match.channelUrl);
+      }
+    }
+  }, [targetChannelName, isUnknownTarget, existingChannels]);
+
+  // Aggregate items to display from both lessons and history
+  const relevantLessons = useMemo(() => {
+    const map = new Map<string, {
+      id: string;
+      lessonId: string;
+      title: string;
+      coverUrl?: string | null;
+      channelName?: string | null;
+      channelAvatarUrl?: string | null;
+      targetLanguage?: string | null;
+      youtubeId?: string | null;
+    }>();
+
+    // 1. Add from lessons
+    lessons.forEach((l) => {
+      map.set(l.id, {
+        id: l.id,
+        lessonId: l.id,
+        title: l.title,
+        coverUrl: l.coverUrl,
+        channelName: l.channelName || (l as any).channelTitle || null,
+        channelAvatarUrl: l.channelAvatarUrl || null,
+        targetLanguage: l.targetLanguage,
+        youtubeId: l.youtubeId || null,
+      });
+    });
+
+    // 2. Add from history (catches any history entries where lessonId is custom or not in lessons)
+    history.forEach((h) => {
+      const key = h.lessonId && h.lessonId !== 'custom' ? h.lessonId : h.id;
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          lessonId: h.lessonId || h.id,
+          title: h.lessonTitle,
+          coverUrl: h.coverUrl,
+          channelName: h.channelName || null,
+          channelAvatarUrl: h.channelAvatarUrl || null,
+          targetLanguage: h.targetLanguage,
+          youtubeId: null,
+        });
+      } else {
+        // If existing item in map didn't have channelName but history has it
+        const cur = map.get(key)!;
+        if (!cur.channelName && h.channelName) {
+          cur.channelName = h.channelName;
+          cur.channelAvatarUrl = h.channelAvatarUrl || cur.channelAvatarUrl;
+        }
+      }
+    });
+
+    let list = Array.from(map.values());
+
+    // Filter by unassigned or target channel
+    if (showOnlyUnassigned) {
+      list = list.filter((item) => !item.channelName?.trim());
+    } else if (!isUnknownTarget && targetChannelName) {
+      list = list.filter((item) => {
+        const ch = (item.channelName || '').toLowerCase();
+        return ch === targetChannelName.toLowerCase() || !ch;
+      });
+    }
+
+    if (searchFilter.trim()) {
+      const q = searchFilter.toLowerCase();
+      list = list.filter((item) => {
+        const titleMatch = (item.title || '').toLowerCase().includes(q);
+        const chMatch = (item.channelName || '').toLowerCase().includes(q);
+        return titleMatch || chMatch;
+      });
+    }
+
+    return list;
+  }, [lessons, history, targetChannelName, isUnknownTarget, showOnlyUnassigned, searchFilter]);
 
   if (!isOpen) return null;
 
@@ -162,7 +250,12 @@ export default function AssignChannelModal({
 
     // 2. Update History
     const updatedHistory = history.map((h) => {
-      if (selectedLessonIds.has(h.lessonId)) {
+      const isMatch =
+        selectedLessonIds.has(h.lessonId) ||
+        selectedLessonIds.has(h.id) ||
+        (h.lessonTitle && relevantLessons.some((rl) => selectedLessonIds.has(rl.id) && rl.title === h.lessonTitle));
+
+      if (isMatch) {
         return {
           ...h,
           channelName: trimmedName,

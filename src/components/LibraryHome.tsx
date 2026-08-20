@@ -1423,7 +1423,7 @@ function LibraryHome({
                       )}
                     </div>
 
-                    {settings?.showDetailedVocabularyStats !== false ? (
+                    {Boolean(settings?.showDetailedVocabularyStats) ? (
                       <div className="flex flex-col gap-0.5 text-[9px] font-extrabold font-sans">
                         <div className="flex justify-between items-center">
                           <span 

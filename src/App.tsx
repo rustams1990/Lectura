@@ -532,7 +532,7 @@ export default function App() {
       geminiApiKey: localStorage.getItem("vocab_clone_gemini_key") || "",
       localAiUrl: "http://localhost:11434/api/generate",
       localAiModel: "phi3.5",
-      showDetailedVocabularyStats: true,
+      showDetailedVocabularyStats: false,
       mainStatsMetric: "comprehension",
       showProgressBar: true,
       dimBookCovers: false,
@@ -3237,7 +3237,14 @@ export default function App() {
         }}
         isSyncing={isSyncing}
         settings={readerSettings}
-        onSettingsChange={(patch) => setReaderSettings(prev => ({ ...prev, ...patch }))}
+        onSettingsChange={(patch) => {
+          setReaderSettings((prev) => {
+            const next = { ...prev, ...patch };
+            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(next));
+            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
+            return next;
+          });
+        }}
       />
 
       {/* Local/Guest Auth fallback Modal */}

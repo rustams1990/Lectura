@@ -35,13 +35,15 @@ import {
   ChevronRight,
   ChevronDown,
   PieChart,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
 import { formatDateTime, resolveLocale } from "../utils/dateUtils";
 import { formatAppDate, formatAppDateTime, formatAppTime } from "../utils/dateFormatter";
 import { AppDatePicker } from "./common/AppDatePicker";
+import { resolveApiUrl } from "../utils/apiConfig";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -129,8 +131,33 @@ function HistoryPage({
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [selectedChannelFilter, setSelectedChannelFilter] = useState<string | null>(null);
   const [assignModalChannel, setAssignModalChannel] = useState<string | null>(null);
+  const [assignModalInitialId, setAssignModalInitialId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [channelsLimit, setChannelsLimit] = useState<number | "all">(5);
+
+  // Existing channels from the entire library & history for quick suggestions
+  const existingChannels = useMemo(() => {
+    const map = new Map<string, { name: string; avatarUrl?: string | null; channelUrl?: string | null }>();
+    lessons.forEach((l) => {
+      const name = l.channelName?.trim() || (l as any).channelTitle?.trim();
+      if (name) {
+        const key = name.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, { name, avatarUrl: l.channelAvatarUrl || null, channelUrl: l.channelUrl || null });
+        }
+      }
+    });
+    history.forEach((h) => {
+      const name = h.channelName?.trim();
+      if (name) {
+        const key = name.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, { name, avatarUrl: h.channelAvatarUrl || null, channelUrl: (h as any).channelUrl || null });
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [lessons, history]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -214,11 +241,41 @@ function HistoryPage({
   const [formDateOnly, setFormDateOnly] = useState("");
   const [formTime, setFormTime] = useState("12:00");
   const [formTags, setFormTags] = useState("");
+  const [formChannelName, setFormChannelName] = useState("");
+  const [formChannelUrl, setFormChannelUrl] = useState("");
+  const [formChannelAvatarUrl, setFormChannelAvatarUrl] = useState<string | null>(null);
+  const [isResolvingFormChannel, setIsResolvingFormChannel] = useState(false);
+
+  const handleResolveFormChannel = async () => {
+    if (!formChannelUrl.trim()) return;
+    setIsResolvingFormChannel(true);
+    try {
+      const res = await fetch(resolveApiUrl('/api/youtube/resolve-channel'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelUrl: formChannelUrl.trim(),
+          channelName: formChannelName.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.channelName) setFormChannelName(data.channelName);
+        if (data.channelAvatarUrl) setFormChannelAvatarUrl(data.channelAvatarUrl);
+        if (data.channelUrl) setFormChannelUrl(data.channelUrl);
+      }
+    } catch (err) {
+      console.error('Failed to resolve channel:', err);
+    } finally {
+      setIsResolvingFormChannel(false);
+    }
+  };
 
   // Populate form when editing an entry
   const startEditEntry = (entry: HistoryEntry) => {
     setEditingEntry(entry);
     const isCustom = entry.mode === "custom" || entry.lessonId === "custom" || !lessons.some((l) => l.id === entry.lessonId);
+    const matchedLesson = lessons.find((l) => l.id === entry.lessonId);
     setFormMode(isCustom ? "custom" : "library");
     setFormCategory(entry.category || "video");
     setFormLessonId(entry.lessonId);
@@ -229,6 +286,9 @@ function HistoryPage({
     setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
     setFormNotes(entry.notes || "");
     setFormTags(entry.tags ? entry.tags.join(", ") : "");
+    setFormChannelName(entry.channelName || matchedLesson?.channelName || (matchedLesson as any)?.channelTitle || "");
+    setFormChannelUrl((entry as any).channelUrl || matchedLesson?.channelUrl || "");
+    setFormChannelAvatarUrl(entry.channelAvatarUrl || matchedLesson?.channelAvatarUrl || null);
 
     const d = new Date(entry.timestamp);
     if (!isNaN(d.getTime())) {
@@ -295,17 +355,33 @@ function HistoryPage({
       targetLang = selectedLesson ? selectedLesson.targetLanguage : (formLanguage || "Spanish");
       coverUrl = selectedLesson ? selectedLesson.coverUrl : null;
       lessonType = selectedLesson ? (selectedLesson.lessonType || "article") : "article";
-      channelName = selectedLesson ? (selectedLesson.channelName || null) : null;
-      channelAvatarUrl = selectedLesson ? (selectedLesson.channelAvatarUrl || null) : null;
+      channelName = formChannelName.trim() || (selectedLesson ? selectedLesson.channelName || null : null);
+      channelAvatarUrl = formChannelAvatarUrl || (selectedLesson ? selectedLesson.channelAvatarUrl || null : null);
       lessonId = formLessonId || "custom";
+
+      // If updating a library lesson, update the lesson in lessons state too
+      if (selectedLesson && onUpdateLessons) {
+        const updatedLessons = lessons.map((l) =>
+          l.id === selectedLesson.id
+            ? {
+                ...l,
+                channelName: channelName,
+                channelTitle: channelName,
+                channelAvatarUrl: channelAvatarUrl,
+                channelUrl: formChannelUrl.trim() || l.channelUrl,
+              }
+            : l
+        );
+        onUpdateLessons(updatedLessons);
+      }
     } else {
       // Custom Activity
       title = formCustomTitle.trim() || t('history_page.custom_activity_default', "Custom Activity");
       targetLang = formLanguage || "Spanish";
       lessonId = "custom";
       lessonType = formCategory;
-      channelName = null;
-      channelAvatarUrl = null;
+      channelName = formChannelName.trim() || null;
+      channelAvatarUrl = formChannelAvatarUrl || null;
     }
 
     let timestamp = new Date().toISOString();
@@ -338,6 +414,7 @@ function HistoryPage({
               timestamp,
               channelName,
               channelAvatarUrl,
+              channelUrl: formChannelUrl.trim() || (h as any).channelUrl || undefined,
               mode: formMode,
               category: formMode === "custom" ? formCategory : undefined,
               customTitle: formMode === "custom" ? title : undefined,
@@ -346,6 +423,7 @@ function HistoryPage({
       );
       onUpdateHistory(updated);
       setEditingEntry(null);
+      setIsCreateModalOpen(false);
     } else {
       // Create new entry
       const newEntry: HistoryEntry = {
@@ -731,6 +809,64 @@ function HistoryPage({
     };
   }, [scopedHistory, lessons, t]);
 
+  // Helper to determine if an activity item is a Channel source (YouTube / Podcast / explicit channel)
+  const isChannelMedia = React.useCallback(
+    (item: HistoryEntry, lesson?: Lesson | null): boolean => {
+      // 1. If channel name is explicitly set
+      if (item.channelName || lesson?.channelName) return true;
+
+      // 2. If it is a Book / Text / Article / Grammar / Speaking — NEVER a channel!
+      if (
+        lesson?.lessonType === "book" ||
+        lesson?.lessonType === "article" ||
+        lesson?.lessonType === "text" ||
+        item.lessonType === "book" ||
+        item.lessonType === "article" ||
+        item.lessonType === "text" ||
+        item.category === "book" ||
+        item.category === "grammar" ||
+        item.category === "speaking"
+      ) {
+        return false;
+      }
+
+      // 3. YouTube video
+      if (lesson?.youtubeId || lesson?.lessonType === "youtube" || item.lessonType === "youtube" || item.category === "video") {
+        return true;
+      }
+
+      // 4. Podcast
+      if (lesson?.lessonType === "podcast" || item.lessonType === "podcast" || item.category === "podcast") {
+        return true;
+      }
+
+      return false;
+    },
+    []
+  );
+
+  // Helper to reliably resolve a history item's channel/author name (ONLY for media / video / audio / podcast)
+  const resolveItemChannelName = React.useCallback(
+    (item: HistoryEntry): string | null => {
+      const lesson = lessons.find((l) => l.id === item.lessonId);
+      if (!isChannelMedia(item, lesson)) return null;
+
+      let rawName: string | null =
+        lesson?.channelName?.trim() ||
+        (lesson as any)?.channelTitle?.trim() ||
+        item.channelName?.trim() ||
+        (lesson as any)?.podcastTitle?.trim() ||
+        null;
+
+      if (!rawName) {
+        rawName = t("history_page.unknown_youtube_channel", "Unknown YouTube Channel");
+      }
+
+      return rawName.trim();
+    },
+    [lessons, isChannelMedia, t]
+  );
+
   // Channel / Source Analytics
   const channelStats = useMemo(() => {
     // 1. Build author avatar directory with strict YouTube avatar priority
@@ -765,41 +901,10 @@ function HistoryPage({
     let totalDuration = 0;
 
     scopedHistory.forEach((item) => {
+      const trimmedName = resolveItemChannelName(item);
+      if (!trimmedName) return; // Skip non-media books/articles
+
       const lesson = lessons.find((l) => l.id === item.lessonId);
-      let rawName: string | null =
-        lesson?.channelName?.trim() ||
-        (lesson as any)?.channelTitle?.trim() ||
-        item.channelName?.trim() ||
-        (lesson as any)?.author?.trim() ||
-        (lesson as any)?.podcastTitle?.trim() ||
-        null;
-
-      // If channel name is missing, attempt to extract author from title formats (e.g. "Author - Title" or "Title | Author")
-      if (!rawName) {
-        const titleToParse = item.lessonTitle || lesson?.title || "";
-        if (titleToParse.includes(" - ")) {
-          const parts = titleToParse.split(" - ");
-          if (parts[0].trim().length > 1 && parts[0].trim().length < 40) {
-            rawName = parts[0].trim();
-          }
-        } else if (titleToParse.includes(" | ")) {
-          const parts = titleToParse.split(" | ");
-          const lastPart = parts[parts.length - 1].trim();
-          if (lastPart.length > 1 && lastPart.length < 40) {
-            rawName = lastPart;
-          }
-        }
-      }
-
-      // If still not identified, use Unknown YouTube Channel / Unknown Author (never video title)
-      if (!rawName) {
-        const isYt = lesson?.youtubeId || lesson?.lessonType === "youtube" || item.lessonType === "youtube";
-        rawName = isYt ? t("history_page.unknown_youtube_channel", "Unknown YouTube Channel") : t("history_page.unknown_author", "Unknown Author");
-      }
-
-      if (!rawName) return;
-
-      const trimmedName = rawName.trim();
       const normKey = trimmedName.toLowerCase();
 
       // Prioritize round author portrait from YouTube directory
@@ -850,7 +955,7 @@ function HistoryPage({
     }));
 
     return list.sort((a, b) => b.durationSeconds - a.durationSeconds);
-  }, [scopedHistory, lessons, t]);
+  }, [scopedHistory, lessons, resolveItemChannelName]);
 
   const [isChannelsExpanded, setIsChannelsExpanded] = useState(false);
 
@@ -900,19 +1005,9 @@ function HistoryPage({
         if (!matchesTitle && !matchesNote && !matchesLang && !matchesChannel) return false;
       }
       if (selectedChannelFilter) {
-        const matchedLesson = lessons.find((l) => l.id === item.lessonId);
-        const chName = matchedLesson?.channelName?.trim() || (matchedLesson as any)?.channelTitle?.trim() || item.channelName?.trim() || "";
-        const isUnknownTarget =
-          selectedChannelFilter === t("history_page.unknown_youtube_channel", "Unknown YouTube Channel") ||
-          selectedChannelFilter === "Unknown YouTube Channel" ||
-          selectedChannelFilter === "Неизвестный YouTube канал" ||
-          selectedChannelFilter === "__unknown__";
-
-        if (isUnknownTarget) {
-          const isYt = matchedLesson?.youtubeId || matchedLesson?.lessonType === "youtube" || item.lessonType === "youtube";
-          if (chName || !isYt) return false;
-        } else {
-          if (chName.toLowerCase() !== selectedChannelFilter.toLowerCase()) return false;
+        const itemChannel = resolveItemChannelName(item);
+        if (!itemChannel || itemChannel.toLowerCase() !== selectedChannelFilter.trim().toLowerCase()) {
+          return false;
         }
       }
       return true;
@@ -924,7 +1019,7 @@ function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [scopedHistory, filterType, searchQuery, selectedChannelFilter, getItemLanguage, lessons, t]);
+  }, [scopedHistory, filterType, searchQuery, selectedChannelFilter, getItemLanguage, lessons, resolveItemChannelName]);
 
   const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -1738,8 +1833,16 @@ function HistoryPage({
                               {formatDate(item.timestamp)}
                             </span>
 
-                            {(item.channelName || matchedLesson?.channelName) && (
-                              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-1">
+                            {(item.channelName || matchedLesson?.channelName) ? (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalChannel(item.channelName || matchedLesson?.channelName || null);
+                                  setAssignModalInitialId(matchedLesson?.id || item.lessonId || item.id);
+                                }}
+                                className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-1 cursor-pointer transition shadow-3xs"
+                                title={t('history_page.edit_channel', 'Change Channel')}
+                              >
                                 {(item.channelAvatarUrl || matchedLesson?.channelAvatarUrl) ? (
                                   <img
                                     src={item.channelAvatarUrl || matchedLesson?.channelAvatarUrl || ""}
@@ -1752,7 +1855,21 @@ function HistoryPage({
                                 )}
                                 <span className="truncate max-w-[120px]">{item.channelName || matchedLesson?.channelName}</span>
                               </span>
-                            )}
+                            ) : isChannelMedia(item, matchedLesson) ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignModalChannel('__unknown__');
+                                  setAssignModalInitialId(matchedLesson?.id || item.lessonId || item.id);
+                                }}
+                                className="text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 px-1.5 py-0.5 rounded border border-rose-200/60 dark:border-rose-900/50 flex items-center gap-1 cursor-pointer transition shadow-3xs"
+                                title={t('history_page.assign_channel_tooltip', 'Click to set channel for this video')}
+                              >
+                                <Tv className="w-2.5 h-2.5" />
+                                <span>+ {t('history_page.add_channel', 'Channel')}</span>
+                              </button>
+                            ) : null}
                             
                             {item.tags && item.tags.length > 0 && item.tags.map(t => (
                               <span key={t} className="text-[9px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-400 px-1.5 py-0.5 rounded border border-teal-100 dark:border-teal-900/50 flex items-center gap-1">
@@ -1787,24 +1904,24 @@ function HistoryPage({
 
                       {/* Right side buttons */}
                       <div className="flex items-center gap-1.5 shrink-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800/80 pt-1.5 sm:pt-0 justify-end">
-                        {/* Edit button (visible on hover) */}
+                        {/* Edit button */}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             startEditEntry(item);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-lg transition-all cursor-pointer"
+                          className="opacity-80 sm:opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-lg transition-all cursor-pointer"
                           title={t('history_page.edit_entry', 'Edit history record')}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* Delete button (visible on hover) */}
+                        {/* Delete button */}
                         <button
                           type="button"
                           onClick={(e) => handleDeleteEntry(item.id, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all cursor-pointer"
+                          className="opacity-80 sm:opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all cursor-pointer"
                           title={t('history_page.delete_entry', 'Delete from history')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2113,6 +2230,92 @@ function HistoryPage({
                     />
                   </div>
                 )}
+                
+                {/* Channel / Author Section in History Edit Modal */}
+                <div className="p-3.5 bg-zinc-50 dark:bg-zinc-950/60 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Tv className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">
+                        {t('import.channel', 'Channel / Author')}
+                      </span>
+                    </div>
+                    {formChannelAvatarUrl && (
+                      <div className="flex items-center gap-1.5">
+                        <img
+                          src={formChannelAvatarUrl}
+                          alt=""
+                          className="w-5 h-5 rounded-full object-cover border border-zinc-300 dark:border-zinc-700"
+                        />
+                        <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 truncate max-w-[150px]">
+                          {formChannelName}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                        {t('import.channel_name_label', 'Channel / Author Name')}
+                      </label>
+                      <input
+                        type="text"
+                        list="modal-history-channels"
+                        value={formChannelName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormChannelName(val);
+                          const match = existingChannels.find((c) => c.name.toLowerCase() === val.trim().toLowerCase());
+                          if (match) {
+                            if (match.avatarUrl) setFormChannelAvatarUrl(match.avatarUrl);
+                            if (match.channelUrl) setFormChannelUrl(match.channelUrl);
+                          }
+                        }}
+                        placeholder={t('import.channel_name_placeholder', 'e.g. Andrea la Mexicana, Mr Salas')}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 font-semibold"
+                      />
+                      <datalist id="modal-history-channels">
+                        {existingChannels.map((c) => (
+                          <option key={c.name} value={c.name} />
+                        ))}
+                      </datalist>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                        {t('import.channel_url_label', 'Channel URL (YouTube)')}
+                      </label>
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={formChannelUrl}
+                          onChange={(e) => setFormChannelUrl(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleResolveFormChannel();
+                            }
+                          }}
+                          placeholder="https://youtube.com/@Channel"
+                          className="flex-1 px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleResolveFormChannel()}
+                          disabled={isResolvingFormChannel || !formChannelUrl.trim()}
+                          className="px-2.5 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl transition flex items-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          {isResolvingFormChannel ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <span>{t('import.resolve_channel_btn', 'Find')}</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Action Type & Status */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2245,8 +2448,12 @@ function HistoryPage({
       {assignModalChannel !== null && (
         <AssignChannelModal
           isOpen={assignModalChannel !== null}
-          onClose={() => setAssignModalChannel(null)}
+          onClose={() => {
+            setAssignModalChannel(null);
+            setAssignModalInitialId(null);
+          }}
           targetChannelName={assignModalChannel}
+          initialSelectedId={assignModalInitialId}
           lessons={lessons}
           history={history}
           onUpdateLessons={onUpdateLessons}
