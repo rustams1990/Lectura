@@ -343,7 +343,15 @@
     "password_hint_saved": "Hint saved",
     "password_hint_save_btn": "Save Hint",
     "error_empty_confirm": "Please confirm your password.",
-    "error_passwords_dont_match": "Passwords do not match."
+    "error_passwords_dont_match": "Passwords do not match.",
+    "serverSettings": {
+      "title": "Lectura Server (LAN / IP):",
+      "hide": "Hide",
+      "change": "Change",
+      "test": "Test",
+      "check": "Check",
+      "autoDetect": "Auto-detect (Current Host)"
+    }
   },
   "sync": {
     "title": "DATA SYNCHRONIZATION",
@@ -1216,6 +1224,7 @@
     "channels_show": "Show",
     "channels_show_all": "All",
     "total_sources": "Total sources: {{count}}",
+    "unknown_author": "Unknown Author",
     "col_source": "Source",
     "col_time": "Time",
     "col_videos": "Videos",

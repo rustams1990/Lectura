@@ -359,6 +359,10 @@ function setupSchema(db: Database.Database) {
           if (channelName) {
             db.prepare("UPDATE lessons SET channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl), title = ? WHERE id = ?")
               .run(channelName, avatarUrl, newTitle, row.id);
+            try {
+              db.prepare("UPDATE reading_history SET channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl) WHERE lessonId = ?")
+                .run(channelName, avatarUrl, row.id);
+            } catch (_) {}
           }
         } catch (_) {}
       }

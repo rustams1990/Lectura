@@ -760,14 +760,32 @@ function HistoryPage({
 
     scopedHistory.forEach((item) => {
       const lesson = lessons.find((l) => l.id === item.lessonId);
-      const rawName =
+      let rawName: string | null =
         lesson?.channelName?.trim() ||
         item.channelName?.trim() ||
-        (lesson?.youtubeId || lesson?.lessonType === "youtube" || item.lessonType === "youtube"
-          ? t("history_page.youtube_source", "YouTube")
-          : lesson?.lessonType === "podcast" || item.lessonType === "podcast"
-          ? (item.lessonTitle?.includes(" - ") ? item.lessonTitle.split(" - ")[0].trim() : t("history_page.podcast_source", "Podcast"))
-          : null);
+        null;
+
+      // If channel name is missing, attempt to extract author from title formats (e.g. "Author - Title" or "Title | Author")
+      if (!rawName) {
+        const titleToParse = item.lessonTitle || lesson?.title || "";
+        if (titleToParse.includes(" - ")) {
+          const parts = titleToParse.split(" - ");
+          if (parts[0].trim().length > 1 && parts[0].trim().length < 40) {
+            rawName = parts[0].trim();
+          }
+        } else if (titleToParse.includes(" | ")) {
+          const parts = titleToParse.split(" | ");
+          const lastPart = parts[parts.length - 1].trim();
+          if (lastPart.length > 1 && lastPart.length < 40) {
+            rawName = lastPart;
+          }
+        }
+      }
+
+      // If still not identified, show individual video title so items don't get lumped together into a generic bucket
+      if (!rawName) {
+        rawName = item.lessonTitle || lesson?.title || t("history_page.unknown_author", "Unknown Author");
+      }
 
       if (!rawName) return;
 

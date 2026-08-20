@@ -343,7 +343,15 @@
     "password_hint_saved": "Подсказка сохранена",
     "password_hint_save_btn": "Сохранить подсказку",
     "error_empty_confirm": "Пожалуйста, повторите пароль.",
-    "error_passwords_dont_match": "Пароли не совпадают."
+    "error_passwords_dont_match": "Пароли не совпадают.",
+    "serverSettings": {
+      "title": "Сервер Lectura (LAN / IP):",
+      "hide": "Скрыть",
+      "change": "Изменить",
+      "test": "Тест",
+      "check": "Проверить",
+      "autoDetect": "Автоопределение (Текущий хост)"
+    }
   },
   "sync": {
     "title": "СИНХРОНИЗАЦИЯ ДАННЫХ",
@@ -1216,6 +1224,7 @@
     "channels_show": "Показать",
     "channels_show_all": "Все",
     "total_sources": "Всего источников: {{count}}",
+    "unknown_author": "Без автора",
     "col_source": "Источник",
     "col_time": "Время",
     "col_videos": "Видео / Уроки",

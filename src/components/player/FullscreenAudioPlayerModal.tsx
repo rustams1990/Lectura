@@ -153,6 +153,20 @@ export default function FullscreenAudioPlayerModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExpanded, collapsePlayer]);
 
+  // Lock body scroll and prevent gestures from bubbling to underlying page
+  useEffect(() => {
+    if (isExpanded) {
+      const originalOverflow = document.body.style.overflow;
+      const originalTouchAction = document.body.style.touchAction;
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.touchAction = originalTouchAction;
+      };
+    }
+  }, [isExpanded]);
+
   if (!currentTrack) {
     return null;
   }
@@ -275,17 +289,21 @@ export default function FullscreenAudioPlayerModal({
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      style={
-        dominantColor
-          ? {
-              background: `linear-gradient(180deg, ${dominantColor} 0%, rgba(20, 20, 24, 0.94) 55%, #09090b 100%)`,
-            }
-          : undefined
-      }
-      className={`fixed inset-0 z-50 flex flex-col justify-between bg-zinc-950 text-white px-5 sm:px-8 pt-[max(1rem,env(safe-area-inset-top,16px))] pb-[max(1.5rem,env(safe-area-inset-bottom,24px))] pl-[max(1.25rem,env(safe-area-inset-left,16px))] pr-[max(1.25rem,env(safe-area-inset-right,16px))] transition-all duration-300 ease-out overflow-y-auto overscroll-contain select-none ${
+      className={`fixed inset-0 z-50 flex flex-col justify-between bg-zinc-950 text-white px-5 sm:px-8 pt-[max(1rem,env(safe-area-inset-top,16px))] pb-[max(1.5rem,env(safe-area-inset-bottom,24px))] pl-[max(1.25rem,env(safe-area-inset-left,16px))] pr-[max(1.25rem,env(safe-area-inset-right,16px))] transition-all duration-300 ease-out overflow-hidden touch-none select-none ${
         isExpanded ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-full opacity-0 pointer-events-none'
       }`}
     >
+      {/* 100% Solid opaque backdrop gradient layer */}
+      <div
+        className="absolute inset-0 pointer-events-none -z-20 bg-zinc-950"
+        style={{
+          background: dominantColor
+            ? `linear-gradient(180deg, ${dominantColor} 0%, #18181b 60%, #09090b 100%)`
+            : '#09090b',
+          opacity: 1,
+        }}
+      />
+
       {/* Dynamic blurred ambient glow from cover */}
       {currentTrack.coverUrl && (
         <div

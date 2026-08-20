@@ -352,14 +352,14 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300 font-bold text-[11px]">
                     <Server className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                    <span>{t('settings.server_url', 'Сервер Lectura (LAN / IP):')}</span>
+                    <span>{t('auth.serverSettings.title', 'Lectura Server (LAN / IP):')}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowServerConfig(!showServerConfig)}
                     className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold cursor-pointer"
                   >
-                    {showServerConfig ? t('common.hide', 'Скрыть') : t('common.edit', 'Изменить')}
+                    {showServerConfig ? t('auth.serverSettings.hide', 'Hide') : t('auth.serverSettings.change', 'Change')}
                   </button>
                 </div>
 
@@ -370,7 +370,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                         type="text"
                         value={serverUrl}
                         onChange={(e) => handleServerUrlChange(e.target.value)}
-                        placeholder={t('settings.server_auto_placeholder', 'Auto-detect (Current Host)')}
+                        placeholder={t('auth.serverSettings.autoDetect', 'Auto-detect (Current Host)')}
                         className="flex-1 text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-mono"
                       />
                       <button
@@ -380,7 +380,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                         className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
                       >
                         {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                        <span>{t('settings.server_test', 'Тест')}</span>
+                        <span>{t('auth.serverSettings.test', 'Test')}</span>
                       </button>
                     </div>
 
@@ -390,7 +390,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                         onClick={() => handleServerUrlChange('')}
                         className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-sans font-bold hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
                       >
-                        ⚡ {t('settings.auto_detect', 'Auto-detect')}
+                        ⚡ {t('auth.serverSettings.autoDetect', 'Auto-detect')}
                       </button>
                       {typeof window !== 'undefined' && window.location.origin && (
                         <button
@@ -413,7 +413,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                       className="text-[10px] text-teal-600 dark:text-teal-400 font-sans font-bold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-2"
                     >
                       {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                      <span>{t('settings.server_test', 'Проверить')}</span>
+                      <span>{t('auth.serverSettings.check', 'Check')}</span>
                     </button>
                   </div>
                 )}
