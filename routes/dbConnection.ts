@@ -75,7 +75,13 @@ function setupSchema(db: Database.Database) {
       difficulty TEXT,
       difficultyExplanation TEXT,
       createdAt INTEGER,
-      channelUrl TEXT
+      channelName TEXT,
+      channelTitle TEXT,
+      channelAvatarUrl TEXT,
+      channelAvatar TEXT,
+      channelUrl TEXT,
+      playlistId TEXT,
+      wordTimestamps TEXT
     );
 
     CREATE TABLE IF NOT EXISTS lesson_types (
@@ -98,7 +104,14 @@ function setupSchema(db: Database.Database) {
       durationSeconds INTEGER DEFAULT 0,
       notes TEXT,
       channelName TEXT,
-      channelAvatarUrl TEXT
+      channelTitle TEXT,
+      channelAvatarUrl TEXT,
+      channelAvatar TEXT,
+      channelUrl TEXT,
+      category TEXT,
+      customTitle TEXT,
+      mode TEXT,
+      tags TEXT
     );
 
     CREATE TABLE IF NOT EXISTS server_users (
@@ -267,7 +280,7 @@ function setupSchema(db: Database.Database) {
     try { db.exec(`ALTER TABLE words ADD COLUMN srsRepetitions INTEGER;`); } catch (_) {}
   }
 
-  // lessons: user_id, localVideoUrl, createdAt columns
+  // lessons: user_id, localVideoUrl, createdAt, channel columns
   const lessonsCols = (db.prepare("PRAGMA table_info(lessons)").all() as any[]).map(c => c.name);
   if (!lessonsCols.includes("user_id")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
@@ -284,8 +297,14 @@ function setupSchema(db: Database.Database) {
   if (!lessonsCols.includes("channelName")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN channelName TEXT;`); } catch (_) {}
   }
+  if (!lessonsCols.includes("channelTitle")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN channelTitle TEXT;`); } catch (_) {}
+  }
   if (!lessonsCols.includes("channelAvatarUrl")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN channelAvatarUrl TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("channelAvatar")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN channelAvatar TEXT;`); } catch (_) {}
   }
   if (!lessonsCols.includes("channelUrl")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN channelUrl TEXT;`); } catch (_) {}
@@ -392,7 +411,7 @@ function setupSchema(db: Database.Database) {
     } catch (_) {}
   }, 1000);
 
-  // reading_history: user_id, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags columns
+  // reading_history: user_id, channelName, channelTitle, channelAvatarUrl, channelAvatar, channelUrl, category, customTitle, mode, tags columns
   const historyCols = (db.prepare("PRAGMA table_info(reading_history)").all() as any[]).map(c => c.name);
   if (!historyCols.includes("user_id")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
@@ -400,8 +419,14 @@ function setupSchema(db: Database.Database) {
   if (!historyCols.includes("channelName")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelName TEXT;`); } catch (_) {}
   }
+  if (!historyCols.includes("channelTitle")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelTitle TEXT;`); } catch (_) {}
+  }
   if (!historyCols.includes("channelAvatarUrl")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelAvatarUrl TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("channelAvatar")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelAvatar TEXT;`); } catch (_) {}
   }
   if (!historyCols.includes("channelUrl")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelUrl TEXT;`); } catch (_) {}
@@ -418,6 +443,11 @@ function setupSchema(db: Database.Database) {
   if (!historyCols.includes("tags")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN tags TEXT;`); } catch (_) {}
   }
+
+  // Ensure activity_history view exists if any external service/query expects it
+  try {
+    db.exec(`CREATE VIEW IF NOT EXISTS activity_history AS SELECT * FROM reading_history;`);
+  } catch (_) {}
 
   // Auto-backfill reading_history channelName and channelAvatarUrl from lessons table
   try {

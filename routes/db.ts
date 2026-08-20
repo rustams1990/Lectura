@@ -640,8 +640,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           // Preserve existing createdAt if present, else use current time
           (typeof l.createdAt === "number" && l.createdAt > 0) ? l.createdAt : Date.now(),
           l.wordTimestamps ? JSON.stringify(l.wordTimestamps) : null,
-          l.channelName || null,
-          l.channelAvatarUrl || null,
+          l.channelName || l.channelTitle || null,
+          l.channelAvatarUrl || l.channelAvatar || null,
+          l.channelUrl || null,
           l.playlistId || null
         );
       }
