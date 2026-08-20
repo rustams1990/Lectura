@@ -621,15 +621,59 @@ function HistoryPage({
     }
   };
 
-  // Deduplicated base history (merges duplicate read/listen entries within 30 minutes)
+  // Deduplicated YouTube-style daily aggregated history (one card per lesson per calendar day)
   const deduplicatedHistory = useMemo(() => {
     if (!history || history.length === 0) return [];
-    const sorted = [...history].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    const merged: HistoryEntry[] = [];
 
-    for (const item of sorted) {
+    // Group items by calendarDay + distinct lesson identifier
+    const groupMap = new Map<string, HistoryEntry[]>();
+
+    for (const item of history) {
+      if (!item) continue;
+      let calendarDay = "unknown";
+      try {
+        const d = new Date(item.timestamp);
+        if (!isNaN(d.getTime())) {
+          calendarDay = d.toLocaleDateString("en-CA");
+        } else {
+          calendarDay = item.timestamp || "unknown";
+        }
+      } catch {
+        calendarDay = item.timestamp || "unknown";
+      }
+
       const lesson = lessons.find((l) => l.id === item.lessonId);
-      const savedProg = localStorage.getItem(`vocab_progress_${item.lessonId}`);
+      const isCustomActivity = item.mode === "custom" || item.lessonId === "custom" || !lesson;
+      const lessonKey = (!isCustomActivity && item.lessonId)
+        ? item.lessonId
+        : (item.customTitle ? `custom_${item.customTitle.trim().toLowerCase()}_${item.category || "other"}` : item.id);
+
+      const compositeKey = `${calendarDay}:::${lessonKey}`;
+
+      let list = groupMap.get(compositeKey);
+      if (!list) {
+        list = [];
+        groupMap.set(compositeKey, list);
+      }
+      list.push(item);
+    }
+
+    const aggregated: HistoryEntry[] = [];
+
+    for (const groupSessions of groupMap.values()) {
+      if (groupSessions.length === 0) continue;
+
+      // Sort sessions of this group by timestamp DESC (most recent session first)
+      const sortedSessions = [...groupSessions].sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime() || 0;
+        const timeB = new Date(b.timestamp).getTime() || 0;
+        return timeB - timeA;
+      });
+
+      const latest = sortedSessions[0];
+      const lesson = lessons.find((l) => l.id === latest.lessonId);
+
+      const savedProg = latest.lessonId ? localStorage.getItem(`vocab_progress_${latest.lessonId}`) : null;
       let isProg100 = false;
       if (savedProg) {
         try {
@@ -640,72 +684,62 @@ function HistoryPage({
           isProg100 = parseFloat(savedProg) >= 100;
         }
       }
+
+      const hasCompleted = sortedSessions.some((s) => s.status === "completed" || s.actionType === "complete");
       const isLessonDone =
-        item.status === "completed" ||
-        item.actionType === "complete" ||
+        hasCompleted ||
+        latest.status === "completed" ||
+        latest.actionType === "complete" ||
         isProg100 ||
         (lesson && ((lesson as any).isCompleted || (lesson as any).readCount > 0 || (lesson as any).progress >= 100));
 
       const isAudioOrVideoLesson =
         (lesson && (!!lesson.youtubeId || !!lesson.audioUrl || !!lesson.audioBase64 || lesson.lessonType === "podcast" || lesson.lessonType === "youtube" || lesson.lessonType === "audio")) ||
-        item.lessonType === "youtube" ||
-        item.lessonType === "podcast" ||
-        item.lessonType === "audio" ||
-        item.actionType === "listen";
+        latest.lessonType === "youtube" ||
+        latest.lessonType === "podcast" ||
+        latest.lessonType === "audio" ||
+        latest.actionType === "listen" ||
+        sortedSessions.some((s) => s.actionType === "listen");
 
-      const isCustomActivity = item.mode === "custom" || item.lessonId === "custom" || !lesson;
+      // Sum duration across all sessions of this lesson on this day
+      const totalDurationSeconds = sortedSessions.reduce(
+        (acc, s) => acc + Math.max(0, Number(s.durationSeconds) || 0),
+        0
+      );
 
-      const itemWithStatus: HistoryEntry = {
-        ...item,
-        actionType: item.actionType || (isAudioOrVideoLesson ? "listen" : "read"),
-        status: isLessonDone ? "completed" : (item.status || "in_progress"),
-      };
+      // Best metadata resolution (prefer latest session, fallback to other sessions in group or lesson)
+      const bestNotes = sortedSessions.find((s) => s.notes && s.notes.trim())?.notes || latest.notes || "";
+      const bestTags = sortedSessions.find((s) => s.tags && s.tags.length > 0)?.tags || latest.tags || [];
+      const bestCoverUrl = latest.coverUrl || sortedSessions.find((s) => s.coverUrl)?.coverUrl || lesson?.coverUrl || null;
+      const bestChannelName = latest.channelName || sortedSessions.find((s) => s.channelName)?.channelName || lesson?.channelName || (lesson as any)?.channelTitle || null;
+      const bestChannelAvatarUrl = latest.channelAvatarUrl || sortedSessions.find((s) => s.channelAvatarUrl)?.channelAvatarUrl || lesson?.channelAvatarUrl || null;
+      const bestChannelUrl = (latest as any).channelUrl || sortedSessions.find((s) => (s as any).channelUrl)?.channelUrl || (lesson as any)?.channelUrl || undefined;
 
-      const existingIdx = merged.findIndex((m) => {
-        if (isCustomActivity) {
-          return (
-            m.id === item.id ||
-            (m.lessonId === "custom" &&
-              m.customTitle === item.customTitle &&
-              m.category === item.category &&
-              m.actionType === item.actionType &&
-              Math.abs(new Date(m.timestamp).getTime() - new Date(item.timestamp).getTime()) < 30 * 60 * 1000)
-          );
-        }
-        return (
-          m.lessonId === item.lessonId &&
-          m.actionType === item.actionType &&
-          Math.abs(new Date(m.timestamp).getTime() - new Date(item.timestamp).getTime()) < 30 * 60 * 1000
-        );
+      aggregated.push({
+        ...latest,
+        id: latest.id,
+        timestamp: latest.timestamp, // Most recent activity timestamp of that day
+        durationSeconds: totalDurationSeconds, // Sum of duration of all sessions for that day
+        actionType: latest.actionType || (isAudioOrVideoLesson ? "listen" : "read"),
+        status: isLessonDone ? "completed" : (latest.status || "in_progress"),
+        notes: bestNotes,
+        tags: bestTags,
+        coverUrl: bestCoverUrl,
+        channelName: bestChannelName,
+        channelAvatarUrl: bestChannelAvatarUrl,
+        channelUrl: bestChannelUrl,
+        customTitle: latest.customTitle,
+        category: latest.category,
+        mode: latest.mode,
       });
-
-      if (existingIdx !== -1) {
-        const existing = merged[existingIdx];
-        const isCompleted =
-          existing.status === "completed" ||
-          itemWithStatus.status === "completed" ||
-          existing.actionType === "complete" ||
-          itemWithStatus.actionType === "complete";
-
-        merged[existingIdx] = {
-          ...existing,
-          ...itemWithStatus,
-          actionType: item.actionType || existing.actionType,
-          status: isCompleted ? "completed" : (existing.status || "in_progress"),
-          durationSeconds: Math.max(existing.durationSeconds || 0, itemWithStatus.durationSeconds || 0),
-          notes: itemWithStatus.notes !== undefined && itemWithStatus.notes !== "" ? itemWithStatus.notes : existing.notes,
-          tags: itemWithStatus.tags && itemWithStatus.tags.length > 0 ? itemWithStatus.tags : existing.tags,
-          channelName: itemWithStatus.channelName !== undefined ? itemWithStatus.channelName : existing.channelName,
-          channelAvatarUrl: itemWithStatus.channelAvatarUrl !== undefined ? itemWithStatus.channelAvatarUrl : existing.channelAvatarUrl,
-          channelUrl: (itemWithStatus as any).channelUrl !== undefined ? (itemWithStatus as any).channelUrl : (existing as any).channelUrl,
-          customTitle: itemWithStatus.customTitle || existing.customTitle,
-          category: itemWithStatus.category || existing.category,
-        };
-      } else {
-        merged.push(itemWithStatus);
-      }
     }
-    return merged;
+
+    // Sort all aggregated cards strictly by latest timestamp DESC
+    return aggregated.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime() || 0;
+      const timeB = new Date(b.timestamp).getTime() || 0;
+      return timeB - timeA;
+    });
   }, [history, lessons]);
 
   // Aggregate stats scoped to selected period, language & month
