@@ -380,7 +380,7 @@ export default function FocusPinnedPlayer({
   }, [playbackRate, useLocalMedia]);
 
   return (
-    <div ref={rootRef} className="sticky top-0 z-50 w-full bg-zinc-950 shadow-xl shadow-black/50">
+    <div ref={rootRef} className="shrink-0 w-full z-20 bg-zinc-950 shadow-xl shadow-black/50">
       {/* Control bar */}
       <div className="flex items-center justify-between h-11 px-3 bg-zinc-900 border-b border-zinc-800">
         {/* Left: Exit Focus + title */}
@@ -502,7 +502,7 @@ export default function FocusPinnedPlayer({
           collapsed ? "h-0 min-h-0 max-h-0 opacity-0 overflow-hidden pointer-events-none" : "h-auto opacity-100"
         }`}
       >
-        <div style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }} className="bg-black relative">
+        <div style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }} className="bg-black relative max-h-[35vh] sm:max-h-[40vh]">
           {useLocalMedia && localMediaUrl ? (
             <video
               ref={videoElRef}

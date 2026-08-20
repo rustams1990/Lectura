@@ -1,13 +1,13 @@
 import React from 'react';
-import { Languages, X, BookMarked, BookOpen, GraduationCap, TrendingUp, History, Sparkles, Settings, PlusCircle } from 'lucide-react';
+import { Languages, X, BookMarked, BookOpen, GraduationCap, TrendingUp, History, Sparkles, Settings, PlusCircle, Mic2 } from 'lucide-react';
 import { Lesson } from '../../types';
 import { useTranslation } from 'react-i18next';
 
 interface AppSidebarProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (isOpen: boolean) => void;
-  activeTab: 'library' | 'read' | 'practice' | 'statistics' | 'history';
-  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'statistics' | 'history') => void;
+  activeTab: 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts';
+  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts') => void;
   showImportForm: boolean;
   setShowImportForm: (show: boolean) => void;
   activeLesson: Lesson | null;
@@ -157,6 +157,23 @@ export default function AppSidebar({
             >
               <History className="w-4 h-4 shrink-0 text-teal-600 dark:text-teal-400" />
               {t('sidebar.history', 'История чтения')}
+            </button>
+
+            <button
+              id="tab-podcasts-mode"
+              onClick={() => {
+                setActiveTab("podcasts");
+                setShowImportForm(false);
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                activeTab === "podcasts" && !showImportForm
+                  ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
+                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
+              }`}
+            >
+              <Mic2 className="w-4 h-4 shrink-0 text-teal-600 dark:text-teal-400" />
+              {t('sidebar.podcasts', 'Подкасты')}
             </button>
           </div>
 

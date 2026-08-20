@@ -1,13 +1,9 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from "react";
-import { Lesson, LessonType, ReaderSettings } from "../types";
+import { Lesson, LessonType, ReaderSettings, Playlist } from "../types";
 import { safeJsonParse, safeLocalStorageSetItem } from "../utils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
 import { LANGUAGES_SUPPORTED } from "../data";
+import { resolveApiUrl } from "../utils/apiConfig";
 import {
   PlusCircle,
   FileText,
@@ -38,7 +34,13 @@ import {
   Podcast,
   Radio,
   Headphones,
-  Zap
+  Zap,
+  ListVideo,
+  Layers,
+  Search,
+  CheckSquare,
+  Square,
+  Film
 } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
@@ -123,6 +125,9 @@ interface ImportLessonFormProps {
   initialWebUrl?: string | null;
   settings?: ReaderSettings;
   defaultTargetLanguage?: string;
+  playlists?: Playlist[];
+  onAddPlaylist?: (playlist: Playlist) => void;
+  onUpdatePlaylist?: (playlist: Playlist) => void;
 }
 
 export default function ImportLessonForm({
@@ -135,7 +140,10 @@ export default function ImportLessonForm({
   onUpdateLessonType,
   initialWebUrl,
   settings,
-  defaultTargetLanguage
+  defaultTargetLanguage,
+  playlists = [],
+  onAddPlaylist,
+  onUpdatePlaylist
 }: ImportLessonFormProps) {
   const { t, i18n } = useTranslation();
   const { user: activeUser } = useAuth();
@@ -289,7 +297,7 @@ export default function ImportLessonForm({
 
     try {
       const userApiKey = settings?.geminiApiKey || localStorage.getItem("vocab_clone_gemini_key") || "";
-      const response = await fetch("/api/import-url", {
+      const response = await fetch(resolveApiUrl("/api/import-url"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -411,7 +419,7 @@ export default function ImportLessonForm({
 
         const base64Str = dataUrl.split(",")[1];
 
-        const response = await fetch("/api/import-file", {
+        const response = await fetch(resolveApiUrl("/api/import-file"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -552,6 +560,104 @@ export default function ImportLessonForm({
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytSuccessMessage, setYtSuccessMessage] = useState<string | null>(null);
 
+  // YouTube Playlist state
+  const [isYtPlaylistLoading, setIsYtPlaylistLoading] = useState(false);
+  const [ytPlaylistData, setYtPlaylistData] = useState<Playlist | null>(null);
+  const [ytPlaylistTitle, setYtPlaylistTitle] = useState<string>("");
+  const [selectedYtItemIds, setSelectedYtItemIds] = useState<Set<string>>(new Set());
+  const [ytFilterSearch, setYtFilterSearch] = useState<string>("");
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>(editingLesson?.playlistId || "none");
+  const [newPlaylistTitle, setNewPlaylistTitle] = useState<string>("");
+
+  const isYoutubePlaylistUrl = /[?&]list=([a-zA-Z0-9_-]+)/i.test(youtubeUrlInput.trim());
+
+  const handleYtPlaylistFetch = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    const url = youtubeUrlInput.trim();
+    if (!url) {
+      setYtError(t('import.enter_yt_url_err', 'Enter YouTube playlist link'));
+      return;
+    }
+
+    setIsYtPlaylistLoading(true);
+    setYtError(null);
+    setYtSuccessMessage(null);
+
+    try {
+      const apiUrl = resolveApiUrl('/api/youtube-playlist');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          targetLanguage,
+        }),
+      });
+
+      const data = await safeJsonParse(response);
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch YouTube playlist');
+      }
+
+      setYtPlaylistData(data);
+      setYtPlaylistTitle(data.title || "YouTube Playlist");
+      const allItemIds = new Set<string>((data.items || []).map((it: any) => it.id));
+      setSelectedYtItemIds(allItemIds);
+      setYtFilterSearch("");
+      showToast(t('playlist.fetched_success', 'Retrieved playlist "{{title}}" with {{count}} videos!', { title: data.title, count: data.items.length }), 'success');
+    } catch (err: any) {
+      console.error('YouTube playlist fetch failed:', err);
+      setYtError(err.message || 'Failed to fetch YouTube playlist');
+    } finally {
+      setIsYtPlaylistLoading(false);
+    }
+  };
+
+  const handleToggleYtItem = (id: string) => {
+    setSelectedYtItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllYtItems = () => {
+    if (!ytPlaylistData) return;
+    setSelectedYtItemIds(new Set((ytPlaylistData.items || []).map((it) => it.id)));
+  };
+
+  const handleDeselectAllYtItems = () => {
+    setSelectedYtItemIds(new Set());
+  };
+
+  const handleConfirmYtPlaylist = () => {
+    if (!ytPlaylistData) return;
+    const selectedItems = (ytPlaylistData.items || []).filter((it) => selectedYtItemIds.has(it.id));
+    if (selectedItems.length === 0) {
+      showToast(t('playlist.select_at_least_one', 'Select at least one video to import'), 'error');
+      return;
+    }
+
+    const finalPlaylist: Playlist = {
+      ...ytPlaylistData,
+      title: ytPlaylistTitle.trim() || ytPlaylistData.title,
+      items: selectedItems,
+      itemCount: selectedItems.length,
+      thumbnailUrl: selectedItems[0]?.thumbnailUrl || ytPlaylistData.thumbnailUrl,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (onAddPlaylist) {
+      onAddPlaylist(finalPlaylist);
+    }
+    showToast(t('playlist.import_success', 'Playlist "{{title}}" ({{count}} videos) imported successfully!', { title: finalPlaylist.title, count: selectedItems.length }), 'success');
+    onCancel();
+  };
+
   // Fallback state when YouTube lacks subtitles or restricts access
   const [canGenerateFallback, setCanGenerateFallback] = useState(false);
   const [fallbackData, setFallbackData] = useState<{ title: string; coverUrl: string; youtubeId: string | null; youtubeDuration?: number | null } | null>(null);
@@ -610,7 +716,7 @@ export default function ImportLessonForm({
 
     try {
       const userApiKey = settings?.geminiApiKey || localStorage.getItem("vocab_clone_gemini_key") || "";
-      const response = await fetch("/api/youtube-subtitles", {
+      const response = await fetch(resolveApiUrl("/api/youtube-subtitles"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -707,7 +813,7 @@ export default function ImportLessonForm({
       const data = await executeAiWithFailover(
         profiles,
         async (profile) => {
-          const response = await fetch("/api/youtube-fallback-generate", {
+          const response = await fetch(resolveApiUrl("/api/youtube-fallback-generate"), {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -797,7 +903,7 @@ export default function ImportLessonForm({
       let response: Response;
 
       if (audioRawFile) {
-        response = await fetch("/api/transcribe-audio", {
+        response = await fetch(resolveApiUrl("/api/transcribe-audio"), {
           method: "POST",
           headers: {
             "Content-Type": audioMimeType || "audio/mp3",
@@ -808,7 +914,7 @@ export default function ImportLessonForm({
           body: audioRawFile,
         });
       } else {
-        response = await fetch("/api/transcribe-audio", {
+        response = await fetch(resolveApiUrl("/api/transcribe-audio"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -919,7 +1025,7 @@ export default function ImportLessonForm({
     setAudioUploadError(null);
 
     try {
-      const response = await fetch("/api/generate-tts", {
+      const response = await fetch(resolveApiUrl("/api/generate-tts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -956,7 +1062,61 @@ export default function ImportLessonForm({
       handleTranscribeAudio();
       return;
     }
-    if (!title.trim() || !text.trim()) return;
+    let finalPlaylistId: string | null = editingLesson?.playlistId || null;
+
+    if (selectedPlaylistId === "new" && newPlaylistTitle.trim()) {
+      const newPlId = `pl_custom_${Date.now()}`;
+      const newPlItem = {
+        id: `pl_item_${newPlId}_${editingLesson?.id || Date.now().toString()}`,
+        lessonId: editingLesson?.id || Date.now().toString(),
+        videoId: youtubeId || undefined,
+        title: title.trim(),
+        durationSeconds: youtubeDuration || 0,
+        thumbnailUrl: coverUrl || "",
+        transcriptLoaded: true,
+      };
+      const newPl: Playlist = {
+        id: newPlId,
+        title: newPlaylistTitle.trim(),
+        thumbnailUrl: coverUrl || "",
+        sourceType: "custom_collection",
+        itemCount: 1,
+        language: targetLanguage || "en",
+        items: [newPlItem],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      finalPlaylistId = newPlId;
+      if (onAddPlaylist) onAddPlaylist(newPl);
+    } else if (selectedPlaylistId !== "none" && selectedPlaylistId !== "new") {
+      finalPlaylistId = selectedPlaylistId;
+      if (playlists && onUpdatePlaylist) {
+        const existingPl = playlists.find(p => p.id === selectedPlaylistId);
+        if (existingPl) {
+          const existingItems = existingPl.items || [];
+          const currentLessonId = editingLesson?.id || Date.now().toString();
+          if (!existingItems.some(it => it.lessonId === currentLessonId)) {
+            const newPlItem = {
+              id: `pl_item_${selectedPlaylistId}_${currentLessonId}`,
+              lessonId: currentLessonId,
+              videoId: youtubeId || undefined,
+              title: title.trim(),
+              durationSeconds: youtubeDuration || 0,
+              thumbnailUrl: coverUrl || "",
+              transcriptLoaded: true,
+            };
+            onUpdatePlaylist({
+              ...existingPl,
+              itemCount: existingItems.length + 1,
+              items: [...existingItems, newPlItem],
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
+      }
+    } else if (selectedPlaylistId === "none") {
+      finalPlaylistId = null;
+    }
 
     const lessonData: Lesson = {
       id: editingLesson?.id || Date.now().toString(),
@@ -977,6 +1137,7 @@ export default function ImportLessonForm({
       difficulty: difficulty || null,
       difficultyExplanation: difficultyExplanation || null,
       createdAt: editingLesson?.createdAt || Date.now(),
+      playlistId: finalPlaylistId,
     };
 
     onAddLesson(lessonData, Object.keys(pendingImages).length > 0 ? pendingImages : undefined);
@@ -1345,12 +1506,221 @@ export default function ImportLessonForm({
               className="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-red-500/25"
             />
 
+            {/* YouTube Playlist Detected Banner & Dedicated Fetch Action */}
+            {isYoutubePlaylistUrl && !ytPlaylistData && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-2 animate-in fade-in duration-150">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                  <ListVideo className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>{t('playlist.detected_banner', 'YouTube Playlist link detected!')}</span>
+                </div>
+                <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-normal">
+                  {t('playlist.detected_desc', 'Import this entire playlist as a neat single collection container with custom video selection. Subtitles will be loaded lazily on demand!')}
+                </p>
+                <button
+                  type="button"
+                  id="btn-youtube-playlist-fetch"
+                  disabled={isYtPlaylistLoading || isYtLoading}
+                  onClick={handleYtPlaylistFetch}
+                  className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all active:scale-98"
+                >
+                  {isYtPlaylistLoading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>{t('playlist.fetching_meta', 'Fetching playlist metadata...')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ListVideo className="w-4 h-4" />
+                      <span>{t('playlist.import_playlist_btn', '📥 Import as Full YouTube Playlist')}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* YouTube Playlist Preview & Selective Video Import Box */}
+            {ytPlaylistData && (
+              <div className="p-4 bg-white dark:bg-zinc-900 border border-teal-200 dark:border-teal-800/70 rounded-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 shadow-md">
+                {/* Header: Cover + Editable Title + Channel & Info */}
+                <div className="flex flex-col sm:flex-row gap-3 items-start">
+                  {ytPlaylistData.thumbnailUrl && (
+                    <img
+                      src={ytPlaylistData.thumbnailUrl}
+                      alt={ytPlaylistData.title}
+                      className="w-24 aspect-video object-cover rounded-xl border border-zinc-200 dark:border-zinc-800 shrink-0 shadow-xs"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0 space-y-1.5 w-full">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1">
+                        <ListVideo className="w-3.5 h-3.5" />
+                        {t('playlist.custom_import_title', 'YouTube Playlist Video Selection')}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-md">
+                        {ytPlaylistData.items.length} {t('playlist.total_found', 'found')}
+                      </span>
+                    </div>
+
+                    {/* Editable Title Input */}
+                    <div className="space-y-0.5">
+                      <label className="text-[10px] font-bold text-zinc-400 block uppercase">
+                        {t('playlist.edit_title_label', 'Playlist Title')}
+                      </label>
+                      <input
+                        type="text"
+                        value={ytPlaylistTitle}
+                        onChange={(e) => setYtPlaylistTitle(e.target.value)}
+                        placeholder={t('playlist.enter_name', 'Enter playlist title...')}
+                        className="w-full px-3 py-1.5 text-xs font-bold bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 border border-teal-300 dark:border-teal-700/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                      />
+                    </div>
+
+                    <p className="text-[11px] text-zinc-500 truncate">
+                      {ytPlaylistData.channelTitle ? `${ytPlaylistData.channelTitle} • ` : ""}{t('import.study_lang', 'Study')}: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{targetLanguage}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Toolbar: Counter + Select/Deselect All + Filter Search */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-zinc-700 dark:text-zinc-300">
+                    <span>
+                      {t('playlist.selected_count', 'Selected: {{selected}} of {{total}}', {
+                        selected: selectedYtItemIds.size,
+                        total: ytPlaylistData.items.length,
+                      })}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllYtItems}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:hover:bg-teal-900/50 dark:text-teal-300 transition-colors cursor-pointer"
+                    >
+                      {t('playlist.select_all', 'Select All')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllYtItems}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 transition-colors cursor-pointer"
+                    >
+                      {t('playlist.deselect_all', 'Deselect All')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Optional Search Filter in playlist */}
+                {ytPlaylistData.items.length > 5 && (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                    <input
+                      type="text"
+                      value={ytFilterSearch}
+                      onChange={(e) => setYtFilterSearch(e.target.value)}
+                      placeholder={t('playlist.filter_search_placeholder', 'Filter videos in playlist...')}
+                      className="w-full pl-8.5 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-teal-500/40"
+                    />
+                  </div>
+                )}
+
+                {/* Scrollable video list */}
+                <div className="max-h-[380px] overflow-y-auto space-y-1.5 p-1.5 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-xl">
+                  {ytPlaylistData.items
+                    .filter((it) => !ytFilterSearch || it.title.toLowerCase().includes(ytFilterSearch.toLowerCase()))
+                    .map((item, idx) => {
+                      const isSelected = selectedYtItemIds.has(item.id);
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => handleToggleYtItem(item.id)}
+                          className={`flex items-center gap-3 p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                            isSelected
+                              ? "bg-white dark:bg-zinc-900 border-teal-300 dark:border-teal-800/80 shadow-2xs"
+                              : "bg-zinc-100/50 dark:bg-zinc-900/40 border-transparent opacity-60 hover:opacity-100"
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleYtItem(item.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer accent-teal-600"
+                          />
+
+                          {/* Index badge */}
+                          <span className="text-[11px] font-mono font-bold text-zinc-400 w-5 text-right shrink-0">
+                            #{idx + 1}
+                          </span>
+
+                          {/* Thumbnail with duration */}
+                          <div className="relative w-14 aspect-video rounded-md overflow-hidden bg-black shrink-0 border border-zinc-700/30">
+                            {item.thumbnailUrl ? (
+                              <img
+                                src={item.thumbnailUrl}
+                                alt={item.title}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-500">
+                                <Film className="w-3.5 h-3.5" />
+                              </div>
+                            )}
+                            {item.durationSeconds > 0 && (
+                              <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 bg-black/80 text-white font-mono font-bold text-[9px] rounded">
+                                {Math.floor(item.durationSeconds / 60)}:{String(item.durationSeconds % 60).padStart(2, '0')}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Title */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-1">
+                              {item.title}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={selectedYtItemIds.size === 0}
+                    onClick={handleConfirmYtPlaylist}
+                    className="flex-1 py-2.5 px-4 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>
+                      {t('playlist.save_playlist_btn', 'Сохранить плейлист ({{count}} видео)', {
+                        count: selectedYtItemIds.size,
+                      })}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setYtPlaylistData(null);
+                      setSelectedYtItemIds(new Set());
+                    }}
+                    className="py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    {t('common.cancel', 'Cancel')}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons: YouTube Subtitles vs AI Speech-to-Text vs Faster-Whisper Background */}
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
                 id="btn-youtube-fetch"
-                disabled={isYtLoading}
+                disabled={isYtLoading || isYtPlaylistLoading}
                 onClick={(e) => handleYtFetch(e, "auto")}
                 className="flex-1 py-2.5 px-3 bg-red-50/80 hover:bg-red-100/90 dark:bg-red-950/30 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 font-extrabold text-xs rounded-xl border border-red-200/80 dark:border-red-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
                 title={t('import.yt_auto_tooltip', 'Import official or auto-generated YouTube subtitles (falls back to AI if missing)')}
@@ -1371,7 +1741,7 @@ export default function ImportLessonForm({
               <button
                 type="button"
                 id="btn-youtube-ai-fetch"
-                disabled={isYtLoading}
+                disabled={isYtLoading || isYtPlaylistLoading}
                 onClick={(e) => handleYtFetch(e, "force_ai")}
                 className="flex-1 py-2.5 px-3 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
                 title={t('import.yt_ai_tooltip', 'Directly transcribe video speech into timestamped sentences using Gemini AI Speech-to-Text')}
@@ -1392,7 +1762,7 @@ export default function ImportLessonForm({
               <button
                 type="button"
                 id="btn-youtube-whisper-fetch"
-                disabled={isYtLoading}
+                disabled={isYtLoading || isYtPlaylistLoading}
                 onClick={handleWhisperQueueSubmit}
                 className="flex-1 py-2.5 px-3 bg-emerald-50/90 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
                 title={t('import.yt_whisper_tooltip', 'Enqueue in background and transcribe locally using Faster-Whisper CPU')}
@@ -1786,6 +2156,14 @@ export default function ImportLessonForm({
                       alt="" 
                       aria-hidden="true"
                       className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 select-none pointer-events-none"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (target.src.includes("/maxresdefault.jpg")) {
+                          target.src = target.src.replace("/maxresdefault.jpg", "/sddefault.jpg");
+                        } else if (target.src.includes("/sddefault.jpg")) {
+                          target.src = target.src.replace("/sddefault.jpg", "/hqdefault.jpg");
+                        }
+                      }}
                     />
                     {/* Foreground sharp image shown completely (cover for articles, contain for books) */}
                     <img 
@@ -1793,7 +2171,16 @@ export default function ImportLessonForm({
                       alt="Cover preview" 
                       className={`relative z-10 ${selectedType === 'article' ? 'w-full h-full object-cover' : 'max-w-full max-h-full object-contain'} rounded shadow-sm select-none`}
                       onError={(e) => {
-                        console.warn("Cover image failed to load:", coverUrl);
+                        const target = e.currentTarget;
+                        if (target.src.includes("/maxresdefault.jpg")) {
+                          const fallback = target.src.replace("/maxresdefault.jpg", "/sddefault.jpg");
+                          target.src = fallback;
+                          setCoverUrl(fallback);
+                        } else if (target.src.includes("/sddefault.jpg")) {
+                          const fallback = target.src.replace("/sddefault.jpg", "/hqdefault.jpg");
+                          target.src = fallback;
+                          setCoverUrl(fallback);
+                        }
                       }}
                     />
                   </>
@@ -2011,6 +2398,45 @@ export default function ImportLessonForm({
           )}
         </div>
         )}
+
+        {/* Playlist / Collection Assignment */}
+        <div className="space-y-2.5 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center gap-2">
+            <ListVideo className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+              {t('playlist.select_playlist_label', 'Playlist / Collection')}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <select
+              id="sel-playlist"
+              value={selectedPlaylistId}
+              onChange={(e) => setSelectedPlaylistId(e.target.value)}
+              className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
+            >
+              <option value="none">{t('playlist.none_direct', 'None (Direct to Library)')}</option>
+              <option value="new">+ {t('playlist.create_new', 'Create New Playlist...')}</option>
+              {(playlists || []).map((pl) => (
+                <option key={pl.id} value={pl.id}>
+                  📁 {pl.title} ({pl.itemCount || pl.items?.length || 0} {t('playlist.videos', 'videos')})
+                </option>
+              ))}
+            </select>
+
+            {selectedPlaylistId === "new" && (
+              <div className="animate-in fade-in slide-in-from-top-1 duration-150">
+                <input
+                  type="text"
+                  value={newPlaylistTitle}
+                  onChange={(e) => setNewPlaylistTitle(e.target.value)}
+                  placeholder={t('playlist.enter_name', 'Enter new playlist title...')}
+                  className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 border border-teal-300 dark:border-teal-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 placeholder-zinc-400"
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Buttons panel */}

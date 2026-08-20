@@ -7,8 +7,10 @@ const storeOptions = {
 };
 
 export const lessonsStore = localforage.createInstance({ ...storeOptions, storeName: 'lessons' });
+export const playlistsStore = localforage.createInstance({ ...storeOptions, storeName: 'playlists' });
 export const vocabStore = localforage.createInstance({ ...storeOptions, storeName: 'vocab' });
 export const settingsStore = localforage.createInstance({ ...storeOptions, storeName: 'settings' });
+export const translationsStore = localforage.createInstance({ ...storeOptions, storeName: 'sentence_translations' });
 
 export async function migrateFromLocalStorage() {
   const isMigrated = await settingsStore.getItem('vocab_clone_migrated_v1');
@@ -106,6 +108,7 @@ export async function clearLocalUserDataCache() {
         (key.startsWith("vocab_clone_words") ||
          key.startsWith("vocab_clone_aliases") ||
          key.startsWith("vocab_clone_lessons") ||
+         key.startsWith("vocab_clone_playlists") ||
          key.startsWith("vocab_clone_lessontypes") ||
          key.startsWith("vocab_clone_listening") ||
          key.startsWith("vocab_clone_reading_history") ||
@@ -119,6 +122,7 @@ export async function clearLocalUserDataCache() {
     keysToRemove.forEach((k) => localStorage.removeItem(k));
 
     await lessonsStore.clear();
+    await playlistsStore.clear();
     await vocabStore.clear();
     await settingsStore.removeItem("vocab_clone_reading_history");
     await settingsStore.removeItem("vocab_clone_listening");

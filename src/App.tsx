@@ -4,11 +4,12 @@
  */
 
 import { useUIStore } from "./store/uiStore";
+import { useSettingsStore } from "./store/settingsStore";
 import ReaderScreen from "./components/ReaderScreen";
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
-import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry } from "./types";
+import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import AppSidebar from "./components/layout/AppSidebar";
 import AppHeader from "./components/layout/AppHeader";
@@ -24,6 +25,7 @@ import { useVocab } from "./context/VocabContext";
 import { useToast } from "./context/ToastContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
+import PlaylistDetailView from "./components/playlist/PlaylistDetailView";
 import VocabularyPractice from "./components/practice/VocabularyPractice";
 import MatchPairsModal from "./components/MatchPairsModal";
 import TextSettingsControls from "./components/TextSettingsControls";
@@ -44,13 +46,16 @@ import YoutubePlayerWindow from "./components/YoutubePlayerWindow";
 import FocusPinnedPlayer from "./components/FocusPinnedPlayer";
 import GlobalAudioPlayer from "./components/player/GlobalAudioPlayer";
 import BottomAudioBar from "./components/player/BottomAudioBar";
+import FullscreenAudioPlayerModal from "./components/player/FullscreenAudioPlayerModal";
 import QueueModal from "./components/player/QueueModal";
 import InAppUpdateModal from "./components/InAppUpdateModal";
+import PodcastsPage from "./components/PodcastsPage";
 import { checkForGitHubUpdate, GitHubReleaseInfo } from "./services/inAppUpdaterService";
 import { usePlaylistStore } from "./store/playlistStore";
-import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History } from "lucide-react";
+import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History, Mic2 } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem } from "./utils";
-import { lessonsStore, vocabStore, settingsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
+import { resolveApiUrl } from "./utils/apiConfig";
+import { lessonsStore, vocabStore, settingsStore, playlistsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { whisperQueueService } from "./services/whisperQueueService";
 import { useTranslation, Trans } from "react-i18next";
 
@@ -70,11 +75,11 @@ const readerThemes = {
     border: "border-[#eddcb9] dark:border-zinc-800",
   },
   sepia: {
-    pageBg: "bg-[#f5edd0] dark:bg-zinc-950",
-    text: "text-[#4d3319] dark:text-zinc-100",
-    headerBg: "bg-[#f5ebd0]/90 dark:bg-zinc-900/60 border-[#e0cea1] dark:border-zinc-800",
-    cardBg: "bg-[#f5ebd0] dark:bg-zinc-900",
-    border: "border-[#e0cea1] dark:border-zinc-800",
+    pageBg: "bg-[#efe9dc] dark:bg-zinc-950",
+    text: "text-[#2c2a29] dark:text-zinc-100",
+    headerBg: "bg-[#f7f4eb]/90 dark:bg-zinc-900/60 border-[#e5dec9] dark:border-zinc-800",
+    cardBg: "bg-[#f7f4eb] dark:bg-zinc-900",
+    border: "border-[#e5dec9] dark:border-zinc-800",
   },
   slate: {
     pageBg: "bg-slate-100/90 dark:bg-slate-950",
@@ -142,6 +147,13 @@ export default function App() {
   useEffect(() => {
     lessonsRef.current = lessons;
   }, [lessons]);
+
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const playlistsRef = useRef<Playlist[]>(playlists);
+  useEffect(() => {
+    playlistsRef.current = playlists;
+  }, [playlists]);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
 
   const [lessonTypes, setLessonTypes] = useState<LessonType[]>(DEFAULT_LESSON_TYPES);
   const hasActiveQueue = usePlaylistStore((state) => state.queue.length > 0);
@@ -618,6 +630,12 @@ export default function App() {
         return;
       }
 
+      // 4. Close Playlist detail view if open
+      if (selectedPlaylistId) {
+        setSelectedPlaylistId(null);
+        return;
+      }
+
       // 4. Close import book form if open
       if (showImportForm) {
         setShowImportForm(false);
@@ -743,6 +761,14 @@ export default function App() {
 
         const zs = await settingsStore.getItem('vocab_clone_interface_zoom');
         if (zs !== null) setZoomScale(parseInt(zs as string, 10));
+
+        const loadedPlaylists: Playlist[] = [];
+        await playlistsStore.iterate<Playlist, void>((val) => {
+          if (val && val.id) loadedPlaylists.push(val);
+        });
+        if (loadedPlaylists.length > 0) {
+          setPlaylists(loadedPlaylists);
+        }
 
       } catch (e) {
         console.error("App DB load error:", e);
@@ -953,7 +979,7 @@ export default function App() {
         fetchHeaders["Authorization"] = `Bearer ${savedToken}`;
       }
       const fetchStart = performance.now();
-      const res = await fetch("/api/server-db", {
+      const res = await fetch(resolveApiUrl("/api/server-db"), {
         headers: fetchHeaders
       });
       console.log(`[Load] /api/server-db responded in ${(performance.now() - fetchStart).toFixed(0)}ms, status=${res.status}`);
@@ -982,6 +1008,13 @@ export default function App() {
         const body = await safeJsonParse(res);
         if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 8000) {
           setIsSyncing(false);
+          setSyncProgress({
+            isSyncing: false,
+            percent: 100,
+            message: "В сети",
+            error: false,
+            lastSyncTime: lastSyncSuccessTime.current || Date.now(),
+          });
           return;
         }
         if (body.status === "ok" && body.data) {
@@ -991,6 +1024,12 @@ export default function App() {
           if (d.lessons && Array.isArray(d.lessons)) {
             setLessons(d.lessons);
             lessonsStore.setItem("lessons", d.lessons).catch(() => {});
+          }
+          if (d.playlists && Array.isArray(d.playlists)) {
+            setPlaylists(d.playlists);
+            d.playlists.forEach((pl: Playlist) => {
+              playlistsStore.setItem(pl.id, pl).catch(() => {});
+            });
           }
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
           setVocab(normalizedCloudVocab);
@@ -1144,7 +1183,9 @@ export default function App() {
     currentPinned = pinnedLanguages,
     currentHidden = hiddenLanguages,
     currentSelectedLang = selectedTargetLanguage,
-    deletedWordKeys?: string[]
+    deletedWordKeys?: string[],
+    currentPlaylists = playlistsRef.current,
+    deletedPlaylistIds?: string[]
   ) => {
     if (storageMode !== "server") return;
     if (localSyncError) return;
@@ -1198,12 +1239,13 @@ export default function App() {
       const dailyWordGoal = rawGoal ? parseInt(rawGoal, 10) : undefined;
       const lastActiveLessonId = localStorage.getItem("vocab_clone_last_active_lesson_id") || undefined;
 
-      const res = await fetch("/api/server-db", {
+      const res = await fetch(resolveApiUrl("/api/server-db"), {
         method: "POST",
         headers: postHeaders,
         body: JSON.stringify({
           data: {
             lessons: currentLessons,
+            playlists: currentPlaylists,
             lessonTypes: currentTypes,
             vocab: currentVocab,
             wordLinks: currentLinks,
@@ -1221,6 +1263,7 @@ export default function App() {
             videoProgress,
             readingProgress,
             deletedLessonIds,
+            deletedPlaylistIds,
             deletedWordKeys,
           },
         }),
@@ -1378,6 +1421,7 @@ export default function App() {
   }, [wordLinks]);
 
   useEffect(() => {
+    useSettingsStore.getState().setSettings(readerSettings);
     safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
     settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
     if (storageMode === "server") {
@@ -2233,6 +2277,133 @@ export default function App() {
     }
   };
 
+  const handleAddPlaylist = (newPlaylist: Playlist) => {
+    lastLocalChangeTime.current = Date.now();
+    const next = [newPlaylist, ...playlists.filter(p => p.id !== newPlaylist.id)];
+    setPlaylists(next);
+    playlistsRef.current = next;
+    playlistsStore.setItem(newPlaylist.id, newPlaylist).catch(() => {});
+    if (storageMode === "server") {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        next
+      ).catch((err) => console.error(err));
+    }
+  };
+
+  const handleUpdatePlaylist = (updatedPlaylist: Playlist) => {
+    lastLocalChangeTime.current = Date.now();
+    const next = playlists.map(p => p.id === updatedPlaylist.id ? updatedPlaylist : p);
+    setPlaylists(next);
+    playlistsRef.current = next;
+    playlistsStore.setItem(updatedPlaylist.id, updatedPlaylist).catch(() => {});
+    if (storageMode === "server") {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        next
+      ).catch((err) => console.error(err));
+    }
+  };
+
+  const handleDeletePlaylist = (playlistId: string) => {
+    lastLocalChangeTime.current = Date.now();
+    const next = playlists.filter(p => p.id !== playlistId);
+    setPlaylists(next);
+    playlistsRef.current = next;
+    playlistsStore.removeItem(playlistId).catch(() => {});
+    if (selectedPlaylistId === playlistId) {
+      setSelectedPlaylistId(null);
+    }
+    if (storageMode === "server") {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        next,
+        [playlistId]
+      ).catch((err) => console.error(err));
+    }
+  };
+
+  const handleToggleArchivePlaylist = (playlistId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    lastLocalChangeTime.current = Date.now();
+    let isNowArchived = false;
+    const next = playlists.map((p) => {
+      if (p.id === playlistId) {
+        isNowArchived = !p.isArchived;
+        const updated = {
+          ...p,
+          isArchived: !p.isArchived,
+          updatedAt: new Date().toISOString(),
+        };
+        playlistsStore.setItem(p.id, updated).catch(() => {});
+        return updated;
+      }
+      return p;
+    });
+    setPlaylists(next);
+    playlistsRef.current = next;
+    showToast(
+      isNowArchived
+        ? t("library.archived_toast", "Moved to archive")
+        : t("library.unarchived_toast", "Restored from archive"),
+      "info"
+    );
+    if (storageMode === "server") {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        next
+      ).catch((err) => console.error(err));
+    }
+  };
+
   // Sync audiourl uploads or base64 generated state
   const handleAudioUploaded = (audioUrl: string, base64: string | null) => {
     lastLocalChangeTime.current = Date.now();
@@ -2302,32 +2473,43 @@ export default function App() {
       ? "max-w-[1560px]"
       : "max-w-full lg:px-12 md:px-8";
 
+  const handleExitFocusMode = useCallback(() => {
+    if (activeLesson) {
+      try {
+        sessionStorage.setItem(`dismissed_focus_${activeLesson.id}`, "true");
+      } catch (_) {}
+    }
+    setIsFocusMode(false);
+  }, [activeLesson, setIsFocusMode]);
+
   // Full-Screen Isolated Focused Reading Room
   if (isFocusMode && activeTab === "read" && activeLesson) {
     const focusTheme = readerThemes[readerSettings.readerTheme] || readerThemes.default;
     const hasYouTube = !!activeLesson.youtubeId;
     return (
-      <div className={`min-h-screen ${focusTheme.pageBg} ${focusTheme.text} flex flex-col font-sans transition-colors duration-200`}>
+      <div className={`h-screen h-[100dvh] max-h-[100dvh] ${focusTheme.pageBg} ${focusTheme.text} flex flex-col overflow-hidden font-sans transition-colors duration-200`}>
 
         {/* ── Mobile/Tablet: Pinned YouTube player sticky at top ─────────── */}
         {hasYouTube && showYoutubePlayer && isMobileTablet && (
-          <FocusPinnedPlayer
-            lesson={activeLesson}
-            onClose={() => setShowYoutubePlayer(false)}
-            onExitFocus={() => setIsFocusMode(false)}
-            onListeningTick={handleListeningTick}
-            onVideoEnded={() => handleMediaEnded(activeLesson)}
-          />
+          <div className="shrink-0 w-full z-20">
+            <FocusPinnedPlayer
+              lesson={activeLesson}
+              onClose={() => setShowYoutubePlayer(false)}
+              onExitFocus={handleExitFocusMode}
+              onListeningTick={handleListeningTick}
+              onVideoEnded={() => handleMediaEnded(activeLesson)}
+            />
+          </div>
         )}
 
         {/* ── Minimal bar: always shown on desktop, or on mobile when player is hidden ── */}
         {!(hasYouTube && showYoutubePlayer && isMobileTablet) && (
           <div
-            className={`sticky top-0 z-30 px-4 sm:px-6 py-2.5 border-b ${focusTheme.border} ${focusTheme.headerBg} backdrop-blur-md flex items-center gap-2`}
+            className={`shrink-0 w-full z-20 px-4 sm:px-6 py-2.5 border-b ${focusTheme.border} ${focusTheme.headerBg} backdrop-blur-md flex items-center gap-2`}
           >
             <button
               id="focus-exit-btn"
-              onClick={() => setIsFocusMode(false)}
+              onClick={handleExitFocusMode}
               className={`flex items-center gap-1.5 px-3 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90 font-bold text-xs rounded-xl transition-all active:scale-97 cursor-pointer shadow-xs`}
             >
               ← {t("app.focus_exit", "Выйти из фокуса")}
@@ -2349,9 +2531,9 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Focused main container ────────────────────────────────────── */}
+        {/* ── Focused main container (Subtitles & text isolated scroll) ─── */}
         <main
-          className={`flex-grow w-full mx-auto p-4 sm:p-6 lg:px-8 grid grid-cols-12 gap-6 items-start transition-all duration-300 ${layoutContainerClass}`}
+          className={`flex-1 overflow-y-auto overscroll-contain w-full mx-auto p-4 sm:p-6 lg:px-8 grid grid-cols-12 gap-6 items-start transition-all duration-300 ${layoutContainerClass}`}
         >
           {/* Middle — Reader + optional Audio player */}
           <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4">
@@ -2376,7 +2558,7 @@ export default function App() {
           </div>
 
           {/* Right Sidebar — Word dictionary (desktop) */}
-          <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[85px] max-h-[calc(100vh-110px)] overflow-y-auto pr-1 z-25">
+          <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-2 max-h-[calc(100vh-80px)] overflow-y-auto pr-1 z-25">
             <WordExplainer
               word={selectedWord}
               sentence={selectedContext}
@@ -2498,7 +2680,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200`}>
+    <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200 overflow-x-hidden w-full max-w-[100vw]`}>
       
       <AppSidebar
         isSidebarOpen={isSidebarOpen}
@@ -2551,13 +2733,18 @@ export default function App() {
       >
         
         {/* Dynamic Achievements HUD Panel */}
-        {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && activeTab !== "library" && <StatsWidget stats={calculatedStats} />}
+        {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && activeTab !== "library" && activeTab !== "podcasts" && activeTab !== "statistics" && (
+          <StatsWidget stats={calculatedStats} />
+        )}
 
         {showImportForm || editingLesson ? (
           /* Import customized forms screen */
           <div className="py-2">
             <ImportLessonForm
               editingLesson={editingLesson}
+              playlists={playlists}
+              onAddPlaylist={handleAddPlaylist}
+              onUpdatePlaylist={handleUpdatePlaylist}
               lessonTypes={lessonTypes}
               onCreateLessonType={handleCreateLessonType}
               onDeleteLessonType={handleDeleteLessonType}
@@ -2591,11 +2778,81 @@ export default function App() {
               settings={readerSettings}
             />
           </div>
+        ) : activeTab === "library" && selectedPlaylistId && playlists.find(p => p.id === selectedPlaylistId) ? (
+          /* Playlist Detail View Screen */
+          <div className="py-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+            <PlaylistDetailView
+              playlist={playlists.find(p => p.id === selectedPlaylistId)!}
+              lessons={lessons}
+              history={history}
+              onBack={() => setSelectedPlaylistId(null)}
+              onOpenLesson={(id) => {
+                setSelectedPlaylistId(null);
+                setActiveLessonId(id);
+                setSelectedWord(null);
+                setActiveTab("read");
+                safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", id);
+                try {
+                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (token) headers["Authorization"] = `Bearer ${token}`;
+                  if (syncKey) headers["x-sync-key"] = syncKey;
+                  fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
+                } catch (_) {}
+              }}
+              onSelectLesson={(id) => {
+                setSelectedPlaylistId(null);
+                setActiveLessonId(id);
+                setSelectedWord(null);
+                setActiveTab("read");
+                safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", id);
+                try {
+                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (token) headers["Authorization"] = `Bearer ${token}`;
+                  if (syncKey) headers["x-sync-key"] = syncKey;
+                  fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
+                } catch (_) {}
+              }}
+              onPlayQueue={(items, startIndex) => {
+                usePlaylistStore.getState().setQueue(items, startIndex, true);
+              }}
+              onUpdatePlaylist={handleUpdatePlaylist}
+              onDeletePlaylist={handleDeletePlaylist}
+              onToggleArchive={handleToggleArchivePlaylist}
+              onAddOrUpdateLesson={(newLesson) => {
+                handleAddLesson(newLesson);
+              }}
+              onAddLessonToLibrary={(newLesson) => {
+                handleAddLesson(newLesson);
+              }}
+              vocab={vocab}
+              wordLinks={wordLinks}
+              languageFlags={languageFlags}
+              settings={readerSettings}
+            />
+          </div>
         ) : activeTab === "library" ? (
           /* Beautiful visual library homepage */
           <div className="py-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
             <LibraryHome
               lessons={lessons}
+              playlists={playlists}
+              onSelectPlaylist={(id) => setSelectedPlaylistId(id)}
+              onDeletePlaylist={(id, e) => {
+                e.stopPropagation();
+                handleDeletePlaylist(id);
+              }}
+              onToggleArchivePlaylist={(id, e) => {
+                if (e) e.stopPropagation();
+                handleToggleArchivePlaylist(id, e);
+              }}
+              onUpdatePlaylist={handleUpdatePlaylist}
+              onAddOrUpdateLesson={(newLesson) => {
+                handleAddLesson(newLesson);
+              }}
               lessonTypes={lessonTypes}
               onSelectLesson={(id) => {
                 setActiveLessonId(id);
@@ -2608,7 +2865,7 @@ export default function App() {
                   const headers: Record<string, string> = { "Content-Type": "application/json" };
                   if (token) headers["Authorization"] = `Bearer ${token}`;
                   if (syncKey) headers["x-sync-key"] = syncKey;
-                  fetch("/api/user-metadata", { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
+                  fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
                 } catch (_) {}
               }}
               onOpenImportForm={() => setShowImportForm(true)}
@@ -2683,6 +2940,26 @@ export default function App() {
               onUpdateSettings={setReaderSettings}
             />
           </div>
+        ) : activeTab === "podcasts" ? (
+          /* Podcasts Section */
+          <div className="animate-in fade-in duration-150 h-full">
+            <PodcastsPage
+              lessons={lessons}
+              history={history}
+              selectedTargetLanguage={selectedTargetLanguage}
+              onOpenLesson={(lessonId) => {
+                setActiveLessonId(lessonId);
+                setSelectedWord(null);
+                setActiveTab("read");
+              }}
+              onToggleCompleteLesson={(lessonId) => {
+                const target = lessons.find(l => l.id === lessonId);
+                if (target) {
+                  recordHistoryActivity(target, "complete");
+                }
+              }}
+            />
+          </div>
         ) : (
           /* Main Interactive Reader View Grid */
           <ReaderScreen
@@ -2724,7 +3001,6 @@ export default function App() {
           {t('app.footer', 'Lectura {{version}} © 2026. Interactive system for reading and language learning.', { version: APP_VERSION })}
         </p>
       </footer>
-
       <MatchPairsModal
         isOpen={showMatchPairsModal}
         onClose={() => setShowMatchPairsModal(false)}
@@ -2737,6 +3013,7 @@ export default function App() {
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         lessons={lessons}
+        playlists={playlists}
         languageFlags={languageFlags}
         onSaveLanguageFlag={(lang, flag) => {
           const nextFlags = {
@@ -2788,6 +3065,7 @@ export default function App() {
           const parsedVocab = importedVocab ? normalizeVocabRecord(importedVocab) : vocab;
           const parsedWordLinks = imported.wordLinks ? normalizeWordLinksRecord(imported.wordLinks) : wordLinks;
           const parsedLessons = imported.lessons || lessons;
+          const parsedPlaylists = imported.playlists || playlists;
           const parsedLessonTypes = imported.lessonTypes || lessonTypes;
           const parsedListeningSeconds = imported.listeningSeconds !== undefined ? imported.listeningSeconds : listeningSeconds;
           const parsedLanguageFlags = imported.languageFlags || languageFlags;
@@ -2799,6 +3077,10 @@ export default function App() {
 
           if (imported.lessons) {
             setLessons(imported.lessons);
+          }
+          if (imported.playlists && Array.isArray(imported.playlists)) {
+            setPlaylists(imported.playlists);
+            safeLocalStorageSetItem("vocab_clone_playlists", JSON.stringify(imported.playlists));
           }
           if (imported.lessonTypes) {
             setLessonTypes(imported.lessonTypes);
@@ -2844,6 +3126,7 @@ export default function App() {
 
           // Force update local storage instantly
           if (imported.lessons) safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(imported.lessons));
+          if (imported.playlists) safeLocalStorageSetItem("vocab_clone_playlists", JSON.stringify(imported.playlists));
           if (imported.lessonTypes) safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(imported.lessonTypes));
           if (importedVocab) safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(parsedVocab));
           if (imported.wordLinks) safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(parsedWordLinks));
@@ -2911,6 +3194,28 @@ export default function App() {
             }
           }
         }}
+        onClearHistory={() => {
+          setHistory([]);
+          historyRef.current = [];
+          safeLocalStorageSetItem("vocab_clone_reading_history", "[]");
+          settingsStore.setItem("vocab_clone_reading_history", "[]").catch(() => {});
+          if (storageMode === "server") {
+            syncDataToLocalServer(
+              lessons,
+              lessonTypes,
+              vocab,
+              wordLinks,
+              listeningSeconds,
+              languageFlags,
+              [],
+              undefined,
+              readerSettings,
+              pinnedLanguages,
+              hiddenLanguages,
+              selectedTargetLanguage
+            ).catch(err => console.error("Error clearing history on server:", err));
+          }
+        }}
         isSyncing={isSyncing}
         settings={readerSettings}
         onSettingsChange={(patch) => setReaderSettings(prev => ({ ...prev, ...patch }))}
@@ -2964,6 +3269,15 @@ export default function App() {
 
       {/* Floating Bottom Audio Bar */}
       <BottomAudioBar
+        onOpenLesson={(id) => {
+          setActiveLessonId(id);
+          setSelectedWord(null);
+          setActiveTab("read");
+        }}
+      />
+
+      {/* Fullscreen Mobile Audio Player (Now Playing / Sheet) */}
+      <FullscreenAudioPlayerModal
         onOpenLesson={(id) => {
           setActiveLessonId(id);
           setSelectedWord(null);

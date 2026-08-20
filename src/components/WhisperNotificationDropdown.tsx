@@ -97,7 +97,7 @@ export default function WhisperNotificationDropdown({ onOpenBook }: WhisperNotif
 
       {/* Dropdown Card */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl z-50 p-4 space-y-3.5 animate-in fade-in zoom-in-95 duration-150 font-sans">
+        <div className="absolute right-0 top-full mt-2 w-[90vw] max-w-xs sm:w-80 sm:max-w-none md:w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl z-50 p-4 space-y-3.5 animate-in fade-in zoom-in-95 duration-150 font-sans overflow-hidden">
           
           {/* Header */}
           <div className="flex items-center justify-between pb-2.5 border-b border-zinc-100 dark:border-zinc-800">

@@ -30,7 +30,7 @@ export default function TextSettingsControls({
   const themes: { id: ReaderSettings["readerTheme"]; name: string; bg: string; text: string; border: string }[] = [
     { id: "default", name: "System", bg: "bg-white dark:bg-zinc-900", text: "text-zinc-800 dark:text-zinc-200", border: "border-zinc-200 dark:border-zinc-700" },
     { id: "cream", name: "Cream", bg: "bg-[#faf5eb]", text: "text-[#3d2c16]", border: "border-[#eddcb9]" },
-    { id: "sepia", name: "Sepia", bg: "bg-[#f5edd0]", text: "text-[#4d3319]", border: "border-[#e0cea1]" },
+    { id: "sepia", name: "Sepia", bg: "bg-[#f7f4eb]", text: "text-[#2c2a29]", border: "border-[#e5dec9]" },
     { id: "slate", name: "Slate", bg: "bg-slate-100/90 dark:bg-slate-900", text: "text-slate-800 dark:text-slate-100", border: "border-slate-300 dark:border-slate-800" },
   ];
 
@@ -341,6 +341,29 @@ export default function TextSettingsControls({
                     type="checkbox"
                     checked={settings.autoPunctuationSplit !== false}
                     onChange={(e) => updateKey("autoPunctuationSplit", e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Show Parallel Sentence Translations Toggle */}
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                    {t('explainer.parallel_translations', 'Parallel Translation (T)')}
+                  </span>
+                  <span className="text-[9px] text-zinc-400 font-normal block leading-tight">
+                    {t('explainer.parallel_translations_desc', 'Show line-by-line sentence translations under text')}
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!settings.showSentenceTranslations}
+                    onChange={(e) => updateKey("showSentenceTranslations", e.target.checked)}
                     className="sr-only peer"
                   />
                   <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>

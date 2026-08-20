@@ -18,7 +18,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
 import { UserAvatarDisplay } from "./ProfileModal";
-import { AIProfile, DateFormatOption, TimeFormatOption, FirstDayOfWeekOption, BackupSettings, BackupFileInfo } from "../types";
+import { AIProfile, DateFormatOption, TimeFormatOption, FirstDayOfWeekOption, BackupSettings, BackupFileInfo, Playlist } from "../types";
 import { formatDate, formatTime, getFirstDayOfWeek, resolveLocale } from "../utils/dateUtils";
 import { 
   getOrCreateAiProfiles, testAiProfileConnection, 
@@ -33,6 +33,7 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   lessons: Lesson[];
+  playlists?: Playlist[];
   languageFlags: Record<string, string>;
   onSaveLanguageFlag: (lang: string, flag: string) => void;
   onResetLanguageFlags: () => void;
@@ -59,6 +60,7 @@ interface SettingsModalProps {
   onListeningSecondsChange?: (seconds: number) => void;
   onImportData: (imported: {
     lessons: Lesson[];
+    playlists?: Playlist[];
     lessonTypes: any[];
     vocab: Record<string, any>;
     wordLinks: Record<string, string>;
@@ -75,6 +77,7 @@ interface SettingsModalProps {
   hiddenLanguages?: string[];
   selectedTargetLanguage?: string;
   onClearAllData?: () => void;
+  onClearHistory?: () => void;
   onManualSync?: () => Promise<void>;
   isSyncing?: boolean;
   settings?: Record<string, any>;
@@ -301,6 +304,7 @@ export default function SettingsModal({
   isOpen,
   onClose,
   lessons,
+  playlists = [],
   languageFlags,
   onSaveLanguageFlag,
   onResetLanguageFlags,
@@ -322,9 +326,9 @@ export default function SettingsModal({
   vocab,
   lessonTypes,
   listeningSeconds,
-  onListeningSecondsChange,
   onImportData,
   onClearAllData,
+  onClearHistory,
   onManualSync,
   isSyncing = false,
   settings,
@@ -351,6 +355,7 @@ export default function SettingsModal({
   const [activeSettingsTab, setActiveSettingsTab] = useState<"flags" | "interface" | "audio" | "ai" | "whisper" | "stats" | "ignore_lists" | "storage">("flags");
   const [importStatus, setImportStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [showConfirmClearHistory, setShowConfirmClearHistory] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Automatic & Server Backups State
@@ -367,8 +372,14 @@ export default function SettingsModal({
   const [confirmRestoreBackup, setConfirmRestoreBackup] = useState<BackupFileInfo | null>(null);
   const [isRestoringServerBackup, setIsRestoringServerBackup] = useState<boolean>(false);
 
-  // Mobile Server Connection URL State
-  const [mobileServerInput, setMobileServerInput] = useState<string>(() => getServerBaseUrl() || (typeof window !== "undefined" ? window.location.origin : "http://192.168.0.83:8586"));
+  // Server Connection URL State (Universal Self-Hosted Resolver)
+  const [mobileServerInput, setMobileServerInput] = useState<string>(() => {
+    try {
+      return localStorage.getItem('lectura_custom_server_url') || localStorage.getItem('lectura_mobile_server_url') || '';
+    } catch {
+      return '';
+    }
+  });
   const [testingMobileServer, setTestingMobileServer] = useState<boolean>(false);
   const [mobileServerStatus, setMobileServerStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -574,6 +585,7 @@ export default function SettingsModal({
     dateFormatted: string;
     username?: string;
     lessonsCount: number;
+    playlistsCount?: number;
     wordsCount: number;
   } | null>(null);
 
@@ -587,6 +599,7 @@ export default function SettingsModal({
         username: cleanUsername || undefined,
         exportDate: new Date().toISOString(),
         lessons,
+        playlists: playlists || [],
         lessonTypes,
         vocab,
         wordLinks,
@@ -630,7 +643,7 @@ export default function SettingsModal({
         if (
           !parsed || 
           (typeof parsed !== "object") ||
-          (!parsed.lessons && !parsed.vocab && !parsed.words && !parsed.wordLinks && !parsed.lessonTypes)
+          (!parsed.lessons && !parsed.vocab && !parsed.words && !parsed.wordLinks && !parsed.lessonTypes && !parsed.playlists)
         ) {
           throw new Error(t("settings.err_invalid_structure", "Invalid backup file structure. Must contain at least one list: lessons, words, or links."));
         }
@@ -663,6 +676,7 @@ export default function SettingsModal({
         }
 
         const lessonsCount = parsed.lessons?.length || 0;
+        const playlistsCount = parsed.playlists?.length || 0;
         const wordsCount = Object.keys(parsed.vocab || parsed.words || {}).length || 0;
 
         setConfirmImport({
@@ -670,6 +684,7 @@ export default function SettingsModal({
           dateFormatted,
           username: parsed.username || undefined,
           lessonsCount,
+          playlistsCount,
           wordsCount
         });
       } catch (err: any) {
@@ -686,11 +701,12 @@ export default function SettingsModal({
 
   const handleExecuteImport = () => {
     if (!confirmImport) return;
-    const { data, lessonsCount, wordsCount } = confirmImport;
+    const { data, lessonsCount, playlistsCount, wordsCount } = confirmImport;
     onImportData(data);
+    const plText = playlistsCount ? `, ${playlistsCount} ${t("playlist.collection", "playlists")}` : "";
     setImportStatus({
       type: "success",
-      message: `${t("settings.import_success", "Import complete! Loaded:")} ${lessonsCount} ${t("settings.lessons_unit", "lessons")}, ${wordsCount} ${t("settings.words_unit", "words.")}`
+      message: `${t("settings.import_success", "Import complete! Loaded:")} ${lessonsCount} ${t("settings.lessons_unit", "lessons")}${plText}, ${wordsCount} ${t("settings.words_unit", "words.")}`
     });
     setConfirmImport(null);
   };
@@ -1846,61 +1862,103 @@ export default function SettingsModal({
                 )}
               </div>
 
-              {/* Mobile & Network Server Connection URL (Native Mobile Only) */}
-              {Capacitor.isNativePlatform() && (
-                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+              {/* Universal Server Connection URL (Self-Hosted & Multi-User Ready) */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Server className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                     <h4 className="text-xs sm:text-sm font-black text-zinc-800 dark:text-white uppercase tracking-wider">
-                      {t('settings.server_connection', 'Адрес сервера (Mobile & Local Network)')}
+                      {t('settings.server_connection', 'Server Connection URL')}
                     </h4>
                   </div>
+                  <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 truncate max-w-[200px]">
+                    {getServerBaseUrl()}
+                  </span>
+                </div>
 
-                  <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">
-                    {t('settings.server_connection_desc', 'Укажите адрес вашего сервера Lectura (например, http://192.168.0.83:8586 или https://lectura.local). Все запросы к API, аудио и обложкам будут направляться на этот адрес.')}
-                  </p>
+                <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">
+                  {t('settings.server_connection_desc', 'Specify your custom Lectura server address or leave empty for automatic network host detection.')}
+                </p>
 
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={mobileServerInput}
-                      onChange={(e) => {
-                        setMobileServerInput(e.target.value);
-                        setMobileServerStatus(null);
-                      }}
-                      placeholder="http://192.168.0.83:8586"
-                      className="flex-1 text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
-                    />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={mobileServerInput}
+                    onChange={(e) => {
+                      setMobileServerInput(e.target.value);
+                      setMobileServerStatus(null);
+                    }}
+                    placeholder={`${t('settings.server_auto_placeholder', 'Auto-detect (Current Host)')} [${getServerBaseUrl()}]`}
+                    className="flex-1 text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono"
+                  />
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       disabled={testingMobileServer}
                       onClick={async () => {
                         setTestingMobileServer(true);
-                        const res = await testServerConnection(mobileServerInput);
+                        const targetUrl = mobileServerInput.trim() || getServerBaseUrl();
+                        const res = await testServerConnection(targetUrl);
                         setMobileServerStatus(res);
                         setTestingMobileServer(false);
                         if (res.ok) {
-                          await setServerBaseUrl(mobileServerInput);
-                          showToast(t('settings.server_connected', 'Сервер успешно подключен!'), 'success');
+                          showToast(t('settings.server_test_success', 'Server connection healthy ({{version}})', { version: res.version || 'v2.x' }), 'success');
                         } else {
                           showToast(res.message, 'error');
                         }
                       }}
-                      className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 shadow-sm flex items-center justify-center gap-1.5 shrink-0"
+                      className="px-3.5 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+                      title={t('settings.test_connection', 'Test Connection')}
                     >
                       {testingMobileServer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
-                      <span>{t('settings.test_and_save_server', 'Проверить и Сохранить')}</span>
+                      <span>{t('settings.test_connection', 'Test Connection')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await setServerBaseUrl(mobileServerInput.trim());
+                        showToast(mobileServerInput.trim() ? t('settings.server_saved', 'Server URL saved!') : t('settings.server_auto_saved', 'Reset to automatic server detection!'), 'success');
+                      }}
+                      className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{t('common.save', 'Save')}</span>
                     </button>
                   </div>
+                </div>
 
-                  {mobileServerStatus && (
-                    <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${mobileServerStatus.ok ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800' : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
-                      {mobileServerStatus.ok ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                      <span>{mobileServerStatus.message}</span>
-                    </div>
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileServerInput('');
+                      setMobileServerStatus(null);
+                    }}
+                    className="text-[10px] px-2.5 py-1 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-sans font-bold hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer flex items-center gap-1"
+                  >
+                    ⚡ {t('settings.auto_detect', 'Auto-detect (Current Host)')}
+                  </button>
+                  {typeof window !== 'undefined' && window.location.origin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileServerInput(window.location.origin);
+                        setMobileServerStatus(null);
+                      }}
+                      className="text-[10px] px-2.5 py-1 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
+                    >
+                      {window.location.origin}
+                    </button>
                   )}
                 </div>
-              )}
+
+                {mobileServerStatus && (
+                  <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${mobileServerStatus.ok ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800' : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+                    {mobileServerStatus.ok ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                    <span>{mobileServerStatus.message}</span>
+                  </div>
+                )}
+              </div>
 
               {/* Part 2: Local JSON backups: export and import files on computer */}
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
@@ -2149,6 +2207,42 @@ export default function SettingsModal({
                 </div>
               </div>
 
+              {/* --- Section 3: Danger Zone / Data Management --- */}
+              <div className="bg-rose-50/30 dark:bg-rose-950/20 p-5 rounded-2xl border border-rose-200/80 dark:border-rose-900/60 space-y-4">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <h4 className="text-xs sm:text-sm font-black text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                    {t('settings.danger_zone_title', 'Danger Zone')}
+                  </h4>
+                </div>
+
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
+                  {t('settings.danger_zone_desc', 'Destructive actions for managing stored records, vocabulary, and activity history.')}
+                </p>
+
+                <div className="space-y-3">
+                  {/* Clear Activity History */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-white dark:bg-zinc-900 border border-rose-200/60 dark:border-rose-900/40 rounded-xl">
+                    <div>
+                      <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                        {t('settings.clear_history_title', 'Clear All Activity History')}
+                      </div>
+                      <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                        {t('settings.clear_history_desc', 'Permanently deletes all logged listening, reading, and study sessions from history.')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmClearHistory(true)}
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-3xs flex items-center gap-1.5 shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{t('settings.clear_history_btn', 'Clear History')}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -2348,6 +2442,57 @@ export default function SettingsModal({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Clear Activity History Confirmation Modal Overlay */}
+      {showConfirmClearHistory && (
+        <div className="fixed inset-0 z-60 overflow-y-auto flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowConfirmClearHistory(false)}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded-2xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
+                  {t('settings.confirm_clear_history_title', 'Clear Activity History')}
+                </h4>
+                <p className="text-xs text-zinc-500 font-medium">
+                  {t('settings.confirm_clear_history_subtitle', 'This action cannot be undone')}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              {t('settings.confirm_clear_history_text', 'Are you sure you want to clear all history records? All your reading sessions, listening time logs, and study records will be permanently deleted.')}
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmClearHistory(false)}
+                className="px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                {t('common.cancel', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearHistory?.();
+                  setShowConfirmClearHistory(false);
+                  showToast(t('settings.history_cleared_toast', 'Activity history successfully cleared.'), 'success');
+                }}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{t('settings.confirm_clear_history_btn', 'Yes, Clear History')}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

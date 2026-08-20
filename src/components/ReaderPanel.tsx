@@ -16,6 +16,7 @@ import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSen
 import { useTranslation } from "react-i18next";
 import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
+import { loadLessonTranslationsFromDb, fetchMissingSentenceTranslations } from "../services/sentenceTranslationService";
 
 interface ReaderPanelProps {
   key?: string;
@@ -90,13 +91,13 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     subText: "text-[#4a3622] dark:text-zinc-400",
   },
   sepia: {
-    container: "bg-[#f5ebd0] dark:bg-zinc-900 text-[#432d16] dark:text-zinc-200 border-[#ebdcb3] dark:border-zinc-800/80",
+    container: "bg-[#f7f4eb] dark:bg-zinc-900 text-[#2c2a29] dark:text-zinc-200 border-[#e5dec9] dark:border-zinc-800/80",
     barBg: "bg-transparent",
-    pillBg: "bg-transparent text-[#432d16] dark:text-zinc-200",
-    subBadgeBg: "bg-[#e8daae] dark:bg-zinc-800/60 text-[#4a3217] dark:text-zinc-300",
-    selectBg: "bg-[#f5ebd0] dark:bg-zinc-800 text-teal-800 dark:text-teal-400 border-[#dbca98] dark:border-zinc-700",
-    divider: "border-[#e0cea1] dark:border-zinc-800/80",
-    subText: "text-[#4a3217] dark:text-zinc-400",
+    pillBg: "bg-transparent text-[#2c2a29] dark:text-zinc-200",
+    subBadgeBg: "bg-[#efe9dc] dark:bg-zinc-800/60 text-[#4d4843] dark:text-zinc-300",
+    selectBg: "bg-[#f7f4eb] dark:bg-zinc-800 text-teal-800 dark:text-teal-400 border-[#e5dec9] dark:border-zinc-700",
+    divider: "border-[#e5dec9] dark:border-zinc-800/80",
+    subText: "text-[#5a544e] dark:text-zinc-400",
   },
   slate: {
     container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
@@ -286,6 +287,7 @@ function ReaderPanel({
       autoPunctuationSplit: settings?.autoPunctuationSplit !== false,
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
       showProgressBar: settings?.showProgressBar !== false,
+      showSentenceTranslations: !!settings?.showSentenceTranslations,
     };
   }, [settings]);
 
@@ -310,6 +312,66 @@ function ReaderPanel({
     activeWord,
     onWordClick
   });
+
+  // State for parallel sentence translations on the current page
+  const [sentenceTranslationsMap, setSentenceTranslationsMap] = useState<Record<string, string>>({});
+  const [isTranslatingSentences, setIsTranslatingSentences] = useState(false);
+
+  // Lazy load/batch-fetch sentence translations when showSentenceTranslations is enabled
+  useEffect(() => {
+    if (!activeSettings.showSentenceTranslations) return;
+
+    let isSubscribed = true;
+    const targetLang = lesson.translationLanguage || "Russian";
+    const srcLang = lesson.targetLanguage;
+
+    // 1. Load existing from DB cache immediately
+    loadLessonTranslationsFromDb(lesson.id, srcLang, targetLang).then((cached) => {
+      if (isSubscribed && cached) {
+        setSentenceTranslationsMap((prev) => ({ ...prev, ...cached }));
+      }
+    });
+
+    // 2. Extract unique sentences on current page
+    const pageSentences: string[] = [];
+    activeSegmentsForPage.forEach((seg) => {
+      const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
+        ? splitIntoSentences(seg.text, isCjk)
+        : [seg.text];
+
+      sentenceStrings.forEach((s) => {
+        const clean = s.trim();
+        if (clean && !/^\[IMG.*\]$/.test(clean) && !/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(clean)) {
+          pageSentences.push(clean);
+        }
+      });
+    });
+
+    if (pageSentences.length > 0) {
+      setIsTranslatingSentences(true);
+      fetchMissingSentenceTranslations(lesson.id, pageSentences, srcLang, targetLang)
+        .then((updated) => {
+          if (isSubscribed && updated) {
+            setSentenceTranslationsMap((prev) => ({ ...prev, ...updated }));
+          }
+        })
+        .finally(() => {
+          if (isSubscribed) setIsTranslatingSentences(false);
+        });
+    }
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [
+    activeSettings.showSentenceTranslations,
+    activeSettings.sentenceSpacing,
+    activeSegmentsForPage,
+    lesson.id,
+    lesson.targetLanguage,
+    lesson.translationLanguage,
+    isCjk,
+  ]);
 
   // Compute active saved multi-word phrases/idioms in active target language inside this text
   const activePhrasesInLesson = useMemo(() => {
@@ -1469,6 +1531,29 @@ function ReaderPanel({
           };
 
           const renderParagraphContent = () => {
+            if (activeSettings.showSentenceTranslations) {
+              return sentenceStrings.map((sentText, sIdx) => {
+                const cleanSent = sentText.trim();
+                const trans = sentenceTranslationsMap[cleanSent] || lesson.sentenceTranslations?.[cleanSent];
+                return (
+                  <div key={sIdx} className="sentence-block mb-3.5 last:mb-0 space-y-0.5 select-text text-left">
+                    <div className="original-text leading-relaxed text-inherit font-inherit select-text">
+                      {renderSentenceTokens(sentText, sIdx)}
+                    </div>
+                    {trans ? (
+                      <p className="translation-text text-xs sm:text-sm text-zinc-500/90 dark:text-zinc-400/85 font-normal leading-snug select-text mt-0.5 tracking-normal">
+                        {trans}
+                      </p>
+                    ) : isTranslatingSentences ? (
+                      <span className="inline-block text-[11px] text-zinc-400/60 dark:text-zinc-500/60 italic animate-pulse">
+                        ···
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              });
+            }
+
             return sentenceStrings.map((sentText, sIdx) => {
               const spacingClass = getSentenceSpacingClass(activeSettings.sentenceSpacing);
               return (

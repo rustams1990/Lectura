@@ -44,7 +44,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Server URL Configuration
-  const [serverUrl, setServerUrlState] = useState<string>(() => getServerBaseUrl() || "http://192.168.0.83:8586");
+  const [serverUrl, setServerUrlState] = useState<string>(() => getServerBaseUrl());
   const [isTestingServer, setIsTestingServer] = useState<boolean>(false);
   const [serverStatus, setServerStatus] = useState<{ ok?: boolean; message?: string; version?: string } | null>(null);
   const [showServerConfig, setShowServerConfig] = useState<boolean>(false);
@@ -62,8 +62,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
 
   useEffect(() => {
     if (isOpen) {
-      const current = getServerBaseUrl() || "http://192.168.0.83:8586";
-      setServerUrlState(current);
+      setServerUrlState(getServerBaseUrl());
     }
   }, [isOpen]);
 
@@ -371,7 +370,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                         type="text"
                         value={serverUrl}
                         onChange={(e) => handleServerUrlChange(e.target.value)}
-                        placeholder="http://192.168.0.83:8586"
+                        placeholder={t('settings.server_auto_placeholder', 'Auto-detect (Current Host)')}
                         className="flex-1 text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-mono"
                       />
                       <button
@@ -388,23 +387,25 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
                       <button
                         type="button"
-                        onClick={() => handleServerUrlChange('http://192.168.0.83:8586')}
-                        className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
+                        onClick={() => handleServerUrlChange('')}
+                        className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-sans font-bold hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
                       >
-                        192.168.0.83:8586
+                        ⚡ {t('settings.auto_detect', 'Auto-detect')}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleServerUrlChange('https://lectura.local')}
-                        className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
-                      >
-                        https://lectura.local
-                      </button>
+                      {typeof window !== 'undefined' && window.location.origin && (
+                        <button
+                          type="button"
+                          onClick={() => handleServerUrlChange(window.location.origin)}
+                          className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
+                        >
+                          {window.location.origin}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between text-[11px] font-mono text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
-                    <span className="truncate">{serverUrl || "http://192.168.0.83:8586"}</span>
+                    <span className="truncate">{serverUrl || getServerBaseUrl()}</span>
                     <button
                       type="button"
                       onClick={handleTestServer}
@@ -525,7 +526,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                         className="text-[11px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:underline cursor-pointer flex items-center gap-1"
                       >
                         <Lightbulb className="w-3 h-3" />
-                        <span>{t('auth.btn_forgot_password', 'Забыли пароль?')}</span>
+                        <span>{t('auth.forgotPassword', t('auth.forgot_password', 'Forgot password?'))}</span>
                       </button>
                     </div>
                   )}

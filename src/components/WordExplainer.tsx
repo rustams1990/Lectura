@@ -566,7 +566,7 @@ function WordExplainer({
   const explainerThemeMap = {
     default: "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-900 dark:text-zinc-100",
     cream: "bg-[#fcf8f2] dark:bg-zinc-900 border-[#eddcb9] dark:border-zinc-800/80 text-[#3d2c16] dark:text-zinc-100",
-    sepia: "bg-[#f5ebd0] dark:bg-zinc-900 border-[#ebdcb3] dark:border-zinc-800/80 text-[#4d3319] dark:text-zinc-100",
+    sepia: "bg-[#f7f4eb] dark:bg-zinc-900 border-[#e5dec9] dark:border-zinc-800/80 text-[#2c2a29] dark:text-zinc-100",
     slate: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100",
   };
   const themeClasses = explainerThemeMap[activeSettings.readerTheme || "default"] || explainerThemeMap.default;

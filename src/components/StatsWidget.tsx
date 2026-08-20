@@ -30,22 +30,23 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
   const totalSecs = stats.listeningSeconds || 0;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-sans">
+    <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 font-sans select-none">
       {/* Listening Card */}
-      <div className="bg-slate-50 dark:bg-zinc-900/60 p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex items-center gap-4 transition-all hover:scale-[1.01]">
-        <div className="p-3 rounded-xl bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 shrink-0">
+      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01]">
+        <div className="hidden sm:flex p-3 rounded-xl bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 shrink-0">
           <Headphones className="w-5 h-5 animate-pulse" />
         </div>
-        <div className="min-w-0 flex-1">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
-            {t('stats.listening_today', 'Listening Time (Today)')}
+        <div className="min-w-0 flex-1 w-full">
+          <span className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
+            <span className="sm:hidden">{t('stats.listening_short', 'Listen')}</span>
+            <span className="hidden sm:inline">{t('stats.listening_today', 'Listening Time (Today)')}</span>
           </span>
-          <div className="flex items-baseline gap-2 flex-wrap mt-0.5">
-            <span className="text-xl font-black text-zinc-900 dark:text-zinc-100">
+          <div className="flex items-baseline justify-center sm:justify-start gap-1 sm:gap-2 flex-wrap mt-0.5">
+            <span className="text-sm sm:text-xl font-black text-zinc-900 dark:text-zinc-100">
               {formatTime(todaySecs)}
             </span>
             {totalSecs > 0 && (
-              <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+              <span className="hidden sm:inline text-xs font-semibold text-zinc-400 dark:text-zinc-500">
                 ({t('stats.total_label', 'total:')} {formatTime(totalSecs)})
               </span>
             )}
@@ -54,36 +55,38 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
       </div>
 
       {/* Learning Status */}
-      <div className="bg-slate-50 dark:bg-zinc-900/60 p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex items-center gap-4 transition-all hover:scale-[1.01]">
-        <div className="p-3 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 shrink-0">
+      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01]">
+        <div className="hidden sm:flex p-3 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 shrink-0">
           <Bookmark className="w-5 h-5" />
         </div>
-        <div className="min-w-0 flex-1">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
-            {t('stats.learning_words', 'Active Words (Learning)')}
+        <div className="min-w-0 flex-1 w-full">
+          <span className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
+            <span className="sm:hidden">{t('stats.learning_words_short', 'Active')}</span>
+            <span className="hidden sm:inline">{t('stats.learning_words', 'Active Words (Learning)')}</span>
           </span>
-          <span className="text-xl font-black text-zinc-900 dark:text-zinc-100 mt-0.5 block">
+          <span className="text-sm sm:text-xl font-black text-zinc-900 dark:text-zinc-100 mt-0.5 block">
             {stats.wordsLearningCount}
           </span>
         </div>
       </div>
 
       {/* Known Words */}
-      <div className="bg-slate-50 dark:bg-zinc-900/60 p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex items-center gap-4 transition-all hover:scale-[1.01]">
-        <div className="p-3 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shrink-0">
+      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01]">
+        <div className="hidden sm:flex p-3 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shrink-0">
           <CheckCircle2 className="w-5 h-5" />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
-              {t('stats.known_words', 'Known Words (Vocabulary)')}
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center justify-center sm:justify-between gap-1">
+            <span className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">
+              <span className="sm:hidden">{t('stats.known_words_short', 'Known')}</span>
+              <span className="hidden sm:inline">{t('stats.known_words', 'Known Words (Vocabulary)')}</span>
             </span>
 
             {onToggleOnlyPatterns && (
               <button
                 type="button"
                 onClick={onToggleOnlyPatterns}
-                className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border flex items-center gap-1 select-none cursor-pointer shrink-0 ${
+                className={`hidden sm:inline-flex px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border items-center gap-1 select-none cursor-pointer shrink-0 ${
                   onlyPatterns
                     ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/50 dark:border-teal-800 dark:text-teal-400 font-extrabold shadow-2xs"
                     : "bg-white border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -95,11 +98,9 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
               </button>
             )}
           </div>
-          <div className="flex items-baseline gap-1.5 mt-0.5">
-            <span className="text-xl font-black text-zinc-900 dark:text-zinc-100 block">
-              {stats.wordsKnownCount}
-            </span>
-          </div>
+          <span className="text-sm sm:text-xl font-black text-zinc-900 dark:text-zinc-100 mt-0.5 block">
+            {stats.wordsKnownCount}
+          </span>
         </div>
       </div>
     </div>

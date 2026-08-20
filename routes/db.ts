@@ -286,8 +286,29 @@ export function getLocalServerDb(userId: string = "default") {
         wordTimestamps: l.wordTimestamps,
         channelName: l.channelName || null,
         channelAvatarUrl: l.channelAvatarUrl || null,
+        playlistId: l.playlistId || null,
       };
     });
+
+    // Playlists — strictly this user's
+    const playlistsRows = db.prepare(
+      "SELECT * FROM playlists WHERE user_id = ? ORDER BY COALESCE(createdAt, rowid * 1000) DESC"
+    ).all(userId) as any[];
+    const playlists = playlistsRows.map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description || undefined,
+      thumbnailUrl: p.thumbnailUrl || "",
+      sourceType: p.sourceType || "custom_collection",
+      externalUrl: p.externalUrl || undefined,
+      channelTitle: p.channelTitle || undefined,
+      itemCount: typeof p.itemCount === "number" ? p.itemCount : 0,
+      language: p.language || "en",
+      items: p.items ? (typeof p.items === "string" ? JSON.parse(p.items) : p.items) : [],
+      isArchived: p.isArchived === 1,
+      createdAt: p.createdAt || new Date().toISOString(),
+      updatedAt: p.updatedAt || new Date().toISOString(),
+    }));
 
     // Lesson types — global (not per-user)
     const lessonTypes = db.prepare("SELECT * FROM lesson_types").all() as any[];
@@ -395,6 +416,7 @@ export function getLocalServerDb(userId: string = "default") {
 
     return {
       lessons,
+      playlists,
       lessonTypes,
       vocab: vocabWords,
       wordLinks,
@@ -449,8 +471,14 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, playlistId
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertPlaylist = db.prepare(`
+      INSERT OR REPLACE INTO playlists (
+        id, user_id, title, description, thumbnailUrl, sourceType, externalUrl, channelTitle, itemCount, language, items, isArchived, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertLessonType = db.prepare(`
@@ -605,7 +633,43 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           (typeof l.createdAt === "number" && l.createdAt > 0) ? l.createdAt : Date.now(),
           l.wordTimestamps ? JSON.stringify(l.wordTimestamps) : null,
           l.channelName || null,
-          l.channelAvatarUrl || null
+          l.channelAvatarUrl || null,
+          l.playlistId || null
+        );
+      }
+
+      if (data.deletedPlaylistIds && Array.isArray(data.deletedPlaylistIds) && data.deletedPlaylistIds.length > 0) {
+        const placeholders = data.deletedPlaylistIds.map(() => "?").join(",");
+        db.prepare(`DELETE FROM playlists WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedPlaylistIds);
+        const insertMeta = db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, '1')");
+        for (const delId of data.deletedPlaylistIds) {
+          insertMeta.run(userId, `deleted_playlist_${delId}`);
+        }
+      }
+
+      const playlists = data.playlists || [];
+      for (const p of playlists) {
+        const existingPlaylist = db.prepare("SELECT isArchived FROM playlists WHERE id = ?").get(p.id) as any;
+        let finalPlIsArchived = p.isArchived ? 1 : 0;
+        if (p.isArchived === undefined && existingPlaylist) {
+          finalPlIsArchived = existingPlaylist.isArchived || 0;
+        }
+
+        insertPlaylist.run(
+          p.id,
+          userId,
+          p.title || "Untitled Playlist",
+          p.description || null,
+          p.thumbnailUrl || "",
+          p.sourceType || "custom_collection",
+          p.externalUrl || null,
+          p.channelTitle || null,
+          p.itemCount || (Array.isArray(p.items) ? p.items.length : 0),
+          p.language || "en",
+          p.items ? (typeof p.items === "string" ? p.items : JSON.stringify(p.items)) : "[]",
+          finalPlIsArchived,
+          p.createdAt || new Date().toISOString(),
+          p.updatedAt || new Date().toISOString()
         );
       }
 

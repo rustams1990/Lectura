@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type TabType = 'library' | 'read' | 'practice' | 'statistics' | 'history';
+type TabType = 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts';
 type LayoutWidthType = 'standard' | 'wide' | 'ultra' | 'full';
 
 interface UIState {

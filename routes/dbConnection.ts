@@ -114,6 +114,35 @@ function setupSchema(db: Database.Database) {
       expires_at INTEGER,
       FOREIGN KEY(user_id) REFERENCES server_users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS podcast_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      title TEXT NOT NULL,
+      author TEXT,
+      feed_url TEXT NOT NULL,
+      artwork_url TEXT,
+      language TEXT,
+      created_at INTEGER,
+      UNIQUE(user_id, feed_url)
+    );
+
+    CREATE TABLE IF NOT EXISTS playlists (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      title TEXT NOT NULL,
+      description TEXT,
+      thumbnailUrl TEXT,
+      sourceType TEXT NOT NULL,
+      externalUrl TEXT,
+      channelTitle TEXT,
+      itemCount INTEGER DEFAULT 0,
+      language TEXT NOT NULL DEFAULT 'en',
+      items TEXT,
+      isArchived INTEGER DEFAULT 0,
+      createdAt TEXT,
+      updatedAt TEXT
+    );
   `);
 
   // ── metadata: needs composite PK (user_id, key) ──────────────────────────────
@@ -248,6 +277,18 @@ function setupSchema(db: Database.Database) {
   }
   if (!lessonsCols.includes("channelAvatarUrl")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN channelAvatarUrl TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("playlistId")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN playlistId TEXT;`); } catch (_) {}
+  }
+
+  // playlists: user_id & isArchived columns
+  const playlistsCols = (db.prepare("PRAGMA table_info(playlists)").all() as any[]).map(c => c.name);
+  if (!playlistsCols.includes("user_id")) {
+    try { db.exec(`ALTER TABLE playlists ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
+  }
+  if (!playlistsCols.includes("isArchived")) {
+    try { db.exec(`ALTER TABLE playlists ADD COLUMN isArchived INTEGER DEFAULT 0;`); } catch (_) {}
   }
 
   // Auto-enrich existing lessons missing channelName or title
@@ -613,12 +654,13 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
       console.log(`[AutoAssign] Assigning main library → "${email}" (${uid})`);
 
       db.transaction(() => {
-        const [lN, wN, hN, mN, liN] = [
+        const [lN, wN, hN, mN, liN, pN] = [
           db.prepare("UPDATE OR IGNORE lessons SET user_id = ?").run(uid).changes,
           db.prepare("UPDATE OR IGNORE words SET user_id = ?").run(uid).changes,
           db.prepare("UPDATE OR IGNORE reading_history SET user_id = ?").run(uid).changes,
           db.prepare("UPDATE OR IGNORE word_links SET user_id = ?").run(uid).changes,
           db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id != '__system__'").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE playlists SET user_id = ?").run(uid).changes,
         ];
 
         // Mark migration complete
@@ -628,21 +670,22 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
 
         console.log(
           `[AutoAssign] ✅ Main library assigned: ${lN} lessons, ${wN} words, ` +
-          `${hN} history → "${email}" (${uid})`
+          `${hN} history, ${pN} playlists → "${email}" (${uid})`
         );
       })();
 
     } else {
       // ── SUBSEQUENT RUNS: only assign truly orphaned records ─────────────────
       const orphaned = db.transaction(() => {
-        const [lN, wN, hN, mN, liN] = [
+        const [lN, wN, hN, mN, liN, pN] = [
           db.prepare("UPDATE OR IGNORE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
           db.prepare("UPDATE OR IGNORE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
           db.prepare("UPDATE OR IGNORE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
           db.prepare("UPDATE OR IGNORE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
           db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users) AND user_id != '__system__'").run(uid).changes,
+          db.prepare("UPDATE OR IGNORE playlists SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
         ];
-        return lN + wN;
+        return lN + wN + pN;
       });
       const changed = orphaned();
       if (changed > 0) {

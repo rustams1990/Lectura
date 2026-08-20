@@ -80,11 +80,13 @@ export async function checkForGitHubUpdate(manualCheck = false): Promise<GitHubR
       apkSize,
       hasUpdate: isNewer,
     };
-  } catch (err) {
-    console.warn('[InAppUpdater] Failed to check for updates:', err);
+  } catch {
+    // Repository is private or no releases yet — silently return null without console errors
     return null;
   }
 }
+
+export const checkForUpdates = checkForGitHubUpdate;
 
 /**
  * Dismisses an update notification so it doesn't pop up again for this version.

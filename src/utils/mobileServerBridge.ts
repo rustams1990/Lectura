@@ -1,35 +1,17 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import { getApiBaseUrl, resolveApiUrl, setCustomApiUrl, CUSTOM_SERVER_STORAGE_KEY, LEGACY_MOBILE_SERVER_KEY } from './apiConfig';
+import { checkForUpdates } from '../services/inAppUpdaterService';
 
-const PREF_SERVER_URL_KEY = 'lectura_mobile_server_url';
-export const DEFAULT_SERVER_URL = 'http://192.168.0.83:8586';
+const PREF_SERVER_URL_KEY = CUSTOM_SERVER_STORAGE_KEY;
 
-let currentServerBaseUrl = '';
+export { getApiBaseUrl, resolveApiUrl, setCustomApiUrl, checkForUpdates };
 
 /**
- * Returns current server base URL (e.g. "http://192.168.0.83:8586")
+ * Returns current server base URL (e.g. "http://localhost:8586" or dynamic host)
  */
 export function getServerBaseUrl(): string {
-  if (!currentServerBaseUrl) {
-    try {
-      const saved = localStorage.getItem(PREF_SERVER_URL_KEY);
-      if (saved && saved.trim().length > 0 && !saved.includes('localhost')) {
-        currentServerBaseUrl = sanitizeServerUrl(saved);
-      }
-    } catch (_) {}
-  }
-
-  if (!currentServerBaseUrl) {
-    if (Capacitor.isNativePlatform()) {
-      currentServerBaseUrl = DEFAULT_SERVER_URL;
-    } else if (typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')) {
-      currentServerBaseUrl = window.location.origin;
-    } else {
-      currentServerBaseUrl = DEFAULT_SERVER_URL;
-    }
-  }
-
-  return currentServerBaseUrl;
+  return getApiBaseUrl();
 }
 
 /**
@@ -38,33 +20,27 @@ export function getServerBaseUrl(): string {
 export async function initMobileServerUrl(): Promise<string> {
   try {
     const { value } = await Preferences.get({ key: PREF_SERVER_URL_KEY });
-    if (value && value.trim().length > 0 && !value.includes('localhost')) {
-      currentServerBaseUrl = sanitizeServerUrl(value.trim());
-      localStorage.setItem(PREF_SERVER_URL_KEY, currentServerBaseUrl);
+    if (value && value.trim().length > 0 && !value.includes('localhost') && !value.includes('192.168.0.83')) {
+      const sanitized = sanitizeServerUrl(value.trim());
+      setCustomApiUrl(sanitized);
     } else {
-      currentServerBaseUrl = getServerBaseUrl();
-      await Preferences.set({ key: PREF_SERVER_URL_KEY, value: currentServerBaseUrl });
-      localStorage.setItem(PREF_SERVER_URL_KEY, currentServerBaseUrl);
+      await Preferences.remove({ key: PREF_SERVER_URL_KEY }).catch(() => {});
     }
   } catch (err) {
     console.warn('[MobileServerBridge] Failed to load server url from Preferences:', err);
-    currentServerBaseUrl = getServerBaseUrl();
   }
 
   setupNativeFetchInterceptor();
-  return currentServerBaseUrl;
+  return getServerBaseUrl();
 }
 
 /**
  * Sets a new server base URL and persists it across app restarts.
  */
 export async function setServerBaseUrl(newUrl: string): Promise<boolean> {
-  const sanitized = sanitizeServerUrl(newUrl);
-  currentServerBaseUrl = sanitized;
+  const sanitized = newUrl ? sanitizeServerUrl(newUrl) : '';
+  setCustomApiUrl(sanitized);
   try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(PREF_SERVER_URL_KEY, sanitized);
-    }
     await Preferences.set({ key: PREF_SERVER_URL_KEY, value: sanitized });
     return true;
   } catch (err) {
@@ -77,42 +53,20 @@ export async function setServerBaseUrl(newUrl: string): Promise<boolean> {
  * Universal URL resolver for APIs, audio streams, media, and images.
  */
 export function resolveServerUrl(url?: string | null): string {
-  if (!url || typeof url !== 'string') return '';
-  const trimmed = url.trim();
-
-  // If already absolute URL or data URI, return as-is
-  if (
-    trimmed.startsWith('http://') ||
-    trimmed.startsWith('https://') ||
-    trimmed.startsWith('data:') ||
-    trimmed.startsWith('blob:')
-  ) {
-    return trimmed;
-  }
-
-  const base = getServerBaseUrl();
-  if (!base) {
-    return trimmed;
-  }
-
-  // Prepend base URL to relative paths (e.g. "/api/media/stream/123.m4a")
-  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return `${base}${path}`;
+  return resolveApiUrl(url);
 }
 
 /**
  * Tests health connection to the server URL with native HTTP fallback.
  */
-export async function testServerConnection(url: string): Promise<{ ok: boolean; message: string; version?: string }> {
-  const cleanUrl = sanitizeServerUrl(url);
-  if (!cleanUrl) {
-    return { ok: false, message: 'Invalid URL' };
-  }
+export async function testServerConnection(url?: string): Promise<{ ok: boolean; message: string; version?: string }> {
+  const cleanUrl = url && url.trim() ? sanitizeServerUrl(url) : '';
+  const healthEndpoint = cleanUrl ? `${cleanUrl}/api/health` : '/api/health';
 
   try {
-    if (Capacitor.isNativePlatform()) {
+    if (Capacitor.isNativePlatform() && cleanUrl) {
       const nativeRes = await CapacitorHttp.get({
-        url: `${cleanUrl}/api/health`,
+        url: healthEndpoint,
         headers: { 'Accept': 'application/json' },
         connectTimeout: 6000,
         readTimeout: 6000,
@@ -128,7 +82,7 @@ export async function testServerConnection(url: string): Promise<{ ok: boolean; 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    const res = await fetch(`${cleanUrl}/api/health`, {
+    const res = await fetch(healthEndpoint, {
       signal: controller.signal,
       headers: {
         'Accept': 'application/json',

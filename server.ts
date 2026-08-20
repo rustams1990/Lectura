@@ -14,6 +14,8 @@ import whisperRouter from "./routes/whisper.ts";
 import wordnetRouter from "./routes/wordnet.ts";
 import { frequencyRouter } from "./routes/frequency.ts";
 import backupRouter from "./routes/backup.ts";
+import podcastsRouter from "./routes/podcasts.ts";
+import translateRouter from "./routes/translate.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { APP_VERSION } from "./src/version.ts";
 
@@ -175,6 +177,8 @@ async function startServer() {
   app.use("/api/frequency", frequencyRouter);
   app.use("/api/auth", authRouter);
   app.use("/api", backupRouter);
+  app.use("/api/podcasts", podcastsRouter);
+  app.use("/api", translateRouter);
 
   // Start background automated backup scheduler
   startBackupScheduler();

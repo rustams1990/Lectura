@@ -445,29 +445,28 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
   for (const item of sorted) {
     if (!item || !item.id || !item.lessonId) continue;
     const itemTime = new Date(item.timestamp).getTime() || 0;
+    const isCustom = item.mode === "custom" || item.lessonId === "custom";
 
-    const isAudioOrVideoType =
-      item.lessonType === "youtube" ||
-      item.lessonType === "podcast" ||
-      item.lessonType === "audio" ||
-      item.actionType === "listen" ||
-      (item.durationSeconds || 0) > 0;
-
-    const existingIdx = merged.findIndex(
-      (m) =>
+    const existingIdx = merged.findIndex((m) => {
+      if (isCustom) {
+        return (
+          m.id === item.id ||
+          (m.lessonId === "custom" &&
+            m.customTitle === item.customTitle &&
+            m.category === item.category &&
+            m.actionType === item.actionType &&
+            Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 30 * 60 * 1000)
+        );
+      }
+      return (
         m.lessonId === item.lessonId &&
+        m.actionType === item.actionType &&
         Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 30 * 60 * 1000
-    );
+      );
+    });
 
     if (existingIdx !== -1) {
       const existing = merged[existingIdx];
-      const isListening =
-        existing.actionType === "listen" ||
-        item.actionType === "listen" ||
-        (existing.durationSeconds || 0) > 0 ||
-        (item.durationSeconds || 0) > 0 ||
-        isAudioOrVideoType;
-
       const isCompleted =
         existing.status === "completed" ||
         item.status === "completed" ||
@@ -476,7 +475,7 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
 
       merged[existingIdx] = {
         ...existing,
-        actionType: isListening ? "listen" : (existing.actionType === "complete" ? "read" : existing.actionType),
+        actionType: item.actionType || existing.actionType,
         status: isCompleted ? "completed" : (existing.status || "in_progress"),
         durationSeconds: Math.max(existing.durationSeconds || 0, item.durationSeconds || 0),
         notes: existing.notes || item.notes,
@@ -486,7 +485,6 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
     } else {
       merged.push({
         ...item,
-        actionType: isAudioOrVideoType ? "listen" : (item.actionType === "complete" ? "read" : item.actionType),
         status: (item.status === "completed" || item.actionType === "complete") ? "completed" : (item.status || "in_progress"),
       });
     }

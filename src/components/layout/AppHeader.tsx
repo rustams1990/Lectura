@@ -17,7 +17,7 @@ interface AppHeaderProps {
   };
   layoutContainerClass: string;
   setIsSidebarOpen: (isOpen: boolean) => void;
-  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'statistics' | 'history') => void;
+  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts') => void;
   setShowImportForm: (show: boolean) => void;
   setSelectedWord: (word: any) => void;
   isDarkMode: boolean;
@@ -82,18 +82,18 @@ export default function AppHeader({
   if (isFocusMode) return null;
 
   return (
-    <header className={`border-b ${currentReaderTheme.border} ${currentReaderTheme.headerBg} backdrop-blur-md relative z-30 px-4 sm:px-6 py-3.5`}>
-      <div className={`mx-auto flex items-center justify-between gap-4 transition-all duration-300 ${layoutContainerClass}`}>
+    <header className={`border-b ${currentReaderTheme.border} ${currentReaderTheme.headerBg} backdrop-blur-md relative z-30 px-2 sm:px-6 py-2 sm:py-3.5`}>
+      <div className={`mx-auto flex items-center justify-between gap-1.5 sm:gap-4 transition-all duration-300 ${layoutContainerClass}`}>
         
         {/* Left side: Hamburger + Brand logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           <button
             id="btn-toggle-sidebar"
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
+            className="p-2 sm:p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
             title={t('header.open_menu', 'Открыть меню')}
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
           </button>
 
           <a
@@ -112,7 +112,7 @@ export default function AppHeader({
                 setSelectedWord(null);
               }
             }}
-            className="flex items-center gap-2.5 group cursor-pointer transition-all active:scale-98 text-left focus:outline-none no-underline"
+            className="flex items-center gap-2 sm:gap-2.5 group cursor-pointer transition-all active:scale-98 text-left focus:outline-none no-underline"
             title={t('header.go_home', 'На главную')}
           >
             <div className="p-2 bg-teal-600 group-hover:bg-teal-500 rounded-xl text-white shadow-md shadow-teal-100/10 dark:shadow-none hidden sm:block transition-colors">
@@ -127,13 +127,13 @@ export default function AppHeader({
         </div>
 
         {/* Right side: Sync State & Login/Logout HUD */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
 
           {/* Global Target Language Selector Dropdown in Header */}
           <div className="relative font-sans" ref={langDropdownRef}>
             <button
               onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-              className="px-3 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-2 shadow-3xs active:scale-95 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 text-zinc-900 dark:text-white border-zinc-200/80 dark:border-zinc-800 font-extrabold text-xs"
+              className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 shadow-3xs active:scale-95 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 text-zinc-900 dark:text-white border-zinc-200/80 dark:border-zinc-800 font-extrabold text-xs"
               title={t('header.select_target_language', 'Select target language')}
             >
               {renderCircularFlag(getLanguageFlagEmoji(selectedTargetLanguage, languageFlags), selectedTargetLanguage === "All")}
@@ -223,11 +223,11 @@ export default function AppHeader({
               else { document.documentElement.classList.remove("dark"); }
               setIsDarkMode(next);
             }}
-            className="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-amber-500 dark:text-indigo-400 border-zinc-200/60 dark:border-zinc-800/80"
+            className="p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-amber-500 dark:text-indigo-400 border-zinc-200/60 dark:border-zinc-800/80"
             title={isDarkMode ? t('header.light_mode', 'Светлая тема') : t('header.dark_mode', 'Тёмная тема')}
             aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
           >
-            {isDarkMode ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+            {isDarkMode ? <Sun className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> : <Moon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />}
           </button>
 
           {isAuthLoading ? (

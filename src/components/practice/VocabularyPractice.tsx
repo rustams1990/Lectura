@@ -17,6 +17,7 @@ import SpellingMode from "./SpellingMode";
 import { LANGUAGES_SUPPORTED } from "../../data";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../../services/aiFailoverService";
 import { resolveLocale, formatFriendlyDate } from "../../utils/dateUtils";
+import { formatAppDate } from "../../utils/dateFormatter";
 
 
 
@@ -935,12 +936,7 @@ export default function VocabularyPractice({
     onSaveVocab(updatedItem, selectedPracticeLang);
 
     // Format human-readable toast notification
-    const dateObj = new Date(nextSrs.nextReviewDate);
-    const dateFormatted = dateObj.toLocaleDateString(resolveLocale(i18n.language), {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    });
+    const dateFormatted = formatAppDate(nextSrs.nextReviewDate);
 
     const dueMsg = nextSrs.interval === 1 ? `завтра (${dateFormatted})` : `через ${nextSrs.interval} дн. (${dateFormatted})`;
 

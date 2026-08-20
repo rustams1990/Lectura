@@ -50,6 +50,7 @@ export default function BottomAudioBar({ onOpenLesson }: BottomAudioBarProps) {
     setRepeatMode,
     clearQueue,
     setShowQueueModal,
+    expandPlayer,
   } = usePlaylistStore();
 
   const [isSeeking, setIsSeeking] = useState(false);
@@ -102,9 +103,9 @@ export default function BottomAudioBar({ onOpenLesson }: BottomAudioBarProps) {
           
           {/* Left: Track Info & Cover */}
           <div
-            onClick={() => onOpenLesson?.(currentTrack.id)}
+            onClick={expandPlayer}
             className="flex items-center gap-2.5 min-w-0 flex-1 sm:max-w-[280px] cursor-pointer group"
-            title="Open in Reader"
+            title="Expand Fullscreen Player"
           >
             {/* Thumbnail */}
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200/60 dark:border-teal-800/60 flex items-center justify-center shrink-0 overflow-hidden shadow-xs relative">
@@ -233,6 +234,16 @@ export default function BottomAudioBar({ onOpenLesson }: BottomAudioBarProps) {
                   {queue.length}
                 </span>
               )}
+            </button>
+
+            {/* Expand Fullscreen Player */}
+            <button
+              type="button"
+              onClick={expandPlayer}
+              className="p-1.5 text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition cursor-pointer"
+              title="Fullscreen Player"
+            >
+              <Maximize2 className="w-4 h-4" />
             </button>
 
             {/* Close / Dismiss Queue */}

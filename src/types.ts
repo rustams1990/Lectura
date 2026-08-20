@@ -53,6 +53,7 @@ export interface Lesson {
   lessonType?: string; // e.g. "youtube" | "book" | "article" or custom string
   pinned?: boolean;
   translationText?: string | null;
+  sentenceTranslations?: Record<string, string>;
   detectedPhrases?: Record<string, { translation: string; explanation: string; type?: string }>;
   text_lemmas?: Record<string, string>;
   difficulty?: string | null;
@@ -61,6 +62,34 @@ export interface Lesson {
   wordTimestamps?: Array<{ w: string; s: number; e: number }> | null;
   channelName?: string | null;
   channelAvatarUrl?: string | null;
+  playlistId?: string | null;
+}
+
+export interface PlaylistItem {
+  id: string;
+  lessonId?: string;
+  videoId?: string;
+  title: string;
+  durationSeconds: number;
+  thumbnailUrl: string;
+  publishedAt?: string;
+  transcriptLoaded: boolean;
+}
+
+export interface Playlist {
+  id: string;
+  title: string;
+  description?: string;
+  thumbnailUrl: string;
+  sourceType: 'youtube_playlist' | 'podcast_show' | 'custom_collection';
+  externalUrl?: string;
+  channelTitle?: string;
+  itemCount: number;
+  language: string; // 'es', 'en' etc.
+  items: PlaylistItem[];
+  isArchived?: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LessonType {
@@ -129,6 +158,7 @@ export interface ReaderSettings {
   showDetailedVocabularyStats?: boolean;
   mainStatsMetric?: "comprehension" | "vocabulary";
   showProgressBar?: boolean;
+  showSentenceTranslations?: boolean;
   dailyGoalMinutes?: number; // 0 means disabled, used as global fallback
   dailyGoalsByLanguage?: Record<string, number>; // Maps language code (e.g. "Spanish") to goal minutes
   onlyPatterns?: boolean; // When true, stats & known words count use Parents Only (lemmas) grouping
@@ -207,3 +237,57 @@ export interface BackupFileInfo {
   username?: string;
 }
 
+// ── Podcast Module Types ────────────────────────────────────────────────────
+
+export interface PodcastSubscription {
+  id: string;
+  title: string;
+  author: string;
+  feedUrl: string;
+  artworkUrl: string;
+  language: string;
+  createdAt: number;
+}
+
+export interface PodcastSearchResult {
+  collectionId: number;
+  title: string;
+  artistName: string;
+  feedUrl: string;
+  artworkUrl600: string;
+  primaryGenreName: string;
+  trackCount: number;
+}
+
+export interface PodcastEpisode {
+  guid: string;
+  title: string;
+  pubDate: string;
+  duration: number | null;
+  description: string;
+  audioUrl: string;
+  originalAudioUrl: string;
+  transcriptUrl: string;
+  transcriptType?: 'vtt' | 'srt' | 'json' | 'text' | null;
+  hasTranscript?: boolean;
+  artworkUrl: string;
+  fileSize: number | null;
+}
+
+export interface PodcastFeedMeta {
+  title: string;
+  description: string;
+  language: string;
+  artworkUrl: string;
+  author: string;
+  link: string;
+}
+
+export interface PodcastTimelineEpisode extends PodcastEpisode {
+  podcastId?: string;
+  podcastTitle: string;
+  podcastArtwork: string;
+  podcastAuthor?: string;
+  podcastLanguage?: string;
+  feedUrl: string;
+}

@@ -1,11 +1,6 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useMemo, memo } from "react";
-import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat } from "../types";
-import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones } from "lucide-react";
+import React, { useState, useMemo, memo, useRef, useEffect } from "react";
+import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat, Playlist } from "../types";
+import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones, LayoutGrid, X, MoreVertical, ListVideo } from "lucide-react";
 import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory } from "../utils";
 import { getLocalizedLanguageName } from "../utils/stringUtils";
@@ -15,6 +10,8 @@ import { useToast } from "../context/ToastContext";
 import { usePlaylistStore, PlaylistItem, isValidAudioUrl } from "../store/playlistStore";
 import StatsWidget from "./StatsWidget";
 import { ignoreListManager } from "../services/ignoreListService";
+import PlaylistCard from "./playlist/PlaylistCard";
+import AddToPlaylistModal from "./playlist/AddToPlaylistModal";
 
 export function getDifficultyBadgeStyles(_level?: string) {
   // Clean, unified, high-contrast style matching the language pill with backdrop-blur
@@ -23,8 +20,15 @@ export function getDifficultyBadgeStyles(_level?: string) {
 
 interface LibraryHomeProps {
   lessons: Lesson[];
+  playlists?: Playlist[];
   lessonTypes: LessonType[];
   onSelectLesson: (id: string) => void;
+  onSelectPlaylist?: (id: string) => void;
+  onDeletePlaylist?: (id: string, e: React.MouseEvent) => void;
+  onToggleArchivePlaylist?: (id: string, e: React.MouseEvent) => void;
+  onPlayAllPlaylist?: (playlist: Playlist, e: React.MouseEvent) => void;
+  onUpdatePlaylist?: (updated: Playlist) => void;
+  onAddOrUpdateLesson?: (lesson: Lesson) => void;
   onOpenImportForm: () => void;
   onDeleteLesson: (id: string, e: React.MouseEvent) => void;
   onToggleArchiveLesson: (id: string, e: React.MouseEvent) => void;
@@ -42,7 +46,7 @@ interface LibraryHomeProps {
   isLoading?: boolean;
 }
 
-function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>) {
+export function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>) {
   const zero = { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, ignoredCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueIgnoredCount: 0, uniqueTotal: 0, total: 0, eligibleTokens: 0, eligibleLemmas: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
   if (typeof lesson.text !== "string") return zero;
 
@@ -380,8 +384,15 @@ export const renderCircularFlag = (flagEmoji: string, isAll = false) => {
 
 function LibraryHome({
   lessons,
+  playlists = [],
   lessonTypes,
   onSelectLesson,
+  onSelectPlaylist,
+  onDeletePlaylist,
+  onToggleArchivePlaylist,
+  onPlayAllPlaylist,
+  onUpdatePlaylist,
+  onAddOrUpdateLesson,
   onOpenImportForm,
   onDeleteLesson,
   onToggleArchiveLesson,
@@ -402,6 +413,7 @@ function LibraryHome({
   const { showToast } = useToast();
   const { setQueue } = usePlaylistStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [playlistModalLesson, setPlaylistModalLesson] = useState<Lesson | null>(null);
   const selectedLanguage = selectedTargetLanguage;
 
   // Dynamic statistics calculation for selected target language
@@ -595,138 +607,30 @@ function LibraryHome({
     safeLocalStorageSetItem("vocab_library_sort", value);
   };
 
-  // Smart Banner Dashboard state & helpers
-  const [isBannerCollapsed, setIsBannerCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem("vocab_clone_hero_collapsed") === "true";
-  });
 
-  const toggleBannerCollapse = () => {
-    setIsBannerCollapsed(prev => {
-      const next = !prev;
-      safeLocalStorageSetItem("vocab_clone_hero_collapsed", String(next));
-      return next;
-    });
-  };
-
-  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * 8));
-  const [dailyGoal, setDailyGoal] = useState<number>(() => {
-    const saved = localStorage.getItem("vocab_clone_daily_word_goal");
-    return saved ? parseInt(saved, 10) : 5;
-  });
-
-  const LANGUAGE_TIPS = [
-    t('library.tip_1', "Подключайте слух: слушайте озвучку одновременно с чтением — это активирует слуховую кору мозга."),
-    t('library.tip_2', "Не зубрите слова отдельно: запоминайте их в контексте фраз. Мозг обожает контекстуальные связи!"),
-    t('library.tip_3', "Интервальное повторение: возвращайтесь к сложным словам через 1 день, затем через 3 и 7 дней."),
-    t('library.tip_4', "Лингво-совет: Читайте вслух те предложения, где встретили новые слова, чтобы тренировать артикуляцию."),
-    t('library.tip_5', "Разгадывайте корни: у многих языков есть схожие латинские или общие корни. Ищите аналогии для запоминания!"),
-    t('library.tip_6', "Метод активного чтения: не бойтесь новых слов! Ваша цель — перевести их в статус 'изучаемых' и читать дальше."),
-    t('library.tip_7', "Короткие сессии рулят: 15 минут увлекательного чтения каждый день эффективнее, чем 2 часа раз в неделю."),
-    t('library.tip_8', "Понимайте суть: не обязательно переводить каждое слово. Учитесь догадываться в контексте!")
-  ];
-
-  const handleCycleGoal = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const goals = [5, 10, 15, 25, 50, 100];
-    const currentIndex = goals.indexOf(dailyGoal);
-    const nextIndex = (currentIndex + 1) % goals.length;
-    const nextGoal = goals[nextIndex === -1 ? 0 : nextIndex];
-    setDailyGoal(nextGoal);
-    safeLocalStorageSetItem("vocab_clone_daily_word_goal", nextGoal.toString());
-    try {
-      const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
-      const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      if (syncKey) headers["x-sync-key"] = syncKey;
-      fetch("/api/user-metadata", { method: "PUT", headers, body: JSON.stringify({ dailyWordGoal: nextGoal }) }).catch(() => {});
-    } catch (_) {}
-  };
-
-  const handleNextTip = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setTipIndex((prev) => (prev + 1) % LANGUAGE_TIPS.length);
-  };
-
-  const lastOpenedLessonId = useMemo(() => {
-    return localStorage.getItem("vocab_clone_last_active_lesson_id") || null;
-  }, []);
-
-  const resumeLesson = useMemo(() => {
-    if (lessons.length === 0) return null;
-    const last = lessons.find((l) => l.id === lastOpenedLessonId && !l.isArchived);
-    if (last) return last;
-    return lessons.find((l) => !l.isArchived) || null;
-  }, [lessons, lastOpenedLessonId]);
-
-  const resumeLessonStats = useMemo(() => {
-    if (!resumeLesson || typeof resumeLesson.text !== "string") return null;
-    const rawParts = resumeLesson.text.split(/\s+/);
-    const processedWords = rawParts.map(part => {
-      if (!part) return "";
-      const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "").toLowerCase();
-      const isNumericOrTimestamp = (str: string): boolean => {
-        if (/\d/.test(str)) {
-          if (/\d+:\d+/.test(str)) return true;
-          if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
-          if (/^\d+[a-zA-Z]+$/.test(str)) return true;
-          if (!/\p{L}/u.test(str)) return true;
-        }
-        return false;
-      };
-      if (clean.length > 0 && !/^\d+$/.test(clean) && !isNumericOrTimestamp(clean)) {
-        return clean;
-      }
-      return "";
-    }).filter(w => w.length > 0);
-
-    if (processedWords.length === 0) return { knownPct: 0, rawCount: 0 };
-
-    let knownCount = 0;
-    const lang = (resumeLesson.targetLanguage || "spanish").toLowerCase();
-
-    processedWords.forEach(word => {
-      const key = word.toLowerCase();
-      const langKey = `${lang}_${key}`;
-      const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
-      const langKeyForResolved = `${lang}_${resolvedKey}`;
-      let item = vocab[langKeyForResolved] || vocab[resolvedKey];
-      
-      // Contraction status inheritance
-      if (!item) {
-        const normalized = normalizeContraction(resolvedKey, lang);
-        if (normalized !== resolvedKey) {
-          const normLangKey = `${lang}_${normalized}`;
-          item = vocab[normLangKey] || vocab[normalized];
-        }
-      }
-
-      const isAutoIgnored = !item && ignoreListManager.checkAutoIgnore(resolvedKey, undefined, lang).isIgnored;
-      if ((item && (item.status === "known" || item.status === "ignored")) || isAutoIgnored) {
-        knownCount++;
-      }
-    });
-
-    return {
-      knownPct: Math.round((knownCount / processedWords.length) * 100),
-      rawCount: processedWords.length
-    };
-  }, [resumeLesson, vocab, wordLinks]);
-
-  const todayCreatedCount = useMemo(() => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const startTs = todayStart.getTime();
-
-    return Object.values(vocab).filter((item: any) => {
-      return item && item.createdAt && item.createdAt >= startTs;
-    }).length;
-  }, [vocab]);
 
   const [booksPerRow, setBooksPerRow] = useState<number>(() => {
     const saved = localStorage.getItem("vocab_books_per_row");
     return saved ? parseInt(saved, 10) : 4;
   });
+  const [isGridDropdownOpen, setIsGridDropdownOpen] = useState(false);
+  const gridDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [openMenuLessonId, setOpenMenuLessonId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (gridDropdownRef.current && !gridDropdownRef.current.contains(event.target as Node)) {
+        setIsGridDropdownOpen(false);
+      }
+      if (openMenuLessonId && menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuLessonId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMenuLessonId]);
 
   const handleBooksPerRowChange = (cols: number) => {
     setBooksPerRow(cols);
@@ -854,6 +758,9 @@ function LibraryHome({
       const isBookArchived = !!lesson.isArchived;
       const matchesArchive = showArchived ? isBookArchived : !isBookArchived;
 
+      // Do not clutter the main shelf with child lessons of a playlist unless searching or filtered
+      const notHiddenByPlaylist = !lesson.playlistId || searchQuery.trim().length > 0 || (selectedLessonType !== "All" && selectedLessonType !== "playlist");
+
       const matchesSearch =
         lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lesson.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -873,7 +780,7 @@ function LibraryHome({
         lesson.lessonType === selectedLessonType ||
         (selectedLessonType === "book" && !lesson.lessonType); // default undefined type to "book"
 
-      return matchesArchive && matchesSearch && matchesLanguage && matchesType && matchesLessonType;
+      return matchesArchive && notHiddenByPlaylist && matchesSearch && matchesLanguage && matchesType && matchesLessonType;
     });
 
     // Sort: pinned always float to top, then apply the chosen sort key.
@@ -929,9 +836,38 @@ function LibraryHome({
     });
   }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived, sortBy, vocab, wordLinks]);
 
+  // Filter playlists
+  const filteredPlaylists = useMemo(() => {
+    return (playlists || []).filter((pl) => {
+      const isPlArchived = !!pl.isArchived;
+      const matchesArchive = showArchived ? isPlArchived : !isPlArchived;
+      if (!matchesArchive) return false;
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        pl.title.toLowerCase().includes(q) ||
+        (pl.channelTitle && pl.channelTitle.toLowerCase().includes(q)) ||
+        pl.language.toLowerCase().includes(q) ||
+        getLocalizedLanguageName(pl.language, i18n.language).toLowerCase().includes(q);
+
+      const matchesLanguage =
+        selectedLanguage === "All" ||
+        pl.language.toLowerCase() === selectedLanguage.toLowerCase() ||
+        getLocalizedLanguageName(pl.language, "en").toLowerCase() === selectedLanguage.toLowerCase();
+
+      const matchesLessonType =
+        selectedLessonType === "All" ||
+        selectedLessonType === "playlist" ||
+        (selectedLessonType === "youtube" && pl.sourceType === "youtube_playlist");
+
+      return matchesSearch && matchesLanguage && matchesLessonType;
+    });
+  }, [playlists, searchQuery, selectedLanguage, selectedLessonType, showArchived, i18n.language]);
+
   // Active counts
-  const activeCount = lessons.filter(l => !l.isArchived).length;
-  const archivedCount = lessons.filter(l => l.isArchived).length;
+  const activeCount = lessons.filter(l => !l.isArchived).length + (playlists || []).filter(p => !p.isArchived).length;
+  const archivedCount = lessons.filter(l => l.isArchived).length + (playlists || []).filter(p => p.isArchived).length;
 
   // Pagination logic
   // Установим пока 4 книги на страницу (позже можно вернуть 15), чтобы вы могли увидеть кнопки.
@@ -1013,195 +949,7 @@ function LibraryHome({
         selectedLanguage={selectedLanguage}
         onlyPatterns={!!settings?.onlyPatterns}
       />
-      
-      {/* Visual welcome bookshelf header */}
-      {isBannerCollapsed ? (
-        <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gradient-to-r dark:from-emerald-950 dark:via-teal-950 dark:to-zinc-950 px-4 py-2.5 text-zinc-800 dark:text-white flex items-center justify-between border border-zinc-200/80 dark:border-teal-800/30 shadow-xs dark:shadow-md transition-all">
-          <div className="flex items-center gap-3 text-xs font-bold truncate">
-            <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-amber-300 border border-teal-200/60 dark:border-teal-800/40">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-            <span className="truncate text-zinc-800 dark:text-white font-extrabold">{t('library.smart_bookshelf', 'Your Smart Bookshelf')}</span>
-            <div className="hidden sm:flex items-center gap-2.5 text-[11px] text-zinc-500 dark:text-teal-200 ml-2 font-medium">
-              <span>• {t('library.total', 'Total:')} <strong className="text-zinc-800 dark:text-white font-bold">{lessons.length}</strong></span>
-              <span>• {t('library.active', 'Active:')} <strong className="text-teal-700 dark:text-amber-300 font-bold">{activeCount}</strong></span>
-              <span>• {t('library.archived', 'Archived:')} <strong className="text-zinc-600 dark:text-teal-300 font-bold">{archivedCount}</strong></span>
-            </div>
-          </div>
-          <button
-            onClick={toggleBannerCollapse}
-            className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-600 dark:text-teal-200 hover:text-zinc-900 dark:hover:text-white px-3 py-1 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-zinc-200/80 dark:border-white/10"
-            title={t('library.expand_banner', 'Expand library banner')}
-          >
-            <span>{t('library.expand', 'Expand')}</span>
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      ) : (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-800 via-teal-900 to-zinc-950 dark:from-emerald-950 dark:via-teal-950 dark:to-zinc-950 p-4 sm:p-6 text-white shadow-lg flex flex-col justify-between border border-teal-700/40 dark:border-teal-800/20">
-          
-          {/* Ambient floating elements */}
-          <div className="absolute right-0 top-0 opacity-10 translate-x-10 -translate-y-10 transform scale-150 select-none pointer-events-none">
-            <BookMarked className="w-96 h-96" />
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch relative z-10 w-full">
-            
-            {/* Column 1: Info & Welcome Narrative */}
-            <div className="lg:col-span-7 xl:col-span-8 flex flex-col justify-between space-y-3">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-950/60 text-xs font-semibold tracking-wide text-white border border-teal-800/30 shadow-xs">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                    <span>{t('library.smart_bookshelf', 'Your Smart Bookshelf')}</span>
-                  </div>
-                  
-                  <button
-                    onClick={toggleBannerCollapse}
-                    className="flex items-center gap-1 text-[11px] font-bold text-teal-200 hover:text-white px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition cursor-pointer shrink-0 border border-white/10"
-                    title={t('library.collapse_banner', 'Collapse library banner')}
-                  >
-                    <span>{t('library.collapse', 'Collapse')}</span>
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  </button>
-                </div>
 
-                <h2 className="text-xl sm:text-3xl font-black tracking-tight mt-2 max-w-xl leading-tight text-white drop-shadow-sm">
-                  {t('library.hero_title', 'What story will you learn today?')}
-                </h2>
-                <p className="text-xs sm:text-sm font-medium text-teal-100 max-w-md mt-1.5 opacity-95 leading-relaxed font-sans hidden sm:block">
-                  {t('library.hero_subtitle', 'Interactive reading method: tap on any unfamiliar words, download translations and listen to audio!')}
-                </p>
-              </div>
-
-            <div className="flex flex-wrap items-center gap-4 mt-2 sm:mt-6 border-t border-white/10 pt-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.total', 'Total books:')}</span>
-                <span className="text-xs font-bold bg-white/15 px-2.5 py-0.5 rounded-md text-white">{lessons.length}</span>
-              </div>
-              
-              <div className="h-4 w-px bg-white/15 hidden sm:block"></div>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.active', 'Active:')}</span>
-                <span className="text-xs font-bold text-amber-300 bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-800/20">{activeCount}</span>
-              </div>
-
-              <div className="h-4 w-px bg-white/15 hidden sm:block"></div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">{t('library.archived', 'Archived:')}</span>
-                <span className="text-xs font-bold text-teal-300 bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-800/20">{archivedCount}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Column 2: Compact Interactive Widget Panel */}
-          <div className="lg:col-span-5 xl:col-span-4 bg-teal-950/50 backdrop-blur-xl rounded-2xl p-4.5 border border-teal-800/30 flex flex-col justify-between space-y-4 shadow-inner">
-            
-            {/* Daily word goal item */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center text-[10px] font-extrabold uppercase tracking-widest text-teal-200">
-                <span className="flex items-center gap-1">
-                  <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>{t('library.progress_today', 'Progress for today')}</span>
-                </span>
-                <button
-                  onClick={handleCycleGoal}
-                  className="cursor-pointer text-[9px] font-black uppercase tracking-wider bg-white/10 hover:bg-white/20 active:scale-95 px-2 py-0.5 rounded-md transition-all text-amber-200 border border-white/10 select-none"
-                  title={t('library.goal_title', 'Click to set daily limit')}
-                >
-                  {t('library.goal', 'Goal:')} {dailyGoal} {t('library.words', 'words')}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-white">
-                  {t('library.new_words', 'New words:')} <strong className="font-extrabold text-amber-300">{todayCreatedCount}</strong> {t('library.of', 'of')} {dailyGoal}
-                </span>
-                <span className="font-bold text-teal-100 font-mono text-[10px]">
-                  {Math.round(Math.min(100, (todayCreatedCount / dailyGoal) * 100))}%
-                </span>
-              </div>
-
-              {/* Goal progress slider */}
-              <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${Math.min(100, (todayCreatedCount / dailyGoal) * 100)}%` }}
-                  className="bg-gradient-to-r from-amber-400 to-emerald-400 h-full rounded-full transition-all duration-500"
-                />
-              </div>
-
-              {todayCreatedCount >= dailyGoal ? (
-                <p className="text-[9px] text-amber-300 font-black animate-pulse flex items-center gap-1">
-                  {t("library.goal_achieved", "🎉 Great achievement! Daily goal completed!")}
-                </p>
-              ) : (
-                <p className="text-[9px] text-teal-100/80 font-medium leading-none">
-                  {t("library.more_words_needed", "Mark {{count}} more words to finish your daily goal.", { count: dailyGoal - todayCreatedCount })}
-                </p>
-              )}
-            </div>
-
-            {/* Resume last Book info */}
-            {resumeLesson ? (
-              <div className="border-t border-white/10 pt-3 flex flex-col space-y-2">
-                <span className="text-[9px] font-extrabold uppercase tracking-widest text-teal-200 flex items-center gap-1 select-none">
-                  <TrendingUp className="w-3.5 h-3.5 text-cyan-300" />
-                  <span>{t("library.continue_reading", "CONTINUE READING")}</span>
-                </span>
-                
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 overflow-hidden flex-1">
-                    {renderCircularFlag(getLanguageFlagEmoji(resumeLesson.targetLanguage, languageFlags))}
-                    <div className="overflow-hidden">
-                      <h4 className="text-xs font-black truncate text-white" title={resumeLesson.title}>
-                        {resumeLesson.title}
-                      </h4>
-                      <p className="text-[9px] text-teal-200 select-none">
-                        {t("library.understood", "Understood:")} <strong className="font-extrabold text-emerald-300">{resumeLessonStats?.knownPct}%</strong>
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => onSelectLesson(resumeLesson.id)}
-                    className="cursor-pointer px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-950/25 border border-emerald-600 flex items-center gap-1 select-none shrink-0"
-                  >
-                    <span>{t("library.start", "Start")}</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Tip of the day widget */}
-            <div className="border-t border-white/10 pt-3 flex items-start gap-1.5 text-[10px] select-none">
-              <div className="p-1 bg-amber-400/20 rounded-md shrink-0">
-                <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-teal-200 uppercase tracking-widest text-[8px]">{t("library.tip_of_day", "TIP OF THE DAY")}</span>
-                  <button
-                    onClick={handleNextTip}
-                    className="text-white/80 hover:text-amber-300 active:scale-90 p-0.5 tracking-normal cursor-pointer transition-all shrink-0"
-                    title={t("library.change_tip", "Change tip")}
-                  >
-                    <RefreshCw className="w-2.5 h-2.5" />
-                  </button>
-                </div>
-                <p className="text-teal-100/90 italic font-medium leading-tight">
-                  "{LANGUAGE_TIPS[tipIndex]}"
-                </p>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      </div>
-      )}
 
       {/* Main Shelves Navigation Tabs */}
       <div className="flex items-center gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-px">
@@ -1234,187 +982,194 @@ function LibraryHome({
         </button>
       </div>
 
-      {/* Advanced Search & Filtering Console */}
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-5 space-y-4 shadow-xs">
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-          
-          {/* Main search input */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400/85 w-4 h-4" />
+      {/* Unified Search & Control Console */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-2.5 sm:p-3 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">
+        
+        {/* Left: Search input + Create Button Group */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="relative flex-1 min-w-[140px] lg:max-w-xs xl:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-3.5 h-3.5" />
             <input
               type="text"
               id="library-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t("library.search_placeholder", "Search by title or content...")}
-              className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/50 transition-all placeholder:text-zinc-400"
+              className="w-full pl-8 pr-7 py-1.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/40 transition-all placeholder:text-zinc-400"
             />
-          </div>
-
-          {/* Filtering buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setFilterType("all")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                filterType === "all"
-                  ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xs"
-                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
-              }`}
-            >
-              {t('library.all_sources', 'All Sources')}
-            </button>
-            <button
-              onClick={() => setFilterType("builtin")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                filterType === "builtin"
-                  ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xs"
-                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
-              }`}
-            >
-              {t('library.builtin', 'Built-in')}
-            </button>
-            <button
-              onClick={() => setFilterType("custom")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                filterType === "custom"
-                  ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xs"
-                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800"
-              }`}
-            >
-              {t('library.imported', 'Imported')}
-            </button>
-
-            {/* Sort dropdown */}
-            <div className="relative flex items-center">
-              <select
-                id="library-sort-select"
-                value={sortBy}
-                onChange={(e) => handleSortChange(e.target.value)}
-                title={t("library.sort_title_attr", "Sort books")}
-                className={`pl-3 pr-7 py-1.5 text-xs font-bold rounded-lg transition-all appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500/30 ${
-                  sortBy !== "pinned"
-                    ? "bg-teal-600 text-white border-teal-700 shadow-xs"
-                    : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                }`}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-md transition-colors cursor-pointer"
+                title={t("common.clear", "Clear")}
               >
-                <option value="pinned">{t('library.sort_pinned', '📌 Pinned')}</option>
-                <option value="newest">{t('library.sort_newest', '🕐 Newest first')}</option>
-                <option value="oldest">{t('library.sort_oldest', '📅 Oldest first')}</option>
-                <option value="title">{t('library.sort_title', '🔤 Title A-Z')}</option>
-                <option value="title_desc">{t('library.sort_title_desc', '🔤 Title Z-A')}</option>
-                <option value="comprehension_high">{t('library.sort_comp_high', '📊 Comprehension: high')}</option>
-                <option value="comprehension_low">{t('library.sort_comp_low', '📊 Comprehension: low')}</option>
-                <option value="length_short">{t('library.sort_short', '📖 Short')}</option>
-                <option value="length_long">{t('library.sort_long', '📖 Long')}</option>
-              </select>
-              {/* Custom chevron icon for the select */}
-              <span className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ${
-                sortBy !== "pinned" ? "text-white" : "text-zinc-400"
-              }`}>
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </span>
-            </div>
-
-            {!showArchived && (
-              <>
-                <button
-                  type="button"
-                  onClick={handlePlayAllFiltered}
-                  className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/80 active:scale-97 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-3xs"
-                  title={t('player.play_all_title', 'Play all audio lessons continuously')}
-                >
-                  <Headphones className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                  <span>{t('player.play_all', 'Play All')}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onOpenImportForm}
-                  className="ml-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 active:scale-97 text-white font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-teal-100/30 dark:shadow-none"
-                >
-                  <Plus className="w-4 h-4" />
-                  {t('library.create_book', 'Create book')}
-                </button>
-              </>
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
+
+          {!showArchived && (
+            <button
+              type="button"
+              onClick={onOpenImportForm}
+              className="px-3 sm:px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 active:scale-97 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-sm shadow-teal-600/20 shrink-0"
+              title={t('library.create_book', 'Create book')}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('library.create_book', 'Create book')}</span>
+            </button>
+          )}
         </div>
 
+        {/* Center: Dynamic Category Filter chips (All, YouTube, Podcast, Book) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 flex-1 scroll-smooth">
+          <button
+            type="button"
+            onClick={() => setSelectedLessonType("All")}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap border ${
+              selectedLessonType === "All"
+                ? "bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-800 shadow-3xs"
+                : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-800"
+            }`}
+          >
+            <span>{t("library.all", "All")}</span>
+          </button>
 
-
-        {/* Dynamic Category Filter chips row */}
-        <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex items-center gap-2">
-          <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 mr-1 animate-pulse">
-            <Filter className="w-3 h-3" /> {t("library.categories", "Categories:")}
-          </span>
-          <div className="flex flex-wrap gap-1.5 items-center">
+          {playlists.length > 0 && (
             <button
-              onClick={() => setSelectedLessonType("All")}
-              className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
-                selectedLessonType === "All"
-                  ? "bg-teal-50/95 text-teal-700 border-teal-300 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-900 shadow-xs"
-                  : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-transparent"
+              type="button"
+              onClick={() => setSelectedLessonType("playlist")}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap border ${
+                selectedLessonType === "playlist"
+                  ? "bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-800 shadow-3xs"
+                  : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-800"
               }`}
             >
-              🔍 {t("library.all", "All")}
+              <ListVideo className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+              <span>{t("playlist.playlists", "Playlists")} ({playlists.length})</span>
             </button>
+          )}
 
-            {lessonTypes.map((type) => {
-              const IconComponent = getCategoryIcon(type.icon, type.name);
-              const isSelected = selectedLessonType === type.id;
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => setSelectedLessonType(type.id)}
-                  className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer border ${
-                    isSelected
-                      ? "bg-teal-50/95 text-teal-700 border-teal-300 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-900 shadow-xs"
-                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-transparent"
-                  }`}
-                >
-                  <IconComponent className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
-                  <span>{getCategoryDisplayName(type.id, type.name, t)}</span>
-                </button>
-              );
-            })}
-          </div>
+          {lessonTypes.map((type) => {
+            const IconComponent = getCategoryIcon(type.icon, type.name);
+            const isSelected = selectedLessonType === type.id;
+            return (
+              <button
+                key={type.id}
+                type="button"
+                onClick={() => setSelectedLessonType(type.id)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap border ${
+                  isSelected
+                    ? "bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-800 shadow-3xs"
+                    : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-800"
+                }`}
+              >
+                <IconComponent className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                <span>{getCategoryDisplayName(type.id, type.name, t)}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Books per row setting / Grid Column Selector */}
-        <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
-              📐 {t("library.grid_view", "Grid view:")}
-            </span>
-            <span className="text-xs text-zinc-500 font-medium">{t("library.books_per_row_label", "Books per row")}</span>
+        {/* Right: Actions, Sort, Grid Columns & Play All */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto flex-wrap sm:flex-nowrap">
+          {/* Source Filter dropdown */}
+          <div className="relative flex items-center font-sans">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as any)}
+              className="pl-2.5 pr-6 py-1.5 text-xs font-bold rounded-xl bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all appearance-none cursor-pointer focus:outline-none"
+            >
+              <option value="all">{t('library.all_sources', 'All Sources')}</option>
+              <option value="builtin">{t('library.builtin', 'Built-in')}</option>
+              <option value="custom">{t('library.imported', 'Imported')}</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
           </div>
-          <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-950 p-1 rounded-xl shrink-0 border border-zinc-200/50 dark:border-zinc-800/50">
-            {[2, 3, 4, 5, 6].map((num) => {
-              const isActive = booksPerRow === num;
-              return (
-                <button
-                  type="button"
-                  key={num}
-                  onClick={() => handleBooksPerRowChange(num)}
-                  className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm"
-                      : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                  }`}
-                >
-                  {num} {i18n.language.startsWith("ru") ? (num >= 2 && num <= 4 ? t("library.books_ru_234", "книги") : t("library.books_ru_many", "книг")) : (num === 1 ? t("library.books_count", "book") : t("library.books_count_plural", "books"))}
-                </button>
-              );
-            })}
+
+          {/* Sort dropdown */}
+          <div className="relative flex items-center font-sans">
+            <select
+              id="library-sort-select"
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value)}
+              title={t("library.sort_title_attr", "Sort books")}
+              className={`pl-2.5 pr-6 py-1.5 text-xs font-bold rounded-xl transition-all appearance-none cursor-pointer focus:outline-none ${
+                sortBy !== "pinned"
+                  ? "bg-teal-600 text-white border-teal-700 shadow-3xs"
+                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+            >
+              <option value="pinned">{t('library.sort_pinned', '📌 Pinned')}</option>
+              <option value="newest">{t('library.sort_newest', '🕐 Newest first')}</option>
+              <option value="oldest">{t('library.sort_oldest', '📅 Oldest first')}</option>
+              <option value="title">{t('library.sort_title', '🔤 Title A-Z')}</option>
+              <option value="title_desc">{t('library.sort_title_desc', '🔤 Title Z-A')}</option>
+              <option value="comprehension_high">{t('library.sort_comp_high', '📊 Comp: High')}</option>
+              <option value="comprehension_low">{t('library.sort_comp_low', '📊 Comp: Low')}</option>
+              <option value="length_short">{t('library.sort_short', '📖 Short')}</option>
+              <option value="length_long">{t('library.sort_long', '📖 Long')}</option>
+            </select>
+            <ChevronDown className={`pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${sortBy !== "pinned" ? "text-white" : "text-zinc-400"}`} />
           </div>
+
+          {/* Compact Grid Columns dropdown (Desktop only: hidden on mobile) */}
+          <div className="hidden sm:block relative font-sans" ref={gridDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsGridDropdownOpen(!isGridDropdownOpen)}
+              className="p-1.5 px-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all flex items-center gap-1 cursor-pointer"
+              title={t("library.grid_view", "Grid view (columns)")}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-zinc-500" />
+              <span className="text-xs font-bold font-mono">{booksPerRow}</span>
+              <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${isGridDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+            {isGridDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1.5 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 min-w-[130px] animate-in fade-in zoom-in-95 duration-100 space-y-0.5">
+                <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                  {t("library.books_per_row_label", "Books per row")}
+                </div>
+                {[2, 3, 4, 5, 6].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => {
+                      handleBooksPerRowChange(num);
+                      setIsGridDropdownOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-1.5 text-xs font-bold rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
+                      booksPerRow === num
+                        ? "bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400"
+                        : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <span>{num} {i18n.language.startsWith("ru") ? (num >= 2 && num <= 4 ? t("library.books_ru_234", "книги") : t("library.books_ru_many", "книг")) : (num === 1 ? t("library.books_count", "book") : t("library.books_count_plural", "books"))}</span>
+                    {booksPerRow === num && <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {!showArchived && (
+            <button
+              type="button"
+              onClick={handlePlayAllFiltered}
+              className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/80 active:scale-97 font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer transition-all shadow-3xs"
+              title={t('player.play_all_title', 'Play all audio lessons continuously')}
+            >
+              <Headphones className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span className="hidden sm:inline">{t('player.play_all', 'Play All')}</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Visual Book Grid */}
       {isLoading ? (
-        <div className={`grid ${gridColsClass} gap-6 md:gap-8`}>
+        <div className={`grid ${gridColsClass} gap-3 sm:gap-6 md:gap-8`}>
           {Array.from({ length: booksPerRow * 2 }).map((_, idx) => (
             <div key={idx} className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-3xl p-4 space-y-4 animate-pulse shadow-sm">
               <div className="w-full h-40 bg-zinc-200/80 dark:bg-zinc-800/80 rounded-2xl" />
@@ -1426,9 +1181,25 @@ function LibraryHome({
             </div>
           ))}
         </div>
-      ) : filteredLessons.length > 0 ? (
+      ) : (filteredLessons.length > 0 || filteredPlaylists.length > 0) ? (
         <>
-          <div className={`grid ${gridColsClass} gap-6 md:gap-8`}>
+          <div className={`grid ${gridColsClass} gap-3 sm:gap-6 md:gap-8`}>
+            {/* Playlists Cards */}
+            {currentPage === 1 && filteredPlaylists.map((playlist) => (
+              <PlaylistCard
+                key={playlist.id}
+                playlist={playlist}
+                lessons={lessons}
+                history={history}
+                onSelectPlaylist={(id) => onSelectPlaylist ? onSelectPlaylist(id) : undefined}
+                onDeletePlaylist={onDeletePlaylist}
+                onToggleArchive={onToggleArchivePlaylist}
+                onPlayAllPlaylist={onPlayAllPlaylist}
+                languageFlags={languageFlags}
+                settings={settings}
+              />
+            ))}
+
             {paginatedLessons.map((lesson) => {
               const cover = getLanguageCoverPreset(lesson.targetLanguage);
             const wordCount = getWordCount(lesson.text || "");
@@ -1502,6 +1273,14 @@ function LibraryHome({
                       alt="" 
                       aria-hidden="true"
                       className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 select-none pointer-events-none"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (target.src.includes("/maxresdefault.jpg")) {
+                          target.src = target.src.replace("/maxresdefault.jpg", "/sddefault.jpg");
+                        } else if (target.src.includes("/sddefault.jpg")) {
+                          target.src = target.src.replace("/sddefault.jpg", "/hqdefault.jpg");
+                        }
+                      }}
                     />
                   )}
 
@@ -1511,6 +1290,14 @@ function LibraryHome({
                       src={lesson.coverUrl} 
                       alt="" 
                       className={`absolute inset-0 w-full h-full ${lesson.lessonType === 'article' || lesson.lessonType === 'website' ? 'object-cover' : 'object-contain'} z-0 select-none pointer-events-none drop-shadow-md`}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (target.src.includes("/maxresdefault.jpg")) {
+                          target.src = target.src.replace("/maxresdefault.jpg", "/sddefault.jpg");
+                        } else if (target.src.includes("/sddefault.jpg")) {
+                          target.src = target.src.replace("/sddefault.jpg", "/hqdefault.jpg");
+                        }
+                      }}
                     />
                   )}
 
@@ -1679,18 +1466,37 @@ function LibraryHome({
                       </div>
                     ) : (
                       <div className="flex justify-between items-center text-[9px] font-extrabold font-sans">
-                        <span 
-                          title={`Известные слова: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению`}
-                          className="text-emerald-500 hover:underline cursor-help animate-none"
-                        >
-                          {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
-                        </span>
-                        <span 
-                          title={`Неизвестные слова: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов`}
-                          className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
-                        >
-                          {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}%
-                        </span>
+                        {settings?.mainStatsMetric === "vocabulary" ? (
+                          <>
+                            <span 
+                              title={`Известные слова: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению`}
+                              className="text-emerald-500 hover:underline cursor-help animate-none"
+                            >
+                              {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
+                            </span>
+                            <span 
+                              title={`Неизвестные слова: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов`}
+                              className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
+                            >
+                              {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}%
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span 
+                              title={`Словарный запас: ${bookStats.knownVocabularyPct}% (${bookStats.uniqueKnownCount} лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
+                              className="text-emerald-500 hover:underline cursor-help animate-none"
+                            >
+                              {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}%
+                            </span>
+                            <span 
+                              title={`Новых слов: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} новых уникальных лемм)`}
+                              className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
+                            >
+                              {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}%
+                            </span>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1719,72 +1525,120 @@ function LibraryHome({
                     );
                   })()}
 
-                  {/* Actions buttons row */}
-                  <div className="flex gap-2 items-center pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
+                  {/* Actions row: Neutral Read Button + 3-dots Menu */}
+                  <div className="flex gap-2 items-center pt-2 border-t border-zinc-100 dark:border-zinc-800">
                     <button
                       type="button"
                       id={`book-read-btn-${lesson.id}`}
                       onClick={() => onSelectLesson(lesson.id)}
-                      className="flex-1 py-2 bg-zinc-100 hover:bg-teal-600 dark:bg-zinc-800 group-hover:bg-teal-600 group-hover:text-white dark:group-hover:bg-teal-600 font-extrabold text-xs rounded-xl text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-98"
+                      className="flex-1 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 active:scale-98 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700/60 font-bold text-xs rounded-xl shadow-3xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      <BookOpen className="w-3.5 h-3.5" />{t("library.read_btn", "Read")}</button>
+                      <BookOpen className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+                      <span>{bookStats.knownPct > 0 || bookStats.uniqueKnownCount > 0 ? t("library.continue_btn", "Continue") : t("library.read_btn", "Read")}</span>
+                    </button>
 
-                    {/* Quick Play Audio Button if available */}
-                    {isValidAudioUrl(lesson.audioUrl, lesson.audioBase64, lesson.youtubeId, lesson.localVideoUrl) && (
+                    {/* Secondary Actions 3-dots Menu */}
+                    <div className="relative font-sans" ref={openMenuLessonId === lesson.id ? menuRef : null}>
                       <button
                         type="button"
+                        id={`book-menu-btn-${lesson.id}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handlePlaySingleLesson(lesson);
+                          setOpenMenuLessonId(openMenuLessonId === lesson.id ? null : lesson.id);
                         }}
-                        className="p-2 border border-teal-200/80 dark:border-teal-800/80 bg-teal-50/80 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-600 dark:text-teal-400 rounded-xl transition-all cursor-pointer"
-                        title={t('player.play_now', 'Play audio')}
+                        className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                          openMenuLessonId === lesson.id
+                            ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white border-zinc-300 dark:border-zinc-600"
+                            : "bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200/60 dark:border-zinc-700/60"
+                        }`}
+                        title={t("common.more_actions", "More actions")}
                       >
-                        <Headphones className="w-3.5 h-3.5" />
+                        <MoreVertical className="w-4 h-4" />
                       </button>
-                    )}
 
-                    {/* Archive / Restore Button */}
-                    <button
-                      type="button"
-                      id={`book-archive-btn-${lesson.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleArchiveLesson(lesson.id, e);
-                      }}
-                      className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-xl transition-all"
-                      title={lesson.isArchived ? t("library.restore_tooltip", "Restore to bookshelf") : t("library.archive_tooltip", "Move to archive")}
-                    >
-                      <Archive className="w-3.5 h-3.5" />
-                    </button>
+                      {openMenuLessonId === lesson.id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 bottom-full mb-1.5 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 min-w-[175px] animate-in fade-in zoom-in-95 duration-100 space-y-0.5"
+                        >
+                          {/* Quick Play Audio option */}
+                          {isValidAudioUrl(lesson.audioUrl, lesson.audioBase64, lesson.youtubeId, lesson.localVideoUrl) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuLessonId(null);
+                                handlePlaySingleLesson(lesson);
+                              }}
+                              className="w-full px-2.5 py-2 text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                            >
+                              <Headphones className="w-3.5 h-3.5" />
+                              <span>{t('player.play_now', 'Play audio')}</span>
+                            </button>
+                          )}
 
-                    {/* Edit Book Button */}
-                    <button
-                      type="button"
-                      id={`book-edit-btn-${lesson.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditLesson(lesson, e);
-                      }}
-                      className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-teal-50 dark:hover:bg-teal-950/20 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 rounded-xl transition-all"
-                      title={t("library.edit_tooltip", "Edit book")}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
+                          {/* Edit book */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuLessonId(null);
+                              onEditLesson(lesson, e);
+                            }}
+                            className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-zinc-400" />
+                            <span>{t('library.edit_tooltip', 'Edit book')}</span>
+                          </button>
 
-                    {/* Delete book button (available for all books including built-in) */}
-                    <button
-                      type="button"
-                      id={`book-delete-btn-${lesson.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingLessonId(lesson.id);
-                      }}
-                      className="p-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-400 hover:text-red-500 rounded-xl transition-all hover:border-red-200"
-                      title={t("library.delete_tooltip", "Delete book")}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                          {/* Add to playlist */}
+                          {playlists && playlists.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuLessonId(null);
+                                setPlaylistModalLesson(lesson);
+                              }}
+                              className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                            >
+                              <ListVideo className="w-3.5 h-3.5 text-zinc-400" />
+                              <span>{t('playlist.add_to_playlist_action', 'Add to playlist...')}</span>
+                            </button>
+                          )}
+
+                          {/* Archive / Restore */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuLessonId(null);
+                              onToggleArchiveLesson(lesson.id, e);
+                            }}
+                            className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                          >
+                            <Archive className="w-3.5 h-3.5 text-zinc-400" />
+                            <span>{lesson.isArchived ? t("library.restore_tooltip", "Restore to bookshelf") : t("library.archive_tooltip", "Move to archive")}</span>
+                          </button>
+
+                          <div className="border-t border-zinc-100 dark:border-zinc-800 my-1" />
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuLessonId(null);
+                              setDeletingLessonId(lesson.id);
+                            }}
+                            className="w-full px-2.5 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            <span>{t('library.delete_tooltip', 'Delete book')}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1870,6 +1724,19 @@ function LibraryHome({
             )}
           </div>
         </div>
+      )}
+
+      {/* Add to Playlist Modal */}
+      {playlistModalLesson && (
+        <AddToPlaylistModal
+          isOpen={!!playlistModalLesson}
+          onClose={() => setPlaylistModalLesson(null)}
+          lesson={playlistModalLesson}
+          playlists={playlists || []}
+          languageFlags={languageFlags}
+          onUpdatePlaylist={onUpdatePlaylist || (() => {})}
+          onAddOrUpdateLesson={onAddOrUpdateLesson}
+        />
       )}
 
     </div>

@@ -54,7 +54,7 @@ let loadedModelName: string | null = null;
 // SSE Subscribers
 const sseClients: Response[] = [];
 
-function broadcastSse(event: string, data: any) {
+export function broadcastSse(event: string, data: any) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (let i = sseClients.length - 1; i >= 0; i--) {
     try {
@@ -503,13 +503,13 @@ async function persistWhisperBook(item: WhisperQueueItem, event: any): Promise<s
   const user = item.userId || "default";
   const now = Date.now();
 
-  // Build best-quality thumbnail: prefer maxresdefault, fallback to hqdefault
+  // Build best-quality thumbnail: prefer maxresdefault, fallback to sddefault/hqdefault
   let coverUrl: string | null = null;
-  if (item.thumbnail && item.thumbnail.startsWith("http")) {
-    // Use oEmbed thumbnail but upgrade to maxresdefault if it's a YouTube thumb
-    coverUrl = item.thumbnail.replace("/hqdefault.jpg", "/maxresdefault.jpg").replace("/mqdefault.jpg", "/maxresdefault.jpg");
-  } else if (ytId) {
-    coverUrl = `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`;
+  if (ytId) {
+    const { resolveBestYoutubeThumbnail } = await import("./youtube.ts");
+    coverUrl = await resolveBestYoutubeThumbnail(ytId, item.thumbnail);
+  } else if (item.thumbnail && item.thumbnail.startsWith("http")) {
+    coverUrl = item.thumbnail;
   }
 
   const resolvedAudioUrl = (item as any).persistedAudioUrl || null;

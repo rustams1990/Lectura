@@ -8,6 +8,13 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* Base Root HTML and Body Layout */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
 /* Base Root Dark Mode Styling */
 html.dark,
 html.dark body {

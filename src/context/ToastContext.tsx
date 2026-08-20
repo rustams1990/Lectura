@@ -14,15 +14,21 @@ import React, { createContext, useContext, useState, useCallback, useRef, ReactN
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: string;
   message: string;
   type: ToastType;
   duration?: number; // мс, по умолчанию 4000
+  action?: ToastAction;
 }
 
 interface ToastContextType {
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
+  showToast: (message: string, type?: ToastType, duration?: number, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -101,6 +107,18 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
         <ToastIcon type={toast.type} />
       </span>
       <span className="flex-1 leading-snug break-words">{toast.message}</span>
+      {toast.action && (
+        <button
+          type="button"
+          onClick={() => {
+            toast.action?.onClick();
+            handleDismiss();
+          }}
+          className="ml-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         onClick={handleDismiss}
         aria-label="Закрыть"
@@ -119,9 +137,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const counterRef = useRef(0);
 
-  const showToast = useCallback((message: string, type: ToastType = "info", duration = 4000) => {
+  const showToast = useCallback((message: string, type: ToastType = "info", duration = 4000, action?: ToastAction) => {
     const id = `toast_${Date.now()}_${counterRef.current++}`;
-    setToasts((prev) => [...prev, { id, message, type, duration }]);
+    setToasts((prev) => [...prev, { id, message, type, duration, action }]);
   }, []);
 
   const dismissToast = useCallback((id: string) => {

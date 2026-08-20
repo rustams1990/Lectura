@@ -84,6 +84,26 @@ export function formatGeminiTranscript(rawText: string): string {
   return lines.join("\n");
 }
 
+export async function resolveBestYoutubeThumbnail(videoId: string, oembedThumbnailUrl?: string | null): Promise<string> {
+  const maxres = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  try {
+    const headRes = await fetch(maxres, { method: "HEAD", signal: AbortSignal.timeout(2000) });
+    if (headRes.ok && headRes.status === 200) {
+      return maxres;
+    }
+  } catch (_) {}
+
+  const sd = `https://img.youtube.com/vi/${videoId}/sddefault.jpg`;
+  try {
+    const headSd = await fetch(sd, { method: "HEAD", signal: AbortSignal.timeout(1500) });
+    if (headSd.ok && headSd.status === 200) {
+      return sd;
+    }
+  } catch (_) {}
+
+  return oembedThumbnailUrl || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+}
+
 router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
   const { url } = req.body;
   const targetLanguage = sanitizeLang(req.body.targetLanguage, "English");
@@ -98,7 +118,7 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
   }
   const videoId = match[1];
   let title = "YouTube Video";
-  const thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  let thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
   let videoLengthSeconds: number | null = null;
 
   const mode = req.body.mode || "auto"; // "auto" | "force_ai"
@@ -152,10 +172,14 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
     let channelAvatarUrl: string | null = null;
 
     // Fetch official oEmbed data (100% reliable, never blocked)
+    let oembedThumbUrl: string | null = null;
     try {
       const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
       if (oembedRes.ok) {
         const oembedData: any = await oembedRes.json();
+        if (oembedData.thumbnail_url) {
+          oembedThumbUrl = oembedData.thumbnail_url;
+        }
         if (oembedData.author_name) {
           channelName = oembedData.author_name;
         }
@@ -180,6 +204,9 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
         }
       }
     } catch (_) {}
+
+    // Resolve best accessible thumbnail (HD maxres -> SD sddefault -> HQ hqdefault)
+    thumbnail = await resolveBestYoutubeThumbnail(videoId, oembedThumbUrl);
 
     // Fallback parsing from HTML if oEmbed didn't provide it
     if (!channelName && playerResponseMatch) {
@@ -569,6 +596,177 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
       videoTitle: title || "YouTube Study Lesson",
       coverUrl: thumbnail,
       youtubeId: videoId,
+    });
+  }
+});
+
+// ── YouTube Playlist Metadata Fetcher (Fast & Flat, Subtitles Loaded Lazily) ───────
+router.post("/youtube-playlist", async (req, res) => {
+  const { url } = req.body;
+  const targetLanguage = sanitizeLang(req.body.targetLanguage, "English");
+
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "URL is required" });
+  }
+
+  // Extract playlist ID from ?list=... or &list=...
+  const listMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/i);
+  if (!listMatch || !listMatch[1]) {
+    return res.status(400).json({ error: "No YouTube playlist ID found in URL (missing '?list=...')" });
+  }
+  const playlistId = listMatch[1];
+  const canonicalPlaylistUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
+
+  try {
+    console.log(`[YouTube Playlist] Fetching full metadata for playlist ${playlistId}...`);
+
+    let title = "YouTube Playlist";
+    let description = "";
+    let channelTitle = "";
+    let thumbnailUrl = "";
+    let items: Array<{
+      id: string;
+      videoId: string;
+      title: string;
+      durationSeconds: number;
+      thumbnailUrl: string;
+      publishedAt?: string;
+      transcriptLoaded: boolean;
+    }> = [];
+
+    // 1. Primary extractor via yt-dlp-exec (Flat playlist, no limits, no audio download)
+    try {
+      const data: any = await (ytdlp as any)(canonicalPlaylistUrl, {
+        dumpSingleJson: true,
+        flatPlaylist: true,
+        noWarnings: true,
+        ignoreErrors: true,
+        addHeader: [
+          "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept-Language:en-US,en;q=0.9"
+        ],
+        extractorArgs: "youtube:player_client=android,web",
+        noCheckCertificate: true,
+      });
+
+      if (data) {
+        title = data.title || title;
+        description = data.description || "";
+        channelTitle = data.uploader || data.channel || data.channel_title || "";
+        
+        if (data.thumbnails && Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
+          thumbnailUrl = data.thumbnails[data.thumbnails.length - 1].url || "";
+        }
+
+        const rawEntries = Array.isArray(data.entries) ? data.entries : [];
+        items = rawEntries.map((entry: any, idx: number) => {
+          const videoId = entry.id || entry.url?.match(/(?:v=|shorts\/|youtu\.be\/)([^&"/?\s]{11})/)?.[1] || "";
+          
+          let thumb = "";
+          if (entry.thumbnails && Array.isArray(entry.thumbnails) && entry.thumbnails.length > 0) {
+            thumb = entry.thumbnails[entry.thumbnails.length - 1].url;
+          }
+          if (!thumb && videoId) {
+            thumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+          }
+
+          return {
+            id: `yt_item_${playlistId}_${videoId || idx}`,
+            videoId,
+            title: entry.title || `Video ${idx + 1}`,
+            durationSeconds: typeof entry.duration === "number" ? Math.round(entry.duration) : 0,
+            thumbnailUrl: thumb,
+            publishedAt: entry.upload_date || entry.timestamp ? String(entry.upload_date || entry.timestamp) : undefined,
+            transcriptLoaded: false,
+          };
+        }).filter(item => !!item.videoId);
+      }
+    } catch (ytdlpErr) {
+      console.warn("[YouTube Playlist] yt-dlp flat playlist extraction had a warning/error, attempting fallback:", ytdlpErr);
+    }
+
+    // 2. Fallback if yt-dlp returned 0 items: scrape YouTube HTML page directly
+    if (items.length === 0) {
+      try {
+        const pageRes = await fetch(canonicalPlaylistUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+          }
+        });
+        if (pageRes.ok) {
+          const html = await pageRes.text();
+          const matchTitle = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i)
+            || html.match(/<title>([^<]+)<\/title>/i);
+          if (matchTitle && matchTitle[1]) {
+            title = matchTitle[1].replace(" - YouTube", "").trim();
+          }
+
+          const matchChannel = html.match(/"ownerText"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([^"]+)"/i)
+            || html.match(/"author"\s*:\s*"([^"]+)"/i);
+          if (matchChannel && matchChannel[1]) {
+            channelTitle = matchChannel[1];
+          }
+
+          // Extract video items from ytInitialData
+          const dataMatch = html.match(/var ytInitialData = (\{.+?\});<\/script>/);
+          if (dataMatch && dataMatch[1]) {
+            const parsed = JSON.parse(dataMatch[1]);
+            const sectionContents = parsed?.contents?.twoColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents?.[0]?.playlistVideoListRenderer?.contents;
+            if (Array.isArray(sectionContents)) {
+              for (let i = 0; i < sectionContents.length; i++) {
+                const renderer = sectionContents[i]?.playlistVideoRenderer;
+                if (!renderer || !renderer.videoId) continue;
+                const vId = renderer.videoId;
+                const vTitle = renderer.title?.runs?.[0]?.text || `Video ${i + 1}`;
+                const durSec = parseInt(renderer.lengthSeconds || "0", 10);
+                const thumb = renderer.thumbnail?.thumbnails?.pop()?.url || `https://img.youtube.com/vi/${vId}/hqdefault.jpg`;
+
+                items.push({
+                  id: `yt_item_${playlistId}_${vId}`,
+                  videoId: vId,
+                  title: vTitle,
+                  durationSeconds: durSec,
+                  thumbnailUrl: thumb,
+                  transcriptLoaded: false,
+                });
+              }
+            }
+          }
+        }
+      } catch (scrapeErr) {
+        console.error("[YouTube Playlist] HTML scrape fallback error:", scrapeErr);
+      }
+    }
+
+    if (items.length === 0) {
+      return res.status(404).json({
+        error: "Could not retrieve videos from this YouTube playlist. Please check that the playlist is public or unlisted.",
+      });
+    }
+
+    if (!thumbnailUrl && items[0]?.thumbnailUrl) {
+      thumbnailUrl = items[0].thumbnailUrl;
+    }
+
+    return res.json({
+      id: `pl_yt_${playlistId}`,
+      title: title || "YouTube Playlist",
+      description,
+      thumbnailUrl,
+      sourceType: "youtube_playlist",
+      externalUrl: canonicalPlaylistUrl,
+      channelTitle,
+      itemCount: items.length,
+      language: targetLanguage,
+      items,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error("YouTube Playlist import error:", err);
+    return res.status(500).json({
+      error: `Failed to import YouTube playlist: ${err.message || "Unknown error"}`,
     });
   }
 });

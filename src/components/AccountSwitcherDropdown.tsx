@@ -90,12 +90,26 @@ export default function AccountSwitcherDropdown({
   const hasSyncError = localSyncError || !!syncProgress?.error;
 
   const formatLastSync = (timestamp?: number | null) => {
-    if (!timestamp) return t('sync.just_now', 'только что');
+    if (!timestamp) return t('sync.just_now', 'just now');
     const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-    if (diffSec < 10) return t('sync.just_now', 'только что');
-    if (diffSec < 60) return `${diffSec} сек назад`;
+    if (diffSec < 10) return t('sync.just_now', 'just now');
+    if (diffSec < 60) return t('sync.seconds_ago', '{{count}}s ago', { count: diffSec });
     const diffMin = Math.floor(diffSec / 60);
-    return `${diffMin} мин назад`;
+    return t('sync.minutes_ago', '{{count}}m ago', { count: diffMin });
+  };
+
+  const getLocalizedSyncMessage = (msg?: string) => {
+    if (!msg) return t('sync.syncingBooksAndDicts', 'Syncing dictionaries and books...');
+    if (msg.includes("Синхронизация") || msg.includes("Syncing")) {
+      return t('sync.syncingBooksAndDicts', 'Syncing dictionaries and books...');
+    }
+    if (msg.includes("Подключение") || msg.includes("Connecting")) {
+      return t('sync.connecting', 'Connecting to server...');
+    }
+    if (msg === "В сети" || msg === "Online") {
+      return t('sync.online', 'Online');
+    }
+    return msg;
   };
 
   return (
@@ -104,7 +118,7 @@ export default function AccountSwitcherDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 bg-teal-50 hover:bg-teal-100/70 dark:bg-teal-900/20 dark:hover:bg-teal-900/35 border border-teal-200/50 dark:border-teal-800/80 rounded-xl relative shadow-3xs transition-all active:scale-98 cursor-pointer group select-none"
+        className="flex items-center gap-1.5 sm:gap-2 p-1 sm:pl-1.5 sm:pr-2.5 sm:py-1 bg-teal-50 hover:bg-teal-100/70 dark:bg-teal-900/20 dark:hover:bg-teal-900/35 border border-teal-200/50 dark:border-teal-800/80 rounded-xl relative shadow-3xs transition-all active:scale-98 cursor-pointer group select-none"
         title={t('account_switcher.tooltip', 'Profile and account switcher')}
       >
         <div className="relative">
@@ -119,7 +133,7 @@ export default function AccountSwitcherDropdown({
           }`} />
         </div>
 
-        <div className="flex flex-col text-left justify-center min-w-0 pr-0.5 max-w-[110px]">
+        <div className="hidden sm:flex flex-col text-left justify-center min-w-0 pr-0.5 max-w-[110px]">
           <div className="flex items-center gap-1 leading-none">
             <span className="text-[10px] font-black text-teal-800 dark:text-teal-200 truncate">
               {displayName}
@@ -129,28 +143,6 @@ export default function AccountSwitcherDropdown({
             {user.email || user.username}
           </span>
         </div>
-
-        {/* Dynamic Live Sync Status Pill */}
-        {hasSyncError ? (
-          <span
-            onClick={(e) => {
-              e.stopPropagation();
-              onSyncErrorClick?.();
-            }}
-            className="flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-950/80 border border-red-300 dark:border-red-800 text-red-650 dark:text-red-400 rounded-md text-[8px] font-black cursor-pointer animate-pulse shadow-3xs"
-            title={t('sync.error_tooltip', 'Ошибка синхронизации. Нажмите для настройки.')}
-          >
-            <AlertCircle className="w-2.5 h-2.5 shrink-0" />
-            <span>Sync</span>
-          </span>
-        ) : isCurrentlySyncing ? (
-          <span className="flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 rounded-md border border-amber-300/80 dark:border-amber-800/80 shadow-3xs">
-            <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="font-mono">{syncPercent}%</span>
-          </span>
-        ) : (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title={t('sync.connected', 'Синхронизировано')} />
-        )}
 
         <ChevronDown className={`w-3.5 h-3.5 text-teal-600 dark:text-teal-400 transition-transform duration-150 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
@@ -189,20 +181,31 @@ export default function AccountSwitcherDropdown({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                 <Cloud className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                <span>{t('sync.title', 'Синхронизация данных')}</span>
+                <span>{t('sync.title', 'DATA SYNCHRONIZATION')}</span>
               </div>
-              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${
+              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 ${
                 hasSyncError
                   ? "bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400"
                   : isCurrentlySyncing
-                  ? "bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 font-mono animate-pulse"
+                  ? "bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 font-mono border border-amber-300/60 dark:border-amber-800/60 shadow-3xs"
                   : "bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400"
               }`}>
-                {hasSyncError
-                  ? t('sync.status_error', 'Ошибка')
-                  : isCurrentlySyncing
-                  ? `${syncPercent}%`
-                  : t('sync.status_synced', 'В сети')}
+                {hasSyncError ? (
+                  <>
+                    <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+                    <span>{t('sync.offline', t('sync.status_error', 'Offline'))}</span>
+                  </>
+                ) : isCurrentlySyncing ? (
+                  <>
+                    <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>{syncPercent}%</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span>{t('sync.online', t('sync.status_synced', 'Online'))}</span>
+                  </>
+                )}
               </span>
             </div>
 
@@ -211,13 +214,13 @@ export default function AccountSwitcherDropdown({
               <div className="space-y-1 animate-in fade-in duration-150">
                 <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                   <div 
-                    className="bg-amber-500 h-full rounded-full transition-all duration-300 ease-out" 
+                    className="bg-gradient-to-r from-amber-500 to-amber-400 h-full rounded-full transition-all duration-300 ease-out" 
                     style={{ width: `${Math.min(100, Math.max(10, syncPercent))}%` }} 
                   />
                 </div>
                 <div className="flex justify-between items-center text-[9px] text-zinc-500 font-medium">
-                  <span className="truncate">{syncProgress?.message || t('sync.syncing_msg', 'Синхронизация прогресса...')}</span>
-                  <span className="font-mono font-bold shrink-0">{syncPercent}%</span>
+                  <span className="truncate">{getLocalizedSyncMessage(syncProgress?.message)}</span>
+                  <span className="font-mono font-bold shrink-0 text-amber-600 dark:text-amber-400">{syncPercent}%</span>
                 </div>
               </div>
             )}
@@ -226,7 +229,12 @@ export default function AccountSwitcherDropdown({
               <div className="flex items-center justify-between pt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                  <span>{t('sync.last_sync', 'Обновлено:')} {formatLastSync(syncProgress?.lastSyncTime)}</span>
+                  <span>
+                    {!syncProgress?.lastSyncTime || (Math.floor((Date.now() - (syncProgress.lastSyncTime || 0)) / 1000) < 10)
+                      ? t('sync.updatedJustNow', 'Updated: just now')
+                      : t('sync.updatedAt', { time: formatLastSync(syncProgress?.lastSyncTime), defaultValue: `${t('sync.last_sync', 'Updated:')} ${formatLastSync(syncProgress?.lastSyncTime)}` })
+                    }
+                  </span>
                 </span>
                 {onManualSync && (
                   <button
@@ -238,7 +246,7 @@ export default function AccountSwitcherDropdown({
                     className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
                   >
                     <RefreshCw className="w-2.5 h-2.5" />
-                    <span>{t('sync.sync_now', 'Синхр.')}</span>
+                    <span>{t('sync.syncButton', t('sync.sync_now', 'Sync'))}</span>
                   </button>
                 )}
               </div>

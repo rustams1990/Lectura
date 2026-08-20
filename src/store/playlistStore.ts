@@ -78,6 +78,7 @@ interface PlaylistState {
   volume: number;
   isMuted: boolean;
   showQueueModal: boolean;
+  isExpanded: boolean;
   seekTarget: number | null;
 
   // Actions
@@ -90,6 +91,9 @@ interface PlaylistState {
   playPrev: () => void;
   togglePlay: () => void;
   setIsPlaying: (playing: boolean) => void;
+  expandPlayer: () => void;
+  collapsePlayer: () => void;
+  setIsExpanded: (expanded: boolean) => void;
   seek: (time: number) => void;
   seekDelta: (deltaSeconds: number) => void;
   clearSeekTarget: () => void;
@@ -116,7 +120,12 @@ export const usePlaylistStore = create<PlaylistState>()(
       volume: 1.0,
       isMuted: false,
       showQueueModal: false,
+      isExpanded: false,
       seekTarget: null,
+
+      expandPlayer: () => set({ isExpanded: true }),
+      collapsePlayer: () => set({ isExpanded: false }),
+      setIsExpanded: (isExpanded: boolean) => set({ isExpanded }),
 
       setQueue: (items: PlaylistItem[], startIndex = 0, autoPlay = true) => {
         // Filter only items with valid audio / video streams
@@ -175,7 +184,7 @@ export const usePlaylistStore = create<PlaylistState>()(
       },
 
       clearQueue: () => {
-        set({ queue: [], currentIndex: 0, isPlaying: false, currentTime: 0, duration: 0 });
+        set({ queue: [], currentIndex: 0, isPlaying: false, currentTime: 0, duration: 0, isExpanded: false, showQueueModal: false });
       },
 
       playTrackAtIndex: (index: number) => {

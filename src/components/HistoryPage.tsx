@@ -32,11 +32,16 @@ import {
   Mic,
   Volume2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  PieChart,
+  Activity
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
 import { formatDateTime, resolveLocale } from "../utils/dateUtils";
+import { formatAppDate, formatAppDateTime, formatAppTime } from "../utils/dateFormatter";
+import { AppDatePicker } from "./common/AppDatePicker";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -201,8 +206,7 @@ function HistoryPage({
   const [formMinutes, setFormMinutes] = useState("10");
   const [formNotes, setFormNotes] = useState("");
   const [formDateOnly, setFormDateOnly] = useState("");
-  const [formHour24, setFormHour24] = useState("12");
-  const [formMinute, setFormMinute] = useState("00");
+  const [formTime, setFormTime] = useState("12:00");
   const [formTags, setFormTags] = useState("");
 
   // Populate form when editing an entry
@@ -226,16 +230,18 @@ function HistoryPage({
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
       setFormDateOnly(`${yyyy}-${mm}-${dd}`);
-      setFormHour24(String(d.getHours()).padStart(2, "0"));
-      setFormMinute(String(d.getMinutes()).padStart(2, "0"));
+      const hh = String(d.getHours()).padStart(2, "0");
+      const min = String(d.getMinutes()).padStart(2, "0");
+      setFormTime(`${hh}:${min}`);
     } else {
       const now = new Date();
       const yyyy = now.getFullYear();
       const mm = String(now.getMonth() + 1).padStart(2, "0");
       const dd = String(now.getDate()).padStart(2, "0");
       setFormDateOnly(`${yyyy}-${mm}-${dd}`);
-      setFormHour24(String(now.getHours()).padStart(2, "0"));
-      setFormMinute(String(now.getMinutes()).padStart(2, "0"));
+      const hh = String(now.getHours()).padStart(2, "0");
+      const min = String(now.getMinutes()).padStart(2, "0");
+      setFormTime(`${hh}:${min}`);
     }
   };
 
@@ -259,8 +265,9 @@ function HistoryPage({
     const mm = String(now.getMonth() + 1).padStart(2, "0");
     const dd = String(now.getDate()).padStart(2, "0");
     setFormDateOnly(`${yyyy}-${mm}-${dd}`);
-    setFormHour24(String(now.getHours()).padStart(2, "0"));
-    setFormMinute(String(now.getMinutes()).padStart(2, "0"));
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+    setFormTime(`${hh}:${min}`);
     setIsCreateModalOpen(true);
   };
 
@@ -297,7 +304,8 @@ function HistoryPage({
 
     let timestamp = new Date().toISOString();
     if (formDateOnly) {
-      const parsed = new Date(`${formDateOnly}T${formHour24 || "00"}:${formMinute || "00"}:00`);
+      const timeStr = formTime && formTime.includes(":") ? formTime : "00:00";
+      const parsed = new Date(`${formDateOnly}T${timeStr}:00`);
       if (!isNaN(parsed.getTime())) {
         timestamp = parsed.toISOString();
       }
@@ -365,12 +373,6 @@ function HistoryPage({
     }
   };
 
-  const handleClearAll = () => {
-    if (confirm(t('history_page.confirm_clear_all', "Are you sure you want to completely clear all activity history?"))) {
-      onUpdateHistory([]);
-    }
-  };
-
   // Deduplicated base history (merges duplicate read/listen entries within 30 minutes)
   const deduplicatedHistory = useMemo(() => {
     if (!history || history.length === 0) return [];
@@ -403,21 +405,34 @@ function HistoryPage({
         item.lessonType === "audio" ||
         item.actionType === "listen";
 
+      const isCustomActivity = item.mode === "custom" || item.lessonId === "custom" || !lesson;
+
       const itemWithStatus: HistoryEntry = {
         ...item,
-        actionType: isAudioOrVideoLesson ? "listen" : (item.actionType === "complete" ? "read" : item.actionType),
+        actionType: item.actionType || (isAudioOrVideoLesson ? "listen" : "read"),
         status: isLessonDone ? "completed" : (item.status || "in_progress"),
       };
 
-      const existingIdx = merged.findIndex(
-        (m) =>
+      const existingIdx = merged.findIndex((m) => {
+        if (isCustomActivity) {
+          return (
+            m.id === item.id ||
+            (m.lessonId === "custom" &&
+              m.customTitle === item.customTitle &&
+              m.category === item.category &&
+              m.actionType === item.actionType &&
+              Math.abs(new Date(m.timestamp).getTime() - new Date(item.timestamp).getTime()) < 30 * 60 * 1000)
+          );
+        }
+        return (
           m.lessonId === item.lessonId &&
+          m.actionType === item.actionType &&
           Math.abs(new Date(m.timestamp).getTime() - new Date(item.timestamp).getTime()) < 30 * 60 * 1000
-      );
+        );
+      });
 
       if (existingIdx !== -1) {
         const existing = merged[existingIdx];
-        const isListening = existing.actionType === "listen" || itemWithStatus.actionType === "listen" || isAudioOrVideoLesson;
         const isCompleted =
           existing.status === "completed" ||
           itemWithStatus.status === "completed" ||
@@ -426,7 +441,7 @@ function HistoryPage({
 
         merged[existingIdx] = {
           ...existing,
-          actionType: isListening ? "listen" : (existing.actionType === "complete" ? "read" : existing.actionType),
+          actionType: item.actionType || existing.actionType,
           status: isCompleted ? "completed" : (existing.status || "in_progress"),
           durationSeconds: Math.max(existing.durationSeconds || 0, itemWithStatus.durationSeconds || 0),
           notes: existing.notes || itemWithStatus.notes,
@@ -501,17 +516,32 @@ function HistoryPage({
 
   // Goals and Streaks logic
   const isGlobalGoal = selectedLanguage === "all";
-  const activeGoalMinutes = isGlobalGoal 
-    ? (readerSettings?.dailyGoalMinutes ?? 15)
-    : (readerSettings?.dailyGoalsByLanguage?.[selectedLanguage] ?? readerSettings?.dailyGoalMinutes ?? 15);
+  const activeGoalMinutes = useMemo(() => {
+    if (isGlobalGoal) {
+      const goals = readerSettings?.dailyGoalsByLanguage;
+      if (goals && Object.keys(goals).length > 0) {
+        const sum = Object.values(goals).reduce((acc, g) => acc + (Number(g) || 0), 0);
+        if (sum > 0) return sum;
+      }
+      return readerSettings?.dailyGoalMinutes ?? 15;
+    }
+
+    // Specific language
+    const goals = readerSettings?.dailyGoalsByLanguage || {};
+    const match = Object.entries(goals).find(([k]) => k.toLowerCase() === selectedLanguage.toLowerCase());
+    if (match && typeof match[1] === "number") {
+      return match[1];
+    }
+    return readerSettings?.dailyGoalMinutes ?? 15;
+  }, [isGlobalGoal, selectedLanguage, readerSettings?.dailyGoalsByLanguage, readerSettings?.dailyGoalMinutes]);
   
   const { currentStreak, todayMinutes, isGoalMetToday } = useMemo(() => {
     if (!history || history.length === 0 || activeGoalMinutes === 0) {
        return { currentStreak: 0, todayMinutes: 0, isGoalMetToday: false };
     }
     
-    // Aggregate minutes per day
-    const dayTotals: Record<string, number> = {};
+    // Aggregate seconds per day
+    const dayTotalsSecs: Record<string, number> = {};
     deduplicatedHistory.forEach(item => {
       const itemLang = getItemLanguage(item);
       if (!isGlobalGoal && itemLang.toLowerCase() !== selectedLanguage.toLowerCase()) return;
@@ -519,27 +549,29 @@ function HistoryPage({
       const d = new Date(item.timestamp);
       if (isNaN(d.getTime())) return;
       const dateStr = d.toLocaleDateString("en-CA");
-      dayTotals[dateStr] = (dayTotals[dateStr] || 0) + (item.durationSeconds / 60);
+      dayTotalsSecs[dateStr] = (dayTotalsSecs[dateStr] || 0) + (item.durationSeconds || 0);
     });
 
-    let streak = 0;
     const today = new Date();
     const todayStr = today.toLocaleDateString("en-CA");
-    const todayMins = dayTotals[todayStr] || 0;
-    const metToday = todayMins >= activeGoalMinutes;
+    const todaySecs = dayTotalsSecs[todayStr] || 0;
+    const todayMins = Math.floor(todaySecs / 60);
+    const targetGoalSecs = activeGoalMinutes * 60;
+    const metToday = todaySecs >= targetGoalSecs;
 
+    let streak = 0;
     let checkDate = new Date();
     if (!metToday) {
        checkDate.setDate(checkDate.getDate() - 1);
        const yestStr = checkDate.toLocaleDateString("en-CA");
-       if (!dayTotals[yestStr] || dayTotals[yestStr] < activeGoalMinutes) {
+       if (!dayTotalsSecs[yestStr] || dayTotalsSecs[yestStr] < targetGoalSecs) {
          return { currentStreak: 0, todayMinutes: todayMins, isGoalMetToday: metToday };
        }
     }
 
     while (true) {
        const dStr = checkDate.toLocaleDateString("en-CA");
-       if (dayTotals[dStr] >= activeGoalMinutes) {
+       if ((dayTotalsSecs[dStr] || 0) >= targetGoalSecs) {
          streak++;
          checkDate.setDate(checkDate.getDate() - 1);
        } else {
@@ -549,6 +581,40 @@ function HistoryPage({
 
     return { currentStreak: streak, todayMinutes: todayMins, isGoalMetToday: metToday };
   }, [deduplicatedHistory, activeGoalMinutes, isGlobalGoal, selectedLanguage, getItemLanguage]);
+
+  // Dynamic Goal Progress according to selected period filter
+  const goalPeriodStats = useMemo(() => {
+    const isSingleDay = selectedPeriod === "today" || selectedPeriod === "yesterday" || (selectedPeriod === "custom" && !!customDate);
+
+    if (isSingleDay) {
+      const selectedDaySeconds = scopedHistory.reduce((acc, r) => acc + (r.durationSeconds || 0), 0);
+      const selectedDayMinutes = Math.floor(selectedDaySeconds / 60);
+      const isMet = activeGoalMinutes > 0 && selectedDaySeconds >= activeGoalMinutes * 60;
+      const percent = activeGoalMinutes > 0 ? Math.min(100, (selectedDayMinutes / activeGoalMinutes) * 100) : 0;
+
+      let label = t('history_page.today', "Today");
+      if (selectedPeriod === "yesterday") label = t('history_page.yesterday', "Yesterday");
+      else if (selectedPeriod === "custom" && customDate) label = customDate;
+
+      return {
+        isSingleDay: true,
+        minutes: selectedDayMinutes,
+        isGoalMet: isMet,
+        percent,
+        progressText: `${label}: ${selectedDayMinutes} / ${activeGoalMinutes} min`,
+      };
+    }
+
+    // For multi-day ranges (All Time, Last 7 Days, This Month, etc.):
+    const percent = activeGoalMinutes > 0 ? Math.min(100, (todayMinutes / activeGoalMinutes) * 100) : 0;
+    return {
+      isSingleDay: false,
+      minutes: todayMinutes,
+      isGoalMet: isGoalMetToday,
+      percent,
+      progressText: `${t('history_page.today', 'Today')}: ${todayMinutes} / ${activeGoalMinutes} min`,
+    };
+  }, [selectedPeriod, customDate, scopedHistory, activeGoalMinutes, todayMinutes, isGoalMetToday, t]);
 
   // Language Analytics
   const languageStats = useMemo(() => {
@@ -577,8 +643,108 @@ function HistoryPage({
       }));
   }, [scopedHistory, getItemLanguage]);
 
+  // Activity Breakdown Stats (for Donut Chart)
+  const activityBreakdown = useMemo(() => {
+    let listeningSec = 0;
+    let grammarSec = 0;
+    let readingSec = 0;
+    let speakingSec = 0;
+
+    scopedHistory.forEach((item) => {
+      const dur = item.durationSeconds || 0;
+      const actionType = (item.actionType || "").toLowerCase();
+      const category = (item.category || "").toLowerCase();
+      const lesson = lessons.find((l) => l.id === item.lessonId);
+      const lessonType = (item.lessonType || lesson?.lessonType || "").toLowerCase();
+
+      if (actionType === "study" || actionType === "grammar" || category === "grammar") {
+        grammarSec += dur;
+      } else if (actionType === "speak" || actionType === "speaking" || category === "speaking") {
+        speakingSec += dur;
+      } else if (
+        actionType === "listen" ||
+        actionType === "listening" ||
+        category === "podcast" ||
+        category === "video" ||
+        lessonType === "podcast" ||
+        lessonType === "youtube" ||
+        lessonType === "audio" ||
+        !!lesson?.audioUrl ||
+        !!lesson?.youtubeId
+      ) {
+        listeningSec += dur;
+      } else {
+        readingSec += dur;
+      }
+    });
+
+    const total = listeningSec + grammarSec + readingSec + speakingSec;
+
+    const items = [
+      {
+        id: "listening",
+        label: t('history_page.activity_listening', 'Listening'),
+        seconds: listeningSec,
+        percent: total > 0 ? (listeningSec / total) * 100 : 0,
+        colorHex: "#8b5cf6",
+        badgeBg: "bg-purple-500",
+        textColor: "text-purple-600 dark:text-purple-400"
+      },
+      {
+        id: "grammar",
+        label: t('history_page.activity_grammar', 'Grammar / Study'),
+        seconds: grammarSec,
+        percent: total > 0 ? (grammarSec / total) * 100 : 0,
+        colorHex: "#10b981",
+        badgeBg: "bg-emerald-500",
+        textColor: "text-emerald-600 dark:text-emerald-400"
+      },
+      {
+        id: "reading",
+        label: t('history_page.activity_reading', 'Reading'),
+        seconds: readingSec,
+        percent: total > 0 ? (readingSec / total) * 100 : 0,
+        colorHex: "#3b82f6",
+        badgeBg: "bg-blue-500",
+        textColor: "text-blue-600 dark:text-blue-400"
+      },
+      {
+        id: "speaking",
+        label: t('history_page.activity_speaking', 'Speaking'),
+        seconds: speakingSec,
+        percent: total > 0 ? (speakingSec / total) * 100 : 0,
+        colorHex: "#f59e0b",
+        badgeBg: "bg-amber-500",
+        textColor: "text-amber-600 dark:text-amber-400"
+      },
+    ].filter(i => i.seconds > 0);
+
+    return {
+      totalSeconds: total,
+      items,
+    };
+  }, [scopedHistory, lessons, t]);
+
   // Channel / Source Analytics
   const channelStats = useMemo(() => {
+    // 1. Build author avatar directory with strict YouTube avatar priority
+    const authorAvatarMap = new Map<string, string>();
+    lessons.forEach((l) => {
+      if (l.channelName) {
+        const key = l.channelName.trim().toLowerCase();
+        // Priority 1: Explicit YouTube / channel author portrait
+        if (l.channelAvatarUrl) {
+          authorAvatarMap.set(key, l.channelAvatarUrl);
+        } else if (!authorAvatarMap.has(key) && (l.youtubeId || l.lessonType === "youtube") && l.coverUrl) {
+          // Priority 2: YouTube lesson cover
+          authorAvatarMap.set(key, l.coverUrl);
+        } else if (!authorAvatarMap.has(key) && l.coverUrl) {
+          // Priority 3: Fallback cover
+          authorAvatarMap.set(key, l.coverUrl);
+        }
+      }
+    });
+
     const channelMap: Record<
       string,
       {
@@ -600,35 +766,49 @@ function HistoryPage({
         (lesson?.youtubeId || lesson?.lessonType === "youtube"
           ? (lesson?.title && lesson.title !== "YouTube Video" ? lesson.title : t("history_page.youtube_source", "YouTube"))
           : lesson?.lessonType === "podcast"
-          ? (lesson?.title || t("history_page.podcast_source", "Podcast"))
+          ? (lesson?.channelName?.trim() || lesson?.title || t("history_page.podcast_source", "Podcast"))
           : null);
 
       if (!rawName) return;
 
+      const trimmedName = rawName.trim();
+      const normKey = trimmedName.toLowerCase();
+
+      // Prioritize round author portrait from YouTube directory
       const avatarUrl =
+        authorAvatarMap.get(normKey) ||
         lesson?.channelAvatarUrl ||
         item.channelAvatarUrl ||
         lesson?.coverUrl ||
         item.coverUrl ||
         null;
 
-      if (!channelMap[rawName]) {
-        channelMap[rawName] = {
-          name: rawName,
+      if (!channelMap[normKey]) {
+        channelMap[normKey] = {
+          name: trimmedName,
           avatarUrl,
           durationSeconds: 0,
           lessonIds: new Set<string>(),
           sessionCount: 0,
         };
-      } else if (!channelMap[rawName].avatarUrl && avatarUrl) {
-        channelMap[rawName].avatarUrl = avatarUrl;
+      } else {
+        // Keep best display name (prefer explicit channelName over fallback title)
+        if (lesson?.channelName && channelMap[normKey].name !== lesson.channelName.trim()) {
+          channelMap[normKey].name = lesson.channelName.trim();
+        }
+        // Always prioritize YouTube avatar if directory has one
+        if (authorAvatarMap.has(normKey)) {
+          channelMap[normKey].avatarUrl = authorAvatarMap.get(normKey);
+        } else if (!channelMap[normKey].avatarUrl && avatarUrl) {
+          channelMap[normKey].avatarUrl = avatarUrl;
+        }
       }
 
       const dur = item.durationSeconds || 0;
-      channelMap[rawName].durationSeconds += dur;
-      channelMap[rawName].sessionCount += 1;
+      channelMap[normKey].durationSeconds += dur;
+      channelMap[normKey].sessionCount += 1;
       if (item.lessonId) {
-        channelMap[rawName].lessonIds.add(item.lessonId);
+        channelMap[normKey].lessonIds.add(item.lessonId);
       }
       totalDuration += dur;
     });
@@ -644,10 +824,12 @@ function HistoryPage({
     return list.sort((a, b) => b.durationSeconds - a.durationSeconds);
   }, [scopedHistory, lessons, t]);
 
+  const [isChannelsExpanded, setIsChannelsExpanded] = useState(false);
+
   const displayedChannels = useMemo(() => {
-    if (channelsLimit === "all") return channelStats;
-    return channelStats.slice(0, channelsLimit);
-  }, [channelStats, channelsLimit]);
+    if (isChannelsExpanded) return channelStats;
+    return channelStats.slice(0, 3);
+  }, [channelStats, isChannelsExpanded]);
 
   // Dynamic card title
   const timeCardTitle = useMemo(() => {
@@ -708,6 +890,50 @@ function HistoryPage({
     return filteredHistory.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredHistory, safeCurrentPage]);
 
+  // Group paginated items by date
+  const groupedHistory = useMemo(() => {
+    const groups: { dateKey: string; items: HistoryEntry[] }[] = [];
+    let currentKey = "";
+    let currentItems: HistoryEntry[] = [];
+
+    paginatedHistory.forEach((item) => {
+      let key = "";
+      try {
+        const d = new Date(item.timestamp);
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const itemDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diffDays = Math.round((today.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) {
+          key = t("history_page.today", "Today");
+        } else if (diffDays === 1) {
+          key = t("history_page.yesterday", "Yesterday");
+        } else {
+          key = d.toLocaleDateString(i18n.language || "en-US", { day: "numeric", month: "short", year: "numeric" });
+        }
+      } catch {
+        key = item.timestamp;
+      }
+
+      if (key !== currentKey) {
+        if (currentItems.length > 0) {
+          groups.push({ dateKey: currentKey, items: currentItems });
+        }
+        currentKey = key;
+        currentItems = [item];
+      } else {
+        currentItems.push(item);
+      }
+    });
+
+    if (currentItems.length > 0) {
+      groups.push({ dateKey: currentKey, items: currentItems });
+    }
+
+    return groups;
+  }, [paginatedHistory, t, i18n.language]);
+
   const totalSeconds = useMemo(() => {
     return scopedHistory.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
   }, [scopedHistory]);
@@ -728,395 +954,48 @@ function HistoryPage({
 
   const formatDate = (isoStr: string) => {
     try {
-      return formatDateTime(isoStr, {
-        datePref: readerSettings?.dateFormat,
-        timePref: readerSettings?.timeFormat,
-        appLocale: i18n.language
-      });
+      return formatAppDateTime(isoStr);
     } catch {
       return isoStr;
     }
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-in fade-in duration-200 font-sans">
-      {/* Top Banner Header */}
-      <div className="bg-gradient-to-r from-teal-600 via-emerald-600 to-sky-700 p-6 rounded-3xl text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-white/20 backdrop-blur-md rounded-xl">
-              <History className="w-5 h-5 text-white animate-spin-slow" />
+    <div className="space-y-5 max-w-5xl mx-auto pb-12 animate-in fade-in duration-200 font-sans">
+      {/* Top Header with Compact Action Bar & Global Dashboard Filters */}
+      <div className="flex flex-col gap-3 pb-3 border-b border-zinc-200/80 dark:border-zinc-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-teal-500/10 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+              <History className="w-5 h-5" />
             </div>
-            <h2 className="text-xl font-extrabold tracking-tight">
-              {t('history_page.title', 'Reading & Listening Activity History')}
-            </h2>
-          </div>
-          <p className="text-xs text-teal-50 max-w-xl font-medium leading-relaxed">
-            {t('history_page.subtitle', 'Complete log of your read lessons, listened podcasts, and completed materials. You can edit any entries and personal notes.')}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={startCreateEntry}
-            className="px-4 py-2.5 bg-white text-teal-700 hover:bg-teal-50 font-black text-xs rounded-2xl flex items-center gap-2 shadow-sm hover:shadow-md cursor-pointer transition-all active:scale-97"
-          >
-            <Plus className="w-4 h-4" />
-            {t('history_page.add_entry', 'Add Record')}
-          </button>
-          {history.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClearAll}
-              className="px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl flex items-center gap-1.5 backdrop-blur-md border border-white/20 transition-all cursor-pointer"
-              title={t('history_page.clear_all_title', 'Clear entire history')}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Daily Goal & Streak Banner */}
-      <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-3xl border border-zinc-100 dark:border-zinc-800 flex flex-col md:flex-row items-center gap-4 justify-between shadow-sm">
-        <div className="flex items-center gap-4 w-full md:w-auto flex-1">
-          <div className={`p-3 rounded-2xl flex items-center justify-center shrink-0 ${activeGoalMinutes > 0 ? (isGoalMetToday ? 'bg-orange-50 text-orange-500 dark:bg-orange-950/40' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800') : 'bg-zinc-100 text-zinc-300 dark:bg-zinc-800/50'}`}>
-            <Flame className={`w-6 h-6 ${activeGoalMinutes > 0 && isGoalMetToday ? 'animate-pulse' : ''}`} />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">
-                  {isGlobalGoal ? t('history_page.daily_goal', "Daily Goal:") : t('history_page.lang_goal', "Goal ({{lang}}):", { lang: selectedLanguage })}
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  value={activeGoalMinutes}
-                  onChange={(e) => {
-                    const val = Math.max(0, parseInt(e.target.value) || 0);
-                    if (isGlobalGoal) {
-                      onUpdateSettings({ ...readerSettings, dailyGoalMinutes: val });
-                    } else {
-                      onUpdateSettings({
-                        ...readerSettings,
-                        dailyGoalsByLanguage: {
-                          ...(readerSettings?.dailyGoalsByLanguage || {}),
-                          [selectedLanguage]: val
-                        }
-                      });
-                    }
-                  }}
-                  className="bg-zinc-100 dark:bg-zinc-800 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 rounded-lg text-xs font-bold text-zinc-700 dark:text-zinc-300 py-1 px-2 w-16 text-center cursor-text focus:border-teal-500 focus:ring-2 focus:ring-teal-500/50 outline-none transition-all"
-                  title={t('history_page.goal_zero_hint', 'Enter 0 to disable')}
-                />
-                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{t('history_page.min_label', 'min')}</span>
-              </div>
-              {activeGoalMinutes > 0 && (
-                <span className="text-xs font-black text-orange-500">
-                  {currentStreak > 0 ? t('history_page.streak_days', '{{count}} days streak!', { count: currentStreak }) : t('history_page.no_streak', 'No streak yet')}
-                </span>
-              )}
-            </div>
-            {activeGoalMinutes > 0 ? (
-              <>
-                <div className="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden w-full relative">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-1000 ${isGoalMetToday ? 'bg-gradient-to-r from-orange-400 to-rose-500' : 'bg-teal-500'}`}
-                    style={{ width: `${Math.min(100, (todayMinutes / activeGoalMinutes) * 100)}%` }}
-                  />
-                </div>
-                <div className="text-[10px] text-zinc-400 font-bold mt-1.5 text-right">
-                  {t('history_page.goal_progress', '{{current}} / {{target}} minutes', { current: Math.round(todayMinutes), target: activeGoalMinutes })}
-                </div>
-              </>
-            ) : (
-              <div className="text-xs text-zinc-400 font-medium mt-1">
-                {t('history_page.goal_disabled', 'Goal is disabled. Enter time to start earning streak flames!')}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Metric Cards Summary Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
-          <div className="p-3 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl">
-            <Clock className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block truncate">
-              {timeCardTitle}
-            </span>
-            <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
-              {formatDuration(totalSeconds)}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
-              {t('history_page.reading_sessions', 'Reading Sessions')}
-            </span>
-            <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
-              {readCount}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
-          <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-xl">
-            <Headphones className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
-              {t('history_page.listenings', 'Listenings')}
-            </span>
-            <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
-              {listenCount}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
-              {t('history_page.completed_count', 'Completed')}
-            </span>
-            <span className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">
-              {completeCount}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Language Analytics Progress Bar */}
-      {languageStats.length > 0 && (
-        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Target className="w-3.5 h-3.5"/> {t('history_page.lang_distribution', 'Language Distribution')}</span>
-          </div>
-          <div className="flex h-3 rounded-full overflow-hidden w-full gap-0.5">
-            {languageStats.map(stat => (
-              <div key={stat.lang} className={`h-full ${stat.color}`} style={{ width: `${stat.percent}%` }} title={`${stat.lang}: ${formatDuration(stat.duration)}`} />
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {languageStats.map(stat => (
-              <div key={stat.lang} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
-                <div className={`w-2 h-2 rounded-full ${stat.color}`} />
-                {stat.lang} <span className="text-zinc-400 font-normal">({Math.round(stat.percent)}%)</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Channels & Sources Analytics Table */}
-      {channelStats.length > 0 && (
-        <div className="bg-white dark:bg-zinc-900/60 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-4 shadow-xs">
-          {/* Header row */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl">
-                <Radio className="w-4 h-4" />
-              </div>
-              <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-                {t('history_page.channels_title', 'Channels')}
-              </h3>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 self-end sm:self-auto">
-              <div className="flex items-center gap-2">
-                <span>{t('history_page.channels_show', 'Show')}</span>
-                <select
-                  value={channelsLimit}
-                  onChange={(e) => setChannelsLimit(e.target.value === "all" ? "all" : parseInt(e.target.value, 10))}
-                  aria-label={t('history_page.channels_show', 'Show channels limit')}
-                  className="bg-zinc-100 dark:bg-zinc-800 border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-800 dark:text-zinc-200 font-bold rounded-xl px-2.5 py-1 text-xs cursor-pointer outline-none focus:ring-2 focus:ring-amber-500/30"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value="all">{t('history_page.channels_show_all', 'All')}</option>
-                </select>
-              </div>
-              <span className="text-zinc-400 dark:text-zinc-500 font-medium">
-                {t('history_page.total_sources', 'Total sources: {{count}}', { count: channelStats.length })}
-              </span>
+            <div>
+              <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 leading-tight">
+                {t('history_page.title', 'Activity History')}
+              </h1>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {t('history_page.subtitle', 'Complete log of your read lessons, listened podcasts, and completed materials.')}
+              </p>
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-zinc-100 dark:border-zinc-800/80 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                  <th className="pb-3 font-bold">{t('history_page.col_source', 'Source')}</th>
-                  <th className="pb-3 font-bold text-center sm:text-left">{t('history_page.col_time', 'Time')}</th>
-                  <th className="pb-3 font-bold text-center">{t('history_page.col_videos', 'Videos')}</th>
-                  <th className="pb-3 font-bold text-right pr-2 min-w-[120px]">{t('history_page.col_share', 'Share')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-medium">
-                {displayedChannels.map((channel) => (
-                  <tr
-                    key={channel.name}
-                    onClick={() => setSearchQuery(channel.name)}
-                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer group"
-                    title={t('history_page.filter_by_channel', 'Click to filter history by this channel')}
-                  >
-                    {/* Source: Avatar + Name */}
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-3">
-                        {channel.avatarUrl ? (
-                          <img
-                            src={channel.avatarUrl}
-                            alt={channel.name}
-                            className="w-9 h-9 rounded-full object-cover shrink-0 border border-zinc-200 dark:border-zinc-700 shadow-xs"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
-                            {channel.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <span className="font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors block truncate">
-                            {channel.name}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Time */}
-                    <td className="py-3 px-2 text-center sm:text-left font-mono font-bold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-                      {formatDuration(channel.durationSeconds)}
-                    </td>
-
-                    {/* Videos / Lessons Count */}
-                    <td className="py-3 px-2 text-center font-bold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
-                      {channel.videoCount}
-                    </td>
-
-                    {/* Share progress bar + % */}
-                    <td className="py-3 pl-2 pr-2 text-right">
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="w-24 sm:w-32 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                          <div
-                            className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(3, channel.sharePercent)}%` }}
-                          />
-                        </div>
-                        <span className="text-[11px] font-mono font-bold text-zinc-500 dark:text-zinc-400">
-                          {channel.sharePercent.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Filters & Search Control Bar */}
-      <div className="p-3 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800 space-y-3">
-        {/* Row 1: Filter Type Segmented Tabs + Search Input */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          {/* Filter buttons */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 no-scrollbar">
+          <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
             <button
               type="button"
-              onClick={() => setFilterType("all")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                filterType === "all"
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-              }`}
+              onClick={startCreateEntry}
+              className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-97"
             >
-              {t('history_page.filter_all_count', 'All ({{count}})', { count: deduplicatedHistory.length })}
+              <Plus className="w-3.5 h-3.5" />
+              <span>{t('history_page.add_entry', 'Add Record')}</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterType("read")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                filterType === "read"
-                  ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              {t('history_page.filter_reading_count', 'Reading ({{count}})', { count: readCount })}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterType("listen")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                filterType === "listen"
-                  ? "bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-              }`}
-            >
-              <Headphones className="w-3.5 h-3.5" />
-              {t('history_page.filter_audio_count', 'Audio ({{count}})', { count: listenCount })}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterType("complete")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                filterType === "complete"
-                  ? "bg-white dark:bg-zinc-900 text-amber-600 dark:text-amber-400 shadow-xs border border-zinc-200 dark:border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              {t('history_page.filter_completed_count', 'Completed ({{count}})', { count: completeCount })}
-            </button>
-          </div>
-
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px] lg:max-w-xs">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('history_page.search_placeholder', 'Search history...')}
-              className="w-full pl-8 pr-8 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
         </div>
 
-        {/* Row 2: Dropdowns */}
-        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-zinc-200/60 dark:border-zinc-800/60">
+        {/* Global Dashboard Filters Bar: [All Languages], [All Time], [All Months], [All Tags] */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           {/* Language Selector */}
           {availableLanguages.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[140px]">
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[130px]">
               <Globe className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
               <select
                 value={selectedLanguage}
@@ -1133,27 +1012,8 @@ function HistoryPage({
             </div>
           )}
 
-          {/* Tags Selector */}
-          {availableTags.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[140px]">
-              <Tag className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-              <select
-                value={selectedTag}
-                onChange={(e) => setSelectedTag(e.target.value)}
-                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
-              >
-                <option value="all">{t('history_page.all_tags', '🏷️ All Tags')}</option>
-                {availableTags.map((tag) => (
-                  <option key={tag} value={tag}>
-                    {tag}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Period Selector */}
-          <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[160px]">
+          <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[140px]">
             <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
             <select
               value={selectedPeriod}
@@ -1177,17 +1037,19 @@ function HistoryPage({
 
           {/* Custom Date Input */}
           {selectedPeriod === "custom" && (
-            <input
-              type="date"
+            <AppDatePicker
               value={customDate}
-              onChange={(e) => setCustomDate(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/20 shadow-3xs flex-1 sm:flex-none min-w-[130px]"
+              onChange={setCustomDate}
+              allowClear
+              placeholder={t('history_page.custom_date_ph', 'Choose date...')}
+              className="flex-1 sm:flex-none min-w-[130px]"
+              inputClassName="py-1.5"
             />
           )}
 
           {/* Month Selector */}
           {selectedPeriod === "all" && availableMonths.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[140px]">
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[130px]">
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
@@ -1203,27 +1065,411 @@ function HistoryPage({
             </div>
           )}
 
-          {/* Reset Filters button */}
-          {(selectedPeriod !== "all" || selectedLanguage !== "all" || selectedMonth !== "all" || filterType !== "all" || searchQuery.trim() !== "" || customDate !== "" || selectedTag !== "all") && (
+          {/* Tags Selector */}
+          {availableTags.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-zinc-700 dark:text-zinc-200 shadow-3xs flex-1 sm:flex-none min-w-[120px]">
+              <Tag className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+              <select
+                value={selectedTag}
+                onChange={(e) => setSelectedTag(e.target.value)}
+                className="bg-transparent text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer w-full"
+              >
+                <option value="all">{t('history_page.all_tags', '🏷️ All Tags')}</option>
+                {availableTags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Reset Global Filters button */}
+          {(selectedPeriod !== "all" || selectedLanguage !== "all" || selectedMonth !== "all" || customDate !== "" || selectedTag !== "all") && (
             <button
               type="button"
               onClick={() => {
                 setSelectedPeriod("all");
                 setSelectedLanguage("all");
                 setSelectedMonth("all");
-                setFilterType("all");
-                setSearchQuery("");
                 setCustomDate("");
                 setSelectedTag("all");
               }}
-              className="px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer flex-1 sm:flex-none"
+              className="px-2.5 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              title={t('history_page.reset', 'Reset filters')}
             >
               <X className="w-3.5 h-3.5" />
-              {t('history_page.reset', 'Reset')}
+              <span>{t('history_page.reset', 'Reset')}</span>
             </button>
           )}
         </div>
       </div>
+
+      {/* Unified Analytics Summary Bar (3 compact widgets) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* 1. Time & Sessions Widget */}
+        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col justify-between shadow-3xs">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] text-zinc-400 font-black uppercase tracking-wider">
+              {timeCardTitle}
+            </span>
+            <div className="p-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-lg">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-xl font-black text-zinc-900 dark:text-zinc-100 mb-2">
+            {formatDuration(totalSeconds)}
+          </div>
+          <div className="flex items-center gap-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+            <span className="flex items-center gap-1" title={t('history_page.reading_sessions', 'Reading')}>
+              <BookOpen className="w-3 h-3 text-emerald-500" />
+              <span>{readCount}</span>
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1" title={t('history_page.listenings', 'Listenings')}>
+              <Headphones className="w-3 h-3 text-purple-500" />
+              <span>{listenCount}</span>
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1" title={t('history_page.completed_count', 'Completed')}>
+              <CheckCircle2 className="w-3 h-3 text-amber-500" />
+              <span>{completeCount}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* 2. Daily Goal Widget */}
+        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col justify-between shadow-3xs">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-zinc-400 font-black uppercase tracking-wider">
+                {isGlobalGoal 
+                  ? t('history_page.total_daily_goal', "TOTAL DAILY GOAL:") 
+                  : t('history_page.lang_goal_colon', "GOAL ({{lang}}):", { lang: selectedLanguage.toUpperCase() })}
+              </span>
+              {isGlobalGoal ? (
+                <span 
+                  className="bg-zinc-100 dark:bg-zinc-800 rounded-md text-[11px] font-bold text-zinc-700 dark:text-zinc-300 py-0.5 px-2 text-center select-none"
+                  title={t('history_page.total_goal_hint', 'Total combined daily goal for all languages')}
+                >
+                  {activeGoalMinutes} <span className="text-[10px] text-zinc-400 font-bold">{t('history_page.min_short', 'min')}</span>
+                </span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    value={activeGoalMinutes}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                      const currentGoals = readerSettings?.dailyGoalsByLanguage || {};
+                      const existingKey = Object.keys(currentGoals).find(k => k.toLowerCase() === selectedLanguage.toLowerCase()) || selectedLanguage;
+                      onUpdateSettings({
+                        ...readerSettings,
+                        dailyGoalsByLanguage: {
+                          ...currentGoals,
+                          [existingKey]: val
+                        }
+                      });
+                    }}
+                    className="bg-zinc-100 dark:bg-zinc-800 rounded-md text-[11px] font-bold text-zinc-700 dark:text-zinc-300 py-0.5 px-1.5 w-12 text-center outline-none focus:ring-1 focus:ring-teal-500"
+                    title={t('history_page.goal_zero_hint', 'Enter 0 to disable')}
+                  />
+                  <span className="text-[10px] text-zinc-400 font-bold">{t('history_page.min_short', 'min')}</span>
+                </div>
+              )}
+            </div>
+            <div className={`p-1.5 rounded-lg ${activeGoalMinutes > 0 ? (goalPeriodStats.isGoalMet ? 'bg-orange-50 text-orange-500 dark:bg-orange-950/40' : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800') : 'bg-zinc-100 text-zinc-300'}`}>
+              <Flame className={`w-3.5 h-3.5 ${activeGoalMinutes > 0 && goalPeriodStats.isGoalMet ? 'animate-pulse' : ''}`} />
+            </div>
+          </div>
+
+          <div className="my-1.5">
+            <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden w-full relative">
+              <div 
+                className={`h-full rounded-full transition-all duration-700 ${goalPeriodStats.isGoalMet ? 'bg-gradient-to-r from-orange-400 to-rose-500' : 'bg-teal-500'}`}
+                style={{ width: `${goalPeriodStats.percent}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] font-bold pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+            <span className="text-zinc-500 dark:text-zinc-400">
+              {goalPeriodStats.progressText}
+            </span>
+            <span className={`text-xs ${currentStreak > 0 ? 'text-orange-500 font-black' : 'text-zinc-400'}`}>
+              {currentStreak > 0 ? `🔥 ${currentStreak}d` : t('history_page.no_streak', 'No streak yet')}
+            </span>
+          </div>
+        </div>
+
+        {/* 3. Activity Breakdown Widget (Donut Chart) */}
+        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 flex flex-col justify-between shadow-3xs">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-zinc-400 font-black uppercase tracking-wider">
+              {t('history_page.activity_breakdown', 'Activity Breakdown')}
+            </span>
+            <div className="p-1.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-lg">
+              <PieChart className="w-3.5 h-3.5" />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 my-auto py-1">
+            {/* SVG Donut Chart with Center Text */}
+            <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                {/* Background Ring */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="36"
+                  className="text-zinc-100 dark:text-zinc-800/80 stroke-current"
+                  strokeWidth="13"
+                  fill="transparent"
+                />
+                {/* Segments */}
+                {activityBreakdown.totalSeconds > 0 ? (
+                  activityBreakdown.items.map((seg, idx) => {
+                    const prevPercent = activityBreakdown.items.slice(0, idx).reduce((sum, p) => sum + p.percent, 0);
+                    const circumference = 2 * Math.PI * 36; // ~226.195
+                    const dashArray = `${(seg.percent * circumference) / 100} ${circumference}`;
+                    const dashOffset = -((prevPercent * circumference) / 100);
+
+                    return (
+                      <circle
+                        key={seg.id}
+                        cx="50"
+                        cy="50"
+                        r="36"
+                        stroke={seg.colorHex}
+                        strokeWidth="13"
+                        strokeDasharray={dashArray}
+                        strokeDashoffset={dashOffset}
+                        strokeLinecap="round"
+                        fill="transparent"
+                        className="transition-all duration-700"
+                      />
+                    );
+                  })
+                ) : null}
+              </svg>
+
+              {/* Minimalist Center Icon */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Activity className="w-4 h-4 text-zinc-300 dark:text-zinc-600" />
+              </div>
+            </div>
+
+            {/* Legend Column */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+              {activityBreakdown.items.length > 0 ? (
+                activityBreakdown.items.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between text-[10.5px] font-bold text-zinc-700 dark:text-zinc-200">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.colorHex }} />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 text-zinc-500 dark:text-zinc-400 font-mono text-[10px]">
+                      <span>{formatDuration(item.seconds)}</span>
+                      <span className="text-zinc-400 dark:text-zinc-500">({Math.round(item.percent)}%)</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <span className="text-zinc-400 text-xs italic">{t('history_page.no_activity', 'No activity in period')}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] font-bold pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+            <span className="text-zinc-500 dark:text-zinc-400">
+              {activityBreakdown.items.length} {t('history_page.activity_types_count', 'activity types')}
+            </span>
+            <span className="text-zinc-400 text-[10px] uppercase tracking-wider font-extrabold">
+              {t('history_page.period_breakdown', 'Period split')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Compact Channels & Sources Analytics Section */}
+      {channelStats.length > 0 && (
+        <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 space-y-3 shadow-3xs">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-lg">
+                <Radio className="w-3.5 h-3.5" />
+              </div>
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                {t('history_page.channels_title', 'Channels')}
+              </h3>
+            </div>
+            <span className="text-[11px] text-zinc-400 font-medium">
+              {t('history_page.total_sources', 'Total sources: {{count}}', { count: channelStats.length })}
+            </span>
+          </div>
+
+          {/* Compact Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-zinc-100 dark:border-zinc-800/80 text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                  <th className="pb-2 font-bold">{t('history_page.col_source', 'Source')}</th>
+                  <th className="pb-2 font-bold text-center sm:text-left">{t('history_page.col_time', 'Time')}</th>
+                  <th className="pb-2 font-bold text-center">{t('history_page.col_videos', 'Videos')}</th>
+                  <th className="pb-2 font-bold text-right pr-2 min-w-[100px]">{t('history_page.col_share', 'Share')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-medium">
+                {displayedChannels.map((channel) => (
+                  <tr
+                    key={channel.name}
+                    onClick={() => setSearchQuery(channel.name)}
+                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer group"
+                    title={t('history_page.filter_by_channel', 'Click to filter history by this channel')}
+                  >
+                    <td className="py-2.5 pr-3">
+                      <div className="flex items-center gap-2.5">
+                        {channel.avatarUrl ? (
+                          <img
+                            src={channel.avatarUrl}
+                            alt={channel.name}
+                            className="w-7 h-7 rounded-full object-cover shrink-0 border border-zinc-200 dark:border-zinc-700 shadow-3xs"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 text-white font-black text-[11px] flex items-center justify-center shrink-0 shadow-3xs">
+                            {channel.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors block truncate max-w-[200px]">
+                            {channel.name}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2 text-center sm:text-left font-mono font-bold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                      {formatDuration(channel.durationSeconds)}
+                    </td>
+                    <td className="py-2.5 px-2 text-center font-bold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                      {channel.videoCount}
+                    </td>
+                    <td className="py-2.5 pl-2 pr-2 text-right">
+                      <div className="flex flex-col items-end gap-0.5">
+                        <div className="w-20 sm:w-28 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(3, channel.sharePercent)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-mono font-bold text-zinc-500 dark:text-zinc-400">
+                          {channel.sharePercent.toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Show more / Show less toggle */}
+          {channelStats.length > 3 && (
+            <button
+              type="button"
+              onClick={() => setIsChannelsExpanded(prev => !prev)}
+              className="w-full py-1.5 text-center text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 rounded-xl transition-colors cursor-pointer border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-center gap-1"
+            >
+              <span>{isChannelsExpanded ? t("history_page.show_less", "Show less") : t("history_page.show_all_sources", "Show all ({{count}})", { count: channelStats.length })}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isChannelsExpanded ? "rotate-180" : ""}`} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Search & Content Type Tabs Panel */}
+      <div className="bg-white dark:bg-zinc-900/60 p-2 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 shadow-3xs flex flex-col md:flex-row items-center justify-between gap-3">
+        {/* Type Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 w-full md:w-auto overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setFilterType("all")}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+              filterType === "all"
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            {t('history_page.filter_all_count', 'All ({{count}})', { count: deduplicatedHistory.length })}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterType("read")}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+              filterType === "read"
+                ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-2xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            {t('history_page.filter_reading_count', 'Reading ({{count}})', { count: readCount })}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterType("listen")}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+              filterType === "listen"
+                ? "bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-2xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <Headphones className="w-3.5 h-3.5" />
+            {t('history_page.filter_audio_count', 'Audio ({{count}})', { count: listenCount })}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterType("complete")}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+              filterType === "complete"
+                ? "bg-white dark:bg-zinc-900 text-amber-600 dark:text-amber-400 shadow-2xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            {t('history_page.filter_completed_count', 'Completed ({{count}})', { count: completeCount })}
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative w-full md:w-72">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('history_page.search_placeholder', 'Search history...')}
+            className="w-full pl-8 pr-8 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200/80 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
 
       {/* History List */}
       {filteredHistory.length === 0 ? (
@@ -1241,233 +1487,275 @@ function HistoryPage({
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {paginatedHistory.map((item) => {
-            const matchedLesson = lessons.find((l) => l.id === item.lessonId);
-            const isCustom = item.mode === "custom" || item.lessonId === "custom" || !matchedLesson;
-            const isCompleted = item.status === "completed" || item.actionType === "complete";
-            const isListening = item.actionType === "listen" || item.category === "podcast" || item.category === "video";
-            const isStudy = item.actionType === "study" || item.category === "grammar";
-            const isSpeak = item.actionType === "speak" || item.category === "speaking";
-
-            const displayTitle = item.customTitle || item.lessonTitle;
-
-            const typeBadgeColor = isListening
-              ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
-              : isStudy
-              ? "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900"
-              : isSpeak
-              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
-              : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900";
-
-            return (
-              <div
-                key={item.id}
-                onClick={() => matchedLesson && onOpenLesson(matchedLesson.id)}
-                className={`group relative p-4 bg-white dark:bg-zinc-900/70 hover:bg-teal-50/20 dark:hover:bg-zinc-800/60 rounded-2xl border border-zinc-100 dark:border-zinc-800 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-3xs hover:shadow-xs hover:border-teal-200 dark:hover:border-teal-900/50 ${
-                  matchedLesson ? "cursor-pointer" : ""
-                }`}
-              >
-                {/* Left side: Cover + Title + Details */}
-                <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  {/* Thumbnail Cover / Category Icon */}
-                  <div className="w-16 h-11 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
-                    {item.coverUrl ? (
-                      <img
-                        src={item.coverUrl}
-                        alt={displayTitle}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : item.category === "video" ? (
-                      <div className="w-full h-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
-                        <Tv className="w-5 h-5 text-rose-500" />
-                      </div>
-                    ) : item.category === "podcast" ? (
-                      <div className="w-full h-full bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center">
-                        <Headphones className="w-5 h-5 text-purple-500" />
-                      </div>
-                    ) : item.category === "book" ? (
-                      <div className="w-full h-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
-                        <BookOpen className="w-5 h-5 text-emerald-500" />
-                      </div>
-                    ) : item.category === "grammar" ? (
-                      <div className="w-full h-full bg-sky-50 dark:bg-sky-950/50 flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-sky-500" />
-                      </div>
-                    ) : item.category === "speaking" ? (
-                      <div className="w-full h-full bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center">
-                        <MessageSquare className="w-5 h-5 text-amber-500" />
-                      </div>
-                    ) : isListening ? (
-                      <div className="w-full h-full bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center">
-                        <Headphones className="w-5 h-5 text-purple-500" />
-                      </div>
-                    ) : (
-                      <div className="w-full h-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                        <BookOpen className="w-5 h-5 text-zinc-400" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Text details */}
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${typeBadgeColor}`}>
-                        {isListening ? (
-                          <Headphones className="w-3 h-3" />
-                        ) : isStudy ? (
-                          <FileText className="w-3 h-3" />
-                        ) : isSpeak ? (
-                          <MessageSquare className="w-3 h-3" />
-                        ) : (
-                          <BookOpen className="w-3 h-3" />
-                        )}
-                        {isListening
-                          ? t('history_page.activity_listening', "Listening")
-                          : isStudy
-                          ? t('history_page.activity_study', "Study")
-                          : isSpeak
-                          ? t('history_page.activity_speaking', "Speaking")
-                          : t('history_page.activity_reading', "Reading")}
-                      </span>
-
-                      {isCustom && item.category && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700">
-                          {item.category === "video" && <Tv className="w-3 h-3 text-rose-500" />}
-                          {item.category === "podcast" && <Headphones className="w-3 h-3 text-purple-500" />}
-                          {item.category === "book" && <BookOpen className="w-3 h-3 text-emerald-500" />}
-                          {item.category === "grammar" && <FileText className="w-3 h-3 text-sky-500" />}
-                          {item.category === "speaking" && <MessageSquare className="w-3 h-3 text-amber-500" />}
-                          {item.category === "other" && <Sparkles className="w-3 h-3 text-teal-500" />}
-                          <span>{t(`history_page.cat_${item.category}`, item.category)}</span>
-                        </span>
-                      )}
-
-                      {isCustom && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 bg-teal-50/60 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200/60 dark:border-teal-900/50">
-                          <Globe className="w-3 h-3 text-teal-600 dark:text-teal-400" />
-                          <span>{t('history_page.external_badge', 'External Activity')}</span>
-                        </span>
-                      )}
-
-                      {isCompleted && (
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900">
-                          <CheckCircle2 className="w-3 h-3" />
-                          {t('history_page.status_completed', 'Completed')}
-                        </span>
-                      )}
-
-                      <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md">
-                        {getItemLanguage(item)}
-                      </span>
-
-                      <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-zinc-400" />
-                        {formatDate(item.timestamp)}
-                      </span>
-
-                      {(item.channelName || matchedLesson?.channelName) && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-md border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-1.5">
-                          {(item.channelAvatarUrl || matchedLesson?.channelAvatarUrl) ? (
-                            <img
-                              src={item.channelAvatarUrl || matchedLesson?.channelAvatarUrl || ""}
-                              alt=""
-                              className="w-3.5 h-3.5 rounded-full object-cover shrink-0"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                            />
-                          ) : (
-                            <Radio className="w-2.5 h-2.5 shrink-0" />
-                          )}
-                          <span className="truncate max-w-[140px]">{item.channelName || matchedLesson?.channelName}</span>
-                        </span>
-                      )}
-                      
-                      {item.tags && item.tags.length > 0 && item.tags.map(t => (
-                        <span key={t} className="text-[10px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-400 px-2 py-0.5 rounded-md border border-teal-100 dark:border-teal-900/50 flex items-center gap-1">
-                          <Tag className="w-2.5 h-2.5" />
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-
-                    <h4 className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                      {displayTitle}
-                    </h4>
-
-                    {/* Duration & Notes */}
-                    <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-                      {item.durationSeconds ? (
-                        <span className="flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
-                          <Clock className="w-3 h-3" />
-                          {formatDuration(item.durationSeconds)}
-                        </span>
-                      ) : null}
-
-                      {item.notes ? (
-                        <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400 italic">
-                          <MessageSquare className="w-3 h-3 text-amber-500 shrink-0" />
-                          <span className="truncate max-w-md">"{item.notes}"</span>
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right side buttons */}
-                <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800/80 pt-2 sm:pt-0 justify-end">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startEditEntry(item);
-                    }}
-                    className="p-2 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-xl transition-colors cursor-pointer"
-                    title={t('history_page.edit_entry', 'Edit history record')}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(e) => handleDeleteEntry(item.id, e)}
-                    className="p-2 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer"
-                    title={t('history_page.delete_entry', 'Delete from history')}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-
-                  {matchedLesson && item.status === "in_progress" && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenLesson(matchedLesson.id);
-                      }}
-                      className="p-2 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-colors cursor-pointer flex items-center gap-1"
-                      title={t('history_page.continue_lesson', 'Continue lesson')}
-                    >
-                      <Play className="w-4 h-4" />
-                      <span className="text-xs font-bold hidden sm:inline">{t('history_page.continue', 'Continue')}</span>
-                    </button>
-                  )}
-
-                  {matchedLesson && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenLesson(matchedLesson.id);
-                      }}
-                      className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-2xs transition-all active:scale-97 cursor-pointer"
-                    >
-                      <span>{t('history_page.open', 'Open')}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+        <div className="space-y-6">
+          {groupedHistory.map((group) => (
+            <div key={group.dateKey} className="space-y-2.5">
+              {/* Date Group Header */}
+              <div className="flex items-center gap-2 px-1 pt-1">
+                <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <span className="text-xs font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                  {group.dateKey}
+                </span>
+                <div className="flex-1 h-px bg-zinc-200/70 dark:bg-zinc-800" />
               </div>
-            );
-          })}
+
+              {/* Entries in group */}
+              <div className="space-y-2.5">
+                {group.items.map((item) => {
+                  const matchedLesson = lessons.find((l) => l.id === item.lessonId);
+                  const isCustom = item.mode === "custom" || item.lessonId === "custom" || !matchedLesson;
+                  const isCompleted = item.status === "completed" || item.actionType === "complete";
+                  const displayTitle = item.customTitle || item.lessonTitle;
+
+                  // Universal Badge mapping based on actionType & category
+                  const badge = (() => {
+                    const actionType = (item.actionType || "").toLowerCase();
+                    const category = (item.category || "").toLowerCase();
+                    const lessonType = (item.lessonType || matchedLesson?.lessonType || "").toLowerCase();
+
+                    if (actionType === "study" || actionType === "grammar" || category === "grammar") {
+                      return {
+                        label: t('history_page.activity_grammar', 'GRAMMAR'),
+                        Icon: FileText,
+                        color: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
+                      };
+                    }
+
+                    if (actionType === "speak" || actionType === "speaking" || category === "speaking") {
+                      return {
+                        label: t('history_page.activity_speaking', 'SPEAKING'),
+                        Icon: MessageSquare,
+                        color: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
+                      };
+                    }
+
+                    if (actionType === "read" || actionType === "reading" || category === "book" || lessonType === "book" || lessonType === "article") {
+                      return {
+                        label: t('history_page.activity_reading', 'READING'),
+                        Icon: BookOpen,
+                        color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
+                      };
+                    }
+
+                    if (actionType === "complete" || actionType === "completed") {
+                      return {
+                        label: t('history_page.status_completed', 'COMPLETED'),
+                        Icon: CheckCircle2,
+                        color: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
+                      };
+                    }
+
+                    if (
+                      actionType === "listen" ||
+                      actionType === "listening" ||
+                      category === "podcast" ||
+                      category === "video" ||
+                      lessonType === "podcast" ||
+                      lessonType === "youtube" ||
+                      lessonType === "audio" ||
+                      !!matchedLesson?.audioUrl ||
+                      !!matchedLesson?.youtubeId
+                    ) {
+                      return {
+                        label: t('history_page.activity_listening', 'LISTENING'),
+                        Icon: Headphones,
+                        color: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
+                      };
+                    }
+
+                    return {
+                      label: t('history_page.activity_reading', 'READING'),
+                      Icon: BookOpen,
+                      color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
+                    };
+                  })();
+
+                  const BadgeIcon = badge.Icon;
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => matchedLesson && onOpenLesson(matchedLesson.id)}
+                      className={`group relative p-3 sm:p-3.5 bg-white dark:bg-zinc-900/70 hover:bg-teal-50/20 dark:hover:bg-zinc-800/60 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-3xs hover:shadow-xs hover:border-teal-300 dark:hover:border-teal-800 ${
+                        matchedLesson ? "cursor-pointer" : ""
+                      }`}
+                    >
+                      {/* Left side: Cover + Title + Details */}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {/* Thumbnail Cover / Category Icon */}
+                        <div className="w-14 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
+                          {item.coverUrl ? (
+                            <img
+                              src={item.coverUrl}
+                              alt={displayTitle}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : item.category === "video" ? (
+                            <div className="w-full h-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
+                              <Tv className="w-4 h-4 text-rose-500" />
+                            </div>
+                          ) : item.category === "podcast" ? (
+                            <div className="w-full h-full bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center">
+                              <Headphones className="w-4 h-4 text-purple-500" />
+                            </div>
+                          ) : item.category === "book" ? (
+                            <div className="w-full h-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
+                              <BookOpen className="w-4 h-4 text-emerald-500" />
+                            </div>
+                          ) : item.category === "grammar" || item.actionType === "study" ? (
+                            <div className="w-full h-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
+                              <FileText className="w-4 h-4 text-emerald-500" />
+                            </div>
+                          ) : item.category === "speaking" || item.actionType === "speak" ? (
+                            <div className="w-full h-full bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center">
+                              <MessageSquare className="w-4 h-4 text-amber-500" />
+                            </div>
+                          ) : item.actionType === "listen" ? (
+                            <div className="w-full h-full bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center">
+                              <Headphones className="w-4 h-4 text-purple-500" />
+                            </div>
+                          ) : (
+                            <div className="w-full h-full bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center">
+                              <BookOpen className="w-4 h-4 text-blue-500" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Text details */}
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider flex items-center gap-1 ${badge.color}`}>
+                              <BadgeIcon className="w-2.5 h-2.5" />
+                              {badge.label}
+                            </span>
+
+                            {isCustom && item.category && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 bg-zinc-50 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700">
+                                <span>{t(`history_page.cat_${item.category}`, item.category)}</span>
+                              </span>
+                            )}
+
+                            {isCompleted && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                <span>{t('history_page.status_completed', 'Completed')}</span>
+                              </span>
+                            )}
+
+                            <span className="text-[9px] font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                              {getItemLanguage(item)}
+                            </span>
+
+                            <span className="text-[10px] text-zinc-400">
+                              {formatDate(item.timestamp)}
+                            </span>
+
+                            {(item.channelName || matchedLesson?.channelName) && (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-1">
+                                {(item.channelAvatarUrl || matchedLesson?.channelAvatarUrl) ? (
+                                  <img
+                                    src={item.channelAvatarUrl || matchedLesson?.channelAvatarUrl || ""}
+                                    alt=""
+                                    className="w-3 h-3 rounded-full object-cover shrink-0"
+                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                  />
+                                ) : (
+                                  <Radio className="w-2.5 h-2.5 shrink-0" />
+                                )}
+                                <span className="truncate max-w-[120px]">{item.channelName || matchedLesson?.channelName}</span>
+                              </span>
+                            )}
+                            
+                            {item.tags && item.tags.length > 0 && item.tags.map(t => (
+                              <span key={t} className="text-[9px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-400 px-1.5 py-0.5 rounded border border-teal-100 dark:border-teal-900/50 flex items-center gap-1">
+                                <Tag className="w-2 h-2" />
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+
+                          <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                            {displayTitle}
+                          </h4>
+
+                          {/* Duration & Notes */}
+                          <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+                            {item.durationSeconds ? (
+                              <span className="flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
+                                <Clock className="w-2.5 h-2.5" />
+                                {formatDuration(item.durationSeconds)}
+                              </span>
+                            ) : null}
+
+                            {item.notes ? (
+                              <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400 italic">
+                                <MessageSquare className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                <span className="truncate max-w-md">"{item.notes}"</span>
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right side buttons */}
+                      <div className="flex items-center gap-1.5 shrink-0 border-t sm:border-t-0 border-zinc-100 dark:border-zinc-800/80 pt-1.5 sm:pt-0 justify-end">
+                        {/* Edit button (visible on hover) */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditEntry(item);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-lg transition-all cursor-pointer"
+                          title={t('history_page.edit_entry', 'Edit history record')}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Delete button (visible on hover) */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteEntry(item.id, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all cursor-pointer"
+                          title={t('history_page.delete_entry', 'Delete from history')}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Primary single action button: Resume / Open */}
+                        {matchedLesson && item.status === "in_progress" ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenLesson(matchedLesson.id);
+                            }}
+                            className="px-3 py-1.5 bg-zinc-100 hover:bg-teal-50 dark:bg-zinc-800 dark:hover:bg-teal-950/40 text-zinc-800 dark:text-zinc-200 hover:text-teal-600 dark:hover:text-teal-400 text-xs font-bold rounded-xl border border-zinc-200/80 dark:border-zinc-700 hover:border-teal-200 dark:hover:border-teal-800 flex items-center gap-1.5 shadow-3xs transition-all active:scale-97 cursor-pointer"
+                            title={t('history_page.continue_lesson', 'Resume lesson')}
+                          >
+                            <Play className="w-3 h-3 fill-current text-teal-600 dark:text-teal-400" />
+                            <span>{t('history_page.resume', 'Resume')}</span>
+                          </button>
+                        ) : matchedLesson ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenLesson(matchedLesson.id);
+                            }}
+                            className="px-3 py-1.5 bg-zinc-100 hover:bg-teal-50 dark:bg-zinc-800 dark:hover:bg-teal-950/40 text-zinc-800 dark:text-zinc-200 hover:text-teal-600 dark:hover:text-teal-400 text-xs font-bold rounded-xl border border-zinc-200/80 dark:border-zinc-700 hover:border-teal-200 dark:hover:border-teal-800 flex items-center gap-1.5 shadow-3xs transition-all active:scale-97 cursor-pointer"
+                          >
+                            <BookOpen className="w-3 h-3 text-zinc-500 group-hover:text-teal-600" />
+                            <span>{t('history_page.open', 'Open')}</span>
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
@@ -1535,9 +1823,11 @@ function HistoryPage({
 
       {/* Modal for Editing / Adding History Record */}
       {(editingEntry || isCreateModalOpen) && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 font-sans">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-lg max-h-[90dvh] flex flex-col bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-150 font-sans">
+            
+            {/* 1. Fixed Modal Header */}
+            <div className="shrink-0 px-4 sm:px-6 py-3.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                 <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
@@ -1550,327 +1840,309 @@ function HistoryPage({
                   setEditingEntry(null);
                   setIsCreateModalOpen(false);
                 }}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEntry} className="space-y-4">
-              {/* Mode Switcher: Library Lesson vs Custom Activity */}
-              <div className="grid grid-cols-2 p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-2xl gap-1 border border-zinc-200/60 dark:border-zinc-700/60">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormMode("library");
-                    if (!formLessonId && lessons.length > 0) {
-                      setFormLessonId(lessons[0].id);
-                      setFormCustomTitle(lessons[0].title);
-                    }
-                  }}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    formMode === "library"
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>{t('history_page.mode_library', 'Library Lesson')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormMode("custom");
-                    if (formActionType === "read" && formCategory === "video") {
-                      setFormActionType("listen");
-                    }
-                  }}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    formMode === "custom"
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{t('history_page.mode_custom', 'Custom Activity')}</span>
-                </button>
-              </div>
-
-              {/* Mode: Library Lesson */}
-              {formMode === "library" ? (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.select_lesson', 'Select Lesson')}
-                  </label>
-                  <select
-                    value={formLessonId}
-                    onChange={(e) => {
-                      setFormLessonId(e.target.value);
-                      const l = lessons.find((item) => item.id === e.target.value);
-                      if (l) setFormCustomTitle(l.title);
+            {/* 2. Form with scrollable body and fixed footer */}
+            <form onSubmit={handleSaveEntry} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+                {/* Mode Switcher: Library Lesson vs Custom Activity */}
+                <div className="grid grid-cols-2 p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-2xl gap-1 border border-zinc-200/60 dark:border-zinc-700/60 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormMode("library");
+                      if (!formLessonId && lessons.length > 0) {
+                        setFormLessonId(lessons[0].id);
+                        setFormCustomTitle(lessons[0].title);
+                      }
                     }}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      formMode === "library"
+                        ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
                   >
-                    {lessons.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.channelName ? `[${l.channelName}] ` : ""}{l.title} ({l.targetLanguage})
-                      </option>
-                    ))}
-                    <option value="custom">{t('history_page.custom_lesson', '-- Custom Lesson / Custom Name --')}</option>
-                  </select>
-
-                  {/* Selected Lesson Channel Badge */}
-                  {(() => {
-                    const currentSelected = lessons.find((l) => l.id === formLessonId);
-                    const chName = currentSelected?.channelName || (editingEntry?.lessonId === formLessonId ? editingEntry?.channelName : null);
-                    const chAvatar = currentSelected?.channelAvatarUrl || (editingEntry?.lessonId === formLessonId ? editingEntry?.channelAvatarUrl : null);
-                    if (!chName) return null;
-                    return (
-                      <div className="flex items-center gap-2 pt-1">
-                        <span className="text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2.5 py-1 rounded-lg border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-2 shadow-3xs">
-                          {chAvatar ? (
-                            <img
-                              src={chAvatar}
-                              alt=""
-                              className="w-4 h-4 rounded-full object-cover shrink-0 border border-amber-300 dark:border-amber-700"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                            />
-                          ) : (
-                            <Radio className="w-3 h-3 shrink-0" />
-                          )}
-                          <span>{chName}</span>
-                        </span>
-                      </div>
-                    );
-                  })()}
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>{t('history_page.mode_library', 'Library Lesson')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormMode("custom");
+                      if (formActionType === "read" && formCategory === "video") {
+                        setFormActionType("listen");
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      formMode === "custom"
+                        ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{t('history_page.mode_custom', 'Custom Activity')}</span>
+                  </button>
                 </div>
-              ) : (
-                /* Mode: Custom External Activity */
-                <div className="space-y-3">
-                  {/* Custom Title Input */}
+
+                {/* Mode: Library Lesson */}
+                {formMode === "library" ? (
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                      {t('history_page.activity_title', 'Activity Title')} *
+                      {t('history_page.select_lesson', 'Select Lesson')}
+                    </label>
+                    <select
+                      value={formLessonId}
+                      onChange={(e) => {
+                        setFormLessonId(e.target.value);
+                        const l = lessons.find((item) => item.id === e.target.value);
+                        if (l) setFormCustomTitle(l.title);
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    >
+                      {lessons.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.channelName ? `[${l.channelName}] ` : ""}{l.title} ({l.targetLanguage})
+                        </option>
+                      ))}
+                      <option value="custom">{t('history_page.custom_lesson', '-- Custom Lesson / Custom Name --')}</option>
+                    </select>
+
+                    {/* Selected Lesson Channel Badge */}
+                    {(() => {
+                      const currentSelected = lessons.find((l) => l.id === formLessonId);
+                      const chName = currentSelected?.channelName || (editingEntry?.lessonId === formLessonId ? editingEntry?.channelName : null);
+                      const chAvatar = currentSelected?.channelAvatarUrl || (editingEntry?.lessonId === formLessonId ? editingEntry?.channelAvatarUrl : null);
+                      if (!chName) return null;
+                      return (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2.5 py-1 rounded-lg border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-2 shadow-3xs">
+                            {chAvatar ? (
+                              <img
+                                src={chAvatar}
+                                alt=""
+                                className="w-4 h-4 rounded-full object-cover shrink-0 border border-amber-300 dark:border-amber-700"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                              />
+                            ) : (
+                              <Radio className="w-3.5 h-3.5 shrink-0" />
+                            )}
+                            <span>{chName}</span>
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  /* Mode: Custom External Activity */
+                  <div className="space-y-3">
+                    {/* Custom Title Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                        {t('history_page.activity_title', 'Activity Title')} *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formCustomTitle}
+                        onChange={(e) => setFormCustomTitle(e.target.value)}
+                        placeholder={t('history_page.activity_title_placeholder', 'e.g. Netflix: Dark S01E01, Paper Book: El Quijote...')}
+                        className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                      />
+                    </div>
+
+                    {/* Language Selector */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                        {t('history_page.language_select', 'Target Language')}
+                      </label>
+                      <select
+                        value={formLanguage}
+                        onChange={(e) => setFormLanguage(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                      >
+                        {ACTIVITY_LANGUAGES.map((lang) => (
+                          <option key={lang.code} value={lang.name}>
+                            {lang.flag} {lang.name} ({lang.native})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Category / Source Selector */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                        {t('history_page.activity_category', 'Category / Source')}
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {ACTIVITY_CATEGORIES.map((cat) => {
+                          const Icon = cat.icon;
+                          const isSelected = formCategory === cat.id;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                setFormCategory(cat.id);
+                                setFormActionType(cat.defaultActionType);
+                              }}
+                              className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-700 dark:text-teal-300 font-bold shadow-xs ring-1 ring-teal-500/30"
+                                  : "bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700"
+                              }`}
+                            >
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
+                                <Icon className="w-3.5 h-3.5" />
+                              </div>
+                              <span className="text-[11px] truncate leading-tight">
+                                {t(cat.labelKey, cat.defaultLabel)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Title if selected in library mode */}
+                {formMode === "library" && formLessonId === "custom" && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                      {t('history_page.lesson_name', 'Lesson / Activity Name')}
                     </label>
                     <input
                       type="text"
                       required
                       value={formCustomTitle}
                       onChange={(e) => setFormCustomTitle(e.target.value)}
-                      placeholder={t('history_page.activity_title_placeholder', 'e.g. Netflix: Dark S01E01, Paper Book: El Quijote...')}
+                      placeholder={t('history_page.lesson_name_placeholder', 'Enter lesson or podcast name...')}
+                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    />
+                  </div>
+                )}
+
+                {/* Action Type & Status */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                      {t('history_page.activity_type', 'Activity Type')}
+                    </label>
+                    <select
+                      value={formActionType}
+                      onChange={(e) => setFormActionType(e.target.value as any)}
+                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    >
+                      <option value="read">{t('history_page.type_reading', '📖 Reading')}</option>
+                      <option value="listen">{t('history_page.type_listening', '🎧 Listening')}</option>
+                      <option value="study">{t('history_page.type_study', '✍️ Study / Grammar')}</option>
+                      <option value="speak">{t('history_page.type_speaking', '🗣️ Speaking')}</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                      {t('history_page.lesson_status', 'Lesson Status')}
+                    </label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as any)}
+                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    >
+                      <option value="in_progress">{t('history_page.status_in_progress', '⏳ In Progress')}</option>
+                      <option value="completed">{t('history_page.status_completed', '✅ Completed')}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Duration & Date & 24h Time */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                      {t('history_page.duration_mins', 'Duration (Minutes)')}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="600"
+                      value={formMinutes}
+                      onChange={(e) => setFormMinutes(e.target.value)}
                       className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
                     />
                   </div>
 
-                  {/* Language Selector */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                      {t('history_page.language_select', 'Target Language')}
+                      {t('history_page.date_label', 'Date')}
                     </label>
-                    <select
-                      value={formLanguage}
-                      onChange={(e) => setFormLanguage(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                    >
-                      {ACTIVITY_LANGUAGES.map((lang) => (
-                        <option key={lang.code} value={lang.name}>
-                          {lang.flag} {lang.name} ({lang.native})
-                        </option>
-                      ))}
-                    </select>
+                    <AppDatePicker
+                      value={formDateOnly}
+                      onChange={setFormDateOnly}
+                      className="w-full"
+                      inputClassName="w-full px-2.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 font-semibold"
+                    />
                   </div>
 
-                  {/* Category / Source Selector */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                      {t('history_page.activity_category', 'Category / Source')}
+                      {t('history_page.time_label', 'Time')}
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {ACTIVITY_CATEGORIES.map((cat) => {
-                        const Icon = cat.icon;
-                        const isSelected = formCategory === cat.id;
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => {
-                              setFormCategory(cat.id);
-                              setFormActionType(cat.defaultActionType);
-                            }}
-                            className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
-                              isSelected
-                                ? "bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-700 dark:text-teal-300 font-bold shadow-xs ring-1 ring-teal-500/30"
-                                : "bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700"
-                            }`}
-                          >
-                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
-                              <Icon className="w-3.5 h-3.5" />
-                            </div>
-                            <span className="text-[11px] truncate leading-tight">
-                              {t(cat.labelKey, cat.defaultLabel)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <input
+                      type="time"
+                      value={formTime}
+                      onChange={(e) => setFormTime(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold font-mono"
+                    />
                   </div>
                 </div>
-              )}
 
-              {/* Custom Title if selected in library mode */}
-              {formMode === "library" && formLessonId === "custom" && (
+                {/* Optional Notes & Tags */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.lesson_name', 'Lesson / Activity Name')}
+                    {t('history_page.personal_notes', 'Personal Notes / Session Comments')}
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    placeholder={t('history_page.notes_placeholder', 'Add your impressions, progress, or notes...')}
+                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    {t('history_page.tags_label', 'Tags (comma separated)')}
                   </label>
                   <input
                     type="text"
-                    required
-                    value={formCustomTitle}
-                    onChange={(e) => setFormCustomTitle(e.target.value)}
-                    placeholder={t('history_page.lesson_name_placeholder', 'Enter lesson or podcast name...')}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                    value={formTags}
+                    onChange={(e) => setFormTags(e.target.value)}
+                    placeholder={t('history_page.tags_placeholder', 'E.g.: Grammar, Podcast, Vocabulary')}
+                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
                   />
                 </div>
-              )}
-
-              {/* Action Type & Status */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.activity_type', 'Activity Type')}
-                  </label>
-                  <select
-                    value={formActionType}
-                    onChange={(e) => setFormActionType(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                  >
-                    <option value="read">{t('history_page.type_reading', '📖 Reading')}</option>
-                    <option value="listen">{t('history_page.type_listening', '🎧 Listening')}</option>
-                    <option value="study">{t('history_page.type_study', '✍️ Study / Grammar')}</option>
-                    <option value="speak">{t('history_page.type_speaking', '🗣️ Speaking')}</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.lesson_status', 'Lesson Status')}
-                  </label>
-                  <select
-                    value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                  >
-                    <option value="in_progress">{t('history_page.status_in_progress', '⏳ In Progress')}</option>
-                    <option value="completed">{t('history_page.status_completed', '✅ Completed')}</option>
-                  </select>
-                </div>
               </div>
 
-              {/* Duration & Date & 24h Time */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.duration_mins', 'Duration (Minutes)')}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="600"
-                    value={formMinutes}
-                    onChange={(e) => setFormMinutes(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.date_label', 'Date')}
-                  </label>
-                  <input
-                    type="date"
-                    value={formDateOnly}
-                    onChange={(e) => setFormDateOnly(e.target.value)}
-                    className="w-full px-2.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.time_label', '24h Time (H : M)')}
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <select
-                      value={formHour24}
-                      onChange={(e) => setFormHour24(e.target.value)}
-                      className="w-full px-1.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold cursor-pointer text-center"
-                    >
-                      {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => (
-                        <option key={h} value={h}>
-                          {h} {t('history_page.hr_short', 'h')}
-                        </option>
-                      ))}
-                    </select>
-
-                    <span className="font-extrabold text-zinc-400 text-xs">:</span>
-
-                    <select
-                      value={formMinute}
-                      onChange={(e) => setFormMinute(e.target.value)}
-                      className="w-full px-1.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold cursor-pointer text-center"
-                    >
-                      {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map((m) => (
-                        <option key={m} value={m}>
-                          {m} {t('history_page.min_short', 'min')}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Optional Notes & Tags */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  {t('history_page.personal_notes', 'Personal Notes / Session Comments')}
-                </label>
-                <textarea
-                  rows={2}
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                  placeholder={t('history_page.notes_placeholder', 'Add your impressions, progress, or notes...')}
-                  className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                  {t('history_page.tags_label', 'Tags (comma separated)')}
-                </label>
-                <input
-                  type="text"
-                  value={formTags}
-                  onChange={(e) => setFormTags(e.target.value)}
-                  placeholder={t('history_page.tags_placeholder', 'E.g.: Grammar, Podcast, Vocabulary')}
-                  className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
-                />
-              </div>
-
-              {/* Buttons */}
-              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              {/* 3. Fixed Modal Footer */}
+              <div className="shrink-0 px-4 sm:px-6 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-850/80 backdrop-blur-xs flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setEditingEntry(null);
                     setIsCreateModalOpen(false);
                   }}
-                  className="px-4 py-2 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  className="px-4 py-2 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                 >
                   {t('history_page.cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                 >
                   <Check className="w-4 h-4" />
                   {t('history_page.save', 'Save')}

@@ -462,8 +462,8 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
     navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
     navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
-    navigator.mediaSession.setActionHandler('seekforward', (d) => seekDelta(d.seekOffset || 10));
-    navigator.mediaSession.setActionHandler('seekbackward', (d) => seekDelta(-(d.seekOffset || 10)));
+    navigator.mediaSession.setActionHandler('seekforward', (d) => seekDelta(d?.seekOffset || 30));
+    navigator.mediaSession.setActionHandler('seekbackward', (d) => seekDelta(-(d?.seekOffset || 15)));
 
     try {
       navigator.mediaSession.setActionHandler('seekto', (details) => {
@@ -479,7 +479,17 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-  }, [isPlaying]);
+
+    if ('setPositionState' in navigator.mediaSession && duration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(0, duration),
+          playbackRate: playbackRate || 1.0,
+          position: Math.min(Math.max(0, currentTime), duration),
+        });
+      } catch (_) {}
+    }
+  }, [isPlaying, currentTime, duration, playbackRate]);
 
   // 10. Native Mobile Android Foreground Service Sync & Action Handlers
   useEffect(() => {
@@ -487,9 +497,9 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
       if (action === 'play_pause') {
         setIsPlaying(!isPlaying);
       } else if (action === 'seek_backward') {
-        seekDelta(-10);
+        seekDelta(-15);
       } else if (action === 'seek_forward') {
-        seekDelta(10);
+        seekDelta(30);
       } else if (action.startsWith('seek_to:')) {
         const targetSec = parseFloat(action.split(':')[1]);
         if (!isNaN(targetSec)) {

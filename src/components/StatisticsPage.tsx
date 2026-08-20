@@ -38,6 +38,8 @@ import {
 } from "lucide-react";
 import { useTranslation, Trans } from "react-i18next";
 import { formatDate, formatFriendlyDate, formatTime, getFirstDayOfWeek, getWeekDayLabels, resolveLocale } from "../utils/dateUtils";
+import { formatAppDate, formatAppFriendlyDate, formatAppTime } from "../utils/dateFormatter";
+import { AppDatePicker } from "./common/AppDatePicker";
 import { compareWords } from "../utils/stringUtils";
 
 interface StatisticsPageProps {
@@ -81,6 +83,9 @@ function StatisticsPage({
   const [vocabFilter, setVocabFilter] = useState<string>("all");
   const [vocabSort, setVocabSort] = useState<"newest" | "oldest" | "alphabetical" | "alphabetical_desc" | "level_desc" | "level_asc">("newest");
   const [onlyPatterns, setOnlyPatternsState] = useState<boolean>(() => !!readerSettings?.onlyPatterns);
+  const [activeStatsTab, setActiveStatsTab] = useState<"overview" | "vocabulary">("overview");
+  const [isProfilerOpen, setIsProfilerOpen] = useState<boolean>(false);
+  const [isContextSearchOpen, setIsContextSearchOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (readerSettings?.onlyPatterns !== undefined) {
@@ -143,6 +148,7 @@ function StatisticsPage({
   // Batch paste import states
   const [batchImportText, setBatchImportText] = useState<string>("");
   const [batchImportDate, setBatchImportDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [batchTargetDate, setBatchTargetDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [batchImportStatus, setBatchImportStatus] = useState<WordStatus>("known");
   const [batchImportTag, setBatchImportTag] = useState<string>("lute-import");
 
@@ -1612,38 +1618,45 @@ function StatisticsPage({
   }, [totalPages, safeCurrentPage]);
 
   return (
-    <div className="space-y-6">
-      
-      {/* Page Title Board */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs">
-        <div>
-          <h2 className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-teal-500" />
-            {t('stats_page.title', 'Learning Analytics & Personal Dashboard')}
-          </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">
-            {t('stats_page.subtitle', 'Track your vocabulary growth, reading comprehension metrics, and audio listening activity.')}
-          </p>
+    <div className="space-y-4 font-sans">
+      {/* Top Unified Navigation Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-zinc-200/60 dark:border-zinc-800">
+        {/* Tabs Switcher: [Overview / Analytics] | [Vocabulary Notebook] */}
+        <div className="flex items-center gap-1.5 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-2xl border border-zinc-200/60 dark:border-zinc-800 w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveStatsTab("overview")}
+            className={`px-3.5 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              activeStatsTab === "overview"
+                ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-2xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>{t('stats_page.tab_overview', 'Overview')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStatsTab("vocabulary")}
+            className={`px-3.5 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              activeStatsTab === "vocabulary"
+                ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-2xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>{t('stats_page.tab_vocabulary', 'Vocabulary Notebook')}</span>
+            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-zinc-200/60 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+              {statsArray.length}
+            </span>
+          </button>
         </div>
 
-        {/* Decorative Time Tracker HUD block */}
-        <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-100/45 dark:border-zinc-800/50 shrink-0 select-none">
-          <Calendar className="w-4 h-4 text-zinc-400" />
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-            {t('stats_page.realtime', 'Statistics update instantly in real time')}
-          </span>
-        </div>
-      </div>
-
-      {/* Dynamic Language Selection Hub */}
-      {languagesList.length > 0 && (
-        <div id="stats-lang-selector" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-3 rounded-2xl shadow-xs font-sans">
-          <label className="block text-[10px] uppercase font-bold tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">
-            {t('stats_page.choose_lang', 'Choose Language for Statistics:')}
-          </label>
-          <div className="flex flex-wrap gap-2">
+        {/* Global Language Selection Chips */}
+        {languagesList.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap overflow-x-auto no-scrollbar">
             {languagesList.map((lang) => {
-              const wordsCount = Object.entries(vocab).filter(([key, lq]) => {
+              const wordsCount = Object.entries(vocab).filter(([key]) => {
                 const parts = key.split("_");
                 const itemLang = parts.length > 1 ? parts[0] : "spanish";
                 return itemLang.toLowerCase() === lang.toLowerCase();
@@ -1653,700 +1666,632 @@ function StatisticsPage({
                 <button
                   key={lang}
                   onClick={() => setSelectedStatsLang(lang)}
-                  className={`px-4 py-2 text-xs font-black rounded-xl border transition-all cursor-pointer flex items-center gap-2 ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
                     selectedStatsLang.toLowerCase() === lang.toLowerCase()
                       ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-900"
                       : "bg-zinc-50 border-zinc-200/60 dark:bg-zinc-950 dark:border-zinc-800 text-zinc-600 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-300"
                   }`}
                 >
                   <span>{lang}</span>
-                  <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
+                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
                     selectedStatsLang.toLowerCase() === lang.toLowerCase()
                       ? "bg-teal-200/50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
                       : "bg-zinc-200/50 dark:bg-zinc-800 text-zinc-500"
                   }`}>
-                    {wordsCount} {t('stats_page.words', 'words')}
+                    {wordsCount}
                   </span>
                 </button>
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* Primary Bento Stats Dashboard */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* Card 1: Known Words */}
-        <div id="stat-known-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden group">
-          <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-emerald-555">
-            <Award className="w-24 h-24" />
-          </div>
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
-            <Award className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              {t('stats_page.known_title', 'Mastered Words (Known)')}
-            </span>
-            <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
-              {stats.known}
-            </span>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
-              {onlyPatterns ? t('stats_page.known_desc_parents', '🔗 Parents Only (Unique root words)') : t('stats_page.known_desc', '✓ Fully mastered vocabulary')}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 2: Learning Words */}
-        <div id="stat-learning-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
-          <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-amber-555">
-            <Sparkles className="w-24 h-24 animate-pulse" />
-          </div>
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/25 text-amber-600 dark:text-amber-400 rounded-xl shrink-0">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              {t('stats_page.learning_title', 'In Learning (Learning)')}
-            </span>
-            <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
-              {stats.learning}
-            </span>
-            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold block mt-0.5">
-              {t('stats_page.learning_desc', '⚡ Active flashcards in training')}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 3: Audio listening tracker */}
-        <div id="stat-audio-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
-          <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-teal-555">
-            <Clock className="w-24 h-24" />
-          </div>
-          <div className="p-3 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-xl shrink-0">
-            <Clock className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              {t('stats_page.listening_title', 'Audio Listening (Listening)')}
-            </span>
-            <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block truncate">
-              {formatTime(listeningSeconds)}
-            </span>
-            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block mt-0.5">
-              {t('stats_page.listening_desc', '🔊 Total audio speech listening time')}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 4: Total active books */}
-        <div id="stat-books-card" className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 relative overflow-hidden">
-          <div className="absolute right-0 top-0 opacity-10 -translate-x-1 translate-y-1 text-teal-555">
-            <BookOpen className="w-24 h-24" />
-          </div>
-          <div className="p-3 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-xl shrink-0">
-            <BookOpen className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-              {t('stats_page.books_title', 'Active Books (Books)')}
-            </span>
-            <span className="text-2xl font-black text-zinc-900 dark:text-white mt-1 block">
-              {lessons.filter(l => !l.isArchived).length}
-            </span>
-            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block mt-0.5">
-              {t('stats_page.books_desc', '📖 Total books on your bookshelf')}
-            </span>
-          </div>
-        </div>
-
+        )}
       </div>
 
-      {/* Grid: Milestones estimate & Word Status distribution bars */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
-        
-        {/* CEFR Level Milestone Indicator */}
-        <div className="col-span-12 md:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between space-y-4">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-teal-50 dark:bg-teal-950/40 text-[10px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest">
-              <Award className="w-3.5 h-3.5" />
-              {t('stats_page.cefr_title', 'Estimated Language Level')}
-            </div>
-            <h3 className="text-xl font-black text-zinc-900 dark:text-white mt-2">
-              {stats.cefr.level}
-            </h3>
-            <p className="text-xs text-zinc-500 font-medium leading-relaxed mt-1">
-              {stats.cefr.desc} {t('stats_page.cefr_evaluation_note', 'Level estimate based on the number of learned and confirmed words on the platform.')}
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-            <div className="flex justify-between items-center text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-              <span>{t('stats_page.words_to_next', 'Words remaining until next rank: {{count}}', { count: stats.cefr.target - stats.known < 0 ? 0 : stats.cefr.target - stats.known })}</span>
-              <span className="text-teal-600 dark:text-teal-400">{stats.cefr.progress}%</span>
-            </div>
-            
-            {/* Elegant visual gauge bar */}
-            <div className="h-3 w-full rounded-full bg-zinc-100 dark:bg-zinc-950 overflow-hidden flex border border-zinc-200 dark:border-zinc-800">
-              <div 
-                style={{ width: `${stats.cefr.progress}%` }}
-                className="h-full bg-gradient-to-r from-teal-500 to-teal-700 rounded-full transition-all duration-300"
-              />
-            </div>
-
-            <div className="flex justify-between items-center text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
-              <span>{stats.known} {t('stats_page.words', 'words')}</span>
-              <span>{t('stats_page.target_goal', 'Goal: {{count}} words', { count: stats.cefr.target })}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Word Status Level distribution Bar charts (Custom SVG elements) */}
-        <div className="col-span-12 md:col-span-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between">
-          <div className="space-y-1">
-            <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">
-              {t('stats_page.breakdown_title', 'Word Status Breakdown')}
-            </h4>
-            <p className="text-[11px] text-zinc-500">
-              {t('stats_page.breakdown_desc', 'Each saved word goes through 5 stages of spaced repetition until marked as "Known".')}
-            </p>
-          </div>
-
-          {/* Graphics Custom Level Bars */}
-          <div className="space-y-3 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-            
-            {/* Status 1 */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-red-400 inline-block"></span>
-                  {t('stats_page.status1_label', 'New (Status 1 - Don\'t remember)')}
-                </span>
-                <span>{stats.distribution.status1} {t('stats_page.words', 'words')}</span>
-              </div>
-              <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-red-400 rounded-full"
-                  style={{ width: `${stats.total > 0 ? (stats.distribution.status1 / stats.total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Status 2 & 3 */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-amber-400 inline-block"></span>
-                  {t('stats_page.status2_3_label', 'In Progress (Status 2-3 - Remembering with effort)')}
-                </span>
-                <span>{stats.distribution.status2 + stats.distribution.status3} {t('stats_page.words', 'words')}</span>
-              </div>
-              <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-amber-400 rounded-full"
-                  style={{ width: `${stats.total > 0 ? ((stats.distribution.status2 + stats.distribution.status3) / stats.total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Status 4 & 5 */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-teal-400 inline-block"></span>
-                  {t('stats_page.status4_5_label', 'Almost Learned (Status 4-5 - Remember well)')}
-                </span>
-                <span>{stats.distribution.status4 + stats.distribution.status5} {t('stats_page.words', 'words')}</span>
-              </div>
-              <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-teal-400 rounded-full"
-                  style={{ width: `${stats.total > 0 ? ((stats.distribution.status4 + stats.distribution.status5) / stats.total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Known Status */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-emerald-500 inline-block"></span>
-                  {t('stats_page.status_known_label', 'Known (Fully mastered)')}
-                </span>
-                <span>{stats.known} {t('stats_page.words', 'words')}</span>
-              </div>
-              <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-emerald-500 rounded-full"
-                  style={{ width: `${stats.total > 0 ? (stats.known / stats.total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
-
-      {/* 2.5. Learning Progress Dashboard (Heatmap & Growth Curve) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-        
-        {/* Heatmap & Streak Section */}
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-3">
-            <div>
-              <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                <Flame className="w-5 h-5 text-orange-500 fill-orange-500 animate-pulse" />
-                {t('stats_page.heatmap_title', 'Vocabulary Heatmap')}
-              </h3>
-              <p className="text-xs text-zinc-500">
-                {t('stats_page.heatmap_desc', 'Visualization of your daily word saving and practice activity over the last 24 weeks.')}
-              </p>
-            </div>
-          </div>
-
-          {/* Interactive Streak Indicators HUD strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-50 dark:bg-zinc-950 p-3.5 rounded-xl border border-zinc-100/45 dark:border-zinc-800/40 text-xs text-zinc-600 dark:text-zinc-300">
-            <div className="space-y-1">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.current_streak', 'Current Streak')}</span>
-              <div className="flex items-center gap-1.5">
-                <Flame className={`w-4 h-4 ${heatmapData.currentStreak > 0 ? "text-orange-500 fill-orange-500" : "text-zinc-400"}`} />
-                <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  {heatmapData.currentStreak} {t('stats_page.days_unit', 'day(s)')}
+      {/* Tab 1: Overview (Compact 2x2 Grid) */}
+      {activeStatsTab === "overview" && (
+        <div className="space-y-4">
+          {/* Row 1: Estimated Level + Status Breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            {/* CEFR Level Milestone Indicator */}
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-[10px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest">
+                  <Award className="w-3.5 h-3.5" />
+                  <span>{t('stats_page.cefr_title', 'Estimated Language Level')}</span>
+                </div>
+                <span className="text-xs font-black text-teal-600 dark:text-teal-400">
+                  {stats.cefr.progress}%
                 </span>
               </div>
-            </div>
 
-            <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.longest_streak', 'Streak Record')}</span>
-              <div className="flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-amber-500" />
-                <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  {heatmapData.longestStreak} {t('stats_page.days_unit', 'day(s)')}
-                </span>
+              <div className="text-xl font-black text-zinc-900 dark:text-white">
+                {stats.cefr.level}
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                {/* Visual gauge bar */}
+                <div className="h-2.5 w-full rounded-full bg-zinc-100 dark:bg-zinc-950 overflow-hidden flex border border-zinc-200/60 dark:border-zinc-800">
+                  <div 
+                    style={{ width: `${stats.cefr.progress}%` }}
+                    className="h-full bg-gradient-to-r from-teal-500 to-teal-700 rounded-full transition-all duration-300"
+                  />
+                </div>
+
+                <div className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">
+                  {stats.known} / {stats.cefr.target} {t('stats_page.words_to_next_short', 'words to next level')} ({stats.cefr.progress}%)
+                </div>
               </div>
             </div>
 
-            <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.active_days', 'Active Days')}</span>
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-teal-500" />
-                <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  {heatmapData.activeDays} {t('stats_page.days_unit', 'day(s)')}
+            {/* Word Status Level distribution */}
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                  {t('stats_page.breakdown_title', 'Word Status Breakdown')}
+                </h4>
+                <span className="text-xs font-bold text-zinc-400">
+                  {stats.total} {t('stats_page.words', 'words')}
                 </span>
               </div>
-            </div>
 
-            <div className="space-y-1 border-l border-zinc-100 dark:border-zinc-800/80 pl-3">
-              <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.max_in_a_day', 'Daily Peak')}</span>
-              <div className="flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-emerald-500" />
-                <span className="font-extrabold text-sm text-zinc-800 dark:text-white">
-                  +{heatmapData.maxInADay} {t('stats_page.words', 'words')}
-                </span>
+              {/* Graphics Custom Level Bars */}
+              <div className="space-y-2.5 pt-1">
+                {/* Status 1 */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+                      {t('stats_page.status1_label', 'New (Status 1)')}
+                    </span>
+                    <span>{stats.distribution.status1}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-red-400 rounded-full"
+                      style={{ width: `${stats.total > 0 ? (stats.distribution.status1 / stats.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Status 2 & 3 */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+                      {t('stats_page.status2_3_label', 'In Progress (Status 2-3)')}
+                    </span>
+                    <span>{stats.distribution.status2 + stats.distribution.status3}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-amber-400 rounded-full"
+                      style={{ width: `${stats.total > 0 ? ((stats.distribution.status2 + stats.distribution.status3) / stats.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Status 4 & 5 */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-400 inline-block"></span>
+                      {t('stats_page.status4_5_label', 'Almost Learned (Status 4-5)')}
+                    </span>
+                    <span>{stats.distribution.status4 + stats.distribution.status5}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-teal-400 rounded-full"
+                      style={{ width: `${stats.total > 0 ? ((stats.distribution.status4 + stats.distribution.status5) / stats.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Known Status */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                      {t('stats_page.status_known_label', 'Known')}
+                    </span>
+                    <span>{stats.known}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-950 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-emerald-500 rounded-full"
+                      style={{ width: `${stats.total > 0 ? (stats.known / stats.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Actual Contribution Grid wrapper with Month Headers and vertical row labels */}
-          <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl border border-zinc-100 dark:border-zinc-800/50 overflow-hidden">
-            
-            {/* Months Row */}
-            <div className="flex pl-8 text-[9px] font-bold text-zinc-400 select-none relative h-4 mb-1">
-              {(() => {
-                let lastMonthName = "";
-                return heatmapData.columns.map((week, wIdx) => {
-                  const firstDay = week[0].date;
-                  const monthName = new Intl.DateTimeFormat(resolveLocale(i18n.language), { month: "short" }).format(firstDay);
-                  
-                  // Only display month name when it changes
-                  if (monthName !== lastMonthName) {
-                    lastMonthName = monthName;
+          {/* Row 2: Heatmap + Growth History */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            {/* Heatmap & Streak Section */}
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-4 rounded-2xl shadow-xs space-y-3 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-pulse" />
+                  {t('stats_page.heatmap_title', 'Vocabulary Heatmap')}
+                </h3>
+                <span className="text-[11px] text-zinc-400 font-bold">
+                  {heatmapData.activeDays} {t('stats_page.active_days_short', 'active days')}
+                </span>
+              </div>
+
+              {/* Interactive Streak Indicators HUD strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-zinc-50 dark:bg-zinc-950 p-2 rounded-xl border border-zinc-100/45 dark:border-zinc-800/40 text-xs text-zinc-600 dark:text-zinc-300">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.current_streak', 'Streak')}</span>
+                  <div className="flex items-center gap-1">
+                    <Flame className={`w-3.5 h-3.5 ${heatmapData.currentStreak > 0 ? "text-orange-500 fill-orange-500" : "text-zinc-400"}`} />
+                    <span className="font-extrabold text-xs text-zinc-800 dark:text-white">
+                      {heatmapData.currentStreak} {t('stats_page.days_unit', 'd')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5 border-l border-zinc-100 dark:border-zinc-800/80 pl-2">
+                  <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.longest_streak', 'Record')}</span>
+                  <div className="flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="font-extrabold text-xs text-zinc-800 dark:text-white">
+                      {heatmapData.longestStreak} {t('stats_page.days_unit', 'd')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5 border-l border-zinc-100 dark:border-zinc-800/80 pl-2">
+                  <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.active_days', 'Active')}</span>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-teal-500" />
+                    <span className="font-extrabold text-xs text-zinc-800 dark:text-white">
+                      {heatmapData.activeDays} {t('stats_page.days_unit', 'd')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5 border-l border-zinc-100 dark:border-zinc-800/80 pl-2">
+                  <span className="text-[9px] uppercase font-black text-zinc-400 select-none block">{t('stats_page.max_in_a_day', 'Peak')}</span>
+                  <div className="flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="font-extrabold text-xs text-zinc-800 dark:text-white">
+                      +{heatmapData.maxInADay}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Matrix */}
+              <div className="p-2.5 bg-zinc-50/50 dark:bg-zinc-950/20 rounded-xl border border-zinc-100 dark:border-zinc-800/50 overflow-hidden">
+                {/* Months Row */}
+                <div className="flex pl-7 text-[9px] font-bold text-zinc-400 select-none relative h-4 mb-1">
+                  {(() => {
+                    let lastMonthName = "";
+                    return heatmapData.columns.map((week, wIdx) => {
+                      const firstDay = week[0].date;
+                      const monthName = new Intl.DateTimeFormat(resolveLocale(i18n.language), { month: "short" }).format(firstDay);
+                      
+                      if (monthName !== lastMonthName) {
+                        lastMonthName = monthName;
+                        return (
+                          <div 
+                            key={wIdx} 
+                            style={{ left: `${28 + wIdx * 14.5}px` }}
+                            className="absolute capitalize text-[8px] tracking-tight font-extrabold"
+                          >
+                            {monthName}
+                          </div>
+                        );
+                      }
+                      return null;
+                    });
+                  })()}
+                </div>
+
+                <div className="flex gap-1.5 items-start">
+                  {/* Day names left labels */}
+                  {(() => {
+                    const weekDayLabels = getWeekDayLabels(heatmapData.firstDay, i18n.language, 'short');
                     return (
-                      <div 
-                        key={wIdx} 
-                        style={{ left: `${32 + wIdx * 15.5}px` }}
-                        className="absolute capitalize text-[8px] tracking-tight font-extrabold"
-                      >
-                        {monthName}
+                      <div className="flex flex-col text-[8px] font-black text-zinc-400 select-none space-y-[4px] mt-0.5 w-[20px] text-right shrink-0">
+                        <span>{weekDayLabels[0]}</span>
+                        <span className="opacity-0">{weekDayLabels[1]}</span>
+                        <span>{weekDayLabels[2]}</span>
+                        <span className="opacity-0">{weekDayLabels[3]}</span>
+                        <span>{weekDayLabels[4]}</span>
+                        <span className="opacity-0">{weekDayLabels[5]}</span>
+                        <span>{weekDayLabels[6]}</span>
                       </div>
                     );
-                  }
-                  return null;
-                });
-              })()}
-            </div>
+                  })()}
 
-            <div className="flex gap-1.5 items-start">
-              {/* Day names left labels */}
-              {(() => {
-                const weekDayLabels = getWeekDayLabels(heatmapData.firstDay, i18n.language, 'short');
+                  {/* Heatmap Matrix */}
+                  <div className="flex-1 overflow-x-auto pb-1 scrollbar-thin flex gap-1 select-none">
+                    {heatmapData.columns.map((week, wIdx) => (
+                      <div key={wIdx} className="flex flex-col gap-1 shrink-0 font-mono">
+                        {week.map((day) => {
+                          const count = day.count;
+                          
+                          let cellColor = "bg-zinc-100 dark:bg-zinc-950 border-zinc-200/20 dark:border-zinc-800/40 hover:scale-115";
+                          if (count > 0 && count <= 2) {
+                            cellColor = "bg-teal-100 dark:bg-teal-950/30 border-teal-200/50 dark:border-teal-900/50 hover:bg-teal-200 hover:scale-120";
+                          } else if (count > 2 && count <= 5) {
+                            cellColor = "bg-teal-300 dark:bg-teal-800 border-teal-400 dark:border-teal-700 hover:bg-teal-400 hover:scale-120";
+                          } else if (count > 5 && count <= 9) {
+                            cellColor = "bg-teal-500 dark:bg-teal-600 border-teal-600 dark:border-teal-500 hover:bg-teal-600 hover:scale-120 text-white";
+                          } else if (count >= 10) {
+                            cellColor = "bg-teal-700 dark:bg-teal-400 border-teal-800 dark:border-teal-300 hover:bg-teal-800 hover:scale-120 text-white";
+                          }
+
+                          const isSelected = selectedHeatmapDate === day.dateStr;
+
+                          return (
+                            <button
+                              key={day.dateStr}
+                              type="button"
+                              onClick={() => {
+                                setSelectedHeatmapDate(selectedHeatmapDate === day.dateStr ? null : day.dateStr);
+                              }}
+                              className={`w-[11px] h-[11px] rounded-xs border transition-all duration-100 shrink-0 cursor-pointer ${cellColor} ${
+                                isSelected ? "ring-2 ring-teal-500 ring-offset-1 dark:ring-offset-zinc-900 scale-125 z-10 font-bold" : ""
+                              }`}
+                              title={`${formatFriendlyDate(day.date, { datePref: readerSettings?.dateFormat, appLocale: i18n.language })}: ${count} ${t('stats_page.words', 'words')}`}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Heatmap Legend */}
+                <div className="flex items-center justify-between mt-2.5 text-[10px] text-zinc-400 select-none border-t border-zinc-100/40 dark:border-zinc-800/40 pt-1.5 px-1">
+                  <span>* {t('stats_page.click_heatmap_hint', 'Click on a square to view words added on that day')}</span>
+                  <div className="flex items-center gap-1">
+                    <span>{t('stats_page.less', 'Less')}</span>
+                    <span className="w-2 h-2 rounded bg-zinc-100 dark:bg-zinc-950 border border-zinc-200/30 dark:border-zinc-800/40" />
+                    <span className="w-2 h-2 rounded bg-teal-100 dark:bg-teal-950/30 border border-teal-200/30 dark:border-teal-900/40" />
+                    <span className="w-2 h-2 rounded bg-teal-300 dark:bg-teal-800" />
+                    <span className="w-2 h-2 rounded bg-teal-500 dark:bg-teal-600" />
+                    <span className="w-2 h-2 rounded bg-teal-700 dark:bg-teal-400" />
+                    <span>{t('stats_page.more', 'More')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cell Words Details */}
+              {selectedHeatmapDate && (() => {
+                const resolvedWords = heatmapData.columns.flatMap(c => c).find(day => day.dateStr === selectedHeatmapDate);
+                if (!resolvedWords) return null;
+                
+                const wordsList = resolvedWords.words;
+                const fullDateStr = new Intl.DateTimeFormat(resolveLocale(i18n.language), { weekday: "long", day: "numeric", month: "short", year: "numeric" }).format(resolvedWords.date);
+                
                 return (
-                  <div className="flex flex-col text-[8px] font-black text-zinc-400 select-none space-y-[4.5px] mt-0.5 w-[22px] text-right shrink-0">
-                    <span>{weekDayLabels[0]}</span>
-                    <span className="opacity-0">{weekDayLabels[1]}</span>
-                    <span>{weekDayLabels[2]}</span>
-                    <span className="opacity-0">{weekDayLabels[3]}</span>
-                    <span>{weekDayLabels[4]}</span>
-                    <span className="opacity-0">{weekDayLabels[5]}</span>
-                    <span>{weekDayLabels[6]}</span>
+                  <div className="bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/60 p-3 rounded-xl animate-in slide-in-from-top-2 duration-200 font-sans space-y-2">
+                    <div className="flex items-center justify-between text-xs select-none border-b border-teal-100/45 pb-1">
+                      <span className="font-extrabold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
+                        🗓️ {t('stats_page.added_on', 'Added on {{date}}', { date: fullDateStr })}
+                      </span>
+                      <button
+                        onClick={() => setSelectedHeatmapDate(null)}
+                        className="text-[10px] font-black hover:text-red-500 cursor-pointer text-zinc-400"
+                      >
+                        {t('stats_page.close', 'close ✕')}
+                      </button>
+                    </div>
+                    {wordsList.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {wordsList.map((word, wIdx) => {
+                          const wordObj = statsArray.find(item => item.word.toLowerCase() === word.toLowerCase());
+                          return (
+                            <div 
+                              key={`${word}-${wIdx}`} 
+                              className="px-2 py-0.5 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-900/60 rounded-lg text-[11px] font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1 shadow-3xs"
+                            >
+                              <span className="text-teal-600 dark:text-teal-400 capitalize">{word}</span>
+                              {wordObj?.translation && (
+                                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[120px] font-medium border-l pl-1 border-zinc-100 dark:border-zinc-800">
+                                  {wordObj.translation}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-zinc-400 italic">
+                        {t('stats_page.no_words_added', 'No words were added on this day.')}
+                      </p>
+                    )}
                   </div>
                 );
               })()}
+            </div>
 
-              {/* Heatmap Matrix with Columns representing weeks */}
-              <div className="flex-1 overflow-x-auto pb-1 scrollbar-thin flex gap-1 select-none">
-                {heatmapData.columns.map((week, wIdx) => (
-                  <div key={wIdx} className="flex flex-col gap-1 shrink-0 font-mono">
-                    {week.map((day) => {
-                      const count = day.count;
-                      
-                      // Assign color bounds
-                      let cellColor = "bg-zinc-100 dark:bg-zinc-950 border-zinc-200/20 dark:border-zinc-800/40 hover:scale-115";
-                      if (count > 0 && count <= 2) {
-                        cellColor = "bg-teal-100 dark:bg-teal-950/30 border-teal-200/50 dark:border-teal-900/50 hover:bg-teal-200 hover:scale-120";
-                      } else if (count > 2 && count <= 5) {
-                        cellColor = "bg-teal-300 dark:bg-teal-800 border-teal-400 dark:border-teal-700 hover:bg-teal-400 hover:scale-120";
-                      } else if (count > 5 && count <= 9) {
-                        cellColor = "bg-teal-500 dark:bg-teal-600 border-teal-600 dark:border-teal-500 hover:bg-teal-600 hover:scale-120 text-white";
-                      } else if (count >= 10) {
-                        cellColor = "bg-teal-700 dark:bg-teal-400 border-teal-800 dark:border-teal-300 hover:bg-teal-800 hover:scale-120 text-white";
-                      }
+            {/* Growth History Section (Modern Vertical Bar Chart with Auto Y-Scale) */}
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-teal-500" />
+                  {t('stats_page.growth_title', 'Growth History')}
+                </h3>
+                <span className="text-xs font-extrabold text-teal-600 dark:text-teal-400">
+                  {statsArray.length} {t('stats_page.total_words_short', 'total words')}
+                </span>
+              </div>
 
-                      const isSelected = selectedHeatmapDate === day.dateStr;
+              {monthlyGrowth.length > 0 ? (
+                <div className="pt-2 flex-1 flex flex-col justify-between">
+                  {/* Vertical Bar Chart with auto-scaled Y-axis */}
+                  <div className="h-32 flex items-end justify-between px-3 gap-3 w-full relative">
+                    {/* Background horizontal grid lines */}
+                    <div className="absolute inset-x-2 inset-y-0 flex flex-col justify-between pointer-events-none select-none">
+                      <div className="w-full border-t border-zinc-100 dark:border-zinc-800/80" />
+                      <div className="w-full border-t border-dashed border-zinc-100 dark:border-zinc-800/60" />
+                      <div className="w-full border-t border-zinc-100 dark:border-zinc-800/80" />
+                    </div>
 
-                      return (
-                        <button
-                          key={day.dateStr}
-                          type="button"
-                          onClick={() => {
-                            setSelectedHeatmapDate(selectedHeatmapDate === day.dateStr ? null : day.dateStr);
-                          }}
-                          className={`w-[11.5px] h-[11.5px] rounded-xs border transition-all duration-100 shrink-0 cursor-pointer ${cellColor} ${
-                            isSelected ? "ring-2 ring-teal-500 ring-offset-1 dark:ring-offset-zinc-900 scale-125 z-10 font-bold" : ""
-                          }`}
-                          title={`${formatFriendlyDate(day.date, { datePref: readerSettings?.dateFormat, appLocale: i18n.language })}: ${count} ${t('stats_page.words', 'words')}`}
-                        />
-                      );
-                    })}
+                    {(() => {
+                      const maxCount = Math.max(...monthlyGrowth.map(m => m.count), 1);
+                      return monthlyGrowth.map((month, idx) => {
+                        const heightPercent = Math.max(6, Math.min(100, (month.count / maxCount) * 100));
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center group relative z-1 h-full justify-end">
+                            {/* Value tooltip pill on hover */}
+                            <div className="absolute -top-7 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-[10px] font-black px-1.5 py-0.5 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none duration-100 select-none z-20">
+                              {month.count} {t('stats_page.words', 'words')}
+                            </div>
+
+                            {/* Bar Column */}
+                            <div 
+                              className="w-full max-w-[36px] bg-teal-500/20 hover:bg-teal-500/40 dark:bg-teal-500/30 dark:hover:bg-teal-500/50 rounded-t-xl transition-all duration-300 relative flex flex-col justify-end overflow-hidden border-t-2 border-teal-500 shadow-3xs cursor-pointer" 
+                              style={{ height: `${heightPercent}%` }}
+                            >
+                              <div className="w-full bg-gradient-to-t from-teal-600 to-teal-400 h-full opacity-80 group-hover:opacity-100 transition-opacity rounded-t-lg" />
+                            </div>
+
+                            {/* Month label */}
+                            <span className="text-[10px] font-black text-zinc-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 uppercase tracking-wider mt-2 block select-none capitalize transition-colors">
+                              {month.name}
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* Heatmap Legend */}
-            <div className="flex items-center justify-between mt-3 text-[10px] text-zinc-400 select-none border-t border-zinc-100/40 dark:border-zinc-800/40 pt-2 px-1">
-              <span>* {t('stats_page.click_heatmap_hint', 'Click on a square to view words added on that day')}</span>
-              <div className="flex items-center gap-1">
-                <span>{t('stats_page.less', 'Less')}</span>
-                <span className="w-2.5 h-2.5 rounded bg-zinc-100 dark:bg-zinc-950 border border-zinc-200/30 dark:border-zinc-800/40" />
-                <span className="w-2.5 h-2.5 rounded bg-teal-100 dark:bg-teal-950/30 border border-teal-200/30 dark:border-teal-900/40" />
-                <span className="w-2.5 h-2.5 rounded bg-teal-300 dark:bg-teal-800" />
-                <span className="w-2.5 h-2.5 rounded bg-teal-500 dark:bg-teal-600" />
-                <span className="w-2.5 h-2.5 rounded bg-teal-700 dark:bg-teal-400" />
-                <span>{t('stats_page.more', 'More')}</span>
-              </div>
+                  {/* Clean Mini Footer Stats */}
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                    <span>
+                      {t('stats_page.current_month', 'This month')}: <strong className="text-teal-600 dark:text-teal-400">+{statsArray.length - (monthlyGrowth[monthlyGrowth.length - 2]?.count || 0)}</strong>
+                    </span>
+                    <span>
+                      {t('stats_page.peak_month', 'Peak')}: <strong>{Math.max(...monthlyGrowth.map(m => m.count))}</strong>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center p-8 bg-zinc-50 dark:bg-zinc-950/50 rounded-xl select-none">
+                  <span className="text-xs text-zinc-400 italic">{t('stats_page.not_enough_chart_data', 'Not enough data for chart')}</span>
+                </div>
+              )}
             </div>
-            
           </div>
+        </div>
+      )}
 
-          {/* Interactive Cell Words Details Overlay popup/block (renders slide-in details) */}
-          {selectedHeatmapDate && (() => {
-            const resolvedWords = heatmapData.columns.flatMap(c => c).find(day => day.dateStr === selectedHeatmapDate);
-            if (!resolvedWords) return null;
-            
-            const wordsList = resolvedWords.words;
-            const fullDateStr = new Intl.DateTimeFormat(resolveLocale(i18n.language), { weekday: "long", day: "numeric", month: "short", year: "numeric" }).format(resolvedWords.date);
-            
-            return (
-              <div className="bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/60 p-3.5 rounded-xl animate-in slide-in-from-top-2 duration-200 font-sans space-y-2">
-                <div className="flex items-center justify-between text-xs select-none border-b border-teal-100/45 pb-1.5">
-                  <span className="font-extrabold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
-                    🗓️ {t('stats_page.added_on', 'Added on {{date}}', { date: fullDateStr })}
-                  </span>
+      {/* Tab 2: Vocabulary Notebook (With Accordions for Profiler and Context Search) */}
+      {activeStatsTab === "vocabulary" && (
+        <div className="space-y-4">
+          {/* Priority Profiler Accordion */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden font-sans">
+            <button
+              type="button"
+              onClick={() => setIsProfilerOpen(prev => !prev)}
+              className="w-full p-4 flex items-center justify-between hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <span>{t('stats_page.profiler_title', 'Vocabulary Priority Profiler')}</span>
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400 border border-teal-200/60 dark:border-teal-900/50">
+                      CEFR A1–C2
+                    </span>
+                  </h3>
+                  <p className="text-xs text-zinc-500">
+                    {t('stats_page.profiler_short_desc', 'Scan lessons and tag words by frequency & difficulty.')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${isProfilerOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+
+            {isProfilerOpen && (
+              <div className="p-5 border-t border-zinc-100 dark:border-zinc-800 space-y-5">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-zinc-500">
+                      {t('stats_page.profiler_desc', 'Smart linguistic analyzer scans your imported lesson texts, determines word repetition frequency, and automatically tags cards by difficulty (from A1 to C1). This helps focus on high-frequency words first.')}
+                    </p>
+                  </div>
+
                   <button
-                    onClick={() => setSelectedHeatmapDate(null)}
-                    className="text-[10px] font-black hover:text-red-500 cursor-pointer text-zinc-400"
+                    onClick={handleAutoProfileVocabulary}
+                    disabled={isProfiling || vocabArray.length === 0}
+                    className={`cursor-pointer px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl border transition-all flex items-center gap-2 select-none shadow-3xs hover:shadow-4xs ${
+                      isProfiling
+                        ? "bg-zinc-100 border-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 animate-pulse cursor-not-allowed"
+                        : "bg-teal-500 hover:bg-teal-600 active:scale-97 border-teal-600 hover:border-teal-700 text-white dark:bg-teal-600 dark:hover:bg-teal-600"
+                    }`}
                   >
-                    {t('stats_page.close', 'close ✕')}
+                    {isProfiling ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>{t('stats_page.analyzing_lessons', 'Analyzing lessons...')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        <span>{t('stats_page.run_profiler', 'Run Frequency Analysis')}</span>
+                      </>
+                    )}
                   </button>
                 </div>
-                {wordsList.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {wordsList.map((word, wIdx) => {
-                      const wordObj = statsArray.find(item => item.word.toLowerCase() === word.toLowerCase());
-                      return (
-                        <div 
-                          key={`${word}-${wIdx}`} 
-                          className="px-2.5 py-1 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-900/60 rounded-lg text-[11px] font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5 shadow-3xs"
-                        >
-                          <span className="text-teal-600 dark:text-teal-400 capitalize">{word}</span>
-                          {wordObj?.translation && (
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[120px] font-medium border-l pl-1.5 border-zinc-100 dark:border-zinc-800">
-                              {wordObj.translation}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
+
+                {profileMessage && (
+                  <div className="p-3 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 text-xs font-semibold text-teal-700 dark:text-teal-400 rounded-xl leading-relaxed flex items-start gap-2.5 animate-in fade-in duration-200">
+                    <span className="text-sm select-none">💡</span>
+                    <span>{profileMessage}</span>
                   </div>
-                ) : (
-                  <p className="text-[11px] text-zinc-400 italic">
-                    {t('stats_page.no_words_added', 'No words were added on this day.')}
+                )}
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs select-none">
+                    <span className="font-extrabold text-zinc-600 dark:text-zinc-300">{t('stats_page.difficulty_breakdown', 'Vocabulary difficulty distribution ({{lang}}):', { lang: selectedStatsLang })}</span>
+                    <span className="font-mono text-zinc-400">
+                      {t('stats_page.tagged_count', 'Tagged: {{tagged}} of {{total}} words', { tagged: cefrProfileCounts.totalWithCefr, total: vocabArray.length })}
+                    </span>
+                  </div>
+
+                  {vocabArray.length === 0 ? (
+                    <div className="p-6 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center select-none text-xs text-zinc-400 italic">
+                      {t('stats_page.empty_vocab_notice', 'Vocabulary is empty. Add words while reading lessons in the "Read" tab.')}
+                    </div>
+                  ) : cefrProfileCounts.totalWithCefr > 0 ? (
+                    <div className="space-y-4">
+                      <div className="h-4 rounded-xl flex overflow-hidden border border-zinc-200/45 dark:border-zinc-800/45 select-none shadow-4xs">
+                        {(() => {
+                          const items = [
+                            { label: "A1", count: cefrProfileCounts.a1, color: "bg-emerald-500 text-white" },
+                            { label: "A2", count: cefrProfileCounts.a2, color: "bg-teal-500 text-white" },
+                            { label: "B1", count: cefrProfileCounts.b1, color: "bg-cyan-500 text-white" },
+                            { label: "B2", count: cefrProfileCounts.b2, color: "bg-blue-500 text-white" },
+                            { label: "C1", count: cefrProfileCounts.c1, color: "bg-indigo-500 text-white" },
+                            { label: "C2", count: cefrProfileCounts.c2, color: "bg-violet-500 text-white" },
+                          ];
+
+                          const total = cefrProfileCounts.totalWithCefr;
+                          return items.map((item, idx) => {
+                            if (item.count === 0) return null;
+                            const pct = (item.count / total) * 100;
+                            return (
+                              <div
+                                key={idx}
+                                style={{ width: `${pct}%` }}
+                                className={`${item.color} flex items-center justify-center font-mono text-[8px] font-black leading-none truncate`}
+                                title={`${item.label}: ${item.count} ${t('stats_page.words', 'words')} (${pct.toFixed(1)}%)`}
+                              >
+                                {pct >= 8 && `${item.label} (${pct.toFixed(0)}%)`}
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        {[
+                          { level: "A1", badgeDesc: t('stats_page.cefr_a1_badge', "Key Words"), count: cefrProfileCounts.a1, color: "border-emerald-200 text-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/10 dark:text-emerald-400 dark:border-emerald-950", sub: t('stats_page.cefr_a1_sub', "Most frequent (Top 15%)") },
+                          { level: "A2", badgeDesc: t('stats_page.cefr_a2_badge', "Conversational Basics"), count: cefrProfileCounts.a2, color: "border-teal-200 text-teal-700 bg-teal-50/40 dark:bg-teal-950/10 dark:text-teal-400 dark:border-teal-950", sub: t('stats_page.cefr_a2_sub', "General basics (15-35%)") },
+                          { level: "B1", badgeDesc: t('stats_page.cefr_b1_badge', "Threshold Concepts"), count: cefrProfileCounts.b1, color: "border-cyan-200 text-cyan-700 bg-cyan-50/40 dark:bg-cyan-950/10 dark:text-cyan-400 dark:border-cyan-950", sub: t('stats_page.cefr_b1_sub', "Intermediate level (35-55%)") },
+                          { level: "B2", badgeDesc: t('stats_page.cefr_b2_badge', "Advanced Speech"), count: cefrProfileCounts.b2, color: "border-blue-200 text-blue-700 bg-blue-50/40 dark:bg-blue-950/10 dark:text-blue-400 dark:border-blue-950", sub: t('stats_page.cefr_b2_sub', "Upper Intermediate (55-75%)") },
+                          { level: "C1", badgeDesc: t('stats_page.cefr_c1_badge', "Academic"), count: cefrProfileCounts.c1, color: "border-indigo-200 text-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/10 dark:text-indigo-400 dark:border-indigo-950", sub: t('stats_page.cefr_c1_sub', "Complex / Written") },
+                          { level: "C2", badgeDesc: t('stats_page.cefr_c2_badge', "Narrow Terminology"), count: cefrProfileCounts.c2, color: "border-violet-200 text-violet-700 bg-violet-50/40 dark:violet-950/10 dark:text-violet-400 dark:border-violet-950", sub: t('stats_page.cefr_c2_sub', "Rare words (Top tier)") },
+                        ].map((tier, idx) => (
+                          <div key={idx} className={`p-2.5 border rounded-xl flex flex-col justify-between ${tier.color} text-xs leading-normal select-none`}>
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-sm">{tier.level}</span>
+                              <span className="font-sans font-black text-xs">{tier.count} <span className="text-[10px] font-normal text-zinc-400">{t('stats_page.words', 'words')}</span></span>
+                            </div>
+                            <div className="mt-1.5 space-y-0.5">
+                              <p className="text-[9px] font-bold uppercase tracking-wide opacity-80 leading-tight">{tier.badgeDesc}</p>
+                              <p className="text-[8px] opacity-60 leading-none">{tier.sub}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center select-none text-[11px] text-zinc-500 leading-normal">
+                      {t('stats_page.empty_frequency_notice', 'Your vocabulary has no frequency-tagged words yet. Click the "Run Frequency Analysis" button in the top right to scan your lessons and assign CEFR priority tags!')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Context Search Accordion */}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden font-sans">
+            <button
+              type="button"
+              onClick={() => setIsContextSearchOpen(prev => !prev)}
+              className="w-full p-4 flex items-center justify-between hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <span>{t('stats_page.context_search_title', 'Context Search in Your Books')}</span>
+                    {contextSearchHits.length > 0 && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400 border border-teal-200/60 dark:border-teal-900/50">
+                        {contextSearchHits.length} {t('stats_page.occurrences', 'matches')}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-zinc-500">
+                    {t('stats_page.context_search_desc', 'Search for occurrences of any word or phrase across all texts you have uploaded to Lectura.')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${isContextSearchOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+
+            {isContextSearchOpen && (
+              <div className="p-5 border-t border-zinc-100 dark:border-zinc-800 space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    value={contextSearchQuery}
+                    onChange={(e) => setContextSearchQuery(e.target.value)}
+                    placeholder={t('stats_page.context_search_ph', 'Type a word or phrase — find all occurrences in your books...')}
+                    className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
+                  />
+                </div>
+
+                {contextSearchQuery.trim().length >= 2 && contextSearchHits.length === 0 && (
+                  <p className="text-xs text-zinc-500 italic">
+                    {t('stats_page.context_no_results', 'No occurrences found for "{{query}}" in {{lang}} texts.', { query: contextSearchQuery.trim(), lang: selectedStatsLang })}
                   </p>
                 )}
+
+                {contextSearchHits.length > 0 && (
+                  <ContextSearchResults
+                    hits={contextSearchHits}
+                    query={contextSearchQuery.trim()}
+                    onOpenLesson={onOpenLesson}
+                    maxVisible={12}
+                    embedded
+                  />
+                )}
               </div>
-            );
-          })()}
-
-        </div>
-
-        {/* Month-by-Month Vocabulary Cumulative Growth curve (custom SVG based dashboard) */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs flex flex-col justify-between">
-          <div className="space-y-1 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-            <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-teal-500" />
-              {t('stats_page.growth_title', 'Growth History')}
-            </h3>
-            <p className="text-xs text-zinc-500 w-full">
-              {t('stats_page.growth_desc', 'Dynamics of saved vocabulary accumulation by month.')}
-            </p>
-          </div>
-
-          {/* SVG Trend curve bar elements */}
-          {monthlyGrowth.length > 0 ? (
-            <div className="py-4 flex-1 flex flex-col justify-end space-y-4">
-              
-              {/* Chart Visual Grid */}
-              <div className="h-28 flex items-end justify-between px-2 gap-2 w-full pt-2 relative">
-                
-                {/* Visual horizontal guidelines background */}
-                <div className="absolute inset-y-0 left-0 right-0 flex flex-col justify-between pointer-events-none select-none">
-                  <div className="w-full border-t border-zinc-100 dark:border-zinc-800/60 h-0" />
-                  <div className="w-full border-t border-zinc-100 dark:border-zinc-800/60 h-0" />
-                  <div className="w-full border-t border-zinc-100 dark:border-zinc-800/60 h-0" />
-                </div>
-
-                {(() => {
-                  const maxCount = Math.max(...monthlyGrowth.map(m => m.count), 5);
-                  return monthlyGrowth.map((month, idx) => {
-                    const heightPercent = Math.max(5, Math.min(100, (month.count / maxCount) * 100));
-                    return (
-                      <div key={idx} className="flex-1 flex flex-col items-center group relative z-1">
-                        
-                        {/* Word count Bubble marker displayed on hover/active */}
-                        <div className="absolute bottom-full mb-1 bg-zinc-800 dark:bg-zinc-800 text-white dark:text-zinc-100 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none mb-1.5 duration-100 select-none">
-                          {month.count} {t('stats_page.words', 'words')}
-                        </div>
-
-                        {/* Bar graphics column */}
-                        <div className="w-full max-w-[28px] bg-gradient-to-t from-teal-50 to-teal-100 dark:from-teal-950/20 dark:to-teal-900/60 rounded-t-lg border border-teal-200/30 hover:border-teal-500/50 hover:from-teal-500 hover:to-teal-600 dark:hover:from-teal-500 dark:hover:to-teal-400 transition-all select-none cursor-help overflow-hidden relative flex flex-col justify-end" style={{ height: `${heightPercent}%` }}>
-                          
-                          {/* Inner gradient filler bar */}
-                          <div className="w-full bg-teal-500 dark:bg-teal-400 rounded-t-sm h-1.5 opacity-80" />
-                        </div>
-
-                        {/* Month names footer */}
-                        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-2 block select-none capitalize">
-                          {month.name}
-                        </span>
-                      </div>
-                    );
-                  });
-                })()}
-
-              </div>
-
-              {/* Sparkline details list summary */}
-              <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-lg border border-zinc-100/50 dark:border-zinc-800/50 space-y-1 text-[11px] text-zinc-600 dark:text-zinc-300">
-                <div className="flex justify-between font-medium select-none">
-                  <span>{t('stats_page.total_scope', 'Total Scope:')}</span>
-                  <strong className="text-zinc-900 dark:text-white">{statsArray.length} {onlyPatterns ? "parents" : t('stats_page.words', 'words')}</strong>
-                </div>
-                <div className="flex justify-between font-medium select-none text-[10.5px]">
-                  <span>{t('stats_page.month_before_last', 'Month before last:')}</span>
-                  <span className="text-zinc-500">{monthlyGrowth[3]?.count || 0} {onlyPatterns ? "parents" : t('stats_page.words', 'words')}</span>
-                </div>
-                <div className="flex justify-between font-medium select-none text-[10.5px]">
-                  <span>{t('stats_page.current_month', 'Current month:')}</span>
-                  <span className="text-teal-600 dark:text-teal-400 font-bold">+{statsArray.length - (monthlyGrowth[4]?.count || 0)} {t('stats_page.new_this_month', 'new this month')}</span>
-                </div>
-              </div>
-
-            </div>
-          ) : (
-            <div className="flex items-center justify-center p-8 bg-zinc-50 dark:bg-zinc-950/50 rounded-xl select-none">
-              <span className="text-xs text-zinc-400 italic">{t('stats_page.not_enough_chart_data', 'Not enough data for chart')}</span>
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* 2.6. CEFR Word Prioritization & Lesson Corpus Profiler */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-5 font-sans">
-        
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-100 dark:border-zinc-800 pb-3">
-          <div className="space-y-0.5">
-            <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2 select-none">
-              <Sparkles className="w-5 h-5 text-teal-500 animate-pulse" />
-              {t('stats_page.profiler_title', 'Vocabulary Priority Profiler')}
-            </h3>
-            <p className="text-xs text-zinc-500">
-              {t('stats_page.profiler_desc', 'Smart linguistic analyzer scans your imported lesson texts, determines word repetition frequency, and automatically tags cards by difficulty (from A1 to C1). This helps focus on high-frequency words first.')}
-            </p>
-          </div>
-
-          <button
-            onClick={handleAutoProfileVocabulary}
-            disabled={isProfiling || vocabArray.length === 0}
-            className={`cursor-pointer px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl border transition-all flex items-center gap-2 select-none shadow-3xs hover:shadow-4xs ${
-              isProfiling
-                ? "bg-zinc-100 border-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:border-zinc-700 animate-pulse cursor-not-allowed"
-                : "bg-teal-500 hover:bg-teal-600 active:scale-97 border-teal-600 hover:border-teal-700 text-white dark:bg-teal-600 dark:hover:bg-teal-600"
-            }`}
-          >
-            {isProfiling ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>{t('stats_page.analyzing_lessons', 'Analyzing lessons...')}</span>
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                <span>{t('stats_page.run_profiler', 'Run Frequency Analysis')}</span>
-              </>
             )}
-          </button>
-        </div>
-
-        {/* Display profile messages / results if any */}
-        {profileMessage && (
-          <div className="p-3 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 text-xs font-semibold text-teal-700 dark:text-teal-400 rounded-xl leading-relaxed flex items-start gap-2.5 animate-in fade-in duration-200">
-            <span className="text-sm select-none">💡</span>
-            <span>{profileMessage}</span>
           </div>
-        )}
-
-        {/* Live CEFR Distribution Profile Stats */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs select-none">
-            <span className="font-extrabold text-zinc-600 dark:text-zinc-300">{t('stats_page.difficulty_breakdown', 'Vocabulary difficulty distribution ({{lang}}):', { lang: selectedStatsLang })}</span>
-            <span className="font-mono text-zinc-400">
-              {t('stats_page.tagged_count', 'Tagged: {{tagged}} of {{total}} words', { tagged: cefrProfileCounts.totalWithCefr, total: vocabArray.length })}
-            </span>
-          </div>
-
-          {vocabArray.length === 0 ? (
-            <div className="p-6 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center select-none text-xs text-zinc-400 italic">
-              {t('stats_page.empty_vocab_notice', 'Vocabulary is empty. Add words while reading lessons in the "Read" tab.')}
-            </div>
-          ) : cefrProfileCounts.totalWithCefr > 0 ? (
-            <div className="space-y-4">
-              
-              {/* Segmented Progress Band Bar representational display */}
-              <div className="h-4 rounded-xl flex overflow-hidden border border-zinc-200/45 dark:border-zinc-800/45 select-none shadow-4xs">
-                {(() => {
-                  const items = [
-                    { label: "A1", count: cefrProfileCounts.a1, color: "bg-emerald-500 text-white" },
-                    { label: "A2", count: cefrProfileCounts.a2, color: "bg-teal-500 text-white" },
-                    { label: "B1", count: cefrProfileCounts.b1, color: "bg-cyan-500 text-white" },
-                    { label: "B2", count: cefrProfileCounts.b2, color: "bg-blue-500 text-white" },
-                    { label: "C1", count: cefrProfileCounts.c1, color: "bg-indigo-500 text-white" },
-                    { label: "C2", count: cefrProfileCounts.c2, color: "bg-violet-500 text-white" },
-                  ];
-
-                  const total = cefrProfileCounts.totalWithCefr;
-                  return items.map((item, idx) => {
-                    if (item.count === 0) return null;
-                    const pct = (item.count / total) * 100;
-                    return (
-                      <div
-                        key={idx}
-                        style={{ width: `${pct}%` }}
-                        className={`${item.color} flex items-center justify-center font-mono text-[8px] font-black leading-none truncate`}
-                        title={`${item.label}: ${item.count} ${t('stats_page.words', 'words')} (${pct.toFixed(1)}%)`}
-                      >
-                        {pct >= 8 && `${item.label} (${pct.toFixed(0)}%)`}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-
-              {/* CEFR Tiers Detailed Grid Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {[
-                  { level: "A1", badgeDesc: t('stats_page.cefr_a1_badge', "Key Words"), count: cefrProfileCounts.a1, color: "border-emerald-200 text-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/10 dark:text-emerald-400 dark:border-emerald-950", sub: t('stats_page.cefr_a1_sub', "Most frequent (Top 15%)") },
-                  { level: "A2", badgeDesc: t('stats_page.cefr_a2_badge', "Conversational Basics"), count: cefrProfileCounts.a2, color: "border-teal-200 text-teal-700 bg-teal-50/40 dark:bg-teal-950/10 dark:text-teal-400 dark:border-teal-950", sub: t('stats_page.cefr_a2_sub', "General basics (15-35%)") },
-                  { level: "B1", badgeDesc: t('stats_page.cefr_b1_badge', "Threshold Concepts"), count: cefrProfileCounts.b1, color: "border-cyan-200 text-cyan-700 bg-cyan-50/40 dark:bg-cyan-950/10 dark:text-cyan-400 dark:border-cyan-950", sub: t('stats_page.cefr_b1_sub', "Intermediate level (35-55%)") },
-                  { level: "B2", badgeDesc: t('stats_page.cefr_b2_badge', "Advanced Speech"), count: cefrProfileCounts.b2, color: "border-blue-200 text-blue-700 bg-blue-50/40 dark:bg-blue-950/10 dark:text-blue-400 dark:border-blue-950", sub: t('stats_page.cefr_b2_sub', "Upper Intermediate (55-75%)") },
-                  { level: "C1", badgeDesc: t('stats_page.cefr_c1_badge', "Academic"), count: cefrProfileCounts.c1, color: "border-indigo-200 text-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/10 dark:text-indigo-400 dark:border-indigo-950", sub: t('stats_page.cefr_c1_sub', "Complex / Written") },
-                  { level: "C2", badgeDesc: t('stats_page.cefr_c2_badge', "Narrow Terminology"), count: cefrProfileCounts.c2, color: "border-violet-200 text-violet-700 bg-violet-50/40 dark:violet-950/10 dark:text-violet-400 dark:border-violet-950", sub: t('stats_page.cefr_c2_sub', "Rare words (Top tier)") },
-                ].map((tier, idx) => (
-                  <div key={idx} className={`p-2.5 border rounded-xl flex flex-col justify-between ${tier.color} text-xs leading-normal select-none`}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-sm">{tier.level}</span>
-                      <span className="font-sans font-black text-xs">{tier.count} <span className="text-[10px] font-normal text-zinc-400">{t('stats_page.words', 'words')}</span></span>
-                    </div>
-                    <div className="mt-1.5 space-y-0.5">
-                      <p className="text-[9px] font-bold uppercase tracking-wide opacity-80 leading-tight">{tier.badgeDesc}</p>
-                      <p className="text-[8px] opacity-60 leading-none">{tier.sub}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-            </div>
-          ) : (
-            <div className="p-4 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800 text-center select-none text-[11px] text-zinc-500 leading-normal">
-              {t('stats_page.empty_frequency_notice', 'Your vocabulary has no frequency-tagged words yet. Click the "Run Frequency Analysis" button in the top right to scan your lessons and assign CEFR priority tags!')}
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Contextual search across uploaded texts */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4 font-sans">
-        <div className="space-y-0.5">
-          <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2 select-none">
-            <BookOpen className="w-5 h-5 text-teal-500" />
-            {t('stats_page.context_search_title', 'Context Search in Your Books')}
-          </h3>
-          <p className="text-xs text-zinc-500 leading-relaxed">
-            {t('stats_page.context_search_desc', 'Search for occurrences of any word or phrase across all texts you have uploaded to Lectura.')}
-          </p>
-        </div>
-
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
-          <input
-            type="text"
-            value={contextSearchQuery}
-            onChange={(e) => setContextSearchQuery(e.target.value)}
-            placeholder={t('stats_page.context_search_ph', 'Type a word or phrase — find all occurrences in your books...')}
-            className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/25"
-          />
-        </div>
-
-        {contextSearchQuery.trim().length >= 2 && contextSearchHits.length === 0 && (
-          <p className="text-xs text-zinc-500 italic">
-            {t('stats_page.context_no_results', 'No occurrences found for "{{query}}" in {{lang}} texts.', { query: contextSearchQuery.trim(), lang: selectedStatsLang })}
-          </p>
-        )}
-
-        {contextSearchHits.length > 0 && (
-          <ContextSearchResults
-            hits={contextSearchHits}
-            query={contextSearchQuery.trim()}
-            onOpenLesson={onOpenLesson}
-            maxVisible={12}
-            embedded
-          />
-        )}
-      </div>
 
       {/* Vocabulary Review Interactive Workspace */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-2xl shadow-xs space-y-4">
@@ -2578,17 +2523,16 @@ function StatisticsPage({
                 </div>
 
                 <div className="flex items-center gap-2 pt-0.5">
-                  <input
-                    type="date"
-                    id="batch-target-date"
-                    defaultValue={new Date().toISOString().split('T')[0]}
-                    className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  <AppDatePicker
+                    value={batchTargetDate}
+                    onChange={setBatchTargetDate}
+                    className="min-w-[130px]"
+                    inputClassName="font-mono text-xs py-1.5"
                   />
                   <button
                     onClick={() => {
-                      const input = document.getElementById('batch-target-date') as HTMLInputElement;
-                      if (input && input.value) {
-                        handleBatchSetDate(input.value);
+                      if (batchTargetDate) {
+                        handleBatchSetDate(batchTargetDate);
                       }
                     }}
                     disabled={processedVocabularyList.length === 0}
@@ -2641,11 +2585,11 @@ function StatisticsPage({
                     <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 block">
                       {t('stats_page.set_save_date', 'Set save date:')}
                     </label>
-                    <input
-                      type="date"
+                    <AppDatePicker
                       value={batchImportDate}
-                      onChange={(e) => setBatchImportDate(e.target.value || new Date().toISOString().split('T')[0])}
-                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      onChange={(val) => setBatchImportDate(val || new Date().toISOString().split('T')[0])}
+                      className="w-full"
+                      inputClassName="w-full font-mono text-xs py-1.5"
                     />
                   </div>
 
@@ -3012,11 +2956,9 @@ function StatisticsPage({
                           <td className="p-3 text-center text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
                             {editingWordDate === item.word ? (
                               <div className="flex items-center justify-center gap-1">
-                                <input
-                                  type="date"
-                                  defaultValue={item.createdAt && !isNaN(new Date(item.createdAt).getTime()) ? new Date(item.createdAt).toISOString().split('T')[0] : ""}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
+                                <AppDatePicker
+                                  value={item.createdAt && !isNaN(new Date(item.createdAt).getTime()) ? new Date(item.createdAt).toISOString().split('T')[0] : ""}
+                                  onChange={(val) => {
                                     if (val) {
                                       const timestamp = new Date(val).getTime();
                                       if (!isNaN(timestamp)) {
@@ -3027,10 +2969,12 @@ function StatisticsPage({
                                         onSaveVocab?.(updated, selectedStatsLang);
                                       }
                                     }
+                                    setEditingWordDate(null);
                                   }}
                                   onBlur={() => setEditingWordDate(null)}
-                                  className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-1 text-xs font-mono text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                                   autoFocus
+                                  className="min-w-[120px]"
+                                  inputClassName="px-1.5 py-1 text-xs"
                                 />
                                 <button
                                   type="button"
@@ -3048,7 +2992,7 @@ function StatisticsPage({
                               >
                                 <span>
                                   {item.createdAt && !isNaN(new Date(item.createdAt).getTime())
-                                    ? formatFriendlyDate(item.createdAt, { datePref: readerSettings?.dateFormat, appLocale: i18n.language }) 
+                                    ? formatAppDate(item.createdAt) 
                                     : "—"}
                                 </span>
                                 <Calendar className="w-3 h-3 text-zinc-400 group-hover:text-teal-500 transition-colors" />
@@ -3229,6 +3173,8 @@ function StatisticsPage({
         )}
 
       </div>
+      </div>
+      )}
 
       {/* Custom Confirm Dialog Modal */}
       {confirmDialog && (

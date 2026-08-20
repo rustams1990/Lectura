@@ -53,6 +53,7 @@ class WhisperQueueService {
   private listeners: Set<() => void> = new Set();
   private eventSource: EventSource | null = null;
   private retryTimeout: any = null;
+  private customProgressIntervals: Map<string, any> = new Map();
 
   constructor() {
     this.loadCompletedHistory();
@@ -220,6 +221,11 @@ class WhisperQueueService {
   }
 
   public async cancelTask(id: string): Promise<boolean> {
+    const timer = this.customProgressIntervals.get(id);
+    if (timer) {
+      clearInterval(timer);
+      this.customProgressIntervals.delete(id);
+    }
     const res = await fetch("/api/whisper/cancel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -238,6 +244,131 @@ class WhisperQueueService {
     this.completedTasks = [];
     this.saveCompletedHistory();
     this.notify();
+  }
+
+  public registerCustomTask(item: Partial<WhisperQueueItem> & { id: string; title: string }): WhisperQueueItem {
+    const newItem: WhisperQueueItem = {
+      id: item.id,
+      userId: item.userId || "default",
+      title: item.title,
+      sourceType: item.sourceType || "podcast",
+      model: item.model || "base",
+      status: item.status || "transcribing",
+      progress: item.progress || 5,
+      currentTime: 0,
+      totalDuration: 0,
+      etaSeconds: 0,
+      stageText: item.stageText || "Распознавание речи через Whisper...",
+      thumbnail: item.thumbnail,
+      channelName: item.channelName,
+      createdAt: Date.now(),
+      startedAt: Date.now(),
+      ...item,
+    };
+    if (!this.activeItem) {
+      this.activeItem = newItem;
+    } else {
+      this.queue.push(newItem);
+    }
+
+    // Start a smooth background progress incrementer for custom jobs
+    if (typeof window !== "undefined") {
+      const timer = setInterval(() => {
+        if (this.activeItem && this.activeItem.id === newItem.id) {
+          if (this.activeItem.progress < 85) {
+            const step = this.activeItem.progress < 30 ? 2 : (this.activeItem.progress < 60 ? 1.5 : 0.8);
+            this.activeItem = {
+              ...this.activeItem,
+              progress: Math.min(88, Math.round((this.activeItem.progress + step) * 10) / 10),
+            };
+            this.notify();
+          }
+        }
+      }, 700);
+      this.customProgressIntervals.set(newItem.id, timer);
+    }
+
+    this.notify();
+    return newItem;
+  }
+
+  public updateCustomTask(id: string, updates: Partial<WhisperQueueItem>) {
+    if (this.activeItem && this.activeItem.id === id) {
+      this.activeItem = { ...this.activeItem, ...updates };
+      this.notify();
+    } else {
+      const idx = this.queue.findIndex(t => t.id === id);
+      if (idx !== -1) {
+        this.queue[idx] = { ...this.queue[idx], ...updates };
+        this.notify();
+      }
+    }
+  }
+
+  public completeCustomTask(id: string, lessonId?: string) {
+    const timer = this.customProgressIntervals.get(id);
+    if (timer) {
+      clearInterval(timer);
+      this.customProgressIntervals.delete(id);
+    }
+
+    let targetItem: WhisperQueueItem | null = null;
+    if (this.activeItem && this.activeItem.id === id) {
+      targetItem = this.activeItem;
+      this.activeItem = this.queue.shift() || null;
+    } else {
+      const idx = this.queue.findIndex(t => t.id === id);
+      if (idx !== -1) {
+        targetItem = this.queue.splice(idx, 1)[0];
+      }
+    }
+
+    if (targetItem) {
+      const completed: WhisperQueueItem = {
+        ...targetItem,
+        status: "completed",
+        progress: 100,
+        completedAt: Date.now(),
+        stageText: "Завершено",
+        createdBookId: lessonId || targetItem.createdBookId,
+      };
+      this.completedTasks = [completed, ...this.completedTasks.filter(t => t.id !== id)];
+      this.saveCompletedHistory();
+      this.playGentleChime();
+      this.notify();
+    }
+  }
+
+  public failCustomTask(id: string, errorMessage?: string) {
+    const timer = this.customProgressIntervals.get(id);
+    if (timer) {
+      clearInterval(timer);
+      this.customProgressIntervals.delete(id);
+    }
+
+    let targetItem: WhisperQueueItem | null = null;
+    if (this.activeItem && this.activeItem.id === id) {
+      targetItem = this.activeItem;
+      this.activeItem = this.queue.shift() || null;
+    } else {
+      const idx = this.queue.findIndex(t => t.id === id);
+      if (idx !== -1) {
+        targetItem = this.queue.splice(idx, 1)[0];
+      }
+    }
+
+    if (targetItem) {
+      const failed: WhisperQueueItem = {
+        ...targetItem,
+        status: "error",
+        error: errorMessage || "Ошибка транскрибации",
+        stageText: `Ошибка: ${errorMessage || "Сбой"}`,
+        completedAt: Date.now(),
+      };
+      this.completedTasks = [failed, ...this.completedTasks.filter(t => t.id !== id)];
+      this.saveCompletedHistory();
+      this.notify();
+    }
   }
 }
 

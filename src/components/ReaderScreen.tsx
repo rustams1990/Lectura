@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain } from "lucide-react";
+import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
@@ -88,6 +88,26 @@ export default function ReaderScreen({
   const [showAiHubModal, setShowAiHubModal] = useState(false);
   const [selectedText, setSelectedText] = useState("");
 
+  // Global hotkey 'T' for toggling parallel sentence translations
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      if ((e.key === "t" || e.key === "T" || e.key === "е" || e.key === "Е") && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        setReaderSettings((prev) => ({
+          ...prev,
+          showSentenceTranslations: !prev.showSentenceTranslations,
+        }));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setReaderSettings]);
+
   return (
     <>
       <div className="grid grid-cols-12 gap-6 items-start">
@@ -113,11 +133,34 @@ export default function ReaderScreen({
                   {/* AI Hub Modal Launcher */}
                   <button
                     onClick={() => setShowAiHubModal(true)}
-                    className="flex items-center justify-center gap-1.5 h-8 px-3 shrink-0 whitespace-nowrap bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-extrabold rounded-xl shadow-sm hover:shadow-md transition-all active:scale-97 cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
                     title={t('reader.ai_hub_title', 'Открыть ИИ-Центр (Поиск выражений, сленга и анализ свойств слов)')}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>{t('reader.ai_hub_btn', 'AI Hub')}</span>
+                  </button>
+
+                  {/* Parallel Sentence Translation Mode Toggle */}
+                  <button
+                    onClick={() =>
+                      setReaderSettings((prev) => ({
+                        ...prev,
+                        showSentenceTranslations: !prev.showSentenceTranslations,
+                      }))
+                    }
+                    className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      readerSettings.showSentenceTranslations
+                        ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50 shadow-xs"
+                        : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
+                    }`}
+                    title={
+                      readerSettings.showSentenceTranslations
+                        ? t('reader.hide_translations_title', 'Скрыть параллельный перевод предложений (T)')
+                        : t('reader.show_translations_title', 'Показать параллельный перевод предложений (T)')
+                    }
+                  >
+                    <Languages className="w-3.5 h-3.5" />
+                    <span>{t('reader.translations_btn', 'Перевод')}</span>
                   </button>
 
                   <button
@@ -222,6 +265,7 @@ export default function ReaderScreen({
                   onAudioUpload={handleAudioUploaded}
                   onListeningTick={handleListeningTick}
                   onAudioEnded={() => handleMediaEnded(activeLesson)}
+                  readerTheme={readerSettings.readerTheme}
                 />
               )}
 
