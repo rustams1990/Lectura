@@ -763,10 +763,10 @@ function HistoryPage({
       const rawName =
         lesson?.channelName?.trim() ||
         item.channelName?.trim() ||
-        (lesson?.youtubeId || lesson?.lessonType === "youtube"
-          ? (lesson?.title && lesson.title !== "YouTube Video" ? lesson.title : t("history_page.youtube_source", "YouTube"))
-          : lesson?.lessonType === "podcast"
-          ? (lesson?.channelName?.trim() || lesson?.title || t("history_page.podcast_source", "Podcast"))
+        (lesson?.youtubeId || lesson?.lessonType === "youtube" || item.lessonType === "youtube"
+          ? t("history_page.youtube_source", "YouTube")
+          : lesson?.lessonType === "podcast" || item.lessonType === "podcast"
+          ? (item.lessonTitle?.includes(" - ") ? item.lessonTitle.split(" - ")[0].trim() : t("history_page.podcast_source", "Podcast"))
           : null);
 
       if (!rawName) return;

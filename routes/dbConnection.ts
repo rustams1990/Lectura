@@ -95,7 +95,9 @@ function setupSchema(db: Database.Database) {
       actionType TEXT NOT NULL,
       status TEXT,
       durationSeconds INTEGER DEFAULT 0,
-      notes TEXT
+      notes TEXT,
+      channelName TEXT,
+      channelAvatarUrl TEXT
     );
 
     CREATE TABLE IF NOT EXISTS server_users (
@@ -363,11 +365,46 @@ function setupSchema(db: Database.Database) {
     } catch (_) {}
   }, 1000);
 
-  // reading_history: user_id column
+  // reading_history: user_id, channelName, channelAvatarUrl columns
   const historyCols = (db.prepare("PRAGMA table_info(reading_history)").all() as any[]).map(c => c.name);
   if (!historyCols.includes("user_id")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (_) {}
   }
+  if (!historyCols.includes("channelName")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelName TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("channelAvatarUrl")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN channelAvatarUrl TEXT;`); } catch (_) {}
+  }
+
+  // Auto-backfill reading_history channelName and channelAvatarUrl from lessons table
+  try {
+    db.exec(`
+      UPDATE reading_history
+      SET channelName = (
+            SELECT channelName FROM lessons 
+            WHERE lessons.id = reading_history.lessonId 
+              AND lessons.channelName IS NOT NULL 
+              AND TRIM(lessons.channelName) != ''
+          ),
+          channelAvatarUrl = COALESCE(
+            reading_history.channelAvatarUrl,
+            (
+              SELECT channelAvatarUrl FROM lessons 
+              WHERE lessons.id = reading_history.lessonId 
+                AND lessons.channelAvatarUrl IS NOT NULL 
+                AND TRIM(lessons.channelAvatarUrl) != ''
+            )
+          )
+      WHERE (reading_history.channelName IS NULL OR TRIM(reading_history.channelName) = '')
+        AND EXISTS (
+          SELECT 1 FROM lessons 
+          WHERE lessons.id = reading_history.lessonId 
+            AND lessons.channelName IS NOT NULL 
+            AND TRIM(lessons.channelName) != ''
+        );
+    `);
+  } catch (_) {}
 
   // server_users & users: passwordHint and avatarUrl columns
   const serverUsersCols = (db.prepare("PRAGMA table_info(server_users)").all() as any[]).map(c => c.name);
