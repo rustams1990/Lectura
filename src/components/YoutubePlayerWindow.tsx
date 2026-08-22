@@ -224,7 +224,14 @@ export default function YoutubePlayerWindow({
       trackingIntervalRef.current = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
           // Expose globally for unified history queries
-          (window as any).getYoutubeCurrentTime = () => playerRef.current.getCurrentTime();
+          (window as any).getYoutubeCurrentTime = () => {
+            try {
+              if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+                return playerRef.current.getCurrentTime();
+              }
+            } catch (_) {}
+            return 0;
+          };
 
           try {
             const time = playerRef.current.getCurrentTime();
@@ -418,6 +425,7 @@ export default function YoutubePlayerWindow({
         clearInterval(trackingIntervalRef.current);
         trackingIntervalRef.current = null;
       }
+      (window as any).getYoutubeCurrentTime = null;
 
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {

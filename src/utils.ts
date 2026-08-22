@@ -276,14 +276,20 @@ export const TTS_LOCALE_DESCRIPTIONS: Record<string, string> = {
 export const getActiveMediaCurrentTime = (): number => {
   // If YouTube player time getter was exposed globally:
   if (typeof (window as any).getYoutubeCurrentTime === 'function') {
-    const ytTime = (window as any).getYoutubeCurrentTime();
-    if (ytTime > 0) return Math.floor(ytTime);
+    try {
+      const ytTime = (window as any).getYoutubeCurrentTime();
+      if (typeof ytTime === 'number' && !isNaN(ytTime) && ytTime > 0) {
+        return Math.floor(ytTime);
+      }
+    } catch (_) {}
   }
   // Fallback to native audio element:
-  const audio = document.getElementById('global-audio-element') as HTMLAudioElement;
-  if (audio) {
-    return Math.floor(audio.currentTime);
-  }
+  try {
+    const audio = document.getElementById('global-audio-element') as HTMLAudioElement;
+    if (audio && !isNaN(audio.currentTime) && audio.currentTime > 0) {
+      return Math.floor(audio.currentTime);
+    }
+  } catch (_) {}
   return 0;
 };
 
