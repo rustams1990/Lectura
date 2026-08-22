@@ -185,10 +185,10 @@ export default function BottomAudioBar({
     <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] sm:w-[calc(100%-4rem)] max-w-4xl pointer-events-auto animate-in slide-in-from-bottom-5 duration-300">
       <div className="shadow-2xl border border-slate-200/80 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl px-3.5 py-2 sm:p-3 flex items-center justify-between gap-3 sm:gap-4 h-[64px] sm:h-[72px]">
         
-        {/* ── 1. Left (sm:w-1/3 min-w-0): Artwork + Titles ─────────────────── */}
+        {/* ── 1. Left: Artwork + Titles (Fixed Compact Width) ─────────────── */}
         <div
           onClick={expandPlayer}
-          className="flex items-center gap-2.5 min-w-0 flex-1 sm:w-1/3 sm:flex-initial cursor-pointer group select-none"
+          className="flex items-center gap-2.5 min-w-0 max-w-[200px] sm:max-w-[230px] lg:max-w-[260px] shrink-0 cursor-pointer group select-none"
           title="Open Fullscreen Player"
         >
           {/* Cover Artwork (40x40 on mobile, 44x44 on tablet/desktop) */}
@@ -215,10 +215,10 @@ export default function BottomAudioBar({
           </div>
         </div>
 
-        {/* ── 2. Center (sm:w-1/3): Controls & Scrubber in one compact column ── */}
-        <div className="hidden sm:flex flex-col items-center justify-center sm:w-1/3 max-w-sm w-full gap-1">
+        {/* ── 2. Center: Controls & Wide Scrubber (Expands flex-1) ─────────── */}
+        <div className="hidden sm:flex flex-col items-center justify-center flex-1 min-w-0 px-2 sm:px-4 gap-1">
           {/* Controls: -15s, Play/Pause, +30s */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             {/* Rewind -15s */}
             <button
               type="button"
@@ -262,13 +262,13 @@ export default function BottomAudioBar({
             </button>
           </div>
 
-          {/* Scrubber & Timings in one line */}
-          <div className="flex items-center gap-2 w-full px-1">
-            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 font-semibold shrink-0 min-w-[28px] text-left">
+          {/* Scrubber & Timings in one wide line */}
+          <div className="flex items-center gap-2.5 sm:gap-3 w-full">
+            <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 font-semibold shrink-0 min-w-[32px] text-left">
               {formatTime(seekValue)}
             </span>
 
-            <div className="relative flex-1 flex items-center group py-0.5">
+            <div className="relative flex-1 flex items-center group py-1">
               <input
                 type="range"
                 min={0}
@@ -280,15 +280,16 @@ export default function BottomAudioBar({
                 onChange={handleSliderChange}
                 onMouseUp={handleSliderCommit}
                 onTouchEnd={handleSliderCommit}
-                className="w-full h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full appearance-none cursor-pointer accent-teal-500 focus:outline-none"
+                className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full appearance-none cursor-pointer accent-teal-500 focus:outline-none"
               />
+              {/* Custom filled track highlight */}
               <div
-                className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-teal-500 rounded-full pointer-events-none"
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-teal-500 rounded-full pointer-events-none"
                 style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
               />
             </div>
 
-            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 font-semibold shrink-0 min-w-[28px] text-right">
+            <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 font-semibold shrink-0 min-w-[32px] text-right">
               {formatTime(effectiveDuration)}
             </span>
           </div>
@@ -330,8 +331,8 @@ export default function BottomAudioBar({
           </button>
         </div>
 
-        {/* ── 3. Right (sm:w-1/3): Speed, Study, Volume, Fullscreen, Close ─── */}
-        <div className="hidden sm:flex items-center justify-end gap-1.5 sm:w-1/3 shrink-0">
+        {/* ── 3. Right: Speed, Study, Volume, Fullscreen, Close (Shrink-0) ─── */}
+        <div className="hidden sm:flex items-center justify-end gap-1.5 shrink-0">
           {/* Speed Preset Toggle */}
           <button
             type="button"
