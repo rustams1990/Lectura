@@ -403,6 +403,10 @@ export default function App() {
         clearTimeout(delayDebounceFnRef.current);
         delayDebounceFnRef.current = null;
       }
+      if (historySyncDebounceFnRef.current) {
+        clearTimeout(historySyncDebounceFnRef.current);
+        historySyncDebounceFnRef.current = null;
+      }
       
       // Clear in-memory listening buffers for explicitly deleted items
       const currentTrack = usePlaylistStore.getState().queue[usePlaylistStore.getState().currentIndex];
@@ -506,13 +510,28 @@ export default function App() {
         targetLesson.lessonType === "audio"
       );
 
-      // Find recent entry for THIS LESSON or streaming GUID (within last 2 hours regardless of actionType)
+      // Find recent entry for THIS LESSON or streaming GUID (on the same calendar day or within 24 hours)
       const targetGuid = (targetLesson as any).guid || targetLesson.id;
-      const recentIdx = prev.findIndex(
-        (h) =>
-          (h.lessonId === targetLesson.id || (h.guid && h.guid === targetGuid)) &&
-          Date.now() - new Date(h.timestamp).getTime() < 2 * 60 * 60 * 1000
-      );
+      const targetAudioUrl = (targetLesson as any).audioUrl;
+      const todayDateStr = new Date().toLocaleDateString("en-CA");
+
+      const recentIdx = prev.findIndex((h) => {
+        const matchesLesson =
+          h.lessonId === targetLesson.id ||
+          (h.guid && (h.guid === targetGuid || h.guid === targetLesson.id)) ||
+          (targetAudioUrl && (h as any).audioUrl === targetAudioUrl);
+
+        if (!matchesLesson) return false;
+
+        try {
+          const entryDate = new Date(h.timestamp);
+          const entryDateStr = entryDate.toLocaleDateString("en-CA");
+          if (entryDateStr === todayDateStr) return true;
+          return Date.now() - entryDate.getTime() < 24 * 60 * 60 * 1000;
+        } catch {
+          return false;
+        }
+      });
 
       let updated: HistoryEntry[];
       if (recentIdx !== -1) {

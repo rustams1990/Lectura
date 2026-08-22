@@ -645,13 +645,31 @@ function HistoryPage({
   const handleDeleteEntry = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm(t('history_page.confirm_delete', "Are you sure you want to delete this record from history?"))) {
+      const targetEntry = history.find((h) => h.id === id);
+      const targetLessonId = targetEntry?.lessonId;
+      const targetGuid = (targetEntry as any)?.guid;
+      const targetAudioUrl = (targetEntry as any)?.audioUrl;
+      const targetCustomTitle = targetEntry?.customTitle?.trim().toLowerCase();
+
+      const matched = history.filter((h) => {
+        if (h.id === id) return true;
+        if (targetLessonId && targetLessonId !== "custom" && targetLessonId !== "imported_record" && h.lessonId === targetLessonId) return true;
+        if (targetGuid && ((h as any).guid === targetGuid || h.lessonId === targetGuid || h.id === targetGuid)) return true;
+        if (targetAudioUrl && (h as any).audioUrl === targetAudioUrl) return true;
+        if (targetCustomTitle && h.customTitle?.trim().toLowerCase() === targetCustomTitle) return true;
+        return false;
+      });
+
+      const idsToDelete = Array.from(new Set(matched.map((h) => h.id)));
+      if (idsToDelete.length === 0) idsToDelete.push(id);
+
       try {
         const rawLocal = localStorage.getItem("vocab_clone_reading_history");
         if (rawLocal) {
           try {
             const parsed = JSON.parse(rawLocal);
             if (Array.isArray(parsed)) {
-              const filtered = parsed.filter((h: any) => h.id !== id);
+              const filtered = parsed.filter((h: any) => !idsToDelete.includes(h.id));
               localStorage.setItem("vocab_clone_reading_history", JSON.stringify(filtered));
             }
           } catch (_) {}
@@ -665,13 +683,15 @@ function HistoryPage({
           "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
         };
         if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
-        fetch(resolveApiUrl(`/api/history/${id}`), {
-          method: "DELETE",
-          headers,
-        }).catch(() => {});
+        for (const delId of idsToDelete) {
+          fetch(resolveApiUrl(`/api/history/${delId}`), {
+            method: "DELETE",
+            headers,
+          }).catch(() => {});
+        }
       } catch (_) {}
 
-      onUpdateHistory(history.filter((h) => h.id !== id), [id]);
+      onUpdateHistory(history.filter((h) => !idsToDelete.includes(h.id)), idsToDelete);
     }
   };
 
