@@ -85,6 +85,7 @@ interface PlaylistState {
   isMuted: boolean;
   showQueueModal: boolean;
   isExpanded: boolean;
+  isOpen: boolean;
   seekTarget: number | null;
 
   // Actions
@@ -100,6 +101,8 @@ interface PlaylistState {
   expandPlayer: () => void;
   collapsePlayer: () => void;
   setIsExpanded: (expanded: boolean) => void;
+  setIsOpen: (isOpen: boolean) => void;
+  closePlayer: () => void;
   seek: (time: number) => void;
   seekDelta: (deltaSeconds: number) => void;
   clearSeekTarget: () => void;
@@ -127,11 +130,14 @@ export const usePlaylistStore = create<PlaylistState>()(
       isMuted: false,
       showQueueModal: false,
       isExpanded: false,
+      isOpen: false,
       seekTarget: null,
 
-      expandPlayer: () => set({ isExpanded: true }),
+      expandPlayer: () => set({ isExpanded: true, isOpen: true }),
       collapsePlayer: () => set({ isExpanded: false }),
       setIsExpanded: (isExpanded: boolean) => set({ isExpanded }),
+      setIsOpen: (isOpen: boolean) => set({ isOpen }),
+      closePlayer: () => set({ isOpen: false, isPlaying: false, isExpanded: false, showQueueModal: false }),
 
       setQueue: (items: PlaylistItem[], startIndex = 0, autoPlay = true) => {
         // Filter only items with valid audio / video streams
@@ -147,9 +153,10 @@ export const usePlaylistStore = create<PlaylistState>()(
           queue: validItems,
           currentIndex: safeIndex,
           isPlaying: autoPlay,
+          isOpen: true,
           currentTime: 0,
           duration: 0,
-          seekTarget: 0,
+          seekTarget: null,
         });
 
         return { count: validItems.length, started: autoPlay };
@@ -170,7 +177,7 @@ export const usePlaylistStore = create<PlaylistState>()(
 
         const nextQueue = queue.filter((_, i) => i !== index);
         if (nextQueue.length === 0) {
-          set({ queue: [], currentIndex: 0, isPlaying: false, currentTime: 0, duration: 0 });
+          set({ queue: [], currentIndex: 0, isPlaying: false, currentTime: 0, duration: 0, isOpen: false, isExpanded: false });
           return;
         }
 
@@ -190,7 +197,7 @@ export const usePlaylistStore = create<PlaylistState>()(
       },
 
       clearQueue: () => {
-        set({ queue: [], currentIndex: 0, isPlaying: false, currentTime: 0, duration: 0, isExpanded: false, showQueueModal: false });
+        set({ queue: [], currentIndex: 0, isPlaying: false, currentTime: 0, duration: 0, isExpanded: false, isOpen: false, showQueueModal: false });
       },
 
       playTrackAtIndex: (index: number) => {
@@ -199,9 +206,10 @@ export const usePlaylistStore = create<PlaylistState>()(
         set({
           currentIndex: index,
           isPlaying: true,
+          isOpen: true,
           currentTime: 0,
           duration: 0,
-          seekTarget: 0,
+          seekTarget: null,
         });
       },
 
@@ -340,10 +348,13 @@ export const usePlaylistStore = create<PlaylistState>()(
         repeatMode: state.repeatMode,
         volume: state.volume,
       }),
-      // Guarantee that on initial page load / refresh isPlaying starts as false
+      // Guarantee that on initial page load / refresh isPlaying and player UI start as closed/false
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.isPlaying = false;
+          state.isOpen = false;
+          state.isExpanded = false;
+          state.showQueueModal = false;
           state.seekTarget = null;
         }
       },

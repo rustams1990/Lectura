@@ -2,14 +2,14 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useTranslation } from "react-i18next";
 import {
   Search, Rss, Loader2, Mic2, X, Radio, RefreshCw,
-  ArrowUpDown, Filter, Sparkles, Plus,
+  ArrowUpDown, Filter, Plus,
 } from "lucide-react";
 import { usePodcastStore } from "../store/podcastStore";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useToast } from "../context/ToastContext";
 import { useWhisperQueue } from "../services/whisperQueueService";
 import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastTimelineEpisode } from "../types";
-import PodcastChannelView, { EpisodeRow, getEpisodeLessonInfo } from "./PodcastChannelView";
+import PodcastChannelView, { EpisodeRow, getEpisodeLessonInfo, EpisodeLessonInfo } from "./PodcastChannelView";
 import { normalizeLanguage } from "../utils";
 
 // ── Language Normalization Helper ─────────────────────────────────────────────
@@ -71,7 +71,7 @@ interface PodcastCardProps {
   onClick: () => void;
 }
 
-const PodcastCard: React.FC<PodcastCardProps> = ({
+const PodcastCard = React.memo<PodcastCardProps>(({
   title, subtitle, artworkUrl, genre, trackCount, isSubscribed, onClick,
 }) => {
   return (
@@ -118,7 +118,7 @@ const PodcastCard: React.FC<PodcastCardProps> = ({
       </div>
     </button>
   );
-};
+});
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
@@ -148,6 +148,7 @@ export default function PodcastsPage({
   const [timelineSearch, setTimelineSearch] = useState("");
   const [timelineSort, setTimelineSort] = useState<"newest" | "oldest" | "shortest" | "longest">("newest");
   const [timelineStatusFilter, setTimelineStatusFilter] = useState<"all" | "in_progress" | "completed" | "unheard">("all");
+  const [timelineVisibleCount, setTimelineVisibleCount] = useState(25);
 
   const {
     subscriptions, searchResults,
@@ -158,12 +159,21 @@ export default function PodcastsPage({
     importEpisode, importingEpisodes, importingStages, importedEpisodes,
   } = usePodcastStore();
 
-  const { setQueue } = usePlaylistStore();
+  const setQueue = usePlaylistStore(s => s.setQueue);
+  const currentPlayingGuid = usePlaylistStore(useCallback(s => s.isPlaying ? (s.queue[s.currentIndex]?.guid || s.queue[s.currentIndex]?.id || null) : null, []));
   const { registerCustomTask, updateCustomTask, completeCustomTask, failCustomTask } = useWhisperQueue();
 
   const [query, setQuery] = useState("");
   const [selectedSubLanguage, setSelectedSubLanguage] = useState<string>("all");
-  const [searchDebounce, setSearchDebounce] = useState<NodeJS.Timeout | null>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchSubscriptions();
@@ -214,16 +224,23 @@ export default function PodcastsPage({
 
   const handleQueryChange = useCallback((val: string) => {
     setQuery(val);
-    if (searchDebounce) clearTimeout(searchDebounce);
-    if (!val.trim()) {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    const clean = val.trim();
+    if (!clean) {
       clearSearch();
       return;
     }
-    const t = setTimeout(() => searchPodcasts(val.trim()), 450);
-    setSearchDebounce(t);
-  }, [searchDebounce, searchPodcasts, clearSearch]);
+    searchDebounceRef.current = setTimeout(() => {
+      searchPodcasts(clean);
+    }, 350);
+  }, [searchPodcasts, clearSearch]);
 
   const handleClearSearch = useCallback(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
     setQuery("");
     clearSearch();
     searchInputRef.current?.focus();
@@ -370,6 +387,33 @@ export default function PodcastsPage({
     return list;
   }, [timelineEpisodes, normalizedTargetLang, timelineSearch, timelineStatusFilter, timelineSort, lessons, history, importedEpisodes]);
 
+  const visibleTimeline = useMemo(() => {
+    return filteredTimeline.slice(0, timelineVisibleCount);
+  }, [filteredTimeline, timelineVisibleCount]);
+
+  const timelineLessonInfoMap = useMemo(() => {
+    const map = new Map<string, EpisodeLessonInfo>();
+    for (const ep of visibleTimeline) {
+      map.set(ep.guid, getEpisodeLessonInfo(ep, lessons, history, importedEpisodes));
+    }
+    return map;
+  }, [visibleTimeline, lessons, history, importedEpisodes]);
+
+  const handleOpenPodcastFromTimeline = useCallback((ep: PodcastTimelineEpisode) => {
+    const matchedSub = subscriptions.find(s => s.feedUrl === ep.feedUrl || s.id === ep.podcastId);
+    if (matchedSub) {
+      handleOpenPodcast(matchedSub);
+    } else {
+      handleOpenPodcast({
+        title: ep.podcastTitle,
+        author: ep.podcastAuthor || "",
+        feedUrl: ep.feedUrl,
+        artworkUrl: ep.podcastArtwork,
+        language: ep.podcastLanguage,
+      } as any);
+    }
+  }, [subscriptions, handleOpenPodcast]);
+
   if (currentPodcast) {
     return (
       <PodcastChannelView
@@ -439,11 +483,11 @@ export default function PodcastsPage({
       </div>
 
       <div className="px-4 pb-3 pt-3 shrink-0">
-        <div className="relative flex items-center">
+        <div className="relative flex items-center max-w-lg">
           <Search className="absolute left-3.5 w-4 h-4 text-zinc-400 pointer-events-none" />
           <input
             ref={searchInputRef}
-            type="search"
+            type="text"
             value={activeTab === "subscriptions" ? query : timelineSearch}
             onChange={(e) => {
               if (activeTab === "subscriptions") {
@@ -722,8 +766,8 @@ export default function PodcastsPage({
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredTimeline.map((ep) => {
-                  const lessonInfo = getEpisodeLessonInfo(ep, lessons, history, importedEpisodes);
+                {visibleTimeline.map((ep) => {
+                  const lessonInfo = timelineLessonInfoMap.get(ep.guid) || getEpisodeLessonInfo(ep, lessons, history, importedEpisodes);
                   const isImporting = !!importingEpisodes[ep.guid];
                   const stage = importingStages[ep.guid] || null;
 
@@ -737,47 +781,29 @@ export default function PodcastsPage({
                       lessonInfo={lessonInfo}
                       isImporting={isImporting}
                       importStage={stage}
+                      isPlaying={currentPlayingGuid === ep.guid}
                       showPodcastTitle={true}
-                      onPlay={() => handlePlayTimelineEpisode(ep)}
-                      onImport={() => handleImportTimelineEpisode(ep)}
+                      onPlay={handlePlayTimelineEpisode}
+                      onImport={handleImportTimelineEpisode}
                       onOpenLesson={onOpenLesson}
                       onToggleCompleteLesson={onToggleCompleteLesson}
-                      onOpenPodcast={() => {
-                        const matchedSub = subscriptions.find(s => s.feedUrl === ep.feedUrl || s.id === ep.podcastId);
-                        if (matchedSub) {
-                          handleOpenPodcast(matchedSub);
-                        } else {
-                          handleOpenPodcast({
-                            title: ep.podcastTitle,
-                            author: ep.podcastAuthor || "",
-                            feedUrl: ep.feedUrl,
-                            artworkUrl: ep.podcastArtwork,
-                            language: ep.podcastLanguage,
-                          } as any);
-                        }
-                      }}
+                      onOpenPodcast={() => handleOpenPodcastFromTimeline(ep)}
                     />
                   );
                 })}
+
+                {timelineVisibleCount < filteredTimeline.length && (
+                  <div className="flex justify-center pt-3 pb-6">
+                    <button
+                      onClick={() => setTimelineVisibleCount(c => c + 25)}
+                      className="px-6 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer active:scale-95"
+                    >
+                      {t("podcasts.load_more", "Показать ещё")} ({filteredTimeline.length - timelineVisibleCount})
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-          </section>
-        )}
-
-        {/* Discover hint (only when no search and no subs) */}
-        {!query.trim() && subscriptions.length === 0 && !isLoadingSubscriptions && (
-          <section className="mt-2">
-            <div className="rounded-2xl bg-teal-50 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-900/40 p-4 flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-teal-500 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-teal-700 dark:text-teal-300">
-                  {t("podcasts.tip_title", "Tip: Search by language")}
-                </p>
-                <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5 leading-relaxed">
-                  {t("podcasts.tip_body", 'Try searching "Spanish daily" or "French news" to find language learning podcasts.')}
-                </p>
-              </div>
-            </div>
           </section>
         )}
       </div>

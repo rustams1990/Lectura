@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
+import { usePlaylistStore } from "../store/playlistStore";
 
 type SizePreset = "small" | "medium" | "large";
 
@@ -245,7 +246,9 @@ export default function FocusPinnedPlayer({
         if (lastTickRef.current) {
           const now = Date.now();
           const d = (now - lastTickRef.current) / 1000;
-          if (d > 0 && d < 5 && onListeningTick) onListeningTick(d);
+          if (d > 0 && d <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
+            onListeningTick(d);
+          }
           lastTickRef.current = now;
         }
       }, 500);
@@ -553,7 +556,7 @@ export default function FocusPinnedPlayer({
                 if (lastTickRef.current) {
                   const now = Date.now();
                   const delta = (now - lastTickRef.current) / 1000;
-                  if (delta > 0 && delta < 5 && onListeningTick) {
+                  if (delta > 0 && delta <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
                     onListeningTick(delta);
                   }
                   lastTickRef.current = now;

@@ -354,39 +354,100 @@ function safeResolveUserId(req: Request): string {
   }
 }
 
+const LANG_TO_ITUNES_COUNTRY: Record<string, string> = {
+  en: "US",
+  es: "ES",
+  fr: "FR",
+  de: "DE",
+  it: "IT",
+  pt: "BR",
+  ru: "RU",
+  zh: "CN",
+  ja: "JP",
+  ko: "KR",
+  pl: "PL",
+  tr: "TR",
+  uk: "UA",
+  ar: "SA",
+  nl: "NL",
+  sv: "SE",
+  no: "NO",
+  da: "DK",
+  fi: "FI",
+  cs: "CZ",
+  el: "GR",
+  he: "IL",
+  hi: "IN",
+  hu: "HU",
+  id: "ID",
+  ro: "RO",
+  th: "TH",
+  vi: "VN",
+};
+
 // ── 1. Search Podcasts (iTunes Search API proxy) ──────────────────────────────
 router.get("/search", async (req: Request, res: Response) => {
   const q = (req.query.q as string || "").trim();
   const lang = (req.query.lang as string || "").trim();
-  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const limit = Math.min(Number(req.query.limit) || 24, 50);
 
   if (!q) {
     return res.status(400).json({ error: "Query parameter 'q' is required" });
   }
 
   try {
-    const params = new URLSearchParams({
-      term: q,
-      media: "podcast",
-      entity: "podcast",
-      limit: String(limit),
-    });
-    if (lang) {
-      params.set("country", normalizeLanguageCode(lang));
-    }
+    const buildUrl = (withCountry: boolean) => {
+      const params = new URLSearchParams({
+        term: q,
+        media: "podcast",
+        entity: "podcast",
+        limit: String(limit),
+      });
+      if (withCountry && lang) {
+        const isoLang = normalizeLanguageCode(lang);
+        const countryCode = LANG_TO_ITUNES_COUNTRY[isoLang] || (isoLang.length === 2 ? isoLang.toUpperCase() : "US");
+        params.set("country", countryCode);
+      }
+      return `https://itunes.apple.com/search?${params.toString()}`;
+    };
 
-    const itunesUrl = `https://itunes.apple.com/search?${params.toString()}`;
-    const response = await fetch(itunesUrl, {
+    let response = await fetch(buildUrl(Boolean(lang)), {
       headers: { "User-Agent": "Lectura/1.0" },
       signal: AbortSignal.timeout(8000),
-    });
+    }).catch(() => null);
 
-    if (!response.ok) {
+    // If request with country failed or returned non-200, retry without country parameter
+    if (!response || !response.ok) {
+      response = await fetch(buildUrl(false), {
+        headers: { "User-Agent": "Lectura/1.0" },
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => null);
+    }
+
+    if (!response || !response.ok) {
       return res.status(502).json({ error: "iTunes Search API unavailable" });
     }
 
     const data = await response.json() as any;
-    const results = (data.results || []).map((item: any) => ({
+    let rawResults = data.results || [];
+
+    // If results are empty and we used country, try global search without country
+    if (rawResults.length === 0 && lang) {
+      try {
+        const globalRes = await fetch(buildUrl(false), {
+          headers: { "User-Agent": "Lectura/1.0" },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (globalRes.ok) {
+          const globalData = await globalRes.json() as any;
+          if (globalData.results && globalData.results.length > 0) {
+            rawResults = globalData.results;
+          }
+        }
+      } catch (_) {}
+    }
+
+    const results = rawResults.map((item: any) => ({
       collectionId: item.collectionId,
       title: item.collectionName || item.trackName || "",
       artistName: item.artistName || "",

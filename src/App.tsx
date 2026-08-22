@@ -579,6 +579,8 @@ export default function App() {
         updated = [newEntry, ...prev];
       }
       const sliced = dedupeHistory(updated).slice(0, 500);
+      historyRef.current = sliced;
+      lastLocalChangeTime.current = Date.now();
       safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(sliced));
       settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(sliced)).catch(() => {});
       scheduleBackgroundHistorySync(sliced);
@@ -1401,7 +1403,9 @@ export default function App() {
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
           setVocab(normalizedCloudVocab);
           setWordLinks(normalizedCloudWordLinks);
-          if (d.listeningSeconds !== undefined) setListeningSeconds(d.listeningSeconds);
+          if (d.listeningSeconds !== undefined) {
+            setListeningSeconds(prev => Math.max(prev, d.listeningSeconds));
+          }
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
           if (d.readerSettings && typeof d.readerSettings === "object") {
@@ -1437,14 +1441,17 @@ export default function App() {
           if (d.history && Array.isArray(d.history)) {
             // Placeholder values from old broken server writes that should be overridden by local data
             const GARBAGE_TITLES = new Set(['test', 'Занятие', 'imported_record', '']);
+            const serverItemIds = new Set<string>();
             const mergedWithLocal = d.history.map((incomingItem: HistoryEntry) => {
-              const localMatch = historyRef.current.find(h => h.id === incomingItem.id);
+              serverItemIds.add(incomingItem.id);
+              const localMatch = historyRef.current.find(h => h.id === incomingItem.id || (incomingItem.guid && (h as any).guid === incomingItem.guid));
               if (localMatch) {
                 // Prefer local lessonTitle/targetLanguage when server has garbage/placeholder values
                 const serverTitleIsGarbage = !incomingItem.lessonTitle || GARBAGE_TITLES.has(incomingItem.lessonTitle.trim().toLowerCase());
                 const serverLangIsGarbage = !incomingItem.targetLanguage || incomingItem.targetLanguage === 'english' || incomingItem.targetLanguage === 'English';
                 return {
                   ...incomingItem,
+                  id: incomingItem.id || localMatch.id,
                   lessonTitle: serverTitleIsGarbage && localMatch.lessonTitle ? localMatch.lessonTitle : (incomingItem.lessonTitle || localMatch.lessonTitle),
                   targetLanguage: serverLangIsGarbage && localMatch.targetLanguage && localMatch.targetLanguage !== 'english' ? localMatch.targetLanguage : (incomingItem.targetLanguage || localMatch.targetLanguage),
                   lessonType: incomingItem.lessonType || localMatch.lessonType,
@@ -1454,6 +1461,8 @@ export default function App() {
                   channelUrl: incomingItem.channelUrl || localMatch.channelUrl || undefined,
                   notes: incomingItem.notes || localMatch.notes,
                   tags: incomingItem.tags && incomingItem.tags.length > 0 ? incomingItem.tags : localMatch.tags,
+                  // Keep highest durationSeconds to prevent stale server snapshots from rolling back active playback
+                  durationSeconds: Math.max(incomingItem.durationSeconds || 0, localMatch.durationSeconds || 0),
                   // Preserve streaming-only fields from local if not in server
                   audioUrl: (incomingItem as any).audioUrl || (localMatch as any).audioUrl || null,
                   podcastTitle: (incomingItem as any).podcastTitle || (localMatch as any).podcastTitle || null,
@@ -1463,8 +1472,17 @@ export default function App() {
               }
               return incomingItem;
             });
+
+            // Preserve local active session entries in historyRef.current that haven't been committed to server yet
+            const localOnlyItems = historyRef.current.filter(localItem =>
+              !serverItemIds.has(localItem.id) &&
+              !d.history.some((srv: HistoryEntry) => (srv as any).guid && (localItem as any).guid === (srv as any).guid)
+            );
+
+            const allHistoryItems = [...localOnlyItems, ...mergedWithLocal];
+
             // Filter out pure garbage entries and anything pending deletion
-            const filteredHistory = mergedWithLocal.filter((item: HistoryEntry) => {
+            const filteredHistory = allHistoryItems.filter((item: HistoryEntry) => {
               if (pendingDeletedHistoryIdsRef.current.has(item.id)) {
                 return false;
               }
@@ -2912,6 +2930,18 @@ export default function App() {
     });
   };
 
+  const lastTickWallTimeRef = useRef<number>(performance.now());
+
+  useEffect(() => {
+    const handleMediaPlayStart = () => {
+      lastTickWallTimeRef.current = performance.now();
+    };
+    window.addEventListener("media-play-start", handleMediaPlayStart);
+    return () => {
+      window.removeEventListener("media-play-start", handleMediaPlayStart);
+    };
+  }, []);
+
   const handleListeningTick = (
     seconds: number,
     sourceOrForceFlush: "global" | "local" | boolean = "local",
@@ -2924,11 +2954,30 @@ export default function App() {
       ? forceFlushOrExactTime
       : exactTime;
     
-    const currentPos = resolvedExactTime !== undefined ? resolvedExactTime : getActiveMediaCurrentTime();
+    // Single Source of Truth: if GlobalAudioPlayer is currently active/playing, ignore local player ticks
+    if (source === "local" && usePlaylistStore.getState().isPlaying) {
+      return;
+    }
+
+    // Hard Clamp on Tick Delta:
+    // Calculate physical elapsed wall-clock time to prevent double-counting from multiple listeners
+    let effectiveSeconds = 0;
+    const nowWall = performance.now();
+    const elapsedWallSeconds = Math.max(0, (nowWall - lastTickWallTimeRef.current) / 1000);
 
     if (seconds > 0) {
+      lastTickWallTimeRef.current = nowWall;
+      const playlistRate = usePlaylistStore.getState().playbackRate || 1.0;
+      // Allow initial cold-start buffer arrival (up to 15s) while strictly protecting against time-multiplier bugs
+      const maxAllowed = Math.min(15.0, Math.max(0.5, elapsedWallSeconds * playlistRate + 1.0));
+      effectiveSeconds = Math.min(seconds, maxAllowed);
+    }
+
+    const currentPos = resolvedExactTime !== undefined ? resolvedExactTime : getActiveMediaCurrentTime();
+
+    if (effectiveSeconds > 0) {
       setListeningSeconds((prev) => {
-        const nextVal = Math.round((prev + seconds) * 10) / 10;
+        const nextVal = Math.round((prev + effectiveSeconds) * 10) / 10;
         safeLocalStorageSetItem("vocab_clone_listening", nextVal.toString());
         settingsStore.setItem("vocab_clone_listening", nextVal.toString());
         return nextVal;
@@ -2955,7 +3004,7 @@ export default function App() {
     }
 
     if (itemToLog) {
-      listeningBufferRef.current += seconds;
+      listeningBufferRef.current += effectiveSeconds;
       if (listeningBufferRef.current >= 5 || forceFlush) {
         const accumulatedDelta = listeningBufferRef.current;
         listeningBufferRef.current = 0;

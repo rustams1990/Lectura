@@ -134,7 +134,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
             } else if (state === YT.PlayerState.PAUSED) {
               setIsPlaying(false);
               if (ytPlayerRef.current?.getCurrentTime) {
-                window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: ytPlayerRef.current.getCurrentTime() } }));
+                flushPendingListeningTime(ytPlayerRef.current.getCurrentTime());
               }
             } else if (state === YT.PlayerState.ENDED) {
               handleEnded();
@@ -150,6 +150,52 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [isYtApiLoaded]);
 
+  const lastTickTimeRef = useRef<number>(0);
+  const lastAudioPosRef = useRef<number>(0);
+  const pendingDeltaRef = useRef<number>(0);
+  const isFirstPlayTickRef = useRef<boolean>(true);
+
+  const flushPendingListeningTime = useCallback((exactTime?: number) => {
+    let cur = exactTime;
+    if (cur === undefined) {
+      if (isYouTubeTrack && ytPlayerRef.current?.getCurrentTime) {
+        try { cur = ytPlayerRef.current.getCurrentTime(); } catch (_) {}
+      } else if (audioRef.current) {
+        cur = audioRef.current.currentTime;
+      } else {
+        cur = usePlaylistStore.getState().currentTime || 0;
+      }
+    }
+
+    if (!isYouTubeTrack && cur !== undefined) {
+      const diff = cur - lastAudioPosRef.current;
+      if (diff > 0 && diff <= 3) {
+        pendingDeltaRef.current += diff;
+      }
+    }
+    if (cur !== undefined) {
+      lastAudioPosRef.current = cur;
+    }
+
+    const toFlush = pendingDeltaRef.current;
+    pendingDeltaRef.current = 0;
+    lastTickTimeRef.current = Date.now();
+
+    if (toFlush > 0 || cur !== undefined) {
+      onListeningTick?.(toFlush, true, cur);
+    }
+    if (cur !== undefined) {
+      window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "global" } }));
+    }
+  }, [isYouTubeTrack, onListeningTick]);
+
+  // Unmount cleanup: immediately flush pending seconds
+  useEffect(() => {
+    return () => {
+      flushPendingListeningTime();
+    };
+  }, [flushPendingListeningTime]);
+
   // ---------------------------------------------------------------------------
   // 3. YouTube Playback Tracking & Synchronization
   // ---------------------------------------------------------------------------
@@ -162,9 +208,11 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       if (!player || !isYtReadyRef.current) return;
 
       try {
+        let cur = 0;
         if (typeof player.getCurrentTime === 'function') {
-          const cur = player.getCurrentTime();
-          if (cur !== null && !isNaN(cur)) {
+          const rawCur = player.getCurrentTime();
+          if (rawCur !== null && !isNaN(rawCur)) {
+            cur = rawCur;
             setCurrentTime(cur);
             if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
               setLessonCurrentTime(cur);
@@ -187,8 +235,8 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           if (isActuallyPlaying && onListeningTick) {
             const now = Date.now();
             const delta = (now - lastTickTime) / 1000;
-            if (delta > 0 && delta < 5) {
-              onListeningTick(delta);
+            if (delta > 0 && delta <= 3) {
+              onListeningTick(delta, false, cur);
             }
             lastTickTime = now;
           } else {
@@ -271,8 +319,8 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
 
       if (lastLoadedSrc.current !== audioSrc) {
         lastLoadedSrc.current = audioSrc;
+        isFirstPlayTickRef.current = true;
         audio.src = audioSrc;
-        audio.load();
 
         const initialTime = usePlaylistStore.getState().currentTime;
         if (initialTime > 0) {
@@ -281,6 +329,15 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       }
 
       if (isPlaying) {
+        const cur = audio.currentTime;
+        lastAudioPosRef.current = cur;
+        lastTickTimeRef.current = Date.now();
+        setCurrentTime(cur);
+        if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+          setLessonCurrentTime(cur);
+          setLessonIsPlaying(true);
+        }
+        window.dispatchEvent(new CustomEvent("media-play-start"));
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch((err) => {
@@ -346,7 +403,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       const currentNativeTime = isYouTubeTrack && ytPlayerRef.current?.getCurrentTime
         ? ytPlayerRef.current.getCurrentTime()
         : (audioRef.current ? audioRef.current.currentTime : 0);
-      window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: currentNativeTime } }));
+      flushPendingListeningTime(currentNativeTime);
       
       onMediaEnded?.(finishedTrack);
     }
@@ -399,11 +456,8 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
   }, []);
 
   // ---------------------------------------------------------------------------
-  // 8. HTML5 Audio Event Handlers
+  // 8. HTML5 Audio Event Handlers & High-Frequency Time Engine
   // ---------------------------------------------------------------------------
-  const lastTickTimeRef = useRef<number>(0);
-  const lastAudioPosRef = useRef<number>(0);
-
   const handleTimeUpdate = useCallback(() => {
     if (isYouTubeTrack) return;
     const audio = audioRef.current;
@@ -416,17 +470,53 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       setLessonIsPlaying(!audio.paused);
     }
 
-    // Direct synchronization with native audio timeupdate to eliminate timer drift
-    const now = Date.now();
-    if (now - lastTickTimeRef.current >= 1000) {
-      const delta = cur - lastAudioPosRef.current;
-      if (delta > 0 && delta < 10 && !audio.paused) {
-        onListeningTick?.(delta, false, cur);
+    // Direct synchronization with audio stream to eliminate timer drift
+    if (!audio.paused) {
+      let diff = cur - lastAudioPosRef.current;
+      if (isFirstPlayTickRef.current && cur > 0) {
+        isFirstPlayTickRef.current = false;
+        // On cold start, credit full initial buffered stream time (up to 15s)
+        if (lastAudioPosRef.current <= 1.0 && cur <= 15) {
+          diff = cur - lastAudioPosRef.current;
+          pendingDeltaRef.current += diff;
+        } else if (diff > 0 && diff <= 3) {
+          pendingDeltaRef.current += diff;
+        } else {
+          pendingDeltaRef.current = 0;
+        }
+      } else {
+        if (diff > 0 && diff <= 3) {
+          pendingDeltaRef.current += diff;
+        } else if (diff < 0 || diff > 3) {
+          // Protect Seek Threshold: manual seek (>3s) or backward seek
+          pendingDeltaRef.current = 0;
+        }
       }
-      lastTickTimeRef.current = now;
+      lastAudioPosRef.current = cur;
+
+      const now = Date.now();
+      if (pendingDeltaRef.current >= 1.0 || now - lastTickTimeRef.current >= 1000) {
+        if (pendingDeltaRef.current > 0) {
+          onListeningTick?.(pendingDeltaRef.current, false, cur);
+          pendingDeltaRef.current = 0;
+        }
+        lastTickTimeRef.current = now;
+      }
+    } else {
       lastAudioPosRef.current = cur;
     }
   }, [activeLesson, currentTrack, isYouTubeTrack, setCurrentTime, setLessonCurrentTime, setLessonIsPlaying, onListeningTick]);
+
+  // High-Frequency Time Engine: continuously reads audio.currentTime every 250ms to drive smooth UI updates and delta tracking for streaming audio
+  useEffect(() => {
+    if (!isPlaying || isYouTubeTrack) return;
+    const interval = setInterval(() => {
+      const audio = audioRef.current;
+      if (!audio || audio.paused) return;
+      handleTimeUpdate();
+    }, 250);
+    return () => clearInterval(interval);
+  }, [isPlaying, isYouTubeTrack, handleTimeUpdate]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (isYouTubeTrack) return;
@@ -543,18 +633,56 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onPlay={() => {
-          if (!isYouTubeTrack) setIsPlaying(true);
+          if (!isYouTubeTrack) {
+            setIsPlaying(true);
+            if (audioRef.current) {
+              const cur = audioRef.current.currentTime;
+              lastAudioPosRef.current = cur;
+              lastTickTimeRef.current = Date.now();
+              setCurrentTime(cur);
+              if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+                setLessonCurrentTime(cur);
+                setLessonIsPlaying(true);
+              }
+            }
+          }
+        }}
+        onPlaying={() => {
+          if (!isYouTubeTrack) {
+            setIsPlaying(true);
+            if (audioRef.current) {
+              const cur = audioRef.current.currentTime;
+              lastAudioPosRef.current = cur;
+              lastTickTimeRef.current = Date.now();
+              setCurrentTime(cur);
+              if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+                setLessonCurrentTime(cur);
+                setLessonIsPlaying(true);
+              }
+            }
+          }
         }}
         onPause={() => {
-          if (!isYouTubeTrack) setIsPlaying(false);
-          if (audioRef.current) {
-            window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: audioRef.current.currentTime } }));
+          if (!isYouTubeTrack) {
+            setIsPlaying(false);
+            if (audioRef.current) {
+              flushPendingListeningTime(audioRef.current.currentTime);
+            }
+          }
+        }}
+        onSeeked={() => {
+          if (!isYouTubeTrack && audioRef.current) {
+            const cur = audioRef.current.currentTime;
+            lastAudioPosRef.current = cur;
+            lastTickTimeRef.current = Date.now();
+            setCurrentTime(cur);
+            flushPendingListeningTime(cur);
           }
         }}
         onError={(e) => {
           if (!isYouTubeTrack) console.warn('[GlobalAudioPlayer HTML5 Error]', e);
         }}
-        preload="auto"
+        preload="metadata"
         playsInline
         className="hidden"
       />

@@ -231,6 +231,7 @@ export interface EpisodeRowProps {
   lessonInfo: EpisodeLessonInfo;
   isImporting: boolean;
   importStage?: "downloading" | "transcribing" | null;
+  isPlaying?: boolean;
   showPodcastTitle?: boolean;
   onPlay: (ep: PodcastEpisode) => void;
   onImport: (ep: PodcastEpisode) => void;
@@ -239,9 +240,9 @@ export interface EpisodeRowProps {
   onOpenPodcast?: () => void;
 }
 
-export const EpisodeRow: React.FC<EpisodeRowProps> = ({
+export const EpisodeRow = React.memo<EpisodeRowProps>(({
   episode, podcastTitle, artworkUrl, language, lessonInfo,
-  isImporting, importStage, showPodcastTitle, onPlay, onImport, onOpenLesson, onToggleCompleteLesson, onOpenPodcast,
+  isImporting, importStage, isPlaying, showPodcastTitle, onPlay, onImport, onOpenLesson, onToggleCompleteLesson, onOpenPodcast,
 }) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -265,7 +266,11 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
   }, [episode.transcriptUrl, showToast, t]);
 
   return (
-    <div className="group bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-3.5 mb-3 space-y-3 hover:border-teal-500/40 dark:hover:border-teal-500/30 hover:shadow-md transition-all">
+    <div className={`group bg-white dark:bg-zinc-900 border rounded-2xl p-3.5 mb-3 space-y-3 transition-all ${
+      isPlaying
+        ? "border-teal-500 shadow-md ring-1 ring-teal-500/30"
+        : "border-zinc-200/80 dark:border-zinc-800 hover:border-teal-500/40 dark:hover:border-teal-500/30 hover:shadow-md"
+    }`}>
       {/* 1. Top Row: Cover + Title + Menu */}
       <div className="flex items-start gap-3">
         <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-800 shadow-3xs">
@@ -395,7 +400,11 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
         <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
           <button
             onClick={() => onPlay(episode)}
-            className="w-8 h-8 rounded-full bg-teal-600 hover:bg-teal-500 active:scale-95 text-white flex items-center justify-center shadow-sm hover:shadow-teal-600/30 transition-all cursor-pointer"
+            className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-all cursor-pointer active:scale-95 ${
+              isPlaying
+                ? "bg-teal-500 text-white ring-2 ring-teal-400/50 animate-pulse"
+                : "bg-teal-600 hover:bg-teal-500 hover:shadow-teal-600/30 text-white"
+            }`}
             title={t("podcasts.listen", "Listen")}
           >
             <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
@@ -480,7 +489,26 @@ export const EpisodeRow: React.FC<EpisodeRowProps> = ({
       )}
     </div>
   );
-};
+}, (prev, next) => {
+  return (
+    prev.episode.guid === next.episode.guid &&
+    prev.episode.audioUrl === next.episode.audioUrl &&
+    prev.podcastTitle === next.podcastTitle &&
+    prev.artworkUrl === next.artworkUrl &&
+    prev.language === next.language &&
+    prev.isImporting === next.isImporting &&
+    prev.importStage === next.importStage &&
+    prev.isPlaying === next.isPlaying &&
+    prev.showPodcastTitle === next.showPodcastTitle &&
+    prev.lessonInfo?.status === next.lessonInfo?.status &&
+    prev.lessonInfo?.lesson?.id === next.lessonInfo?.lesson?.id &&
+    prev.onPlay === next.onPlay &&
+    prev.onImport === next.onImport &&
+    prev.onOpenLesson === next.onOpenLesson &&
+    prev.onToggleCompleteLesson === next.onToggleCompleteLesson &&
+    prev.onOpenPodcast === next.onOpenPodcast
+  );
+});
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
@@ -517,20 +545,29 @@ export default function PodcastChannelView({
     importEpisode, importingEpisodes, importingStages, importedEpisodes,
   } = usePodcastStore();
 
-  const { setQueue } = usePlaylistStore();
+  const setQueue = usePlaylistStore(s => s.setQueue);
+  const currentPlayingGuid = usePlaylistStore(useCallback(s => s.isPlaying ? (s.queue[s.currentIndex]?.guid || s.queue[s.currentIndex]?.id || null) : null, []));
 
-  // Control bar states: Search, Duration/Date Sorting, Status Filters
+  // Control bar states: Search, Duration/Date Sorting, Status Filters, Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "shortest" | "longest">("newest");
   const [filterStatus, setFilterStatus] = useState<"all" | "in_progress" | "completed" | "unheard">("all");
+  const [visibleCount, setVisibleCount] = useState(25);
 
   const isSubscribed = subscriptions.some(s => s.feedUrl === feedUrl);
   const subscriptionId = subscriptions.find(s => s.feedUrl === feedUrl)?.id;
 
   // Load feed on mount
   useEffect(() => {
-    if (feedUrl) fetchFeed(feedUrl);
+    if (feedUrl) {
+      fetchFeed(feedUrl);
+      setVisibleCount(25);
+    }
   }, [feedUrl, fetchFeed]);
+
+  useEffect(() => {
+    setVisibleCount(25);
+  }, [searchQuery, sortBy, filterStatus]);
 
   // Client-side filtering & sorting via useMemo
   const filteredEpisodes = useMemo(() => {
@@ -581,6 +618,18 @@ export default function PodcastChannelView({
 
     return list;
   }, [currentFeedEpisodes, searchQuery, filterStatus, sortBy, lessons, history, importedEpisodes]);
+
+  const visibleEpisodes = useMemo(() => {
+    return filteredEpisodes.slice(0, visibleCount);
+  }, [filteredEpisodes, visibleCount]);
+
+  const episodeLessonInfoMap = useMemo(() => {
+    const map = new Map<string, EpisodeLessonInfo>();
+    for (const ep of visibleEpisodes) {
+      map.set(ep.guid, getEpisodeLessonInfo(ep, lessons, history, importedEpisodes));
+    }
+    return map;
+  }, [visibleEpisodes, lessons, history, importedEpisodes]);
 
   const handleSubscribeToggle = useCallback(async () => {
     if (isSubscribed && subscriptionId) {
@@ -888,8 +937,8 @@ export default function PodcastChannelView({
                 )}
               </div>
 
-              {filteredEpisodes.map(episode => {
-                const lessonInfo = getEpisodeLessonInfo(episode, lessons, history, importedEpisodes);
+              {visibleEpisodes.map(episode => {
+                const lessonInfo = episodeLessonInfoMap.get(episode.guid) || getEpisodeLessonInfo(episode, lessons, history, importedEpisodes);
                 return (
                   <EpisodeRow
                     key={episode.guid}
@@ -900,6 +949,7 @@ export default function PodcastChannelView({
                     lessonInfo={lessonInfo}
                     isImporting={Boolean(importingEpisodes[episode.guid])}
                     importStage={importingStages[episode.guid]}
+                    isPlaying={currentPlayingGuid === episode.guid}
                     onPlay={handlePlay}
                     onImport={handleImport}
                     onOpenLesson={onOpenLesson}
@@ -907,6 +957,17 @@ export default function PodcastChannelView({
                   />
                 );
               })}
+
+              {visibleCount < filteredEpisodes.length && (
+                <div className="flex justify-center pt-3 pb-6">
+                  <button
+                    onClick={() => setVisibleCount(c => c + 25)}
+                    className="px-6 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer active:scale-95"
+                  >
+                    {t("podcasts.load_more", "Показать ещё")} ({filteredEpisodes.length - visibleCount})
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

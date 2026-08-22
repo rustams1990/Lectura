@@ -52,6 +52,8 @@ export default function BottomAudioBar({ onOpenLesson, activeTab }: BottomAudioB
     clearQueue,
     setShowQueueModal,
     expandPlayer,
+    isOpen,
+    closePlayer,
   } = usePlaylistStore();
 
   const [isSeeking, setIsSeeking] = useState(false);
@@ -65,8 +67,8 @@ export default function BottomAudioBar({ onOpenLesson, activeTab }: BottomAudioB
     }
   }, [currentTime, isSeeking]);
 
-  // Hide the global floating bottom mini-player while actively in the lesson reader view or queue is empty
-  if (activeTab === 'read' || queue.length === 0 || !currentTrack) {
+  // Hide the global floating bottom mini-player while not open, actively in the lesson reader view, or queue is empty
+  if (!isOpen || activeTab === 'read' || queue.length === 0 || !currentTrack) {
     return null;
   }
 
@@ -248,23 +250,18 @@ export default function BottomAudioBar({ onOpenLesson, activeTab }: BottomAudioB
               <Maximize2 className="w-4 h-4" />
             </button>
 
-            {/* Close / Dismiss Queue */}
+            {/* Close / Dismiss Player */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                // Explicitly stop playback before clearing to prevent audio ghost-playing
+                // Explicitly stop playback before closing
                 const audio = document.getElementById('global-audio-element') as HTMLAudioElement;
                 if (audio) {
                   window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: audio.currentTime } }));
                   audio.pause();
-                  audio.src = '';
-                  audio.load();
                 }
-                
-                // Clear the active track and reset playback states
-                usePlaylistStore.getState().setIsPlaying(false);
-                clearQueue();
+                closePlayer();
               }}
               className="p-1.5 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition cursor-pointer"
               title="Close Player"

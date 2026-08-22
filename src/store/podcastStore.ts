@@ -21,6 +21,8 @@ function buildHeaders(): Record<string, string> {
   return headers;
 }
 
+let activeSearchAbortController: AbortController | null = null;
+
 interface PodcastState {
   // Data
   subscriptions: PodcastSubscription[];
@@ -165,26 +167,52 @@ export const usePodcastStore = create<PodcastState>((set, get) => ({
 
   // ── iTunes Search ───────────────────────────────────────────────────────────
   searchPodcasts: async (query, lang) => {
-    if (!query.trim()) {
-      set({ searchResults: [] });
+    const cleanQuery = query.trim();
+    if (!cleanQuery) {
+      if (activeSearchAbortController) {
+        activeSearchAbortController.abort();
+        activeSearchAbortController = null;
+      }
+      set({ isSearching: false, searchResults: [] });
       return;
     }
-    set({ isSearching: true, searchResults: [] });
+
+    if (activeSearchAbortController) {
+      activeSearchAbortController.abort();
+    }
+    const abortController = new AbortController();
+    activeSearchAbortController = abortController;
+
+    set({ isSearching: true });
     try {
-      const params = new URLSearchParams({ q: query });
+      const params = new URLSearchParams({ q: cleanQuery });
       if (lang) params.set("lang", lang);
-      const res = await fetch(resolveServerUrl(`/api/podcasts/search?${params}`));
+      const res = await fetch(resolveServerUrl(`/api/podcasts/search?${params}`), {
+        signal: abortController.signal,
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      set({ searchResults: data.results || [] });
-    } catch (e) {
-      console.error("[PodcastStore] searchPodcasts error:", e);
+      if (activeSearchAbortController === abortController) {
+        set({ searchResults: data.results || [] });
+      }
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        console.error("[PodcastStore] searchPodcasts error:", e);
+      }
     } finally {
-      set({ isSearching: false });
+      if (activeSearchAbortController === abortController) {
+        set({ isSearching: false });
+      }
     }
   },
 
-  clearSearch: () => set({ searchResults: [] }),
+  clearSearch: () => {
+    if (activeSearchAbortController) {
+      activeSearchAbortController.abort();
+      activeSearchAbortController = null;
+    }
+    set({ isSearching: false, searchResults: [] });
+  },
 
   // ── Lazy RSS Feed Parsing ───────────────────────────────────────────────────
   fetchFeed: async (feedUrl) => {

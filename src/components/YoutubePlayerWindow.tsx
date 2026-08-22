@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
+import { usePlaylistStore } from "../store/playlistStore";
 
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
@@ -254,7 +255,7 @@ export default function YoutubePlayerWindow({
         if (lastTickTimeRef.current) {
           const now = Date.now();
           const delta = (now - lastTickTimeRef.current) / 1000;
-          if (delta > 0 && delta < 5 && onListeningTick) {
+          if (delta > 0 && delta <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
             let exactTime = 0;
             try {
               if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
@@ -892,7 +893,7 @@ export default function YoutubePlayerWindow({
                 if (lastTickTimeRef.current) {
                   const now = Date.now();
                   const delta = (now - lastTickTimeRef.current) / 1000;
-                  if (delta > 0 && delta < 5 && onListeningTick) {
+                  if (delta > 0 && delta <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
                     const exactTime = videoElRef.current ? videoElRef.current.currentTime : 0;
                     onListeningTick(delta, false, exactTime);
                   }
