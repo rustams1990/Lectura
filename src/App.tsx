@@ -2926,11 +2926,6 @@ export default function App() {
       ? forceFlushOrExactTime
       : exactTime;
     
-    // Single Source of Truth: if GlobalAudioPlayer is currently active/playing, ignore local player ticks
-    if (source === "local" && usePlaylistStore.getState().isPlaying) {
-      return;
-    }
-
     // Hard Clamp on Tick Delta:
     // Calculate physical elapsed wall-clock time to prevent double-counting from multiple listeners
     let effectiveSeconds = 0;
@@ -2977,7 +2972,7 @@ export default function App() {
 
     if (itemToLog) {
       listeningBufferRef.current += effectiveSeconds;
-      if (listeningBufferRef.current >= 5 || forceFlush) {
+      if (listeningBufferRef.current >= 1 || forceFlush) {
         const accumulatedDelta = listeningBufferRef.current;
         listeningBufferRef.current = 0;
         const pos = currentPos;

@@ -262,7 +262,7 @@ export default function YoutubePlayerWindow({
         if (lastTickTimeRef.current) {
           const now = Date.now();
           const delta = (now - lastTickTimeRef.current) / 1000;
-          if (delta > 0 && delta <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
+          if (delta > 0 && delta <= 3 && onListeningTick) {
             let exactTime = 0;
             try {
               if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
@@ -902,7 +902,7 @@ export default function YoutubePlayerWindow({
                 if (lastTickTimeRef.current) {
                   const now = Date.now();
                   const delta = (now - lastTickTimeRef.current) / 1000;
-                  if (delta > 0 && delta <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
+                  if (delta > 0 && delta <= 3 && onListeningTick) {
                     const exactTime = videoElRef.current ? videoElRef.current.currentTime : 0;
                     onListeningTick(delta, false, exactTime);
                   }
@@ -916,6 +916,9 @@ export default function YoutubePlayerWindow({
                 lastTickTimeRef.current = null;
                 if (videoElRef.current) {
                   saveProgressNow(videoElRef.current.currentTime);
+                  if (onListeningTick) {
+                    onListeningTick(0, true, videoElRef.current.currentTime);
+                  }
                 }
               }}
               onEnded={() => {

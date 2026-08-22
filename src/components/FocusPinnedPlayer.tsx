@@ -22,7 +22,7 @@ interface FocusPinnedPlayerProps {
   onExitFocus: () => void;
   /** Return to Library directly */
   onBackToLibrary?: () => void;
-  onListeningTick?: (seconds: number) => void;
+  onListeningTick?: (seconds: number, forceFlush?: boolean, exactTime?: number) => void;
   onVideoEnded?: () => void;
 }
 
@@ -246,7 +246,7 @@ export default function FocusPinnedPlayer({
         if (lastTickRef.current) {
           const now = Date.now();
           const d = (now - lastTickRef.current) / 1000;
-          if (d > 0 && d <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
+          if (d > 0 && d <= 3 && onListeningTick) {
             onListeningTick(d);
           }
           lastTickRef.current = now;
@@ -261,7 +261,11 @@ export default function FocusPinnedPlayer({
       }
       lastTickRef.current = null;
       try {
-        if (playerRef.current?.getCurrentTime) saveNow(playerRef.current.getCurrentTime());
+        if (playerRef.current?.getCurrentTime) {
+          const cur = playerRef.current.getCurrentTime();
+          saveNow(cur);
+          if (onListeningTick) onListeningTick(0, true, cur);
+        }
       } catch {}
     };
 
