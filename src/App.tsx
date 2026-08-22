@@ -487,9 +487,10 @@ export default function App() {
 
     const targetGuid = (targetLesson as any).guid || targetLesson.id;
 
-    // Deletion Guard: Prevent deleted items from resurrecting via background ticks, unmount flushes, or debounces
-    if (deletedSessionLessonIdsRef.current.has(targetLesson.id) || deletedSessionLessonIdsRef.current.has(targetGuid)) {
-      return; // Discard completely
+    // If this is a valid user playback tick (durationSeconds > 0), unblock the lesson for the new session
+    deletedSessionLessonIdsRef.current.delete(targetLesson.id);
+    if (targetGuid) {
+      deletedSessionLessonIdsRef.current.delete(targetGuid);
     }
     
     if ((actionType === "listen" || actionType === "complete") && lastPosition === undefined) {
@@ -2952,12 +2953,20 @@ export default function App() {
   const lastTickWallTimeRef = useRef<number>(performance.now());
 
   useEffect(() => {
-    const handleMediaPlayStart = () => {
+    const handleMediaPlayStart = (e?: any) => {
       lastTickWallTimeRef.current = performance.now();
+      const trackId = e?.detail?.trackId;
+      const guid = e?.detail?.guid;
+      if (trackId) {
+        deletedSessionLessonIdsRef.current.delete(trackId);
+      }
+      if (guid) {
+        deletedSessionLessonIdsRef.current.delete(guid);
+      }
     };
-    window.addEventListener("media-play-start", handleMediaPlayStart);
+    window.addEventListener("media-play-start", handleMediaPlayStart as EventListener);
     return () => {
-      window.removeEventListener("media-play-start", handleMediaPlayStart);
+      window.removeEventListener("media-play-start", handleMediaPlayStart as EventListener);
     };
   }, []);
 

@@ -288,7 +288,7 @@ export default function AudioPlayerBar({
       lastAudioPosRef.current = cur;
       lastTickTimeRef.current = Date.now();
       setCurrentTime(cur);
-      window.dispatchEvent(new CustomEvent("media-play-start"));
+      window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: activeLesson?.id, guid: (activeLesson as any)?.guid } }));
       audioRef.current.play().catch((err) => {
         console.error("Playback error:", err?.message || err);
       });

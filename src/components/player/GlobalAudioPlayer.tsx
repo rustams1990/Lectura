@@ -337,7 +337,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           setLessonCurrentTime(cur);
           setLessonIsPlaying(true);
         }
-        window.dispatchEvent(new CustomEvent("media-play-start"));
+        window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: currentTrack?.id, guid: currentTrack?.guid } }));
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch((err) => {

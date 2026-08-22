@@ -382,6 +382,7 @@ export default function YoutubePlayerWindow({
               onStateChange: (event: any) => {
                 if (isUnmounted) return;
                 if (event.data === 1) {
+                  window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: lesson.id, guid: youtubeId } }));
                   startTrackingTime();
                 } else {
                   stopTrackingTime();
