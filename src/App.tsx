@@ -1842,7 +1842,17 @@ export default function App() {
       }
     };
     window.addEventListener("lectura:vocab_updated", handleVocabUpdated);
-    return () => window.removeEventListener("lectura:vocab_updated", handleVocabUpdated);
+
+    const handleRefreshLessons = () => {
+      lastLocalChangeTime.current = 0;
+      loadDataFromLocalServer();
+    };
+    window.addEventListener("lectura:refresh_lessons", handleRefreshLessons);
+
+    return () => {
+      window.removeEventListener("lectura:vocab_updated", handleVocabUpdated);
+      window.removeEventListener("lectura:refresh_lessons", handleRefreshLessons);
+    };
   }, [storageMode]);
 
   // Dynamic automatic syncing of tablet/PC changes over local network (polls on window focus and every 10s when visible)
@@ -3554,11 +3564,7 @@ export default function App() {
               lessons={lessons}
               history={history}
               selectedTargetLanguage={selectedTargetLanguage}
-              onOpenLesson={(lessonId) => {
-                setActiveLessonId(lessonId);
-                setSelectedWord(null);
-                setActiveTab("read");
-              }}
+              onOpenLesson={handleOpenWhisperBook}
               onToggleCompleteLesson={(lessonId) => {
                 const target = lessons.find(l => l.id === lessonId);
                 if (target) {
@@ -3901,22 +3907,14 @@ export default function App() {
         activeTab={activeTab}
         lessons={lessons}
         selectedTargetLanguage={selectedTargetLanguage}
-        onOpenLesson={(id) => {
-          setActiveLessonId(id);
-          setSelectedWord(null);
-          setActiveTab("read");
-        }}
+        onOpenLesson={handleOpenWhisperBook}
       />
 
       {/* Fullscreen Mobile Audio Player (Now Playing / Sheet) */}
       <FullscreenAudioPlayerModal
         lessons={lessons}
         selectedTargetLanguage={selectedTargetLanguage}
-        onOpenLesson={(id) => {
-          setActiveLessonId(id);
-          setSelectedWord(null);
-          setActiveTab("read");
-        }}
+        onOpenLesson={handleOpenWhisperBook}
       />
 
       {/* Play Queue Management Drawer / Modal */}

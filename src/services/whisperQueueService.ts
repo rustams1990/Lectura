@@ -299,9 +299,10 @@ class WhisperQueueService {
   }
 
   public registerCustomTask(item: Partial<WhisperQueueItem> & { id: string; title: string }): WhisperQueueItem {
+    const currentUid = getActiveWhisperUserId();
     const newItem: WhisperQueueItem = {
       id: item.id,
-      userId: item.userId || "default",
+      userId: item.userId || currentUid || "default",
       title: item.title,
       sourceType: item.sourceType || "podcast",
       model: item.model || "base",
@@ -376,8 +377,10 @@ class WhisperQueueService {
     }
 
     if (targetItem) {
+      const currentUid = getActiveWhisperUserId();
       const completed: WhisperQueueItem = {
         ...targetItem,
+        userId: targetItem.userId || currentUid || "default",
         status: "completed",
         progress: 100,
         completedAt: Date.now(),
@@ -388,6 +391,9 @@ class WhisperQueueService {
       this.saveCompletedHistory();
       this.playGentleChime();
       this.notify();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("lectura:refresh_lessons"));
+      }
     }
   }
 
@@ -410,12 +416,14 @@ class WhisperQueueService {
     }
 
     if (targetItem) {
+      const currentUid = getActiveWhisperUserId();
       const failed: WhisperQueueItem = {
         ...targetItem,
+        userId: targetItem.userId || currentUid || "default",
         status: "error",
-        error: errorMessage || "Ошибка транскрибации",
-        stageText: `Ошибка: ${errorMessage || "Сбой"}`,
+        error: errorMessage || "Import failed",
         completedAt: Date.now(),
+        stageText: "Ошибка",
       };
       this.completedTasks = [failed, ...this.completedTasks.filter(t => t.id !== id)];
       this.saveCompletedHistory();
