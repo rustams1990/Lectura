@@ -478,14 +478,17 @@ export default function App() {
       );
 
       // Find recent entry for THIS LESSON or streaming GUID (on the same calendar day or within 24 hours)
-      const targetGuid = (targetLesson as any).guid || targetLesson.id;
+      const targetGuid = (targetLesson as any).guid || (targetLesson as any).youtubeId || targetLesson.id;
+      const targetYoutubeId = (targetLesson as any).youtubeId;
       const targetAudioUrl = (targetLesson as any).audioUrl;
       const todayDateStr = new Date().toLocaleDateString("en-CA");
 
       const recentIdx = prev.findIndex((h) => {
         const matchesLesson =
           h.lessonId === targetLesson.id ||
-          (h.guid && (h.guid === targetGuid || h.guid === targetLesson.id)) ||
+          (targetGuid && h.guid === targetGuid) ||
+          (h.guid && h.guid === targetLesson.id) ||
+          (targetYoutubeId && (h.youtubeId === targetYoutubeId || h.guid === targetYoutubeId || h.lessonId === targetYoutubeId)) ||
           (targetAudioUrl && (h as any).audioUrl === targetAudioUrl);
 
         if (!matchesLesson) return false;
@@ -525,9 +528,10 @@ export default function App() {
           // Sync durationSeconds purely by accumulating delta ticks to avoid artificially inflating stats from seeking
           durationSeconds: (existing.durationSeconds || 0) + (durationSeconds || 0),
           lastPosition: lastPosition !== undefined ? lastPosition : existing.lastPosition,
+          youtubeId: existing.youtubeId || (targetLesson as any).youtubeId || null,
           audioUrl: existing.audioUrl || targetLesson.audioUrl || null,
           podcastTitle: existing.podcastTitle || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
-          guid: existing.guid || (targetLesson as any).guid || targetLesson.id,
+          guid: existing.guid || (targetLesson as any).guid || (targetLesson as any).youtubeId || targetLesson.id,
           channelName: existing.channelName || targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
           channelAvatarUrl: existing.channelAvatarUrl || targetLesson.channelAvatarUrl || null,
         };
@@ -547,7 +551,7 @@ export default function App() {
           id: generatedId,
           lessonId: targetLesson.id,
           lessonTitle: targetLesson.title,
-          lessonType: targetLesson.lessonType || "podcast",
+          lessonType: targetLesson.lessonType || (targetLesson.youtubeId ? "youtube" : "podcast"),
           coverUrl: targetLesson.coverUrl || null,
           targetLanguage: normalizeLanguage(targetLesson.targetLanguage || "es"),
           timestamp: now,
@@ -555,9 +559,10 @@ export default function App() {
           status: actionType === "complete" ? "completed" : "in_progress",
           durationSeconds: durationSeconds || 0,
           lastPosition: lastPosition !== undefined ? lastPosition : undefined,
+          youtubeId: (targetLesson as any).youtubeId || null,
           audioUrl: targetLesson.audioUrl || null,
           podcastTitle: (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
-          guid: (targetLesson as any).guid || targetLesson.id,
+          guid: (targetLesson as any).guid || (targetLesson as any).youtubeId || targetLesson.id,
           channelName: targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
           channelAvatarUrl: targetLesson.channelAvatarUrl || null,
         };
@@ -2933,6 +2938,7 @@ export default function App() {
     const elapsedWallSeconds = Math.max(0, (nowWall - lastTickWallTimeRef.current) / 1000);
 
     if (seconds > 0) {
+      console.log('[YT-TICK]', seconds, activeLessonId, { source, forceFlush, resolvedExactTime });
       lastTickWallTimeRef.current = nowWall;
       const playlistRate = usePlaylistStore.getState().playbackRate || 1.0;
       // Allow initial cold-start buffer arrival (up to 15s) while strictly protecting against time-multiplier bugs
@@ -2958,12 +2964,13 @@ export default function App() {
     // Otherwise, log it against activeLesson.
     let itemToLog: any = null;
     let logSource = "";
+    const targetLessonItem = activeLesson || (activeLessonId ? lessonsRef.current.find(l => l.id === activeLessonId) : null);
     
     if (source === "global" && currentTrack) {
       itemToLog = currentTrack;
       logSource = "currentTrack";
-    } else if (activeLesson) {
-      itemToLog = activeLesson;
+    } else if (targetLessonItem) {
+      itemToLog = targetLessonItem;
       logSource = "activeLesson";
     } else if (currentTrack) {
       itemToLog = currentTrack;

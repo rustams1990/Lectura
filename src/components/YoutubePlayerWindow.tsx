@@ -219,7 +219,9 @@ export default function YoutubePlayerWindow({
     container.appendChild(placeholder);
 
     const startTrackingTime = () => {
-      lastTickTimeRef.current = Date.now();
+      if (!lastTickTimeRef.current) {
+        lastTickTimeRef.current = Date.now();
+      }
       if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
       trackingIntervalRef.current = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
@@ -259,19 +261,33 @@ export default function YoutubePlayerWindow({
         }
 
         // Track listening time
-        if (lastTickTimeRef.current) {
-          const now = Date.now();
-          const delta = (now - lastTickTimeRef.current) / 1000;
-          if (delta > 0 && delta <= 3 && onListeningTick) {
-            let exactTime = 0;
-            try {
-              if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
-                exactTime = playerRef.current.getCurrentTime();
-              }
-            } catch (e) {}
-            onListeningTick(delta, false, exactTime);
+        let isPlaying = false;
+        try {
+          if (playerRef.current && typeof playerRef.current.getPlayerState === "function") {
+            const st = playerRef.current.getPlayerState();
+            isPlaying = (st === 1); // 1 is YT.PlayerState.PLAYING
           }
-          lastTickTimeRef.current = now;
+        } catch (_) {}
+
+        if (isPlaying) {
+          if (lastTickTimeRef.current) {
+            const now = Date.now();
+            const delta = (now - lastTickTimeRef.current) / 1000;
+            if (delta > 0 && delta <= 3 && onListeningTick) {
+              let exactTime = 0;
+              try {
+                if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+                  exactTime = playerRef.current.getCurrentTime();
+                }
+              } catch (e) {}
+              onListeningTick(delta, false, exactTime);
+            }
+            lastTickTimeRef.current = now;
+          } else {
+            lastTickTimeRef.current = Date.now();
+          }
+        } else {
+          lastTickTimeRef.current = null;
         }
       }, 500);
     };
@@ -378,13 +394,14 @@ export default function YoutubePlayerWindow({
                     } catch (e) {}
                   }, 800);
                 }
+                startTrackingTime();
               },
               onStateChange: (event: any) => {
                 if (isUnmounted) return;
                 if (event.data === 1) {
                   window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: lesson.id, guid: youtubeId } }));
                   startTrackingTime();
-                } else {
+                } else if (event.data === 2 || event.data === 0) {
                   stopTrackingTime();
                 }
                 if (event.data === 0) {

@@ -227,6 +227,7 @@ export interface HistoryEntry {
   audioUrl?: string | null;
   podcastTitle?: string | null;
   guid?: string | null;
+  youtubeId?: string | null;
   lastPosition?: number;
 }
 
