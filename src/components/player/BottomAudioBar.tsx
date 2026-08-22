@@ -8,6 +8,8 @@ import {
   Headphones,
   Maximize2,
   BookOpen,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { usePodcastStore } from '../../store/podcastStore';
@@ -269,16 +271,38 @@ export default function BottomAudioBar({
               {playbackRate}x
             </button>
 
-            {/* Study / Transcript */}
+            {/* Dynamic Import / Open Lesson Button */}
             <button
               type="button"
               onClick={handleStudyClick}
               disabled={isImporting}
-              className="p-1.5 text-teal-600 bg-teal-50 dark:bg-teal-950/50 dark:text-teal-300 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-900/60 transition cursor-pointer active:scale-95 flex items-center gap-1"
-              title={t('podcasts.read_transcript_study', 'Read Transcript / Study')}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 shadow-xs ${
+                existingLesson
+                  ? 'bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/80'
+                  : isImporting
+                  ? 'bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-400/40 cursor-wait animate-pulse'
+                  : 'bg-teal-600 hover:bg-teal-500 text-white shadow-xs'
+              }`}
+              title={
+                existingLesson
+                  ? t('podcasts.open_lesson', 'Open Lesson')
+                  : t('podcasts.import_episode', 'Import Episode')
+              }
             >
-              <BookOpen className="w-4 h-4" />
-              <span className="text-xs font-bold hidden md:inline">{t('podcasts.study', 'Study')}</span>
+              {isImporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : existingLesson ? (
+                <BookOpen className="w-3.5 h-3.5" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span className="font-semibold">
+                {isImporting
+                  ? t('podcasts.importing', 'Importing…')
+                  : existingLesson
+                  ? t('podcasts.open', 'Open')
+                  : t('podcasts.import', 'Import')}
+              </span>
             </button>
 
             {/* Volume */}
