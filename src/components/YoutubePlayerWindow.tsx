@@ -361,6 +361,7 @@ export default function YoutubePlayerWindow({
             events: {
               onReady: (event: any) => {
                 if (isUnmounted) return;
+                playerRef.current = event.target;
                 const player = event.target;
                 if (playbackRate && player && typeof player.setPlaybackRate === "function") {
                   try { player.setPlaybackRate(playbackRate); } catch (e) {}
@@ -398,6 +399,7 @@ export default function YoutubePlayerWindow({
               },
               onStateChange: (event: any) => {
                 if (isUnmounted) return;
+                playerRef.current = event.target;
                 if (event.data === 1) {
                   window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: lesson.id, guid: youtubeId } }));
                   startTrackingTime();

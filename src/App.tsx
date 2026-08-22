@@ -2930,22 +2930,12 @@ export default function App() {
     const resolvedExactTime = typeof sourceOrForceFlush === "boolean" && typeof forceFlushOrExactTime === "number"
       ? forceFlushOrExactTime
       : exactTime;
-    
-    // Hard Clamp on Tick Delta:
-    // Calculate physical elapsed wall-clock time to prevent double-counting from multiple listeners
-    let effectiveSeconds = 0;
-    const nowWall = performance.now();
-    const elapsedWallSeconds = Math.max(0, (nowWall - lastTickWallTimeRef.current) / 1000);
 
-    if (seconds > 0) {
-      console.log('[YT-TICK]', seconds, activeLessonId, { source, forceFlush, resolvedExactTime });
-      lastTickWallTimeRef.current = nowWall;
-      const playlistRate = usePlaylistStore.getState().playbackRate || 1.0;
-      // Allow initial cold-start buffer arrival (up to 15s) while strictly protecting against time-multiplier bugs
-      const maxAllowed = Math.min(15.0, Math.max(0.5, elapsedWallSeconds * playlistRate + 1.0));
-      effectiveSeconds = Math.min(seconds, maxAllowed);
-    }
+    console.log('[TICK-INPUT]', { seconds, source, activeLessonId, historyLength: history.length });
 
+    if (seconds <= 0 && !forceFlush) return;
+
+    const effectiveSeconds = seconds > 0 ? Math.min(seconds, 5.0) : 0;
     const currentPos = resolvedExactTime !== undefined ? resolvedExactTime : getActiveMediaCurrentTime();
 
     if (effectiveSeconds > 0) {
@@ -2960,18 +2950,21 @@ export default function App() {
     const { queue, currentIndex } = usePlaylistStore.getState();
     const currentTrack = queue[currentIndex];
 
-    // Priority: If the tick came from the global player, log it against currentTrack.
-    // Otherwise, log it against activeLesson.
+    // Priority: If activeLessonId is present (Reader/YouTube mode), target that lesson.
+    // If currentTrack is present from global player, target currentTrack.
     let itemToLog: any = null;
     let logSource = "";
     const targetLessonItem = activeLesson || (activeLessonId ? lessonsRef.current.find(l => l.id === activeLessonId) : null);
     
-    if (source === "global" && currentTrack) {
+    if (activeLessonId && targetLessonItem) {
+      itemToLog = targetLessonItem;
+      logSource = "activeLesson";
+    } else if (source === "global" && currentTrack) {
       itemToLog = currentTrack;
       logSource = "currentTrack";
     } else if (targetLessonItem) {
       itemToLog = targetLessonItem;
-      logSource = "activeLesson";
+      logSource = "activeLesson-fallback";
     } else if (currentTrack) {
       itemToLog = currentTrack;
       logSource = "currentTrack-fallback";
