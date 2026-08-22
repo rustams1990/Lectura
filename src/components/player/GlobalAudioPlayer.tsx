@@ -623,6 +623,25 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     return () => clearInterval(interval);
   }, [isPlaying, currentTrack, currentTime, duration]);
 
+  // Pause global audio player if another media (e.g. YouTube in Reader) starts playing
+  useEffect(() => {
+    const handleOtherMediaPlay = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (detail && currentTrack && (detail.trackId !== currentTrack.id && detail.guid !== currentTrack.guid)) {
+        if (isPlaying) {
+          setIsPlaying(false);
+          if (audioRef.current && !audioRef.current.paused) {
+            audioRef.current.pause();
+          }
+        }
+      }
+    };
+    window.addEventListener("media-play-start", handleOtherMediaPlay);
+    return () => {
+      window.removeEventListener("media-play-start", handleOtherMediaPlay);
+    };
+  }, [currentTrack, isPlaying, setIsPlaying]);
+
   return (
     <>
       {/* Native HTML5 Audio Engine for Podcasts & Audiobooks */}

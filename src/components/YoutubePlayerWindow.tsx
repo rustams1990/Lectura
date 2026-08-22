@@ -238,15 +238,13 @@ export default function YoutubePlayerWindow({
           try {
             const time = playerRef.current.getCurrentTime();
             if (time !== undefined) {
-              // Zero-overwrite guard during initialization
+              // Mark position as restored once playback passes initial seek target
               if (!hasRestoredPositionRef.current && initialSeekTargetRef.current > 0) {
-                if (time < initialSeekTargetRef.current - 2) {
-                  return; // Skip tick until player actually seeks close to the target
-                } else {
-                  hasRestoredPositionRef.current = true; // Successfully restored!
+                if (time >= initialSeekTargetRef.current - 2) {
+                  hasRestoredPositionRef.current = true;
                 }
               } else if (!hasRestoredPositionRef.current) {
-                hasRestoredPositionRef.current = true; // No seek target, so it's initialized
+                hasRestoredPositionRef.current = true;
               }
 
               if (Math.abs(time - lastContextTimeRef.current) >= 0.5) {
@@ -401,6 +399,7 @@ export default function YoutubePlayerWindow({
                 if (isUnmounted) return;
                 playerRef.current = event.target;
                 if (event.data === 1) {
+                  usePlaylistStore.getState().setIsPlaying(false);
                   window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: lesson.id, guid: youtubeId } }));
                   startTrackingTime();
                 } else if (event.data === 2 || event.data === 0) {

@@ -477,21 +477,18 @@ export default function App() {
         targetLesson.lessonType === "audio"
       );
 
-      // Find recent entry for THIS LESSON or streaming GUID (on the same calendar day or within 24 hours)
-      const targetGuid = (targetLesson as any).guid || (targetLesson as any).youtubeId || targetLesson.id;
-      const targetYoutubeId = (targetLesson as any).youtubeId;
-      const targetAudioUrl = (targetLesson as any).audioUrl;
+      // Strict Target Resolution: ONLY match the specific item where item.id === targetId or item.lessonId === targetId
+      const targetId = targetLesson.id;
+      const targetGuid = (targetLesson as any).guid;
       const todayDateStr = new Date().toLocaleDateString("en-CA");
 
-      const recentIdx = prev.findIndex((h) => {
-        const matchesLesson =
-          h.lessonId === targetLesson.id ||
-          (targetGuid && h.guid === targetGuid) ||
-          (h.guid && h.guid === targetLesson.id) ||
-          (targetYoutubeId && (h.youtubeId === targetYoutubeId || h.guid === targetYoutubeId || h.lessonId === targetYoutubeId)) ||
-          (targetAudioUrl && (h as any).audioUrl === targetAudioUrl);
+      const targetIndex = prev.findIndex((h) => {
+        const matchesId =
+          h.id === targetId ||
+          h.lessonId === targetId ||
+          (targetGuid && (h.guid === targetGuid || h.id === targetGuid || h.lessonId === targetGuid));
 
-        if (!matchesLesson) return false;
+        if (!matchesId) return false;
 
         try {
           const entryDate = new Date(h.timestamp);
@@ -504,37 +501,40 @@ export default function App() {
       });
 
       let updated: HistoryEntry[];
-      if (recentIdx !== -1) {
-        updated = [...prev];
-        const existing = updated[recentIdx];
+      if (targetIndex !== -1) {
+        // Isolated update: preserve all other items completely unmodified
+        updated = prev.map((item, idx) => {
+          if (idx !== targetIndex) {
+            return item;
+          }
 
-        const nextActionType =
-          isAudioOrVideo || actionType === "listen" || existing.actionType === "listen" || (existing.durationSeconds || 0) > 0 || (durationSeconds || 0) > 0
-            ? "listen"
-            : actionType === "complete"
-            ? (existing.actionType === "complete" ? "read" : existing.actionType)
-            : existing.actionType;
+          const nextActionType =
+            isAudioOrVideo || actionType === "listen" || item.actionType === "listen" || (item.durationSeconds || 0) > 0 || (durationSeconds || 0) > 0
+              ? "listen"
+              : actionType === "complete"
+              ? (item.actionType === "complete" ? "read" : item.actionType)
+              : item.actionType;
 
-        const nextStatus: "in_progress" | "completed" =
-          actionType === "complete" || existing.status === "completed" || existing.actionType === "complete"
-            ? "completed"
-            : existing.status || "in_progress";
+          const nextStatus: "in_progress" | "completed" =
+            actionType === "complete" || item.status === "completed" || item.actionType === "complete"
+              ? "completed"
+              : item.status || "in_progress";
 
-        updated[recentIdx] = {
-          ...existing,
-          timestamp: now,
-          actionType: nextActionType,
-          status: nextStatus,
-          // Sync durationSeconds purely by accumulating delta ticks to avoid artificially inflating stats from seeking
-          durationSeconds: (existing.durationSeconds || 0) + (durationSeconds || 0),
-          lastPosition: lastPosition !== undefined ? lastPosition : existing.lastPosition,
-          youtubeId: existing.youtubeId || (targetLesson as any).youtubeId || null,
-          audioUrl: existing.audioUrl || targetLesson.audioUrl || null,
-          podcastTitle: existing.podcastTitle || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
-          guid: existing.guid || (targetLesson as any).guid || (targetLesson as any).youtubeId || targetLesson.id,
-          channelName: existing.channelName || targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
-          channelAvatarUrl: existing.channelAvatarUrl || targetLesson.channelAvatarUrl || null,
-        };
+          return {
+            ...item,
+            timestamp: now,
+            actionType: nextActionType,
+            status: nextStatus,
+            durationSeconds: Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10,
+            lastPosition: lastPosition !== undefined ? lastPosition : item.lastPosition,
+            youtubeId: item.youtubeId || (targetLesson as any).youtubeId || null,
+            audioUrl: item.audioUrl || targetLesson.audioUrl || null,
+            podcastTitle: item.podcastTitle || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
+            guid: item.guid || (targetLesson as any).guid || targetLesson.id,
+            channelName: item.channelName || targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
+            channelAvatarUrl: item.channelAvatarUrl || targetLesson.channelAvatarUrl || null,
+          };
+        });
       } else {
         const generatedId = generateHistoryId({
           durationSeconds,
@@ -557,12 +557,12 @@ export default function App() {
           timestamp: now,
           actionType: isAudioOrVideo ? "listen" : (actionType === "complete" ? "read" : actionType),
           status: actionType === "complete" ? "completed" : "in_progress",
-          durationSeconds: durationSeconds || 0,
+          durationSeconds: Math.round((durationSeconds || 0) * 10) / 10,
           lastPosition: lastPosition !== undefined ? lastPosition : undefined,
           youtubeId: (targetLesson as any).youtubeId || null,
           audioUrl: targetLesson.audioUrl || null,
           podcastTitle: (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
-          guid: (targetLesson as any).guid || (targetLesson as any).youtubeId || targetLesson.id,
+          guid: (targetLesson as any).guid || targetLesson.id,
           channelName: targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
           channelAvatarUrl: targetLesson.channelAvatarUrl || null,
         };
@@ -2947,54 +2947,50 @@ export default function App() {
       });
     }
 
-    const { queue, currentIndex } = usePlaylistStore.getState();
-    const currentTrack = queue[currentIndex];
-
-    // Priority: If activeLessonId is present (Reader/YouTube mode), target that lesson.
-    // If currentTrack is present from global player, target currentTrack.
+    // 1. Strict Target Resolution:
+    // Global Podcast Player ONLY logs to currentTrack
+    // Reader / YouTube / Local player ONLY logs to activeLesson
     let itemToLog: any = null;
-    let logSource = "";
-    const targetLessonItem = activeLesson || (activeLessonId ? lessonsRef.current.find(l => l.id === activeLessonId) : null);
-    
-    if (activeLessonId && targetLessonItem) {
-      itemToLog = targetLessonItem;
-      logSource = "activeLesson";
-    } else if (source === "global" && currentTrack) {
-      itemToLog = currentTrack;
-      logSource = "currentTrack";
-    } else if (targetLessonItem) {
-      itemToLog = targetLessonItem;
-      logSource = "activeLesson-fallback";
-    } else if (currentTrack) {
-      itemToLog = currentTrack;
-      logSource = "currentTrack-fallback";
+    let isGlobalTrack = false;
+
+    if (source === "global") {
+      const { queue, currentIndex } = usePlaylistStore.getState();
+      const currentTrack = queue[currentIndex];
+      if (currentTrack) {
+        itemToLog = currentTrack;
+        isGlobalTrack = true;
+      }
+    } else {
+      const foundLesson = activeLesson || (activeLessonId ? lessonsRef.current.find(l => l.id === activeLessonId) : null);
+      if (foundLesson) {
+        itemToLog = foundLesson;
+      }
     }
 
-    if (itemToLog) {
-      listeningBufferRef.current += effectiveSeconds;
-      if (listeningBufferRef.current >= 1 || forceFlush) {
-        const accumulatedDelta = listeningBufferRef.current;
-        listeningBufferRef.current = 0;
-        const pos = currentPos;
-        
-        if (logSource.includes("currentTrack")) {
-          const entryPayload = {
-            id: itemToLog.guid || itemToLog.id,
-            title: itemToLog.title,
-            lessonType: itemToLog.lessonType || "podcast",
-            coverUrl: itemToLog.coverUrl || null,
-            targetLanguage: normalizeLanguage(itemToLog.targetLanguage || "es"),
-            audioUrl: itemToLog.audioUrl,
-            podcastTitle: itemToLog.podcastTitle || itemToLog.bookTitle || itemToLog.channelName || "Podcast",
-            channelName: itemToLog.channelName || itemToLog.podcastTitle || itemToLog.bookTitle || null,
-            guid: itemToLog.guid || itemToLog.id,
-            lastPosition: pos, // Entry payload holds lastPosition for resume
-          };
-          // Explicitly pass accumulatedDelta as time spent, and pos as last position
-          recordHistoryActivity(entryPayload, "listen", accumulatedDelta, pos);
-        } else {
-          recordHistoryActivity(itemToLog, "listen", accumulatedDelta, pos);
-        }
+    if (!itemToLog) {
+      return;
+    }
+
+    if (effectiveSeconds > 0 || forceFlush) {
+      const deltaToRecord = effectiveSeconds > 0 ? effectiveSeconds : 0;
+      const pos = currentPos;
+      
+      if (isGlobalTrack) {
+        const entryPayload = {
+          id: itemToLog.guid || itemToLog.id,
+          title: itemToLog.title,
+          lessonType: itemToLog.lessonType || "podcast",
+          coverUrl: itemToLog.coverUrl || null,
+          targetLanguage: normalizeLanguage(itemToLog.targetLanguage || "es"),
+          audioUrl: itemToLog.audioUrl,
+          podcastTitle: itemToLog.podcastTitle || itemToLog.bookTitle || itemToLog.channelName || "Podcast",
+          channelName: itemToLog.channelName || itemToLog.podcastTitle || itemToLog.bookTitle || null,
+          guid: itemToLog.guid || itemToLog.id,
+          lastPosition: pos,
+        };
+        recordHistoryActivity(entryPayload, "listen", deltaToRecord, pos);
+      } else {
+        recordHistoryActivity(itemToLog, "listen", deltaToRecord, pos);
       }
     }
   };
