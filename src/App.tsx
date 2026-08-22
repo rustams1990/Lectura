@@ -1866,6 +1866,26 @@ export default function App() {
     };
   }, [storageMode, localSyncKey, localSyncError, serverToken]);
 
+  // Real-time Cross-Window History Sync: synchronize in-memory history when modified/deleted in another tab
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "vocab_clone_reading_history" && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            const clean = dedupeHistory(parsed).filter((h) => (h.durationSeconds || 0) > 0);
+            setHistory(clean);
+            historyRef.current = clean;
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
+
 
 
   // Sync state to local storage (sanitizing heavy base64 fields to prevent quota overflow)
