@@ -161,7 +161,9 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
 
     return tokens;
   } else {
-    const parts = sentText.split(/(\s+)/);
+    // Normalize extraneous whitespace before trailing punctuation
+    const normalizedText = sentText.replace(/\s+([.,!?:;…»\)]+)/g, "$1");
+    const parts = normalizedText.split(/(\s+)/);
     return parts.map((part) => {
       if (/^\s+$/.test(part)) {
         return { raw: part, clean: "", isWord: false };

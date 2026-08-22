@@ -42,9 +42,11 @@ import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
 import { formatDateTime, resolveLocale } from "../utils/dateUtils";
 import { formatAppDate, formatAppDateTime, formatAppTime } from "../utils/dateFormatter";
+import { normalizeLanguage, generateHistoryId } from "../utils";
 import { AppDatePicker } from "./common/AppDatePicker";
 import { resolveApiUrl } from "../utils/apiConfig";
 import { useToast } from "../context/ToastContext";
+import { usePlaylistStore } from "../store/playlistStore";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -180,10 +182,10 @@ function HistoryPage({
     if (!item) return "Spanish";
     const lesson = lessons.find((l) => l.id === item.lessonId);
     if (lesson && lesson.targetLanguage && lesson.targetLanguage.trim()) {
-      return lesson.targetLanguage.trim();
+      return normalizeLanguage(lesson.targetLanguage.trim());
     }
     if (item.targetLanguage && item.targetLanguage.trim()) {
-      return item.targetLanguage.trim();
+      return normalizeLanguage(item.targetLanguage.trim());
     }
     return "Spanish";
   }, [lessons]);
@@ -298,6 +300,32 @@ function HistoryPage({
     }
   };
 
+  const handleResumeStreamingEpisode = (item: HistoryEntry) => {
+    const audioUrl = item.audioUrl;
+    if (!audioUrl) return;
+    const seekTarget = item.lastPosition || 0;
+    usePlaylistStore.getState().setQueue([
+      {
+        id: item.lessonId || item.guid || item.id,
+        guid: item.guid || item.lessonId || item.id,
+        title: item.lessonTitle,
+        audioUrl: audioUrl,
+        bookTitle: item.podcastTitle || item.channelName || "Podcast",
+        podcastTitle: item.podcastTitle || item.channelName || "Podcast",
+        coverUrl: item.coverUrl || null,
+        duration: item.durationSeconds,
+        lessonType: "podcast",
+        channelName: item.channelName || item.podcastTitle || null,
+        targetLanguage: item.targetLanguage || "es",
+      }
+    ], 0, true);
+    if (seekTarget > 0) {
+      setTimeout(() => {
+        usePlaylistStore.getState().seek(seekTarget);
+      }, 200);
+    }
+  };
+
   // Populate form when editing an entry
   const startEditEntry = (entry: HistoryEntry) => {
     setEditingEntry(entry);
@@ -369,6 +397,10 @@ function HistoryPage({
     if (isSavingEntry) return;
 
     const durationSeconds = Math.max(0, (parseInt(formMinutes, 10) || 0) * 60);
+    if (durationSeconds <= 0) {
+      showToast(t('history_page.invalid_duration', 'Р’СЂРµРјСЏ Р°РєС‚РёРІРЅРѕСЃС‚Рё РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0'), 'error');
+      return;
+    }
 
     let title = "";
     let targetLang = "Spanish";
@@ -537,9 +569,20 @@ function HistoryPage({
         setEditingEntry(null);
         setIsCreateModalOpen(false);
       } else {
-        // Create new entry
+        const generatedId = generateHistoryId({
+          durationSeconds,
+          actionType: formActionType,
+          source: "HistoryPage.handleSaveEntry",
+        });
+
+        if (!generatedId) {
+          showToast(t('history_page.invalid_duration', 'Время активности должно быть больше 0'), 'error');
+          setIsSavingEntry(false);
+          return;
+        }
+
         const newEntry: HistoryEntry = {
-          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          id: generatedId,
           lessonId,
           lessonTitle: title,
           targetLanguage: targetLang,
@@ -603,11 +646,22 @@ function HistoryPage({
     e.stopPropagation();
     if (confirm(t('history_page.confirm_delete', "Are you sure you want to delete this record from history?"))) {
       try {
+        const rawLocal = localStorage.getItem("vocab_clone_reading_history");
+        if (rawLocal) {
+          try {
+            const parsed = JSON.parse(rawLocal);
+            if (Array.isArray(parsed)) {
+              const filtered = parsed.filter((h: any) => h.id !== id);
+              localStorage.setItem("vocab_clone_reading_history", JSON.stringify(filtered));
+            }
+          } catch (_) {}
+        }
         const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
         const savedUserStr = localStorage.getItem("vocab_clone_local_user");
         const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+        const localKey = localStorage.getItem("vocab_clone_local_sync_key") || "4815a16a23a42a";
         const headers: Record<string, string> = {
-          "x-local-sync-key": "4815a16a23a42a",
+          "x-local-sync-key": localKey,
           "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
         };
         if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
@@ -714,6 +768,10 @@ function HistoryPage({
       const bestChannelName = latest.channelName || sortedSessions.find((s) => s.channelName)?.channelName || lesson?.channelName || (lesson as any)?.channelTitle || null;
       const bestChannelAvatarUrl = latest.channelAvatarUrl || sortedSessions.find((s) => s.channelAvatarUrl)?.channelAvatarUrl || lesson?.channelAvatarUrl || null;
       const bestChannelUrl = (latest as any).channelUrl || sortedSessions.find((s) => (s as any).channelUrl)?.channelUrl || (lesson as any)?.channelUrl || undefined;
+      const bestAudioUrl = latest.audioUrl || sortedSessions.find((s) => s.audioUrl)?.audioUrl || lesson?.audioUrl || null;
+      const bestPodcastTitle = latest.podcastTitle || sortedSessions.find((s) => s.podcastTitle)?.podcastTitle || null;
+      const bestGuid = latest.guid || sortedSessions.find((s) => s.guid)?.guid || null;
+      const bestLastPosition = latest.lastPosition !== undefined ? latest.lastPosition : sortedSessions.find((s) => s.lastPosition !== undefined)?.lastPosition;
 
       aggregated.push({
         ...latest,
@@ -728,6 +786,10 @@ function HistoryPage({
         channelName: bestChannelName,
         channelAvatarUrl: bestChannelAvatarUrl,
         channelUrl: bestChannelUrl,
+        audioUrl: bestAudioUrl,
+        podcastTitle: bestPodcastTitle,
+        guid: bestGuid,
+        lastPosition: bestLastPosition,
         customTitle: latest.customTitle,
         category: latest.category,
         mode: latest.mode,
@@ -1900,6 +1962,25 @@ function HistoryPage({
                     const category = (item.category || "").toLowerCase();
                     const lessonType = (item.lessonType || matchedLesson?.lessonType || "").toLowerCase();
 
+                    if (
+                      actionType === "listen" ||
+                      actionType === "listening" ||
+                      category === "podcast" ||
+                      category === "video" ||
+                      lessonType === "podcast" ||
+                      lessonType === "youtube" ||
+                      lessonType === "audio" ||
+                      !!item.audioUrl ||
+                      !!matchedLesson?.audioUrl ||
+                      !!matchedLesson?.youtubeId
+                    ) {
+                      return {
+                        label: t('history_page.activity_listening', 'LISTENING'),
+                        Icon: Headphones,
+                        color: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
+                      };
+                    }
+
                     if (actionType === "study" || actionType === "grammar" || category === "grammar") {
                       return {
                         label: t('history_page.activity_grammar', 'GRAMMAR'),
@@ -1916,14 +1997,6 @@ function HistoryPage({
                       };
                     }
 
-                    if (actionType === "read" || actionType === "reading" || category === "book" || lessonType === "book" || lessonType === "article") {
-                      return {
-                        label: t('history_page.activity_reading', 'READING'),
-                        Icon: BookOpen,
-                        color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
-                      };
-                    }
-
                     if (actionType === "complete" || actionType === "completed") {
                       return {
                         label: t('history_page.status_completed', 'COMPLETED'),
@@ -1932,21 +2005,11 @@ function HistoryPage({
                       };
                     }
 
-                    if (
-                      actionType === "listen" ||
-                      actionType === "listening" ||
-                      category === "podcast" ||
-                      category === "video" ||
-                      lessonType === "podcast" ||
-                      lessonType === "youtube" ||
-                      lessonType === "audio" ||
-                      !!matchedLesson?.audioUrl ||
-                      !!matchedLesson?.youtubeId
-                    ) {
+                    if (actionType === "read" || actionType === "reading" || category === "book" || lessonType === "book" || lessonType === "article") {
                       return {
-                        label: t('history_page.activity_listening', 'LISTENING'),
-                        Icon: Headphones,
-                        color: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900"
+                        label: t('history_page.activity_reading', 'READING'),
+                        Icon: BookOpen,
+                        color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
                       };
                     }
 
@@ -1958,13 +2021,20 @@ function HistoryPage({
                   })();
 
                   const BadgeIcon = badge.Icon;
+                  const canClickCard = Boolean(matchedLesson || item.audioUrl || item.lessonType === "podcast");
 
                   return (
                     <div
                       key={item.id}
-                      onClick={() => matchedLesson && onOpenLesson(matchedLesson.id)}
+                      onClick={() => {
+                        if (matchedLesson) {
+                          onOpenLesson(matchedLesson.id);
+                        } else if (item.audioUrl || item.lessonType === "podcast") {
+                          handleResumeStreamingEpisode(item);
+                        }
+                      }}
                       className={`group relative p-3 sm:p-3.5 bg-white dark:bg-zinc-900/70 hover:bg-teal-50/20 dark:hover:bg-zinc-800/60 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-3xs hover:shadow-xs hover:border-teal-300 dark:hover:border-teal-800 ${
-                        matchedLesson ? "cursor-pointer" : ""
+                        canClickCard ? "cursor-pointer" : ""
                       }`}
                     >
                       {/* Left side: Cover + Title + Details */}
@@ -2156,6 +2226,19 @@ function HistoryPage({
                           >
                             <BookOpen className="w-3 h-3 text-zinc-500 group-hover:text-teal-600" />
                             <span>{t('history_page.open', 'Open')}</span>
+                          </button>
+                        ) : (item.audioUrl || item.lessonType === "podcast") ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleResumeStreamingEpisode(item);
+                            }}
+                            className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/50 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 text-xs font-bold rounded-xl border border-teal-200 dark:border-teal-800 flex items-center gap-1.5 shadow-3xs transition-all active:scale-97 cursor-pointer"
+                            title={t('history_page.continue_podcast', 'Resume podcast')}
+                          >
+                            <Play className="w-3 h-3 fill-current text-teal-600 dark:text-teal-400" />
+                            <span>{t('history_page.resume', 'Resume')}</span>
                           </button>
                         ) : null}
                       </div>

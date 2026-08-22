@@ -12,6 +12,7 @@ import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, Podcast
 import { useToast } from "../context/ToastContext";
 import { whisperQueueService } from "../services/whisperQueueService";
 import { formatAppDate } from "../utils/dateFormatter";
+import { normalizeLanguage } from "../utils";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -594,9 +595,9 @@ export default function PodcastChannelView({
   const handlePlay = useCallback((episode: PodcastEpisode) => {
     // Strictly use the square show/episode artwork for MediaSession and Android lock screen
     const squareArtwork = episode.artworkUrl || artworkUrl || currentFeedMeta?.artworkUrl || "";
-    const activeLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
+    const activeLang = normalizeLanguage((selectedTargetLanguage && selectedTargetLanguage !== "All")
       ? selectedTargetLanguage
-      : currentFeedMeta?.language || "es";
+      : currentFeedMeta?.language || "es");
     setQueue(
       [{
         id: episode.guid,
@@ -604,6 +605,7 @@ export default function PodcastChannelView({
         title: episode.title,
         audioUrl: episode.audioUrl,
         bookTitle: title,
+        podcastTitle: title,
         coverUrl: squareArtwork,
         duration: episode.duration || undefined,
         lessonType: "podcast",
@@ -621,9 +623,9 @@ export default function PodcastChannelView({
 
   // Integrated Whisper import with Background Job and Toast Action
   const handleImport = useCallback(async (episode: PodcastEpisode) => {
-    const activeLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
+    const activeLang = normalizeLanguage((selectedTargetLanguage && selectedTargetLanguage !== "All")
       ? selectedTargetLanguage
-      : (currentFeedMeta?.language || "es");
+      : (currentFeedMeta?.language || "es"));
 
     const isWhisperNeeded = !episode.hasTranscript && !episode.transcriptUrl;
     const taskId = `podcast_task_${episode.guid}_${Date.now()}`;

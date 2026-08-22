@@ -13,7 +13,7 @@ import {
   Maximize2, Sparkles, Database, HardDrive, Download, Upload,
   Wifi, Copy, RefreshCw, TrendingUp, Headphones, Languages, AlertTriangle, UserCheck, ChevronDown, Lightbulb,
   ArrowUp, ArrowDown, Key, Eye, EyeOff, Plus, CheckCircle2, XCircle, Loader2, Zap, Server, ShieldAlert, Cpu, ExternalLink, Activity,
-  Calendar, Clock
+  Calendar, Clock, Tv
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
@@ -1323,6 +1323,102 @@ export default function SettingsModal({
                   />
                 </button>
               </div>
+
+              {/* Book Card Title & Badges Placement Option */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                    {t("settings.card_title_position_label", "Расположение названий в карточках")}
+                  </h4>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    {t("settings.card_title_position_desc", "Показывать название и бейджи под обложкой (как на YouTube) для чистой картинки и 100% читаемости.")}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onSettingsChange?.({ cardTitlePosition: (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "on_cover" : "below_cover" })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Default Video Mode (YouTube / Video Lessons) */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+                    <Tv className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                      {t("explainer.default_video_mode", "Режим видео по умолчанию (YouTube)")}
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                      {t("settings.default_video_mode_desc", "Выберите, как видео-уроки открываются на мобильных устройствах и планшетах.")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "focus" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      (settings?.defaultVideoViewMode || "focus") === "focus"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🎯 {t("explainer.video_mode_focus", "Режим фокуса")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.video_mode_focus_hint", "По умолчанию на планшетах и смартфонах")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "floating" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.defaultVideoViewMode === "floating"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🪟 {t("explainer.video_mode_floating", "Плавающее окно (PiP)")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.video_mode_floating_hint", "Компактное окно поверх текста")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "off" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.defaultVideoViewMode === "off"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      ⏹️ {t("explainer.video_mode_off", "Закрыто")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.video_mode_off_hint", "Открывать только вручную")}
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1691,7 +1787,7 @@ export default function SettingsModal({
                         {t("settings.vocab_count_mode_label", "Vocabulary Counting Mode:")}
                       </span>
                       <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
-                        {settings?.onlyPatterns
+                        {settings?.onlyPatterns !== false
                           ? t("settings.vocab_count_mode_parents_desc", "Counting root/parent words (be, been, is = 1 parent word)")
                           : t("settings.vocab_count_mode_all_desc", "Counting all word forms separately (be, been, is = 3 words)")}
                       </p>
@@ -1702,7 +1798,7 @@ export default function SettingsModal({
                         type="button"
                         onClick={() => onSettingsChange?.({ onlyPatterns: false })}
                         className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                          !settings?.onlyPatterns
+                          settings?.onlyPatterns === false
                             ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700 font-black"
                             : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                         }`}
@@ -1714,7 +1810,7 @@ export default function SettingsModal({
                         type="button"
                         onClick={() => onSettingsChange?.({ onlyPatterns: true })}
                         className={`h-7 px-3 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                          settings?.onlyPatterns
+                          settings?.onlyPatterns !== false
                             ? "bg-teal-600 text-white shadow-xs font-black"
                             : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                         }`}

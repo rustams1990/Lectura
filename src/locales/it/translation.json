@@ -299,11 +299,16 @@
     "podcasts": "Podcasts"
   },
   "auth": {
+    "error_invalid_credentials": "Nome utente o password non validi",
     "error_empty": "Inserisci la tua email/nome utente e password.",
-    "error_password_length": "La password deve contenere almeno 4 caratteri.",
+    "error_password_length": "La password deve contenere almeno 6 caratteri.",
     "error_email_in_use": "Questo indirizzo email è già in uso.",
     "error_invalid_email": "Formato dell'indirizzo e-mail non valido.",
-    "error_weak_password": "La password è troppo debole. Deve contenere almeno 4 caratteri.",
+    "error_weak_password": "La password è troppo debole. Deve contenere almeno 6 caratteri.",
+    "error_too_many_attempts": "Troppi tentativi di accesso. Si prega di attendere 15 minuti.",
+    "error_network_failed": "Impossibile connettersi al server.",
+    "error_server": "Si è verificato un errore del server.",
+    "error_session_expired": "Sessione scaduta. Effettua nuovamente l'accesso.",
     "title": "Registrazione",
     "title_register": "Crea profilo",
     "account": "Account:",

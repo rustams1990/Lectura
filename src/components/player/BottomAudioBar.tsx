@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 
 interface BottomAudioBarProps {
   onOpenLesson?: (lessonId: string) => void;
+  activeTab?: string;
 }
 
 const SPEED_PRESETS = [0.8, 1.0, 1.2, 1.5, 2.0];
@@ -31,7 +32,7 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
-export default function BottomAudioBar({ onOpenLesson }: BottomAudioBarProps) {
+export default function BottomAudioBar({ onOpenLesson, activeTab }: BottomAudioBarProps) {
   const { t } = useTranslation();
   const {
     queue,
@@ -64,7 +65,8 @@ export default function BottomAudioBar({ onOpenLesson }: BottomAudioBarProps) {
     }
   }, [currentTime, isSeeking]);
 
-  if (queue.length === 0 || !currentTrack) {
+  // Hide the global floating bottom mini-player while actively in the lesson reader view or queue is empty
+  if (activeTab === 'read' || queue.length === 0 || !currentTrack) {
     return null;
   }
 
@@ -161,7 +163,7 @@ export default function BottomAudioBar({ onOpenLesson }: BottomAudioBarProps) {
             {/* Play / Pause Main Button */}
             <button
               type="button"
-              onClick={togglePlay}
+              onClick={(e) => { e.stopPropagation(); togglePlay(); }}
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-teal-600 hover:bg-teal-500 text-white flex items-center justify-center shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer shrink-0"
               title={isPlaying ? 'Pause' : 'Play'}
             >
@@ -249,7 +251,21 @@ export default function BottomAudioBar({ onOpenLesson }: BottomAudioBarProps) {
             {/* Close / Dismiss Queue */}
             <button
               type="button"
-              onClick={clearQueue}
+              onClick={(e) => {
+                e.stopPropagation();
+                // Explicitly stop playback before clearing to prevent audio ghost-playing
+                const audio = document.getElementById('global-audio-element') as HTMLAudioElement;
+                if (audio) {
+                  window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: audio.currentTime } }));
+                  audio.pause();
+                  audio.src = '';
+                  audio.load();
+                }
+                
+                // Clear the active track and reset playback states
+                usePlaylistStore.getState().setIsPlaying(false);
+                clearQueue();
+              }}
               className="p-1.5 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition cursor-pointer"
               title="Close Player"
             >

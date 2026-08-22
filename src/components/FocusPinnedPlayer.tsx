@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, RefreshCw, ChevronDown, ChevronUp, Tv, Download, AlertTriangle, Loader2, HardDrive, Globe } from "lucide-react";
+import { X, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, Tv, Download, AlertTriangle, Loader2, HardDrive, Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
@@ -19,6 +19,8 @@ interface FocusPinnedPlayerProps {
   onClose: () => void;
   /** Exit Focus Mode entirely */
   onExitFocus: () => void;
+  /** Return to Library directly */
+  onBackToLibrary?: () => void;
   onListeningTick?: (seconds: number) => void;
   onVideoEnded?: () => void;
 }
@@ -27,6 +29,7 @@ export default function FocusPinnedPlayer({
   lesson,
   onClose,
   onExitFocus,
+  onBackToLibrary,
   onListeningTick,
   onVideoEnded,
 }: FocusPinnedPlayerProps) {
@@ -382,19 +385,32 @@ export default function FocusPinnedPlayer({
   return (
     <div ref={rootRef} className="shrink-0 w-full z-20 bg-zinc-950 shadow-xl shadow-black/50">
       {/* Control bar */}
-      <div className="flex items-center justify-between h-11 px-3 bg-zinc-900 border-b border-zinc-800">
-        {/* Left: Exit Focus + title */}
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center justify-between h-11 px-2.5 sm:px-3 bg-zinc-900 border-b border-zinc-800 gap-2">
+        {/* Left: Library back button + Exit Focus + title */}
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+          {onBackToLibrary && (
+            <button
+              onClick={onBackToLibrary}
+              className="flex items-center gap-1 px-2 sm:px-2.5 h-7 shrink-0 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold transition-all active:scale-97 cursor-pointer shadow-3xs"
+              title={t("reader.library_btn", "Библиотека")}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t("reader.library_btn", "Библиотека")}</span>
+            </button>
+          )}
+
           <button
             id="focus-exit-btn"
             onClick={onExitFocus}
-            className="flex items-center gap-1.5 px-3 h-7 shrink-0 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold transition-all active:scale-97 cursor-pointer"
+            className="flex items-center gap-1 px-2 sm:px-3 h-7 shrink-0 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold transition-all active:scale-97 cursor-pointer shadow-3xs"
+            title={t("app.focus_exit", "Выйти из фокуса")}
           >
-            ← {t("app.focus_exit", "Выйти из фокуса")}
+            <span>{t("app.focus_exit", "Выйти из фокуса")}</span>
           </button>
-          <div className="flex items-center gap-1.5 min-w-0">
+
+          <div className="flex items-center gap-1 min-w-0 overflow-hidden">
             <Tv className="w-3 h-3 text-teal-400 shrink-0" />
-            <span className="text-[11px] font-semibold text-zinc-400 truncate max-w-[200px] sm:max-w-xs hidden sm:block">
+            <span className="text-[11px] font-semibold text-zinc-400 truncate max-w-[110px] sm:max-w-xs md:max-w-sm">
               {lesson.title}
             </span>
           </div>

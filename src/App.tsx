@@ -53,7 +53,7 @@ import PodcastsPage from "./components/PodcastsPage";
 import { checkForGitHubUpdate, GitHubReleaseInfo } from "./services/inAppUpdaterService";
 import { usePlaylistStore } from "./store/playlistStore";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History, Mic2 } from "lucide-react";
-import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem, getUIPreviewCache, saveUIPreviewCache } from "./utils";
+import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem, getUIPreviewCache, saveUIPreviewCache, normalizeLanguage, getActiveMediaCurrentTime, generateHistoryId } from "./utils";
 import { resolveApiUrl } from "./utils/apiConfig";
 import { lessonsStore, vocabStore, settingsStore, playlistsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { whisperQueueService } from "./services/whisperQueueService";
@@ -107,6 +107,7 @@ export default function App() {
     showImportForm, setShowImportForm,
     showSettingsModal, setShowSettingsModal,
     showMatchPairsModal, setShowMatchPairsModal,
+    showAiHubModal, setShowAiHubModal,
     showYoutubePlayer, setShowYoutubePlayer,
     isFocusMode, setIsFocusMode,
     showOnlyUnknown, setShowOnlyUnknown,
@@ -116,6 +117,8 @@ export default function App() {
   } = useUIStore();
   const { t } = useTranslation();
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [isAppLoaded, setIsAppLoaded] = useState(false);
 
   // Detect mobile/tablet vs desktop (< 1024px = tablet/phone, ≥ 1024px = desktop)
@@ -154,6 +157,10 @@ export default function App() {
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
 
   const [lessonTypes, setLessonTypes] = useState<LessonType[]>(DEFAULT_LESSON_TYPES);
+  const lessonTypesRef = useRef<LessonType[]>(lessonTypes);
+  useEffect(() => {
+    lessonTypesRef.current = lessonTypes;
+  }, [lessonTypes]);
   const hasActiveQueue = usePlaylistStore((state) => state.queue.length > 0);
 
   const {
@@ -186,6 +193,10 @@ export default function App() {
   const { showToast } = useToast();
 
   const [listeningSeconds, setListeningSeconds] = useState<number>(0);
+  const listeningSecondsRef = useRef<number>(listeningSeconds);
+  useEffect(() => {
+    listeningSecondsRef.current = listeningSeconds;
+  }, [listeningSeconds]);
 
   const [selectedTargetLanguage, setSelectedTargetLanguage] = useState<string>(() => {
     const preview = getUIPreviewCache();
@@ -194,6 +205,10 @@ export default function App() {
     }
     return localStorage.getItem("vocab_global_target_language") || "All";
   });
+  const selectedTargetLanguageRef = useRef<string>(selectedTargetLanguage);
+  useEffect(() => {
+    selectedTargetLanguageRef.current = selectedTargetLanguage;
+  }, [selectedTargetLanguage]);
 
   const handleSelectTargetLanguage = (lang: string) => {
     setSelectedTargetLanguage(lang);
@@ -216,6 +231,10 @@ export default function App() {
       return [];
     }
   });
+  const pinnedLanguagesRef = useRef<string[]>(pinnedLanguages);
+  useEffect(() => {
+    pinnedLanguagesRef.current = pinnedLanguages;
+  }, [pinnedLanguages]);
   const [hiddenLanguages, setHiddenLanguages] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("vocab_clone_hidden_languages");
@@ -224,6 +243,10 @@ export default function App() {
       return [];
     }
   });
+  const hiddenLanguagesRef = useRef<string[]>(hiddenLanguages);
+  useEffect(() => {
+    hiddenLanguagesRef.current = hiddenLanguages;
+  }, [hiddenLanguages]);
 
   const handleAddLanguage = (langName: string) => {
     setHiddenLanguages((prev) => {
@@ -270,21 +293,21 @@ export default function App() {
   const availableTargetLanguages = useMemo(() => {
     const list = new Set<string>();
     lessons.forEach((l) => {
-      if (l.targetLanguage) list.add(l.targetLanguage);
+      if (l.targetLanguage) list.add(normalizeLanguage(l.targetLanguage));
     });
     Object.keys(vocab || {}).forEach((key) => {
       const parts = key.split("_");
       if (parts.length > 1) {
         const lang = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-        list.add(lang);
+        list.add(normalizeLanguage(lang));
       }
     });
-    pinnedLanguages.forEach((lang) => list.add(lang));
+    pinnedLanguages.forEach((lang) => list.add(normalizeLanguage(lang)));
     if (selectedTargetLanguage && selectedTargetLanguage !== "All") {
-      list.add(selectedTargetLanguage);
+      list.add(normalizeLanguage(selectedTargetLanguage));
     }
 
-    const hiddenLower = new Set(hiddenLanguages.map((l) => l.toLowerCase()));
+    const hiddenLower = new Set(hiddenLanguages.map((l) => normalizeLanguage(l).toLowerCase()));
     const filtered = Array.from(list).filter((lang) => !hiddenLower.has(lang.toLowerCase()));
     return ["All", ...filtered];
   }, [lessons, vocab, pinnedLanguages, hiddenLanguages, selectedTargetLanguage]);
@@ -293,7 +316,7 @@ export default function App() {
     const map: Record<string, number> = {};
     lessons.forEach((l) => {
       if (l.targetLanguage) {
-        const key = l.targetLanguage;
+        const key = normalizeLanguage(l.targetLanguage);
         map[key] = (map[key] || 0) + 1;
       }
     });
@@ -301,6 +324,20 @@ export default function App() {
   }, [lessons]);
 
   const [activeLessonId, setActiveLessonId] = useState<string>(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      try {
+        const hash = window.location.hash;
+        // Hash could be #/read?lesson=123 or #/lesson/123
+        const [path, queryString] = hash.substring(1).split("?");
+        if (path.startsWith("/read") && queryString) {
+          const params = new URLSearchParams(queryString);
+          const lessonId = params.get("lesson");
+          if (lessonId) return lessonId;
+        }
+      } catch (e) {
+        console.error("Failed to parse initial hash for lessonId", e);
+      }
+    }
     return lessons[0]?.id || "";
   });
   const [lessonImagesVersion, setLessonImagesVersion] = useState(0);
@@ -320,8 +357,75 @@ export default function App() {
     historyRef.current = history;
   }, [history]);
 
+  const deletedSessionLessonIdsRef = useRef<Set<string>>(new Set());
+  const pendingDeletedHistoryIdsRef = useRef<Set<string>>(new Set());
+  const delayDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
+  const historySyncDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
+
+  const scheduleBackgroundHistorySync = (nextHistory: HistoryEntry[]) => {
+    if (storageMode !== "server") return;
+    if (historySyncDebounceFnRef.current) return;
+
+    historySyncDebounceFnRef.current = setTimeout(() => {
+      historySyncDebounceFnRef.current = null;
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypesRef.current,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSecondsRef.current,
+        languageFlagsRef.current,
+        historyRef.current.length > 0 ? historyRef.current : nextHistory,
+        undefined,
+        readerSettingsRef.current,
+        pinnedLanguagesRef.current,
+        hiddenLanguagesRef.current,
+        selectedTargetLanguageRef.current,
+        undefined,
+        playlistsRef.current
+      ).catch(() => {});
+    }, 10000);
+  };
+
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
-    const deduped = dedupeHistory(newHistory);
+    if (deletedIds && deletedIds.length > 0) {
+      console.log('[Delete History Trace]', { deletedId: deletedIds[0], remainingEntries: newHistory.length });
+      
+      const deletedLessons = historyRef.current.filter(h => deletedIds.includes(h.id));
+      deletedLessons.forEach(h => {
+        deletedSessionLessonIdsRef.current.add(h.lessonId);
+        if (h.guid) deletedSessionLessonIdsRef.current.add(h.guid);
+      });
+      deletedIds.forEach(id => pendingDeletedHistoryIdsRef.current.add(id));
+      
+      // Cancel pending debounced calls!
+      if (delayDebounceFnRef.current) {
+        clearTimeout(delayDebounceFnRef.current);
+        delayDebounceFnRef.current = null;
+      }
+      
+      // Clear in-memory listening buffers for explicitly deleted items
+      const currentTrack = usePlaylistStore.getState().queue[usePlaylistStore.getState().currentIndex];
+      if (
+        (activeLessonId && deletedLessons.some(h => h.lessonId === activeLessonId || h.guid === activeLessonId)) ||
+        (currentTrack && deletedLessons.some(h => h.lessonId === currentTrack.id || h.guid === currentTrack.guid || h.guid === currentTrack.id))
+      ) {
+        listeningBufferRef.current = 0;
+      }
+    }
+
+    const deduped = dedupeHistory(newHistory).filter(h => {
+      // Strict Zero-Duration Rejection Guard on the direct-write path:
+      // block any brand-new entries that have 0 duration.
+      if ((h.durationSeconds || 0) <= 0) {
+        const alreadyExists = historyRef.current.some(existing => existing.id === h.id);
+        if (!alreadyExists) {
+          console.trace('[PHANTOM HISTORY BLOCKED in handleUpdateHistory]', h);
+          return false; // DROP IT
+        }
+      }
+      return true;
+    });
     setHistory(deduped);
     historyRef.current = deduped;
     // Mark immediately so loadDataFromLocalServer won't overwrite for 30s
@@ -330,17 +434,17 @@ export default function App() {
     settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(deduped)).catch(() => {});
     syncDataToLocalServer(
       lessonsRef.current,
-      lessonTypes,
+      lessonTypesRef.current,
       vocabRef.current,
       wordLinksRef.current,
-      listeningSeconds,
-      languageFlags,
+      listeningSecondsRef.current,
+      languageFlagsRef.current,
       deduped,
       undefined,
-      readerSettings,
-      pinnedLanguages,
-      hiddenLanguages,
-      selectedTargetLanguage,
+      readerSettingsRef.current,
+      pinnedLanguagesRef.current,
+      hiddenLanguagesRef.current,
+      selectedTargetLanguageRef.current,
       undefined,
       playlistsRef.current,
       undefined,
@@ -349,11 +453,47 @@ export default function App() {
   };
 
   const recordHistoryActivity = (
-    targetLesson: Lesson,
+    targetLesson: Lesson | {
+      id: string;
+      title: string;
+      lessonType?: string;
+      coverUrl?: string | null;
+      targetLanguage: string;
+      audioUrl?: string | null;
+      podcastTitle?: string | null;
+      channelName?: string | null;
+      channelAvatarUrl?: string | null;
+      guid?: string | null;
+      lastPosition?: number;
+      audioDuration?: number | null;
+      youtubeId?: string | null;
+      audioBase64?: string | null;
+    },
     actionType: "read" | "listen" | "complete",
-    durationSeconds?: number
+    durationSeconds?: number,
+    lastPosition?: number
   ) => {
     if (!targetLesson || !targetLesson.id) return;
+
+    // Absolute Circuit Breaker: Zero duration records are illegal.
+    if (!durationSeconds || durationSeconds <= 0) {
+      console.error('BLOCKED ATTEMPT TO CREATE 0s HISTORY:', { targetLesson, actionType, durationSeconds });
+      return;
+    }
+
+    const targetGuid = (targetLesson as any).guid || targetLesson.id;
+
+    // Deletion Guard: Prevent deleted items from resurrecting via background ticks, unmount flushes, or debounces
+    if (deletedSessionLessonIdsRef.current.has(targetLesson.id) || deletedSessionLessonIdsRef.current.has(targetGuid)) {
+      return; // Discard completely
+    }
+    
+    if ((actionType === "listen" || actionType === "complete") && lastPosition === undefined) {
+      const globalTime = getActiveMediaCurrentTime();
+      if (globalTime > 0) {
+        lastPosition = globalTime;
+      }
+    }
     setHistory((prev) => {
       const now = new Date().toISOString();
 
@@ -366,10 +506,11 @@ export default function App() {
         targetLesson.lessonType === "audio"
       );
 
-      // Find recent entry for THIS LESSON (within last 2 hours regardless of actionType)
+      // Find recent entry for THIS LESSON or streaming GUID (within last 2 hours regardless of actionType)
+      const targetGuid = (targetLesson as any).guid || targetLesson.id;
       const recentIdx = prev.findIndex(
         (h) =>
-          h.lessonId === targetLesson.id &&
+          (h.lessonId === targetLesson.id || (h.guid && h.guid === targetGuid)) &&
           Date.now() - new Date(h.timestamp).getTime() < 2 * 60 * 60 * 1000
       );
 
@@ -395,31 +536,52 @@ export default function App() {
           timestamp: now,
           actionType: nextActionType,
           status: nextStatus,
+          // Sync durationSeconds purely by accumulating delta ticks to avoid artificially inflating stats from seeking
           durationSeconds: (existing.durationSeconds || 0) + (durationSeconds || 0),
-          channelName: existing.channelName || targetLesson.channelName || null,
+          lastPosition: lastPosition !== undefined ? lastPosition : existing.lastPosition,
+          audioUrl: existing.audioUrl || targetLesson.audioUrl || null,
+          podcastTitle: existing.podcastTitle || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
+          guid: existing.guid || (targetLesson as any).guid || targetLesson.id,
+          channelName: existing.channelName || targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
           channelAvatarUrl: existing.channelAvatarUrl || targetLesson.channelAvatarUrl || null,
         };
       } else {
+        const generatedId = generateHistoryId({
+          durationSeconds,
+          actionType,
+          source: `recordHistoryActivity(${targetLesson.id}, ${actionType})`,
+        });
+
+        if (!generatedId) {
+          // Hard Trap blocked creation of 0-second phantom record
+          return prev;
+        }
+
         const newEntry: HistoryEntry = {
-          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          id: generatedId,
           lessonId: targetLesson.id,
           lessonTitle: targetLesson.title,
-          lessonType: targetLesson.lessonType || "article",
+          lessonType: targetLesson.lessonType || "podcast",
           coverUrl: targetLesson.coverUrl || null,
-          targetLanguage: targetLesson.targetLanguage,
+          targetLanguage: normalizeLanguage(targetLesson.targetLanguage || "es"),
           timestamp: now,
           actionType: isAudioOrVideo ? "listen" : (actionType === "complete" ? "read" : actionType),
           status: actionType === "complete" ? "completed" : "in_progress",
           durationSeconds: durationSeconds || 0,
-          channelName: targetLesson.channelName || null,
+          lastPosition: lastPosition !== undefined ? lastPosition : undefined,
+          audioUrl: targetLesson.audioUrl || null,
+          podcastTitle: (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
+          guid: (targetLesson as any).guid || targetLesson.id,
+          channelName: targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
           channelAvatarUrl: targetLesson.channelAvatarUrl || null,
         };
+
         updated = [newEntry, ...prev];
       }
       const sliced = dedupeHistory(updated).slice(0, 500);
       safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(sliced));
       settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(sliced)).catch(() => {});
-      syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, sliced).catch(() => {});
+      scheduleBackgroundHistorySync(sliced);
       return sliced;
     });
   };
@@ -434,110 +596,128 @@ export default function App() {
   const activeLessonIdRef = useRef(activeLessonId);
   activeLessonIdRef.current = activeLessonId;
 
-  // Browser History & Back Button (popstate) Integration
+  // Browser History & Route State Tracking
   const isPopStateRef = useRef(false);
   const isInitialMount = useRef(true);
+  const isPlayerExpanded = usePlaylistStore((state) => state.isExpanded);
+  const isQueueModalOpen = usePlaylistStore((state) => state.showQueueModal);
 
-  // Initialize history state on mount
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.history.state) {
-      window.history.replaceState({ tab: activeTab, lessonId: activeLessonId }, "");
+  // Count active modal/overlay layers for browser history stack depth
+  const activeOverlayCount = [
+    showProfileModal,
+    showLocalLoginModal,
+    showUpdateModal,
+    !!selectedWord,
+    showAiHubModal,
+    showSettingsModal,
+    showImportForm,
+    showMatchPairsModal,
+    isManageLanguagesOpen,
+    isQueueModalOpen,
+    isSidebarOpen,
+    isPlayerExpanded,
+    !!selectedPlaylistId,
+  ].filter(Boolean).length;
+
+  const prevOverlayCountRef = useRef(activeOverlayCount);
+
+  // Helper to build distinct hash URLs for Android browser history navigation
+  const buildHashUrl = useCallback((tab: string, lessonId?: string, focus?: boolean, overlayCount?: number) => {
+    const baseTab = tab || "library";
+    let url = `#/${baseTab}`;
+    const params = new URLSearchParams();
+    if (baseTab === "read" && lessonId) {
+      params.set("lesson", lessonId);
+      if (focus) params.set("focus", "1");
     }
+    if (overlayCount && overlayCount > 0) {
+      params.set("layer", String(overlayCount));
+    }
+    const query = params.toString();
+    return query ? `${url}?${query}` : url;
   }, []);
 
-  // Push history state whenever activeTab, activeLessonId, or modals change (unless triggered by popstate)
+  // Initialize history state on mount and add custom event listener for forceful history flushes
+  useEffect(() => {
+    const handleForceFlush = (e: CustomEvent) => {
+      const exactTime = e.detail?.exactTime;
+      if (typeof exactTime === 'number') {
+        handleListeningTick(0, "global", true, exactTime);
+      }
+    };
+    window.addEventListener("force-history-flush", handleForceFlush as EventListener);
+
+    if (typeof window === "undefined") return;
+    const initialUrl = buildHashUrl(activeTab, activeLessonId, isFocusMode, activeOverlayCount);
+    if (!window.history.state) {
+      window.history.replaceState(
+        { tab: activeTab, lessonId: activeLessonId, focusMode: isFocusMode, overlayCount: activeOverlayCount },
+        "",
+        initialUrl
+      );
+    }
+
+    return () => {
+      window.removeEventListener("force-history-flush", handleForceFlush as EventListener);
+    };
+  }, []);
+
+  // Push history state whenever a new layer opens or active route changes
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isInitialMount.current) {
       isInitialMount.current = false;
+      prevOverlayCountRef.current = activeOverlayCount;
       return;
     }
     if (isPopStateRef.current) {
       isPopStateRef.current = false;
+      prevOverlayCountRef.current = activeOverlayCount;
       return;
     }
 
-    const currentState = window.history.state;
+    const currentHistoryState = window.history.state;
     const isSame =
-      currentState?.tab === activeTab &&
-      currentState?.lessonId === activeLessonId &&
-      currentState?.settings === showSettingsModal &&
-      currentState?.importForm === showImportForm &&
-      currentState?.matchPairs === showMatchPairsModal &&
-      currentState?.focusMode === isFocusMode;
+      currentHistoryState?.tab === activeTab &&
+      currentHistoryState?.lessonId === activeLessonId &&
+      currentHistoryState?.focusMode === isFocusMode &&
+      currentHistoryState?.overlayCount === activeOverlayCount;
 
     if (!isSame) {
-      window.history.pushState(
-        {
-          tab: activeTab,
-          lessonId: activeLessonId,
-          settings: showSettingsModal,
-          importForm: showImportForm,
-          matchPairs: showMatchPairsModal,
-          focusMode: isFocusMode,
-        },
-        ""
-      );
-    }
-  }, [activeTab, activeLessonId, showSettingsModal, showImportForm, showMatchPairsModal, isFocusMode]);
-
-  // Handle browser Back / Forward buttons (popstate)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const handlePopState = (e: PopStateEvent) => {
-      isPopStateRef.current = true;
-      const state = e.state;
-
-      // Close any open modals first if they were open in current UI
-      if (showSettingsModal && !state?.settings) {
-        setShowSettingsModal(false);
-        return;
-      }
-      if (showImportForm && !state?.importForm) {
-        setShowImportForm(false);
-        return;
-      }
-      if (showMatchPairsModal && !state?.matchPairs) {
-        setShowMatchPairsModal(false);
-        return;
-      }
-      if (isFocusMode && !state?.focusMode) {
-        setIsFocusMode(false);
-        return;
-      }
-      if (selectedWord) {
-        setSelectedWord(null);
-      }
-
-      // Handle tab & lesson navigation
-      if (state && state.tab) {
-        setActiveTab(state.tab);
-        if (state.lessonId) {
-          setActiveLessonId(state.lessonId);
-        }
+      const targetUrl = buildHashUrl(activeTab, activeLessonId, isFocusMode, activeOverlayCount);
+      // If a new overlay was opened, or route changed, push state
+      if (
+        activeOverlayCount > (prevOverlayCountRef.current || 0) ||
+        currentHistoryState?.tab !== activeTab ||
+        currentHistoryState?.lessonId !== activeLessonId ||
+        currentHistoryState?.focusMode !== isFocusMode
+      ) {
+        window.history.pushState(
+          {
+            tab: activeTab,
+            lessonId: activeLessonId,
+            focusMode: isFocusMode,
+            overlayCount: activeOverlayCount,
+          },
+          "",
+          targetUrl
+        );
       } else {
-        // Fallback to library if no state or navigated to root
-        setActiveTab("library");
+        // If an overlay was closed manually (via X/backdrop), update history with replaceState cleanly
+        window.history.replaceState(
+          {
+            tab: activeTab,
+            lessonId: activeLessonId,
+            focusMode: isFocusMode,
+            overlayCount: activeOverlayCount,
+          },
+          "",
+          targetUrl
+        );
       }
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [
-    showSettingsModal,
-    showImportForm,
-    showMatchPairsModal,
-    isFocusMode,
-    selectedWord,
-    setActiveTab,
-    setShowSettingsModal,
-    setShowImportForm,
-    setShowMatchPairsModal,
-    setIsFocusMode,
-    setSelectedWord,
-  ]);
+      prevOverlayCountRef.current = activeOverlayCount;
+    }
+  }, [activeTab, activeLessonId, isFocusMode, activeOverlayCount, buildHashUrl]);
 
   const [showIosInstallBanner, setShowIosInstallBanner] = useState<boolean>(false);
   const [languageFlags, setLanguageFlags] = useState<Record<string, string>>(() => {
@@ -556,6 +736,10 @@ export default function App() {
       return {};
     }
   });
+  const languageFlagsRef = useRef<Record<string, string>>(languageFlags);
+  useEffect(() => {
+    languageFlagsRef.current = languageFlags;
+  }, [languageFlags]);
 
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
     const defaults: ReaderSettings = {
@@ -577,11 +761,13 @@ export default function App() {
       mainStatsMetric: "comprehension",
       showProgressBar: true,
       dimBookCovers: false,
+      cardTitlePosition: "below_cover",
       onlyPatterns: true,
       vocabularyCountingMode: "parents_only",
       dateFormat: "auto",
       timeFormat: "auto",
       firstDayOfWeek: "auto",
+      defaultVideoViewMode: "focus",
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");
@@ -598,6 +784,10 @@ export default function App() {
     }
     return defaults;
   });
+  const readerSettingsRef = useRef<ReaderSettings>(readerSettings);
+  useEffect(() => {
+    readerSettingsRef.current = readerSettings;
+  }, [readerSettings]);
 
   const updateSettingsAndSync = (newSettingsOrFn: React.SetStateAction<ReaderSettings>) => {
     setReaderSettings((prev) => {
@@ -634,7 +824,6 @@ export default function App() {
   });
 
   // Auth & Sync States
-  const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncProgress, setSyncProgress] = useState<{
     isSyncing: boolean;
@@ -652,91 +841,207 @@ export default function App() {
 
   // In-App Auto Updater State
   const [availableUpdate, setAvailableUpdate] = useState<GitHubReleaseInfo | null>(null);
-  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
-  // Native Android Back Button & Edge Swipe Gesture Handling
+  // 🧭 Centralized Single-Action Back Navigation Dispatcher (Popstate & Capacitor BackButton)
+  const handleBackNavigation = useCallback((): boolean => {
+    // [Priority 1: Ephemeral Modals & Sheets]
+    if (showProfileModal) {
+      setShowProfileModal(false);
+      return true;
+    }
+    if (showLocalLoginModal) {
+      setShowLocalLoginModal(false);
+      return true;
+    }
+    if (showUpdateModal) {
+      setShowUpdateModal(false);
+      return true;
+    }
+    if (selectedWord) {
+      setSelectedWord(null);
+      return true;
+    }
+    if (showAiHubModal) {
+      setShowAiHubModal(false);
+      return true;
+    }
+    if (showSettingsModal) {
+      setShowSettingsModal(false);
+      return true;
+    }
+    if (showImportForm) {
+      setShowImportForm(false);
+      return true;
+    }
+    if (showMatchPairsModal) {
+      setShowMatchPairsModal(false);
+      return true;
+    }
+    if (isManageLanguagesOpen) {
+      setIsManageLanguagesOpen(false);
+      return true;
+    }
+    const playlistState = usePlaylistStore.getState();
+    if (playlistState.showQueueModal) {
+      playlistState.setShowQueueModal(false);
+      return true;
+    }
+    if (isSidebarOpen) {
+      setIsSidebarOpen(false);
+      return true;
+    }
+
+    // [Priority 2: Fullscreen Overlays]
+    if (playlistState.isExpanded) {
+      playlistState.setIsExpanded(false);
+      return true;
+    }
+    if (isFocusMode) {
+      setIsFocusMode(false);
+      return true;
+    }
+
+    // [Priority 3: Sub-views & Route Navigation]
+    if (selectedPlaylistId) {
+      setSelectedPlaylistId(null);
+      return true;
+    }
+    if (activeTab === "read") {
+      setActiveTab("library");
+      setSelectedWord(null);
+      return true;
+    }
+    if (activeTab !== "library") {
+      setActiveTab("library");
+      return true;
+    }
+
+    // [Priority 4: Root Level]
+    return false;
+  }, [
+    showProfileModal,
+    showLocalLoginModal,
+    showUpdateModal,
+    selectedWord,
+    showAiHubModal,
+    showSettingsModal,
+    showImportForm,
+    showMatchPairsModal,
+    isManageLanguagesOpen,
+    isSidebarOpen,
+    isFocusMode,
+    selectedPlaylistId,
+    activeTab,
+    setActiveTab,
+    setShowProfileModal,
+    setShowLocalLoginModal,
+    setShowUpdateModal,
+    setSelectedWord,
+    setShowAiHubModal,
+    setShowSettingsModal,
+    setShowImportForm,
+    setShowMatchPairsModal,
+    setIsManageLanguagesOpen,
+    setIsSidebarOpen,
+    setIsFocusMode,
+    setSelectedPlaylistId,
+  ]);
+
+  // Handle browser Back / Forward buttons and Android back swipe gesture (popstate)
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (typeof window === "undefined") return;
+
+    const onPopState = () => {
+      isPopStateRef.current = true;
+      handleBackNavigation();
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [handleBackNavigation]);
+
+  // Prevent YouTube/media iframe focus hijacking and support edge swipe back gestures
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let isEdgeSwipe = false;
+    let lastTriggerTime = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      touchStartTime = Date.now();
+
+      // Check if touch started near the screen edge (within 40px)
+      const isLeftEdge = touchStartX <= 40;
+      const isRightEdge = touchStartX >= window.innerWidth - 40;
+      isEdgeSwipe = isLeftEdge || isRightEdge;
+
+      // If touch started near edge and an iframe has focus, immediately blur it so window captures gestures
+      if (isEdgeSwipe && document.activeElement && document.activeElement.tagName === "IFRAME") {
+        (document.activeElement as HTMLElement).blur();
+        window.focus();
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!isEdgeSwipe || e.changedTouches.length !== 1) return;
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+      const elapsedTime = Date.now() - touchStartTime;
+
+      const isLeftSwipeInward = touchStartX <= 40 && deltaX > 45;
+      const isRightSwipeInward = touchStartX >= window.innerWidth - 40 && deltaX < -45;
+
+      // Verify horizontal gesture characteristics
+      if ((isLeftSwipeInward || isRightSwipeInward) && Math.abs(deltaX) > Math.abs(deltaY) * 1.4 && elapsedTime < 650) {
+        const now = Date.now();
+        if (now - lastTriggerTime > 400) {
+          lastTriggerTime = now;
+          if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+            (document.activeElement as HTMLElement).blur();
+            window.focus();
+          }
+          isPopStateRef.current = true;
+          handleBackNavigation();
+        }
+      }
+      isEdgeSwipe = false;
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+    window.addEventListener("touchend", onTouchEnd, { capture: true, passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart, { capture: true } as any);
+      window.removeEventListener("touchend", onTouchEnd, { capture: true } as any);
+    };
+  }, [handleBackNavigation]);
+
+  // Handle native Capacitor Android hardware back button
+  useEffect(() => {
+    if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
 
     let cleanupFn: (() => void) | null = null;
     CapApp.addListener("backButton", () => {
-      // 1. Close active modals if open
-      if (showProfileModal) {
-        setShowProfileModal(false);
-        return;
+      const handled = handleBackNavigation();
+      if (!handled) {
+        CapApp.exitApp();
       }
-      if (showLocalLoginModal) {
-        setShowLocalLoginModal(false);
-        return;
-      }
-      if (showUpdateModal) {
-        setShowUpdateModal(false);
-        return;
-      }
-      if (showSettingsModal) {
-        setShowSettingsModal(false);
-        return;
-      }
-      if (showMatchPairsModal) {
-        setShowMatchPairsModal(false);
-        return;
-      }
-      if (isManageLanguagesOpen) {
-        setIsManageLanguagesOpen(false);
-        return;
-      }
-
-      // 2. Clear selected word if explainer panel is open
-      if (selectedWord) {
-        setSelectedWord(null);
-        return;
-      }
-
-      // 3. Close sidebar drawer if open
-      if (isSidebarOpen) {
-        setIsSidebarOpen(false);
-        return;
-      }
-
-      // 4. Close Playlist detail view if open
-      if (selectedPlaylistId) {
-        setSelectedPlaylistId(null);
-        return;
-      }
-
-      // 4. Close import book form if open
-      if (showImportForm) {
-        setShowImportForm(false);
-        return;
-      }
-
-      // 5. Navigate back to Library if currently in Reader / Practice / Stats / History
-      if (activeTab !== "library") {
-        setActiveTab("library");
-        return;
-      }
-
-      // 6. If already at the root Library screen, exit app
-      CapApp.exitApp();
     }).then((handle) => {
       cleanupFn = () => handle.remove();
-    });
+    }).catch(() => {});
 
     return () => {
       if (cleanupFn) cleanupFn();
     };
-  }, [
-    activeTab,
-    showProfileModal,
-    showLocalLoginModal,
-    showUpdateModal,
-    showSettingsModal,
-    showMatchPairsModal,
-    isManageLanguagesOpen,
-    selectedWord,
-    isSidebarOpen,
-    showImportForm,
-  ]);
+  }, [handleBackNavigation]);
 
   useEffect(() => {
     // Automatic background update check on app launch
@@ -871,7 +1176,6 @@ export default function App() {
   }, [isAuthLoading, activeUser]);
 
   useEffect(() => {
-    let timer: any = null;
     const handleProgressSave = (e: any) => {
       if (e && e.detail && e.detail.lessonId && e.detail.videoProgress !== undefined) {
         if (e.detail.videoProgress === "0") {
@@ -880,17 +1184,12 @@ export default function App() {
           safeLocalStorageSetItem(`youtube_progress_${e.detail.lessonId}`, String(e.detail.videoProgress));
         }
       }
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        syncDataToLocalServer(lessonsRef.current).catch(() => {});
-      }, 500);
     };
     window.addEventListener("lectura:save_progress", handleProgressSave);
     return () => {
       window.removeEventListener("lectura:save_progress", handleProgressSave);
-      if (timer) clearTimeout(timer);
     };
-  }, [storageMode, isAuthLoading, localSyncError]);
+  }, []);
 
   // Periodic background check for new server version to auto-reload browser tab seamlessly (Web PWA only)
   useEffect(() => {
@@ -1136,21 +1435,48 @@ export default function App() {
           }
 
           if (d.history && Array.isArray(d.history)) {
+            // Placeholder values from old broken server writes that should be overridden by local data
+            const GARBAGE_TITLES = new Set(['test', 'Занятие', 'imported_record', '']);
             const mergedWithLocal = d.history.map((incomingItem: HistoryEntry) => {
               const localMatch = historyRef.current.find(h => h.id === incomingItem.id);
               if (localMatch) {
+                // Prefer local lessonTitle/targetLanguage when server has garbage/placeholder values
+                const serverTitleIsGarbage = !incomingItem.lessonTitle || GARBAGE_TITLES.has(incomingItem.lessonTitle.trim().toLowerCase());
+                const serverLangIsGarbage = !incomingItem.targetLanguage || incomingItem.targetLanguage === 'english' || incomingItem.targetLanguage === 'English';
                 return {
                   ...incomingItem,
+                  lessonTitle: serverTitleIsGarbage && localMatch.lessonTitle ? localMatch.lessonTitle : (incomingItem.lessonTitle || localMatch.lessonTitle),
+                  targetLanguage: serverLangIsGarbage && localMatch.targetLanguage && localMatch.targetLanguage !== 'english' ? localMatch.targetLanguage : (incomingItem.targetLanguage || localMatch.targetLanguage),
+                  lessonType: incomingItem.lessonType || localMatch.lessonType,
+                  coverUrl: incomingItem.coverUrl || localMatch.coverUrl || null,
                   channelName: incomingItem.channelName || localMatch.channelName || null,
                   channelAvatarUrl: incomingItem.channelAvatarUrl || localMatch.channelAvatarUrl || null,
                   channelUrl: incomingItem.channelUrl || localMatch.channelUrl || undefined,
                   notes: incomingItem.notes || localMatch.notes,
                   tags: incomingItem.tags && incomingItem.tags.length > 0 ? incomingItem.tags : localMatch.tags,
+                  // Preserve streaming-only fields from local if not in server
+                  audioUrl: (incomingItem as any).audioUrl || (localMatch as any).audioUrl || null,
+                  podcastTitle: (incomingItem as any).podcastTitle || (localMatch as any).podcastTitle || null,
+                  guid: (incomingItem as any).guid || (localMatch as any).guid || null,
+                  lastPosition: (incomingItem as any).lastPosition ?? (localMatch as any).lastPosition,
                 };
               }
               return incomingItem;
             });
-            const cleanHistory = dedupeHistory(mergedWithLocal);
+            // Filter out pure garbage entries and anything pending deletion
+            const filteredHistory = mergedWithLocal.filter((item: HistoryEntry) => {
+              if (pendingDeletedHistoryIdsRef.current.has(item.id)) {
+                return false;
+              }
+              if ((item.durationSeconds || 0) <= 0) {
+                return false;
+              }
+              if (item.lessonId === 'imported_record' && GARBAGE_TITLES.has((item.lessonTitle || '').trim().toLowerCase())) {
+                return false;
+              }
+              return true;
+            });
+            const cleanHistory = dedupeHistory(filteredHistory);
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
@@ -1164,7 +1490,6 @@ export default function App() {
           safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizedCloudWordLinks));
           if (d.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", d.listeningSeconds.toString());
           if (d.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(d.languageFlags));
-          if (d.history) safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(d.history));
 
           if (d.videoProgress && typeof d.videoProgress === "object") {
             for (const [lessonId, val] of Object.entries(d.videoProgress)) {
@@ -1287,17 +1612,17 @@ export default function App() {
 
   const syncDataToLocalServer = async (
     currentLessons = lessonsRef.current,
-    currentTypes = lessonTypes,
+    currentTypes = lessonTypesRef.current,
     currentVocab = vocabRef.current,
     currentLinks = wordLinksRef.current,
-    currentListening = listeningSeconds,
-    currentFlags = languageFlags,
+    currentListening = listeningSecondsRef.current,
+    currentFlags = languageFlagsRef.current,
     currentHistory = historyRef.current,
     deletedLessonIds?: string[],
-    currentSettings = readerSettings,
-    currentPinned = pinnedLanguages,
-    currentHidden = hiddenLanguages,
-    currentSelectedLang = selectedTargetLanguage,
+    currentSettings = readerSettingsRef.current,
+    currentPinned = pinnedLanguagesRef.current,
+    currentHidden = hiddenLanguagesRef.current,
+    currentSelectedLang = selectedTargetLanguageRef.current,
     deletedWordKeys?: string[],
     currentPlaylists = playlistsRef.current,
     deletedPlaylistIds?: string[],
@@ -1355,6 +1680,27 @@ export default function App() {
       const dailyWordGoal = rawGoal ? parseInt(rawGoal, 10) : undefined;
       const lastActiveLessonId = localStorage.getItem("vocab_clone_last_active_lesson_id") || undefined;
 
+      const finalDeletedHistoryIds = deletedHistoryIds ? [...deletedHistoryIds] : [];
+      if (pendingDeletedHistoryIdsRef.current.size > 0) {
+        pendingDeletedHistoryIdsRef.current.forEach(id => {
+          if (!finalDeletedHistoryIds.includes(id)) {
+            finalDeletedHistoryIds.push(id);
+          }
+        });
+      }
+
+      if (finalDeletedHistoryIds.length > 0) {
+        console.log('[Sync Delete Request]', { deletedHistoryIds: finalDeletedHistoryIds });
+      }
+
+      const safeHistory = (currentHistory || []).filter(h => {
+        if (!h || !h.id) return false;
+        if (pendingDeletedHistoryIdsRef.current.has(h.id)) return false;
+        if (finalDeletedHistoryIds.includes(h.id)) return false;
+        if ((h.durationSeconds || 0) <= 0) return false;
+        return true;
+      });
+
       const res = await fetch(resolveApiUrl("/api/server-db"), {
         method: "POST",
         headers: postHeaders,
@@ -1367,7 +1713,7 @@ export default function App() {
             wordLinks: currentLinks,
             listeningSeconds: currentListening,
             languageFlags: currentFlags,
-            history: currentHistory,
+            history: safeHistory,
             readerSettings: currentSettings,
             pinnedLanguages: currentPinned,
             hiddenLanguages: currentHidden,
@@ -1381,10 +1727,14 @@ export default function App() {
             deletedLessonIds,
             deletedPlaylistIds,
             deletedWordKeys,
-            deletedHistoryIds,
+            deletedHistoryIds: finalDeletedHistoryIds,
           },
         }),
       });
+      
+      if (finalDeletedHistoryIds.length > 0) {
+        console.log('[Sync Server Response]', res.status);
+      }
       if (res.status === 401 || res.status === 403) {
         setLocalSyncError(true);
         setSyncProgress(prev => ({
@@ -1397,6 +1747,9 @@ export default function App() {
         return;
       }
       if (res.ok) {
+        // Clear successfully synced deletions
+        finalDeletedHistoryIds.forEach(id => pendingDeletedHistoryIdsRef.current.delete(id));
+
         lastLocalChangeTime.current = Date.now();
         lastSyncSuccessTime.current = Date.now();
         setSyncProgress(prev => ({
@@ -1443,17 +1796,36 @@ export default function App() {
     }
   }, [storageMode, activeUser]);
 
-  // Debounced Auto-save to Local Dev Server whenever major modules change
+  // Debounced Auto-save to Local Dev Server for language settings changes
   useEffect(() => {
     if (storageMode !== "server") return;
     if (!serverInitialLoadComplete.current) return;
 
-    const delayDebounceFn = setTimeout(() => {
-      syncDataToLocalServer(lessonsRef.current, lessonTypes, vocabRef.current, wordLinksRef.current);
-    }, 1200);
+    if (delayDebounceFnRef.current) clearTimeout(delayDebounceFnRef.current);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [lessons, lessonTypes, vocab, listeningSeconds, wordLinks, languageFlags, history, storageMode, localSyncKey, localSyncError, selectedTargetLanguage]);
+    delayDebounceFnRef.current = setTimeout(() => {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypesRef.current,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSecondsRef.current,
+        languageFlagsRef.current,
+        historyRef.current,
+        undefined,
+        readerSettingsRef.current,
+        pinnedLanguagesRef.current,
+        hiddenLanguagesRef.current,
+        selectedTargetLanguageRef.current,
+        undefined,
+        playlistsRef.current
+      );
+    }, 10000); // Strict 10s debounce
+
+    return () => {
+      if (delayDebounceFnRef.current) clearTimeout(delayDebounceFnRef.current);
+    };
+  }, [storageMode, localSyncKey, localSyncError, selectedTargetLanguage]);
 
   // Listen to immediate vocab updates from VocabContext / components
   useEffect(() => {
@@ -1462,14 +1834,14 @@ export default function App() {
       const updatedVocab = e.detail || vocabRef.current;
       vocabRef.current = updatedVocab;
       if (storageMode === "server") {
-        syncDataToLocalServer(lessonsRef.current, lessonTypes, updatedVocab, wordLinksRef.current).catch((err) =>
+        syncDataToLocalServer(lessonsRef.current, lessonTypesRef.current, updatedVocab, wordLinksRef.current).catch((err) =>
           console.error("Failed to sync vocab update with server:", err)
         );
       }
     };
     window.addEventListener("lectura:vocab_updated", handleVocabUpdated);
     return () => window.removeEventListener("lectura:vocab_updated", handleVocabUpdated);
-  }, [storageMode, lessonTypes]);
+  }, [storageMode]);
 
   // Dynamic automatic syncing of tablet/PC changes over local network (polls on window focus and every 10s when visible)
   // Note: We do NOT call loadDataFromLocalServer() on mount here — onAuthStateChanged already does the initial load.
@@ -1541,10 +1913,7 @@ export default function App() {
     useSettingsStore.getState().setSettings(readerSettings);
     safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
     settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
-    if (storageMode === "server") {
-      syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettings).catch(() => {});
-    }
-  }, [readerSettings, storageMode]);
+  }, [readerSettings]);
 
   useEffect(() => {
     settingsStore.setItem("vocab_clone_language_flags", JSON.stringify(languageFlags));
@@ -1560,7 +1929,7 @@ export default function App() {
 
   // Derive current active objects
   const activeLesson = useMemo(() => {
-    return lessons.find((l) => l.id === activeLessonId) || lessons[0];
+    return activeLessonId ? (lessons.find((l) => l.id === activeLessonId) || null) : null;
   }, [lessons, activeLessonId]);
 
   const { setActiveLesson } = useLesson();
@@ -1669,7 +2038,7 @@ export default function App() {
 
   // Dynamic statistics computing
   const calculatedStats = useMemo<AppStats>(() => {
-    const onlyParents = !!readerSettings?.onlyPatterns;
+    const onlyParents = readerSettings?.onlyPatterns !== false;
 
     let known = 0;
     let learning = 0;
@@ -2338,7 +2707,7 @@ export default function App() {
     }
     // Immediately sync to local server so the polling interval doesn't restore the deleted lesson
     if (storageMode === "server") {
-      syncDataToLocalServer(remaining, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, history, [idToDelete]).catch((err) => console.error(err));
+      syncDataToLocalServer(remaining, lessonTypesRef.current, vocabRef.current, wordLinksRef.current, listeningSecondsRef.current, languageFlagsRef.current, historyRef.current, [idToDelete]).catch((err) => console.error(err));
     }
   };
 
@@ -2543,20 +2912,73 @@ export default function App() {
     });
   };
 
-  const handleListeningTick = (seconds: number) => {
-    setListeningSeconds((prev) => {
-      const nextVal = Math.round((prev + seconds) * 10) / 10;
-      safeLocalStorageSetItem("vocab_clone_listening", nextVal.toString());
-      settingsStore.setItem("vocab_clone_listening", nextVal.toString());
-      return nextVal;
-    });
+  const handleListeningTick = (
+    seconds: number,
+    sourceOrForceFlush: "global" | "local" | boolean = "local",
+    forceFlushOrExactTime: boolean | number = false,
+    exactTime?: number
+  ) => {
+    const source = typeof sourceOrForceFlush === "string" ? sourceOrForceFlush : "local";
+    const forceFlush = typeof sourceOrForceFlush === "boolean" ? sourceOrForceFlush : Boolean(forceFlushOrExactTime);
+    const resolvedExactTime = typeof sourceOrForceFlush === "boolean" && typeof forceFlushOrExactTime === "number"
+      ? forceFlushOrExactTime
+      : exactTime;
+    
+    const currentPos = resolvedExactTime !== undefined ? resolvedExactTime : getActiveMediaCurrentTime();
 
-    if (activeLesson) {
+    if (seconds > 0) {
+      setListeningSeconds((prev) => {
+        const nextVal = Math.round((prev + seconds) * 10) / 10;
+        safeLocalStorageSetItem("vocab_clone_listening", nextVal.toString());
+        settingsStore.setItem("vocab_clone_listening", nextVal.toString());
+        return nextVal;
+      });
+    }
+
+    const { queue, currentIndex } = usePlaylistStore.getState();
+    const currentTrack = queue[currentIndex];
+
+    // Priority: If the tick came from the global player, log it against currentTrack.
+    // Otherwise, log it against activeLesson.
+    let itemToLog: any = null;
+    let logSource = "";
+    
+    if (source === "global" && currentTrack) {
+      itemToLog = currentTrack;
+      logSource = "currentTrack";
+    } else if (activeLesson) {
+      itemToLog = activeLesson;
+      logSource = "activeLesson";
+    } else if (currentTrack) {
+      itemToLog = currentTrack;
+      logSource = "currentTrack-fallback";
+    }
+
+    if (itemToLog) {
       listeningBufferRef.current += seconds;
-      if (listeningBufferRef.current >= 5) {
-        const flushSec = Math.round(listeningBufferRef.current);
+      if (listeningBufferRef.current >= 5 || forceFlush) {
+        const accumulatedDelta = listeningBufferRef.current;
         listeningBufferRef.current = 0;
-        recordHistoryActivity(activeLesson, "listen", flushSec);
+        const pos = currentPos;
+        
+        if (logSource.includes("currentTrack")) {
+          const entryPayload = {
+            id: itemToLog.guid || itemToLog.id,
+            title: itemToLog.title,
+            lessonType: itemToLog.lessonType || "podcast",
+            coverUrl: itemToLog.coverUrl || null,
+            targetLanguage: normalizeLanguage(itemToLog.targetLanguage || "es"),
+            audioUrl: itemToLog.audioUrl,
+            podcastTitle: itemToLog.podcastTitle || itemToLog.bookTitle || itemToLog.channelName || "Podcast",
+            channelName: itemToLog.channelName || itemToLog.podcastTitle || itemToLog.bookTitle || null,
+            guid: itemToLog.guid || itemToLog.id,
+            lastPosition: pos, // Entry payload holds lastPosition for resume
+          };
+          // Explicitly pass accumulatedDelta as time spent, and pos as last position
+          recordHistoryActivity(entryPayload, "listen", accumulatedDelta, pos);
+        } else {
+          recordHistoryActivity(itemToLog, "listen", accumulatedDelta, pos);
+        }
       }
     }
   };
@@ -2567,21 +2989,15 @@ export default function App() {
     recordHistoryActivity(targetLesson, "complete");
   };
 
+  // Clean up listening buffer on unmount
   useEffect(() => {
-    if (activeLesson && activeTab === "read") {
-      const prog = localStorage.getItem(`vocab_progress_${activeLesson.id}`);
-      const isCompleted = prog ? parseFloat(prog) >= 100 : false;
-      const isAudioOrVideo = !!(
-        activeLesson.youtubeId ||
-        activeLesson.audioUrl ||
-        activeLesson.audioBase64 ||
-        activeLesson.lessonType === "podcast" ||
-        activeLesson.lessonType === "youtube" ||
-        activeLesson.lessonType === "audio"
-      );
-      recordHistoryActivity(activeLesson, isCompleted ? "complete" : (isAudioOrVideo ? "listen" : "read"));
-    }
-  }, [activeLesson?.id, activeTab]);
+    return () => {
+      // Immediate Flush on Component Unmount: so no timers linger in the background
+      if (listeningBufferRef.current > 0) {
+        handleListeningTick(0, "local", true);
+      }
+    };
+  }, []);
 
   const layoutContainerClass =
     layoutWidthMode === "standard"
@@ -2613,55 +3029,93 @@ export default function App() {
               lesson={activeLesson}
               onClose={() => setShowYoutubePlayer(false)}
               onExitFocus={handleExitFocusMode}
+              onBackToLibrary={() => {
+                setIsFocusMode(false);
+                setActiveTab("library");
+                setSelectedWord(null);
+              }}
               onListeningTick={handleListeningTick}
               onVideoEnded={() => handleMediaEnded(activeLesson)}
             />
           </div>
         )}
 
-        {/* ── Minimal bar: always shown on desktop, or on mobile when player is hidden ── */}
+        {/* ── Minimal bar & Audio Player: solid fixed header zone ── */}
         {!(hasYouTube && showYoutubePlayer && isMobileTablet) && (
           <div
-            className={`shrink-0 w-full z-20 px-4 sm:px-6 py-2.5 border-b ${focusTheme.border} ${focusTheme.headerBg} backdrop-blur-md flex items-center gap-2`}
+            className={`shrink-0 w-full z-30 px-4 md:px-6 py-2 border-b ${focusTheme.border} ${focusTheme.headerBg} backdrop-blur-md space-y-2`}
           >
-            <button
-              id="focus-exit-btn"
-              onClick={handleExitFocusMode}
-              className={`flex items-center gap-1.5 px-3 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90 font-bold text-xs rounded-xl transition-all active:scale-97 cursor-pointer shadow-xs`}
-            >
-              ← {t("app.focus_exit", "Выйти из фокуса")}
-            </button>
+            <div className="flex items-center justify-between w-full max-w-3xl mx-auto">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsFocusMode(false);
+                    setActiveTab("library");
+                    setSelectedWord(null);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90 font-bold text-xs rounded-xl transition-all active:scale-97 cursor-pointer shadow-xs`}
+                  title={t("reader.library_btn", "Библиотека")}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>{t("reader.library_btn", "Библиотека")}</span>
+                </button>
 
-            {hasYouTube && (
-              <button
-                onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl font-bold text-xs transition-all active:scale-97 cursor-pointer shadow-xs ${
-                  showYoutubePlayer && !isMobileTablet
-                    ? `bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50`
-                    : `${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90`
-                }`}
-              >
-                <Tv className="w-3.5 h-3.5" />
-                {t("app.video_btn", "Видео")}
-              </button>
+                <button
+                  id="focus-exit-btn"
+                  onClick={handleExitFocusMode}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 border ${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90 font-bold text-xs rounded-xl transition-all active:scale-97 cursor-pointer shadow-xs`}
+                >
+                  <span>{t("app.focus_exit", "Выйти из фокуса")}</span>
+                </button>
+              </div>
+
+              {hasYouTube && (
+                <button
+                  onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl font-bold text-xs transition-all active:scale-97 cursor-pointer shadow-xs ${
+                    showYoutubePlayer && !isMobileTablet
+                      ? `bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50`
+                      : `${focusTheme.border} ${focusTheme.cardBg} hover:opacity-90`
+                  }`}
+                >
+                  <Tv className="w-3.5 h-3.5" />
+                  {t("app.video_btn", "Видео")}
+                </button>
+              )}
+            </div>
+
+            {/* Embedded Audio Player in solid top bar */}
+            {(activeLesson.audioUrl || activeLesson.audioBase64) && (
+              <div className="w-full max-w-3xl mx-auto">
+                <AudioPlayerBar
+                  onAudioUpload={handleAudioUploaded}
+                  onListeningTick={handleListeningTick}
+                  onAudioEnded={() => handleMediaEnded(activeLesson)}
+                  readerTheme={readerSettings.readerTheme}
+                  showSentenceTranslations={readerSettings.showSentenceTranslations}
+                  onToggleSentenceTranslations={() =>
+                    setReaderSettings((prev) => ({
+                      ...prev,
+                      showSentenceTranslations: !prev.showSentenceTranslations,
+                    }))
+                  }
+                  isFocusMode={isFocusMode}
+                  onToggleFocusMode={handleExitFocusMode}
+                  onOpenMatchPairs={() => setShowMatchPairsModal(true)}
+                  showOnlyUnknown={showOnlyUnknown}
+                  onToggleShowOnlyUnknown={() => setShowOnlyUnknown(!showOnlyUnknown)}
+                />
+              </div>
             )}
           </div>
         )}
 
         {/* ── Focused main container (Subtitles & text isolated scroll) ─── */}
         <main
-          className={`flex-1 overflow-y-auto overscroll-contain w-full mx-auto p-4 sm:p-6 lg:px-8 grid grid-cols-12 gap-6 items-start transition-all duration-300 ${layoutContainerClass}`}
+          className={`flex-1 overflow-y-auto overscroll-contain w-full mx-auto px-4 md:px-6 py-3 sm:py-5 max-w-3xl transition-all duration-300`}
         >
-          {/* Middle — Reader + optional Audio player */}
-          <div className="col-span-12 md:col-span-8 lg:col-span-8 space-y-4">
-            {(activeLesson.audioUrl || activeLesson.audioBase64) && (
-              <AudioPlayerBar
-                onAudioUpload={handleAudioUploaded}
-                onListeningTick={handleListeningTick}
-                onAudioEnded={() => handleMediaEnded(activeLesson)}
-              />
-            )}
-
+          {/* Middle — Reader view */}
+          <div className="w-full max-w-3xl mx-auto space-y-2.5 sm:space-y-4">
             <ReaderView
               key={activeLesson.id}
               lessonImagesMap={activeLessonImagesMap}
@@ -2671,31 +3125,6 @@ export default function App() {
               history={history}
               onUpdateHistory={handleUpdateHistory}
               hideMeta={true}
-            />
-          </div>
-
-          {/* Right Sidebar — Word dictionary (desktop) */}
-          <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-2 max-h-[calc(100vh-80px)] overflow-y-auto pr-1 z-25">
-            <WordExplainer
-              word={selectedWord}
-              sentence={selectedContext}
-              targetLanguage={activeLesson.targetLanguage}
-              translationLanguage={activeLesson.translationLanguage}
-              existingVocab={activeVocabItem}
-              wordLinks={wordLinks}
-              vocab={vocab}
-              onSaveVocab={handleSaveVocabItem}
-              onDeleteVocab={handleDeleteVocabItem}
-              onSaveWordLink={handleSaveWordLink}
-              onDeleteWordLink={handleDeleteWordLink}
-              onClose={() => setSelectedWord(null)}
-              settings={readerSettings}
-              onSettingsChange={(patch) => updateSettingsAndSync(prev => ({ ...prev, ...patch }))}
-              onWordClick={handleWordClick}
-              lessonText={activeLesson?.text}
-              lessons={lessons}
-              currentLessonId={activeLesson?.id}
-              onOpenLesson={handleOpenLesson}
             />
           </div>
         </main>
@@ -2797,7 +3226,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200 overflow-x-hidden w-full max-w-[100vw]`}>
+    <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200 overflow-x-clip w-full max-w-[100vw]`}>
       
       <AppSidebar
         isSidebarOpen={isSidebarOpen}
@@ -2817,6 +3246,9 @@ export default function App() {
       {/* Top Header HUD */}
       <AppHeader
         isFocusMode={isFocusMode}
+        activeTab={activeTab}
+        readerSettings={readerSettings}
+        onUpdateReaderSettings={setReaderSettings}
         currentReaderTheme={currentReaderTheme}
         layoutContainerClass={layoutContainerClass}
         setIsSidebarOpen={setIsSidebarOpen}
@@ -3403,10 +3835,31 @@ export default function App() {
       />
 
       {/* Global Background Audio Player Engine & Media Session API */}
-      <GlobalAudioPlayer onListeningTick={handleListeningTick} />
+      <GlobalAudioPlayer
+        onListeningTick={(seconds) => handleListeningTick(seconds, "global")}
+        onMediaEnded={(track) => {
+          if (activeLesson && activeLesson.id === track.id) {
+            handleMediaEnded(activeLesson);
+          } else {
+            recordHistoryActivity({
+              id: track.guid || track.id,
+              title: track.title,
+              lessonType: track.lessonType || "podcast",
+              coverUrl: track.coverUrl || null,
+              targetLanguage: track.targetLanguage || "es",
+              audioUrl: track.audioUrl,
+              podcastTitle: track.podcastTitle || track.bookTitle || track.channelName || "Podcast",
+              channelName: track.channelName || track.podcastTitle || track.bookTitle || null,
+              guid: track.guid || track.id,
+              lastPosition: track.duration || undefined,
+            }, "complete");
+          }
+        }}
+      />
 
       {/* Floating Bottom Audio Bar */}
       <BottomAudioBar
+        activeTab={activeTab}
         onOpenLesson={(id) => {
           setActiveLessonId(id);
           setSelectedWord(null);

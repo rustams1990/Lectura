@@ -299,11 +299,16 @@
     "podcasts": "Podcasts"
   },
   "auth": {
+    "error_invalid_credentials": "Geçersiz kullanıcı adı veya şifre",
     "error_empty": "Lütfen e-postanızı/kullanıcı adınızı ve şifrenizi girin.",
-    "error_password_length": "Şifre en az 4 karakter uzunluğunda olmalıdır.",
+    "error_password_length": "Şifre en az 6 karakter uzunluğunda olmalıdır.",
     "error_email_in_use": "Bu e-posta adresi zaten kullanılıyor.",
     "error_invalid_email": "Geçersiz e-posta adresi biçimi.",
-    "error_weak_password": "Şifre çok zayıf. En az 4 karakter olmalıdır.",
+    "error_weak_password": "Şifre çok zayıf. En az 6 karakter olmalıdır.",
+    "error_too_many_attempts": "Çok fazla giriş denemesi. Lütfen 15 dakika bekleyin.",
+    "error_network_failed": "Sunucuya bağlanılamadı.",
+    "error_server": "Sunucu hatası oluştu.",
+    "error_session_expired": "Oturum süresi doldu. Lütfen tekrar giriş yapın.",
     "title": "Oturum aç",
     "title_register": "Profil Oluştur",
     "account": "Hesap:",

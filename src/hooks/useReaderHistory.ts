@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { HistoryEntry, Lesson } from "../types";
-import { safeLocalStorageSetItem } from "../utils";
+import { safeLocalStorageSetItem, generateHistoryId } from "../utils";
 
 interface UseReaderHistoryProps {
   lesson: Lesson;
@@ -93,8 +93,19 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
           channelAvatarUrl: updated[existingIdx].channelAvatarUrl || lesson.channelAvatarUrl || null,
         };
       } else {
+        const generatedId = generateHistoryId({
+          durationSeconds: 0,
+          actionType: newStatus === "completed" ? "complete" : "read",
+          source: "useReaderHistory.handleToggleStatus",
+        });
+
+        if (!generatedId) {
+          showToast(newStatus === "completed" ? "✅ Статус изменён на 'Завершено'" : "⏳ Статус изменён на 'В процессе'");
+          return;
+        }
+
         const newEntry: HistoryEntry = {
-          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          id: generatedId,
           lessonId: lesson.id,
           lessonTitle: lesson.title,
           lessonType: lesson.lessonType || "article",
@@ -139,8 +150,16 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
           channelAvatarUrl: existing.channelAvatarUrl || lesson.channelAvatarUrl || null,
         };
       } else {
+        const generatedId = generateHistoryId({
+          durationSeconds: addedSeconds,
+          actionType: isAudioOrVideoLesson ? "listen" : "read",
+          source: "useReaderHistory.handleAddMinutes",
+        });
+
+        if (!generatedId) return;
+
         const newEntry: HistoryEntry = {
-          id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          id: generatedId,
           lessonId: lesson.id,
           lessonTitle: lesson.title,
           lessonType: lesson.lessonType || "article",

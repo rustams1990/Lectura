@@ -849,13 +849,21 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
         const placeholders = data.deletedHistoryIds.map(() => "?").join(",");
-        db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedHistoryIds);
+        const result = db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...data.deletedHistoryIds);
+        console.log('[Server SQL Delete Bulk]', { deletedIds: data.deletedHistoryIds, changes: result.changes });
       }
 
       if (Array.isArray(data.history)) {
         const historyList = data.history;
         for (const h of historyList) {
           if (!h || !h.id) continue;
+          
+          const incomingDuration = h.durationSeconds || 0;
+          if (incomingDuration <= 0) {
+            // Strict reject: zero duration records are illegal
+            continue;
+          }
+
           insertHistory.run(
             h.id,
             userId,
@@ -867,7 +875,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             h.timestamp || new Date().toISOString(),
             h.actionType || "read",
             h.status || "in_progress",
-            h.durationSeconds || 0,
+            incomingDuration,
             h.notes || null,
             h.channelName || null,
             h.channelAvatarUrl || null,
@@ -1453,6 +1461,13 @@ router.patch("/history/:id", (req: Request, res: Response) => {
     
     db.transaction(() => {
       const existing = db.prepare("SELECT * FROM reading_history WHERE user_id = ? AND id = ?").get(userId, id) as any;
+      const requestedDuration = updates?.durationSeconds;
+      if (!existing && (requestedDuration || 0) <= 0) {
+        throw new Error("ZERO_DURATION_HISTORY_CREATE");
+      }
+      if (existing && requestedDuration !== undefined && requestedDuration <= 0) {
+        throw new Error("ZERO_DURATION_HISTORY_UPDATE");
+      }
       if (!existing) {
         const insertStmt = db.prepare(`
           INSERT OR REPLACE INTO reading_history (
@@ -1535,6 +1550,9 @@ router.patch("/history/:id", (req: Request, res: Response) => {
     console.log(`[SAVED TO DB] History ${id} updated with channel: ${updates.channelName || updates.channelTitle || 'unchanged'}`);
     return res.json({ status: "success", id });
   } catch (err: any) {
+    if (err?.message === "ZERO_DURATION_HISTORY_CREATE" || err?.message === "ZERO_DURATION_HISTORY_UPDATE") {
+      return res.status(400).json({ error: "History durationSeconds must be greater than 0" });
+    }
     console.error("[PATCH /api/history/:id] Error:", err);
     return res.status(500).json({ error: "Failed to update history entry" });
   }
@@ -1555,8 +1573,9 @@ router.delete("/history/:id", (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const db = getDbConnection(userId);
-    db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
-    return res.json({ status: "success", id });
+    const result = db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
+    console.log('[Server SQL Delete]', { id, changes: result.changes });
+    return res.json({ status: "success", id, changes: result.changes });
   } catch (err: any) {
     console.error("[DELETE /api/history/:id] Error:", err);
     return res.status(500).json({ error: "Failed to delete history entry" });

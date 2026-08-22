@@ -74,6 +74,7 @@ export default function ReaderScreen({
 }: ReaderScreenProps) {
   const {
     setActiveTab,
+    isFocusMode,
     setIsFocusMode,
     setShowMatchPairsModal,
     showOnlyUnknown,
@@ -81,11 +82,12 @@ export default function ReaderScreen({
     showYoutubePlayer,
     setShowYoutubePlayer,
     layoutWidthMode,
-    setLayoutWidthMode
+    setLayoutWidthMode,
+    showAiHubModal,
+    setShowAiHubModal,
   } = useUIStore();
   const { t } = useTranslation();
 
-  const [showAiHubModal, setShowAiHubModal] = useState(false);
   const [selectedText, setSelectedText] = useState("");
 
   // Global hotkey 'T' for toggling parallel sentence translations
@@ -112,11 +114,11 @@ export default function ReaderScreen({
     <>
       <div className="grid grid-cols-12 gap-6 items-start">
         {/* Middle Main - Reader and Audio player - 8 cols on tablets and desktops */}
-        <div className="col-span-12 md:col-span-8 lg:col-span-8 min-w-0 space-y-4 animate-in fade-in duration-150">
+        <div className="col-span-12 md:col-span-8 lg:col-span-8 min-w-0 space-y-2.5 sm:space-y-4">
           {activeLesson ? (
             <>
-              {/* Quiet minimal inline toolbar */}
-              <div className="flex items-center justify-between gap-x-3 gap-y-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
+              {/* Quiet minimal inline toolbar (hidden on mobile/tablet, shown only on desktop lg:) */}
+              <div className="hidden lg:flex items-center justify-between gap-x-3 gap-y-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
                 {/* Left side actions scrollable bar */}
                 <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar min-w-0 flex-1 pr-1">
                   <button
@@ -266,6 +268,18 @@ export default function ReaderScreen({
                   onListeningTick={handleListeningTick}
                   onAudioEnded={() => handleMediaEnded(activeLesson)}
                   readerTheme={readerSettings.readerTheme}
+                  showSentenceTranslations={readerSettings.showSentenceTranslations}
+                  onToggleSentenceTranslations={() =>
+                    setReaderSettings((prev) => ({
+                      ...prev,
+                      showSentenceTranslations: !prev.showSentenceTranslations,
+                    }))
+                  }
+                  isFocusMode={isFocusMode}
+                  onToggleFocusMode={() => setIsFocusMode(!isFocusMode)}
+                  onOpenMatchPairs={() => setShowMatchPairsModal(true)}
+                  showOnlyUnknown={showOnlyUnknown}
+                  onToggleShowOnlyUnknown={() => setShowOnlyUnknown(!showOnlyUnknown)}
                 />
               )}
 
@@ -277,6 +291,12 @@ export default function ReaderScreen({
                 showOnlyUnknown={showOnlyUnknown}
                 history={history}
                 onUpdateHistory={handleUpdateHistory}
+                onToggleTranslations={() =>
+                  setReaderSettings((prev) => ({
+                    ...prev,
+                    showSentenceTranslations: !prev.showSentenceTranslations,
+                  }))
+                }
               />
             </>
           ) : (
@@ -324,7 +344,7 @@ export default function ReaderScreen({
       {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet with overlay */}
       {selectedWord && activeLesson && (
         <div 
-          className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[70] md:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
           onClick={() => setSelectedWord(null)}
         >
           <div 

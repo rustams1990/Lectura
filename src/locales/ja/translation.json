@@ -299,11 +299,16 @@
     "podcasts": "Podcasts"
   },
   "auth": {
+    "error_invalid_credentials": "ユーザー名またはパスワードが無効です",
     "error_empty": "メールアドレス/ユーザー名とパスワードを入力してください。",
-    "error_password_length": "パスワードは 4 文字以上である必要があります。",
+    "error_password_length": "パスワードは 6 文字以上である必要があります。",
     "error_email_in_use": "このメールアドレスはすでに使用されています。",
     "error_invalid_email": "電子メール アドレスの形式が無効です。",
-    "error_weak_password": "パスワードが弱すぎます。少なくとも 4 文字である必要があります。",
+    "error_weak_password": "パスワードが弱すぎます。少なくとも 6 文字である必要があります。",
+    "error_too_many_attempts": "ログイン試行回数が多すぎます。15分お待ちください。",
+    "error_network_failed": "サーバーに接続できませんでした。",
+    "error_server": "サーバーエラーが発生しました。",
+    "error_session_expired": "セッションが期限切れになりました。もう一度ログインしてください。",
     "title": "サインイン",
     "title_register": "プロファイルの作成",
     "account": "アカウント：",

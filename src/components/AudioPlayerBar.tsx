@@ -12,6 +12,11 @@ import {
   SkipForward,
   Repeat1,
   Headphones,
+  Languages,
+  Maximize2,
+  Gamepad2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { parseTimestampToSeconds } from "../hooks/useReaderPagination";
@@ -21,10 +26,17 @@ import { ReaderSettings } from "../types";
 const SPEED_PRESETS = [0.5, 0.75, 0.85, 1.0, 1.15, 1.25, 1.5, 1.75, 2.0];
 
 interface AudioPlayerBarProps {
-  onAudioUpload: (audioUrl: string, base64: string | null) => void;
-  onListeningTick: (seconds: number) => void;
+  onAudioUpload?: (audioUrl: string, base64: string | null) => void;
+  onListeningTick?: (seconds: number, forceFlush?: boolean, exactTime?: number) => void;
   onAudioEnded?: () => void;
   readerTheme?: ReaderSettings["readerTheme"];
+  showSentenceTranslations?: boolean;
+  onToggleSentenceTranslations?: () => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
+  onOpenMatchPairs?: () => void;
+  showOnlyUnknown?: boolean;
+  onToggleShowOnlyUnknown?: () => void;
 }
 
 interface AudioPlayerThemeStyles {
@@ -91,6 +103,13 @@ export default function AudioPlayerBar({
   onListeningTick,
   onAudioEnded,
   readerTheme = "default",
+  showSentenceTranslations,
+  onToggleSentenceTranslations,
+  isFocusMode,
+  onToggleFocusMode,
+  onOpenMatchPairs,
+  showOnlyUnknown,
+  onToggleShowOnlyUnknown,
 }: AudioPlayerBarProps) {
   const { t } = useTranslation();
   const themeStyles = audioThemeMap[readerTheme] || audioThemeMap.default;
@@ -107,6 +126,37 @@ export default function AudioPlayerBar({
     seekToTime,
     setSeekToTime,
   } = useLesson();
+
+  const {
+    queue: playlistQueue,
+    currentIndex: playlistIndex,
+    isPlaying: playlistIsPlaying,
+    currentTime: playlistCurrentTime,
+    duration: playlistDuration,
+    playbackRate: playlistPlaybackRate,
+    togglePlay: playlistTogglePlay,
+    seek: playlistSeek,
+    seekDelta: playlistSeekDelta,
+    setPlaybackRate: playlistSetPlaybackRate,
+  } = usePlaylistStore();
+
+  const isGlobalPlayingThisLesson = useMemo(() => {
+    const currentTrack = playlistQueue[playlistIndex];
+    if (!currentTrack || !activeLesson) return false;
+    return (
+      currentTrack.id === activeLesson.id ||
+      Boolean(activeLesson.audioUrl && currentTrack.audioUrl && (
+        activeLesson.audioUrl === currentTrack.audioUrl ||
+        currentTrack.audioUrl.includes(activeLesson.audioUrl) ||
+        activeLesson.audioUrl.includes(currentTrack.audioUrl)
+      ))
+    );
+  }, [playlistQueue, playlistIndex, activeLesson]);
+
+  const effectiveIsPlaying = isGlobalPlayingThisLesson ? playlistIsPlaying : isPlaying;
+  const effectiveCurrentTime = isGlobalPlayingThisLesson ? playlistCurrentTime : currentTime;
+  const effectiveDuration = isGlobalPlayingThisLesson ? (playlistDuration || duration) : duration;
+  const effectivePlaybackRate = isGlobalPlayingThisLesson ? playlistPlaybackRate : playbackRate;
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -135,43 +185,31 @@ export default function AudioPlayerBar({
   }, [activeLesson?.text]);
 
   useEffect(() => {
-    if (seekToTime !== null && seekToTime !== undefined && audioRef.current) {
-      audioRef.current.currentTime = seekToTime;
-      setCurrentTime(seekToTime);
+    if (seekToTime !== null && seekToTime !== undefined) {
+      if (isGlobalPlayingThisLesson) {
+        playlistSeek(seekToTime);
+      } else if (audioRef.current) {
+        audioRef.current.currentTime = seekToTime;
+        setCurrentTime(seekToTime);
+      }
       setSeekToTime(null);
     }
-  }, [seekToTime, setCurrentTime, setSeekToTime]);
+  }, [seekToTime, isGlobalPlayingThisLesson, playlistSeek, setCurrentTime, setSeekToTime]);
 
   useEffect(() => {
-    if (audioRef.current) {
+    if (!isGlobalPlayingThisLesson && audioRef.current) {
       audioRef.current.playbackRate = playbackRate;
     }
-  }, [playbackRate]);
+  }, [isGlobalPlayingThisLesson, playbackRate]);
 
+  // (Tick tracking is now handled natively in handleTimeUpdate)
   useEffect(() => {
-    let tickInterval: NodeJS.Timeout;
-    if (isPlaying) {
-      // Track audio-time delta using audioRef.currentTime so playback speed is accounted for
-      let lastAudioTime = audioRef.current?.currentTime ?? null;
-      tickInterval = setInterval(() => {
-        if (audioRef.current && lastAudioTime !== null) {
-          const nowAudioTime = audioRef.current.currentTime;
-          const delta = nowAudioTime - lastAudioTime;
-          // Positive delta means audio advanced (skip negative from seeks or reloads)
-          if (delta > 0 && delta < 10) {
-            onListeningTick(delta);
-          }
-          lastAudioTime = nowAudioTime;
-        } else if (audioRef.current) {
-          lastAudioTime = audioRef.current.currentTime;
-        }
-      }, 1000);
-    }
-
     return () => {
-      clearInterval(tickInterval);
+      if (audioRef.current && isPlaying && !isGlobalPlayingThisLesson) {
+        window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: audioRef.current.currentTime } }));
+      }
     };
-  }, [isPlaying, onListeningTick]);
+  }, [isPlaying, isGlobalPlayingThisLesson]);
 
   if (!activeLesson) return null;
 
@@ -228,12 +266,16 @@ export default function AudioPlayerBar({
   }, [setIsPlaying]);
 
   const handlePlayPause = () => {
+    if (isGlobalPlayingThisLesson) {
+      playlistTogglePlay();
+      return;
+    }
     if (!audioRef.current || !hasAudio) return;
     if (isPlaying) {
+      window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: audioRef.current.currentTime } }));
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      // If global playlist is active, pause it to prevent double sound
       if (usePlaylistStore.getState().isPlaying) {
         usePlaylistStore.getState().setIsPlaying(false);
       }
@@ -244,10 +286,24 @@ export default function AudioPlayerBar({
     }
   };
 
+  const lastTickTimeRef = useRef<number>(0);
+  const lastAudioPosRef = useRef<number>(0);
+
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
     const cur = audioRef.current.currentTime;
     setCurrentTime(cur);
+
+    // Direct synchronization with native audio timeupdate to eliminate timer drift
+    const now = Date.now();
+    if (!isGlobalPlayingThisLesson && now - lastTickTimeRef.current >= 1000) {
+      const delta = cur - lastAudioPosRef.current;
+      if (delta > 0 && delta < 10 && !audioRef.current.paused) {
+        onListeningTick?.(delta, false, cur);
+      }
+      lastTickTimeRef.current = now;
+      lastAudioPosRef.current = cur;
+    }
 
     // Sentence loop mode: when audio crosses into next sentence, jump back to current sentence start
     if (isSentenceLoop && allTimestamps.length > 0) {
@@ -266,6 +322,25 @@ export default function AudioPlayerBar({
     }
   };
 
+  // Sentence loop effect for global player mode
+  useEffect(() => {
+    if (isGlobalPlayingThisLesson && isSentenceLoop && allTimestamps.length > 0) {
+      const cur = playlistCurrentTime;
+      const dur = playlistDuration || duration || Infinity;
+      let segStart = 0;
+      let segEnd = dur;
+      for (let i = 0; i < allTimestamps.length; i++) {
+        if (allTimestamps[i] <= cur + 0.1) {
+          segStart = allTimestamps[i];
+          segEnd = i + 1 < allTimestamps.length ? allTimestamps[i + 1] : dur;
+        }
+      }
+      if (segEnd < Infinity && cur >= segEnd - 0.2 && segEnd > segStart) {
+        playlistSeek(segStart);
+      }
+    }
+  }, [isGlobalPlayingThisLesson, isSentenceLoop, allTimestamps, playlistCurrentTime, playlistDuration, duration, playlistSeek]);
+
   const handleLoadedMetadata = () => {
     if (audioRef.current && audioRef.current.duration) {
       const durSec = Math.round(audioRef.current.duration);
@@ -278,6 +353,10 @@ export default function AudioPlayerBar({
 
   const handleAudioSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
+    if (isGlobalPlayingThisLesson) {
+      playlistSeek(val);
+      return;
+    }
     if (audioRef.current) {
       audioRef.current.currentTime = val;
       setCurrentTime(val);
@@ -285,43 +364,59 @@ export default function AudioPlayerBar({
   };
 
   const handleSkipSeconds = useCallback((delta: number) => {
+    if (isGlobalPlayingThisLesson) {
+      playlistSeekDelta(delta);
+      return;
+    }
     if (!audioRef.current) return;
     const cur = audioRef.current.currentTime;
     const target = Math.max(0, Math.min(duration || Infinity, cur + delta));
     audioRef.current.currentTime = target;
     setCurrentTime(target);
-  }, [duration, setCurrentTime]);
+  }, [isGlobalPlayingThisLesson, playlistSeekDelta, duration, setCurrentTime]);
 
   const handlePrevSentence = useCallback(() => {
-    if (!audioRef.current) return;
-    const cur = audioRef.current.currentTime;
+    const cur = isGlobalPlayingThisLesson ? playlistCurrentTime : (audioRef.current?.currentTime ?? currentTime);
     if (allTimestamps.length === 0) { handleSkipSeconds(-5); return; }
     let target = 0;
     for (let i = allTimestamps.length - 1; i >= 0; i--) {
       if (allTimestamps[i] < cur - 1.2) { target = allTimestamps[i]; break; }
     }
-    audioRef.current.currentTime = target;
-    setCurrentTime(target);
-  }, [allTimestamps, handleSkipSeconds, setCurrentTime]);
+    if (isGlobalPlayingThisLesson) {
+      playlistSeek(target);
+    } else if (audioRef.current) {
+      audioRef.current.currentTime = target;
+      setCurrentTime(target);
+    }
+  }, [allTimestamps, handleSkipSeconds, isGlobalPlayingThisLesson, playlistCurrentTime, playlistSeek, currentTime, setCurrentTime]);
 
   const handleNextSentence = useCallback(() => {
-    if (!audioRef.current) return;
-    const cur = audioRef.current.currentTime;
+    const cur = isGlobalPlayingThisLesson ? playlistCurrentTime : (audioRef.current?.currentTime ?? currentTime);
+    const dur = effectiveDuration;
     if (allTimestamps.length === 0) { handleSkipSeconds(5); return; }
-    let target = duration || cur + 5;
+    let target = dur || cur + 5;
     for (let i = 0; i < allTimestamps.length; i++) {
       if (allTimestamps[i] > cur + 0.4) { target = allTimestamps[i]; break; }
     }
-    audioRef.current.currentTime = target;
-    setCurrentTime(target);
-  }, [allTimestamps, duration, handleSkipSeconds, setCurrentTime]);
+    if (isGlobalPlayingThisLesson) {
+      playlistSeek(target);
+    } else if (audioRef.current) {
+      audioRef.current.currentTime = target;
+      setCurrentTime(target);
+    }
+  }, [allTimestamps, effectiveDuration, handleSkipSeconds, isGlobalPlayingThisLesson, playlistCurrentTime, playlistSeek, currentTime, setCurrentTime]);
 
   const handleSpeedToggle = () => {
-    const curIdx = SPEED_PRESETS.findIndex((r) => Math.abs(r - playbackRate) < 0.05);
+    const curRate = effectivePlaybackRate;
+    const curIdx = SPEED_PRESETS.findIndex((r) => Math.abs(r - curRate) < 0.05);
     const nextIdx = (curIdx + 1) % SPEED_PRESETS.length;
     const newRate = SPEED_PRESETS[nextIdx];
-    setPlaybackRate(newRate);
-    if (audioRef.current) audioRef.current.playbackRate = newRate;
+    if (isGlobalPlayingThisLesson) {
+      playlistSetPlaybackRate(newRate);
+    } else {
+      setPlaybackRate(newRate);
+      if (audioRef.current) audioRef.current.playbackRate = newRate;
+    }
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,15 +434,18 @@ export default function AudioPlayerBar({
   };
 
   return (
-    <div className={`sticky top-0 z-30 ${themeStyles.stickyWrapper} ${themeStyles.divider} py-2.5 px-3 sm:px-4 -mx-1 sm:-mx-2 rounded-2xl shadow-xs transition-all`}>
+    <div className={`sticky top-0 z-20 ${themeStyles.stickyWrapper} ${themeStyles.divider} py-2 sm:py-2.5 px-3 sm:px-4 rounded-xl sm:rounded-2xl shadow-sm transition-all w-full`}>
       <div className={`${themeStyles.container} transition-colors py-0.5 px-0.5 font-sans`}>
-      {hasAudio && (
+      {!isGlobalPlayingThisLesson && hasAudio && (
         <audio
           ref={audioRef}
           src={audioSrc}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={() => {
+            if (audioRef.current) {
+              window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: audioRef.current.currentTime } }));
+            }
             setIsPlaying(false);
             if (onAudioEnded) onAudioEnded();
           }}
@@ -361,14 +459,104 @@ export default function AudioPlayerBar({
         />
       )}
 
-      <div className="flex flex-col lg:flex-row items-center gap-3 lg:gap-4">
+      {/* ── Mobile Layout (Ultra-compact < 65px total height) ── */}
+      <div className="flex flex-col lg:hidden space-y-1.5">
+        {/* Top line: Truncated Title + Reader Actions + Sentence Loop + Speed Badge */}
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <Headphones className={`w-3.5 h-3.5 shrink-0 ${effectiveIsPlaying ? "text-teal-600 dark:text-teal-400 animate-pulse" : "text-zinc-400"}`} />
+            <p className={`text-xs font-medium truncate ${themeStyles.titleText}`} title={activeLesson.title}>
+              {activeLesson.title || t("reader.audio_player", "Audio Player")}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Sentence Loop Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsSentenceLoop(!isSentenceLoop)}
+              className={`p-1 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                isSentenceLoop
+                  ? "bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-300 border-teal-300 dark:border-teal-700 shadow-3xs"
+                  : "text-zinc-500 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60 hover:bg-black/5 dark:hover:bg-white/5"
+              }`}
+              title={t("reader.sentence_loop", "Sentence loop mode")}
+            >
+              <Repeat1 className="w-3 h-3" />
+            </button>
+
+            {/* Speed Badge */}
+            <button
+              type="button"
+              onClick={handleSpeedToggle}
+              className="px-1.5 py-0.5 text-[10px] font-mono font-bold border border-zinc-200/80 dark:border-zinc-700/80 rounded-md hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-zinc-700 dark:text-zinc-300 transition-colors"
+              title={t("reader.playback_speed", "Playback speed")}
+            >
+              {effectivePlaybackRate}x
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom line: Play/Pause + Rewind/Forward + Slider + Timestamps */}
+        <div className="flex items-center gap-2">
+          {/* Compact Play Button */}
+          <button
+            type="button"
+            onClick={handlePlayPause}
+            className="w-8 h-8 rounded-full bg-teal-600 hover:bg-teal-500 active:scale-95 text-white flex items-center justify-center shrink-0 cursor-pointer shadow-xs transition-all"
+            title={effectiveIsPlaying ? t("reader.pause", "Pause") : t("reader.play", "Play")}
+          >
+            {effectiveIsPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+          </button>
+
+          {/* -5s Rewind */}
+          <button
+            type="button"
+            onClick={() => handleSkipSeconds(-5)}
+            className="w-6 h-6 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 flex items-center justify-center shrink-0 cursor-pointer active:scale-90 transition-transform"
+            title={t("reader.skip_back_5s", "Rewind 5 seconds")}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          {/* +5s Forward */}
+          <button
+            type="button"
+            onClick={() => handleSkipSeconds(5)}
+            className="w-6 h-6 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 flex items-center justify-center shrink-0 cursor-pointer active:scale-90 transition-transform"
+            title={t("reader.skip_forward_5s", "Forward 5 seconds")}
+          >
+            <RotateCcw className="w-3.5 h-3.5 -scale-x-100" />
+          </button>
+
+          {/* Progress Slider */}
+          <input
+            type="range"
+            min="0"
+            max={effectiveDuration || 100}
+            step="0.05"
+            value={effectiveCurrentTime}
+            onChange={handleAudioSeek}
+            aria-label={t("reader.audio_track_label", "Lesson audio track")}
+            className={`h-1 flex-1 rounded-full ${themeStyles.sliderTrack} accent-teal-600 dark:accent-teal-500 cursor-pointer focus:outline-none`}
+          />
+
+          {/* Timestamp */}
+          <span className={`text-[10px] ${themeStyles.subText} whitespace-nowrap font-mono tabular-nums shrink-0`}>
+            {formatTime(effectiveCurrentTime)} / {formatTime(effectiveDuration)}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Desktop Layout (lg:flex) ── */}
+      <div className="hidden lg:flex items-center gap-4">
 
         {/* ── Left: Lesson badge ─────────────────────────────────── */}
-        <div className="flex items-center gap-2 w-full lg:w-auto shrink-0 min-w-0">
-          <div className={`w-7 h-7 ${themeStyles.badge} flex items-center justify-center shrink-0 ${isPlaying ? "animate-pulse" : ""}`}>
+        <div className="flex items-center gap-2 shrink-0 min-w-0">
+          <div className={`w-7 h-7 ${themeStyles.badge} flex items-center justify-center shrink-0 ${effectiveIsPlaying ? "animate-pulse" : ""}`}>
             <Headphones className="w-4.5 h-4.5" />
           </div>
-          <div className="min-w-0 flex-1 lg:max-w-[200px] xl:max-w-[260px]">
+          <div className="min-w-0 max-w-[200px] xl:max-w-[260px]">
             <span className={`text-[10px] uppercase font-black tracking-wider ${themeStyles.badgeText}`}>
               {t("reader.audio_track", "Audio Track")}
             </span>
@@ -379,9 +567,9 @@ export default function AudioPlayerBar({
         </div>
 
         {/* ── Center: Transport + Progress Bar ───────────────────────────── */}
-        <div className="flex flex-col items-center gap-2 w-full lg:flex-1 min-w-0">
+        <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
           {/* Transport row */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
             {/* Prev Sentence */}
             <button type="button" onClick={handlePrevSentence}
               className="p-1.5 opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer"
@@ -399,8 +587,8 @@ export default function AudioPlayerBar({
             {/* Play / Pause hero button */}
             <button type="button" onClick={handlePlayPause}
               className="w-10 h-10 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white rounded-full shadow-md hover:shadow-teal-500/30 flex items-center justify-center transition-all cursor-pointer shrink-0"
-              title={isPlaying ? t("reader.pause", "Pause") : t("reader.play", "Play")}>
-              {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+              title={effectiveIsPlaying ? t("reader.pause", "Pause") : t("reader.play", "Play")}>
+              {effectiveIsPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
             </button>
 
             {/* 5s ↻ */}
@@ -420,20 +608,20 @@ export default function AudioPlayerBar({
 
           {/* Progress slider */}
           <div className="flex items-center gap-2 w-full text-[11px] font-mono font-semibold tabular-nums">
-            <span className={`w-8 text-right shrink-0 ${themeStyles.subText}`}>{formatTime(currentTime)}</span>
+            <span className={`w-8 text-right shrink-0 ${themeStyles.subText}`}>{formatTime(effectiveCurrentTime)}</span>
             <input
-              type="range" min="0" max={duration || 100} step="0.05" value={currentTime}
+              type="range" min="0" max={effectiveDuration || 100} step="0.05" value={effectiveCurrentTime}
               onChange={handleAudioSeek}
               aria-label={t("reader.audio_track_label", "Lesson audio track")}
-              aria-valuemin={0} aria-valuemax={Math.round(duration || 100)} aria-valuenow={Math.round(currentTime)}
+              aria-valuemin={0} aria-valuemax={Math.round(effectiveDuration || 100)} aria-valuenow={Math.round(effectiveCurrentTime)}
               className={`flex-1 h-1.5 rounded-full ${themeStyles.sliderTrack} accent-teal-600 dark:accent-teal-500 cursor-pointer focus:outline-none`}
             />
-            <span className={`w-8 shrink-0 ${themeStyles.subText}`}>{formatTime(duration)}</span>
+            <span className={`w-8 shrink-0 ${themeStyles.subText}`}>{formatTime(effectiveDuration)}</span>
           </div>
         </div>
 
         {/* ── Right: Immersion tools (Loop, Speed, Volume) ───────────────── */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 justify-end w-full lg:w-auto">
+        <div className="flex items-center gap-2 shrink-0 justify-end">
           {/* Sentence Loop */}
           <button type="button" onClick={() => setIsSentenceLoop(!isSentenceLoop)}
             className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer ${
@@ -451,7 +639,7 @@ export default function AudioPlayerBar({
             className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1 cursor-pointer ${themeStyles.buttonBg}`}
             title={t("reader.playback_speed", "Playback speed")}>
             <FastForward className="w-3 h-3 opacity-60" />
-            <span className="font-mono text-[11px]">{playbackRate}x</span>
+            <span className="font-mono text-[11px]">{effectivePlaybackRate}x</span>
           </button>
 
           {/* Volume popover */}

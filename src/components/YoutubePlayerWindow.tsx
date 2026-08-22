@@ -8,7 +8,7 @@ import { settingsStore } from "../db";
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
   onClose: () => void;
-  onListeningTick?: (seconds: number) => void;
+  onListeningTick?: (seconds: number, forceFlush?: boolean, exactTime?: number) => void;
   onVideoEnded?: () => void;
 }
 
@@ -53,6 +53,8 @@ export default function YoutubePlayerWindow({
   const progressPollIntervalRef = useRef<any>(null);
   const lastContextTimeRef = useRef<number>(0);
   const lastStorageSaveTimeRef = useRef<number>(0);
+  const hasRestoredPositionRef = useRef<boolean>(false);
+  const initialSeekTargetRef = useRef<number>(0);
 
   // Parse saved progress
   const parseSavedVideoProgress = (raw: string | null): number => {
@@ -220,9 +222,23 @@ export default function YoutubePlayerWindow({
       if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
       trackingIntervalRef.current = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+          // Expose globally for unified history queries
+          (window as any).getYoutubeCurrentTime = () => playerRef.current.getCurrentTime();
+
           try {
             const time = playerRef.current.getCurrentTime();
             if (time !== undefined) {
+              // Zero-overwrite guard during initialization
+              if (!hasRestoredPositionRef.current && initialSeekTargetRef.current > 0) {
+                if (time < initialSeekTargetRef.current - 2) {
+                  return; // Skip tick until player actually seeks close to the target
+                } else {
+                  hasRestoredPositionRef.current = true; // Successfully restored!
+                }
+              } else if (!hasRestoredPositionRef.current) {
+                hasRestoredPositionRef.current = true; // No seek target, so it's initialized
+              }
+
               if (Math.abs(time - lastContextTimeRef.current) >= 0.5) {
                 lastContextTimeRef.current = time;
                 setCurrentTime(time);
@@ -239,7 +255,13 @@ export default function YoutubePlayerWindow({
           const now = Date.now();
           const delta = (now - lastTickTimeRef.current) / 1000;
           if (delta > 0 && delta < 5 && onListeningTick) {
-            onListeningTick(delta);
+            let exactTime = 0;
+            try {
+              if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+                exactTime = playerRef.current.getCurrentTime();
+              }
+            } catch (e) {}
+            onListeningTick(delta, false, exactTime);
           }
           lastTickTimeRef.current = now;
         }
@@ -253,13 +275,38 @@ export default function YoutubePlayerWindow({
       }
       lastTickTimeRef.current = null;
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+        (window as any).getYoutubeCurrentTime = null;
         try {
           const time = playerRef.current.getCurrentTime();
           if (time !== undefined) {
             saveProgressNow(time);
+            if (onListeningTick) {
+              onListeningTick(0, true, time);
+            }
           }
         } catch (e) {}
       }
+    };
+
+    const getInitialSeekTarget = (): number => {
+      let startSeconds = 0;
+      try {
+        const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
+        startSeconds = parseSavedVideoProgress(savedProgress);
+        
+        if (!startSeconds) {
+           const histRaw = localStorage.getItem("vocab_clone_reading_history");
+           if (histRaw) {
+             const histArr = JSON.parse(histRaw);
+             histArr.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+             const match = histArr.find((h: any) => h.lessonId === lesson.id || h.guid === youtubeId);
+             if (match && match.lastPosition > 0) {
+               startSeconds = Math.floor(match.lastPosition);
+             }
+           }
+        }
+      } catch (e) {}
+      return startSeconds;
     };
 
     const initPlayer = () => {
@@ -267,12 +314,12 @@ export default function YoutubePlayerWindow({
 
       const YT = (window as any).YT;
 
-      // Get saved progress for this specific lesson to start from, without autoplaying
-      let startSeconds = 0;
-      try {
-        const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
-        startSeconds = parseSavedVideoProgress(savedProgress);
-      } catch (e) {}
+      const startSeconds = getInitialSeekTarget();
+      
+      initialSeekTargetRef.current = startSeconds;
+      if (startSeconds > 0) {
+        setCurrentTime(startSeconds);
+      }
 
       if (YT && YT.Player) {
         try {
@@ -478,9 +525,14 @@ export default function YoutubePlayerWindow({
 
   // Handle Dragging
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("svg")) {
+    if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("svg") || (e.target as HTMLElement).closest("input")) {
       return;
     }
+
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+    e.stopPropagation();
 
     setIsDragging(true);
 
@@ -496,6 +548,11 @@ export default function YoutubePlayerWindow({
     const s = getZoomFactor();
 
     const handleDragMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (moveEvent.cancelable) {
+        moveEvent.preventDefault();
+      }
+      moveEvent.stopPropagation();
+
       const isTouchMove = moveEvent.type.startsWith("touch");
       const curX = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
       const curY = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
@@ -518,14 +575,16 @@ export default function YoutubePlayerWindow({
       setIsDragging(false);
       document.removeEventListener("mousemove", handleDragMove);
       document.removeEventListener("mouseup", handleDragEnd);
-      document.removeEventListener("touchmove", handleDragMove);
+      document.removeEventListener("touchmove", handleDragMove as any);
       document.removeEventListener("touchend", handleDragEnd);
+      document.removeEventListener("touchcancel", handleDragEnd);
     };
 
     document.addEventListener("mousemove", handleDragMove);
     document.addEventListener("mouseup", handleDragEnd);
-    document.addEventListener("touchmove", handleDragMove);
+    document.addEventListener("touchmove", handleDragMove, { passive: false });
     document.addEventListener("touchend", handleDragEnd);
+    document.addEventListener("touchcancel", handleDragEnd);
   };
 
   type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -552,6 +611,11 @@ export default function YoutubePlayerWindow({
     const maxWidth = Math.max(minWidth, Math.min(window.innerWidth / s - 20, 1100));
 
     const handleResizeMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (moveEvent.cancelable) {
+        moveEvent.preventDefault();
+      }
+      moveEvent.stopPropagation();
+
       const isTouchMove = moveEvent.type.startsWith("touch");
       const curX = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientX : (moveEvent as MouseEvent).clientX;
       const curY = isTouchMove ? (moveEvent as TouchEvent).touches[0].clientY : (moveEvent as MouseEvent).clientY;
@@ -620,14 +684,16 @@ export default function YoutubePlayerWindow({
       setIsResizing(false);
       document.removeEventListener("mousemove", handleResizeMove);
       document.removeEventListener("mouseup", handleResizeEnd);
-      document.removeEventListener("touchmove", handleResizeMove);
+      document.removeEventListener("touchmove", handleResizeMove as any);
       document.removeEventListener("touchend", handleResizeEnd);
+      document.removeEventListener("touchcancel", handleResizeEnd);
     };
 
     document.addEventListener("mousemove", handleResizeMove);
     document.addEventListener("mouseup", handleResizeEnd);
-    document.addEventListener("touchmove", handleResizeMove);
+    document.addEventListener("touchmove", handleResizeMove, { passive: false });
     document.addEventListener("touchend", handleResizeEnd);
+    document.addEventListener("touchcancel", handleResizeEnd);
   };
 
   // Preset size handlers
@@ -662,7 +728,7 @@ export default function YoutubePlayerWindow({
       <div
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
-        className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between select-none shrink-0 ${
+        className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between select-none shrink-0 touch-none ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
         title={t('explainer.yt_drag', 'Перетащите плеер удерживая левую кнопку мыши')}
@@ -805,13 +871,10 @@ export default function YoutubePlayerWindow({
               onLoadedMetadata={() => {
                 if (videoElRef.current) {
                   videoElRef.current.playbackRate = playbackRate || 1;
-                  let startSec = 0;
-                  try {
-                    const raw = localStorage.getItem(`youtube_progress_${lesson.id}`);
-                    startSec = parseSavedVideoProgress(raw);
-                  } catch (e) {}
+                  const startSec = initialSeekTargetRef.current || 0;
                   if (startSec > 2) {
                     videoElRef.current.currentTime = startSec;
+                    setCurrentTime(startSec);
                   }
                 }
               }}
@@ -830,7 +893,8 @@ export default function YoutubePlayerWindow({
                   const now = Date.now();
                   const delta = (now - lastTickTimeRef.current) / 1000;
                   if (delta > 0 && delta < 5 && onListeningTick) {
-                    onListeningTick(delta);
+                    const exactTime = videoElRef.current ? videoElRef.current.currentTime : 0;
+                    onListeningTick(delta, false, exactTime);
                   }
                   lastTickTimeRef.current = now;
                 }
@@ -958,49 +1022,49 @@ export default function YoutubePlayerWindow({
           <div
             onMouseDown={handleResizeStart("n")}
             onTouchStart={handleResizeStart("n")}
-            className="absolute top-0 inset-x-3 h-2 cursor-ns-resize z-50 bg-transparent"
+            className="absolute top-0 inset-x-3 h-2 cursor-ns-resize z-50 bg-transparent touch-none"
           />
           {/* Bottom Edge */}
           <div
             onMouseDown={handleResizeStart("s")}
             onTouchStart={handleResizeStart("s")}
-            className="absolute bottom-0 inset-x-3 h-2.5 cursor-ns-resize z-50 bg-transparent"
+            className="absolute bottom-0 inset-x-3 h-2.5 cursor-ns-resize z-50 bg-transparent touch-none"
           />
           {/* Left Edge */}
           <div
             onMouseDown={handleResizeStart("w")}
             onTouchStart={handleResizeStart("w")}
-            className="absolute left-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent"
+            className="absolute left-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent touch-none"
           />
           {/* Right Edge */}
           <div
             onMouseDown={handleResizeStart("e")}
             onTouchStart={handleResizeStart("e")}
-            className="absolute right-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent"
+            className="absolute right-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent touch-none"
           />
           {/* Top-Left Corner */}
           <div
             onMouseDown={handleResizeStart("nw")}
             onTouchStart={handleResizeStart("nw")}
-            className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-50 bg-transparent"
+            className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-50 bg-transparent touch-none"
           />
           {/* Top-Right Corner */}
           <div
             onMouseDown={handleResizeStart("ne")}
             onTouchStart={handleResizeStart("ne")}
-            className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent"
+            className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent touch-none"
           />
           {/* Bottom-Left Corner */}
           <div
             onMouseDown={handleResizeStart("sw")}
             onTouchStart={handleResizeStart("sw")}
-            className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent"
+            className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent touch-none"
           />
           {/* Bottom-Right Corner & Visual Grip */}
           <div
             onMouseDown={handleResizeStart("se")}
             onTouchStart={handleResizeStart("se")}
-            className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none"
+            className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none touch-none"
             title={t('explainer.yt_resize', 'Потяните для изменения размера (сохраняет 16:9)')}
           >
             <svg

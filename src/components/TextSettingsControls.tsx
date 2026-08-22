@@ -11,11 +11,13 @@ import { useTranslation } from "react-i18next";
 interface TextSettingsControlsProps {
   settings: ReaderSettings;
   onUpdateSettings: (settings: ReaderSettings) => void;
+  compact?: boolean;
 }
 
 export default function TextSettingsControls({
   settings,
   onUpdateSettings,
+  compact = false,
 }: TextSettingsControlsProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -73,11 +75,17 @@ export default function TextSettingsControls({
       <button
         id="btn-toggle-typography"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/55 dark:hover:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all active:scale-95 cursor-pointer"
+        className={
+          compact
+            ? "p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200/60 dark:border-zinc-800/80"
+            : "flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/55 dark:hover:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all active:scale-95 cursor-pointer"
+        }
         title="Adjust text appearance, size, theme and fonts"
       >
-        <Type className="w-3.5 h-3.5 text-zinc-500" />
-        <span>Text Settings (AA)</span>
+        <Type className={compact ? "w-4 h-4 text-zinc-600 dark:text-zinc-300" : "w-3.5 h-3.5 text-zinc-500"} />
+        <span className={compact ? "hidden sm:inline text-xs font-black" : ""}>
+          {compact ? "AA" : "Text Settings (AA)"}
+        </span>
       </button>
 
       {isOpen && (
@@ -385,6 +393,22 @@ export default function TextSettingsControls({
                   <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
                 </label>
               </div>
+            </div>
+
+            {/* Default Video Mode (YouTube / Video Lessons) */}
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                {t('explainer.default_video_mode', 'YouTube / Video View Mode')}
+              </span>
+              <select
+                value={settings.defaultVideoViewMode || "focus"}
+                onChange={(e) => updateKey("defaultVideoViewMode", e.target.value as any)}
+                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
+              >
+                <option value="focus">🎯 {t('explainer.video_mode_focus', 'Focus Mode (Default on mobile/tablet)')}</option>
+                <option value="floating">🪟 {t('explainer.video_mode_floating', 'Floating Window (PiP)')}</option>
+                <option value="off">⏹️ {t('explainer.video_mode_off', 'Closed by Default')}</option>
+              </select>
             </div>
 
           </div>

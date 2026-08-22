@@ -10,6 +10,7 @@ import { useToast } from "../context/ToastContext";
 import { useWhisperQueue } from "../services/whisperQueueService";
 import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastTimelineEpisode } from "../types";
 import PodcastChannelView, { EpisodeRow, getEpisodeLessonInfo } from "./PodcastChannelView";
+import { normalizeLanguage } from "../utils";
 
 // ── Language Normalization Helper ─────────────────────────────────────────────
 
@@ -238,9 +239,9 @@ export default function PodcastsPage({
 
   const handlePlayTimelineEpisode = useCallback((ep: PodcastTimelineEpisode) => {
     const squareArtwork = ep.artworkUrl || ep.podcastArtwork || "";
-    const activeLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
+    const activeLang = normalizeLanguage((selectedTargetLanguage && selectedTargetLanguage !== "All")
       ? selectedTargetLanguage
-      : ep.podcastLanguage || "es";
+      : ep.podcastLanguage || "es");
     setQueue(
       [{
         id: ep.guid,
@@ -248,6 +249,7 @@ export default function PodcastsPage({
         title: ep.title,
         audioUrl: ep.audioUrl,
         bookTitle: ep.podcastTitle || "Podcast",
+        podcastTitle: ep.podcastTitle || "Podcast",
         coverUrl: squareArtwork,
         duration: ep.duration || undefined,
         lessonType: "podcast",
@@ -264,9 +266,9 @@ export default function PodcastsPage({
   }, [setQueue, selectedTargetLanguage]);
 
   const handleImportTimelineEpisode = useCallback(async (ep: PodcastTimelineEpisode) => {
-    const activeLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
+    const activeLang = normalizeLanguage((selectedTargetLanguage && selectedTargetLanguage !== "All")
       ? selectedTargetLanguage
-      : ep.podcastLanguage || "es";
+      : ep.podcastLanguage || "es");
 
     const taskId = `podcast_import_${ep.guid}_${Date.now()}`;
     const cleanTitle = ep.title || "Podcast Episode";
@@ -279,7 +281,7 @@ export default function PodcastsPage({
       const lessonId = await importEpisode(
         ep,
         ep.podcastTitle || "Podcast",
-        ep.podcastLanguage || "es",
+        activeLang,
         ep.artworkUrl || ep.podcastArtwork || "",
         activeLang,
         taskId

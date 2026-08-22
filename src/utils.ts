@@ -6,6 +6,27 @@ import { HistoryEntry } from "./types";
  */
 
 /**
+ * Hard Trap for History ID Generation.
+ * Physically prevents generating an ID if durationSeconds <= 0.
+ */
+export function generateHistoryId(options?: {
+  durationSeconds?: number;
+  actionType?: string;
+  source?: string;
+}): string | null {
+  const durationSeconds = options?.durationSeconds;
+  const source = options?.source || "unknown";
+
+  if (!durationSeconds || durationSeconds <= 0) {
+    console.error('BLOCKED ATTEMPT TO CREATE 0s HISTORY:', { source, durationSeconds, actionType: options?.actionType });
+    console.trace();
+    return null;
+  }
+
+  return `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+}
+
+/**
  * Converts seconds to MM:SS format
  * @param seconds - Time in seconds
  * @returns Formatted time string (e.g., "1:30" for 90 seconds)
@@ -14,6 +35,49 @@ export function formatTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+const LANG_MAP: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  de: 'German',
+  fr: 'French',
+  it: 'Italian',
+  ru: 'Russian',
+  ja: 'Japanese',
+  zh: 'Chinese',
+  pt: 'Portuguese',
+  nl: 'Dutch',
+  pl: 'Polish',
+  sv: 'Swedish',
+  da: 'Danish',
+  fi: 'Finnish',
+  no: 'Norwegian',
+  ko: 'Korean',
+  ar: 'Arabic',
+  tr: 'Turkish',
+  hi: 'Hindi',
+  uk: 'Ukrainian',
+  vi: 'Vietnamese',
+  th: 'Thai',
+  el: 'Greek',
+};
+
+/**
+ * Normalizes 2-letter ISO language codes to full canonical names.
+ * e.g. 'es' -> 'Spanish'. If already full name or unknown, returns as is.
+ */
+export function normalizeLanguage(lang: string): string {
+  if (!lang) return lang;
+  const lower = lang.trim().toLowerCase();
+  if (LANG_MAP[lower]) {
+    return LANG_MAP[lower];
+  }
+  // Title case fallback if it's already a full word but wrongly cased
+  if (lang.length > 2) {
+    return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
+  }
+  return lang;
 }
 
 /**
@@ -203,6 +267,24 @@ export const TTS_LOCALE_DESCRIPTIONS: Record<string, string> = {
   "ar-SA": "Arabic",
   "uk-UA": "Ukrainian",
   "kk-KZ": "Kazakh (Kazakhstan)",
+};
+
+/**
+ * Gets the current active media playback time globally.
+ * Checks YouTube iframe API if exposed, then native audio element.
+ */
+export const getActiveMediaCurrentTime = (): number => {
+  // If YouTube player time getter was exposed globally:
+  if (typeof (window as any).getYoutubeCurrentTime === 'function') {
+    const ytTime = (window as any).getYoutubeCurrentTime();
+    if (ytTime > 0) return Math.floor(ytTime);
+  }
+  // Fallback to native audio element:
+  const audio = document.getElementById('global-audio-element') as HTMLAudioElement;
+  if (audio) {
+    return Math.floor(audio.currentTime);
+  }
+  return 0;
 };
 
 export function getEffectiveTtsLocale(languageName: string, settings?: any): string {
@@ -473,15 +555,23 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
         existing.actionType === "complete" ||
         item.actionType === "complete";
 
+      const PLACEHOLDER_TITLES = new Set(['test', 'занятие', 'imported_record', '']);
+      const betterTitle = (a?: string, b?: string) => {
+        const aTrimmed = (a || '').trim();
+        const bTrimmed = (b || '').trim();
+        if (!aTrimmed || PLACEHOLDER_TITLES.has(aTrimmed.toLowerCase())) return bTrimmed || aTrimmed;
+        return aTrimmed;
+      };
       merged[existingIdx] = {
         ...existing,
         ...item,
+        lessonTitle: betterTitle(item.lessonTitle, existing.lessonTitle),
+        targetLanguage: item.targetLanguage && item.targetLanguage !== 'english' && item.targetLanguage !== 'English' ? item.targetLanguage : (existing.targetLanguage || item.targetLanguage),
         actionType: item.actionType || existing.actionType,
         status: isCompleted ? "completed" : (item.status || existing.status || "in_progress"),
         durationSeconds: Math.max(existing.durationSeconds || 0, item.durationSeconds || 0),
         notes: item.notes !== undefined && item.notes !== "" ? item.notes : existing.notes,
         coverUrl: item.coverUrl || existing.coverUrl,
-        lessonTitle: item.lessonTitle || existing.lessonTitle,
         channelName: item.channelName !== undefined ? item.channelName : (existing.channelName || null),
         channelAvatarUrl: item.channelAvatarUrl !== undefined ? item.channelAvatarUrl : (existing.channelAvatarUrl || null),
         channelUrl: (item as any).channelUrl !== undefined ? (item as any).channelUrl : ((existing as any).channelUrl || undefined),

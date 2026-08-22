@@ -1,13 +1,14 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { usePlaylistStore, resolveAudioSrc } from '../../store/playlistStore';
+import { usePlaylistStore, resolveAudioSrc, PlaylistItem } from '../../store/playlistStore';
 import { useLesson } from '../../context/LessonContext';
 import { startNativeForegroundAudio, stopNativeForegroundAudio, registerNativeAudioActionListener, updateNativeAudioPosition } from '../../services/nativeAudioBridge';
 
 interface GlobalAudioPlayerProps {
-  onListeningTick?: (seconds: number) => void;
+  onListeningTick?: (seconds: number, forceFlush?: boolean, exactTime?: number) => void;
+  onMediaEnded?: (track: PlaylistItem) => void;
 }
 
-export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayerProps) {
+export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: GlobalAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ytPlayerRef = useRef<any>(null);
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
@@ -132,6 +133,9 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
               setIsPlaying(true);
             } else if (state === YT.PlayerState.PAUSED) {
               setIsPlaying(false);
+              if (ytPlayerRef.current?.getCurrentTime) {
+                window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: ytPlayerRef.current.getCurrentTime() } }));
+              }
             } else if (state === YT.PlayerState.ENDED) {
               handleEnded();
             }
@@ -337,6 +341,16 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
     const { queue, currentIndex, repeatMode } = usePlaylistStore.getState();
     if (queue.length === 0) return;
 
+    const finishedTrack = queue[currentIndex];
+    if (finishedTrack) {
+      const currentNativeTime = isYouTubeTrack && ytPlayerRef.current?.getCurrentTime
+        ? ytPlayerRef.current.getCurrentTime()
+        : (audioRef.current ? audioRef.current.currentTime : 0);
+      window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: currentNativeTime } }));
+      
+      onMediaEnded?.(finishedTrack);
+    }
+
     let nextIndex = currentIndex;
     let shouldContinue = false;
 
@@ -387,6 +401,9 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
   // ---------------------------------------------------------------------------
   // 8. HTML5 Audio Event Handlers
   // ---------------------------------------------------------------------------
+  const lastTickTimeRef = useRef<number>(0);
+  const lastAudioPosRef = useRef<number>(0);
+
   const handleTimeUpdate = useCallback(() => {
     if (isYouTubeTrack) return;
     const audio = audioRef.current;
@@ -398,7 +415,18 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
       setLessonCurrentTime(cur);
       setLessonIsPlaying(!audio.paused);
     }
-  }, [activeLesson, currentTrack, isYouTubeTrack, setCurrentTime, setLessonCurrentTime, setLessonIsPlaying]);
+
+    // Direct synchronization with native audio timeupdate to eliminate timer drift
+    const now = Date.now();
+    if (now - lastTickTimeRef.current >= 1000) {
+      const delta = cur - lastAudioPosRef.current;
+      if (delta > 0 && delta < 10 && !audio.paused) {
+        onListeningTick?.(delta, false, cur);
+      }
+      lastTickTimeRef.current = now;
+      lastAudioPosRef.current = cur;
+    }
+  }, [activeLesson, currentTrack, isYouTubeTrack, setCurrentTime, setLessonCurrentTime, setLessonIsPlaying, onListeningTick]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (isYouTubeTrack) return;
@@ -412,30 +440,6 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
       }
     }
   }, [activeLesson, currentTrack, isYouTubeTrack, setDuration, setLessonDuration]);
-
-  // HTML5 audio listening tick tracking
-  useEffect(() => {
-    let tickInterval: NodeJS.Timeout;
-    if (isPlaying && !isYouTubeTrack) {
-      let lastAudioTime = audioRef.current?.currentTime ?? null;
-      tickInterval = setInterval(() => {
-        if (audioRef.current && lastAudioTime !== null && !audioRef.current.paused) {
-          const nowAudioTime = audioRef.current.currentTime;
-          const delta = nowAudioTime - lastAudioTime;
-          if (delta > 0 && delta < 10) {
-            onListeningTick?.(delta);
-          }
-          lastAudioTime = nowAudioTime;
-        } else if (audioRef.current) {
-          lastAudioTime = audioRef.current.currentTime;
-        }
-      }, 1000);
-    }
-
-    return () => {
-      clearInterval(tickInterval);
-    };
-  }, [isPlaying, isYouTubeTrack, onListeningTick]);
 
   // ---------------------------------------------------------------------------
   // 9. Media Session API Integration
@@ -533,6 +537,7 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
     <>
       {/* Native HTML5 Audio Engine for Podcasts & Audiobooks */}
       <audio
+        id="global-audio-element"
         ref={audioRef}
         onEnded={handleEnded}
         onTimeUpdate={handleTimeUpdate}
@@ -542,6 +547,9 @@ export default function GlobalAudioPlayer({ onListeningTick }: GlobalAudioPlayer
         }}
         onPause={() => {
           if (!isYouTubeTrack) setIsPlaying(false);
+          if (audioRef.current) {
+            window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: audioRef.current.currentTime } }));
+          }
         }}
         onError={(e) => {
           if (!isYouTubeTrack) console.warn('[GlobalAudioPlayer HTML5 Error]', e);

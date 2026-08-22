@@ -299,11 +299,16 @@
     "podcasts": "Podcasts"
   },
   "auth": {
+    "error_invalid_credentials": "Nome de usuário ou senha inválidos",
     "error_empty": "Por favor insira seu e-mail/nome de usuário e senha.",
-    "error_password_length": "A senha deve ter pelo menos 4 caracteres.",
+    "error_password_length": "A senha deve ter pelo menos 6 caracteres.",
     "error_email_in_use": "Este endereço de e-mail já está em uso.",
     "error_invalid_email": "Formato de endereço de e-mail inválido.",
-    "error_weak_password": "A senha é muito fraca. Deve ter pelo menos 4 caracteres.",
+    "error_weak_password": "A senha é muito fraca. Deve ter pelo menos 6 caracteres.",
+    "error_too_many_attempts": "Muitas tentativas de login. Por favor, aguarde 15 minutos.",
+    "error_network_failed": "Falha ao conectar ao servidor.",
+    "error_server": "Ocorreu um erro no servidor.",
+    "error_session_expired": "Sessão expirada. Por favor, faça login novamente.",
     "title": "Entrar",
     "title_register": "Criar perfil",
     "account": "Conta:",

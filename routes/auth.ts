@@ -23,6 +23,7 @@ export const authRateLimit = rateLimit({
   validate: false,
   message: {
     error: "Слишком много попыток входа или регистрации. Пожалуйста, подождите 15 минут.",
+    code: "TOO_MANY_ATTEMPTS",
     retryAfter: 900
   },
 });
@@ -125,10 +126,10 @@ router.post("/register", authRateLimit, async (req: Request, res: Response) => {
   const emailInput = req.body.email || req.body.username;
   const { password, name, passwordHint, avatarUrl } = req.body;
   if (!emailInput || !password) {
-    return res.status(400).json({ error: "Email и пароль обязательны" });
+    return res.status(400).json({ error: "Email и пароль обязательны", code: "REQUIRED_FIELDS" });
   }
   if (password.length < 6) {
-    return res.status(400).json({ error: "Пароль должен быть не менее 6 символов" });
+    return res.status(400).json({ error: "Пароль должен быть не менее 6 символов", code: "PASSWORD_TOO_SHORT" });
   }
 
   const cleanEmail = String(emailInput).trim().toLowerCase();
@@ -140,7 +141,7 @@ router.post("/register", authRateLimit, async (req: Request, res: Response) => {
   try {
     const existing = db.prepare("SELECT id FROM server_users WHERE email = ?").get(cleanEmail) as any;
     if (existing) {
-      return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован" });
+      return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован", code: "EMAIL_IN_USE" });
     }
 
     const userId = "usr_" + crypto.randomBytes(16).toString("hex");
@@ -189,12 +190,12 @@ router.post("/login", authRateLimit, async (req: Request, res: Response) => {
   try {
     const user = db.prepare("SELECT * FROM server_users WHERE lower(email) = ?").get(cleanEmail) as any;
     if (!user) {
-      return res.status(400).json({ error: "Неверный логин или пароль" });
+      return res.status(400).json({ error: "Неверный логин или пароль", code: "INVALID_CREDENTIALS" });
     }
 
     const isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
-      return res.status(400).json({ error: "Неверный логин или пароль" });
+      return res.status(400).json({ error: "Неверный логин или пароль", code: "INVALID_CREDENTIALS" });
     }
 
     const token = crypto.randomBytes(32).toString("hex");

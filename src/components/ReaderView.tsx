@@ -15,6 +15,7 @@ interface ReaderViewProps {
   onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
   /** Hides the title/badges/status header block (for Focus Mode) */
   hideMeta?: boolean;
+  onToggleTranslations?: () => void;
 }
 
 export default function ReaderView({
@@ -25,27 +26,37 @@ export default function ReaderView({
   history,
   onUpdateHistory,
   hideMeta = false,
+  onToggleTranslations,
 }: ReaderViewProps) {
   const { activeLesson, currentTime, setSeekToTime } = useLesson();
   const { vocab, selectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
 
-  // Auto-activate Focus Mode for video lessons on mobile devices (< 768px)
+  // Auto-activate Focus Mode or default video mode for video lessons on mobile & tablet devices (< 1024px)
   React.useEffect(() => {
     if (!activeLesson) return;
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
     const isVideoLesson = !!activeLesson.youtubeId || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "video" || !!activeLesson.localVideoUrl;
+    const videoMode = settings?.defaultVideoViewMode ?? "focus";
 
-    if (isMobile && isVideoLesson) {
+    if (isMobileOrTablet && isVideoLesson) {
       let isDismissed = false;
       try {
         isDismissed = sessionStorage.getItem(`dismissed_focus_${activeLesson.id}`) === "true";
       } catch (_) {}
 
       if (!isDismissed) {
-        useUIStore.getState().setIsFocusMode(true);
+        if (videoMode === "focus") {
+          useUIStore.getState().setIsFocusMode(true);
+        } else if (videoMode === "floating") {
+          useUIStore.getState().setIsFocusMode(false);
+          useUIStore.getState().setShowYoutubePlayer(true);
+        } else if (videoMode === "off") {
+          useUIStore.getState().setIsFocusMode(false);
+          useUIStore.getState().setShowYoutubePlayer(false);
+        }
       }
     }
-  }, [activeLesson?.id]);
+  }, [activeLesson?.id, settings?.defaultVideoViewMode]);
 
   if (!activeLesson) return null;
 
@@ -67,6 +78,7 @@ export default function ReaderView({
       history={history}
       onUpdateHistory={onUpdateHistory}
       hideMeta={hideMeta}
+      onToggleTranslations={onToggleTranslations}
     />
   );
 }

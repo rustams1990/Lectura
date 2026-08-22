@@ -41,6 +41,7 @@ import { formatDate, formatFriendlyDate, formatTime, getFirstDayOfWeek, getWeekD
 import { formatAppDate, formatAppFriendlyDate, formatAppTime } from "../utils/dateFormatter";
 import { AppDatePicker } from "./common/AppDatePicker";
 import { compareWords } from "../utils/stringUtils";
+import { normalizeLanguage } from "../utils";
 
 interface StatisticsPageProps {
   vocab: Record<string, VocabItem>;
@@ -82,7 +83,7 @@ function StatisticsPage({
   const [contextSearchQuery, setContextSearchQuery] = useState("");
   const [vocabFilter, setVocabFilter] = useState<string>("all");
   const [vocabSort, setVocabSort] = useState<"newest" | "oldest" | "alphabetical" | "alphabetical_desc" | "level_desc" | "level_asc">("newest");
-  const [onlyPatterns, setOnlyPatternsState] = useState<boolean>(() => !!readerSettings?.onlyPatterns);
+  const [onlyPatterns, setOnlyPatternsState] = useState<boolean>(() => readerSettings?.onlyPatterns !== false);
   const [activeStatsTab, setActiveStatsTab] = useState<"overview" | "vocabulary">("overview");
   const [isProfilerOpen, setIsProfilerOpen] = useState<boolean>(false);
   const [isContextSearchOpen, setIsContextSearchOpen] = useState<boolean>(false);
@@ -848,7 +849,7 @@ function StatisticsPage({
   }, [vocab]);
 
   const [selectedStatsLang, setSelectedStatsLang] = useState<string>(() => {
-    return lessons[0]?.targetLanguage || languagesList[0] || "Spanish";
+    return (lessons[0]?.targetLanguage ? normalizeLanguage(lessons[0].targetLanguage) : null) || languagesList[0] || "Spanish";
   });
 
   const batchImportStats = useMemo(() => {
@@ -1189,7 +1190,7 @@ function StatisticsPage({
 
         // 1. Gather all lessons text in the current language
         const relevantLessons = lessons.filter(
-          (l) => l.targetLanguage.toLowerCase() === langLower
+          (l) => normalizeLanguage(l.targetLanguage).toLowerCase() === langLower
         );
 
         // Concatenate title and text to build a rich corpus

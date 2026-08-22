@@ -18,6 +18,7 @@ export interface PlaylistItem {
   targetLanguage?: string;
   lessonType?: string;
   channelName?: string | null;
+  podcastTitle?: string | null;
   guid?: string;
   description?: string;
   pubDate?: string;

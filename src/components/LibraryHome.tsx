@@ -2,7 +2,7 @@ import React, { useState, useMemo, memo, useRef, useEffect, useCallback } from "
 import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat, Playlist } from "../types";
 import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones, LayoutGrid, X, MoreVertical, ListVideo } from "lucide-react";
 import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
-import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory, getUIPreviewCache, saveUIPreviewCache } from "../utils";
+import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory, getUIPreviewCache, saveUIPreviewCache, normalizeLanguage } from "../utils";
 import { getLocalizedLanguageName } from "../utils/stringUtils";
 import { segmentSentenceTokens } from "../tokenizer";
 import { useTranslation } from "react-i18next";
@@ -756,7 +756,7 @@ function LibraryHome({
         (selectedLessonType === "book" && !l.lessonType);
 
       if (matchesArchive && matchesType && matchesLessonType && l.targetLanguage) {
-        list.add(l.targetLanguage);
+        list.add(normalizeLanguage(l.targetLanguage));
       }
     });
     return ["All", ...Array.from(list)];
@@ -848,11 +848,14 @@ function LibraryHome({
       const matchesSearch =
         lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lesson.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lesson.targetLanguage.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        getLocalizedLanguageName(lesson.targetLanguage, i18n.language).toLowerCase().includes(searchQuery.toLowerCase());
+        normalizeLanguage(lesson.targetLanguage).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        getLocalizedLanguageName(normalizeLanguage(lesson.targetLanguage), i18n.language).toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesLanguage =
-        selectedLanguage === "All" || lesson.targetLanguage === selectedLanguage;
+        !selectedLanguage ||
+        selectedLanguage.toLowerCase() === "all" ||
+        normalizeLanguage(lesson.targetLanguage).toLowerCase() === normalizeLanguage(selectedLanguage).toLowerCase() ||
+        getLocalizedLanguageName(normalizeLanguage(lesson.targetLanguage), "en").toLowerCase() === normalizeLanguage(selectedLanguage).toLowerCase();
 
       const matchesType =
         filterType === "all" ||
@@ -949,17 +952,45 @@ function LibraryHome({
     });
   }, [playlists, searchQuery, selectedLanguage, selectedLessonType, showArchived, i18n.language]);
 
-  // Active counts with instant UI preview cache fallback before server load
-  const rawActiveCount = lessons.filter(l => !l.isArchived).length + (playlists || []).filter(p => !p.isArchived).length;
-  const rawArchivedCount = lessons.filter(l => l.isArchived).length + (playlists || []).filter(p => p.isArchived).length;
+  // Active/Archived counts respecting current selectedLanguage filter
+  const isAllLanguage = !selectedLanguage || selectedLanguage.toLowerCase() === "all";
+
+  const matchesLanguageFilter = (itemLang?: string) => {
+    if (isAllLanguage) return true;
+    if (!itemLang) return false;
+    const l = itemLang.toLowerCase();
+    const sel = selectedLanguage.toLowerCase();
+    return l === sel || getLocalizedLanguageName(l, "en").toLowerCase() === sel;
+  };
+
+  const rawActiveCount = useMemo(() => {
+    const activeLessons = lessons.filter(
+      (l) => !l.isArchived && matchesLanguageFilter(l.targetLanguage || (l as any).language)
+    ).length;
+    const activePlaylists = (playlists || []).filter(
+      (p) => !p.isArchived && matchesLanguageFilter(p.language || (p as any).targetLanguage)
+    ).length;
+    return activeLessons + activePlaylists;
+  }, [lessons, playlists, selectedLanguage]);
+
+  const rawArchivedCount = useMemo(() => {
+    const archivedLessons = lessons.filter(
+      (l) => l.isArchived && matchesLanguageFilter(l.targetLanguage || (l as any).language)
+    ).length;
+    const archivedPlaylists = (playlists || []).filter(
+      (p) => p.isArchived && matchesLanguageFilter(p.language || (p as any).targetLanguage)
+    ).length;
+    return archivedLessons + archivedPlaylists;
+  }, [lessons, playlists, selectedLanguage]);
+
   const preview = getUIPreviewCache();
   const isDataAvailable = lessons.length > 0 || (playlists && playlists.length > 0) || Object.keys(vocab || {}).length > 0;
 
-  const activeCount = (!isDataAvailable && preview && preview.activeBooksCount > 0)
+  const activeCount = (!isDataAvailable && preview && preview.activeBooksCount > 0 && isAllLanguage)
     ? preview.activeBooksCount
     : rawActiveCount;
 
-  const archivedCount = (!isDataAvailable && preview && preview.archivedBooksCount > 0)
+  const archivedCount = (!isDataAvailable && preview && preview.archivedBooksCount > 0 && isAllLanguage)
     ? preview.archivedBooksCount
     : rawArchivedCount;
 
@@ -1059,7 +1090,7 @@ function LibraryHome({
       <StatsWidget
         stats={languageAwareStats}
         selectedLanguage={selectedLanguage}
-        onlyPatterns={!!settings?.onlyPatterns}
+        onlyPatterns={settings?.onlyPatterns !== false}
       />
 
 

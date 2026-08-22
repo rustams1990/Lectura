@@ -167,6 +167,7 @@ export interface ReaderSettings {
   onlyPatterns?: boolean; // When true, stats & known words count use Parents Only (lemmas) grouping
   vocabularyCountingMode?: "parents_only" | "all_forms";
   dimBookCovers?: boolean;
+  cardTitlePosition?: "below_cover" | "on_cover";
   whisperModel?: "tiny" | "base" | "small" | "medium";
   whisperThreads?: number;
   whisperVad?: boolean;
@@ -175,6 +176,7 @@ export interface ReaderSettings {
   dateFormat?: DateFormatOption;
   timeFormat?: TimeFormatOption;
   firstDayOfWeek?: FirstDayOfWeekOption;
+  defaultVideoViewMode?: "focus" | "floating" | "off"; // Default view mode for YouTube & video lessons on mobile/tablet
 }
 
 export type DateFormatOption = 'auto' | 'DD/MM/YYYY' | 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
@@ -221,6 +223,11 @@ export interface HistoryEntry {
   mode?: ActivitySourceMode;
   category?: CustomActivityCategory;
   customTitle?: string;
+  // Streaming podcast & media fields
+  audioUrl?: string | null;
+  podcastTitle?: string | null;
+  guid?: string | null;
+  lastPosition?: number;
 }
 
 export interface BackupSettings {

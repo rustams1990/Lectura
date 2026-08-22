@@ -167,9 +167,9 @@ export default function SpellingMode({
                   type="button"
                   onClick={onDontKnow}
                   className="px-4 py-3.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40 transition-all cursor-pointer shrink-0"
-                  title={t('practice.dont_know', 'Не знаю / Показать ответ')}
+                  title={t('practice.dont_know_title', 'I don\'t know / Show answer')}
                 >
-                  {t('practice.dont_know_short', 'Не знаю')}
+                  {t('practice.dont_know_btn', 'Don\'t know')}
                 </button>
               )}
               <button
@@ -249,7 +249,7 @@ export default function SpellingMode({
                 onClick={onNext}
                 className="w-full py-3.5 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
               >
-                {t('practice.next', 'Next')} <ArrowRight className="w-4 h-4" />
+                {t('practice.next_btn', 'Next')} <ArrowRight className="w-4 h-4" />
               </button>
               
               <button
@@ -258,7 +258,7 @@ export default function SpellingMode({
                 className="w-full px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                {t('practice.exclude_spelling', 'Know for sure (Exclude from spelling) 🌟')}
+                {t('practice.exclude_spelling_btn', 'Know for sure (Exclude from spelling) 🌟')}
               </button>
             </div>
           </motion.div>

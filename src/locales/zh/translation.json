@@ -299,11 +299,16 @@
     "podcasts": "Podcasts"
   },
   "auth": {
+    "error_invalid_credentials": "用户名或密码错误",
     "error_empty": "请输入您的电子邮件/用户名和密码。",
-    "error_password_length": "密码长度必须至少为 4 个字符。",
+    "error_password_length": "密码长度必须至少为 6 个字符。",
     "error_email_in_use": "该电子邮件地址已被使用。",
     "error_invalid_email": "电子邮件地址格式无效。",
-    "error_weak_password": "密码太弱。必须至少 4 个字符。",
+    "error_weak_password": "密码太弱。必须至少 6 个字符。",
+    "error_too_many_attempts": "登录尝试次数过多。请等待 15 分钟。",
+    "error_network_failed": "无法连接到服务器。",
+    "error_server": "发生服务器错误。",
+    "error_session_expired": "会话已过期。请重新登录。",
     "title": "登入",
     "title_register": "创建个人资料",
     "account": "帐户：",

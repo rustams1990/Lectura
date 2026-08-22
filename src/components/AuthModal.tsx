@@ -73,6 +73,77 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
     } catch (_) {}
   };
 
+  const getLocalizedErrorMessage = (err: string | null | undefined): string => {
+    if (!err) return "";
+    const str = String(err);
+
+    if (
+      str === "INVALID_CREDENTIALS" ||
+      str.includes("Неверный логин или пароль") ||
+      str.toLowerCase().includes("invalid username or password") ||
+      str.toLowerCase().includes("invalid credentials") ||
+      str.toLowerCase().includes("invalid login")
+    ) {
+      return t("auth.error_invalid_credentials", "Invalid username or password");
+    }
+
+    if (
+      str === "EMAIL_IN_USE" ||
+      str.includes("уже зарегистрирован") ||
+      str.includes("уже используется") ||
+      str.toLowerCase().includes("already in use") ||
+      str.toLowerCase().includes("already registered")
+    ) {
+      return t("auth.error_email_in_use", "This email address is already in use.");
+    }
+
+    if (
+      str === "REQUIRED_FIELDS" ||
+      str.includes("обязательны") ||
+      str.toLowerCase().includes("required")
+    ) {
+      return t("auth.error_empty", "Please enter your email/username and password.");
+    }
+
+    if (
+      str === "PASSWORD_TOO_SHORT" ||
+      str.includes("не менее 6") ||
+      str.includes("не менее 4") ||
+      str.toLowerCase().includes("password must be at least")
+    ) {
+      return t("auth.error_password_length", "Password must be at least 6 characters long.");
+    }
+
+    if (
+      str === "TOO_MANY_ATTEMPTS" ||
+      str.includes("Слишком много попыток") ||
+      str.toLowerCase().includes("too many attempts") ||
+      str.toLowerCase().includes("too many requests")
+    ) {
+      return t("auth.error_too_many_attempts", "Too many login attempts. Please wait 15 minutes.");
+    }
+
+    if (
+      str === "NETWORK_ERROR" ||
+      str.includes("Не удалось подключиться к серверу") ||
+      str.toLowerCase().includes("failed to fetch") ||
+      str.toLowerCase().includes("network error")
+    ) {
+      return t("auth.error_network_failed", "Failed to connect to server.");
+    }
+
+    if (
+      str === "SESSION_EXPIRED" ||
+      str.includes("Сессия недействительна") ||
+      str.includes("Сессия истекла") ||
+      str.toLowerCase().includes("session expired")
+    ) {
+      return t("auth.error_session_expired", "Session expired. Please sign in again.");
+    }
+
+    return str;
+  };
+
   const handleServerUrlChange = (val: string) => {
     setServerUrlState(val);
     setServerStatus(null);
@@ -253,7 +324,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed">
                 <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
-                <p>{authError}</p>
+                <p>{getLocalizedErrorMessage(authError)}</p>
               </div>
             )}
 
@@ -434,7 +505,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
                 <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
-                <p>{authError}</p>
+                <p>{getLocalizedErrorMessage(authError)}</p>
               </div>
             )}
 

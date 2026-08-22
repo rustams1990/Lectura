@@ -767,18 +767,18 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
       )}
 
       {/* 2-Column YouTube Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
         
-        {/* Left Column (Sticky Sidebar Header - Compact and Balanced) */}
-        <div className="lg:col-span-4 lg:sticky lg:top-20 space-y-4">
-          <div className="bg-gradient-to-b from-teal-500/10 via-zinc-100/50 to-white dark:from-teal-950/30 dark:via-zinc-900/60 dark:to-zinc-900 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 p-4 sm:p-5 space-y-4 shadow-sm">
-            {/* Big Playlist Cover Art (Optimized Compact Max-Width) */}
-            <div className="relative aspect-video w-full max-w-[260px] sm:max-w-[280px] mx-auto rounded-2xl overflow-hidden bg-zinc-950 shadow-md border border-zinc-800">
+        {/* Left Column (Sticky Sidebar Header - YouTube Proportional Width) */}
+        <div className="w-full lg:w-[350px] xl:w-[380px] shrink-0 lg:sticky lg:top-20 space-y-4">
+          <div className="bg-gradient-to-b from-zinc-100/90 via-zinc-100/50 to-zinc-50 dark:from-zinc-800/90 dark:via-zinc-900/80 dark:to-zinc-950 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 p-5 space-y-4 shadow-sm backdrop-blur-sm">
+            {/* Big Playlist Cover Art (Full Width 16:9 Aspect Ratio) */}
+            <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-zinc-950 shadow-md border border-zinc-800/80 group">
               {playlist.thumbnailUrl ? (
                 <img
                   src={playlist.thumbnailUrl}
                   alt={playlist.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => {
                     const target = e.currentTarget;
                     if (target.src.includes("/maxresdefault.jpg")) {
@@ -793,16 +793,16 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
               )}
 
               {/* Bottom right track count badge */}
-              <div className="absolute bottom-2 right-2 px-2.5 py-0.5 bg-black/75 backdrop-blur-md rounded-lg text-white font-mono text-xs font-black flex items-center gap-1.5 border border-white/10">
+              <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-lg text-white font-mono text-xs font-bold flex items-center gap-1.5 border border-white/10 shadow-sm">
                 <ListVideo className="w-3.5 h-3.5" />
                 <span>{items.length}</span>
               </div>
             </div>
 
             {/* Title & Channel Details */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-black leading-none bg-zinc-200/80 dark:bg-zinc-800 px-2.5 py-1 rounded-full text-zinc-800 dark:text-zinc-200">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-zinc-200/80 dark:bg-zinc-800 px-2.5 py-0.5 rounded-full text-zinc-800 dark:text-zinc-200">
                   {renderCircularFlag(flag)}
                   <span>{localizedLang}</span>
                 </span>
@@ -810,24 +810,24 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                   {playlist.sourceType === "youtube_playlist" ? "YouTube Playlist" : t("playlist.custom", "Collection")}
                 </span>
                 {playlist.isArchived && (
-                  <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-md border border-amber-300 dark:border-amber-800">
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-md border border-amber-300 dark:border-amber-800">
                     {t("common.archived", "Archived")}
                   </span>
                 )}
               </div>
 
-              <h1 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-zinc-100 leading-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-zinc-950 dark:text-white leading-tight tracking-tight">
                 {playlist.title}
               </h1>
 
               {playlist.channelTitle && (
-                <p className="text-xs sm:text-sm font-bold text-zinc-600 dark:text-zinc-300">
+                <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                   {playlist.channelTitle}
                 </p>
               )}
 
               {/* Aggregate Meta Stats */}
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 font-medium flex items-center gap-2 pt-1">
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 font-normal flex items-center gap-2">
                 <span>{items.length} {t("playlist.videos_count", "videos")}</span>
                 {totalSeconds > 0 && (
                   <>
@@ -839,10 +839,10 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
               {/* Total Playlist Completion Progress */}
               {items.length > 0 && (
-                <div className="space-y-1.5 pt-1.5">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-zinc-600 dark:text-zinc-400">
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
                     <span>{t("playlist.progress_label", "Progress")}</span>
-                    <span className="text-zinc-900 dark:text-zinc-100 font-extrabold">
+                    <span className="text-zinc-900 dark:text-zinc-100 font-bold">
                       {statusCounts.completed} / {items.length} {t("playlist.completed_short", "completed")} ({items.length > 0 ? Math.round((statusCounts.completed / items.length) * 100) : 0}%)
                     </span>
                   </div>
@@ -863,11 +863,11 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
             </div>
 
             {/* Actions: ▶ Play All */}
-            <div className="pt-1">
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={handlePlayAll}
-                className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-500 active:scale-98 text-white font-extrabold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-teal-600/20"
+                className="w-full py-3 px-5 bg-teal-600 hover:bg-teal-500 active:scale-98 text-white font-bold text-sm rounded-full flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-teal-600/20"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>{t("player.play_all", "Play All")}</span>
@@ -877,9 +877,9 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
         </div>
 
         {/* Right Column (Videos / Episodes List with Sorting & Search) */}
-        <div className="lg:col-span-8 space-y-3">
+        <div className="flex-1 min-w-0 space-y-3">
           {/* Header toolbar with counter, search input, and sort dropdown */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-extrabold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
                 <span>{t("playlist.episodes_list", "Videos / Episodes")}</span>
@@ -889,15 +889,15 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
               </h2>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               {/* Add video shortcut button */}
               <button
                 type="button"
                 onClick={() => setShowAddMediaModal(true)}
-                className="px-2.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60 transition-all cursor-pointer shrink-0"
+                className="w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60 transition-all cursor-pointer shrink-0"
                 title={t("playlist.add_media_btn", "Add video / lesson")}
               >
-                <Plus className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <Plus className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 <span className="hidden sm:inline">{t("playlist.add_btn_short", "Add")}</span>
               </button>
               {/* Bulk Subtitles Download Button */}
@@ -938,8 +938,8 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 </button>
               ) : null}
 
-              {/* Filter search input */}
-              <div className="relative flex-1 sm:w-44">
+              {/* Filter search input (flex-1 min-w-0 for mobile responsive scaling) */}
+              <div className="relative flex-1 min-w-0 sm:w-48 sm:flex-initial">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
                 <input
                   type="text"
@@ -950,28 +950,29 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 />
               </div>
 
-              {/* Sort dropdown */}
-              <div className="relative">
+              {/* Sort dropdown (compact icon button on mobile, full select on desktop) */}
+              <div className="relative shrink-0">
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as PlaylistSortOption)}
-                  className="appearance-none pl-7 pr-7 py-1.5 text-xs font-bold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 transition-colors"
+                  className="w-9 h-9 sm:w-auto appearance-none pl-2.5 pr-2.5 sm:pl-7 sm:pr-7 py-1.5 text-xs font-bold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-transparent sm:text-zinc-800 dark:sm:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 transition-colors"
+                  title={t("playlist.sort_title", "Sort order")}
                 >
-                  <option value="default">{t("playlist.sort_default", "Default order")}</option>
-                  <option value="duration_asc">{t("playlist.sort_duration_asc", "Shortest first")}</option>
-                  <option value="duration_desc">{t("playlist.sort_duration_desc", "Longest first")}</option>
-                  <option value="title_asc">{t("playlist.sort_title_asc", "Title (A - Z)")}</option>
-                  <option value="title_desc">{t("playlist.sort_title_desc", "Title (Z - A)")}</option>
-                  <option value="status">{t("playlist.sort_status", "Incomplete first")}</option>
+                  <option value="default" className="text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">{t("playlist.sort_default", "Default order")}</option>
+                  <option value="duration_asc" className="text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">{t("playlist.sort_duration_asc", "Shortest first")}</option>
+                  <option value="duration_desc" className="text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">{t("playlist.sort_duration_desc", "Longest first")}</option>
+                  <option value="title_asc" className="text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">{t("playlist.sort_title_asc", "Title (A - Z)")}</option>
+                  <option value="title_desc" className="text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">{t("playlist.sort_title_desc", "Title (Z - A)")}</option>
+                  <option value="status" className="text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-900">{t("playlist.sort_status", "Incomplete first")}</option>
                 </select>
-                <ArrowUpDown className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400 pointer-events-none" />
-                <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400 pointer-events-none" />
+                <ArrowUpDown className="w-3.5 h-3.5 absolute left-1/2 -translate-x-1/2 sm:left-2 sm:translate-x-0 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400 pointer-events-none" />
+                <ChevronDown className="hidden sm:block w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400 pointer-events-none" />
               </div>
             </div>
           </div>
 
-          {/* Status Filter Chips Row (Horizontal Scroll with touch smooth) */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth">
+          {/* Status Filter Chips Row (Horizontal Scroll with touch smooth and w-full) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 w-full scroll-smooth">
             <button
               type="button"
               onClick={() => setStatusFilter("all")}

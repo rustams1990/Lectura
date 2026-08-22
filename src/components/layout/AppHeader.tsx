@@ -1,16 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Languages, Sun, Moon, ChevronDown, Check, Plus } from 'lucide-react';
+import { Menu, Languages, Sun, Moon, ChevronDown, Check, Plus, ChevronLeft, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { settingsStore } from '../../db';
 import { useTranslation } from 'react-i18next';
 import { getLanguageFlagEmoji, renderCircularFlag } from '../LibraryHome';
 import { getLocalizedLanguageName } from '../../utils/stringUtils';
 import AccountSwitcherDropdown from '../AccountSwitcherDropdown';
-
 import WhisperNotificationDropdown from '../WhisperNotificationDropdown';
+import TextSettingsControls from '../TextSettingsControls';
+import { useUIStore } from '../../store/uiStore';
+import { ReaderSettings } from '../../types';
 
 interface AppHeaderProps {
   isFocusMode: boolean;
+  activeTab?: string;
+  readerSettings?: ReaderSettings;
+  onUpdateReaderSettings?: (settings: ReaderSettings) => void;
   currentReaderTheme: {
     border: string;
     headerBg: string;
@@ -40,6 +45,9 @@ interface AppHeaderProps {
 
 export default function AppHeader({
   isFocusMode,
+  activeTab,
+  readerSettings,
+  onUpdateReaderSettings,
   currentReaderTheme,
   layoutContainerClass,
   setIsSidebarOpen,
@@ -65,6 +73,7 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
   const { t, i18n } = useTranslation();
+  const { setShowAiHubModal } = useUIStore();
 
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const langDropdownRef = useRef<HTMLDivElement>(null);
@@ -82,19 +91,32 @@ export default function AppHeader({
   if (isFocusMode) return null;
 
   return (
-    <header className={`border-b ${currentReaderTheme.border} ${currentReaderTheme.headerBg} backdrop-blur-md relative z-30 px-2 sm:px-6 py-2 sm:py-3.5`}>
+    <header className={`border-b ${currentReaderTheme.border} ${currentReaderTheme.headerBg} backdrop-blur-md relative z-40 px-2 sm:px-6 py-2 sm:py-3.5`}>
       <div className={`mx-auto flex items-center justify-between gap-1.5 sm:gap-4 transition-all duration-300 ${layoutContainerClass}`}>
         
-        {/* Left side: Hamburger + Brand logo */}
+        {/* Left side: Back to Library (when in reader) or Hamburger + Brand logo */}
         <div className="flex items-center gap-1.5 sm:gap-3">
-          <button
-            id="btn-toggle-sidebar"
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 sm:p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
-            title={t('header.open_menu', 'Открыть меню')}
-          >
-            <Menu className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
-          </button>
+          {activeTab === 'read' ? (
+            <button
+              onClick={() => {
+                setActiveTab("library");
+                setSelectedWord(null);
+              }}
+              className="p-2 sm:p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
+              title={t('reader.library_btn', 'Библиотека')}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          ) : (
+            <button
+              id="btn-toggle-sidebar"
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 sm:p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
+              title={t('header.open_menu', 'Открыть меню')}
+            >
+              <Menu className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+            </button>
+          )}
 
           <a
             href="/"
@@ -119,18 +141,42 @@ export default function AppHeader({
               <Languages className="w-5 h-5 transition-transform group-hover:scale-110" />
             </div>
             <div>
-              <h1 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5 text-zinc-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+              <h1 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5 text-zinc-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors hidden sm:block">
                 Lectura
               </h1>
             </div>
           </a>
         </div>
 
-        {/* Right side: Sync State & Login/Logout HUD */}
+        {/* Right side: Reader tools (AI Hub, AA) + Sync State & Login/Logout HUD */}
         <div className="flex items-center gap-1 sm:gap-2">
 
+          {/* Quick Reader Header Tools: AI Hub & Text Settings (AA) (Mobile-only: md:hidden) */}
+          {activeTab === 'read' && (
+            <div className="flex md:hidden items-center gap-1">
+              {/* AI Hub Launcher */}
+              <button
+                type="button"
+                onClick={() => setShowAiHubModal(true)}
+                className="p-2 sm:p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
+                title={t('reader.ai_hub_title', 'AI Hub')}
+              >
+                <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              </button>
+
+              {/* Text Settings (AA) */}
+              {readerSettings && onUpdateReaderSettings && (
+                <TextSettingsControls
+                  settings={readerSettings}
+                  onUpdateSettings={onUpdateReaderSettings}
+                  compact
+                />
+              )}
+            </div>
+          )}
+
           {/* Global Target Language Selector Dropdown in Header */}
-          <div className="relative font-sans" ref={langDropdownRef}>
+          <div className={`relative font-sans ${activeTab === 'read' ? 'hidden md:block' : ''}`} ref={langDropdownRef}>
             <button
               onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
               className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 shadow-3xs active:scale-95 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 text-zinc-900 dark:text-white border-zinc-200/80 dark:border-zinc-800 font-extrabold text-xs"
@@ -146,7 +192,7 @@ export default function AppHeader({
             </button>
 
             {isLangDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 font-sans overflow-hidden">
+              <div className="fixed inset-x-3 top-14 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-56 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 font-sans overflow-hidden">
                 <div className="px-3 py-1 text-[10px] uppercase font-black tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800/60 mb-1">
                   🌐 {t('header.target_language', 'Learning Language')}
                 </div>

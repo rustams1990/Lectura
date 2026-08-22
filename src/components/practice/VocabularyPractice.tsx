@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../../types";
 import { calculateNextReview } from "../../utils/srsAlgorithm";
 import { motion, AnimatePresence } from "motion/react";
-import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit } from "lucide-react";
+import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit, SlidersHorizontal, List, MoreVertical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../../utils";
 import { useToast } from "../../context/ToastContext";
@@ -18,6 +18,7 @@ import { LANGUAGES_SUPPORTED } from "../../data";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../../services/aiFailoverService";
 import { resolveLocale, formatFriendlyDate } from "../../utils/dateUtils";
 import { formatAppDate } from "../../utils/dateFormatter";
+import { getLanguageFlagEmoji } from "../LibraryHome";
 
 
 
@@ -85,6 +86,44 @@ export default function VocabularyPractice({
   const [studyMode, setStudyMode] = useState<"word" | "image" | "spelling">("word");
   // Words re-queued after "Again" — shown again at end of current session
   const [relearningQueue, setRelearningQueue] = useState<string[]>([]);
+
+  // Header and toolbar dropdown states
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
+  const [isDirDropdownOpen, setIsDirDropdownOpen] = useState(false);
+
+  const langDropdownRef = React.useRef<HTMLDivElement | null>(null);
+  const filtersPopoverRef = React.useRef<HTMLDivElement | null>(null);
+  const moreMenuRef = React.useRef<HTMLDivElement | null>(null);
+  const modeDropdownRef = React.useRef<HTMLDivElement | null>(null);
+  const dirDropdownRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (langDropdownRef.current && !langDropdownRef.current.contains(target)) {
+        setIsLangMenuOpen(false);
+      }
+      if (filtersPopoverRef.current && !filtersPopoverRef.current.contains(target)) {
+        setIsFiltersOpen(false);
+      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setIsMoreMenuOpen(false);
+      }
+      if (modeDropdownRef.current && !modeDropdownRef.current.contains(target)) {
+        setIsModeDropdownOpen(false);
+      }
+      if (dirDropdownRef.current && !dirDropdownRef.current.contains(target)) {
+        setIsDirDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleDocumentClick);
+    return () => document.removeEventListener("mousedown", handleDocumentClick);
+  }, []);
 
   // Reset card index and relearning queue when deck filter/mode/language changes
   useEffect(() => {
@@ -236,12 +275,35 @@ export default function VocabularyPractice({
   const [hasCheckedSpelling, setHasCheckedSpelling] = useState(false);
   const spellingInputRef = React.useRef<HTMLInputElement | null>(null);
   const activeAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const ttsAbortControllerRef = React.useRef<AbortController | null>(null);
   // Generation counter: incremented on every card navigation so stale async TTS requests can be discarded
   const ttsGenerationRef = React.useRef<number>(0);
   // Pending spell result to be saved when user navigates (prevents immediate list recomputation)
   const pendingSpellSaveRef = React.useRef<VocabItem | null>(null);
   // Target next word to preserve index alignment when elements are dynamically filtered out of learningList
   const nextWordTargetRef = React.useRef<string | null>(null);
+
+  // Stop all active audio / TTS on unmount
+  useEffect(() => {
+    return () => {
+      if (ttsAbortControllerRef.current) {
+        ttsAbortControllerRef.current.abort();
+      }
+      if (activeAudioRef.current) {
+        try {
+          activeAudioRef.current.pause();
+          activeAudioRef.current.currentTime = 0;
+          activeAudioRef.current.src = "";
+        } catch (e) {}
+        activeAudioRef.current = null;
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (nextWordTargetRef.current) {
@@ -332,7 +394,17 @@ export default function VocabularyPractice({
     const myGeneration = ttsGenerationRef.current + 1;
     ttsGenerationRef.current = myGeneration;
 
-    // 1. Immediately cancel local browser SpeechSynthesis to stop overlapping
+    // 1. Abort previous pending fetch request if any
+    if (ttsAbortControllerRef.current) {
+      try {
+        ttsAbortControllerRef.current.abort();
+      } catch (e) {}
+      ttsAbortControllerRef.current = null;
+    }
+    const abortController = new AbortController();
+    ttsAbortControllerRef.current = abortController;
+
+    // 2. Immediately cancel local browser SpeechSynthesis to stop overlapping
     if (typeof window !== "undefined" && window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
@@ -341,10 +413,12 @@ export default function VocabularyPractice({
       }
     }
 
-    // 2. Stop any active HTML5 Audio playback (Google TTS / Gemini TTS)
+    // 3. Stop any active HTML5 Audio playback (Google TTS / Gemini TTS)
     if (activeAudioRef.current) {
       try {
         activeAudioRef.current.pause();
+        activeAudioRef.current.currentTime = 0;
+        activeAudioRef.current.src = "";
       } catch (e) {
         console.error("Audio pause error:", e);
       }
@@ -357,7 +431,7 @@ export default function VocabularyPractice({
     const targetLanguage = selectedPracticeLang;
     const ttsLang = getEffectiveTtsLocale(targetLanguage, settings);
 
-    const isStale = () => ttsGenerationRef.current !== myGeneration;
+    const isStale = () => ttsGenerationRef.current !== myGeneration || abortController.signal.aborted;
 
     // --- Google Translate TTS (with local caching) ---
     if (currentTtsEngine === "google") {
@@ -372,7 +446,9 @@ export default function VocabularyPractice({
           audioUrl = URL.createObjectURL(blob);
         } else {
           const params = new URLSearchParams({ text: wordToPlay, lang: ttsLang });
-          const response = await fetch(`/api/google-tts?${params.toString()}`);
+          const response = await fetch(`/api/google-tts?${params.toString()}`, {
+            signal: abortController.signal,
+          });
           if (isStale()) { setPlayingSpeech(false); return; }
           if (!response.ok) throw new Error(`Google TTS ${response.status}`);
           blob = await response.blob();
@@ -387,6 +463,9 @@ export default function VocabularyPractice({
         }
 
         if (audioUrl) {
+          if (typeof window !== "undefined" && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+          }
           const audio = new Audio(audioUrl);
           activeAudioRef.current = audio;
           audio.onended = () => {
@@ -403,6 +482,16 @@ export default function VocabularyPractice({
           return;
         }
       } catch (e: any) {
+        if (
+          e?.name === "AbortError" ||
+          e?.code === 20 ||
+          e?.message?.includes("interrupted") ||
+          e?.message?.includes("aborted") ||
+          isStale()
+        ) {
+          setPlayingSpeech(false);
+          return;
+        }
         console.warn("Google TTS failed, falling back to browser TTS:", e);
       }
     }
@@ -418,6 +507,7 @@ export default function VocabularyPractice({
             text: wordToPlay,
             language: descriptiveLang,
           }),
+          signal: abortController.signal,
         });
 
         if (isStale()) { setPlayingSpeech(false); return; }
@@ -431,6 +521,9 @@ export default function VocabularyPractice({
         if (isStale()) { setPlayingSpeech(false); return; }
 
         if (data.audioBase64) {
+          if (typeof window !== "undefined" && window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+          }
           const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
           activeAudioRef.current = audio;
           audio.onended = () => {
@@ -447,6 +540,16 @@ export default function VocabularyPractice({
           throw new Error("No audio base64 payload");
         }
       } catch (e: any) {
+        if (
+          e?.name === "AbortError" ||
+          e?.code === 20 ||
+          e?.message?.includes("interrupted") ||
+          e?.message?.includes("aborted") ||
+          isStale()
+        ) {
+          setPlayingSpeech(false);
+          return;
+        }
         console.warn("Gemini neural voice failed or rate-limited. Falling back automatically to local browser TTS.", e);
       }
     }
@@ -455,12 +558,22 @@ export default function VocabularyPractice({
     try {
       if (isStale()) { setPlayingSpeech(false); return; }
 
+      if (activeAudioRef.current) {
+        try {
+          activeAudioRef.current.pause();
+          activeAudioRef.current.currentTime = 0;
+          activeAudioRef.current.src = "";
+        } catch (e) {}
+        activeAudioRef.current = null;
+      }
+
       const utterance = new SpeechSynthesisUtterance(wordToPlay);
       utterance.lang = ttsLang;
       utterance.onend = () => { setPlayingSpeech(false); };
       utterance.onerror = () => { setPlayingSpeech(false); };
       
       if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
         const voices = window.speechSynthesis.getVoices();
         let matchingVoice = voices.find(v => {
           const vLang = v.lang.toLowerCase().replace("_", "-");
@@ -474,8 +587,8 @@ export default function VocabularyPractice({
           });
         }
         if (matchingVoice) utterance.voice = matchingVoice;
+        window.speechSynthesis.speak(utterance);
       }
-      window.speechSynthesis.speak(utterance);
     } catch (browserErr) {
       console.error("Audio playback error:", browserErr);
       setPlayingSpeech(false);
@@ -533,11 +646,11 @@ export default function VocabularyPractice({
 
   const handleGenerateStory = async () => {
     if (selectedWords.length === 0) {
-      setGenError(t('practice.select_one_word', 'Пожалуйста, выберите хотя бы одно слово.'));
+      setGenError(t('practice.select_one_word', 'Please select at least one word.'));
       return;
     }
     if (selectedWords.length > 15) {
-      setGenError(t('practice.too_many_words', 'Слишком много слов. Пожалуйста, выберите не более 15 слов.'));
+      setGenError(t('practice.too_many_words', 'Too many words. Please select no more than 15 words.'));
       return;
     }
 
@@ -564,7 +677,7 @@ export default function VocabularyPractice({
 
           if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            const err: any = new Error(errData.error || t('practice.conn_error', 'Ошибка соединения с сервером'));
+            const err: any = new Error(errData.error || t('practice.conn_error', 'Server connection error'));
             err.status = response.status;
             throw err;
           }
@@ -579,7 +692,7 @@ export default function VocabularyPractice({
       );
 
       if (!data.text || !data.title) {
-        throw new Error(t('practice.invalid_ai_response', 'Неверный формат ответа от ИИ'));
+        throw new Error(t('practice.invalid_ai_response', 'Invalid AI response format'));
       }
 
       const newLessonId = "story_" + Date.now();
@@ -604,7 +717,7 @@ export default function VocabularyPractice({
       setShowStoryGen(false);
     } catch (err: any) {
       console.error(err);
-      setGenError(err.message || t('practice.gen_failed', 'Не удалось сгенерировать историю. Попробуйте еще раз.'));
+      setGenError(err.message || t('practice.gen_failed', 'Failed to generate story. Please try again.'));
     } finally {
       setIsGenerating(false);
     }
@@ -657,7 +770,7 @@ export default function VocabularyPractice({
         lastSpelledWithAccentError: false,
       };
 
-      showToast(`🟢 Правильно! Написание слова «${target}» зафиксировано!`, "success", 3000);
+      showToast(t('practice.toast_spelling_correct', '🟢 Correct! Spelling of «{{word}}» saved!', { word: target }), "success", 3000);
 
     } else if (isAccentWarning) {
       // Accent warning: update accent error statistics
@@ -667,7 +780,7 @@ export default function VocabularyPractice({
         lastSpelledWithAccentError: true,
       };
 
-      showToast(`⚠️ Внимание: опечатка в акценте / знаке для «${target}»`, "warning", 3000);
+      showToast(t('practice.toast_spelling_accent', '⚠️ Warning: accent / diacritic typo in «{{word}}»', { word: target }), "warning", 3000);
 
     } else {
       // Incorrect spelling -> re-queue card in current session for writing practice, WITHOUT touching reading status!
@@ -680,7 +793,7 @@ export default function VocabularyPractice({
         lastSpelledWithAccentError: false,
       };
 
-      showToast(`🔴 Ошибка в написании! «${target}» вернётся в этой сессии`, "error", 3000);
+      showToast(t('practice.toast_spelling_error', '🔴 Spelling error! «{{word}}» will return in this session', { word: target }), "error", 3000);
     }
   };
 
@@ -727,7 +840,7 @@ export default function VocabularyPractice({
       lastSpelledWithAccentError: false,
     };
 
-    showToast(`🔴 Не знаю: «${target}» вернётся в этой сессии`, "warning", 3000);
+    showToast(t('practice.toast_dont_know', '🔴 Don\'t know: «{{word}}» will return in this session', { word: target }), "warning", 3000);
   };
 
   const getClozeSentence = (sentenceText: string, targetWord: string) => {
@@ -780,27 +893,7 @@ export default function VocabularyPractice({
     }
   }, [currentIndex, currentLq?.word, studyMode, selectedPracticeLang]);
 
-  // Global key listener for next card when flipped
-  useEffect(() => {
-    if (studyMode !== "spelling") return;
 
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === "INPUT" && document.activeElement !== spellingInputRef.current) {
-        return;
-      }
-      if (document.activeElement?.tagName === "TEXTAREA") {
-        return;
-      }
-
-      if (isFlipped && e.key === "Enter") {
-        e.preventDefault();
-        handleNext();
-      }
-    };
-
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [studyMode, isFlipped, currentIndex]);
 
   const hasAnyImages = useMemo(() => {
     return learningList.some((lq) => !!lq.imageUrl);
@@ -855,7 +948,7 @@ export default function VocabularyPractice({
     } else if (onSaveVocab) {
       onSaveVocab({ ...currentLq, status: "known" }, selectedPracticeLang);
     }
-    showToast(`✨ «${currentLq.word}» перенесено в выученные!`, "success", 3000);
+    showToast(t('practice.toast_marked_known', '✨ «{{word}}» marked as mastered!', { word: currentLq.word }), "success", 3000);
     setIsFlipped(false);
   };
 
@@ -875,7 +968,7 @@ export default function VocabularyPractice({
       };
       onSaveVocab(updatedItem, selectedPracticeLang);
 
-      showToast(`🔴 Again «${currentLq.word}»: повтор в этой сессии`, "warning", 3000);
+      showToast(t('practice.toast_again', '🔴 Again «{{word}}»: review in this session', { word: currentLq.word }), "warning", 3000);
 
       const targetWord = learningList[(currentIndex + 1) % Math.max(learningList.length, 1)]?.word || null;
       nextWordTargetRef.current = targetWord;
@@ -938,134 +1031,450 @@ export default function VocabularyPractice({
     // Format human-readable toast notification
     const dateFormatted = formatAppDate(nextSrs.nextReviewDate);
 
-    const dueMsg = nextSrs.interval === 1 ? `завтра (${dateFormatted})` : `через ${nextSrs.interval} дн. (${dateFormatted})`;
+    const dueMsg = nextSrs.interval === 1
+      ? t('practice.toast_due_tomorrow', 'tomorrow ({{date}})', { date: dateFormatted })
+      : t('practice.toast_due_days', 'in {{days}} days ({{date}})', { days: nextSrs.interval, date: dateFormatted });
 
     if (newStatus === "known") {
-      showToast(`✨ «${currentLq.word}» выучено! Следующий повтор ${dueMsg}`, "success", 4000);
+      showToast(t('practice.toast_graduated', '✨ «{{word}}» mastered! Next review {{dueMsg}}', { word: currentLq.word, dueMsg }), "success", 4000);
     } else if (quality === 5) {
-      showToast(`⚡ Easy «${currentLq.word}»: повтор ${dueMsg}`, "success", 4000);
+      showToast(t('practice.toast_easy', '⚡ Easy «{{word}}»: review {{dueMsg}}', { word: currentLq.word, dueMsg }), "success", 4000);
     } else if (quality === 4) {
-      showToast(`🟢 Good «${currentLq.word}»: повтор ${dueMsg}`, "success", 4000);
+      showToast(t('practice.toast_good', '🟢 Good «{{word}}»: review {{dueMsg}}', { word: currentLq.word, dueMsg }), "success", 4000);
     } else if (quality === 3) {
-      showToast(`🟡 Hard «${currentLq.word}»: повтор ${dueMsg}`, "info", 4000);
+      showToast(t('practice.toast_hard', '🟡 Hard «{{word}}»: review {{dueMsg}}', { word: currentLq.word, dueMsg }), "info", 4000);
     }
 
     setIsFlipped(false);
   };
 
-  const resetDeck = () => {
-    setCurrentIndex(0);
-    setIsFlipped(false);
-  };
+  // Single global keydown listener on window for Practice hotkeys
+  const studyModeRef = React.useRef(studyMode);
+  studyModeRef.current = studyMode;
+  const isFlippedRef = React.useRef(isFlipped);
+  isFlippedRef.current = isFlipped;
+  const currentLqRef = React.useRef(currentLq);
+  currentLqRef.current = currentLq;
+  const handleSrsAnswerRef = React.useRef(handleSrsAnswer);
+  handleSrsAnswerRef.current = handleSrsAnswer;
+  const playSpeechRef = React.useRef(playSpeech);
+  playSpeechRef.current = playSpeech;
 
-  if (learningList.length === 0) {
-    return (
-      <div className="space-y-6 max-w-md mx-auto font-sans">
-        {/* Practice Mode Selector (Empty state) */}
-        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-3 py-2 font-sans max-w-md mx-auto">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{t('practice.mode_label', 'Mode:')}</span>
-          <div className="flex gap-1 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setStudyMode("word")}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                studyMode === "word"
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
-                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {t('practice.mode_word', 'WORD 🎴')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setStudyMode("spelling")}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                studyMode === "spelling"
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
-                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {t('practice.mode_spelling', 'SPELLING ✍️')}
-            </button>
-          </div>
-        </div>
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 1. Element isolation check: strictly ignore if inside interactive elements
+      const target = e.target;
+      if (
+        target instanceof Element &&
+        target.closest('input, textarea, select, button, a, [contenteditable="true"]')
+      ) {
+        return;
+      }
 
-        {/* Language selector even when empty, so they can switch between decks! */}
-        {activeDeckLanguages.length > 1 && (
-          <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
-            {activeDeckLanguages.map((lang) => (
-              <button
-                key={lang}
-                onClick={() => {
-                  setSelectedPracticeLang(lang);
-                  setCurrentIndex(0);
-                  setIsFlipped(false);
-                }}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  selectedPracticeLang.toLowerCase() === lang.toLowerCase()
-                    ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
-        )}
+      // 2. In Spelling mode: global listener ignores hotkeys completely
+      if (studyModeRef.current === "spelling") {
+        return;
+      }
 
-        {/* Deck Type Filter (Empty state) */}
-        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-md mx-auto flex-wrap justify-center">
-          {[
-            { id: "learning", label: t('practice.filter_learning', "Learning 🎯") },
-            { id: "all", label: t('practice.filter_all_words', "All words 📖") },
-            { id: "spelling-problems", label: t('practice.filter_spelling_errors', "With errors ❌") },
-            { id: "spelling-accents", label: t('practice.filter_spelling_accents', "With accents ⚠️") },
-            { id: "spelling-correct", label: t('practice.filter_spelling_correct', "Spelled correctly ✅") }
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setDeckTypeFilter(item.id as any)}
-              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                deckTypeFilter === item.id
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+      // 3. In Word / Image mode:
+      // Space / Enter -> toggle card flip (same mechanism as clicking the card)
+      if (e.code === "Space" || e.key === "Enter") {
+        if (e.code === "Space") {
+          e.preventDefault();
+        }
+        setIsFlipped((prev) => !prev);
+        return;
+      }
 
-        {/* Timeframe Filter Selector (Empty state) */}
-        <div className="flex bg-zinc-50 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans max-w-sm mx-auto">
-          {[
-            { id: "all", label: t('practice.filter_all_time', "All time 📅") },
-            { id: "today", label: t('practice.filter_today', "Today ☀️") },
-            { id: "week", label: t('practice.filter_week', "This week 📅") },
-            { id: "month", label: t('practice.filter_month', "This month 🗓️") }
-          ].map((item) => (
+      // 1, 2, 3, 4 -> SRS answers (STRICTLY when flipped)
+      if (isFlippedRef.current) {
+        if (e.key === "1") {
+          e.preventDefault();
+          handleSrsAnswerRef.current(1);
+          return;
+        }
+        if (e.key === "2") {
+          e.preventDefault();
+          handleSrsAnswerRef.current(3);
+          return;
+        }
+        if (e.key === "3") {
+          e.preventDefault();
+          handleSrsAnswerRef.current(4);
+          return;
+        }
+        if (e.key === "4") {
+          e.preventDefault();
+          handleSrsAnswerRef.current(5);
+          return;
+        }
+      }
+
+      // R / r -> replay TTS speech
+      if (e.key.toLowerCase() === "r") {
+        if (currentLqRef.current?.word) {
+          e.preventDefault();
+          playSpeechRef.current(currentLqRef.current.word);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
+  return (
+    <div className={`space-y-4 font-sans mx-auto transition-all duration-300 ${
+      showList ? "max-w-3xl lg:max-w-4xl" : "max-w-md"
+    }`}>
+      {/* 1. Compact Unified Header */}
+      <div className="flex items-center justify-between gap-3 px-1 py-1 font-sans">
+        {/* Left: Language selector dropdown + Card counter */}
+        <div className="flex items-center gap-2.5">
+          {/* Language Dropdown */}
+          <div className="relative" ref={langDropdownRef}>
             <button
-              key={item.id}
               type="button"
               onClick={() => {
-                setTimeframeFilter(item.id as any);
-                setCurrentIndex(0);
-                setIsFlipped(false);
+                setIsLangMenuOpen(!isLangMenuOpen);
+                setIsFiltersOpen(false);
+                setIsMoreMenuOpen(false);
               }}
-              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                timeframeFilter === item.id
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-100 dark:border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100/80 hover:bg-zinc-200/80 dark:bg-zinc-800/80 dark:hover:bg-zinc-700/80 rounded-xl text-xs font-bold text-zinc-800 dark:text-zinc-200 transition-all cursor-pointer border border-zinc-200/50 dark:border-zinc-700/50"
             >
-              {item.label}
+              <span className="text-sm leading-none">{getLanguageFlagEmoji(selectedPracticeLang)}</span>
+              <span>{selectedPracticeLang}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${isLangMenuOpen ? "rotate-180" : ""}`} />
             </button>
-          ))}
+
+            {isLangMenuOpen && (
+              <div className="absolute left-0 top-full mt-1.5 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 min-w-[160px] max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100 space-y-0.5">
+                {activeDeckLanguages.map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPracticeLang(lang);
+                      setCurrentIndex(0);
+                      setIsFlipped(false);
+                      setIsLangMenuOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-1.5 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 text-left cursor-pointer ${
+                      selectedPracticeLang.toLowerCase() === lang.toLowerCase()
+                        ? "bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400"
+                        : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <span className="text-sm">{getLanguageFlagEmoji(lang)}</span>
+                    <span>{lang}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Counter */}
+          <div className="text-xs font-bold text-zinc-400 dark:text-zinc-500 font-mono tracking-tight select-none">
+            {learningList.length > 0 ? `${currentIndex + 1} / ${learningList.length}` : "0 / 0"}
+          </div>
         </div>
 
-        {/* If there are cards from "Again" — offer to review them */}
-        {relearningQueue.length > 0 ? (
+        {/* Right: 3 icon buttons (Filters, List, More) */}
+        <div className="flex items-center gap-1.5">
+          {/* ⚙ Filters button & Popover */}
+          <div className="relative" ref={filtersPopoverRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsFiltersOpen(!isFiltersOpen);
+                setIsLangMenuOpen(false);
+                setIsMoreMenuOpen(false);
+              }}
+              className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                isFiltersOpen || deckTypeFilter !== "learning" || timeframeFilter !== "all"
+                  ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900"
+                  : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60"
+              }`}
+              title={t('practice.filter_settings', 'Filter settings')}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </button>
+
+            {isFiltersOpen && (
+              <div className="absolute right-0 top-full mt-1.5 p-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 w-[280px] sm:w-[320px] animate-in fade-in zoom-in-95 duration-100 space-y-3.5">
+                {/* Deck Type Filter */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
+                    {t('practice.deck_type', 'Deck category')}
+                  </span>
+                  <div className="grid grid-cols-2 gap-1 bg-stone-100/60 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60">
+                    {[
+                      { id: "learning", label: t('practice.deck_learning', 'Learning 🎯') },
+                      { id: "all", label: t('practice.deck_all', 'All words 📖') },
+                      { id: "spelling-problems", label: t('practice.deck_problems', 'With errors ❌') },
+                      { id: "spelling-accents", label: t('practice.deck_accents', 'Accented ⚠️') },
+                      { id: "spelling-correct", label: t('practice.deck_correct', 'Spelled correctly ✅') }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setDeckTypeFilter(item.id as any);
+                          setCurrentIndex(0);
+                          setIsFlipped(false);
+                        }}
+                        className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition-all text-left cursor-pointer ${
+                          deckTypeFilter === item.id
+                            ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/60 dark:border-zinc-700"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Timeframe Filter */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
+                    {t('practice.timeframe', 'Timeframe')}
+                  </span>
+                  <div className="grid grid-cols-2 gap-1 bg-stone-100/60 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60">
+                    {[
+                      { id: "all", label: t('practice.tf_all', 'All time 📅') },
+                      { id: "today", label: t('practice.tf_today', 'Today ☀️') },
+                      { id: "week", label: t('practice.tf_week', 'This week 📅') },
+                      { id: "month", label: t('practice.tf_month', 'This month 🗓️') }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setTimeframeFilter(item.id as any);
+                          setCurrentIndex(0);
+                          setIsFlipped(false);
+                        }}
+                        className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition-all text-left cursor-pointer ${
+                          timeframeFilter === item.id
+                            ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/60 dark:border-zinc-700"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ☰ List toggle button */}
+          <button
+            type="button"
+            onClick={() => setShowList(!showList)}
+            className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+              showList
+                ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900"
+                : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60"
+            }`}
+            title={t('practice.list_view', 'List 📋')}
+          >
+            <List className="w-3.5 h-3.5" />
+          </button>
+
+          {/* ⋮ More actions button & menu */}
+          <div className="relative" ref={moreMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMoreMenuOpen(!isMoreMenuOpen);
+                setIsLangMenuOpen(false);
+                setIsFiltersOpen(false);
+              }}
+              className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                isMoreMenuOpen
+                  ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white border-zinc-300 dark:border-zinc-600"
+                  : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60"
+              }`}
+              title={t('common.more_actions', 'More actions')}
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </button>
+
+            {isMoreMenuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 min-w-[200px] animate-in fade-in zoom-in-95 duration-100 space-y-0.5">
+                {/* Anki export */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMoreMenuOpen(false);
+                    handleExportAnki();
+                  }}
+                  className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 text-left cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                  <span>{t('practice.export_anki_title', 'Export to Anki (.CSV)')}</span>
+                </button>
+
+                {/* AI Story Generator */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMoreMenuOpen(false);
+                    handleOpenStoryGen();
+                  }}
+                  className="w-full px-2.5 py-2 text-xs font-bold text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-xl transition-colors flex items-center gap-2 text-left cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                  <span>{t('practice.ai_story_gen', 'AI Story Generator')}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Controls Bar (Mode & Direction) */}
+      <div className="flex items-center justify-between gap-2.5 font-sans">
+        {/* Mode Selector: [ Flashcards ▾ ] [ Spelling ] */}
+        <div className="flex items-center bg-stone-100/70 dark:bg-zinc-900/70 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 gap-1">
+          {hasAnyImages ? (
+            /* Dropdown if images exist */
+            <div className="relative" ref={modeDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (studyMode === "spelling") {
+                    setStudyMode("word");
+                    setIsFlipped(false);
+                  } else {
+                    setIsModeDropdownOpen(!isModeDropdownOpen);
+                  }
+                }}
+                className={`flex items-center gap-1 px-2.5 py-1 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  studyMode === "word" || studyMode === "image"
+                    ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/50 dark:border-zinc-700"
+                    : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                }`}
+              >
+                <span>{studyMode === "image" ? t('practice.mode_image', 'Image 🖼️') : t('practice.flashcards_tab', 'Flashcards')}</span>
+                <ChevronDown className="w-3 h-3 text-zinc-400" />
+              </button>
+
+              {isModeDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1 p-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg z-40 min-w-[130px] space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudyMode("word");
+                      setIsFlipped(false);
+                      setIsModeDropdownOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-1.5 text-[11px] font-bold rounded-lg transition-colors text-left flex items-center gap-1.5 cursor-pointer ${
+                      studyMode === "word" ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400" : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <span>{t('practice.mode_word', 'Word 🔤')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudyMode("image");
+                      setIsFlipped(false);
+                      setIsModeDropdownOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-1.5 text-[11px] font-bold rounded-lg transition-colors text-left flex items-center gap-1.5 cursor-pointer ${
+                      studyMode === "image" ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400" : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <span>{t('practice.mode_image', 'Image 🖼️')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setStudyMode("word");
+                setIsFlipped(false);
+              }}
+              className={`px-2.5 py-1 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                studyMode === "word" || studyMode === "image"
+                  ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/50 dark:border-zinc-700"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              {t('practice.flashcards_tab', 'Flashcards')}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setStudyMode("spelling");
+              setIsFlipped(false);
+            }}
+            className={`px-2.5 py-1 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+              studyMode === "spelling"
+                ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/50 dark:border-zinc-700"
+                : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+            }`}
+          >
+            {t('practice.mode_spelling', 'Spelling ✍️')}
+          </button>
+        </div>
+
+        {/* Direction Dropdown: [ Word → Translation ▾ ] */}
+        <div className="relative" ref={dirDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsDirDropdownOpen(!isDirDropdownOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-stone-100/70 hover:bg-stone-200/70 dark:bg-zinc-900/70 dark:hover:bg-zinc-800/70 rounded-xl text-[11px] font-bold text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer border border-zinc-200/50 dark:border-zinc-800/60"
+          >
+            <span>{studyDirection === "forward" ? t('practice.word_to_trans', 'Word → Translation') : t('practice.trans_to_word', 'Translation → Word')}</span>
+            <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${isDirDropdownOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {isDirDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1 p-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg z-40 min-w-[170px] space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setStudyDirection("forward");
+                  setIsFlipped(false);
+                  setIsDirDropdownOpen(false);
+                }}
+                className={`w-full px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors text-left cursor-pointer ${
+                  studyDirection === "forward" ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400" : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                }`}
+              >
+                {t('practice.word_to_trans', 'Word → Translation')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudyDirection("reverse");
+                  setIsFlipped(false);
+                  setIsDirDropdownOpen(false);
+                }}
+                className={`w-full px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors text-left cursor-pointer ${
+                  studyDirection === "reverse" ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400" : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                }`}
+              >
+                {t('practice.trans_to_word', 'Translation → Word')}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. Empty State OR Study Deck Layout */}
+      {learningList.length === 0 ? (
+        relearningQueue.length > 0 ? (
           <div className="bg-white dark:bg-zinc-900 border border-red-100 dark:border-red-900/40 rounded-3xl p-8 text-center space-y-4 shadow-sm">
             <div className="p-4 bg-red-50 dark:bg-red-950/35 text-red-500 rounded-full w-14 h-14 flex items-center justify-center mx-auto text-2xl">
               🔁
@@ -1102,359 +1511,121 @@ export default function VocabularyPractice({
               </p>
             </div>
           </div>
-        )}
-      </div>
-    );
-  }
+        )
+      ) : (
+        <div className={showList ? "grid grid-cols-1 md:grid-cols-12 gap-6" : "space-y-4"}>
+          {/* Left Card Column */}
+          <div className={showList ? "md:col-span-7 space-y-4" : "space-y-4"}>
+            {/* Main Study wrapper */}
+            {studyMode === "spelling" ? (
+              <SpellingMode
+                item={currentLq}
+                isFlipped={isFlipped}
+                setIsFlipped={setIsFlipped}
+                playSpeech={() => playSpeech(currentLq.word)}
+                playingSpeech={playingSpeech}
+                onEditWord={() => setIsEditingWord(currentLq.word)}
+                spellingInput={spellingInput}
+                setSpellingInput={setSpellingInput}
+                spellingStatus={spellingStatus}
+                hasCheckedSpelling={hasCheckedSpelling}
+                spellingInputRef={spellingInputRef}
+                onCheckSpelling={checkSpelling}
+                onNext={handleNext}
+                onExclude={handleExcludeSpelling}
+                onDontKnow={handleDontKnow}
+              />
+            ) : (
+              <FlashcardMode
+                item={currentLq}
+                isFlipped={isFlipped}
+                setIsFlipped={setIsFlipped}
+                playSpeech={() => playSpeech(currentLq.word)}
+                playingSpeech={playingSpeech}
+                onEditWord={() => setIsEditingWord(currentLq.word)}
+                onAnswer={handleSrsAnswer}
+                onMarkKnown={handleMarkKnown}
+                studyDirection={studyDirection}
+              />
+            )}
+          </div>
 
-  return (
-    <div className={`space-y-6 font-sans mx-auto transition-all duration-300 ${
-      showList ? "max-w-3xl lg:max-w-4xl" : "max-w-md"
-    }`}>
-      {/* Filters Toggle Button */}
-      <div className="flex justify-end px-2">
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-all cursor-pointer"
-        >
-          <Settings className="w-3.5 h-3.5" />
-          {t('practice.filter_settings', 'Filter settings')} {showFilters ? "▴" : "▾"}
-        </button>
-      </div>
-
-      {showFilters && (
-        <div className="space-y-4 mb-6 p-4 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm mx-auto max-w-md">
-          {/* Language selector for active decks */}
-          {activeDeckLanguages.length > 1 && (
-            <div id="deck-lang-tabs" className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800 flex-wrap justify-center gap-1 shadow-sm">
-              {activeDeckLanguages.map((lang) => (
+          {/* Right Word List Column */}
+          {showList && (
+            <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
+              <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-3">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                  {t('practice.words_in_deck', 'Words in deck ({{count}})', { count: learningList.length })}
+                </span>
                 <button
-                  key={lang}
-                  onClick={() => {
-                    setSelectedPracticeLang(lang);
-                    setCurrentIndex(0);
-                    setIsFlipped(false);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    selectedPracticeLang.toLowerCase() === lang.toLowerCase()
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-sm"
-                      : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                  }`}
+                  type="button"
+                  onClick={() => setShowList(false)}
+                  className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
                 >
-                  {lang}
+                  {t('practice.hide', 'Hide ×')}
                 </button>
-              ))}
+              </div>
+              
+              <div className="overflow-y-auto custom-scrollbar space-y-1.5 flex-grow pr-1">
+                {learningList.map((item, idx) => {
+                  const isActive = idx === currentIndex;
+                  const displayLabel = studyDirection === "reverse" ? item.translation : item.word;
+
+                  // Spelling status visual treatment
+                  let spellingStatusIcon = null;
+                  let itemBgClass = isActive
+                    ? "bg-teal-50 dark:bg-teal-950/35 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900 shadow-3xs"
+                    : "bg-zinc-50/50 hover:bg-zinc-100 dark:bg-zinc-950/20 dark:hover:bg-zinc-800/30 text-zinc-700 dark:text-zinc-300 border-zinc-100/50 dark:border-zinc-800/60";
+
+                  if (studyMode === "spelling") {
+                    if (item.spellingExclude) {
+                      spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title={t('practice.status_excluded', 'Excluded (Known)')}>⭐</span>;
+                      if (!isActive) {
+                        itemBgClass = "opacity-50 bg-stone-100/30 dark:bg-zinc-900/10 text-zinc-400 dark:text-zinc-500 border-zinc-200/40 line-through decoration-zinc-400/40";
+                      }
+                    } else if (item.lastSpelledWithAccentError === true) {
+                      spellingStatusIcon = <span className="text-amber-500 font-black ml-1.5" title={t('practice.status_accent_error', 'Accent error')}>⚠️</span>;
+                      if (!isActive) {
+                        itemBgClass = "bg-amber-50/35 hover:bg-amber-100/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-100/50 dark:border-amber-950/30";
+                      }
+                    } else if (item.lastSpelledCorrectly === true) {
+                      spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title={t('practice.status_correct', 'Spelled correctly')}>✓</span>;
+                      if (!isActive) {
+                        itemBgClass = "bg-emerald-50/35 hover:bg-emerald-100/50 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border-emerald-100/50 dark:border-emerald-950/30";
+                      }
+                    } else if (item.lastSpelledCorrectly === false) {
+                      spellingStatusIcon = <span className="text-rose-500 font-black ml-1.5" title={t('practice.status_error', 'Spelled with error')}>✗</span>;
+                      if (!isActive) {
+                        itemBgClass = "bg-rose-50/35 hover:bg-rose-100/50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-rose-800 dark:text-rose-300 border-rose-100/50 dark:border-rose-950/30";
+                      }
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={item.word + "_" + idx}
+                      type="button"
+                      onClick={() => {
+                        setCurrentIndex(idx);
+                        setIsFlipped(false);
+                      }}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${itemBgClass}`}
+                    >
+                      <span className="capitalize truncate max-w-[160px] flex items-center">
+                        {displayLabel}
+                        {spellingStatusIcon}
+                      </span>
+                      <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+                        {idx + 1}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
-
-          {/* Deck Type Filter Selector */}
-          <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans flex-wrap">
-            {[
-              { id: "learning", label: t('practice.deck_learning', 'Learning 🎯') },
-              { id: "all", label: t('practice.deck_all', 'All words 📖') },
-              { id: "spelling-problems", label: t('practice.deck_problems', 'With errors ❌') },
-              { id: "spelling-accents", label: t('practice.deck_accents', 'Accented ⚠️') },
-              { id: "spelling-correct", label: t('practice.deck_correct', 'Spelled correctly ✅') }
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setDeckTypeFilter(item.id as any)}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  deckTypeFilter === item.id
-                    ? "bg-zinc-100 dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Timeframe Filter Selector */}
-          <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/40 dark:border-zinc-800/60 justify-center gap-1 shadow-2xs font-sans">
-            {[
-              { id: "all", label: t('practice.tf_all', 'All time 📅') },
-              { id: "today", label: t('practice.tf_today', 'Today ☀️') },
-              { id: "week", label: t('practice.tf_week', 'This week 📅') },
-              { id: "month", label: t('practice.tf_month', 'This month 🗓️') }
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setTimeframeFilter(item.id as any);
-                  setCurrentIndex(0);
-                  setIsFlipped(false);
-                }}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  timeframeFilter === item.id
-                    ? "bg-zinc-100 dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-200/50 dark:border-zinc-700"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
         </div>
       )}
-      <div className={showList ? "grid grid-cols-1 md:grid-cols-12 gap-6" : "space-y-6"}>
-        {/* Left Card Column */}
-        <div className={showList ? "md:col-span-7 space-y-6" : "space-y-6"}>
-          {/* Deck progress meter */}
-          <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
-            <span className="uppercase tracking-wider">{t('practice.word_deck', 'Word Deck')}</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportAnki}
-                className="px-2 py-1 rounded-lg border border-teal-200 dark:border-teal-900 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 text-[10px] uppercase font-bold tracking-wider hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                title={t('practice.export_anki_title', 'Export selected words for Anki import')}
-              >
-                <Download className="w-3 h-3" />
-                <span>Anki (.csv)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowList(!showList)}
-                className={`px-2 py-1 rounded-lg border text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
-                  showList
-                    ? "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900"
-                    : "bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400"
-                }`}
-              >
-                {t('practice.list_view', 'List 📋')}
-              </button>
-              <span className="flex items-center gap-2">
-                {t('practice.card_count', 'Card {{current}} of {{total}}', { current: currentIndex + 1, total: learningList.length })}
-                {relearningQueue.length > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-[10px] font-bold">
-                    🔁 {relearningQueue.length}
-                  </span>
-                )}
-              </span>
-            </div>
-          </div>
-
-      {/* Controls Bar (Mode & Direction) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-sans">
-        {/* Practice Mode Selector */}
-        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{t('practice.mode_label', 'Mode:')}</span>
-          <div className="flex gap-1 flex-wrap">
-            <button
-              type="button"
-              onClick={() => {
-                setStudyMode("word");
-                setIsFlipped(false);
-              }}
-              className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                studyMode === "word"
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
-                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {t('practice.mode_word', 'Word 🔤')}
-            </button>
-            {hasAnyImages && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStudyMode("image");
-                  setIsFlipped(false);
-                }}
-                className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                  studyMode === "image"
-                    ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
-                    : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
-              >
-                {t('practice.mode_image', 'Image 🖼️')}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setStudyMode("spelling");
-                setIsFlipped(false);
-              }}
-              className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                studyMode === "spelling"
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
-                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {t('practice.mode_spelling', 'Spelling ✍️')}
-            </button>
-          </div>
-        </div>
-
-        {/* Direction Selector */}
-        <div className="flex bg-stone-100/50 dark:bg-zinc-900/55 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 justify-between items-center px-2.5 py-1.5">
-          <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{t('practice.first_label', 'First:')}</span>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                setStudyDirection("forward");
-                setIsFlipped(false);
-              }}
-              className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                studyDirection === "forward"
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
-                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-              title={t('practice.word_to_trans', 'Target word -> Translation')}
-            >
-              {t('practice.word_label', 'Word 🔤')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStudyDirection("reverse");
-                setIsFlipped(false);
-              }}
-              className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                studyDirection === "reverse"
-                  ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-800"
-                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-              title={t('practice.trans_to_word', 'Translation -> Target word')}
-            >
-              {t('practice.mode_translation', 'Translation 🔄')}
-            </button>
-          </div>
-        </div>
-      </div>
-
-            {/* Main Study wrapper */}
-      {studyMode === "spelling" ? (
-        <SpellingMode
-          item={currentLq}
-          isFlipped={isFlipped}
-          setIsFlipped={setIsFlipped}
-          playSpeech={() => playSpeech(currentLq.word)}
-          playingSpeech={playingSpeech}
-          onEditWord={() => setIsEditingWord(currentLq.word)}
-          spellingInput={spellingInput}
-          setSpellingInput={setSpellingInput}
-          spellingStatus={spellingStatus}
-          hasCheckedSpelling={hasCheckedSpelling}
-          spellingInputRef={spellingInputRef}
-          onCheckSpelling={checkSpelling}
-          onNext={handleNext}
-          onExclude={handleExcludeSpelling}
-          onDontKnow={handleDontKnow}
-        />
-      ) : (
-        <FlashcardMode
-          item={currentLq}
-          isFlipped={isFlipped}
-          setIsFlipped={setIsFlipped}
-          playSpeech={() => playSpeech(currentLq.word)}
-          playingSpeech={playingSpeech}
-          onEditWord={() => setIsEditingWord(currentLq.word)}
-          onAnswer={handleSrsAnswer}
-          onMarkKnown={handleMarkKnown}
-          studyDirection={studyDirection}
-        />
-      )}
-
-      <div className="text-center space-y-4 pt-2">
-        <button
-          onClick={() => setIsFlipped(!isFlipped)}
-          className="text-xs text-teal-600 hover:text-teal-700 font-bold uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer select-none"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          {t('practice.flip_card', 'Flip card')}
-        </button>
-
-        <button
-          onClick={handleOpenStoryGen}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-teal-500/20 hover:border-teal-500/50 hover:bg-teal-50 dark:hover:bg-teal-950/30 text-teal-700 dark:text-teal-400 font-bold text-sm rounded-2xl transition-all active:scale-[0.98] cursor-pointer"
-        >
-          <Sparkles className="w-4 h-4" />
-          {t('practice.ai_story_gen', 'AI Story Generator (Story Gen)')}
-        </button>
-      </div>
-    </div>
-
-    {/* Right Word List Column */}
-    {showList && (
-      <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
-        <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-3">
-          <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            {t('practice.words_in_deck', 'Words in deck ({{count}})', { count: learningList.length })}
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowList(false)}
-            className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
-          >
-            {t('practice.hide', 'Hide ×')}
-          </button>
-        </div>
-        
-        <div className="overflow-y-auto custom-scrollbar space-y-1.5 flex-grow pr-1">
-          {learningList.map((item, idx) => {
-            const isActive = idx === currentIndex;
-            const displayLabel = studyDirection === "reverse" ? item.translation : item.word;
-
-            // Spelling status visual treatment
-            let spellingStatusIcon = null;
-            let itemBgClass = isActive
-              ? "bg-teal-50 dark:bg-teal-950/35 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900 shadow-3xs"
-              : "bg-zinc-50/50 hover:bg-zinc-100 dark:bg-zinc-950/20 dark:hover:bg-zinc-800/30 text-zinc-700 dark:text-zinc-300 border-zinc-100/50 dark:border-zinc-800/60";
-
-            if (studyMode === "spelling") {
-              if (item.spellingExclude) {
-                spellingStatusIcon = <span className="text-[10px] text-amber-500 font-bold ml-1.5" title={t('practice.status_excluded', 'Excluded (Known)')}>⭐</span>;
-                if (!isActive) {
-                  itemBgClass = "opacity-50 bg-stone-100/30 dark:bg-zinc-900/10 text-zinc-400 dark:text-zinc-500 border-zinc-200/40 line-through decoration-zinc-400/40";
-                }
-              } else if (item.lastSpelledWithAccentError === true) {
-                spellingStatusIcon = <span className="text-amber-500 font-black ml-1.5" title={t('practice.status_accent_error', 'Accent error')}>⚠️</span>;
-                if (!isActive) {
-                  itemBgClass = "bg-amber-50/35 hover:bg-amber-100/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-100/50 dark:border-amber-950/30";
-                }
-              } else if (item.lastSpelledCorrectly === true) {
-                spellingStatusIcon = <span className="text-emerald-500 font-black ml-1.5" title={t('practice.status_correct', 'Spelled correctly')}>✓</span>;
-                if (!isActive) {
-                  itemBgClass = "bg-emerald-50/35 hover:bg-emerald-100/50 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 border-emerald-100/50 dark:border-emerald-950/30";
-                }
-              } else if (item.lastSpelledCorrectly === false) {
-                spellingStatusIcon = <span className="text-rose-500 font-black ml-1.5" title={t('practice.status_error', 'Spelled with error')}>✗</span>;
-                if (!isActive) {
-                  itemBgClass = "bg-rose-50/35 hover:bg-rose-100/50 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 text-rose-800 dark:text-rose-300 border-rose-100/50 dark:border-rose-950/30";
-                }
-              }
-            }
-
-            return (
-              <button
-                key={item.word + "_" + idx}
-                type="button"
-                onClick={() => {
-                  setCurrentIndex(idx);
-                  setIsFlipped(false);
-                }}
-                className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${itemBgClass}`}
-              >
-                <span className="capitalize truncate max-w-[160px] flex items-center">
-                  {displayLabel}
-                  {spellingStatusIcon}
-                </span>
-                <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
-                  {idx + 1}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    )}
-  </div>
 
       {/* AI Story Generator Modal */}
       <AnimatePresence>
@@ -1659,9 +1830,9 @@ export default function VocabularyPractice({
             <div className="pt-2 font-sans">
               {/* Language selection dropdown */}
               <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800 mb-4 pr-8">
-                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">{t('practice.edit_card', 'Редактирование карточки')}</h3>
+                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">{t('practice.edit_card', 'Edit Card')}</h3>
                 <div className="flex items-center gap-1.5 font-sans">
-                  <span className="text-[10px] font-black uppercase text-zinc-400">{t('practice.translation_lang', 'Язык перевода:')}</span>
+                  <span className="text-[10px] font-black uppercase text-zinc-400">{t('practice.translation_lang', 'Translation language:')}</span>
                   <select
                     value={modalTranslationLang}
                     onChange={(e) => {

@@ -105,6 +105,9 @@ export const BookCard: React.FC<BookCardProps> = memo(({
   const catLabel = getCategoryDisplayName(typeInfo?.id || lType, typeInfo?.name, t);
   const IconComponent = getCategoryIcon(typeInfo?.icon || (hasAudio ? "podcast" : "book"), catLabel);
 
+  const isTitleBelowCover = (settings?.cardTitlePosition || "below_cover") === "below_cover";
+  const displayDurationSec = youtubeDurationVal || effectiveAudioDuration || null;
+
   return (
     <div
       id={`book-card-${lesson.id}`}
@@ -164,94 +167,187 @@ export const BookCard: React.FC<BookCardProps> = memo(({
       
       {/* Book Cover Banner */}
       <div 
-        className={`relative aspect-video ${imgSrc ? 'bg-zinc-950' : `bg-gradient-to-br ${cover.gradient}`} p-4 text-white flex flex-col justify-between overflow-hidden select-none`}
+        className={`relative aspect-video ${imgSrc ? 'bg-zinc-950' : `bg-gradient-to-br ${cover.gradient}`} p-3 sm:p-3.5 text-white flex flex-col justify-between overflow-hidden select-none`}
       >
         {/* Cover image (single crisp image with async decoding and fallback on error) */}
         {imgSrc && (
-          <img 
-            src={imgSrc} 
-            alt="" 
-            decoding="async"
-            className={`absolute inset-0 w-full h-full ${lesson.lessonType === 'article' || lesson.lessonType === 'website' ? 'object-cover' : 'object-contain'} z-0 select-none pointer-events-none drop-shadow-md`}
-            onError={() => {
-              if (imgSrc.includes("/maxresdefault.jpg")) {
-                setImgSrc(imgSrc.replace("/maxresdefault.jpg", "/sddefault.jpg"));
-              } else if (imgSrc.includes("/sddefault.jpg")) {
-                setImgSrc(imgSrc.replace("/sddefault.jpg", "/hqdefault.jpg"));
-              }
-            }}
-          />
+          <>
+            {/* Atmospheric ambient backdrop for portrait book covers */}
+            {!isYoutube && (
+              <img
+                src={imgSrc}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover blur-md scale-110 opacity-40 z-0 select-none pointer-events-none brightness-75"
+              />
+            )}
+            <img 
+              src={imgSrc} 
+              alt="" 
+              decoding="async"
+              className={`absolute inset-0 w-full h-full ${
+                isYoutube || lesson.lessonType === 'article' || lesson.lessonType === 'website' 
+                  ? 'object-cover' 
+                  : 'object-contain'
+              } z-0 select-none pointer-events-none drop-shadow-xl transition-transform duration-300 group-hover:scale-105`}
+              onError={() => {
+                if (imgSrc.includes("/maxresdefault.jpg")) {
+                  setImgSrc(imgSrc.replace("/maxresdefault.jpg", "/sddefault.jpg"));
+                } else if (imgSrc.includes("/sddefault.jpg")) {
+                  setImgSrc(imgSrc.replace("/sddefault.jpg", "/hqdefault.jpg"));
+                }
+              }}
+            />
+          </>
         )}
 
-        {/* Optional dark overlay shadow for text contrast */}
-        {imgSrc && settings?.dimBookCovers && (
+        {/* Optional dark overlay shadow for text contrast (only when in on_cover mode) */}
+        {imgSrc && !isTitleBelowCover && settings?.dimBookCovers && (
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-900/30 to-zinc-950/30 z-[1] pointer-events-none" />
         )}
 
-        {/* Subtle bottom gradient only for title contrast when dimming is disabled */}
-        {imgSrc && !settings?.dimBookCovers && (
+        {/* Subtle bottom gradient only for title contrast when dimming is disabled (only on_cover mode) */}
+        {imgSrc && !isTitleBelowCover && !settings?.dimBookCovers && (
           <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/65 via-black/25 to-transparent z-[1] pointer-events-none" />
         )}
 
         {/* Spine inner shade overlay */}
         <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent z-[2] pointer-events-none" />
         
-        {/* Decorative background monogram text */}
+        {/* Decorative background monogram text (when no image) */}
         {!imgSrc && (
           <div className="absolute right-2 bottom-0 text-7xl font-black text-white/10 transform translate-x-2 translate-y-3 pointer-events-none select-none font-serif">
              {cover.character}
           </div>
         )}
 
-        {/* Top line cover info (Optimized lightweight translucent pills without heavy backdrop-blur filters) */}
-        <div className="flex items-center justify-between z-10 w-full animate-in fade-in duration-200">
-          <div className="flex items-center gap-1.5 max-w-[65%]">
-            <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/65 pl-1.5 pr-2.5 py-1 rounded-full border border-white/10 truncate shadow-xs">
-              {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage, languageFlags))}
-              <span className="truncate">{getLocalizedLanguageName(lesson.targetLanguage, i18n.language)}</span>
-            </span>
-            {lesson.difficulty && (
-              <span 
-                className="text-[9.5px] font-black leading-none px-2 py-1 rounded-full bg-black/65 text-white border border-white/10 flex items-center justify-center shadow-xs cursor-default select-none shrink-0"
-                title={lesson.difficultyExplanation || `Уровень сложности: ${lesson.difficulty}`}
-              >
-                {lesson.difficulty}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
+        {/* Top line cover overlay: Clean & Minimal in below_cover mode */}
+        {isTitleBelowCover ? (
+          <div className="flex items-center justify-between z-10 w-full animate-in fade-in duration-200">
+            <div>
+              {lesson.isArchived && (
+                <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-amber-500/90 text-white rounded-md backdrop-blur-xs shadow-xs">
+                  {t("common.archived", "Archived")}
+                </span>
+              )}
+            </div>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onTogglePinLesson(lesson.id, e);
               }}
-              className={`p-1 rounded-lg transition-all border leading-none cursor-pointer flex items-center justify-center ${
+              className={`p-1.5 rounded-lg transition-all border leading-none cursor-pointer flex items-center justify-center ${
                 lesson.pinned
-                  ? "bg-amber-500 text-white border-amber-400 font-extrabold shadow-sm hover:bg-amber-600 scale-110"
-                  : "bg-black/60 text-zinc-300 border-white/10 hover:bg-black/80 hover:text-white hover:scale-110"
+                  ? "bg-amber-500 text-white border-amber-400 font-extrabold shadow-sm scale-110"
+                  : "bg-black/60 text-zinc-300 border-white/10 hover:bg-black/80 hover:text-white hover:scale-110 opacity-0 group-hover:opacity-100"
               }`}
-              title={lesson.pinned ? "Открепить книгу (Unpin Book)" : "Закрепить книгу (Pin Book)"}
+              title={lesson.pinned ? t("library.unpin_book", "Unpin Book") : t("library.pin_book", "Pin Book")}
             >
               <Pin className={`w-3 h-3 ${lesson.pinned ? "fill-white" : ""}`} />
             </button>
-            <span className="text-[10px] font-black leading-none bg-black/65 px-2 py-1.5 rounded-lg flex items-center gap-1 select-none text-zinc-100 border border-white/10 shadow-xs">
-              <IconComponent className="w-3 h-3 text-teal-300" />
-              <span>{catLabel}</span>
-            </span>
           </div>
-        </div>
+        ) : (
+          /* Legacy On-Cover Top Info */
+          <div className="flex items-center justify-between z-10 w-full animate-in fade-in duration-200">
+            <div className="flex items-center gap-1.5 max-w-[65%]">
+              <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/65 pl-1.5 pr-2.5 py-1 rounded-full border border-white/10 truncate shadow-xs">
+                {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage, languageFlags))}
+                <span className="truncate">{getLocalizedLanguageName(lesson.targetLanguage, i18n.language)}</span>
+              </span>
+              {lesson.difficulty && (
+                <span 
+                  className="text-[9.5px] font-black leading-none px-2 py-1 rounded-full bg-black/65 text-white border border-white/10 flex items-center justify-center shadow-xs cursor-default select-none shrink-0"
+                  title={lesson.difficultyExplanation || `Уровень сложности: ${lesson.difficulty}`}
+                >
+                  {lesson.difficulty}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePinLesson(lesson.id, e);
+                }}
+                className={`p-1 rounded-lg transition-all border leading-none cursor-pointer flex items-center justify-center ${
+                  lesson.pinned
+                    ? "bg-amber-500 text-white border-amber-400 font-extrabold shadow-sm hover:bg-amber-600 scale-110"
+                    : "bg-black/60 text-zinc-300 border-white/10 hover:bg-black/80 hover:text-white hover:scale-110"
+                }`}
+                title={lesson.pinned ? "Открепить книгу (Unpin Book)" : "Закрепить книгу (Pin Book)"}
+              >
+                <Pin className={`w-3 h-3 ${lesson.pinned ? "fill-white" : ""}`} />
+              </button>
+              <span className="text-[10px] font-black leading-none bg-black/65 px-2 py-1.5 rounded-lg flex items-center gap-1 select-none text-zinc-100 border border-white/10 shadow-xs">
+                <IconComponent className="w-3 h-3 text-teal-300" />
+                <span>{catLabel}</span>
+              </span>
+            </div>
+          </div>
+        )}
 
-        {/* Big Cover Title */}
-        <div className="z-10 mt-auto">
-          <h3 className="text-sm font-black line-clamp-3 tracking-tight leading-snug drop-shadow-md group-hover:text-teal-300 transition-colors">
-            {lesson.title}
-          </h3>
-        </div>
+        {/* Bottom Banner Area: Duration Badge (below_cover mode) or Title (on_cover mode) */}
+        {isTitleBelowCover ? (
+          <div className="z-10 mt-auto flex items-center justify-end">
+            {displayDurationSec ? (
+              <span className="px-2 py-0.5 bg-black/80 backdrop-blur-xs text-white text-[10px] font-mono font-bold rounded-md shadow-xs border border-white/10">
+                {formatDuration(displayDurationSec)}
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          /* Legacy Big Cover Title */
+          <div className="z-10 mt-auto">
+            <h3 className="text-sm font-black line-clamp-3 tracking-tight leading-snug drop-shadow-md group-hover:text-teal-300 transition-colors">
+              {lesson.title}
+            </h3>
+          </div>
+        )}
       </div>
 
       {/* Details Section */}
-      <div className={`${booksPerRow >= 5 ? 'p-2.5 space-y-2' : 'p-4 space-y-3'} flex-auto flex flex-col justify-between`}>
+      <div className={`${booksPerRow >= 5 ? 'p-2.5 space-y-2' : 'p-3.5 space-y-2.5'} flex-auto flex flex-col justify-between`}>
+        
+        {/* Header Info & Title (when isTitleBelowCover is true) */}
+        {isTitleBelowCover && (
+          <div className="space-y-1.5">
+            {/* Badges row: Language, Difficulty, Source, Word Count */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold leading-none bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 rounded-md border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs truncate">
+                {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage, languageFlags))}
+                <span className="truncate">{getLocalizedLanguageName(lesson.targetLanguage, i18n.language)}</span>
+              </span>
+
+              {lesson.difficulty && (
+                <span 
+                  className="text-[9.5px] font-bold leading-none px-1.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs cursor-default select-none shrink-0"
+                  title={lesson.difficultyExplanation || `Difficulty: ${lesson.difficulty}`}
+                >
+                  {lesson.difficulty}
+                </span>
+              )}
+
+              <span className="text-[10px] font-bold leading-none bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-md flex items-center gap-1 select-none text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
+                <IconComponent className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                <span>{catLabel}</span>
+              </span>
+
+              <span className="text-[10px] font-bold leading-none bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-1 rounded-md flex items-center gap-1 select-none border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
+                <span>📚 {wordCount} {t("library.words", "words")}</span>
+              </span>
+            </div>
+
+            {/* Prominent, Clean Title with High Contrast */}
+            <h3
+              className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 line-clamp-2 leading-snug tracking-tight group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors"
+              title={lesson.title}
+            >
+              {lesson.title}
+            </h3>
+          </div>
+        )}
 
         <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950/20 p-2 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30 select-none">
           <div className="flex justify-between items-center text-[9px] uppercase font-black tracking-widest text-zinc-400">
@@ -324,16 +420,6 @@ export const BookCard: React.FC<BookCardProps> = memo(({
                   • {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}% ({bookStats.uniqueUnknownCount} {t("library.unique", "unique")})
                 </span>
               </div>
-              {bookStats.ignoredCount > 0 && (
-                <div className="flex justify-end">
-                  <span 
-                    title={`Пропущено как шум/имена: ${bookStats.ignoredCount} токенов, ${bookStats.uniqueIgnoredCount} уникальных лемм. Не входят в расчёт понимания.`}
-                    className="text-zinc-400 dark:text-zinc-600 hover:underline cursor-help"
-                  >
-                    • {t("library.ignored_stat", "Ignored:")} {bookStats.ignoredCount} ({bookStats.uniqueIgnoredCount} {t("library.unique", "unique")})
-                  </span>
-                </div>
-              )}
             </div>
           ) : (
             <div className="flex justify-between items-center text-[9px] font-extrabold font-sans">
@@ -372,28 +458,30 @@ export const BookCard: React.FC<BookCardProps> = memo(({
           )}
         </div>
 
-        {/* Word count and duration */}
-        <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
-          <span className="flex items-center gap-1">
-            📚 {wordCount} {t("library.words", "words")}
-          </span>
-          {isYoutube && youtubeDurationVal ? (
-            <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.yt_duration", "YouTube Video Duration")}>
-              ⏱️ {formatDuration(youtubeDurationVal)}
+        {/* Legacy Word count and duration (only in on_cover mode) */}
+        {!isTitleBelowCover && (
+          <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
+            <span className="flex items-center gap-1">
+              📚 {wordCount} {t("library.words", "words")}
             </span>
-          ) : effectiveAudioDuration ? (
-            <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.audio_duration", "Audio Duration")}>
-              ⏱️ {formatDuration(effectiveAudioDuration)}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.read_time", "Estimated Read Time")}>
-              ⏱️ ~{readTime} {t("library.min", "min")}
-            </span>
-          )}
-        </div>
+            {isYoutube && youtubeDurationVal ? (
+              <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.yt_duration", "YouTube Video Duration")}>
+                ⏱️ {formatDuration(youtubeDurationVal)}
+              </span>
+            ) : effectiveAudioDuration ? (
+              <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.audio_duration", "Audio Duration")}>
+                ⏱️ {formatDuration(effectiveAudioDuration)}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.read_time", "Estimated Read Time")}>
+                ⏱️ ~{readTime} {t("library.min", "min")}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Actions row: Neutral Read Button + 3-dots Menu */}
-        <div className="flex gap-2 items-center pt-2 border-t border-zinc-100 dark:border-zinc-800">
+        <div className="flex gap-2 items-center pt-1 border-t border-zinc-100 dark:border-zinc-800">
           <button
             type="button"
             id={`book-read-btn-${lesson.id}`}

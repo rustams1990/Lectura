@@ -299,11 +299,16 @@
     "podcasts": "Podcasts"
   },
   "auth": {
+    "error_invalid_credentials": "Nieprawidłowa nazwa użytkownika lub hasło",
     "error_empty": "Proszę podać swój adres e-mail/nazwę użytkownika i hasło.",
-    "error_password_length": "Hasło musi mieć co najmniej 4 znaki.",
+    "error_password_length": "Hasło musi mieć co najmniej 6 znaków.",
     "error_email_in_use": "Ten adres e-mail jest już używany.",
     "error_invalid_email": "Nieprawidłowy format adresu e-mail.",
-    "error_weak_password": "Hasło jest za słabe. Musi mieć co najmniej 4 znaki.",
+    "error_weak_password": "Hasło jest za słabe. Musi mieć co najmniej 6 znaków.",
+    "error_too_many_attempts": "Zbyt wiele prób logowania. Odczekaj 15 minut.",
+    "error_network_failed": "Nie udało się połączyć z serwerem.",
+    "error_server": "Wystąpił błąd serwera.",
+    "error_session_expired": "Sesja wygasła. Zaloguj się ponownie.",
     "title": "Zalogować się",
     "title_register": "Utwórz profil",
     "account": "Konto:",

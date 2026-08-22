@@ -149,7 +149,7 @@ export default function AccountSwitcherDropdown({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800/80">
+        <div className="fixed inset-x-3 top-14 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800/80">
           
           {/* Active Profile Info */}
           <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/40">

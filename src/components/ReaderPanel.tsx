@@ -5,7 +5,30 @@
 
 import React, { useMemo, useState, useEffect, useRef, memo } from "react";
 import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
-import { Sparkles, Loader2, Volume2, Check, BookOpen, Eye, EyeOff, List, AlignLeft, RotateCcw, Clock, CheckCircle2, Plus, X, Calendar, MessageSquare, ChevronDown } from "lucide-react";
+import {
+  Sparkles,
+  Loader2,
+  Volume2,
+  Check,
+  BookOpen,
+  Eye,
+  EyeOff,
+  List,
+  AlignLeft,
+  RotateCcw,
+  Clock,
+  CheckCircle2,
+  Plus,
+  X,
+  Calendar,
+  MessageSquare,
+  ChevronDown,
+  Pencil,
+  Languages,
+  Maximize2,
+  Gamepad2,
+  Tv,
+} from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 import { useReaderHistory } from "../hooks/useReaderHistory";
 import { TooltipPortal } from "./TooltipPortal";
@@ -17,6 +40,25 @@ import { useTranslation } from "react-i18next";
 import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { loadLessonTranslationsFromDb, fetchMissingSentenceTranslations } from "../services/sentenceTranslationService";
+import { useUIStore } from "../store/uiStore";
+
+const getLangCode = (lang?: string): string => {
+  if (!lang) return "EN";
+  const l = lang.trim().toLowerCase();
+  if (l.startsWith("en") || l === "english" || l === "английский") return "EN";
+  if (l.startsWith("ru") || l === "russian" || l === "русский") return "RU";
+  if (l.startsWith("es") || l === "spanish" || l === "испанский") return "ES";
+  if (l.startsWith("fr") || l === "french" || l === "французский") return "FR";
+  if (l.startsWith("de") || l === "german" || l === "немецкий") return "DE";
+  if (l.startsWith("it") || l === "italian" || l === "итальянский") return "IT";
+  if (l.startsWith("pt") || l === "portuguese" || l === "португальский") return "PT";
+  if (l.startsWith("zh") || l === "chinese" || l === "китайский") return "ZH";
+  if (l.startsWith("ja") || l === "japanese" || l === "японский") return "JA";
+  if (l.startsWith("ko") || l === "korean" || l === "корейский") return "KO";
+  if (l.startsWith("ar") || l === "arabic" || l === "арабский") return "AR";
+  if (l.startsWith("tr") || l === "turkish" || l === "турецкий") return "TR";
+  return lang.slice(0, 2).toUpperCase();
+};
 
 interface ReaderPanelProps {
   key?: string;
@@ -36,6 +78,7 @@ interface ReaderPanelProps {
   onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
   /** When true, hides the title/badges/status header (used in Focus Mode) */
   hideMeta?: boolean;
+  onToggleTranslations?: () => void;
 }
 
 const fontSizeMap = {
@@ -194,8 +237,18 @@ function ReaderPanel({
   history,
   onUpdateHistory,
   hideMeta = false,
+  onToggleTranslations,
 }: ReaderPanelProps) {
   const { t } = useTranslation();
+  const {
+    isFocusMode,
+    setIsFocusMode,
+    setShowMatchPairsModal,
+    showOnlyUnknown: storeShowOnlyUnknown,
+    setShowOnlyUnknown: storeSetShowOnlyUnknown,
+    showYoutubePlayer,
+    setShowYoutubePlayer,
+  } = useUIStore();
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
   const [unknownSearchQuery, setUnknownSearchQuery] = useState("");
   const [unknownSortMode, setUnknownSortMode] = useState<"alpha" | "appearance">("alpha");
@@ -693,7 +746,7 @@ function ReaderPanel({
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
-    <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-6 sm:p-8 space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
+    <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-200/50 dark:bg-zinc-800/50">
@@ -706,12 +759,13 @@ function ReaderPanel({
 
       {/* Title / badges / status — hidden in Focus Mode via hideMeta prop */}
       {!hideMeta && (
-      <div className={`pb-4 border-b ${currentTheme.divider} flex flex-col xl:flex-row xl:items-center justify-between gap-4`}>
-        <div>
+      <div className={`pb-2.5 sm:pb-3.5 border-b ${currentTheme.divider} flex flex-col gap-2`}>
+        {/* Main Lesson Title (hidden when media player is present) */}
+        {!isMediaLesson && (
           <div className="flex items-center gap-3.5">
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
               {lesson.title}
-            </h2>
+            </h1>
             {onEditClick && (
               <button
                 type="button"
@@ -723,106 +777,150 @@ function ReaderPanel({
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${currentTheme.subBadgeBg}`}>
-              {t('reader.lang_target', 'Language: ')}{lesson.targetLanguage}
-            </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
-              {t('reader.lang_trans', 'Translation: ')}{lesson.translationLanguage}
-            </span>
-            {lesson.difficulty && (
-              <span 
-                className={`text-[10px] font-extrabold px-2 py-0.5 rounded border flex items-center gap-1 cursor-default select-none shadow-xs ${
-                  getDifficultyBadgeStyles(lesson.difficulty)
-                }`}
+        )}
+
+        {/* Unified Single-Row Metadata Bar (Badges + 5 Action Icons + Status) */}
+        <div className="flex items-center justify-between gap-1.5 sm:gap-3 w-full flex-nowrap overflow-x-auto no-scrollbar py-0.5">
+          {/* Left: Edit + Compact ISO Language badge + Level + Progress */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {onEditClick && (
+              <button
+                type="button"
+                onClick={onEditClick}
+                className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 rounded-lg transition-colors cursor-pointer shrink-0"
+                title={t('reader.btn_edit', 'Edit lesson')}
               >
-                {t('reader.difficulty', 'Difficulty: ')}{lesson.difficulty}
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Compact ISO Language Badge (EN → RU) */}
+            <span
+              className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg shrink-0 border border-zinc-200/60 dark:border-zinc-800/60 cursor-default select-none ${currentTheme.subBadgeBg}`}
+              title={`${t('reader.lang_target', 'Language: ')}${lesson.targetLanguage || 'English'} → ${t('reader.lang_trans', 'Translation: ')}${lesson.translationLanguage || 'Russian'}`}
+            >
+              <span>{getLangCode(lesson.targetLanguage)}</span>
+              <span className="text-zinc-400 dark:text-zinc-500 font-normal text-[9px]">→</span>
+              <span className="text-teal-600 dark:text-teal-400">{getLangCode(lesson.translationLanguage)}</span>
+            </span>
+
+            {/* Level badge */}
+            {lesson.difficulty && (
+              <span
+                className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border flex items-center cursor-default select-none shadow-3xs shrink-0 ${getDifficultyBadgeStyles(lesson.difficulty)}`}
+                title={t('reader.difficulty', 'Difficulty: ') + lesson.difficulty}
+              >
+                {lesson.difficulty}
               </span>
             )}
-            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
-              {t('reader.read_pct', '📖 Read: ')}{scrollProgress}%
+
+            {/* Reading progress % */}
+            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono shrink-0 whitespace-nowrap">
+              📖 {scrollProgress}%
             </span>
           </div>
-        </div>
 
-        {/* Status Switcher & Quick Time Logging Bar */}
-        <div className={`flex flex-wrap items-center gap-2 shrink-0 ${currentTheme.barBg} p-1.5 rounded-2xl`}>
-          {/* Status Toggle Buttons */}
-          <div className="flex items-center gap-1">
+          {/* Center: 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
+          <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
+            {/* 1. Translation Toggle */}
+            <button
+              type="button"
+              onClick={onToggleTranslations}
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                activeSettings.showSentenceTranslations
+                  ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+              }`}
+              title={activeSettings.showSentenceTranslations ? t("reader.hide_translations_title", "Скрыть перевод предложений (T)") : t("reader.show_translations_title", "Показать перевод предложений (T)")}
+            >
+              <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+
+            {/* 2. Focus Mode */}
+            <button
+              type="button"
+              onClick={() => setIsFocusMode(!isFocusMode)}
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                isFocusMode
+                  ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+              }`}
+              title={t("reader.focus_btn", "Режим фокуса")}
+            >
+              <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+
+            {/* 3. Play: Match Pairs */}
+            <button
+              type="button"
+              onClick={() => setShowMatchPairsModal(true)}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              title={t("reader.pairs_btn_title", "Игра: Пары")}
+            >
+              <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+
+            {/* 4. Unknown Only */}
+            <button
+              type="button"
+              onClick={() => (onWordClick ? storeSetShowOnlyUnknown(!storeShowOnlyUnknown) : null)}
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                storeShowOnlyUnknown || showOnlyUnknown
+                  ? "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-400/10 border border-amber-500/30 shadow-3xs"
+                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+              }`}
+              title={t("reader.unknown_btn_title", "Только неизвестные слова")}
+            >
+              {(storeShowOnlyUnknown || showOnlyUnknown) ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            </button>
+
+            {/* 5. Video */}
+            {lesson.youtubeId && (
+              <button
+                type="button"
+                onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                  showYoutubePlayer
+                    ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+                title={t("reader.video_btn_title", "Видео")}
+              >
+                <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Right: Status Switcher (In Progress / Completed) */}
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => handleToggleStatus("in_progress")}
-              className={`px-3 py-1 text-[11px] font-black rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 currentStatus === "in_progress"
                   ? "bg-teal-600 text-white shadow-xs"
-                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5`
+                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200/50 dark:border-zinc-800/50`
               }`}
               title={t('reader.status_in_progress_title', 'Set status: In Progress')}
             >
-              <Clock className="w-3.5 h-3.5" />
+              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span>{t('reader.status_in_progress', 'In Progress')}</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleToggleStatus("completed")}
-              className={`px-3 py-1 text-[11px] font-black rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 currentStatus === "completed"
                   ? "bg-emerald-600 text-white shadow-xs"
-                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5`
+                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200/50 dark:border-zinc-800/50`
               }`}
               title={t('reader.status_completed_title', 'Set status: Completed')}
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
+              <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span>{t('reader.status_completed', 'Completed')}</span>
             </button>
           </div>
-
-          {/* Time Logging Widget (Only for plain text lessons, not for videos or podcasts) */}
-          {!isMediaLesson && (
-            <div className={`flex items-center gap-1 pl-2 border-l ${currentTheme.divider}`}>
-              <div className={`px-2 py-0.5 text-[11px] font-bold ${currentTheme.subText} flex items-center gap-1 mr-0.5`}>
-                <Clock className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                <span>{formatLoggedDuration(totalLoggedSeconds)}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleAddMinutes(15)}
-                className="px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 text-teal-700 dark:text-teal-400 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-                title={t('reader.add_15m_title', 'Add 15 minutes of reading to history')}
-              >
-                +15m
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleAddMinutes(30)}
-                className="px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 text-teal-700 dark:text-teal-400 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-                title={t('reader.add_30m_title', 'Add 30 minutes of reading to history')}
-              >
-                +30m
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleAddMinutes(60)}
-                className="px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 text-teal-700 dark:text-teal-400 text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer active:scale-95"
-                title={t('reader.add_1h_title', 'Add 1 hour of reading to history')}
-              >
-                +1h
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsCustomTimeModalOpen(true)}
-                className={`px-2 py-1 hover:bg-black/5 dark:hover:bg-white/5 ${currentTheme.subText} text-[10px] font-extrabold rounded-lg transition-colors cursor-pointer`}
-                title={t('reader.add_custom_title', 'Add custom reading time')}
-              >
-                +...
-              </button>
-            </div>
-          )}
         </div>
       </div>
       )} {/* end !hideMeta */}
@@ -1196,8 +1294,8 @@ function ReaderPanel({
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline-block relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
-                    {prefix && <span className="opacity-80">{prefix}</span>}
+                  <span key={tIdx} className={`inline-flex items-baseline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                    {prefix && <span className="opacity-80 select-none">{prefix}</span>}
                     <button
                       id={`word-phrase-${matchedPhrase.phrase}-${tIdx}`}
                       onClick={(e) => handleWordSelect(e, matchedPhrase.phrase, matchedPhrase.phrase, sentText)}
@@ -1216,7 +1314,7 @@ function ReaderPanel({
                     >
                       {phraseDisplay}
                     </button>
-                    {suffix && <span className="opacity-80">{suffix}</span>}
+                    {suffix && <span className="opacity-80 select-none">{suffix}</span>}
                   </span>
                 );
 
@@ -1333,8 +1431,8 @@ function ReaderPanel({
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline-block relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
-                    {prefix && <span className="opacity-80">{prefix}</span>}
+                  <span key={tIdx} className={`inline-flex items-baseline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                    {prefix && <span className="opacity-80 select-none">{prefix}</span>}
                     <button
                       id={`word-detected-${matchedDetected.phrase}-${tIdx}`}
                       onClick={(e) => handleWordSelect(e, matchedDetected.phrase, matchedDetected.phrase, sentText)}
@@ -1390,7 +1488,7 @@ function ReaderPanel({
                         </span>
                       )}
                     </button>
-                    {suffix && <span className="opacity-80">{suffix}</span>}
+                    {suffix && <span className="opacity-80 select-none">{suffix}</span>}
                   </span>
                 );
 
@@ -1462,11 +1560,17 @@ function ReaderPanel({
                 styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-zinc-950 scale-103 duration-150`;
               }
 
+              const wordContent = isCjk ? rawString : (
+                prefix.length > 0 || suffix.length > 0
+                  ? rawString.substring(prefix.length, rawString.length - suffix.length)
+                  : rawString
+              );
+
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
               elements.push(
-                <span key={tIdx} className={`inline-block relative my-[2px] py-[0.5px] ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
-                  {prefix && <span className="opacity-80">{prefix}</span>}
+                <span key={tIdx} className={`inline-flex items-baseline relative my-[2px] py-[0.5px] ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                  {prefix && <span className="opacity-80 select-none">{prefix}</span>}
                   <button
                     type="button"
                     id={`word-${cleanWord}-${tIdx}`}
@@ -1518,9 +1622,9 @@ function ReaderPanel({
                     style={{ outline: "none" }}
                     spellCheck={false}
                   >
-                    {isCjk ? rawString : rawString.substring(prefix.length, rawString.length - suffix.length)}
+                    {wordContent}
                   </button>
-                  {suffix && <span className="opacity-80">{suffix}</span>}
+                  {suffix && <span className="opacity-80 select-none">{suffix}</span>}
                 </span>
               );
 
