@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { usePodcastStore } from '../../store/podcastStore';
+import { whisperQueueService } from '../../services/whisperQueueService';
 import { Lesson, PodcastEpisode } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../context/ToastContext';
@@ -123,11 +124,33 @@ export default function BottomAudioBar({
     if (isImporting) return;
     setIsImporting(true);
 
+    const isWhisperNeeded = !currentTrack.hasTranscript && !currentTrack.transcriptUrl;
+    const taskId = `podcast_task_${currentTrack.guid || currentTrack.id}_${Date.now()}`;
+
+    // 1. Register Background Task in Whisper Notification Manager
+    whisperQueueService.registerCustomTask({
+      id: taskId,
+      title: `${t("podcasts.transcribing_prefix", "Транскрибация:")} ${currentTrack.title}`,
+      sourceType: "podcast",
+      status: "transcribing",
+      thumbnail: currentTrack.coverUrl || '',
+      channelName: currentTrack.bookTitle || currentTrack.channelName || 'Podcast',
+      stageText: isWhisperNeeded
+        ? t("podcasts.stage_transcribing_whisper", "Распознавание речи через Whisper...")
+        : t("podcasts.stage_importing", "Скачивание и обработка эпизода..."),
+    });
+
+    showToast(
+      isWhisperNeeded
+        ? t("podcasts.import_whisper_started", "Скачивание и распознавание через Whisper...")
+        : t("podcasts.import_in_progress", "Импорт выпуска..."),
+      "info"
+    );
+
     try {
       const activeLang =
         currentTrack.targetLanguage ||
         (selectedTargetLanguage && selectedTargetLanguage !== 'All' ? selectedTargetLanguage : 'es');
-      const taskId = `podcast_bar_import_${currentTrack.guid || currentTrack.id}_${Date.now()}`;
 
       const epObj: PodcastEpisode = {
         guid: currentTrack.guid || currentTrack.id,
@@ -153,27 +176,34 @@ export default function BottomAudioBar({
       );
 
       if (newLessonId) {
+        // 2. Complete Background Task
+        whisperQueueService.completeCustomTask(taskId, newLessonId);
+
+        // 3. Show Success Toast with interactive "Open" button
         showToast(
-          t('podcasts.episode_imported_toast', 'Episode "{{title}}" added to library', { title: currentTrack.title }),
-          'success'
+          t("podcasts.episode_imported_toast", 'Эпизод "{{title}}" успешно добавлен в библиотеку', { title: currentTrack.title }),
+          "success",
+          6000,
+          onOpenLesson ? {
+            label: t("podcasts.open_lesson", "Открыть"),
+            onClick: () => onOpenLesson(newLessonId),
+          } : undefined
         );
+
         onOpenLesson?.(newLessonId);
       } else {
-        showToast(
-          t('podcasts.episode_import_failed_toast', 'Failed to create lesson: {{error}}', {
-            title: currentTrack.title,
-            error: 'Could not generate lesson',
-          }),
-          'error'
-        );
+        throw new Error(t("podcasts.import_error", "Failed to import episode"));
       }
     } catch (err: any) {
+      const errorMsg = err?.message || t("podcasts.import_error", "Failed to import episode");
+      whisperQueueService.failCustomTask(taskId, errorMsg);
       showToast(
-        t('podcasts.episode_import_failed_toast', 'Failed to create lesson: {{error}}', {
+        t("podcasts.episode_import_failed_toast", 'Ошибка при добавлении выпуска "{{title}}": {{error}}', {
           title: currentTrack.title,
-          error: err.message || 'Error',
+          error: errorMsg,
         }),
-        'error'
+        "error",
+        5000
       );
     } finally {
       setIsImporting(false);
