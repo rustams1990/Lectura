@@ -278,12 +278,29 @@ class WhisperQueueService {
       clearInterval(timer);
       this.customProgressIntervals.delete(id);
     }
-    const res = await fetch("/api/whisper/cancel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    return res.ok;
+
+    // Immediately remove from activeItem or queue and notify UI
+    if (this.activeItem && this.activeItem.id === id) {
+      this.activeItem = this.queue.shift() || null;
+      this.notify();
+    } else {
+      const idx = this.queue.findIndex(t => t.id === id);
+      if (idx !== -1) {
+        this.queue.splice(idx, 1);
+        this.notify();
+      }
+    }
+
+    try {
+      const res = await fetch("/api/whisper/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      return res.ok;
+    } catch (_) {
+      return true;
+    }
   }
 
   public clearCompletedTask(id: string) {

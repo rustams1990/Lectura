@@ -70,26 +70,52 @@ export default function FullscreenAudioPlayerModal({
 
   const currentTrack = queue[currentIndex] || null;
 
+  const importedEpisodes = usePodcastStore((s) => s.importedEpisodes);
+
   // Check if current track corresponds to an imported lesson in user's library
   const existingLesson = useMemo(() => {
     if (!currentTrack || !lessons || lessons.length === 0) return null;
-    return (
-      lessons.find((l) => l.id === currentTrack.id) ||
-      lessons.find((l) => Boolean(currentTrack.guid && l.id === currentTrack.guid)) ||
-      lessons.find((l) => Boolean(currentTrack.guid && (l as any).podcastGuid === currentTrack.guid)) ||
-      lessons.find(
+
+    // 1. Direct match by id
+    const byId = lessons.find((l) => l.id === currentTrack.id);
+    if (byId) return byId;
+
+    // 2. Match by podcastStore imported mapping
+    const importedLessonId =
+      (currentTrack.guid && importedEpisodes[currentTrack.guid]) ||
+      (currentTrack.id && importedEpisodes[currentTrack.id]);
+    if (importedLessonId) {
+      const byImported = lessons.find((l) => l.id === importedLessonId);
+      if (byImported) return byImported;
+    }
+
+    // 3. Match by guid or podcastGuid
+    if (currentTrack.guid) {
+      const byGuid = lessons.find((l) => l.id === currentTrack.guid || (l as any).podcastGuid === currentTrack.guid);
+      if (byGuid) return byGuid;
+    }
+
+    // 4. Match by exact or normalized title
+    if (currentTrack.title) {
+      const cleanTrackTitle = currentTrack.title.trim().toLowerCase();
+      const byTitle = lessons.find((l) => l.title && l.title.trim().toLowerCase() === cleanTrackTitle);
+      if (byTitle) return byTitle;
+    }
+
+    // 5. Match by audioUrl
+    if (currentTrack.audioUrl) {
+      const byAudio = lessons.find(
         (l) =>
-          Boolean(
-            currentTrack.audioUrl &&
-              l.audioUrl &&
-              (l.audioUrl === currentTrack.audioUrl ||
-                l.audioUrl.includes(currentTrack.audioUrl) ||
-                currentTrack.audioUrl.includes(l.audioUrl))
-          )
-      ) ||
-      null
-    );
-  }, [currentTrack, lessons]);
+          l.audioUrl &&
+          (l.audioUrl === currentTrack.audioUrl ||
+            l.audioUrl.includes(currentTrack.audioUrl) ||
+            currentTrack.audioUrl.includes(l.audioUrl))
+      );
+      if (byAudio) return byAudio;
+    }
+
+    return null;
+  }, [currentTrack, lessons, importedEpisodes]);
 
   useEffect(() => {
     if (!isSeeking) {
