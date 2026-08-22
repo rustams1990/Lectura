@@ -357,8 +357,6 @@ export default function App() {
     historyRef.current = history;
   }, [history]);
 
-  const deletedSessionLessonIdsRef = useRef<Set<string>>(new Set());
-  const pendingDeletedHistoryIdsRef = useRef<Set<string>>(new Set());
   const delayDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
   const historySyncDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -389,16 +387,9 @@ export default function App() {
 
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
     if (deletedIds && deletedIds.length > 0) {
-      console.log('[Delete History Trace]', { deletedId: deletedIds[0], remainingEntries: newHistory.length });
+      console.log('[Delete History]', { deletedIds, remainingEntries: newHistory.length });
       
-      const deletedLessons = historyRef.current.filter(h => deletedIds.includes(h.id));
-      deletedLessons.forEach(h => {
-        deletedSessionLessonIdsRef.current.add(h.lessonId);
-        if (h.guid) deletedSessionLessonIdsRef.current.add(h.guid);
-      });
-      deletedIds.forEach(id => pendingDeletedHistoryIdsRef.current.add(id));
-      
-      // Cancel pending debounced calls!
+      // Cancel pending debounced calls
       if (delayDebounceFnRef.current) {
         clearTimeout(delayDebounceFnRef.current);
         delayDebounceFnRef.current = null;
@@ -408,28 +399,11 @@ export default function App() {
         historySyncDebounceFnRef.current = null;
       }
       
-      // Clear in-memory listening buffers for explicitly deleted items
-      const currentTrack = usePlaylistStore.getState().queue[usePlaylistStore.getState().currentIndex];
-      if (
-        (activeLessonId && deletedLessons.some(h => h.lessonId === activeLessonId || h.guid === activeLessonId)) ||
-        (currentTrack && deletedLessons.some(h => h.lessonId === currentTrack.id || h.guid === currentTrack.guid || h.guid === currentTrack.id))
-      ) {
-        listeningBufferRef.current = 0;
-      }
+      // Clear in-memory listening buffer
+      listeningBufferRef.current = 0;
     }
 
-    const deduped = dedupeHistory(newHistory).filter(h => {
-      // Strict Zero-Duration Rejection Guard on the direct-write path:
-      // block any brand-new entries that have 0 duration.
-      if ((h.durationSeconds || 0) <= 0) {
-        const alreadyExists = historyRef.current.some(existing => existing.id === h.id);
-        if (!alreadyExists) {
-          console.trace('[PHANTOM HISTORY BLOCKED in handleUpdateHistory]', h);
-          return false; // DROP IT
-        }
-      }
-      return true;
-    });
+    const deduped = dedupeHistory(newHistory).filter(h => (h.durationSeconds || 0) > 0);
     setHistory(deduped);
     historyRef.current = deduped;
     // Mark immediately so loadDataFromLocalServer won't overwrite for 30s
@@ -483,14 +457,6 @@ export default function App() {
     if (!durationSeconds || durationSeconds <= 0) {
       console.error('BLOCKED ATTEMPT TO CREATE 0s HISTORY:', { targetLesson, actionType, durationSeconds });
       return;
-    }
-
-    const targetGuid = (targetLesson as any).guid || targetLesson.id;
-
-    // If this is a valid user playback tick (durationSeconds > 0), unblock the lesson for the new session
-    deletedSessionLessonIdsRef.current.delete(targetLesson.id);
-    if (targetGuid) {
-      deletedSessionLessonIdsRef.current.delete(targetGuid);
     }
     
     if ((actionType === "listen" || actionType === "complete") && lastPosition === undefined) {
@@ -1501,11 +1467,8 @@ export default function App() {
 
             const allHistoryItems = [...localOnlyItems, ...mergedWithLocal];
 
-            // Filter out pure garbage entries and anything pending deletion
+            // Filter out pure garbage entries
             const filteredHistory = allHistoryItems.filter((item: HistoryEntry) => {
-              if (pendingDeletedHistoryIdsRef.current.has(item.id)) {
-                return false;
-              }
               if ((item.durationSeconds || 0) <= 0) {
                 return false;
               }
@@ -1719,13 +1682,6 @@ export default function App() {
       const lastActiveLessonId = localStorage.getItem("vocab_clone_last_active_lesson_id") || undefined;
 
       const finalDeletedHistoryIds = deletedHistoryIds ? [...deletedHistoryIds] : [];
-      if (pendingDeletedHistoryIdsRef.current.size > 0) {
-        pendingDeletedHistoryIdsRef.current.forEach(id => {
-          if (!finalDeletedHistoryIds.includes(id)) {
-            finalDeletedHistoryIds.push(id);
-          }
-        });
-      }
 
       if (finalDeletedHistoryIds.length > 0) {
         console.log('[Sync Delete Request]', { deletedHistoryIds: finalDeletedHistoryIds });
@@ -1733,7 +1689,6 @@ export default function App() {
 
       const safeHistory = (currentHistory || []).filter(h => {
         if (!h || !h.id) return false;
-        if (pendingDeletedHistoryIdsRef.current.has(h.id)) return false;
         if (finalDeletedHistoryIds.includes(h.id)) return false;
         if ((h.durationSeconds || 0) <= 0) return false;
         return true;
@@ -1785,9 +1740,6 @@ export default function App() {
         return;
       }
       if (res.ok) {
-        // Clear successfully synced deletions
-        finalDeletedHistoryIds.forEach(id => pendingDeletedHistoryIdsRef.current.delete(id));
-
         lastLocalChangeTime.current = Date.now();
         lastSyncSuccessTime.current = Date.now();
         setSyncProgress(prev => ({
@@ -2953,20 +2905,12 @@ export default function App() {
   const lastTickWallTimeRef = useRef<number>(performance.now());
 
   useEffect(() => {
-    const handleMediaPlayStart = (e?: any) => {
+    const handleMediaPlayStart = () => {
       lastTickWallTimeRef.current = performance.now();
-      const trackId = e?.detail?.trackId;
-      const guid = e?.detail?.guid;
-      if (trackId) {
-        deletedSessionLessonIdsRef.current.delete(trackId);
-      }
-      if (guid) {
-        deletedSessionLessonIdsRef.current.delete(guid);
-      }
     };
-    window.addEventListener("media-play-start", handleMediaPlayStart as EventListener);
+    window.addEventListener("media-play-start", handleMediaPlayStart);
     return () => {
-      window.removeEventListener("media-play-start", handleMediaPlayStart as EventListener);
+      window.removeEventListener("media-play-start", handleMediaPlayStart);
     };
   }, []);
 

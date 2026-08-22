@@ -19,11 +19,13 @@ export function generateHistoryId(options?: {
 
   if (!durationSeconds || durationSeconds <= 0) {
     console.error('BLOCKED ATTEMPT TO CREATE 0s HISTORY:', { source, durationSeconds, actionType: options?.actionType });
-    console.trace();
     return null;
   }
 
-  return `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `hist_${crypto.randomUUID()}`;
+  }
+  return `hist_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
