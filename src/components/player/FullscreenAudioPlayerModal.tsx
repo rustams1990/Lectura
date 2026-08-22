@@ -282,8 +282,9 @@ export default function FullscreenAudioPlayerModal({
     }
   };
 
-  const progressPercent = duration > 0 ? (seekValue / duration) * 100 : 0;
-  const remainingTime = Math.max(0, duration - seekValue);
+  const effectiveDuration = duration > 0 ? duration : (currentTrack?.duration || 0);
+  const progressPercent = effectiveDuration > 0 ? (seekValue / effectiveDuration) * 100 : 0;
+  const remainingTime = Math.max(0, effectiveDuration - seekValue);
 
   return (
     <div
@@ -425,7 +426,7 @@ export default function FullscreenAudioPlayerModal({
             <input
               type="range"
               min={0}
-              max={duration || 100}
+              max={effectiveDuration || 100}
               step={0.1}
               value={seekValue}
               onMouseDown={() => setIsSeeking(true)}

@@ -67,7 +67,7 @@ export const CANONICAL_LANG_NAMES: Record<string, string> = {
  * (e.g. spanish / spa / es-ES / es-MX / español -> es)
  */
 export const normalizeLanguageCode = (lang?: string): string => {
-  if (!lang) return "es";
+  if (!lang) return "";
   const clean = lang.toLowerCase().trim();
   if (clean.startsWith("es") || clean === "spanish" || clean === "spa" || clean.includes("испан") || clean.includes("español")) return "es";
   if (clean.startsWith("en") || clean === "english" || clean === "eng" || clean.includes("англ")) return "en";
@@ -88,7 +88,7 @@ export const normalizeLanguageCode = (lang?: string): string => {
   if (clean.startsWith("hi") || clean === "hindi" || clean === "hin" || clean.includes("хинди")) return "hi";
   if (clean.startsWith("nl") || clean === "dutch" || clean === "dut" || clean.includes("нидерланд")) return "nl";
   if (clean.startsWith("pl") || clean === "polish" || clean === "pol" || clean.includes("польск")) return "pl";
-  return clean.slice(0, 2) || "es";
+  return clean.slice(0, 2) || "";
 };
 
 /**
@@ -489,7 +489,7 @@ router.get("/subscriptions", (req: Request, res: Response) => {
   }
 });
 
-router.post("/subscriptions", (req: Request, res: Response) => {
+router.post("/subscriptions", async (req: Request, res: Response) => {
   try {
     const userId = safeResolveUserId(req);
     const { title, author, feedUrl, artworkUrl, language } = req.body;
@@ -498,7 +498,17 @@ router.post("/subscriptions", (req: Request, res: Response) => {
       return res.status(400).json({ error: "title and feedUrl are required" });
     }
 
-    const normalizedLang = normalizeLanguageCode(language);
+    let normalizedLang = normalizeLanguageCode(language);
+    if (!normalizedLang && feedUrl) {
+      try {
+        const feed = await fetchAndParseFeed(feedUrl, { limit: 1 });
+        if (feed?.meta?.language) {
+          normalizedLang = normalizeLanguageCode(feed.meta.language);
+        }
+      } catch (_) {}
+    }
+    if (!normalizedLang) normalizedLang = "en";
+
     const db = getDbConnection("default");
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -517,7 +527,7 @@ router.post("/subscriptions", (req: Request, res: Response) => {
           return res.json({ subscription: {
             id: existing.id, title: existing.title, author: existing.author,
             feedUrl: existing.feed_url, artworkUrl: existing.artwork_url,
-            language: normalizeLanguageCode(existing.language), createdAt: existing.created_at,
+            language: normalizeLanguageCode(existing.language) || normalizedLang, createdAt: existing.created_at,
           }, alreadyExists: true });
         }
       }
@@ -696,13 +706,14 @@ router.get("/timeline", async (req: Request, res: Response) => {
       subscriptions.map(async (sub) => {
         try {
           const feed = await fetchAndParseFeed(sub.feed_url, { limit: 5 });
+          const detectedFeedLang = normalizeLanguageCode(feed.meta.language) || normalizeLanguageCode(sub.language) || "en";
           return feed.episodes.map(ep => ({
             ...ep,
             podcastId: sub.id,
             podcastTitle: sub.title || feed.meta.title,
             podcastArtwork: sub.artwork_url || feed.meta.artworkUrl,
             podcastAuthor: sub.author || feed.meta.author,
-            podcastLanguage: normalizeLanguageCode(sub.language || feed.meta.language),
+            podcastLanguage: detectedFeedLang,
             feedUrl: sub.feed_url,
           }));
         } catch (e) {

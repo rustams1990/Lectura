@@ -4,7 +4,7 @@ import {
   ArrowLeft, Play, Plus, Check, Loader2, Rss, Clock, Calendar,
   FileText, AlertCircle, RefreshCw, Bell, BellOff, Mic, Search,
   ArrowUpDown, MoreVertical, Copy, ExternalLink, X, Filter, CheckCircle2,
-  BookOpen, CheckCheck, RotateCcw,
+  BookOpen, CheckCheck, RotateCcw, ChevronLeft,
 } from "lucide-react";
 import { usePodcastStore } from "../store/podcastStore";
 import { usePlaylistStore } from "../store/playlistStore";
@@ -730,76 +730,80 @@ export default function PodcastChannelView({
   }, [importEpisode, title, artworkUrl, author, currentFeedMeta, selectedTargetLanguage, showToast, t, onOpenLesson]);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
-        <button
-          onClick={onBack}
-          className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-500 dark:text-zinc-400 cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="font-bold text-sm text-zinc-800 dark:text-zinc-100 truncate flex-1">
-          {t("podcasts.episodes", "Episodes")}
-        </h2>
+    <div className="flex flex-col h-full overflow-hidden w-full max-w-full bg-zinc-50/50 dark:bg-zinc-950">
+      {/* Top Header */}
+      <div className="px-3 sm:px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800 shrink-0 shadow-2xs w-full">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 w-full min-w-0">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-bold transition-all cursor-pointer shadow-3xs shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>{t("common.back_to_overview", "Back to Overview")}</span>
+          </button>
+          <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 truncate max-w-xs sm:max-w-md">
+            {title}
+          </span>
+        </div>
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Channel hero */}
-        <div className="flex items-start gap-4 p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 sm:py-5 space-y-5 sm:space-y-6 max-w-7xl mx-auto w-full min-w-0">
+        {/* Channel Hero Card */}
+        <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5 p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm w-full min-w-0">
           {artworkUrl ? (
             <img
               src={artworkUrl}
               alt={title}
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover shadow-md shrink-0 bg-zinc-100 dark:bg-zinc-800"
+              className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover shadow-md shrink-0 bg-zinc-100 dark:bg-zinc-800 border border-black/10"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
           ) : (
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center shrink-0">
-              <Rss className="w-8 h-8 text-teal-600 dark:text-teal-400" />
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center shrink-0">
+              <Rss className="w-10 h-10 text-teal-600 dark:text-teal-400" />
             </div>
           )}
 
           <div className="flex-1 min-w-0">
-            <h1 className="font-black text-base sm:text-lg text-zinc-900 dark:text-white leading-snug">
-              {title}
-            </h1>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h1 className="font-black text-lg sm:text-xl text-zinc-900 dark:text-white leading-tight">
+                {title}
+              </h1>
+              <button
+                onClick={handleSubscribeToggle}
+                disabled={isSubscribing}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-3xs active:scale-95 shrink-0 ${
+                  isSubscribed
+                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 border border-zinc-200 dark:border-zinc-700"
+                    : "bg-teal-600 hover:bg-teal-700 text-white"
+                }`}
+              >
+                {isSubscribing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : isSubscribed ? (
+                  <BellOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Bell className="w-3.5 h-3.5" />
+                )}
+                {isSubscribed
+                  ? t("podcasts.unsubscribe", "Unsubscribe")
+                  : t("podcasts.subscribe", "Subscribe")}
+              </button>
+            </div>
             {author && (
-              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5">{author}</p>
+              <p className="text-xs font-bold text-teal-600 dark:text-teal-400 mt-1">{author}</p>
             )}
             {currentFeedMeta?.description && (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 line-clamp-2 leading-relaxed">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 line-clamp-3 leading-relaxed">
                 {currentFeedMeta.description}
               </p>
             )}
-
-            <button
-              onClick={handleSubscribeToggle}
-              disabled={isSubscribing}
-              className={`mt-2.5 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-3xs active:scale-95 ${
-                isSubscribed
-                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 border border-zinc-200 dark:border-zinc-700"
-                  : "bg-teal-600 hover:bg-teal-700 text-white"
-              }`}
-            >
-              {isSubscribing ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : isSubscribed ? (
-                <BellOff className="w-3.5 h-3.5" />
-              ) : (
-                <Bell className="w-3.5 h-3.5" />
-              )}
-              {isSubscribed
-                ? t("podcasts.unsubscribe", "Unsubscribe")
-                : t("podcasts.subscribe", "Subscribe")}
-            </button>
           </div>
         </div>
 
         {/* Control Bar: Search + Duration Sorting + Dynamic Status Filter Chips */}
-        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 space-y-3 bg-white dark:bg-zinc-950">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+        <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* Search Input */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
@@ -808,7 +812,7 @@ export default function PodcastChannelView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("podcasts.search_episodes_placeholder", "Поиск по выпускам…")}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs sm:text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                className="w-full pl-9 pr-8 py-2 bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs sm:text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all shadow-3xs"
               />
               {searchQuery && (
                 <button
@@ -892,7 +896,7 @@ export default function PodcastChannelView({
         </div>
 
         {/* Episodes List */}
-        <div className="p-4">
+        <div>
           {isFeedLoading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-400">
               <Loader2 className="w-7 h-7 animate-spin text-teal-500" />
@@ -911,7 +915,7 @@ export default function PodcastChannelView({
               </button>
             </div>
           ) : filteredEpisodes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-400">
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-400 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">
               <Filter className="w-7 h-7 opacity-30" />
               <p className="text-sm font-semibold">{t("podcasts.no_matching_episodes", "Нет выпусков, соответствующих фильтрам")}</p>
               <button
@@ -962,7 +966,7 @@ export default function PodcastChannelView({
                 <div className="flex justify-center pt-3 pb-6">
                   <button
                     onClick={() => setVisibleCount(c => c + 25)}
-                    className="px-6 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer active:scale-95"
+                    className="px-6 py-2.5 bg-white hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer active:scale-95"
                   >
                     {t("podcasts.load_more", "Показать ещё")} ({filteredEpisodes.length - visibleCount})
                   </button>

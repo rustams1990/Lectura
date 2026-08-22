@@ -149,13 +149,14 @@ export const usePlaylistStore = create<PlaylistState>()(
         }
 
         const safeIndex = Math.max(0, Math.min(startIndex, validItems.length - 1));
+        const initialDuration = validItems[safeIndex]?.duration || 0;
         set({
           queue: validItems,
           currentIndex: safeIndex,
           isPlaying: autoPlay,
           isOpen: true,
           currentTime: 0,
-          duration: 0,
+          duration: initialDuration,
           seekTarget: null,
         });
 

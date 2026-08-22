@@ -111,6 +111,17 @@ html.dark body {
   background: #2e2e35;
 }
 
+/* Explicit no-scrollbar utility to override global * scrollbar styling */
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* ============================================
    DARK MODE PREMIUM BUTTON STYLING
    ============================================ */

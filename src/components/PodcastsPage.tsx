@@ -2,20 +2,21 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useTranslation } from "react-i18next";
 import {
   Search, Rss, Loader2, Mic2, X, Radio, RefreshCw,
-  ArrowUpDown, Filter, Plus,
+  ArrowUpDown, Filter, Plus, Play, Clock, Sparkles,
+  Headphones, ChevronRight, ChevronLeft, CheckCircle2, Bookmark
 } from "lucide-react";
 import { usePodcastStore } from "../store/podcastStore";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useToast } from "../context/ToastContext";
 import { useWhisperQueue } from "../services/whisperQueueService";
 import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastTimelineEpisode } from "../types";
-import PodcastChannelView, { EpisodeRow, getEpisodeLessonInfo, EpisodeLessonInfo } from "./PodcastChannelView";
+import PodcastChannelView, { EpisodeRow, getEpisodeLessonInfo, EpisodeLessonInfo, parseDurationToSeconds } from "./PodcastChannelView";
 import { normalizeLanguage } from "../utils";
 
 // ── Language Normalization Helper ─────────────────────────────────────────────
 
 function normalizeLanguageCode(lang?: string): string {
-  if (!lang) return "es";
+  if (!lang) return "";
   const clean = lang.toLowerCase().trim();
   if (clean.startsWith("es") || clean === "spanish" || clean === "spa") return "es";
   if (clean.startsWith("en") || clean === "english" || clean === "eng") return "en";
@@ -49,22 +50,25 @@ const LANGUAGE_META: Record<string, { label: string; flag: string }> = {
   uk: { label: "Ukrainian", flag: "🇺🇦" },
 };
 
-function parseDurationToSeconds(dur?: string | number | null): number {
-  if (!dur) return 0;
-  if (typeof dur === "number") return dur;
-  if (!dur.includes(":")) return parseInt(dur, 10) || 0;
-  const parts = dur.split(":").map(Number);
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  return parts[0] || 0;
+function formatSecondsCompact(seconds: number): string {
+  if (!seconds || seconds <= 0) return "0s";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  if (m < 60) {
+    return `${m}m ${s}s`;
+  }
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  return `${h}h ${remM}m`;
 }
 
-// ── Podcast Card ──────────────────────────────────────────────────────────────
+// ── Modern Upgraded Podcast Card ──────────────────────────────────────────────
 
 interface PodcastCardProps {
   title: string;
   subtitle: string;
   artworkUrl: string;
+  language?: string;
   genre?: string;
   trackCount?: number;
   isSubscribed?: boolean;
@@ -72,14 +76,17 @@ interface PodcastCardProps {
 }
 
 const PodcastCard = React.memo<PodcastCardProps>(({
-  title, subtitle, artworkUrl, genre, trackCount, isSubscribed, onClick,
+  title, subtitle, artworkUrl, language, genre, trackCount, isSubscribed, onClick,
 }) => {
+  const langCode = normalizeLanguageCode(language);
+  const langMeta = langCode ? LANGUAGE_META[langCode] : null;
+
   return (
     <button
       onClick={onClick}
-      className="flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden hover:border-teal-400 dark:hover:border-teal-600 hover:shadow-md transition-all text-left group cursor-pointer"
+      className="flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl p-2.5 hover:border-teal-500/50 dark:hover:border-teal-500/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-200 text-left group cursor-pointer relative w-full h-full"
     >
-      <div className="relative aspect-square w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+      <div className="relative aspect-square w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden rounded-xl">
         {artworkUrl ? (
           <img
             src={artworkUrl}
@@ -99,20 +106,44 @@ const PodcastCard = React.memo<PodcastCardProps>(({
             <Rss className="w-10 h-10 text-zinc-300 dark:text-zinc-600" />
           </div>
         )}
+
+        {/* Floating Language Badge */}
+        {language && (
+          <span className="absolute top-2 left-2 z-10 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm pointer-events-none">
+            {langCode ? langCode.toUpperCase() : language.toUpperCase()}
+          </span>
+        )}
+
+        {/* Floating Episode count badge */}
+        {trackCount ? (
+          <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-[10px] font-semibold text-zinc-200 z-10 pointer-events-none">
+            {trackCount} ep.
+          </div>
+        ) : null}
+
+        {/* Hover play icon overlay */}
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-teal-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+            <Play className="w-5 h-5 fill-current ml-0.5" />
+          </div>
+        </div>
       </div>
-      <div className="p-2.5">
-        <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100 line-clamp-2 leading-snug">{title}</p>
-        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 truncate">{subtitle}</p>
-        {(genre || trackCount) && (
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {genre && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-full">
-                {genre}
-              </span>
-            )}
-            {trackCount ? (
-              <span className="text-[10px] text-zinc-400">{trackCount} ep.</span>
-            ) : null}
+
+      <div className="pt-2.5 pb-2 px-1 flex flex-col justify-start w-full min-h-[64px]">
+        <div>
+          <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100 line-clamp-2 leading-snug group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+            {title}
+          </p>
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">
+            {subtitle}
+          </p>
+        </div>
+
+        {genre && (
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-md font-medium truncate max-w-full">
+              {genre}
+            </span>
           </div>
         )}
       </div>
@@ -141,8 +172,8 @@ export default function PodcastsPage({
   const { showToast } = useToast();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Tab: "subscriptions" | "timeline"
-  const [activeTab, setActiveTab] = useState<"subscriptions" | "timeline">("subscriptions");
+  // Tab: "overview" | "subscriptions" | "timeline"
+  const [activeTab, setActiveTab] = useState<"overview" | "subscriptions" | "timeline">("overview");
 
   // Timeline filters & sorting
   const [timelineSearch, setTimelineSearch] = useState("");
@@ -175,10 +206,34 @@ export default function PodcastsPage({
     };
   }, []);
 
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkScrollability = useCallback(() => {
+    if (carouselRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
+      setCanScrollLeft(scrollLeft > 10);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+    }
+  }, []);
+
+  const handleScrollCarousel = (direction: "left" | "right") => {
+    if (carouselRef.current) {
+      const scrollAmount = direction === "left" ? -340 : 340;
+      carouselRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    }
+  };
+
   useEffect(() => {
     fetchSubscriptions();
     fetchTimeline();
   }, [fetchSubscriptions, fetchTimeline]);
+
+  // Target language filter
+  const normalizedTargetLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
+    ? normalizeLanguageCode(selectedTargetLanguage)
+    : null;
 
   const availableSubLanguages = useMemo(() => {
     const langs = new Set<string>();
@@ -201,6 +256,7 @@ export default function PodcastsPage({
     return map;
   }, [timelineEpisodes]);
 
+  // Subscriptions filtering
   const filteredSubscriptions = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = subscriptions.filter((sub) => {
@@ -221,6 +277,22 @@ export default function PodcastsPage({
       return dateB - dateA;
     });
   }, [subscriptions, query, selectedSubLanguage, podcastLatestDateMap]);
+
+  // Continue Listening Resolution: find most recent uncompleted podcast episode from history
+  const continueListeningItem = useMemo(() => {
+    const podcastHistory = history.filter(h => {
+      const isPodcast = h.lessonType === "podcast" || (h as any).audioUrl || (h as any).podcastTitle;
+      const hasDuration = (h.durationSeconds || 0) > 0;
+      const notCompleted = h.status !== "completed" && h.actionType !== "complete";
+      return isPodcast && hasDuration && notCompleted;
+    });
+
+    if (podcastHistory.length === 0) return null;
+
+    // Sort by timestamp desc
+    podcastHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return podcastHistory[0];
+  }, [history]);
 
   const handleQueryChange = useCallback((val: string) => {
     setQuery(val);
@@ -337,17 +409,15 @@ export default function PodcastsPage({
     }
   }, [selectedTargetLanguage, importEpisode, registerCustomTask, updateCustomTask, completeCustomTask, failCustomTask, showToast, t, onOpenLesson]);
 
-  const normalizedTargetLang = (selectedTargetLanguage && selectedTargetLanguage !== "All")
-    ? normalizeLanguageCode(selectedTargetLanguage)
-    : null;
-
+  // Filtered timeline episodes
   const filteredTimeline = useMemo(() => {
     let list = [...timelineEpisodes];
 
     if (normalizedTargetLang) {
       list = list.filter(ep => {
-        if (!ep.podcastLanguage) return true;
-        return normalizeLanguageCode(ep.podcastLanguage) === normalizedTargetLang;
+        const epLang = normalizeLanguageCode(ep.podcastLanguage);
+        if (!epLang) return true;
+        return epLang === normalizedTargetLang;
       });
     }
 
@@ -388,8 +458,8 @@ export default function PodcastsPage({
   }, [timelineEpisodes, normalizedTargetLang, timelineSearch, timelineStatusFilter, timelineSort, lessons, history, importedEpisodes]);
 
   const visibleTimeline = useMemo(() => {
-    return filteredTimeline.slice(0, timelineVisibleCount);
-  }, [filteredTimeline, timelineVisibleCount]);
+    return filteredTimeline.slice(0, activeTab === "overview" ? 10 : timelineVisibleCount);
+  }, [filteredTimeline, timelineVisibleCount, activeTab]);
 
   const timelineLessonInfoMap = useMemo(() => {
     const map = new Map<string, EpisodeLessonInfo>();
@@ -429,198 +499,342 @@ export default function PodcastsPage({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 pb-3 border-b border-zinc-200/80 dark:border-zinc-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-teal-500/10 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-            <Mic2 className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 leading-tight">
-              {t("podcasts.title", "Podcasts")}
-            </h1>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t("podcasts.subtitle", "Listen and study with podcasts")}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 w-full sm:w-auto p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/60 shadow-xs">
-          <button
-            onClick={() => setActiveTab("subscriptions")}
-            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "subscriptions"
-                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-            }`}
-          >
-            <Rss className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{t("podcasts.tab_subscriptions", "Subscriptions")}</span>
-            {subscriptions.length > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.2 bg-zinc-200/70 dark:bg-zinc-700 text-[10px] rounded-full shrink-0">
-                {subscriptions.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab("timeline")}
-            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "timeline"
-                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{t("podcasts.tab_latest_episodes", "Latest Episodes")}</span>
-            {timelineEpisodes.length > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.2 bg-teal-500/10 text-teal-600 dark:text-teal-400 text-[10px] rounded-full font-bold shrink-0">
-                {timelineEpisodes.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      <div className="px-4 pb-3 pt-3 shrink-0">
-        <div className="relative flex items-center max-w-lg">
-          <Search className="absolute left-3.5 w-4 h-4 text-zinc-400 pointer-events-none" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={activeTab === "subscriptions" ? query : timelineSearch}
-            onChange={(e) => {
-              if (activeTab === "subscriptions") {
-                handleQueryChange(e.target.value);
-              } else {
-                setTimelineSearch(e.target.value);
-              }
-            }}
-            placeholder={
-              activeTab === "subscriptions"
-                ? t("podcasts.search_placeholder", "Search podcasts by title or author…")
-                : t("podcasts.search_timeline_placeholder", "Filter episodes by title, notes, or podcast…")
-            }
-            className="w-full pl-10 pr-9 py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all shadow-2xs"
-          />
-          {(activeTab === "subscriptions" ? query : timelineSearch) && (
+    <div className="flex flex-col h-full overflow-hidden w-full max-w-full bg-zinc-50/50 dark:bg-zinc-950">
+      <style>{`
+        .podcast-carousel-scroll::-webkit-scrollbar,
+        .no-scrollbar::-webkit-scrollbar {
+          display: none !important;
+          width: 0 !important;
+          height: 0 !important;
+          background: transparent !important;
+          -webkit-appearance: none !important;
+        }
+        .podcast-carousel-scroll,
+        .no-scrollbar {
+          scrollbar-width: none !important;
+          -ms-overflow-style: none !important;
+        }
+      `}</style>
+      {/* ── Top Clean Search & Filter Bar ────────────────────────────────────── */}
+      <div className="px-3 sm:px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800 shrink-0 shadow-2xs w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 max-w-7xl mx-auto w-full min-w-0">
+          {/* Back button if drilled into Subscriptions or Timeline */}
+          {activeTab !== "overview" && (
             <button
-              onClick={() => {
-                if (activeTab === "subscriptions") {
-                  handleClearSearch();
+              onClick={() => setActiveTab("overview")}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-bold transition-all cursor-pointer shadow-3xs shrink-0 self-start sm:self-center"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>{t("common.back_to_overview", "Back to Overview")}</span>
+            </button>
+          )}
+
+          {/* Search Input */}
+          <div className="relative flex items-center flex-1 max-w-md w-full min-w-0">
+            <Search className="absolute left-3.5 w-4 h-4 text-zinc-400 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={activeTab === "timeline" ? timelineSearch : query}
+              onChange={(e) => {
+                if (activeTab === "timeline") {
+                  setTimelineSearch(e.target.value);
                 } else {
-                  setTimelineSearch("");
-                  searchInputRef.current?.focus();
+                  handleQueryChange(e.target.value);
                 }
               }}
-              className="absolute right-3 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
+              placeholder={
+                activeTab === "timeline"
+                  ? t("podcasts.search_timeline_placeholder", "Filter episodes by title or podcast…")
+                  : t("podcasts.search_placeholder", "Search podcasts or enter RSS feed URL…")
+              }
+              className="w-full pl-10 pr-9 py-2 bg-white dark:bg-zinc-800/90 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all shadow-3xs"
+            />
+            {(activeTab === "timeline" ? timelineSearch : query) && (
+              <button
+                onClick={() => {
+                  if (activeTab === "timeline") {
+                    setTimelineSearch("");
+                  } else {
+                    handleClearSearch();
+                  }
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute right-3 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Language filter chips */}
+          {availableSubLanguages.length > 2 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+              <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mr-1 shrink-0">
+                {t("library.language", "Language:")}
+              </span>
+              {availableSubLanguages.map((lang) => {
+                const isAll = lang === "all";
+                const meta = !isAll ? LANGUAGE_META[lang] : null;
+                const label = isAll ? t("library.all", "All") : (meta?.label || lang.toUpperCase());
+                const flag = meta?.flag || "🌐";
+                const isSelected = selectedSubLanguage === lang;
+
+                return (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setSelectedSubLanguage(lang)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border ${
+                      isSelected
+                        ? "bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-800 shadow-3xs"
+                        : "bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 border-zinc-200/80 dark:border-zinc-700"
+                    }`}
+                  >
+                    <span>{flag}</span>
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-6">
-        {activeTab === "subscriptions" && (
-          <section className="space-y-4">
-            
-            {availableSubLanguages.length > 2 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mr-1 shrink-0">
-                  {t("library.language", "Language:")}
-                </span>
-                {availableSubLanguages.map((lang) => {
-                  const isAll = lang === "all";
-                  const meta = !isAll ? LANGUAGE_META[lang] : null;
-                  const label = isAll ? t("library.all", "All") : (meta?.label || lang.toUpperCase());
-                  const flag = meta?.flag || "🌐";
-                  const isSelected = selectedSubLanguage === lang;
-
-                  return (
-                    <button
-                      key={lang}
-                      type="button"
-                      onClick={() => setSelectedSubLanguage(lang)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border ${
-                        isSelected
-                          ? "bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-800 shadow-3xs"
-                          : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-800"
-                      }`}
-                    >
-                      <span>{flag}</span>
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
+      {/* ── Main Content Scroll Area ─────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 sm:py-5 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full min-w-0">
+        
+        {/* ── SECTION 1: Continue Listening Hero Banner (Overview mode) ───────── */}
+        {activeTab === "overview" && continueListeningItem && (
+          <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-cyan-500/10 dark:from-teal-950/40 dark:via-zinc-900 dark:to-cyan-950/30 border border-teal-200/60 dark:border-teal-900/60 p-4 sm:p-5 shadow-sm w-full min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0 w-full">
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                {continueListeningItem.coverUrl ? (
+                  <img
+                    src={continueListeningItem.coverUrl}
+                    alt={continueListeningItem.lessonTitle}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover shadow-md shrink-0 border border-black/10"
+                  />
+                ) : (
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-teal-500 text-white flex items-center justify-center shadow-md shrink-0">
+                    <Headphones className="w-7 h-7" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1 min-w-0 overflow-hidden">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-700 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                      <Clock className="w-3 h-3" />
+                      {t("podcasts.continue_listening", "Continue Listening")}
+                    </span>
+                    {continueListeningItem.channelName && (
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium truncate min-w-0">
+                        • {continueListeningItem.channelName}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 truncate min-w-0">
+                    {continueListeningItem.lessonTitle}
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    {formatSecondsCompact(continueListeningItem.durationSeconds || 0)} {t("history_page.listened", "listened")}
+                  </p>
+                </div>
               </div>
-            )}
 
+              <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                <button
+                  onClick={() => {
+                    const matchedLesson = lessons.find(l => l.id === continueListeningItem.lessonId);
+                    if (matchedLesson && onOpenLesson) {
+                      onOpenLesson(matchedLesson.id);
+                    } else {
+                      const matchedEp = timelineEpisodes.find(ep => ep.guid === continueListeningItem.lessonId || ep.guid === continueListeningItem.id);
+                      const audioUrl = continueListeningItem.audioUrl || matchedEp?.audioUrl || (continueListeningItem as any).sourceUrl;
+                      if (audioUrl) {
+                        const seekTarget = continueListeningItem.lastPosition || 0;
+                        setQueue(
+                          [{
+                            id: continueListeningItem.lessonId || continueListeningItem.id,
+                            guid: continueListeningItem.lessonId || continueListeningItem.id,
+                            title: continueListeningItem.lessonTitle,
+                            audioUrl: audioUrl,
+                            bookTitle: continueListeningItem.channelName || continueListeningItem.podcastTitle || "Podcast",
+                            podcastTitle: continueListeningItem.channelName || continueListeningItem.podcastTitle || "Podcast",
+                            coverUrl: continueListeningItem.coverUrl || matchedEp?.artworkUrl || matchedEp?.podcastArtwork || "",
+                            duration: continueListeningItem.durationSeconds || undefined,
+                            lessonType: "podcast",
+                            channelName: continueListeningItem.channelName || continueListeningItem.podcastTitle || "Podcast",
+                            targetLanguage: continueListeningItem.targetLanguage || "es",
+                          }],
+                          0,
+                          true
+                        );
+                        if (seekTarget > 0) {
+                          setTimeout(() => {
+                            usePlaylistStore.getState().seek(seekTarget);
+                          }, 200);
+                        }
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>{t("reader.resume", "Resume")}</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── SECTION 2: My Channels / Subscriptions ──────────────────────────── */}
+        {(activeTab === "overview" || activeTab === "subscriptions") && (
+          <section className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                {t("podcasts.my_podcasts", "My Subscriptions")} ({filteredSubscriptions.length})
-              </span>
-              {isLoadingSubscriptions && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">
+                  {t("podcasts.my_podcasts", "My Subscriptions")}
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-zinc-200/60 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                  {filteredSubscriptions.length}
+                </span>
+              </div>
+
+              {activeTab === "overview" && filteredSubscriptions.length > 6 && (
+                <button
+                  onClick={() => setActiveTab("subscriptions")}
+                  className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>{t("common.view_all", "View all")}</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
 
             {isLoadingSubscriptions && subscriptions.length === 0 ? (
-              <div className="flex items-center justify-center py-10">
+              <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-teal-500" />
               </div>
             ) : subscriptions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-400">
-                <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                  <Mic2 className="w-7 h-7 opacity-40" />
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-400 bg-white dark:bg-zinc-900 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl">
+                <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                  <Mic2 className="w-7 h-7" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
+                  <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
                     {t("podcasts.no_subscriptions", "No subscriptions yet")}
                   </p>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                    {t("podcasts.no_subscriptions_hint", "Search for podcasts to get started")}
+                  <p className="text-xs text-zinc-400 mt-1">
+                    {t("podcasts.no_subscriptions_hint", "Search iTunes catalog or enter an RSS feed to get started")}
                   </p>
                 </div>
               </div>
+            ) : activeTab === "overview" ? (
+              <div className="relative group/carousel">
+                {/* Scroll Left Button */}
+                {canScrollLeft && (
+                  <button
+                    onClick={() => handleScrollCarousel("left")}
+                    className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md shadow-lg border border-zinc-200/80 dark:border-zinc-700/80 text-zinc-700 dark:text-zinc-200 hover:text-teal-600 dark:hover:text-teal-400 flex items-center justify-center transition-all opacity-0 group-hover/carousel:opacity-100 cursor-pointer active:scale-95 hover:scale-105"
+                    title="Scroll left"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                )}
+
+                {/* Scroll Right Button */}
+                {canScrollRight && filteredSubscriptions.length > 3 && (
+                  <button
+                    onClick={() => handleScrollCarousel("right")}
+                    className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md shadow-lg border border-zinc-200/80 dark:border-zinc-700/80 text-zinc-700 dark:text-zinc-200 hover:text-teal-600 dark:hover:text-teal-400 flex items-center justify-center transition-all opacity-0 group-hover/carousel:opacity-100 cursor-pointer active:scale-95 hover:scale-105"
+                    title="Scroll right"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                )}
+
+                {/* Carousel Container */}
+                <div
+                  ref={carouselRef}
+                  onScroll={checkScrollability}
+                  className="podcast-carousel-scroll flex gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 scroll-smooth w-full min-w-0"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  {filteredSubscriptions.map((sub) => (
+                    <div key={sub.id} className="w-36 sm:w-44 shrink-0 flex min-w-0">
+                      <PodcastCard
+                        title={sub.title}
+                        subtitle={sub.author}
+                        artworkUrl={sub.artworkUrl}
+                        language={sub.language}
+                        onClick={() => handleOpenPodcast(sub)}
+                      />
+                    </div>
+                  ))}
+
+                  {/* Explore & Add Card */}
+                  <div className="w-36 sm:w-44 shrink-0 flex">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        searchInputRef.current?.focus();
+                      }}
+                      className="w-full group flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border-2 border-dashed border-teal-300/70 dark:border-teal-800/70 hover:border-teal-500 dark:hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/50 dark:bg-teal-950/10 dark:hover:bg-teal-950/30 transition-all cursor-pointer aspect-square text-center shadow-3xs hover:shadow-md hover:-translate-y-0.5"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-teal-500/10 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
+                        <Plus className="w-5 h-5" />
+                      </div>
+                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                        {t("podcasts.explore_podcasts", "Explore & Add")}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 mt-0.5">
+                        {t("podcasts.search_itunes_rss", "iTunes / RSS")}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3 sm:gap-4">
                 {filteredSubscriptions.map((sub) => (
                   <PodcastCard
                     key={sub.id}
                     title={sub.title}
                     subtitle={sub.author}
                     artworkUrl={sub.artworkUrl}
+                    language={sub.language}
                     onClick={() => handleOpenPodcast(sub)}
                   />
                 ))}
 
+                {/* Explore & Add Card */}
                 <button
                   type="button"
                   onClick={() => {
                     searchInputRef.current?.focus();
                   }}
-                  className="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-teal-500 dark:hover:border-teal-600 bg-zinc-50/50 hover:bg-teal-50/20 dark:bg-zinc-900/30 dark:hover:bg-teal-950/20 transition-all cursor-pointer aspect-square text-center shadow-3xs hover:shadow-xs"
+                  className="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border-2 border-dashed border-teal-300/70 dark:border-teal-800/70 hover:border-teal-500 dark:hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/50 dark:bg-teal-950/10 dark:hover:bg-teal-950/30 transition-all cursor-pointer aspect-square text-center shadow-3xs hover:shadow-md hover:-translate-y-0.5"
                 >
-                  <div className="w-9 h-9 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-600 dark:text-teal-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-1.5 border border-teal-200/60 dark:border-teal-800/60">
-                    <Plus className="w-4 h-4" />
+                  <div className="w-10 h-10 rounded-full bg-teal-500/10 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
+                    <Plus className="w-5 h-5" />
                   </div>
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 group-hover:text-teal-600 dark:group-hover:text-teal-400">
                     {t("podcasts.explore_podcasts", "Explore & Add")}
                   </span>
                   <span className="text-[10px] text-zinc-400 mt-0.5">
-                    {t("podcasts.search_itunes_rss", "Search iTunes / RSS")}
+                    {t("podcasts.search_itunes_rss", "iTunes / RSS")}
                   </span>
                 </button>
               </div>
             )}
 
+            {/* Catalog search results if query is active */}
             {query.trim().length > 0 && (
               <div className="pt-6 border-t border-zinc-200/80 dark:border-zinc-800 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
                     <Search className="w-3.5 h-3.5" />
-                    <span>{t("podcasts.search_results", "iTunes Catalog Results:")} "{query}"</span>
+                    <span>{t("podcasts.search_results", "Catalog Search Results:")} "{query}"</span>
                   </span>
                   {isSearching && <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-500" />}
                 </div>
@@ -634,7 +848,7 @@ export default function PodcastsPage({
                     <p>{t("podcasts.no_results", "No extra podcasts found on iTunes")}</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3 sm:gap-4">
                     {searchResults.map((podcast) => (
                       <PodcastCard
                         key={podcast.collectionId}
@@ -653,68 +867,85 @@ export default function PodcastsPage({
           </section>
         )}
 
-        {activeTab === "timeline" && (
-          <section className="space-y-4">
-            {/* Timeline Filter & Sort Toolbar */}
-            <div className="flex items-center justify-between gap-3 p-2.5 bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl border border-zinc-200/60 dark:border-zinc-800 flex-wrap">
-              {/* Status Chips */}
-              <div className="flex items-center p-0.5 bg-zinc-200/50 dark:bg-zinc-700/50 rounded-xl text-xs font-semibold overflow-x-auto no-scrollbar scroll-smooth max-w-full">
+        {/* ── SECTION 3: Latest Episodes Feed ─────────────────────────────────── */}
+        {(activeTab === "overview" || activeTab === "timeline") && (
+          <section className="space-y-4 pt-2">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setTimelineStatusFilter("all")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                    timelineStatusFilter === "all"
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs font-bold"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  onClick={() => {
+                    if (activeTab === "overview") setActiveTab("timeline");
+                  }}
+                  className={`text-sm font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-1.5 ${
+                    activeTab === "overview" ? "hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer" : ""
                   }`}
                 >
-                  {t("podcasts.filter_all", "All")}
+                  <Radio className="w-4 h-4 text-teal-500" />
+                  <span>{activeTab === "timeline" ? t("podcasts.all_episodes", "All Episodes") : t("podcasts.tab_latest_episodes", "Latest Episodes")}</span>
                 </button>
-                <button
-                  onClick={() => setTimelineStatusFilter("in_progress")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                    timelineStatusFilter === "in_progress"
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs font-bold"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  {t("podcasts.filter_in_progress", "In Progress")}
-                </button>
-                <button
-                  onClick={() => setTimelineStatusFilter("completed")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                    timelineStatusFilter === "completed"
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs font-bold"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  {t("podcasts.filter_completed", "Completed")}
-                </button>
-                <button
-                  onClick={() => setTimelineStatusFilter("unheard")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                    timelineStatusFilter === "unheard"
-                      ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs font-bold"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  {t("podcasts.filter_unheard", "New")}
-                </button>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                  {filteredTimeline.length}
+                </span>
               </div>
 
-              {/* Sort & Refresh controls */}
-              <div className="flex items-center gap-2">
+              {/* Status Chips & Sort Toolbar */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {activeTab === "overview" && filteredTimeline.length > 10 && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab("timeline")}
+                      className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{t("common.view_all", "View all")} ({filteredTimeline.length})</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="h-4 w-px bg-slate-200 dark:bg-zinc-800 mx-2" />
+                  </>
+                )}
+                <div className="flex items-center p-0.5 bg-zinc-200/50 dark:bg-zinc-800 rounded-xl text-xs font-semibold">
+                  <button
+                    onClick={() => setTimelineStatusFilter("all")}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+                      timelineStatusFilter === "all"
+                        ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs font-bold"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    {t("podcasts.filter_all", "All")}
+                  </button>
+                  <button
+                    onClick={() => setTimelineStatusFilter("in_progress")}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+                      timelineStatusFilter === "in_progress"
+                        ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs font-bold"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    {t("podcasts.filter_in_progress", "In Progress")}
+                  </button>
+                  <button
+                    onClick={() => setTimelineStatusFilter("unheard")}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+                      timelineStatusFilter === "unheard"
+                        ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-2xs font-bold"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    {t("podcasts.filter_unheard", "New")}
+                  </button>
+                </div>
+
                 {/* Sort Dropdown */}
                 <div className="flex items-center gap-1.5">
-                  <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400" />
                   <select
                     value={timelineSort}
                     onChange={(e) => setTimelineSort(e.target.value as any)}
-                    className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-teal-500 font-semibold cursor-pointer"
+                    className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-teal-500 font-semibold cursor-pointer shadow-3xs"
                   >
-                    <option value="newest">{t("podcasts.sort_newest", "Newest First")}</option>
-                    <option value="oldest">{t("podcasts.sort_oldest", "Oldest First")}</option>
-                    <option value="shortest">{t("podcasts.sort_shortest", "Shortest First")}</option>
-                    <option value="longest">{t("podcasts.sort_longest", "Longest First")}</option>
+                    <option value="newest">{t("podcasts.sort_newest", "Newest")}</option>
+                    <option value="oldest">{t("podcasts.sort_oldest", "Oldest")}</option>
+                    <option value="shortest">{t("podcasts.sort_shortest", "Shortest")}</option>
+                    <option value="longest">{t("podcasts.sort_longest", "Longest")}</option>
                   </select>
                 </div>
 
@@ -722,7 +953,7 @@ export default function PodcastsPage({
                 <button
                   onClick={() => fetchTimeline(true)}
                   disabled={isTimelineLoading}
-                  className="p-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:border-teal-500 rounded-xl text-zinc-600 dark:text-zinc-300 hover:text-teal-600 transition-all cursor-pointer disabled:opacity-50"
+                  className="p-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:border-teal-500 rounded-xl text-zinc-600 dark:text-zinc-300 hover:text-teal-600 transition-all cursor-pointer disabled:opacity-50 shadow-3xs"
                   title={t("podcasts.refresh_timeline", "Refresh timeline")}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isTimelineLoading ? "animate-spin text-teal-500" : ""}`} />
@@ -737,19 +968,12 @@ export default function PodcastsPage({
                 <p className="text-xs font-semibold">{t("podcasts.loading_timeline", "Aggregating latest episodes…")}</p>
               </div>
             ) : subscriptions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-400">
-                <Radio className="w-10 h-10 opacity-30" />
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
-                    {t("podcasts.no_subscriptions", "No subscriptions yet")}
-                  </p>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                    {t("podcasts.subscribe_for_timeline", "Subscribe to podcasts to see their latest episodes here.")}
-                  </p>
-                </div>
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-400 bg-white dark:bg-zinc-900 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-2xl">
+                <Radio className="w-8 h-8 opacity-30" />
+                <p className="text-xs font-semibold">{t("podcasts.subscribe_for_timeline", "Subscribe to podcasts to see their latest episodes here.")}</p>
               </div>
             ) : filteredTimeline.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-2 text-zinc-400">
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-zinc-400 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">
                 <Filter className="w-7 h-7 opacity-30" />
                 <p className="text-xs font-semibold">{t("podcasts.no_matching_episodes", "No episodes match current filters")}</p>
                 {(timelineSearch || timelineStatusFilter !== "all") && (
@@ -792,13 +1016,25 @@ export default function PodcastsPage({
                   );
                 })}
 
-                {timelineVisibleCount < filteredTimeline.length && (
+                {activeTab === "overview" && filteredTimeline.length > 10 && (
+                  <div className="flex justify-center pt-2 pb-4">
+                    <button
+                      onClick={() => setActiveTab("timeline")}
+                      className="px-6 py-2.5 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-teal-600 dark:text-teal-400 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>{t("podcasts.show_all_episodes", "Show all episodes")} ({filteredTimeline.length})</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {activeTab === "timeline" && timelineVisibleCount < filteredTimeline.length && (
                   <div className="flex justify-center pt-3 pb-6">
                     <button
                       onClick={() => setTimelineVisibleCount(c => c + 25)}
-                      className="px-6 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer active:scale-95"
+                      className="px-6 py-2.5 bg-white hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer active:scale-95"
                     >
-                      {t("podcasts.load_more", "Показать ещё")} ({filteredTimeline.length - timelineVisibleCount})
+                      {t("podcasts.load_more", "Show more")} ({filteredTimeline.length - timelineVisibleCount})
                     </button>
                   </div>
                 )}

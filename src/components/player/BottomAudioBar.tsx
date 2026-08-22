@@ -96,7 +96,8 @@ export default function BottomAudioBar({ onOpenLesson, activeTab }: BottomAudioB
     setPlaybackRate(SPEED_PRESETS[nextIdx]);
   };
 
-  const progressPercent = duration > 0 ? (seekValue / duration) * 100 : 0;
+  const effectiveDuration = duration > 0 ? duration : (currentTrack?.duration || 0);
+  const progressPercent = effectiveDuration > 0 ? (seekValue / effectiveDuration) * 100 : 0;
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-40 px-2 sm:px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pointer-events-none animate-in slide-in-from-bottom-5 duration-300">
@@ -281,7 +282,7 @@ export default function BottomAudioBar({ onOpenLesson, activeTab }: BottomAudioB
             <input
               type="range"
               min={0}
-              max={duration || 100}
+              max={effectiveDuration || 100}
               step={0.1}
               value={seekValue}
               onMouseDown={() => setIsSeeking(true)}
@@ -299,7 +300,7 @@ export default function BottomAudioBar({ onOpenLesson, activeTab }: BottomAudioB
           </div>
 
           <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 font-bold shrink-0 min-w-[32px] text-right">
-            {formatTime(duration)}
+            {formatTime(effectiveDuration)}
           </span>
         </div>
 

@@ -333,6 +333,13 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         lastAudioPosRef.current = cur;
         lastTickTimeRef.current = Date.now();
         setCurrentTime(cur);
+        const dur = audio.duration;
+        if (dur && !isNaN(dur) && dur > 0 && dur !== Infinity) {
+          setDuration(dur);
+          if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+            setLessonDuration(dur);
+          }
+        }
         if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
           setLessonCurrentTime(cur);
           setLessonIsPlaying(true);
@@ -464,6 +471,14 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     if (!audio) return;
     const cur = audio.currentTime;
     setCurrentTime(cur);
+
+    const dur = audio.duration;
+    if (dur && !isNaN(dur) && dur > 0 && dur !== Infinity && usePlaylistStore.getState().duration !== dur) {
+      setDuration(dur);
+      if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+        setLessonDuration(dur);
+      }
+    }
 
     if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
       setLessonCurrentTime(cur);
