@@ -3899,6 +3899,8 @@ export default function App() {
       {/* Floating Bottom Audio Bar */}
       <BottomAudioBar
         activeTab={activeTab}
+        lessons={lessons}
+        selectedTargetLanguage={selectedTargetLanguage}
         onOpenLesson={(id) => {
           setActiveLessonId(id);
           setSelectedWord(null);
