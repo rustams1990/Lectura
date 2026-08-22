@@ -46,6 +46,21 @@ export interface WhisperTelemetry {
   };
 }
 
+function getActiveWhisperUserId(): string {
+  try {
+    const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+    const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+    return savedUser?.uid || savedUser?.email || "default";
+  } catch {
+    return "default";
+  }
+}
+
+function getWhisperStorageKey(): string {
+  const uid = getActiveWhisperUserId();
+  return `lectura_whisper_completed_tasks_${uid}`;
+}
+
 class WhisperQueueService {
   private queue: WhisperQueueItem[] = [];
   private activeItem: WhisperQueueItem | null = null;
@@ -58,22 +73,46 @@ class WhisperQueueService {
   constructor() {
     this.loadCompletedHistory();
     this.initSse();
+    if (typeof window !== "undefined") {
+      window.addEventListener("lectura:user_logout", () => this.reloadForUser());
+      window.addEventListener("lectura:user_login", () => this.reloadForUser());
+    }
+  }
+
+  public reloadForUser() {
+    this.loadCompletedHistory();
+    this.notify();
   }
 
   private loadCompletedHistory() {
     try {
-      const saved = localStorage.getItem("lectura_whisper_completed_tasks");
+      // Remove legacy unscoped key to prevent cross-account leaks
+      localStorage.removeItem("lectura_whisper_completed_tasks");
+      
+      const key = getWhisperStorageKey();
+      const saved = localStorage.getItem(key);
       if (saved) {
-        this.completedTasks = JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const currentUid = getActiveWhisperUserId();
+          this.completedTasks = parsed.filter(t => !t.userId || t.userId === currentUid || currentUid === "default");
+        } else {
+          this.completedTasks = [];
+        }
+      } else {
+        this.completedTasks = [];
       }
-    } catch (_) {}
+    } catch (_) {
+      this.completedTasks = [];
+    }
   }
 
   private saveCompletedHistory() {
     try {
+      const key = getWhisperStorageKey();
       // Keep up to 20 completed items in history
       const trimmed = this.completedTasks.slice(0, 20);
-      localStorage.setItem("lectura_whisper_completed_tasks", JSON.stringify(trimmed));
+      localStorage.setItem(key, JSON.stringify(trimmed));
     } catch (_) {}
   }
 
@@ -197,16 +236,29 @@ class WhisperQueueService {
   }
 
   public getState() {
+    const currentUid = getActiveWhisperUserId();
+    const userQueue = this.queue.filter((t) => !t.userId || t.userId === currentUid || currentUid === "default");
+    const userActiveItem =
+      this.activeItem && (!this.activeItem.userId || this.activeItem.userId === currentUid || currentUid === "default")
+        ? this.activeItem
+        : null;
+    const userCompleted = this.completedTasks.filter((t) => !t.userId || t.userId === currentUid || currentUid === "default");
     return {
-      queue: this.queue,
-      activeItem: this.activeItem,
-      completedTasks: this.completedTasks,
-      totalActiveCount: (this.activeItem ? 1 : 0) + this.queue.length,
+      queue: userQueue,
+      activeItem: userActiveItem,
+      completedTasks: userCompleted,
+      totalActiveCount: (userActiveItem ? 1 : 0) + userQueue.length,
     };
   }
 
   public async enqueueTask(payload: FormData | Record<string, any>): Promise<WhisperQueueItem> {
     const isFormData = typeof FormData !== "undefined" && payload instanceof FormData;
+    const currentUid = getActiveWhisperUserId();
+    if (isFormData) {
+      if (!(payload as FormData).has("userId")) (payload as FormData).append("userId", currentUid);
+    } else {
+      if (!(payload as Record<string, any>).userId) (payload as Record<string, any>).userId = currentUid;
+    }
     const res = await fetch("/api/whisper/queue", {
       method: "POST",
       headers: isFormData ? undefined : { "Content-Type": "application/json" },

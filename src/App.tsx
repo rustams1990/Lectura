@@ -1464,11 +1464,18 @@ export default function App() {
               return incomingItem;
             });
 
-            // Preserve local active session entries in historyRef.current that haven't been committed to server yet
-            const localOnlyItems = historyRef.current.filter(localItem =>
-              !serverItemIds.has(localItem.id) &&
-              !d.history.some((srv: HistoryEntry) => (srv as any).guid && (localItem as any).guid === (srv as any).guid)
-            );
+            // Only preserve local active session entries created within the last 60 seconds (in-flight playback not yet committed to server)
+            const nowTime = Date.now();
+            const localOnlyItems = historyRef.current.filter((localItem) => {
+              if (serverItemIds.has(localItem.id)) return false;
+              if (d.history.some((srv: HistoryEntry) => (srv as any).guid && (localItem as any).guid === (srv as any).guid)) return false;
+              try {
+                const itemAge = nowTime - new Date(localItem.timestamp).getTime();
+                return itemAge < 60000 && (localItem.durationSeconds || 0) > 0;
+              } catch {
+                return false;
+              }
+            });
 
             const allHistoryItems = [...localOnlyItems, ...mergedWithLocal];
 
