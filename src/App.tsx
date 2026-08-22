@@ -2990,8 +2990,20 @@ export default function App() {
       const { queue, currentIndex } = usePlaylistStore.getState();
       const currentTrack = queue[currentIndex];
       if (currentTrack) {
-        itemToLog = currentTrack;
-        isGlobalTrack = true;
+        // Check if this track corresponds to an imported lesson in the library
+        const matchingLesson = lessonsRef.current.find(
+          (l) =>
+            l.id === currentTrack.id ||
+            (currentTrack.guid && (l.id === currentTrack.guid || (l as any).podcastGuid === currentTrack.guid)) ||
+            (l.title && currentTrack.title && l.title.trim().toLowerCase() === currentTrack.title.trim().toLowerCase())
+        );
+        if (matchingLesson) {
+          itemToLog = matchingLesson;
+          isGlobalTrack = false;
+        } else {
+          itemToLog = currentTrack;
+          isGlobalTrack = true;
+        }
       }
     } else {
       const foundLesson = activeLesson || (activeLessonId ? lessonsRef.current.find(l => l.id === activeLessonId) : null);

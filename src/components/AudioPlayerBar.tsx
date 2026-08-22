@@ -145,6 +145,8 @@ export default function AudioPlayerBar({
     if (!currentTrack || !activeLesson) return false;
     return (
       currentTrack.id === activeLesson.id ||
+      Boolean(activeLesson.title && currentTrack.title && activeLesson.title.trim().toLowerCase() === currentTrack.title.trim().toLowerCase()) ||
+      Boolean(currentTrack.guid && (activeLesson.id === currentTrack.guid || (activeLesson as any).podcastGuid === currentTrack.guid)) ||
       Boolean(activeLesson.audioUrl && currentTrack.audioUrl && (
         activeLesson.audioUrl === currentTrack.audioUrl ||
         currentTrack.audioUrl.includes(activeLesson.audioUrl) ||

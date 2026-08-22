@@ -475,12 +475,26 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     const dur = audio.duration;
     if (dur && !isNaN(dur) && dur > 0 && dur !== Infinity && usePlaylistStore.getState().duration !== dur) {
       setDuration(dur);
-      if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+      const isThisLesson = Boolean(
+        activeLesson && currentTrack && (
+          activeLesson.id === currentTrack.id ||
+          (activeLesson.title && currentTrack.title && activeLesson.title.trim().toLowerCase() === currentTrack.title.trim().toLowerCase()) ||
+          (currentTrack.guid && (activeLesson.id === currentTrack.guid || (activeLesson as any).podcastGuid === currentTrack.guid))
+        )
+      );
+      if (isThisLesson) {
         setLessonDuration(dur);
       }
     }
 
-    if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+    const isThisLessonPlaying = Boolean(
+      activeLesson && currentTrack && (
+        activeLesson.id === currentTrack.id ||
+        (activeLesson.title && currentTrack.title && activeLesson.title.trim().toLowerCase() === currentTrack.title.trim().toLowerCase()) ||
+        (currentTrack.guid && (activeLesson.id === currentTrack.guid || (activeLesson as any).podcastGuid === currentTrack.guid))
+      )
+    );
+    if (isThisLessonPlaying) {
       setLessonCurrentTime(cur);
       setLessonIsPlaying(!audio.paused);
     }
