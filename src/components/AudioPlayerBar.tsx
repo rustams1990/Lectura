@@ -670,15 +670,12 @@ export default function AudioPlayerBar({
       {/* ── Desktop Layout (lg:flex) ── */}
       <div className="hidden lg:flex items-center gap-4">
 
-        {/* ── Left: Lesson badge ─────────────────────────────────── */}
+        {/* ── Left: Lesson title ─────────────────────────────────── */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
           <div className={`w-7 h-7 ${themeStyles.badge} flex items-center justify-center shrink-0 ${effectiveIsPlaying ? "animate-pulse" : ""}`}>
             <Headphones className="w-4.5 h-4.5" />
           </div>
           <div className="min-w-0 max-w-[200px] xl:max-w-[260px]">
-            <span className={`text-[10px] uppercase font-black tracking-wider ${themeStyles.badgeText}`}>
-              {t("reader.audio_track", "Audio Track")}
-            </span>
             <p className={`text-xs font-bold truncate ${themeStyles.titleText}`} title={activeLesson.title}>
               {activeLesson.title || t("reader.audio_player", "Audio Player")}
             </p>
