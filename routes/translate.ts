@@ -52,21 +52,77 @@ function toIso(lang?: string): string {
 }
 
 /**
- * Fast Google Translate GTX client for translating a single or batch text.
+ * Live Google Translate GTX client for translating words with multiple synonyms and phrases in context.
  */
 async function translateWithGoogleGtx(text: string, sl: string, tl: string): Promise<string> {
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(text)}`;
+  const clean = text.trim();
+  if (!clean) return "";
+  const isMultiWord = clean.includes(" ");
+  const dtParams = isMultiWord ? "dt=t" : "dt=t&dt=at&dt=bd";
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&${dtParams}&q=${encodeURIComponent(clean)}`;
+
   const resp = await fetch(url, {
     headers: {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     },
     signal: AbortSignal.timeout(6000),
   });
+
   if (!resp.ok) throw new Error(`Google Translate HTTP ${resp.status}`);
   const data: any = await resp.json();
-  if (Array.isArray(data) && Array.isArray(data[0])) {
-    return data[0].map((item: any) => item[0]).join("");
+  if (!data) throw new Error("Empty Google Translate response");
+
+  let primary = "";
+  if (Array.isArray(data[0])) {
+    primary = data[0].map((item: any) => (item && item[0] ? item[0] : "")).join("").trim();
   }
+
+  // If multi-word phrase, return full contextual translation
+  if (isMultiWord) {
+    if (primary) return primary;
+    throw new Error("No phrase translation returned");
+  }
+
+  // Single word: format structured definitions by Part of Speech if available
+  if (data[1] && Array.isArray(data[1]) && data[1].length > 0) {
+    const posLines: string[] = [];
+    for (const posBlock of data[1]) {
+      if (posBlock && typeof posBlock[0] === "string" && Array.isArray(posBlock[1]) && posBlock[1].length > 0) {
+        const posTag = posBlock[0].toLowerCase();
+        const topWords = posBlock[1].slice(0, 4).map((w: any) => String(w).trim()).filter(Boolean);
+        if (topWords.length > 0) {
+          posLines.push(`(${posTag}) ${topWords.join(", ")}`);
+        }
+      }
+    }
+    if (posLines.length > 0) {
+      return posLines.join("\n");
+    }
+  }
+
+  // Fallback: collect top 2-3 distinct synonyms
+  const definitions: string[] = [];
+  if (primary) {
+    definitions.push(primary);
+  }
+
+  // Alternative translation blocks (data[5])
+  if (data[5] && Array.isArray(data[5]) && data[5][0] && Array.isArray(data[5][0][2])) {
+    for (const item of data[5][0][2]) {
+      if (item && typeof item[0] === "string" && item[0].trim()) {
+        const cleanSyn = item[0].trim();
+        if (!definitions.some((d) => d.toLowerCase() === cleanSyn.toLowerCase())) {
+          definitions.push(cleanSyn);
+        }
+      }
+    }
+  }
+
+  if (definitions.length > 0) {
+    return definitions.slice(0, 3).join(", ");
+  }
+
+  if (primary) return primary;
   throw new Error("Unexpected Google Translate response format");
 }
 
@@ -195,6 +251,173 @@ router.post("/translate-sentences", aiRateLimit, async (req: Request, res: Respo
   }
 
   return res.json({ translations: result });
+});
+
+const COMMON_WORD_DICTIONARY: Record<string, Record<string, string>> = {
+  "en_ru": {
+    "you": "ты, вы, вам",
+    "were": "были, был, была",
+    "was": "был, была, было",
+    "be": "быть, являться",
+    "been": "был, была (бывший)",
+    "to": "к, в, чтобы",
+    "the": "(определённый артикль)",
+    "a": "(неопределённый артикль)",
+    "an": "(неопределённый артикль)",
+    "it": "это, оно, ему",
+    "i": "я, мне",
+    "we": "мы, нам",
+    "they": "они, им",
+    "he": "он, ему",
+    "she": "она, ей",
+    "and": "и",
+    "or": "или",
+    "but": "но",
+    "in": "в",
+    "on": "на",
+    "at": "в, у, около",
+    "for": "для, за",
+    "of": "из, о",
+    "with": "с, вместе с",
+    "as": "как, в качестве",
+    "by": "у, около, с помощью",
+    "is": "есть, является",
+    "are": "являются, есть",
+    "am": "являюсь, есть",
+    "have": "иметь",
+    "has": "имеет",
+    "had": "имел, имели",
+    "do": "делать",
+    "does": "делает",
+    "did": "делал, сделали",
+    "can": "мочь, уметь",
+    "could": "мог, могли",
+    "will": "будет, будут",
+    "would": "бы",
+    "should": "следует, должен",
+    "must": "должен, обязаны",
+    "my": "мой, моя, моё",
+    "your": "твой, ваш",
+    "their": "их",
+    "our": "наш",
+    "his": "его",
+    "her": "её",
+    "its": "его, её",
+    "this": "этот, эта, это",
+    "that": "тот, та, то",
+    "these": "эти",
+    "those": "те",
+    "what": "что, какой",
+    "who": "кто",
+    "where": "где, куда",
+    "when": "когда",
+    "why": "почему, зачем",
+    "how": "как",
+    "not": "не, нет",
+    "no": "нет, никакой",
+    "yes": "да",
+  }
+};
+
+/**
+ * Fast MyMemory translation fallback
+ */
+async function translateWithMyMemory(text: string, sl: string, tl: string): Promise<string> {
+  const from = sl === "auto" ? "en" : sl;
+  const to = tl === "auto" ? "ru" : tl;
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
+  const resp = await fetch(url, { signal: AbortSignal.timeout(3500) });
+  if (!resp.ok) throw new Error(`MyMemory HTTP ${resp.status}`);
+  const data: any = await resp.json();
+  if (data?.responseData?.translatedText && !data.responseData.translatedText.includes("MYMEMORY WARNING")) {
+    return data.responseData.translatedText;
+  }
+  throw new Error("No valid MyMemory translation");
+}
+
+// ── Single Word/Text Translation Endpoint for Browser Extensions & Quick Lookups ───
+router.post("/translate", aiRateLimit, async (req: Request, res: Response) => {
+  const text = (req.body.text || req.body.word || "").trim();
+  const sourceLanguage = req.body.sourceLanguage || req.body.sourceLang || req.body.sl || "auto";
+  const targetLanguage = req.body.targetLanguage || req.body.targetLang || req.body.tl || "ru";
+
+  if (!text) {
+    return res.status(400).json({ error: "Missing text to translate" });
+  }
+
+  const sIso = toIso(sourceLanguage);
+  const tIso = toIso(targetLanguage);
+  const db = getCacheDb();
+
+  // 1. Primary: Live Google Translate RPC (with multiple synonyms and contextual phrases)
+  try {
+    const gtxTranslation = await translateWithGoogleGtx(text, sIso, tIso);
+    if (gtxTranslation && gtxTranslation.trim()) {
+      const clean = gtxTranslation.trim();
+      try {
+        db.prepare(`
+          INSERT OR REPLACE INTO sentence_translations (source_text, source_lang, target_lang, translation, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(text, sIso, tIso, clean, Date.now());
+      } catch (_) {}
+      return res.json({ text, translation: clean, sourceLang: sIso, targetLang: tIso });
+    }
+  } catch (err: any) {
+    console.warn("[POST /api/translate] Google GTX RPC error, checking fallbacks:", err.message);
+  }
+
+  // 2. Secondary: Check SQLite Cache
+  try {
+    const row = db.prepare(`
+      SELECT translation FROM sentence_translations 
+      WHERE source_text = ? AND source_lang = ? AND target_lang = ?
+    `).get(text, sIso, tIso) as { translation: string } | undefined;
+
+    if (row?.translation) {
+      return res.json({ text, translation: row.translation, cached: true });
+    }
+  } catch (_) {}
+
+  // 3. Fallback: Fast MyMemory
+  try {
+    const myMemoryTrans = await translateWithMyMemory(text, sIso, tIso);
+    if (myMemoryTrans && myMemoryTrans.trim()) {
+      const clean = myMemoryTrans.trim();
+      try {
+        db.prepare(`
+          INSERT OR REPLACE INTO sentence_translations (source_text, source_lang, target_lang, translation, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(text, sIso, tIso, clean, Date.now());
+      } catch (_) {}
+      return res.json({ text, translation: clean, sourceLang: sIso, targetLang: tIso });
+    }
+  } catch (_) {}
+
+  // 4. Fallback: AI translation
+  try {
+    const aiResults = await translateBatchWithAi([text], sourceLanguage, targetLanguage, req);
+    if (aiResults[text]) {
+      const clean = aiResults[text].trim();
+      try {
+        db.prepare(`
+          INSERT OR REPLACE INTO sentence_translations (source_text, source_lang, target_lang, translation, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(text, sIso, tIso, clean, Date.now());
+      } catch (_) {}
+      return res.json({ text, translation: clean, sourceLang: sIso, targetLang: tIso });
+    }
+  } catch (err: any) {
+    console.error("[POST /api/translate] Translation error:", err);
+  }
+
+  // 5. Fallback: Builtin dictionary
+  const dictKey = `${sIso}_${tIso}`;
+  const lowerText = text.toLowerCase();
+  if (COMMON_WORD_DICTIONARY[dictKey] && COMMON_WORD_DICTIONARY[dictKey][lowerText]) {
+    return res.json({ text, translation: COMMON_WORD_DICTIONARY[dictKey][lowerText], sourceLang: sIso, targetLang: tIso });
+  }
+
+  return res.json({ text, translation: "", sourceLang: sIso, targetLang: tIso });
 });
 
 export default router;

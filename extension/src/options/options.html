@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lectura Extension Settings</title>
+  <link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <!-- Header -->
+    <header class="options-header">
+      <div class="brand-wrapper">
+        <div class="brand-icon">📖</div>
+        <div>
+          <h1 class="brand-title" data-i18n="settings_title">Lectura Extension Settings</h1>
+          <p class="brand-subtitle" data-i18n="settings_subtitle">Configure connectivity, YouTube interactive overlays, and in-situ reading preferences</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span id="serverStatus" class="connection-badge" data-i18n="checking_connection">Checking...</span>
+      </div>
+    </header>
+
+    <main class="options-main">
+      <!-- Section 1: Connection & Authentication -->
+      <section class="settings-section-card">
+        <div>
+          <h2 class="section-title" data-i18n="section_connection">1. Connection & Authentication</h2>
+          <p class="section-desc" data-i18n="section_connection_desc">Specify your local or remote Lectura server URL and access credentials.</p>
+        </div>
+
+        <div>
+          <label class="field-label" for="serverUrl" data-i18n="server_url">Server URL</label>
+          <input type="text" id="serverUrl" class="form-input" placeholder="http://localhost:3000 or https://lectura.yourdomain.com" spellcheck="false" />
+          <span class="field-hint" data-i18n="server_url_hint">Include protocol and port (e.g., http://localhost:3000 or https://lectura.yourdomain.com).</span>
+        </div>
+
+        <div>
+          <label class="field-label" for="userProfileSelect" data-i18n="target_profile">Profile / Account</label>
+          <select id="userProfileSelect" class="form-select">
+            <option value="default">🌐 Default Profile (Single User / Guest)</option>
+          </select>
+          <span class="field-hint" data-i18n="target_profile_hint">Select which Lectura account receives vocabulary and lesson imports.</span>
+        </div>
+
+        <div class="form-grid-2">
+          <div>
+            <label class="field-label" for="authToken" data-i18n="auth_token_full">Authorization Token (Bearer)</label>
+            <input type="password" id="authToken" class="form-input" placeholder="Paste your session token here" />
+            <span class="field-hint" data-i18n="auth_token_hint">Required only if your Lectura server has authentication enabled.</span>
+          </div>
+          <div>
+            <label class="field-label" for="syncKey" data-i18n="sync_key">Local Sync Key (Fallback)</label>
+            <input type="password" id="syncKey" class="form-input" placeholder="process.env.LOCAL_SYNC_KEY" />
+            <span class="field-hint" data-i18n="sync_key_hint">Matches LOCAL_SYNC_KEY on your server.</span>
+          </div>
+        </div>
+
+        <div class="form-grid-3">
+          <div>
+            <label class="field-label" for="interfaceLanguage" data-i18n="ui_language">Interface Language</label>
+            <select id="interfaceLanguage" class="form-select">
+              <option value="en" selected>🇺🇸 English (EN)</option>
+              <option value="ru">🇷🇺 Русский (RU)</option>
+              <option value="es">🇪🇸 Español (ES)</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="targetLanguage" data-i18n="study_lang">Study Language</label>
+            <select id="targetLanguage" class="form-select">
+              <option value="es" selected>🇪🇸 Spanish (es)</option>
+              <option value="en">🇬🇧 English (en)</option>
+              <option value="fr">🇫🇷 French (fr)</option>
+              <option value="de">🇩🇪 German (de)</option>
+              <option value="it">🇮🇹 Italian (it)</option>
+              <option value="ru">🇷🇺 Russian (ru)</option>
+              <option value="pt">🇵🇹 Portuguese (pt)</option>
+              <option value="zh">🇨🇳 Chinese (zh)</option>
+              <option value="ja">🇯🇵 Japanese (ja)</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="nativeLanguage" data-i18n="translate_to">Translation / Native Language</label>
+            <select id="nativeLanguage" class="form-select">
+              <option value="ru" selected>🇷🇺 Russian (ru)</option>
+              <option value="en">🇬🇧 English (en)</option>
+              <option value="es">🇪🇸 Spanish (es)</option>
+              <option value="fr">🇫🇷 French (fr)</option>
+              <option value="de">🇩🇪 German (de)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="field-label" for="ttsDialect" data-i18n="tts_dialect">TTS Engine & Dialect</label>
+          <select id="ttsDialect" class="form-select">
+            <option value="es-MX">🇲🇽 Spanish (Mexico / Mexican)</option>
+            <option value="es-ES">🇪🇸 Spanish (Spain / Castilian)</option>
+            <option value="es-US">🇺🇸 Spanish (US / Latin America)</option>
+            <option value="es-AR">🇦🇷 Spanish (Argentina / Rioplatense)</option>
+            <option value="en-US">🇺🇸 English (US) — American</option>
+            <option value="en-GB">🇬🇧 English (UK) — British</option>
+            <option value="en-AU">🇦🇺 English (AU) — Australian</option>
+            <option value="fr-FR">🇫🇷 French (France)</option>
+            <option value="fr-CA">🇨🇦 French (Canada)</option>
+            <option value="de-DE">🇩🇪 German (Germany)</option>
+            <option value="ru-RU">🇷🇺 Russian</option>
+            <option value="pt-BR">🇧🇷 Portuguese (Brazil)</option>
+            <option value="pt-PT">🇵🇹 Portuguese (Portugal)</option>
+            <option value="it-IT">🇮🇹 Italian</option>
+          </select>
+        </div>
+
+        <div>
+          <button type="button" id="btnTest" class="btn-test" data-i18n="test_connection_full">⚡ Test Connection</button>
+        </div>
+      </section>
+
+      <!-- Section 2: YouTube Subtitles -->
+      <section class="settings-section-card">
+        <div>
+          <h2 class="section-title" data-i18n="section_subtitles">2. YouTube Interactive Subtitles Overlay</h2>
+          <p class="section-desc" data-i18n="section_subtitles_desc">Interactive tokenized captions with hotkeys, hover dictionary, and pause controls on YouTube videos.</p>
+        </div>
+
+        <label class="toggle-option-card">
+          <input type="checkbox" id="enableYoutubeOverlay" />
+          <div class="toggle-info">
+            <h4 data-i18n="enable_overlay">Enable YouTube Interactive Overlay</h4>
+            <p data-i18n="enable_overlay_desc">Renders clickable word tokens over video subtitles and enables interactive learning.</p>
+          </div>
+        </label>
+
+        <label class="toggle-option-card">
+          <input type="checkbox" id="enableDualSubtitles" />
+          <div class="toggle-info">
+            <h4 data-i18n="enable_dual_subs">Dual Subtitles</h4>
+            <p data-i18n="enable_dual_subs_desc">Displays a translated full sentence below original captions (toggle with B or E).</p>
+          </div>
+        </label>
+
+        <label class="toggle-option-card">
+          <input type="checkbox" id="captureVideoSnapshot" />
+          <div class="toggle-info">
+            <h4 data-i18n="capture_snapshot">Capture Video Frame Snapshot on Word Save</h4>
+            <p data-i18n="capture_snapshot_desc">Automatically saves a frame screenshot with every saved word/phrase to provide visual context in Lectura.</p>
+          </div>
+        </label>
+
+        <label class="toggle-option-card">
+          <input type="checkbox" id="pauseOnWordClick" />
+          <div class="toggle-info">
+            <h4 data-i18n="pause_on_click">Pause Video on Word Click</h4>
+            <p data-i18n="pause_on_click_desc">Automatically pause video playback when clicking a subtitle word or phrase.</p>
+          </div>
+        </label>
+
+        <div class="form-grid-3">
+          <div>
+            <label class="field-label" for="subtitleSizePreset" data-i18n="subtitle_size_full">Subtitle Size Preset</label>
+            <select id="subtitleSizePreset" class="form-select">
+              <option value="sm" data-i18n="size_sm">Small (16px — Compact)</option>
+              <option value="md" selected data-i18n="size_md">Medium (21px — Default)</option>
+              <option value="lg" data-i18n="size_lg">Large (27px — Fullscreen / 4K)</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="subtitleHighlightMode" data-i18n="subtitle_style">Subtitle Highlight Style</label>
+            <select id="subtitleHighlightMode" class="form-select">
+              <option value="underline" data-i18n="style_underline">_ Underline (White text with colored underline)</option>
+              <option value="color" data-i18n="style_color">🎨 Colored Words (Text letters colored by status)</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="popupTheme" data-i18n="word_popup_theme">Word Popup Theme</label>
+            <select id="popupTheme" class="form-select">
+              <option value="glass" selected data-i18n="theme_glass">✨ Modern Glass (Neon)</option>
+              <option value="calm_light" data-i18n="theme_calm_light">🌿 Calm Light (Pastel)</option>
+              <option value="extended" data-i18n="theme_extended">📚 Extended (Dictionary)</option>
+              <option value="compact" data-i18n="theme_compact">⚡ Compact (Minimal)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="shortcuts-panel">
+          <h4 style="margin: 0 0 6px 0; font-size: 13px; font-weight: 700; color: #0f172a;">⌨️ Keyboard Shortcuts (Active during playback):</h4>
+          <div class="shortcut-row"><kbd>B</kbd> / <kbd>E</kbd> / <kbd>Alt + T</kbd> — Toggle Dual Subtitles translation line</div>
+          <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> — Decrease / Increase Subtitle Size Preset (S / M / L)</div>
+          <div class="shortcut-row"><kbd>A</kbd> — Jump to previous subtitle cue</div>
+          <div class="shortcut-row"><kbd>S</kbd> — Replay current subtitle cue from start</div>
+          <div class="shortcut-row"><kbd>D</kbd> — Jump to next subtitle cue</div>
+          <div class="shortcut-row"><kbd>1</kbd>–<kbd>5</kbd> — Assign vocabulary learning stage (1–5) and save</div>
+          <div class="shortcut-row"><kbd>K</kbd> / <kbd>Enter</kbd> — Mark clicked word as Known (✔️)</div>
+          <div class="shortcut-row"><kbd>0</kbd> / <kbd>I</kbd> / <kbd>Esc</kbd> — Mark as Ignored (🚫) / Close word popup</div>
+          <div class="shortcut-row"><kbd>Space</kbd> — Close word popup and resume video playback</div>
+        </div>
+      </section>
+
+      <!-- Section 3: Web Page Reader -->
+      <section class="settings-section-card">
+        <div>
+          <h2 class="section-title" data-i18n="section_reader">3. Web Page Word Lookup & Selection</h2>
+          <p class="section-desc" data-i18n="section_reader_desc">Instant word translation and SRS vocabulary saving across arbitrary websites.</p>
+        </div>
+
+        <label class="toggle-option-card">
+          <input type="checkbox" id="enableInSituSelection" />
+          <div class="toggle-info">
+            <h4 data-i18n="enable_insitu">Enable In-Situ Word Tooltip</h4>
+            <p data-i18n="enable_insitu_desc">Shows floating translation card when selecting text or double-clicking a word on any web page.</p>
+          </div>
+        </label>
+
+        <label class="toggle-option-card">
+          <input type="checkbox" id="highlightKnownWords" />
+          <div class="toggle-info">
+            <h4 data-i18n="highlight_learned">Highlight Learned Vocabulary Words</h4>
+            <p data-i18n="highlight_learned_desc">Color-codes words on web pages based on your Lectura learning progress (1-5, Known).</p>
+          </div>
+        </label>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="options-footer">
+      <div id="saveNotification" class="save-status"></div>
+      <button type="button" id="btnSave" class="btn-save-fixed" data-i18n="save_all_changes">💾 Save All Changes</button>
+    </footer>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
+

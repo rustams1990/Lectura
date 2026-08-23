@@ -41,6 +41,7 @@ import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { loadLessonTranslationsFromDb, fetchMissingSentenceTranslations } from "../services/sentenceTranslationService";
 import { useUIStore } from "../store/uiStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 const getLangCode = (lang?: string): string => {
   if (!lang) return "EN";
@@ -67,7 +68,7 @@ interface ReaderPanelProps {
   vocab: Record<string, VocabItem>;
   activeWord: string | null;
   wordLinks: Record<string, string>;
-  onWordClick: (word: string, context: string) => void;
+  onWordClick: (word: string, context: string, targetEl?: HTMLElement | null) => void;
   onMarkKnown: (word: string) => void;
   settings?: ReaderSettings;
   onEditClick?: () => void;
@@ -275,6 +276,11 @@ function ReaderPanel({
     showYoutubePlayer,
     setShowYoutubePlayer,
   } = useUIStore();
+  const { wordCardMode: storeCardMode } = useSettingsStore();
+  const wordCardMode = settings?.wordCardMode || storeCardMode || "full-inspector";
+  const isCalmSheet = wordCardMode === "calm-sheet";
+  const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);
+
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
   const [unknownSearchQuery, setUnknownSearchQuery] = useState("");
   const [unknownSortMode, setUnknownSortMode] = useState<"alpha" | "appearance">("alpha");
@@ -745,7 +751,8 @@ function ReaderPanel({
     const associatedSentence = sentences.find((s) => s.includes(rawToken)) || fullPara;
     setHoveredWordObj(null);
     setHoveredWordId(null, isCjk);
-    onWordClick(cleanWord, associatedSentence.trim());
+    const targetEl = (e?.currentTarget as HTMLElement) || null;
+    onWordClick(cleanWord, associatedSentence.trim(), targetEl);
   };
 
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -818,7 +825,12 @@ function ReaderPanel({
               {/* 2. Focus Mode */}
               <button
                 type="button"
-                onClick={() => setIsFocusMode(!isFocusMode)}
+                onClick={() => {
+                  if (!isFocusMode) {
+                    setShowYoutubePlayer(true);
+                  }
+                  setIsFocusMode(!isFocusMode);
+                }}
                 className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
                   isFocusMode
                     ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
@@ -857,9 +869,21 @@ function ReaderPanel({
               {lesson.youtubeId && (
                 <button
                   type="button"
-                  onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
+                  onClick={() => {
+                    const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
+                    if (isMobileOrTablet) {
+                      if (isFocusMode && showYoutubePlayer) {
+                        setShowYoutubePlayer(false);
+                      } else {
+                        setIsFocusMode(true);
+                        setShowYoutubePlayer(true);
+                      }
+                    } else {
+                      setShowYoutubePlayer(!showYoutubePlayer);
+                    }
+                  }}
                   className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                    showYoutubePlayer
+                    (showYoutubePlayer && !isFocusMode) || (isFocusMode && showYoutubePlayer)
                       ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
                       : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
                   }`}
@@ -1123,6 +1147,7 @@ function ReaderPanel({
               detectedMatch: typeof detectedMatches[0] | null,
               phraseMatch: typeof phraseMatches[0] | null
             ) => {
+              if (isFloatingModalOpen) return;
               const showBelow = rect.bottom < window.innerHeight - 280;
               const posY = showBelow ? rect.bottom + 6 : rect.top - 6;
               
@@ -1299,6 +1324,7 @@ function ReaderPanel({
                       id={`word-phrase-${matchedPhrase.phrase}-${tIdx}`}
                       onClick={(e) => handleWordSelect(e, matchedPhrase.phrase, matchedPhrase.phrase, sentText)}
                       onMouseEnter={(e) => {
+                        if (isFloatingModalOpen) return;
                         const rect = e.currentTarget.getBoundingClientRect();
                         setHoveredWordId(wordId);
                         handlePhraseMouseEnter(e, rect, null, matchedPhrase);
@@ -1436,6 +1462,7 @@ function ReaderPanel({
                       id={`word-detected-${matchedDetected.phrase}-${tIdx}`}
                       onClick={(e) => handleWordSelect(e, matchedDetected.phrase, matchedDetected.phrase, sentText)}
                       onMouseEnter={(e) => {
+                        if (isFloatingModalOpen) return;
                         const rect = e.currentTarget.getBoundingClientRect();
                         setHoveredWordId(wordId);
                         handlePhraseMouseEnter(e, rect, matchedDetected, null);
@@ -1583,6 +1610,7 @@ function ReaderPanel({
                     id={`word-${cleanWord}-${tIdx}`}
                     onClick={(e) => handleWordSelect(e, rawString, cleanWord, sentText)}
                     onMouseEnter={(e) => {
+                      if (isFloatingModalOpen) return;
                       const rect = e.currentTarget.getBoundingClientRect();
                       setHoveredWordId(wordId);
 
@@ -1937,7 +1965,7 @@ function ReaderPanel({
         )}
       </div>
 
-      {hoveredWordObj && (
+      {!isFloatingModalOpen && hoveredWordObj && (
         <TooltipPortal
           x={hoveredWordObj.x}
           y={hoveredWordObj.y}

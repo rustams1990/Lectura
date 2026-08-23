@@ -4,10 +4,13 @@ import { useUIStore } from "../store/uiStore";
 import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
 import ReaderView from "./ReaderView";
-import WordExplainer from "./WordExplainer";
+import WordDetailContainer from "./WordDetailContainer";
+import FloatingWordPopup from "./FloatingWordPopup";
 import AiHubModal from "./AiHubModal";
 import { Lesson, HistoryEntry, ReaderSettings, VocabItem } from "../types";
 import { useTranslation } from "react-i18next";
+import { useVocab } from "../context/VocabContext";
+import { useSettingsStore } from "../store/settingsStore";
 
 interface ReaderScreenProps {
   activeLesson: Lesson | null;
@@ -87,6 +90,9 @@ export default function ReaderScreen({
     setShowAiHubModal,
   } = useUIStore();
   const { t } = useTranslation();
+  const { selectedElement, selectedWordRect } = useVocab();
+  const { wordCardMode: storeCardMode } = useSettingsStore();
+  const isCalmSheet = (readerSettings.wordCardMode || storeCardMode) === "calm-sheet";
 
   const [selectedText, setSelectedText] = useState("");
 
@@ -116,10 +122,9 @@ export default function ReaderScreen({
   }, [setReaderSettings, isFocusMode, setIsFocusMode]);
 
   return (
-    <>
-      <div className="grid grid-cols-12 gap-6 items-start">
-        {/* Middle Main - Reader and Audio player - 8 cols on tablets and desktops */}
-        <div className="col-span-12 md:col-span-8 lg:col-span-8 min-w-0 space-y-2.5 sm:space-y-4">
+    <>      <div className="grid grid-cols-12 gap-6 items-start">
+        {/* Middle Main - Reader and Audio player - Full width in Calm Sheet mode, 8 cols in Full Inspector mode */}
+        <div className={isCalmSheet ? "col-span-12 min-w-0 space-y-2.5 sm:space-y-4" : "col-span-12 md:col-span-8 lg:col-span-8 min-w-0 space-y-2.5 sm:space-y-4"}>
           {activeLesson ? (
             <>
               {/* Quiet minimal inline toolbar (hidden on mobile/tablet, shown only on desktop lg:) */}
@@ -160,14 +165,10 @@ export default function ReaderScreen({
                         ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50 shadow-xs"
                         : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
                     }`}
-                    title={
-                      readerSettings.showSentenceTranslations
-                        ? t('reader.hide_translations_title', 'Скрыть параллельный перевод предложений (T)')
-                        : t('reader.show_translations_title', 'Показать параллельный перевод предложений (T)')
-                    }
+                    title={t('reader.parallel_toggle_title', 'Построчный перевод предложений (HotKey: T)')}
                   >
                     <Languages className="w-3.5 h-3.5" />
-                    <span>{t('reader.translations_btn', 'Перевод')}</span>
+                    <span>{t('reader.parallel_btn', 'Перевод')}</span>
                   </button>
 
                   {/* Focus Mode Toggle */}
@@ -193,10 +194,7 @@ export default function ReaderScreen({
                     {t('reader.pairs_btn', 'Игра: Пары')}
                   </button>
 
-
-
-
-
+                  {/* Unknown words only toggle button */}
                   <button
                     onClick={() => setShowOnlyUnknown(!showOnlyUnknown)}
                     className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -212,9 +210,21 @@ export default function ReaderScreen({
 
                   {activeLesson?.youtubeId && (
                     <button
-                      onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
+                      onClick={() => {
+                        const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
+                        if (isMobileOrTablet) {
+                          if (isFocusMode && showYoutubePlayer) {
+                            setShowYoutubePlayer(false);
+                          } else {
+                            setIsFocusMode(true);
+                            setShowYoutubePlayer(true);
+                          }
+                        } else {
+                          setShowYoutubePlayer(!showYoutubePlayer);
+                        }
+                      }}
                       className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        showYoutubePlayer
+                        (showYoutubePlayer && !isFocusMode) || (isFocusMode && showYoutubePlayer)
                           ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
                           : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
                       }`}
@@ -235,9 +245,10 @@ export default function ReaderScreen({
                           ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
-                      title={t('reader.view_badges_title', 'Badge/Pill highlight tiles view')}
+                      title={t('reader.view_badges_title', 'Card-style word tiles (LingQ style)')}
                     >
-                      <span>{t('reader.view_badges', 'Badges')}</span>
+                      <Brain className="w-3 h-3" />
+                      <span>{t('reader.view_badges', 'Плитки')}</span>
                     </button>
                     <button
                       type="button"
@@ -247,13 +258,14 @@ export default function ReaderScreen({
                           ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
                           : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
                       }`}
-                      title={t('reader.view_text_title', 'Clean continuous book typography view')}
+                      title={t('reader.view_text_title', 'Clean continuous book text')}
                     >
-                      <span>{t('reader.view_text', 'Book')}</span>
+                      <BookOpen className="w-3 h-3" />
+                      <span>{t('reader.view_text', 'Книга')}</span>
                     </button>
                   </div>
 
-                  {/* Width Selector */}
+                  {/* Reader Layout Width Controls */}
                   <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
                     <button
                       type="button"
@@ -346,42 +358,44 @@ export default function ReaderScreen({
           )}
         </div>
 
-        {/* Right Sidebar - Active Word Explainer definitions */}
-        <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[24px] max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-25">
-          <div className="h-full">
-            {activeLesson ? (
-              <WordExplainer
-                word={selectedWord}
-                sentence={selectedContext}
-                targetLanguage={activeLesson.targetLanguage}
-                translationLanguage={activeLesson.translationLanguage}
-                existingVocab={activeVocabItem}
-                wordLinks={wordLinks}
-                vocab={vocab}
-                onSaveVocab={handleSaveVocabItem}
-                onDeleteVocab={handleDeleteVocabItem}
-                onSaveWordLink={handleSaveWordLink}
-                onDeleteWordLink={handleDeleteWordLink}
-                onClose={() => setSelectedWord(null)}
-                settings={readerSettings}
-                onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
-                onWordClick={handleWordClick}
-                lessonText={activeLesson?.text}
-                lessons={lessons}
-                detectedPhrases={activeLesson.detectedPhrases}
-                textLemmas={activeLesson?.text_lemmas}
-                currentLessonId={activeLesson?.id}
-                onOpenLesson={handleOpenLesson}
-              />
-            ) : (
-              <div className="text-center p-4 text-zinc-400">{t('reader.select_first', 'Select a lesson first')}</div>
-            )}
+        {/* Right Sidebar - Active Word Explainer definitions (only in Full Inspector mode) */}
+        {!isCalmSheet && (
+          <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[24px] max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-25">
+            <div className="h-full">
+              {activeLesson ? (
+                <WordDetailContainer
+                  word={selectedWord}
+                  sentence={selectedContext}
+                  targetLanguage={activeLesson.targetLanguage}
+                  translationLanguage={activeLesson.translationLanguage}
+                  existingVocab={activeVocabItem}
+                  wordLinks={wordLinks}
+                  vocab={vocab}
+                  onSaveVocab={handleSaveVocabItem}
+                  onDeleteVocab={handleDeleteVocabItem}
+                  onSaveWordLink={handleSaveWordLink}
+                  onDeleteWordLink={handleDeleteWordLink}
+                  onClose={() => setSelectedWord(null)}
+                  settings={readerSettings}
+                  onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
+                  onWordClick={handleWordClick}
+                  lessonText={activeLesson?.text}
+                  lessons={lessons}
+                  detectedPhrases={activeLesson.detectedPhrases}
+                  textLemmas={activeLesson?.text_lemmas}
+                  currentLessonId={activeLesson?.id}
+                  onOpenLesson={handleOpenLesson}
+                />
+              ) : (
+                <div className="text-center p-4 text-zinc-400">{t('reader.select_first', 'Select a lesson first')}</div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
       
-      {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet with overlay */}
-      {selectedWord && activeLesson && (
+      {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet (only in Full Inspector mode) */}
+      {!isCalmSheet && selectedWord && activeLesson && (
         <div 
           className="fixed inset-0 z-[70] md:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
           onClick={() => setSelectedWord(null)}
@@ -394,7 +408,7 @@ export default function ReaderScreen({
               <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full animate-pulse" />
             </div>
             <div className="overflow-y-auto max-h-[calc(80vh-32px)] px-3 pb-6">
-              <WordExplainer
+              <WordDetailContainer
                 word={selectedWord}
                 sentence={selectedContext}
                 targetLanguage={activeLesson.targetLanguage}
@@ -420,6 +434,35 @@ export default function ReaderScreen({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating Contextual Popover (when in Calm Sheet / Calm Light mode) */}
+      {isCalmSheet && selectedWord && activeLesson && (
+        <FloatingWordPopup
+          word={selectedWord}
+          sentence={selectedContext}
+          targetLanguage={activeLesson.targetLanguage}
+          translationLanguage={activeLesson.translationLanguage}
+          existingVocab={activeVocabItem}
+          wordLinks={wordLinks}
+          vocab={vocab}
+          onSaveVocab={handleSaveVocabItem}
+          onDeleteVocab={handleDeleteVocabItem}
+          onSaveWordLink={handleSaveWordLink}
+          onDeleteWordLink={handleDeleteWordLink}
+          onClose={() => setSelectedWord(null)}
+          settings={readerSettings}
+          onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
+          onWordClick={handleWordClick}
+          lessonText={activeLesson?.text}
+          lessons={lessons}
+          detectedPhrases={activeLesson.detectedPhrases}
+          textLemmas={activeLesson?.text_lemmas}
+          currentLessonId={activeLesson?.id}
+          onOpenLesson={handleOpenLesson}
+          targetEl={selectedElement}
+          targetRect={selectedWordRect}
+        />
       )}
 
       {/* AI Hub Modal */}

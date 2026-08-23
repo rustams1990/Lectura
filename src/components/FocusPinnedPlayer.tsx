@@ -38,7 +38,9 @@ export default function FocusPinnedPlayer({
   const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
 
-  const [size, setSize] = useState<SizePreset>("medium");
+  const [size, setSize] = useState<SizePreset>(() =>
+    typeof window !== "undefined" && window.innerWidth < 1024 ? "large" : "medium"
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
@@ -390,7 +392,7 @@ export default function FocusPinnedPlayer({
   }, [playbackRate, useLocalMedia]);
 
   return (
-    <div ref={rootRef} className="shrink-0 w-full z-20 bg-zinc-950 shadow-xl shadow-black/50">
+    <div ref={rootRef} className="sticky top-0 shrink-0 w-full z-40 bg-zinc-950 shadow-xl shadow-black/50">
       {/* Control bar */}
       <div className="flex items-center justify-between h-11 px-2.5 sm:px-3 bg-zinc-900 border-b border-zinc-800 gap-2">
         {/* Left: Library back button + Exit Focus + title */}
@@ -412,7 +414,7 @@ export default function FocusPinnedPlayer({
             className="flex items-center gap-1 px-2 sm:px-3 h-7 shrink-0 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold transition-all active:scale-97 cursor-pointer shadow-3xs"
             title={t("app.focus_exit", "Выйти из фокуса")}
           >
-            <span>{t("app.focus_exit", "Выйти из фокуса")}</span>
+            <span>← {t("app.focus_exit", "Выйти из фокуса")}</span>
           </button>
 
           <div className="flex items-center gap-1 min-w-0 overflow-hidden">

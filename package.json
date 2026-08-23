@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "2.99.83",
+  "version": "2.99.84",
   "type": "module",
   "scripts": {
     "dev": "tsx watch server.ts",
@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "node -e \"fs.rmSync('dist', {recursive:true, force:true})\"",
     "lint": "tsc --noEmit",
+    "build:extension": "node extension/build.js",
     "i18n:check": "node scripts/check-i18n.js"
   },
   "dependencies": {

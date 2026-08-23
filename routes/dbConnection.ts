@@ -54,6 +54,10 @@ function setupSchema(db: Database.Database) {
       UNIQUE(user_id, language_code, word)
     );
 
+    UPDATE words 
+    SET translation = '' 
+    WHERE lower(translation) IN ('translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден');
+
     CREATE TABLE IF NOT EXISTS lessons (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL DEFAULT 'default',
@@ -241,7 +245,14 @@ function setupSchema(db: Database.Database) {
     }
   }
 
-  // ── Safe ADD COLUMN migrations for existing tables ───────────────────────────
+  // Normalize legacy short language codes to full names
+  try {
+    db.exec(`
+      UPDATE words SET language_code = 'Spanish' WHERE language_code = 'es' OR language_code = 'Es';
+      UPDATE words SET language_code = 'English' WHERE language_code = 'en' OR language_code = 'En';
+      DELETE FROM languages WHERE code IN ('es', 'Es', 'en', 'En', 'de', 'De', 'fr', 'Fr', 'it', 'It', 'ru', 'Ru', 'pt', 'Pt');
+    `);
+  } catch (_) {}
   const wordsCols = (db.prepare("PRAGMA table_info(words)").all() as any[]).map(c => c.name);
   if (!wordsCols.includes("user_id")) {
     try { db.exec(`ALTER TABLE words ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default';`); } catch (e) { console.error("Migrate words user_id error:", e); }

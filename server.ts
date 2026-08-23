@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import aiRouter from "./routes/ai.ts";
 import ttsRouter from "./routes/tts.ts";
 import youtubeRouter from "./routes/youtube.ts";
-import authRouter from "./routes/auth.ts";
+import authRouter, { resolveUserId } from "./routes/auth.ts";
 import dbRouter from "./routes/db.ts";
 import mediaRouter from "./routes/media.ts";
 import whisperRouter from "./routes/whisper.ts";
@@ -19,7 +19,7 @@ import translateRouter from "./routes/translate.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { APP_VERSION } from "./src/version.ts";
 
-// Lectura Server Entry v2.99.83
+// Lectura Server Entry v2.99.84
 dotenv.config();
 
 async function startServer() {
@@ -60,8 +60,12 @@ async function startServer() {
   });
 
   // Health check endpoint for monitoring & Docker
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", version: APP_VERSION, uptime: process.uptime(), timestamp: Date.now() });
+  app.get("/api/health", (req, res) => {
+    let resolvedUser = "default";
+    try {
+      resolvedUser = resolveUserId(req);
+    } catch (_) {}
+    res.json({ status: "ok", version: APP_VERSION, uptime: process.uptime(), timestamp: Date.now(), userId: resolvedUser });
   });
 
   // Dynamic Service Worker endpoint: injects current APP_VERSION into CACHE_NAME

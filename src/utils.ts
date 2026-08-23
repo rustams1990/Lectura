@@ -320,6 +320,155 @@ export function getLanguageNameWithDialect(languageName: string, settings?: any)
   return desc || languageName;
 }
 
+export async function playGoogleTTS(word: string, targetLanguage: string, settings?: any): Promise<void> {
+  if (!word) return;
+  const ttsLang = getEffectiveTtsLocale(targetLanguage, settings);
+  const cacheKey = `google-tts:${ttsLang}:${word.toLowerCase().trim()}`;
+
+  try {
+    let audioUrl: string | null = null;
+    let blob = await getTtsAudioFromCache(cacheKey);
+
+    if (blob) {
+      audioUrl = URL.createObjectURL(blob);
+    } else {
+      const params = new URLSearchParams({ text: word, lang: ttsLang });
+      const response = await fetch(`/api/google-tts?${params.toString()}`);
+      if (response.ok) {
+        blob = await response.blob();
+        await saveTtsAudioToCache(cacheKey, blob);
+        audioUrl = URL.createObjectURL(blob);
+      }
+    }
+
+    if (audioUrl) {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      return new Promise<void>((resolve, reject) => {
+        const audio = new Audio(audioUrl!);
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl!);
+          resolve();
+        };
+        audio.onerror = (e) => {
+          URL.revokeObjectURL(audioUrl!);
+          reject(e);
+        };
+        audio.play().catch(reject);
+      });
+    }
+  } catch (err) {
+    console.warn("Google TTS audio fetch failed, falling back to browser SpeechSynthesis:", err);
+  }
+
+  // Fallback to browser SpeechSynthesis
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    return new Promise<void>((resolve) => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(word);
+      utterance.lang = ttsLang;
+
+      const voices = window.speechSynthesis.getVoices();
+      const exactVoice = voices.find((v) => v.lang.toLowerCase().replace("_", "-") === ttsLang.toLowerCase());
+      const prefixVoice = voices.find((v) => v.lang.toLowerCase().startsWith(ttsLang.split("-")[0].toLowerCase()));
+      if (exactVoice) utterance.voice = exactVoice;
+      else if (prefixVoice) utterance.voice = prefixVoice;
+
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+}
+
+export function parseGoogleDictResponse(data: any): string {
+  const primary = data?.[0]?.[0]?.[0]?.trim() || "";
+  const nounTerms: string[] = [];
+  const adjTerms: string[] = [];
+  const otherTerms: string[] = [];
+
+  if (data && data[1] && Array.isArray(data[1])) {
+    for (const group of data[1]) {
+      const pos = (group[0] || "").toLowerCase(); // 'noun', 'verb', 'adjective', etc.
+      const terms = group[1];
+      if (Array.isArray(terms)) {
+        for (const t of terms) {
+          if (typeof t === "string" && t.trim()) {
+            const cleanT = t.trim();
+            if (pos === "noun" || pos.includes("noun") || pos.includes("существительное")) {
+              nounTerms.push(cleanT);
+            } else if (pos === "adjective" || pos.includes("adj") || pos.includes("прилагательное")) {
+              adjTerms.push(cleanT);
+            } else {
+              otherTerms.push(cleanT);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Priority: primary direct translation -> nouns -> adjectives -> other forms (verbs, etc.)
+  const allVariants = [primary, ...nounTerms, ...adjTerms, ...otherTerms].filter(Boolean);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const term of allVariants) {
+    const lower = term.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      unique.push(term);
+    }
+  }
+
+  return unique.slice(0, 4).join(", ");
+}
+
+export async function fetchWordMeaning(word: string, sourceLang: string, targetLang: string = "ru"): Promise<string | null> {
+  if (!word) return null;
+  const sLang = getLanguageCode(sourceLang) || "auto";
+  const tLang = getLanguageCode(targetLang) || "ru";
+
+  // If source language != target translation language, query Google Translate GTX directly
+  if (sLang !== tLang) {
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sLang}&tl=${tLang}&dt=t&dt=bd&q=${encodeURIComponent(word)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = parseGoogleDictResponse(data);
+        if (parsed) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn("[Lectura] Google direct translation error, attempting server fallback:", e);
+    }
+  }
+
+  // Fallback to /api/dictionary-explain
+  try {
+    const res = await fetch("/api/dictionary-explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        word,
+        targetLanguage: sourceLang,
+        translationLanguage: targetLang,
+        source: "google",
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.translation) return data.translation;
+    }
+  } catch (e) {
+    console.warn("[Lectura] Dictionary explain fallback failed:", e);
+  }
+
+  return null;
+}
+
 export function getEffectiveLocalTtsVoice(languageName: string, settings?: any): string {
   const baseLangCode = getLanguageCode(languageName); // e.g. "es", "en", "fr"
 

@@ -1419,6 +1419,59 @@ export default function SettingsModal({
                   </button>
                 </div>
               </div>
+
+              {/* Word Card Mode (Инспектор слова vs Calm Sheet) */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                      {t("settings.word_card_mode", "Вид карточки слова")}
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                      {t("settings.word_card_mode_desc", "Выберите режим всплывающего окна при клике на слово в тексте.")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ wordCardMode: "full-inspector" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      (settings?.wordCardMode || "full-inspector") === "full-inspector"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🔬 {t("settings.card_mode_full", "Расширенный инспектор")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.card_mode_full_desc", "Полная панель со всеми тегами, AI-разбором и провайдерами перевода")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ wordCardMode: "calm-sheet" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.wordCardMode === "calm-sheet"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🍃 {t("settings.card_mode_calm", "Calm Sheet (Минималистичный)")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.card_mode_calm_desc", "Светлая спокойная карточка с табами, прямым переводом и статус-баром 1–5")}
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

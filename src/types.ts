@@ -178,8 +178,10 @@ export interface ReaderSettings {
   timeFormat?: TimeFormatOption;
   firstDayOfWeek?: FirstDayOfWeekOption;
   defaultVideoViewMode?: "focus" | "floating" | "off"; // Default view mode for YouTube & video lessons on mobile/tablet
+  wordCardMode?: WordCardMode; // "full-inspector" or "calm-sheet"
 }
 
+export type WordCardMode = 'full-inspector' | 'calm-sheet';
 export type DateFormatOption = 'auto' | 'DD/MM/YYYY' | 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 export type TimeFormatOption = 'auto' | '12h' | '24h';
 export type FirstDayOfWeekOption = 'auto' | 'monday' | 'sunday';

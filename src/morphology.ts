@@ -2044,9 +2044,17 @@ export function getSuggestedLemmas(word: string, targetLanguage: string): string
     if (SPANISH_HOMONYM_PRIORITY[w]) {
       const prioritized = SPANISH_HOMONYM_PRIORITY[w].filter((p) => unique.includes(p));
       const rest = unique.filter((u) => !SPANISH_HOMONYM_PRIORITY[w].includes(u));
-      unique = [...prioritized, ...rest];
     }
   }
 
-  return unique;
+  return filterValidLemmas(unique);
+}
+
+export function filterValidLemmas(suggestions: string[]): string[] {
+  return suggestions.filter((s) => {
+    if (!s || s.length < 2) return false;
+    if (/[áéíóú].*(?:ir|er|ar)$/i.test(s)) return false;
+    if (/(?:ir|er|ar)(?:ir|er|ar)$/i.test(s)) return false;
+    return true;
+  });
 }

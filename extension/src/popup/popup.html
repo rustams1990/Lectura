@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lectura Settings</title>
+  <link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="lectura-extension-popup">
+    <!-- Header -->
+    <header class="ext-header">
+      <div class="ext-brand">
+        <span class="ext-logo">📖</span>
+        <div class="ext-brand-title">
+          <span class="ext-title">Lectura</span>
+          <span class="ext-ver">v2.99</span>
+        </div>
+      </div>
+      <div class="ext-header-right">
+        <span id="connectionBadge" class="ext-status-badge badge-disconnected" data-i18n="checking_connection">Checking...</span>
+        <button type="button" id="btnOptions" class="ext-icon-btn" title="Open Full Options">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Section 1: Connection & Profile -->
+    <section class="ext-card">
+      <div class="ext-field-group">
+        <label class="ext-label" for="serverUrl" data-i18n="server_url">Server URL</label>
+        <input type="text" class="ext-input" id="serverUrl" placeholder="http://localhost:3000" spellcheck="false" />
+      </div>
+
+      <div class="ext-field-group">
+        <label class="ext-label" for="userProfileSelect" data-i18n="target_profile">Profile / Account</label>
+        <select class="ext-select" id="userProfileSelect">
+          <option value="default">🌐 Default Profile</option>
+        </select>
+      </div>
+
+      <div class="ext-field-group">
+        <label class="ext-label" for="authToken" data-i18n="auth_token">Auth Token / Sync Key (Optional)</label>
+        <input type="password" class="ext-input" id="authToken" placeholder="Optional token" />
+      </div>
+
+      <div class="ext-row" style="margin-top: 4px;">
+        <button type="button" id="btnTestConnection" class="ext-btn ext-btn-secondary flex-1" data-i18n="test_connection">
+          ⚡ Test
+        </button>
+        <button type="button" id="btnSaveConfig" class="ext-btn ext-btn-primary flex-1" data-i18n="save_config">
+          💾 Save
+        </button>
+      </div>
+    </section>
+
+    <!-- Section 2: Languages, UI & Audio -->
+    <section class="ext-card">
+      <div class="ext-row">
+        <div class="ext-field-group flex-1">
+          <label class="ext-label" for="interfaceLanguage" data-i18n="ui_language">Interface Language</label>
+          <select class="ext-select" id="interfaceLanguage">
+            <option value="en" selected>🇺🇸 English (EN)</option>
+            <option value="ru">🇷🇺 Русский (RU)</option>
+            <option value="es">🇪🇸 Español (ES)</option>
+          </select>
+        </div>
+        <div class="ext-field-group flex-1">
+          <label class="ext-label" for="targetLanguage" data-i18n="study_lang">Study Language</label>
+          <select class="ext-select" id="targetLanguage">
+            <option value="es" selected>🇪🇸 Spanish (es)</option>
+            <option value="en">🇬🇧 English (en)</option>
+            <option value="fr">🇫🇷 French (fr)</option>
+            <option value="de">🇩🇪 German (de)</option>
+            <option value="it">🇮🇹 Italian (it)</option>
+            <option value="ru">🇷🇺 Russian (ru)</option>
+            <option value="pt">🇵🇹 Portuguese (pt)</option>
+            <option value="zh">🇨🇳 Chinese (zh)</option>
+            <option value="ja">🇯🇵 Japanese (ja)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="ext-field-group">
+        <label class="ext-label" for="ttsDialect" data-i18n="tts_dialect">TTS Engine & Dialect</label>
+        <select class="ext-select" id="ttsDialect">
+          <option value="es-MX">🇲🇽 Spanish (Mexico / Mexican)</option>
+          <option value="es-ES">🇪🇸 Spanish (Spain / Castilian)</option>
+          <option value="es-US">🇺🇸 Spanish (US / Latin America)</option>
+          <option value="es-AR">🇦🇷 Spanish (Argentina / Rioplatense)</option>
+          <option value="en-US">🇺🇸 English (US) — American</option>
+          <option value="en-GB">🇬🇧 English (UK) — British</option>
+          <option value="en-AU">🇦🇺 English (AU) — Australian</option>
+          <option value="fr-FR">🇫🇷 French (France)</option>
+          <option value="fr-CA">🇨🇦 French (Canada)</option>
+          <option value="de-DE">🇩🇪 German (Germany)</option>
+          <option value="ru-RU">🇷🇺 Russian</option>
+          <option value="pt-BR">🇧🇷 Portuguese (Brazil)</option>
+          <option value="pt-PT">🇵🇹 Portuguese (Portugal)</option>
+          <option value="it-IT">🇮🇹 Italian</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Section 3: Subtitles & Theme -->
+    <section class="ext-card">
+      <div class="ext-field-group">
+        <label class="ext-label" for="popupThemeSelect" data-i18n="word_popup_theme">Word Popup Theme</label>
+        <select class="ext-select" id="popupThemeSelect">
+          <option value="glass" selected data-i18n="theme_glass">✨ Modern Glass (Neon)</option>
+          <option value="calm_light" data-i18n="theme_calm_light">🌿 Calm Light (Pastel)</option>
+          <option value="extended" data-i18n="theme_extended">📚 Extended (Dictionary)</option>
+          <option value="compact" data-i18n="theme_compact">⚡ Compact (Minimal)</option>
+        </select>
+      </div>
+
+      <!-- Subtitle Highlight Style Toggle -->
+      <div class="ext-field-group">
+        <label class="ext-label" data-i18n="subtitle_style">Subtitle Highlight Style</label>
+        <div class="ext-segmented-group">
+          <button type="button" id="btnModeUnderline" class="ext-segmented-btn active" data-mode="underline" data-i18n="style_underline">
+            _ Underline
+          </button>
+          <button type="button" id="btnModeColor" class="ext-segmented-btn" data-mode="color" data-i18n="style_color">
+            🎨 Color
+          </button>
+        </div>
+      </div>
+
+      <div class="ext-field-group">
+        <label class="ext-label" for="subSizeSelect" data-i18n="subtitle_size">Subtitle Size</label>
+        <select class="ext-select" id="subSizeSelect">
+          <option value="sm" data-i18n="size_sm">Small (16px — Compact)</option>
+          <option value="md" selected data-i18n="size_md">Medium (21px — Default)</option>
+          <option value="lg" data-i18n="size_lg">Large (27px — Fullscreen / 4K)</option>
+        </select>
+      </div>
+
+      <div class="ext-toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-text" data-i18n="enable_dual_subs">Dual Subtitles</span>
+          <span class="toggle-hint" data-i18n="dual_subs_hint">Hotkeys: [B] or [E]</span>
+        </div>
+        <label class="ext-switch">
+          <input type="checkbox" id="dualSubsCheck" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="ext-toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-text" data-i18n="pause_on_click">Pause Video on Word Click</span>
+        </div>
+        <label class="ext-switch">
+          <input type="checkbox" id="pauseOnWordClickCheck" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Section 4: Quick Actions -->
+    <div class="ext-actions-group">
+      <button type="button" class="ext-btn ext-btn-primary ext-btn-lg" id="btnImportPage" data-i18n="import_video_page">
+        📥 Import Current Video / Page
+      </button>
+      <div class="ext-row">
+        <button type="button" class="ext-btn ext-btn-secondary flex-1" id="btnOpenLectura" data-i18n="open_app">
+          🚀 Open App
+        </button>
+        <button type="button" class="ext-btn ext-btn-secondary flex-1" id="btnSyncWords" data-i18n="sync_words">
+          🔄 Sync Words
+        </button>
+      </div>
+    </div>
+
+    <!-- Status Alert Toast -->
+    <div id="statusAlert" class="ext-alert hidden"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+

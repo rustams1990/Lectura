@@ -1,0 +1,378 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  width: 350px;
+  max-height: 580px;
+  overflow-y: hidden;
+  background-color: #f8fafc;
+  color: #0f172a;
+  padding: 10px;
+  box-sizing: border-box;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.lectura-extension-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Header */
+.ext-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 2px 2px;
+}
+
+.ext-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ext-logo {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ext-brand-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.ext-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+  letter-spacing: -0.2px;
+}
+
+.ext-ver {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ext-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ext-icon-btn {
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  line-height: 1;
+}
+
+.ext-icon-btn:hover {
+  background: #e2e8f0;
+}
+
+/* Status Badge */
+.ext-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ext-status-badge.badge-connected,
+.ext-status-badge.online {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.ext-status-badge.badge-disconnected,
+.ext-status-badge.offline {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.ext-status-badge.badge-checking {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+/* Cards */
+.ext-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ext-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ext-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.ext-input,
+.ext-select,
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.ext-input:focus,
+.ext-select:focus,
+input[type="text"]:focus,
+input[type="password"]:focus {
+  border-color: #0d9488 !important;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+.ext-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+/* Segmented Buttons */
+.ext-segmented-group {
+  display: flex;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.ext-segmented-btn {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.ext-segmented-btn.active {
+  background: #ffffff;
+  color: #0d9488;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Toggle Switches */
+.ext-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 1px;
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.toggle-text {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.toggle-hint {
+  font-size: 9.5px;
+  color: #94a3b8;
+}
+
+.ext-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.ext-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ext-switch .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.2s;
+  border-radius: 20px;
+}
+
+.ext-switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.ext-switch input:checked + .slider {
+  background-color: #0d9488;
+}
+
+.ext-switch input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+/* Buttons */
+.ext-actions-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 1px;
+}
+
+.ext-btn {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1.3;
+}
+
+.ext-btn-lg {
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+
+.ext-btn-primary {
+  background: #0d9488 !important;
+  color: #ffffff !important;
+  border: 1px solid #0d9488 !important;
+  box-shadow: 0 1px 2px rgba(13, 148, 136, 0.2);
+}
+
+.ext-btn-primary:hover {
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+}
+
+.ext-btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.ext-btn-secondary {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.ext-btn-secondary:hover {
+  background: #e2e8f0 !important;
+  border-color: #94a3b8 !important;
+}
+
+.ext-btn-secondary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Alert Toast */
+.ext-alert {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.ext-alert.hidden {
+  display: none;
+}
+
+.ext-alert.success,
+.ext-alert.alert-success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.ext-alert.error,
+.ext-alert.alert-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.ext-alert.info,
+.ext-alert.alert-info {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}

@@ -11,11 +11,17 @@ interface VocabContextType {
   setSelectedWord: (word: string | null) => void;
   contextSentence: string;
   setContextSentence: (sentence: string) => void;
+  selectedElement: HTMLElement | null;
+  setSelectedElement: (el: HTMLElement | null) => void;
+  selectedWordRect: DOMRect | null;
+  setSelectedWordRect: (rect: DOMRect | null) => void;
   getLinkedWordsFor: (word: string, lang?: string) => string[];
   handleUpdateStatusDirect: (word: string, newStatus: WordStatus, lang?: string) => void;
   handleDeleteMultipleVocabItems: (words: string[], lang?: string) => void;
-  handleMassImportIgnoredWords: (words: string[], lang?: string) => number;
-  handleWordClick: (word: string, context: string) => void;
+  handleWordClick: (word: string, context: string, target?: HTMLElement | DOMRect | null) => void;
+  isWordModalOpen: boolean;
+  openWordModal: (word: string, context: string, target?: HTMLElement | DOMRect | null) => void;
+  closeWordModal: () => void;
 }
 
 const VocabContext = createContext<VocabContextType | undefined>(undefined);
@@ -39,6 +45,8 @@ export function VocabProvider({ children }: { children: ReactNode }) {
 
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [contextSentence, setContextSentence] = useState<string>("");
+  const [selectedElement, setSelectedElement] = useState<HTMLElement | null>(null);
+  const [selectedWordRect, setSelectedWordRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
     async function loadVocabAndLinks() {
@@ -311,17 +319,40 @@ export function VocabProvider({ children }: { children: ReactNode }) {
 
   const wordClickDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleWordClick = (word: string, context: string) => {
+  const handleWordClick = (word: string, context: string, target?: HTMLElement | DOMRect | null) => {
     if (wordClickDebounceRef.current) {
       clearTimeout(wordClickDebounceRef.current);
     }
     const normalizedWord = word.replace(/\s+/g, " ").trim();
     const normalizedContext = context.replace(/\s+/g, " ").trim();
 
+    let element: HTMLElement | null = null;
+    let rect: DOMRect | null = null;
+    if (target) {
+      if ("getBoundingClientRect" in target) {
+        element = target as HTMLElement;
+        rect = target.getBoundingClientRect();
+      } else {
+        rect = target as DOMRect;
+      }
+    }
+
     wordClickDebounceRef.current = setTimeout(() => {
       setSelectedWord(normalizedWord);
       setContextSentence(normalizedContext);
+      setSelectedElement(element);
+      setSelectedWordRect(rect);
     }, 120);
+  };
+
+  const isWordModalOpen = Boolean(selectedWord);
+  const openWordModal = (word: string, context: string, target?: HTMLElement | DOMRect | null) => {
+    handleWordClick(word, context, target);
+  };
+  const closeWordModal = () => {
+    setSelectedWord(null);
+    setSelectedElement(null);
+    setSelectedWordRect(null);
   };
 
   return (
@@ -335,11 +366,18 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         setSelectedWord,
         contextSentence,
         setContextSentence,
+        selectedElement,
+        setSelectedElement,
+        selectedWordRect,
+        setSelectedWordRect,
         getLinkedWordsFor,
         handleUpdateStatusDirect,
         handleDeleteMultipleVocabItems,
         handleMassImportIgnoredWords,
         handleWordClick,
+        isWordModalOpen,
+        openWordModal,
+        closeWordModal,
       }}
     >
       {children}

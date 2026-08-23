@@ -88,8 +88,28 @@ export function resolveUserId(req: Request): string {
     }
   }
 
-  const resolved = String(req.headers["x-local-sync-user"] || req.query.sync_user || "default");
-  return resolved;
+  const rawUser = String(req.headers["x-local-sync-user"] || req.query.sync_user || "").trim();
+  if (rawUser && rawUser !== "default") {
+    try {
+      const db = getDbConnection("default");
+      const userRow = db.prepare("SELECT id FROM server_users WHERE id = ? OR lower(email) = ? LIMIT 1").get(rawUser, rawUser.toLowerCase()) as { id: string } | undefined;
+      if (userRow) {
+        return userRow.id;
+      }
+    } catch (_) {}
+    return rawUser;
+  }
+
+  // If no specific user specified and only 1 server user exists, map to that user
+  try {
+    const db = getDbConnection("default");
+    const allUsers = db.prepare("SELECT id FROM server_users LIMIT 2").all() as { id: string }[];
+    if (allUsers.length === 1) {
+      return allUsers[0].id;
+    }
+  } catch (_) {}
+
+  return "default";
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -237,6 +257,25 @@ router.post("/logout", (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("Logout error:", err);
     return res.status(500).json({ error: "Ошибка при выходе: " + err.message });
+  }
+});
+
+// 3.5. List Available User Profiles (for extensions and multi-account switchers)
+router.get("/profiles", (req: Request, res: Response) => {
+  try {
+    const db = getDbConnection("default");
+    const users = db.prepare("SELECT id, email, display_name FROM server_users ORDER BY display_name ASC").all() as any[];
+    return res.json({
+      status: "ok",
+      users: users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        displayName: u.display_name || u.email.split("@")[0],
+      })),
+    });
+  } catch (err: any) {
+    console.error("[GET /api/auth/profiles] Error:", err);
+    return res.json({ status: "ok", users: [] });
   }
 });
 

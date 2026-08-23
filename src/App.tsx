@@ -788,6 +788,7 @@ export default function App() {
       firstDayOfWeek: "auto",
       defaultVideoViewMode: "focus",
       readerViewStyle: "badges",
+      wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || "full-inspector",
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");
@@ -3189,6 +3190,71 @@ export default function App() {
         onManualSync={() => loadDataFromLocalServer()}
       />
 
+      {/* ── Focus Mode Sticky Header / Video Zone ── */}
+      {isFocusMode && activeTab === "read" && activeLesson && (
+        <>
+          {/* Pinned YouTube Player sticky at top */}
+          {activeLesson.youtubeId && showYoutubePlayer ? (
+            <FocusPinnedPlayer
+              lesson={activeLesson}
+              onClose={() => setShowYoutubePlayer(false)}
+              onExitFocus={handleExitFocusMode}
+              onBackToLibrary={() => {
+                setIsFocusMode(false);
+                setActiveTab("library");
+                setSelectedWord(null);
+              }}
+              onListeningTick={handleListeningTick}
+              onVideoEnded={() => handleMediaEnded(activeLesson)}
+            />
+          ) : (
+            /* Minimal Focus Bar if player is hidden or lesson has no YouTube */
+            <div
+              className={`sticky top-0 z-30 px-3 sm:px-6 py-2 border-b ${currentReaderTheme.border} ${currentReaderTheme.headerBg} backdrop-blur-md flex items-center justify-between gap-2 shadow-xs`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => {
+                    setIsFocusMode(false);
+                    setActiveTab("library");
+                    setSelectedWord(null);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 h-8 border ${currentReaderTheme.border} ${currentReaderTheme.cardBg} hover:opacity-90 font-bold text-xs rounded-xl transition-all active:scale-97 cursor-pointer shadow-3xs`}
+                  title={t("reader.library_btn", "Библиотека")}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t("reader.library_btn", "Библиотека")}</span>
+                </button>
+
+                <button
+                  id="focus-exit-btn"
+                  onClick={handleExitFocusMode}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 h-8 border ${currentReaderTheme.border} ${currentReaderTheme.cardBg} hover:opacity-90 font-bold text-xs rounded-xl transition-all active:scale-97 cursor-pointer shadow-3xs`}
+                  title={t("app.focus_exit", "Выйти из фокуса")}
+                >
+                  <span>← {t("app.focus_exit", "Выйти из фокуса")}</span>
+                </button>
+
+                <span className="text-xs font-semibold text-zinc-500 truncate max-w-[140px] sm:max-w-xs">
+                  {activeLesson.title}
+                </span>
+              </div>
+
+              {activeLesson.youtubeId && (
+                <button
+                  onClick={() => setShowYoutubePlayer(true)}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 h-8 border rounded-xl font-bold text-xs transition-all active:scale-97 cursor-pointer shadow-3xs bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
+                  title={t("reader.video_btn_title", "Показать видео")}
+                >
+                  <Tv className="w-3.5 h-3.5" />
+                  <span>{t("reader.video_btn", "Видео")}</span>
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Main Body */}
       <main 
         className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass} ${
@@ -3717,8 +3783,8 @@ export default function App() {
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
       />
-      {/* Floating draggable/resizable YouTube player window */}
-      {activeLesson && activeLesson.youtubeId && showYoutubePlayer && activeTab === "read" && (
+      {/* Floating draggable/resizable YouTube player window (Desktop only when not in Focus Mode) */}
+      {activeLesson && activeLesson.youtubeId && showYoutubePlayer && activeTab === "read" && !isFocusMode && !isMobileTablet && (
         <YoutubePlayerWindow
           lesson={activeLesson}
           onClose={() => setShowYoutubePlayer(false)}
