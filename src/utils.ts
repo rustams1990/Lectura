@@ -548,11 +548,27 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
             Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 30 * 60 * 1000)
         );
       }
-      return (
-        m.lessonId === item.lessonId &&
-        m.actionType === item.actionType &&
-        Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 30 * 60 * 1000
+
+      // Check if both entries represent the same item within the same 24-hour day window
+      const sameDay = Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 24 * 60 * 60 * 1000;
+      if (!sameDay) return false;
+
+      const sameLessonId = m.lessonId === item.lessonId;
+      const sameGuid = Boolean(
+        (m.guid && item.guid && m.guid === item.guid) ||
+        (m.guid && (m.guid === item.lessonId || (item as any).podcastGuid === m.guid)) ||
+        (item.guid && (item.guid === m.lessonId || (m as any).podcastGuid === item.guid))
       );
+      const sameAudioUrl = Boolean(
+        m.audioUrl && item.audioUrl &&
+        (m.audioUrl === item.audioUrl || m.audioUrl.includes(item.audioUrl) || item.audioUrl.includes(m.audioUrl))
+      );
+      const sameTitle = Boolean(
+        m.lessonTitle && item.lessonTitle &&
+        m.lessonTitle.trim().toLowerCase() === item.lessonTitle.trim().toLowerCase()
+      );
+
+      return sameLessonId || sameGuid || sameAudioUrl || sameTitle;
     });
 
     if (existingIdx !== -1) {
@@ -570,19 +586,37 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
         if (!aTrimmed || PLACEHOLDER_TITLES.has(aTrimmed.toLowerCase())) return bTrimmed || aTrimmed;
         return aTrimmed;
       };
+
+      // If exact same record ID, take max. If separate sessions/entries for the same media, sum them.
+      const isExactSameRecord = existing.id === item.id;
+      const durationSeconds = isExactSameRecord
+        ? Math.max(existing.durationSeconds || 0, item.durationSeconds || 0)
+        : Math.round(((existing.durationSeconds || 0) + (item.durationSeconds || 0)) * 10) / 10;
+
+      // Prefer real library lessonId (e.g. podcast_uuid) over temporary streaming ID
+      const preferredLessonId = (item.lessonId && !item.lessonId.startsWith("podcast_ep_") && !item.lessonId.startsWith("http"))
+        ? item.lessonId
+        : (existing.lessonId && !existing.lessonId.startsWith("podcast_ep_") && !existing.lessonId.startsWith("http"))
+        ? existing.lessonId
+        : (item.lessonId || existing.lessonId);
+
       merged[existingIdx] = {
         ...existing,
         ...item,
+        lessonId: preferredLessonId,
         lessonTitle: betterTitle(item.lessonTitle, existing.lessonTitle),
         targetLanguage: item.targetLanguage && item.targetLanguage !== 'english' && item.targetLanguage !== 'English' ? item.targetLanguage : (existing.targetLanguage || item.targetLanguage),
-        actionType: item.actionType || existing.actionType,
+        actionType: (existing.actionType === "listen" || item.actionType === "listen") ? "listen" : (item.actionType || existing.actionType),
         status: isCompleted ? "completed" : (item.status || existing.status || "in_progress"),
-        durationSeconds: Math.max(existing.durationSeconds || 0, item.durationSeconds || 0),
+        durationSeconds,
+        lastPosition: item.lastPosition !== undefined ? item.lastPosition : existing.lastPosition,
         notes: item.notes !== undefined && item.notes !== "" ? item.notes : existing.notes,
         coverUrl: item.coverUrl || existing.coverUrl,
         channelName: item.channelName !== undefined ? item.channelName : (existing.channelName || null),
         channelAvatarUrl: item.channelAvatarUrl !== undefined ? item.channelAvatarUrl : (existing.channelAvatarUrl || null),
         channelUrl: (item as any).channelUrl !== undefined ? (item as any).channelUrl : ((existing as any).channelUrl || undefined),
+        guid: item.guid || existing.guid,
+        audioUrl: (item.audioUrl && item.audioUrl.startsWith("/api/")) ? item.audioUrl : (existing.audioUrl || item.audioUrl),
         tags: item.tags && item.tags.length > 0 ? item.tags : existing.tags,
         customTitle: item.customTitle || existing.customTitle,
         category: item.category || existing.category,

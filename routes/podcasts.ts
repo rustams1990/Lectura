@@ -939,10 +939,13 @@ router.post("/import-episode", async (req: Request, res: Response) => {
     const cleanPodcastTitle = (podcastTitle || "").trim();
     const cleanArtworkUrl = (artworkUrl || "").trim();
 
+    const origGuid = (guid || req.body.episodeId || "").trim();
+    const origAudio = (originalAudioUrl || audioUrl || "").trim();
+
     db.prepare(`
       INSERT INTO lessons (id, user_id, title, text, audioUrl, targetLanguage, translationLanguage,
-        lessonType, coverUrl, channelName, wordTimestamps, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'podcast', ?, ?, ?, ?)
+        lessonType, coverUrl, channelName, wordTimestamps, playlistId, channelUrl, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'podcast', ?, ?, ?, ?, ?, ?)
     `).run(
       lessonId,
       userId,
@@ -954,6 +957,8 @@ router.post("/import-episode", async (req: Request, res: Response) => {
       cleanArtworkUrl || null,
       cleanPodcastTitle || null,
       wordTimestampsJson,
+      origGuid || null,
+      origAudio || null,
       now
     );
 

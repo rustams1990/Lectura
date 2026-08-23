@@ -477,18 +477,37 @@ export default function App() {
         targetLesson.lessonType === "audio"
       );
 
-      // Strict Target Resolution: ONLY match the specific item where item.id === targetId or item.lessonId === targetId
+      // Target Resolution: match specific item by ID, GUID, audioUrl, or exact title
       const targetId = targetLesson.id;
-      const targetGuid = (targetLesson as any).guid;
+      const targetGuid = (targetLesson as any).guid || (targetLesson as any).podcastGuid || (targetLesson as any).playlistId;
+      const targetAudioUrl = targetLesson.audioUrl || (targetLesson as any).originalAudioUrl;
+      const targetTitleClean = targetLesson.title ? targetLesson.title.trim().toLowerCase() : "";
       const todayDateStr = new Date().toLocaleDateString("en-CA");
 
       const targetIndex = prev.findIndex((h) => {
+        // 1. Direct ID / LessonID / GUID match
         const matchesId =
           h.id === targetId ||
           h.lessonId === targetId ||
           (targetGuid && (h.guid === targetGuid || h.id === targetGuid || h.lessonId === targetGuid));
 
-        if (!matchesId) return false;
+        // 2. Audio URL match (e.g. streaming URL)
+        const matchesAudio = Boolean(
+          targetAudioUrl &&
+          h.audioUrl &&
+          (h.audioUrl === targetAudioUrl ||
+           h.audioUrl.includes(targetAudioUrl) ||
+           targetAudioUrl.includes(h.audioUrl))
+        );
+
+        // 3. Exact Title match
+        const matchesTitle = Boolean(
+          targetTitleClean &&
+          h.lessonTitle &&
+          h.lessonTitle.trim().toLowerCase() === targetTitleClean
+        );
+
+        if (!matchesId && !matchesAudio && !matchesTitle) return false;
 
         try {
           const entryDate = new Date(h.timestamp);
@@ -520,17 +539,24 @@ export default function App() {
               ? "completed"
               : item.status || "in_progress";
 
+          // Prefer real library lessonId over streaming temporary id
+          const preferredLessonId = (targetLesson.id && !targetLesson.id.startsWith("podcast_ep_") && !targetLesson.id.startsWith("http"))
+            ? targetLesson.id
+            : (item.lessonId || targetLesson.id);
+
           return {
             ...item,
+            lessonId: preferredLessonId,
+            lessonTitle: targetLesson.title || item.lessonTitle,
             timestamp: now,
             actionType: nextActionType,
             status: nextStatus,
             durationSeconds: Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10,
             lastPosition: lastPosition !== undefined ? lastPosition : item.lastPosition,
             youtubeId: item.youtubeId || (targetLesson as any).youtubeId || null,
-            audioUrl: item.audioUrl || targetLesson.audioUrl || null,
+            audioUrl: (targetLesson.audioUrl && targetLesson.audioUrl.startsWith("/api/")) ? targetLesson.audioUrl : (item.audioUrl || targetLesson.audioUrl || null),
             podcastTitle: item.podcastTitle || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
-            guid: item.guid || (targetLesson as any).guid || targetLesson.id,
+            guid: item.guid || targetGuid || targetLesson.id,
             channelName: item.channelName || targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
             channelAvatarUrl: item.channelAvatarUrl || targetLesson.channelAvatarUrl || null,
           };
