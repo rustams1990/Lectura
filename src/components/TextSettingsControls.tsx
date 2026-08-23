@@ -142,7 +142,7 @@ export default function TextSettingsControls({
                   <button
                     key={f.id}
                     onClick={() => updateKey("fontFamily", f.id)}
-                    className={`px-1 py-2 text-[10px] rounded-lg border font-medium transition-all ${
+                    className={`px-1 py-2 text-[10px] rounded-lg border font-medium transition-all cursor-pointer ${
                       settings.fontFamily === f.id
                         ? "bg-teal-600 border-teal-600 text-white font-bold"
                         : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
@@ -153,6 +153,35 @@ export default function TextSettingsControls({
                     </span>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Reader View Style: Badges vs Clean Book Text */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">{t('reader.view_style_label', 'Display Mode')}</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => updateKey("readerViewStyle", "badges")}
+                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    (settings.readerViewStyle || "badges") === "badges"
+                      ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  }`}
+                >
+                  <span>{t('reader.view_badges', 'Badges')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateKey("readerViewStyle", "text")}
+                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    settings.readerViewStyle === "text"
+                      ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  }`}
+                >
+                  <span>{t('reader.view_text', 'Book')}</span>
+                </button>
               </div>
             </div>
 

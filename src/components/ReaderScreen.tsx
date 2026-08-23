@@ -90,11 +90,16 @@ export default function ReaderScreen({
 
   const [selectedText, setSelectedText] = useState("");
 
-  // Global hotkey 'T' for toggling parallel sentence translations
+  // Global hotkeys: 'T' for parallel translations, 'Escape' to exit Focus Mode
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      if (e.key === "Escape" && isFocusMode) {
+        e.preventDefault();
+        setIsFocusMode(false);
         return;
       }
       if ((e.key === "t" || e.key === "T" || e.key === "е" || e.key === "Е") && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -108,7 +113,7 @@ export default function ReaderScreen({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [setReaderSettings]);
+  }, [setReaderSettings, isFocusMode, setIsFocusMode]);
 
   return (
     <>
@@ -165,12 +170,18 @@ export default function ReaderScreen({
                     <span>{t('reader.translations_btn', 'Перевод')}</span>
                   </button>
 
+                  {/* Focus Mode Toggle */}
                   <button
-                    onClick={() => setIsFocusMode(true)}
-                    className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
+                    onClick={() => setIsFocusMode(!isFocusMode)}
+                    className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      isFocusMode
+                        ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50 shadow-xs"
+                        : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
+                    }`}
+                    title={isFocusMode ? t('app.focus_exit', 'Выйти из фокуса (Esc)') : t('reader.focus_btn', 'Режим фокуса')}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    {t('reader.focus_btn', 'Focus Mode')}
+                    <span>{isFocusMode ? t('app.focus_exit', 'Выйти из фокуса') : t('reader.focus_btn', 'Focus Mode')}</span>
                   </button>
 
                   <button
@@ -213,6 +224,34 @@ export default function ReaderScreen({
                       <span>{t('reader.video_btn', 'Видео')}</span>
                     </button>
                   )}
+
+                  {/* Reader View Style Selector: Badges vs Clean Book Text */}
+                  <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setReaderSettings((prev) => ({ ...prev, readerViewStyle: "badges" }))}
+                      className={`h-6 px-1.5 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                        (readerSettings.readerViewStyle || "badges") === "badges"
+                          ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                      }`}
+                      title={t('reader.view_badges_title', 'Badge/Pill highlight tiles view')}
+                    >
+                      <span>{t('reader.view_badges', 'Badges')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReaderSettings((prev) => ({ ...prev, readerViewStyle: "text" }))}
+                      className={`h-6 px-1.5 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                        readerSettings.readerViewStyle === "text"
+                          ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                      }`}
+                      title={t('reader.view_text_title', 'Clean continuous book typography view')}
+                    >
+                      <span>{t('reader.view_text', 'Book')}</span>
+                    </button>
+                  </div>
 
                   {/* Width Selector */}
                   <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">

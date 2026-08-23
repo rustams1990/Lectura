@@ -164,8 +164,34 @@ const getWordStatusClass = (
   _theme: string = "default",
   _hasWordLink: boolean = false,
   isPhrase: boolean = false,
-  hasIdiomUnderline: boolean = false
+  hasIdiomUnderline: boolean = false,
+  readerViewStyle: "badges" | "text" = "badges"
 ): string => {
+  if (readerViewStyle === "text") {
+    // ── Book / Clean Text Mode (No background pill, color on font) ──────
+    if (status === "ignored" || status === "known") {
+      return "text-inherit hover:underline underline-offset-2 cursor-pointer font-normal transition-colors";
+    }
+    if (status === "1") {
+      return "text-rose-600 dark:text-rose-400 hover:underline underline-offset-2 font-semibold cursor-pointer transition-colors";
+    }
+    if (status === "2") {
+      return "text-amber-600 dark:text-amber-400 hover:underline underline-offset-2 font-semibold cursor-pointer transition-colors";
+    }
+    if (status === "3" || (status as any) === "learning") {
+      return "text-emerald-600 dark:text-emerald-400 hover:underline underline-offset-2 font-medium cursor-pointer transition-colors";
+    }
+    if (status === "4") {
+      return "text-blue-600 dark:text-blue-400 hover:underline underline-offset-2 font-semibold cursor-pointer transition-colors";
+    }
+    if (status === "5") {
+      return "text-purple-600 dark:text-purple-400 hover:underline underline-offset-2 font-semibold cursor-pointer transition-colors";
+    }
+    // Status 0 / default (New / Unknown word)
+    return "text-sky-600 dark:text-sky-400 hover:underline underline-offset-2 font-medium cursor-pointer transition-colors";
+  }
+
+  // ── Badges / Tiles Mode (Original with colored background pills) ────
   const baseRounding = isPhrase ? "rounded px-1" : "rounded-md px-1 py-[1.5px]";
 
   if (status === "ignored" || status === "known") {
@@ -341,6 +367,7 @@ function ReaderPanel({
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
       showProgressBar: settings?.showProgressBar !== false,
       showSentenceTranslations: !!settings?.showSentenceTranslations,
+      readerViewStyle: settings?.readerViewStyle || "badges",
     };
   }, [settings]);
 
@@ -365,6 +392,8 @@ function ReaderPanel({
     activeWord,
     onWordClick
   });
+
+  const isTextMode = activeSettings.readerViewStyle === "text";
 
   // State for parallel sentence translations on the current page
   const [sentenceTranslationsMap, setSentenceTranslationsMap] = useState<Record<string, string>>({});
@@ -757,142 +786,91 @@ function ReaderPanel({
         </div>
       )}
 
-      {/* Title / badges / status — hidden in Focus Mode via hideMeta prop */}
+      {/* Title / status — hidden in Focus Mode via hideMeta prop */}
       {!hideMeta && (
-      <div className={`pb-2.5 sm:pb-3.5 border-b ${currentTheme.divider} flex flex-col gap-2`}>
-        {/* Main Lesson Title (hidden when media player is present) */}
-        {!isMediaLesson && (
-          <div className="flex items-center gap-3.5">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-              {lesson.title}
-            </h1>
-            {onEditClick && (
+        <div className={`pb-2.5 sm:pb-3.5 border-b ${currentTheme.divider} flex items-center justify-between gap-3 min-w-0`}>
+          {/* Main Lesson Title (Truncated on long titles so it never overlaps right controls) */}
+          <h1 
+            className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate max-w-[60%] sm:max-w-[70%] md:max-w-[75%] min-w-0"
+            title={lesson.title}
+          >
+            {lesson.title}
+          </h1>
+
+          {/* Right: Action Icons (mobile) + Status Switcher (In Progress / Completed) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
+            <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
+              {/* 1. Translation Toggle */}
               <button
                 type="button"
-                id="btn-edit-active-lesson"
-                onClick={onEditClick}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[10px] font-black uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
-              >
-                {t('reader.btn_edit', '✏️ Edit')}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Unified Single-Row Metadata Bar (Badges + 5 Action Icons + Status) */}
-        <div className="flex items-center justify-between gap-1.5 sm:gap-3 w-full flex-nowrap overflow-x-auto no-scrollbar py-0.5">
-          {/* Left: Edit + Compact ISO Language badge + Level + Progress */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            {onEditClick && (
-              <button
-                type="button"
-                onClick={onEditClick}
-                className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 rounded-lg transition-colors cursor-pointer shrink-0"
-                title={t('reader.btn_edit', 'Edit lesson')}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {/* Compact ISO Language Badge (EN → RU) */}
-            <span
-              className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg shrink-0 border border-zinc-200/60 dark:border-zinc-800/60 cursor-default select-none ${currentTheme.subBadgeBg}`}
-              title={`${t('reader.lang_target', 'Language: ')}${lesson.targetLanguage || 'English'} → ${t('reader.lang_trans', 'Translation: ')}${lesson.translationLanguage || 'Russian'}`}
-            >
-              <span>{getLangCode(lesson.targetLanguage)}</span>
-              <span className="text-zinc-400 dark:text-zinc-500 font-normal text-[9px]">→</span>
-              <span className="text-teal-600 dark:text-teal-400">{getLangCode(lesson.translationLanguage)}</span>
-            </span>
-
-            {/* Level badge */}
-            {lesson.difficulty && (
-              <span
-                className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border flex items-center cursor-default select-none shadow-3xs shrink-0 ${getDifficultyBadgeStyles(lesson.difficulty)}`}
-                title={t('reader.difficulty', 'Difficulty: ') + lesson.difficulty}
-              >
-                {lesson.difficulty}
-              </span>
-            )}
-
-            {/* Reading progress % */}
-            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono shrink-0 whitespace-nowrap">
-              📖 {scrollProgress}%
-            </span>
-          </div>
-
-          {/* Center: 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
-          <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
-            {/* 1. Translation Toggle */}
-            <button
-              type="button"
-              onClick={onToggleTranslations}
-              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                activeSettings.showSentenceTranslations
-                  ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
-              }`}
-              title={activeSettings.showSentenceTranslations ? t("reader.hide_translations_title", "Скрыть перевод предложений (T)") : t("reader.show_translations_title", "Показать перевод предложений (T)")}
-            >
-              <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-
-            {/* 2. Focus Mode */}
-            <button
-              type="button"
-              onClick={() => setIsFocusMode(!isFocusMode)}
-              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                isFocusMode
-                  ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
-              }`}
-              title={t("reader.focus_btn", "Режим фокуса")}
-            >
-              <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-
-            {/* 3. Play: Match Pairs */}
-            <button
-              type="button"
-              onClick={() => setShowMatchPairsModal(true)}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-              title={t("reader.pairs_btn_title", "Игра: Пары")}
-            >
-              <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-
-            {/* 4. Unknown Only */}
-            <button
-              type="button"
-              onClick={() => (onWordClick ? storeSetShowOnlyUnknown(!storeShowOnlyUnknown) : null)}
-              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                storeShowOnlyUnknown || showOnlyUnknown
-                  ? "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-400/10 border border-amber-500/30 shadow-3xs"
-                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
-              }`}
-              title={t("reader.unknown_btn_title", "Только неизвестные слова")}
-            >
-              {(storeShowOnlyUnknown || showOnlyUnknown) ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-            </button>
-
-            {/* 5. Video */}
-            {lesson.youtubeId && (
-              <button
-                type="button"
-                onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
+                onClick={onToggleTranslations}
                 className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                  showYoutubePlayer
+                  activeSettings.showSentenceTranslations
                     ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
                     : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
                 }`}
-                title={t("reader.video_btn_title", "Видео")}
+                title={activeSettings.showSentenceTranslations ? t("reader.hide_translations_title", "Скрыть перевод предложений (T)") : t("reader.show_translations_title", "Показать перевод предложений (T)")}
               >
-                <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
-            )}
-          </div>
 
-          {/* Right: Status Switcher (In Progress / Completed) */}
-          <div className="flex items-center gap-1 shrink-0">
+              {/* 2. Focus Mode */}
+              <button
+                type="button"
+                onClick={() => setIsFocusMode(!isFocusMode)}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                  isFocusMode
+                    ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+                title={t("reader.focus_btn", "Режим фокуса")}
+              >
+                <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+
+              {/* 3. Play: Match Pairs */}
+              <button
+                type="button"
+                onClick={() => setShowMatchPairsModal(true)}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                title={t("reader.pairs_btn_title", "Игра: Пары")}
+              >
+                <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+
+              {/* 4. Unknown Only */}
+              <button
+                type="button"
+                onClick={() => (onWordClick ? storeSetShowOnlyUnknown(!storeShowOnlyUnknown) : null)}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                  storeShowOnlyUnknown || showOnlyUnknown
+                    ? "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-400/10 border border-amber-500/30 shadow-3xs"
+                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                }`}
+                title={t("reader.unknown_btn_title", "Только неизвестные слова")}
+              >
+                {(storeShowOnlyUnknown || showOnlyUnknown) ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+              </button>
+
+              {/* 5. Video */}
+              {lesson.youtubeId && (
+                <button
+                  type="button"
+                  onClick={() => setShowYoutubePlayer(!showYoutubePlayer)}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                    showYoutubePlayer
+                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                      : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                  }`}
+                  title={t("reader.video_btn_title", "Видео")}
+                >
+                  <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Status Switcher (In Progress / Completed) */}
             <button
               type="button"
               onClick={() => handleToggleStatus("in_progress")}
@@ -922,7 +900,6 @@ function ReaderPanel({
             </button>
           </div>
         </div>
-      </div>
       )} {/* end !hideMeta */}
 
       {showOnlyUnknown && (
@@ -1266,29 +1243,51 @@ function ReaderPanel({
 
                 const status = matchedPhrase.vocabItem.status;
                 let styleClass = "";
-                const borderClass = `border-b-2 border-dashed ${getPhraseBorderColorClass(status)}`;
 
-                if (status === "ignored" || status === "known") {
-                  styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-1 transition-colors font-normal ${borderClass}`;
-                  if (showOnlyUnknown && unknownViewMode === "text") {
+                if (isTextMode) {
+                  const textColorClass =
+                    status === "1" ? "text-rose-600 dark:text-rose-400 font-semibold" :
+                    status === "2" ? "text-amber-600 dark:text-amber-400 font-semibold" :
+                    (status === "3" || (status as any) === "learning") ? "text-emerald-600 dark:text-emerald-400 font-medium" :
+                    status === "4" ? "text-blue-600 dark:text-blue-400 font-semibold" :
+                    status === "5" ? "text-purple-600 dark:text-purple-400 font-semibold" :
+                    (status === "ignored" || status === "known") ? "text-inherit font-normal" :
+                    "text-sky-600 dark:text-sky-400 font-medium";
+
+                  styleClass = `${textColorClass} border-b-2 border-dashed ${getPhraseBorderColorClass(status)} hover:underline cursor-pointer transition-colors`;
+                  if (showOnlyUnknown && unknownViewMode === "text" && (status === "ignored" || status === "known")) {
                     styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2px] hover:blur-none hover:opacity-100 duration-300`;
                   }
-                } else if (status === "1") {
-                  styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
-                } else if (status === "2") {
-                  styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
-                } else if (status === "3" || (status as any) === "learning") {
-                  styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
-                } else if (status === "4") {
-                  styleClass = `bg-[#99bce8] dark:bg-blue-950/60 hover:bg-[#86b0e3] dark:hover:bg-blue-900/60 text-blue-950 dark:text-blue-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
-                } else if (status === "5") {
-                  styleClass = `bg-[#c5aee2] dark:bg-purple-950/60 hover:bg-[#b096d2] dark:hover:bg-purple-900/60 text-purple-950 dark:text-purple-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
-                }
+                  if (isPhraseActive) {
+                    styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-amber-500 font-bold bg-amber-500/15 dark:bg-amber-500/25 rounded-xs px-0.5`;
+                  } else if (isPhraseSelected) {
+                    styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-teal-500 font-bold bg-teal-500/15 dark:bg-teal-500/25 rounded-xs px-0.5`;
+                  }
+                } else {
+                  const borderClass = `border-b-2 border-dashed ${getPhraseBorderColorClass(status)}`;
 
-                if (isPhraseActive) {
-                  styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold scale-103 shadow-md duration-150`;
-                } else if (isPhraseSelected) {
-                  styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 scale-102 duration-150`;
+                  if (status === "ignored" || status === "known") {
+                    styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-1 transition-colors font-normal ${borderClass}`;
+                    if (showOnlyUnknown && unknownViewMode === "text") {
+                      styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2px] hover:blur-none hover:opacity-100 duration-300`;
+                    }
+                  } else if (status === "1") {
+                    styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  } else if (status === "2") {
+                    styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  } else if (status === "3" || (status as any) === "learning") {
+                    styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
+                  } else if (status === "4") {
+                    styleClass = `bg-[#99bce8] dark:bg-blue-950/60 hover:bg-[#86b0e3] dark:hover:bg-blue-900/60 text-blue-950 dark:text-blue-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  } else if (status === "5") {
+                    styleClass = `bg-[#c5aee2] dark:bg-purple-950/60 hover:bg-[#b096d2] dark:hover:bg-purple-900/60 text-purple-950 dark:text-purple-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                  }
+
+                  if (isPhraseActive) {
+                    styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold scale-103 shadow-md duration-150`;
+                  } else if (isPhraseSelected) {
+                    styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 scale-102 duration-150`;
+                  }
                 }
 
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
@@ -1308,7 +1307,7 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} inline-block select-text font-inherit`}
+                      className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} select-text font-inherit`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
@@ -1549,15 +1548,23 @@ function ReaderPanel({
               const lang = lesson.targetLanguage.toLowerCase();
               const hasWordLink = !!wordLinks[`${lang}_${cleanWord.toLowerCase()}`];
 
-              let styleClass = getWordStatusClass(status, activeSettings.readerTheme, hasWordLink, false, false);
+              let styleClass = getWordStatusClass(status, activeSettings.readerTheme, hasWordLink, false, false, activeSettings.readerViewStyle);
               if ((status === "ignored" || status === "known") && showOnlyUnknown && unknownViewMode === "text") {
                 styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
               }
 
-              if (isWordActive) {
-                styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold scale-105 shadow-md duration-150`;
-              } else if (isActive) {
-                styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-zinc-950 scale-103 duration-150`;
+              if (isTextMode) {
+                if (isWordActive) {
+                  styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-amber-500 font-bold bg-amber-500/15 dark:bg-amber-500/25 rounded-xs px-0.5`;
+                } else if (isActive) {
+                  styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-teal-500 font-bold bg-teal-500/15 dark:bg-teal-500/25 rounded-xs px-0.5`;
+                }
+              } else {
+                if (isWordActive) {
+                  styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold scale-105 shadow-md duration-150`;
+                } else if (isActive) {
+                  styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-zinc-950 scale-103 duration-150`;
+                }
               }
 
               const wordContent = isCjk ? rawString : (
@@ -1569,7 +1576,7 @@ function ReaderPanel({
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
               elements.push(
-                <span key={tIdx} className={`inline-flex items-baseline relative my-[2px] py-[0.5px] ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                <span key={tIdx} className={`inline-flex items-baseline relative ${isTextMode ? "" : "my-[2px] py-[0.5px]"} ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
                   {prefix && <span className="opacity-80 select-none">{prefix}</span>}
                   <button
                     type="button"

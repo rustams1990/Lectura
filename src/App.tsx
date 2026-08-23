@@ -787,6 +787,7 @@ export default function App() {
       timeFormat: "auto",
       firstDayOfWeek: "auto",
       defaultVideoViewMode: "focus",
+      readerViewStyle: "badges",
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");
