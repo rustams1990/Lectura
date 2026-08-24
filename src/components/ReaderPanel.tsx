@@ -802,7 +802,7 @@ function ReaderPanel({
       id="reader-top" 
       className={`relative ${
         hideMeta 
-          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-6 sm:pt-8 lg:pt-10 pb-28 sm:pb-32 min-h-screen lg:min-h-[70vh] flex flex-col justify-start items-stretch" 
+          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-6 sm:pt-8 lg:pt-10 pb-36 sm:pb-40 min-h-screen lg:min-h-[70vh] flex flex-col justify-start items-stretch" 
           : "rounded-3xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"
       } transition-colors duration-200 overflow-hidden ${currentTheme.container}`}
     >
@@ -1933,7 +1933,7 @@ function ReaderPanel({
 
             {lesson.lessonType === "book" ? (
               /* Immersive Book Mode Floating Fixed Paginator */
-              <div className="fixed bottom-4 inset-x-0 mx-auto w-fit z-30 pointer-events-none select-none">
+              <div className="fixed bottom-4 inset-x-0 flex justify-center pointer-events-none z-30 select-none">
                 <div className="pointer-events-auto flex items-center gap-3 sm:gap-4 px-4 py-2 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 rounded-full shadow-lg text-sm text-stone-700 dark:text-stone-300 opacity-20 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
                   <button
                     type="button"
