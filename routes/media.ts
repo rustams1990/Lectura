@@ -25,8 +25,8 @@ if (!fs.existsSync(VIDEO_STORAGE_DIR)) {
 }
 
 // EPUB Parser Helpers
-const EPUB_MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
-const EPUB_MAX_IMAGES = 50;
+const EPUB_MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB per image
+const EPUB_MAX_IMAGES = 100; // up to 100 images per book
 
 function safeDecodePath(rawPath: string): string {
   try {
@@ -222,6 +222,31 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
     let totalExtractedImages = 0;
     const textBlocks: string[] = [];
 
+    // Helper: extract and replace a single img src path with [IMG:id] placeholder
+    const extractImageFromSrc = (src: string, baseChapterPath: string): string => {
+      if (!src || src.startsWith("data:")) return "";
+      if (totalExtractedImages >= EPUB_MAX_IMAGES) return "";
+
+      const resolvedImgPath = resolveRelativePath(baseChapterPath, safeDecodePath(src));
+      const imgEntry = findZipEntry(entries, resolvedImgPath);
+      if (!imgEntry) return "";
+
+      const imgBuffer = imgEntry.getData();
+      if (imgBuffer.length > EPUB_MAX_IMAGE_BYTES) return "";
+
+      const mime = getMimeFromPath(resolvedImgPath);
+      // Skip SVG images used for decorative purposes (very small files < 200 bytes)
+      if (mime === "image/svg+xml" && imgBuffer.length < 200) return "";
+
+      const base64 = imgBuffer.toString("base64");
+      const imgId = `epub_img_${totalExtractedImages + 1}_${Date.now()}_${totalExtractedImages}`;
+
+      extractedImages[imgId] = `data:${mime};base64,${base64}`;
+      totalExtractedImages++;
+
+      return imgId;
+    };
+
     for (const href of chapterHrefs) {
       const resolvedChapterPath = resolveOpfHref(opfEntry.entryName, href);
       const chapterEntry = findZipEntry(entries, resolvedChapterPath);
@@ -232,29 +257,35 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
       let processedHtml = htmlContent;
 
       if (includeImages && totalExtractedImages < EPUB_MAX_IMAGES) {
+        // Replace <img ...> tags (standard HTML/XHTML)
         processedHtml = processedHtml.replace(/<img\b[^>]*\/?>/gi, (imgTag) => {
           if (totalExtractedImages >= EPUB_MAX_IMAGES) return "";
-
           const src = getTagAttr(imgTag, "src");
-          if (!src || src.startsWith("data:")) return imgTag;
+          const imgId = extractImageFromSrc(src, resolvedChapterPath);
+          return imgId ? `\n\n[IMG:${imgId}]\n\n` : "";
+        });
 
-          const resolvedImgPath = resolveRelativePath(resolvedChapterPath, safeDecodePath(src));
-          const imgEntry = findZipEntry(entries, resolvedImgPath);
-          if (!imgEntry) return imgTag;
-
-          const imgBuffer = imgEntry.getData();
-          if (imgBuffer.length > EPUB_MAX_IMAGE_BYTES) return "";
-
-          const mime = getMimeFromPath(resolvedImgPath);
-          const base64 = imgBuffer.toString("base64");
-          const imgId = `epub_img_${totalExtractedImages + 1}_${Date.now()}`;
-
-          extractedImages[imgId] = `data:${mime};base64,${base64}`;
-          totalExtractedImages++;
-
-          return `\n\n[IMG:${imgId}]\n\n`;
+        // Replace <image ...> tags (SVG/XHTML with xlink:href or href)
+        processedHtml = processedHtml.replace(/<image\b[^>]*\/?>/gi, (imgTag) => {
+          if (totalExtractedImages >= EPUB_MAX_IMAGES) return "";
+          // Try xlink:href first, then href
+          const xlinkHref = getTagAttr(imgTag, "xlink:href") || getTagAttr(imgTag, "href");
+          if (!xlinkHref) return "";
+          const imgId = extractImageFromSrc(xlinkHref, resolvedChapterPath);
+          return imgId ? `\n\n[IMG:${imgId}]\n\n` : "";
         });
       }
+
+      // Clean HTML to plain text, but preserve our [IMG:...] placeholders
+      // Step 1: Extract [IMG:...] markers before stripping tags
+      const imgPlaceholders: string[] = [];
+      let markerIndex = 0;
+      processedHtml = processedHtml.replace(/\[IMG:epub_img_[^\]]+\]/g, (match) => {
+        const token = `\x00IMG${markerIndex}\x00`;
+        imgPlaceholders.push(match);
+        markerIndex++;
+        return token;
+      });
 
       let cleanText = processedHtml
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
@@ -271,6 +302,11 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&apos;/g, "'");
+
+      // Step 2: Restore [IMG:...] markers
+      imgPlaceholders.forEach((placeholder, idx) => {
+        cleanText = cleanText.replace(`\x00IMG${idx}\x00`, placeholder);
+      });
 
       cleanText = cleanText
         .split("\n")
@@ -293,6 +329,7 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
     const result: EpubParseResult = { title, text: combinedText };
     if (includeImages && Object.keys(extractedImages).length > 0) {
       result.images = extractedImages;
+      console.log(`[EPUB] Extracted ${Object.keys(extractedImages).length} images from "${title}"`);
     }
     return result;
   } catch (err: any) {

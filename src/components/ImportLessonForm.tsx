@@ -365,7 +365,7 @@ export default function ImportLessonForm({
   const [fileSuccess, setFileSuccess] = useState<string | null>(null);
   const [isFileLoading, setIsFileLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [importImages, setImportImages] = useState(false);
+  const [importImages, setImportImages] = useState(true);
   const [pendingImages, setPendingImages] = useState<Record<string, { dataUrl: string; width: string; height: string }>>({});
 
   const [selectedType, setSelectedType] = useState<string>(
@@ -529,7 +529,22 @@ export default function ImportLessonForm({
         setTitle(data.title || file.name.replace(/\.[^/.]+$/, ""));
         setText(data.text || "");
 
-        setPendingImages(data.images || {});
+        // Server returns Record<string, string> (flat dataUrl map), but pendingImages expects {dataUrl, width, height}
+        if (data.images && typeof data.images === "object") {
+          const normalized: Record<string, { dataUrl: string; width: string; height: string }> = {};
+          for (const [id, val] of Object.entries(data.images)) {
+            if (typeof val === "string") {
+              // flat format: { id: "data:image/..." }
+              normalized[id] = { dataUrl: val as string, width: "", height: "" };
+            } else if (typeof val === "object" && val !== null && "dataUrl" in (val as any)) {
+              // already structured format
+              normalized[id] = val as any;
+            }
+          }
+          setPendingImages(normalized);
+        } else {
+          setPendingImages({});
+        }
         setSelectedType("book");
         
         const wordCount = data.text
