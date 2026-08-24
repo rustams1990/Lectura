@@ -782,7 +782,7 @@ function ReaderPanel({
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
-    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-6 sm:p-10 space-y-4 sm:space-y-6" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
+    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-6 sm:p-10 space-y-4 sm:space-y-6 min-h-[70vh] flex flex-col justify-between" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
       <div id="reader-top-anchor" className="h-0 pointer-events-none" />
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
@@ -1909,11 +1909,11 @@ function ReaderPanel({
                     disabled={clampedPageIdx === 0}
                     onClick={() => {
                       navigateToPage(Math.max(0, clampedPageIdx - 1));
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                     }}
                     className="px-3.5 py-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed font-serif text-xs sm:text-sm font-medium transition-colors cursor-pointer"
                   >
-                    ‹ Prev Chapter
+                    ‹ {t('reader.prev_page', 'Предыдущая')}
                   </button>
 
                   <div className="relative" ref={pageSelectRef}>
@@ -1922,7 +1922,7 @@ function ReaderPanel({
                       onClick={() => setIsPageSelectOpen(!isPageSelectOpen)}
                       className="flex items-center gap-1 text-xs sm:text-sm font-semibold font-serif text-stone-600 dark:text-stone-400 tabular-nums cursor-pointer hover:opacity-80 transition-opacity px-1.5 py-0.5 rounded-md"
                     >
-                      <span>Chapter {clampedPageIdx + 1} of {pages.length}</span>
+                      <span>{t('reader.page', 'Страница')} {clampedPageIdx + 1} {t('reader.of', 'из')} {pages.length}</span>
                       <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isPageSelectOpen ? "rotate-180" : ""}`} />
                     </button>
 
@@ -1935,7 +1935,7 @@ function ReaderPanel({
                             onClick={() => {
                               navigateToPage(i);
                               setIsPageSelectOpen(false);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                             }}
                             className={`w-full px-3 py-1.5 text-center transition-colors cursor-pointer ${
                               i === clampedPageIdx
@@ -1943,7 +1943,7 @@ function ReaderPanel({
                                 : "text-stone-700 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/5"
                             }`}
                           >
-                            Chapter {i + 1}
+                            {t('reader.page', 'Стр.')} {i + 1}
                           </button>
                         ))}
                       </div>
@@ -1955,11 +1955,11 @@ function ReaderPanel({
                     disabled={clampedPageIdx >= pages.length - 1}
                     onClick={() => {
                       navigateToPage(Math.min(pages.length - 1, clampedPageIdx + 1));
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                     }}
                     className="px-3.5 py-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed font-serif text-xs sm:text-sm font-medium transition-colors cursor-pointer"
                   >
-                    Next Chapter ›
+                    {t('reader.next_page', 'Следующая')} ›
                   </button>
                 </div>
               </div>

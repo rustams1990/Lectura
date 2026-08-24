@@ -155,20 +155,56 @@ export function useReaderPagination({
   const hasTimestamps = useMemo(() => segments.some((s) => s.timestamp !== null), [segments]);
 
   const pages = useMemo<TextSegment[][]>(() => {
+    // Helper function to chunk paragraph segments into comfortable single-screen pages (~200-230 words per page)
+    const chunkSegmentsIntoScreenPages = (segsList: TextSegment[], wordLimit = 220): TextSegment[][] => {
+      const screenPages: TextSegment[][] = [];
+      let currentChunk: TextSegment[] = [];
+      let currentWords = 0;
+
+      for (const seg of segsList) {
+        const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
+        const wordsInSeg = isImgSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
+
+        // If an image segment or large paragraph exceeds limit, flush current chunk
+        if (currentWords > 0 && (currentWords + wordsInSeg > wordLimit + 30 || isImgSeg)) {
+          screenPages.push(currentChunk);
+          currentChunk = [seg];
+          currentWords = wordsInSeg;
+        } else {
+          currentChunk.push(seg);
+          currentWords += wordsInSeg;
+          if (isImgSeg && currentWords >= 80) {
+            screenPages.push(currentChunk);
+            currentChunk = [];
+            currentWords = 0;
+          }
+        }
+      }
+      if (currentChunk.length > 0) {
+        screenPages.push(currentChunk);
+      }
+      return screenPages;
+    };
+
     // 1. If lesson has explicit structured chapters array (e.g. lesson.chapters or lesson.parts)
     if (Array.isArray((lesson as any).chapters) && (lesson as any).chapters.length > 0) {
-      const chapterPages: TextSegment[][] = (lesson as any).chapters.map((ch: any) => {
+      const allPages: TextSegment[][] = [];
+      (lesson as any).chapters.forEach((ch: any) => {
         const text = typeof ch === "string" ? ch : (ch.text || ch.content || "");
         const paras = text.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
-        return paras.map((p: string) => ({ text: p.trim(), timestamp: null }));
-      }).filter((arr: TextSegment[]) => arr.length > 0);
-      if (chapterPages.length > 0) return chapterPages;
+        const segs = paras.map((p: string) => ({ text: p.trim(), timestamp: null }));
+        if (segs.length > 0) {
+          const chPages = chunkSegmentsIntoScreenPages(segs, 220);
+          allPages.push(...chPages);
+        }
+      });
+      if (allPages.length > 0) return allPages;
     }
 
-    // 2. If text contains explicit page breaks (---PAGE--- or [PAGE_BREAK] or [PAGE]), split strictly by chapters/sections!
+    // 2. If text contains explicit page breaks (---PAGE--- or [PAGE_BREAK] or [PAGE]), split by chapters and chunk into screen pages!
     if (lesson.text && (lesson.text.includes("---PAGE---") || lesson.text.includes("[PAGE_BREAK]") || lesson.text.includes("[PAGE]"))) {
       const rawChapters = lesson.text.split(/\n\s*---PAGE---\s*\n|\n\s*\[PAGE(?:_BREAK)?\]\s*\n/);
-      const chapterPages: TextSegment[][] = [];
+      const allPages: TextSegment[][] = [];
 
       rawChapters.forEach((chText) => {
         const trimmed = chText.trim();
@@ -176,12 +212,13 @@ export function useReaderPagination({
         const paras = trimmed.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
         const segs: TextSegment[] = paras.map((p) => ({ text: p.trim(), timestamp: null }));
         if (segs.length > 0) {
-          chapterPages.push(segs);
+          const chPages = chunkSegmentsIntoScreenPages(segs, 220);
+          allPages.push(...chPages);
         }
       });
 
-      if (chapterPages.length > 0) {
-        return chapterPages;
+      if (allPages.length > 0) {
+        return allPages;
       }
     }
 
@@ -191,38 +228,24 @@ export function useReaderPagination({
       if (chapterHeaderRegex.test(lesson.text)) {
         const rawChapters = lesson.text.split(chapterHeaderRegex);
         if (rawChapters.length > 1) {
-          const chapterPages: TextSegment[][] = [];
+          const allPages: TextSegment[][] = [];
           rawChapters.forEach((chText) => {
             const trimmed = chText.trim();
             if (!trimmed) return;
             const paras = trimmed.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
             const segs: TextSegment[] = paras.map((p) => ({ text: p.trim(), timestamp: null }));
-            if (segs.length > 0) chapterPages.push(segs);
+            if (segs.length > 0) {
+              const chPages = chunkSegmentsIntoScreenPages(segs, 220);
+              allPages.push(...chPages);
+            }
           });
-          if (chapterPages.length > 1) return chapterPages;
+          if (allPages.length > 1) return allPages;
         }
       }
 
-      // Default chunking for book mode: ~350 words per page
-      const limit = 350;
-      const result: TextSegment[][] = [];
-      let currentChunk: TextSegment[] = [];
-      let currentWords = 0;
-
-      for (const seg of segments) {
-        const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
-        const wordsInSeg = isImgSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
-        if (currentWords > 0 && currentWords + wordsInSeg > limit + 40) {
-          result.push(currentChunk);
-          currentChunk = [seg];
-          currentWords = wordsInSeg;
-        } else {
-          currentChunk.push(seg);
-          currentWords += wordsInSeg;
-        }
-      }
-      if (currentChunk.length > 0) result.push(currentChunk);
-      return result.length > 0 ? result : [[]];
+      // Default chunking for book mode: ~220 words per page
+      const bookPages = chunkSegmentsIntoScreenPages(segments, 220);
+      if (bookPages.length > 0) return bookPages;
     }
 
     let pSize = pageSize || "auto";
