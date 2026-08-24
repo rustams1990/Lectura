@@ -111,7 +111,11 @@ export const BookTocDrawer: React.FC<BookTocDrawerProps> = ({
             </div>
           ) : (
             filteredEntries.map((entry, idx) => {
-              const nextEntry = tocEntries[entry.chapterIndex + 1];
+              const originalIdx = tocEntries.findIndex(
+                (e) => e.chapterIndex === entry.chapterIndex
+              );
+              const nextEntry =
+                originalIdx >= 0 ? tocEntries[originalIdx + 1] : undefined;
               const isCurrent =
                 currentPageIdx >= entry.pageIndex &&
                 (!nextEntry || currentPageIdx < nextEntry.pageIndex);
