@@ -514,9 +514,16 @@ function ReaderPanel({
     let globalIdx = 0;
 
     activeSegmentsForPage.forEach((seg, segIdx) => {
-      const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
+      const rawSentences = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
         ? splitIntoSentences(seg.text, isCjk)
         : [seg.text];
+
+      const sentenceStrings = rawSentences.map((str) => {
+        if (isCjk) return str;
+        return str
+          .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
+          .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1");
+      });
 
       sentenceStrings.forEach((sentText, sIdx) => {
         const tokens = segmentSentenceTokens(sentText, lesson.targetLanguage);
@@ -987,6 +994,7 @@ function ReaderPanel({
       )}
 
       <div 
+        key={`page-content-${clampedPageIdx}`}
         onMouseUp={handleTextSelection}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -1014,16 +1022,23 @@ function ReaderPanel({
           const globalSegmentIdx = segments.indexOf(seg);
           const isSegmentActive = globalSegmentIdx === activeSegmentIndex && activeSegmentIndex >= 0;
 
-          // Check if we should split by sentence
-          const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
+          // Check if we should split by sentence with synchronous normalization
+          const rawSentences = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
             ? splitIntoSentences(seg.text, isCjk)
             : [seg.text];
+
+          const sentenceStrings = rawSentences.map((str) => {
+            if (isCjk) return str;
+            return str
+              .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
+              .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1");
+          });
 
           // Precalculate total words in this segment for word-by-word highlight
           const segmentWordCount = (() => {
             if (!activeSettings.wordHighlight || !isSegmentActive) return 0;
             let count = 0;
-            sentenceStrings.forEach((sentText, isCjk) => {
+            sentenceStrings.forEach((sentText) => {
               const tokens = segmentSentenceTokens(sentText, lesson.targetLanguage);
               count += tokens.filter((t) => t.isWord).length;
             });
@@ -1738,7 +1753,7 @@ function ReaderPanel({
               <div 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`reader-line-item relative hover:z-20 flex items-baseline gap-3 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-all duration-300 ${getSegmentSpacingClass()} ${
+                className={`reader-line-item relative hover:z-20 flex items-baseline gap-3 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-colors duration-150 ${getSegmentSpacingClass()} ${
                   isSegmentActive 
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-amber-500 shadow-xs scale-[1.008]" 
                     : "border-transparent hover:bg-zinc-100/30 dark:hover:bg-zinc-800/10"
@@ -1807,7 +1822,7 @@ function ReaderPanel({
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`reader-line-item paragraph-block ${isBook ? "book-paragraph" : ""} text-left relative hover:z-20 antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
+                className={`reader-line-item paragraph-block ${isBook ? "book-paragraph" : ""} text-left relative hover:z-20 antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-colors duration-150 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
                   isSegmentActive
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"
