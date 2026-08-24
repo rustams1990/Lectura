@@ -504,8 +504,8 @@ export default function ReaderScreen({
         />
       )}
 
-      {/* Mobile/tablet (< lg): bottom sheet for both Inspector and Calm Sheet modes */}
-      {selectedWord && activeLesson && (
+      {/* Mobile/tablet (< lg): bottom sheet ONLY when in classic Inspector mode (Calm Sheet uses FloatingWordPopup) */}
+      {!effectiveCalmSheet && selectedWord && activeLesson && (
         <div
           className="fixed inset-0 z-[70] lg:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
           onClick={() => setSelectedWord(null)}
