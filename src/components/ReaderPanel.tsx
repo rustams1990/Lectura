@@ -782,7 +782,7 @@ function ReaderPanel({
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
-    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-5 sm:p-8 lg:p-12 space-y-4 sm:space-y-6" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
+    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-6 sm:p-10 space-y-4 sm:space-y-6" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
       <div id="reader-top-anchor" className="h-0 pointer-events-none" />
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
@@ -948,11 +948,11 @@ function ReaderPanel({
               className={`h-7 px-3 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                 unknownViewMode === "text"
                   ? "bg-amber-500 text-white shadow-xs"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-350"
+                  : `${currentTheme.subText} hover:text-zinc-900 dark:hover:text-zinc-100`
               }`}
             >
-              <AlignLeft className="w-3.5 h-3.5" />
-              {t('reader.view_context', 'In Context')}
+              <AlignLeft className="w-3 h-3" />
+              <span>{t('reader.view_in_context', 'In Context')}</span>
             </button>
             <button
               type="button"
@@ -960,11 +960,11 @@ function ReaderPanel({
               className={`h-7 px-3 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                 unknownViewMode === "list"
                   ? "bg-amber-500 text-white shadow-xs"
-                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-350"
+                  : `${currentTheme.subText} hover:text-zinc-900 dark:hover:text-zinc-100`
               }`}
             >
-              <List className="w-3.5 h-3.5" />
-              {t('reader.view_list', 'List View')}
+              <List className="w-3 h-3" />
+              <span>{t('reader.view_list', 'List')} ({allUnknownWords.length})</span>
             </button>
           </div>
         </div>
@@ -974,7 +974,7 @@ function ReaderPanel({
         onMouseUp={handleTextSelection}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`prose max-w-none space-y-6 ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
+        className={`prose max-w-none space-y-5 text-left antialiased tracking-normal leading-relaxed ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
       >
         {showOnlyUnknown && unknownViewMode === "list" && (
           <ReaderUnknownWordsList
@@ -1192,7 +1192,15 @@ function ReaderPanel({
               const tok = tokens[tIdx];
 
               if (!tok.isWord) {
-                elements.push(<span key={`nonword-${tIdx}`} className="opacity-95">{tok.raw}</span>);
+                // Eliminate detached space before punctuation marks (. , ! ? : ; ' " ” )
+                const isPunctOnly = /^[.,!?:;…»\)'"”\u2019\u201d\u2018\u201c\u2026\]\}]+$/.test(tok.raw.trim());
+                if (isPunctOnly && elements.length > 0) {
+                  const lastEl = elements[elements.length - 1] as any;
+                  if (lastEl && typeof lastEl.props?.children === "string" && /^\s+$/.test(lastEl.props.children)) {
+                    elements.pop();
+                  }
+                }
+                elements.push(<span key={`nonword-${tIdx}`} className="opacity-95 select-none">{tok.raw.trimStart()}</span>);
                 tIdx++;
                 continue;
               }
@@ -1781,14 +1789,14 @@ function ReaderPanel({
             const isFirstParagraph = pIdx === 0;
             const isBook = lesson.lessonType === "book";
             const indentClass = (!hasTimestamps && !activeSettings.showSentenceTranslations && isBook && !isFirstParagraph)
-              ? "indent-7"
+              ? "indent-6"
               : "";
 
             return (
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`reader-line-item paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
+                className={`reader-line-item paragraph-block relative hover:z-20 text-left antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
                   isSegmentActive
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"

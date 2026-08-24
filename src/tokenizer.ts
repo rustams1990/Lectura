@@ -161,8 +161,10 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
 
     return tokens;
   } else {
-    // Normalize extraneous whitespace before trailing punctuation
-    const normalizedText = sentText.replace(/\s+([.,!?:;…»\)]+)/g, "$1");
+    // Normalize extraneous whitespace before trailing punctuation and after opening punctuation
+    const normalizedText = sentText
+      .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
+      .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1");
     const parts = normalizedText.split(/(\s+)/);
     return parts.map((part) => {
       if (/^\s+$/.test(part)) {

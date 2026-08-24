@@ -323,6 +323,8 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
     let combinedText = textBlocks.join("\n\n");
     combinedText = combinedText
       .replace(/\r\n/g, "\n")
+      .replace(/[ \t]+([.,!?:;…»\)\'\’\"”\u2019\u201d\u2018\u201c]+)/gu, "$1")
+      .replace(/([«\(\[\{“\u2018\u201c])[ \t]+/gu, "$1")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 

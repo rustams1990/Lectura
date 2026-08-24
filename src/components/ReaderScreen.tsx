@@ -132,9 +132,9 @@ export default function ReaderScreen({
   // Isolated layout width classes strictly applied inside Reader
   const readerWidthClasses = isImmersiveBook
     ? ({
-        narrow: "max-w-xl mx-auto py-2 sm:py-6 lg:py-8",
-        medium: "max-w-3xl mx-auto py-2 sm:py-6 lg:py-8",
-        wide: "max-w-5xl mx-auto py-2 sm:py-6 lg:py-8",
+        narrow: "max-w-lg mx-auto py-6 sm:py-10 px-4 sm:px-6",
+        medium: "max-w-xl mx-auto py-6 sm:py-10 px-4 sm:px-6",
+        wide: "max-w-3xl mx-auto py-6 sm:py-10 px-4 sm:px-6",
       }[readerSettings.maxWidth || "medium"])
     : effectiveCalmSheet
     ? ({
