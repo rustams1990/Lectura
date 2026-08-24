@@ -1192,15 +1192,7 @@ function ReaderPanel({
               const tok = tokens[tIdx];
 
               if (!tok.isWord) {
-                // Eliminate detached space before punctuation marks (. , ! ? : ; ' " ” )
-                const isPunctOnly = /^[.,!?:;…»\)'"”\u2019\u201d\u2018\u201c\u2026\]\}]+$/.test(tok.raw.trim());
-                if (isPunctOnly && elements.length > 0) {
-                  const lastEl = elements[elements.length - 1] as any;
-                  if (lastEl && typeof lastEl.props?.children === "string" && /^\s+$/.test(lastEl.props.children)) {
-                    elements.pop();
-                  }
-                }
-                elements.push(<span key={`nonword-${tIdx}`} className="opacity-95 select-none">{tok.raw.trimStart()}</span>);
+                elements.push(<span key={`nonword-${tIdx}`} className="opacity-95">{tok.raw}</span>);
                 tIdx++;
                 continue;
               }
