@@ -332,7 +332,115 @@ export function useReaderPagination({
     }
     
     return [segments];
-  }, [segments, pageSize, hasTimestamps, isCjk]);
+  }, [segments, pageSize, hasTimestamps, isCjk, lesson.text, (lesson as any).chapters, lesson.lessonType]);
+
+  const tocEntries = useMemo<Array<{ title: string; pageIndex: number; chapterIndex: number; progressPercent: number }>>(() => {
+    if (pages.length === 0) return [];
+
+    const entries: Array<{ title: string; pageIndex: number; chapterIndex: number; progressPercent: number }> = [];
+    let chapterCounter = 0;
+
+    const extractChapterTitle = (chText: string, fallbackNum: number): string => {
+      const firstLine = chText.trim().split("\n")[0]?.trim() || "";
+      if (/^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION)/i.test(firstLine)) {
+        return firstLine;
+      }
+      if (firstLine.length > 0 && firstLine.length < 60 && !/[.?!]$/.test(firstLine)) {
+        return firstLine;
+      }
+      return `Глава ${fallbackNum}`;
+    };
+
+    // 1. If lesson has explicit structured chapters array
+    if (Array.isArray((lesson as any).chapters) && (lesson as any).chapters.length > 0) {
+      let runningPageIdx = 0;
+      (lesson as any).chapters.forEach((ch: any, idx: number) => {
+        const text = typeof ch === "string" ? ch : (ch.text || ch.content || "");
+        const paras = text.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
+        const segs = paras.map((p: string) => ({ text: p.trim(), timestamp: null }));
+        if (segs.length > 0) {
+          const chTitle = (typeof ch === "object" && ch.title) ? ch.title : extractChapterTitle(text, idx + 1);
+          entries.push({
+            title: chTitle,
+            pageIndex: runningPageIdx,
+            chapterIndex: idx,
+            progressPercent: pages.length > 0 ? Math.round(((runningPageIdx + 1) / pages.length) * 100) : 0,
+          });
+          const chWordCount = segs.reduce((acc, s) => acc + s.text.split(/\s+/).filter(Boolean).length, 0);
+          const chPagesCount = Math.max(1, Math.ceil(chWordCount / 220));
+          runningPageIdx += chPagesCount;
+        }
+      });
+      if (entries.length > 0) return entries;
+    }
+
+    // 2. If text contains explicit page breaks (---PAGE--- or [PAGE_BREAK] or [PAGE])
+    if (lesson.text && (lesson.text.includes("---PAGE---") || lesson.text.includes("[PAGE_BREAK]") || lesson.text.includes("[PAGE]"))) {
+      const rawChapters = lesson.text.split(/\n\s*---PAGE---\s*\n|\n\s*\[PAGE(?:_BREAK)?\]\s*\n/);
+      let runningPageIdx = 0;
+
+      rawChapters.forEach((chText) => {
+        const trimmed = chText.trim();
+        if (!trimmed) return;
+        const paras = trimmed.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+        const segs: TextSegment[] = paras.map((p) => ({ text: p.trim(), timestamp: null }));
+        if (segs.length > 0) {
+          chapterCounter++;
+          const chTitle = extractChapterTitle(trimmed, chapterCounter);
+          entries.push({
+            title: chTitle,
+            pageIndex: runningPageIdx,
+            chapterIndex: chapterCounter - 1,
+            progressPercent: pages.length > 0 ? Math.round(((runningPageIdx + 1) / pages.length) * 100) : 0,
+          });
+          const chWordCount = segs.reduce((acc, s) => acc + s.text.split(/\s+/).filter(Boolean).length, 0);
+          const chPagesCount = Math.max(1, Math.ceil(chWordCount / 220));
+          runningPageIdx += chPagesCount;
+        }
+      });
+
+      if (entries.length > 0) return entries;
+    }
+
+    // 3. Natural chapter headings in raw text
+    if (lesson.lessonType === "book" && lesson.text) {
+      const chapterHeaderRegex = /\n\s*\n(?=(?:Chapter|Глава|Section|Part|[IVXLCDM]+\.?)\s)/i;
+      if (chapterHeaderRegex.test(lesson.text)) {
+        const rawChapters = lesson.text.split(chapterHeaderRegex);
+        if (rawChapters.length > 1) {
+          let runningPageIdx = 0;
+          rawChapters.forEach((chText) => {
+            const trimmed = chText.trim();
+            if (!trimmed) return;
+            const paras = trimmed.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+            const segs: TextSegment[] = paras.map((p) => ({ text: p.trim(), timestamp: null }));
+            if (segs.length > 0) {
+              chapterCounter++;
+              const chTitle = extractChapterTitle(trimmed, chapterCounter);
+              entries.push({
+                title: chTitle,
+                pageIndex: runningPageIdx,
+                chapterIndex: chapterCounter - 1,
+                progressPercent: pages.length > 0 ? Math.round(((runningPageIdx + 1) / pages.length) * 100) : 0,
+              });
+              const chWordCount = segs.reduce((acc, s) => acc + s.text.split(/\s+/).filter(Boolean).length, 0);
+              const chPagesCount = Math.max(1, Math.ceil(chWordCount / 220));
+              runningPageIdx += chPagesCount;
+            }
+          });
+          if (entries.length > 1) return entries;
+        }
+      }
+    }
+
+    // Fallback: each page is an entry
+    return pages.map((_, i) => ({
+      title: `Страница ${i + 1}`,
+      pageIndex: i,
+      chapterIndex: i,
+      progressPercent: Math.round(((i + 1) / pages.length) * 100),
+    }));
+  }, [lesson.text, (lesson as any).chapters, lesson.lessonType, pages.length]);
 
   const parseSavedProgressPage = (raw: string | null): number => {
     if (!raw) return 0;
@@ -619,6 +727,7 @@ export function useReaderPagination({
     handleTouchStart,
     handleTouchEnd,
     hasTimestamps,
-    navigateToPage
+    navigateToPage,
+    tocEntries
   };
 }

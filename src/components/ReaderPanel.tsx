@@ -40,6 +40,7 @@ import { useTranslation } from "react-i18next";
 import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { loadLessonTranslationsFromDb, fetchMissingSentenceTranslations } from "../services/sentenceTranslationService";
+import { BookTocDrawer } from "./BookTocDrawer";
 import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
 
@@ -388,7 +389,8 @@ function ReaderPanel({
     handleTouchStart,
     handleTouchEnd,
     navigateToPage,
-    hasTimestamps
+    hasTimestamps,
+    tocEntries
   } = useReaderPagination({
     lesson,
     isCjk,
@@ -400,6 +402,13 @@ function ReaderPanel({
   });
 
   const isTextMode = activeSettings.readerViewStyle === "text";
+  const [isTocOpen, setIsTocOpen] = useState(false);
+
+  useEffect(() => {
+    const handleToggleToc = () => setIsTocOpen((prev) => !prev);
+    window.addEventListener("toggle-book-toc", handleToggleToc);
+    return () => window.removeEventListener("toggle-book-toc", handleToggleToc);
+  }, []);
 
   // State for parallel sentence translations on the current page
   const [sentenceTranslationsMap, setSentenceTranslationsMap] = useState<Record<string, string>>({});
@@ -1772,22 +1781,38 @@ function ReaderPanel({
             const isFirstParagraph = pIdx === 0;
             const isBook = lesson.lessonType === "book";
             const trimmedText = seg.text.trim();
-            const isChapterHeading = isBook && /^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ЭПИЛОГ)$/i.test(trimmedText);
+            const isChapterHeading = isBook && (
+              /^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION)$/i.test(trimmedText) ||
+              (trimmedText.length < 60 && /^(?:Chapter|Глава|Part|Часть|Section|[IVXLCDM]+\b)/i.test(trimmedText))
+            );
 
-            const indentClass = (!hasTimestamps && !activeSettings.showSentenceTranslations && isBook && !isFirstParagraph && !isChapterHeading)
+            if (isChapterHeading) {
+              return (
+                <h2 
+                  key={pIdx} 
+                  id={`segment-row-${globalSegmentIdx}`}
+                  className="text-center text-2xl font-serif font-bold text-sky-700 dark:text-sky-400 tracking-wider mb-8 mt-2 antialiased select-text"
+                  style={{ textIndent: 0 }}
+                >
+                  {renderParagraphContent()}
+                </h2>
+              );
+            }
+
+            const indentClass = (!hasTimestamps && !activeSettings.showSentenceTranslations && isBook && !isFirstParagraph)
               ? "indent-6"
-              : (isBook && (isFirstParagraph || isChapterHeading) ? "indent-0" : "");
+              : (isBook && isFirstParagraph ? "indent-0" : "");
 
             return (
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`reader-line-item paragraph-block ${isBook ? "book-paragraph" : ""} ${isChapterHeading ? "text-center font-bold text-lg sm:text-xl py-4 tracking-wider uppercase opacity-90" : "text-left"} relative hover:z-20 antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
+                className={`reader-line-item paragraph-block ${isBook ? "book-paragraph" : ""} text-left relative hover:z-20 antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
                   isSegmentActive
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"
                 }`}
-                style={isBook ? { textAlign: isChapterHeading ? "center" : "left", textIndent: (isFirstParagraph || isChapterHeading) ? "0" : "1.5rem" } : undefined}
+                style={isBook ? { textAlign: "left", textIndent: isFirstParagraph ? "0" : "1.5rem" } : undefined}
               >
                 {renderParagraphContent()}
               </p>
@@ -2279,6 +2304,20 @@ function ReaderPanel({
           </div>
         </div>
       )}
+
+      {/* Table of Contents Drawer */}
+      <BookTocDrawer
+        isOpen={isTocOpen}
+        onClose={() => setIsTocOpen(false)}
+        tocEntries={tocEntries}
+        currentPageIdx={clampedPageIdx}
+        onSelectPage={(pageIdx) => {
+          navigateToPage(pageIdx);
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }}
+        totalPages={pages.length}
+        bookTitle={lesson.title}
+      />
     </div>
   );
 }

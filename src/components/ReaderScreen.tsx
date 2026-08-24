@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages } from "lucide-react";
+import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages, List } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
@@ -164,6 +164,17 @@ export default function ReaderScreen({
           >
             <ChevronLeft className="w-3.5 h-3.5" />
             <span>{t('reader.library_btn', 'Library')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("toggle-book-toc"));
+            }}
+            className="px-3 py-1.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border border-stone-200/80 dark:border-zinc-700/80 rounded-full shadow-sm text-xs font-semibold text-stone-700 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            title={t('reader.toc', 'Оглавление')}
+          >
+            <List className="w-3.5 h-3.5" />
+            <span>{t('reader.chapters', 'Главы')}</span>
           </button>
           <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
         </div>
