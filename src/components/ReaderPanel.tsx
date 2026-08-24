@@ -802,7 +802,7 @@ function ReaderPanel({
       id="reader-top" 
       className={`relative ${
         hideMeta 
-          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-6 sm:pt-8 lg:pt-10 pb-36 sm:pb-40 min-h-screen lg:min-h-[70vh] flex flex-col justify-start items-stretch" 
+          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-6 sm:pt-8 lg:pt-10 pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
           : "rounded-3xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"
       } transition-colors duration-200 overflow-hidden ${currentTheme.container}`}
     >
@@ -1932,67 +1932,50 @@ function ReaderPanel({
             )}
 
             {lesson.lessonType === "book" ? (
-              /* Immersive Book Mode Floating Fixed Paginator */
-              <div className="fixed bottom-4 inset-x-0 flex justify-center pointer-events-none z-30 select-none">
-                <div className="pointer-events-auto flex items-center gap-3 sm:gap-4 px-4 py-2 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 rounded-full shadow-lg text-sm text-stone-700 dark:text-stone-300 opacity-20 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
-                  <button
-                    type="button"
-                    disabled={clampedPageIdx === 0}
-                    onClick={() => {
-                      navigateToPage(Math.max(0, clampedPageIdx - 1));
+              /* Immersive Book Mode Static Footer Paginator */
+              <div className={`pt-6 pb-2 flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 font-sans select-none border-t ${currentTheme.divider} mt-8`}>
+                <button
+                  type="button"
+                  disabled={clampedPageIdx === 0}
+                  onClick={() => {
+                    navigateToPage(Math.max(0, clampedPageIdx - 1));
+                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                  }}
+                  className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer font-medium"
+                >
+                  ‹ {t('reader.prev_page', 'Предыдущая')}
+                </button>
+
+                <div className="flex items-center gap-1.5 font-medium text-stone-600 dark:text-stone-400">
+                  <span>{t('reader.page', 'Страница')}</span>
+                  <select
+                    value={clampedPageIdx + 1}
+                    onChange={(e) => {
+                      navigateToPage(Number(e.target.value) - 1);
                       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                     }}
-                    className="px-3.5 py-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed font-serif text-xs sm:text-sm font-medium transition-colors cursor-pointer"
+                    className="bg-transparent font-bold text-stone-800 dark:text-stone-200 cursor-pointer focus:outline-none"
                   >
-                    ‹ {t('reader.prev_page', 'Предыдущая')}
-                  </button>
-
-                  <div className="relative" ref={pageSelectRef}>
-                    <button
-                      type="button"
-                      onClick={() => setIsPageSelectOpen(!isPageSelectOpen)}
-                      className="flex items-center gap-1 text-xs sm:text-sm font-semibold font-serif text-stone-600 dark:text-stone-400 tabular-nums cursor-pointer hover:opacity-80 transition-opacity px-1.5 py-0.5 rounded-md"
-                    >
-                      <span>{t('reader.page', 'Страница')} {clampedPageIdx + 1} {t('reader.of', 'из')} {pages.length}</span>
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isPageSelectOpen ? "rotate-180" : ""}`} />
-                    </button>
-
-                    {isPageSelectOpen && (
-                      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-36 max-h-56 overflow-y-auto bg-stone-50 dark:bg-zinc-900 border border-stone-200 dark:border-zinc-800 rounded-2xl shadow-xl z-[9999] py-1 text-center font-serif text-xs">
-                        {pages.map((_, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => {
-                              navigateToPage(i);
-                              setIsPageSelectOpen(false);
-                              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                            }}
-                            className={`w-full px-3 py-1.5 text-center transition-colors cursor-pointer ${
-                              i === clampedPageIdx
-                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold"
-                                : "text-stone-700 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/5"
-                            }`}
-                          >
-                            {t('reader.page', 'Стр.')} {i + 1}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={clampedPageIdx >= pages.length - 1}
-                    onClick={() => {
-                      navigateToPage(Math.min(pages.length - 1, clampedPageIdx + 1));
-                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                    }}
-                    className="px-3.5 py-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed font-serif text-xs sm:text-sm font-medium transition-colors cursor-pointer"
-                  >
-                    {t('reader.next_page', 'Следующая')} ›
-                  </button>
+                    {Array.from({ length: pages.length }, (_, i) => i + 1).map((p) => (
+                      <option key={p} value={p} className="bg-stone-50 dark:bg-zinc-900 text-stone-800 dark:text-stone-200">
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  <span>{t('reader.of', 'из')} {pages.length}</span>
                 </div>
+
+                <button
+                  type="button"
+                  disabled={clampedPageIdx >= pages.length - 1}
+                  onClick={() => {
+                    navigateToPage(Math.min(pages.length - 1, clampedPageIdx + 1));
+                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                  }}
+                  className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer font-medium"
+                >
+                  {t('reader.next_page', 'Следующая')} ›
+                </button>
               </div>
             ) : (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
