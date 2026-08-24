@@ -156,7 +156,21 @@ export function useReaderPagination({
 
   const { pages, tocEntries } = useMemo<{ pages: TextSegment[][]; tocEntries: Array<{ title: string; pageIndex: number; chapterIndex: number; progressPercent: number }> }>(() => {
     // Helper function to chunk paragraph segments into comfortable single-screen pages (~200-230 words per page)
-    const chunkSegmentsIntoScreenPages = (segsList: TextSegment[], wordLimit = 220): TextSegment[][] => {
+    const chunkSegmentsIntoScreenPages = (segsList: TextSegment[], wordLimit = 220, isSinglePage = false): TextSegment[][] => {
+      if (isSinglePage || segsList.length <= 1) {
+        return [segsList];
+      }
+
+      const totalWords = segsList.reduce((acc, s) => {
+        if (/^\[IMG(?:_REF)?:/.test(s.text.trim())) return acc;
+        return acc + s.text.split(/\s+/).filter(Boolean).length;
+      }, 0);
+
+      // If entire section is under 180 words, always keep it on a single page!
+      if (totalWords <= 180) {
+        return [segsList];
+      }
+
       const screenPages: TextSegment[][] = [];
       let currentChunk: TextSegment[] = [];
       let currentWords = 0;
@@ -165,19 +179,14 @@ export function useReaderPagination({
         const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
         const wordsInSeg = isImgSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
 
-        // If an image segment or large paragraph exceeds limit, flush current chunk
-        if (currentWords > 0 && (currentWords + wordsInSeg > wordLimit + 30 || isImgSeg)) {
+        // If a large paragraph exceeds limit, flush current chunk
+        if (currentWords > 0 && (currentWords + wordsInSeg > wordLimit + 30)) {
           screenPages.push(currentChunk);
           currentChunk = [seg];
           currentWords = wordsInSeg;
         } else {
           currentChunk.push(seg);
           currentWords += wordsInSeg;
-          if (isImgSeg && currentWords >= 80) {
-            screenPages.push(currentChunk);
-            currentChunk = [];
-            currentWords = 0;
-          }
         }
       }
       if (currentChunk.length > 0) {
@@ -201,7 +210,7 @@ export function useReaderPagination({
       }
 
       // Check standard heading formats
-      if (/^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION)/i.test(firstLine)) {
+      if (/^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ВВЕДЕНИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION|ПОСВЯЩЕНИЕ|ЭПИГРАФ|EPIGRAPH|TITLE|COVER)/i.test(firstLine)) {
         return firstLine;
       }
       if (firstLine.length > 0 && firstLine.length < 60 && !/[.?!]$/.test(firstLine)) {
@@ -214,6 +223,7 @@ export function useReaderPagination({
     if (Array.isArray((lesson as any).chapters) && (lesson as any).chapters.length > 0) {
       const allPages: TextSegment[][] = [];
       const entries: Array<{ title: string; pageIndex: number; chapterIndex: number; progressPercent: number }> = [];
+      let hasSeenChapterOne = false;
 
       (lesson as any).chapters.forEach((ch: any, idx: number) => {
         const text = typeof ch === "string" ? ch : (ch.text || ch.content || "");
@@ -221,8 +231,12 @@ export function useReaderPagination({
         const segs = paras.map((p: string) => ({ text: p.trim(), timestamp: null }));
         if (segs.length > 0) {
           const chTitle = (typeof ch === "object" && ch.title) ? ch.title : cleanChapterTitle(text, idx + 1);
+          if (/^(?:Chapter\s+1\b|Глава\s+1\b|Part\s+1\b|Section\s+1\b|^i\b|^1\b)/i.test(chTitle.trim())) {
+            hasSeenChapterOne = true;
+          }
+          const isIntro = !hasSeenChapterOne || /^(?:cover|title|dedication|epigraph|copyright|contents|обложка|титул|посвящение|эпиграф)/i.test(chTitle.trim());
           const startPageIndex = allPages.length;
-          const chPages = chunkSegmentsIntoScreenPages(segs, 220);
+          const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro);
           allPages.push(...chPages);
           entries.push({
             title: chTitle,
@@ -247,6 +261,7 @@ export function useReaderPagination({
       const allPages: TextSegment[][] = [];
       const entries: Array<{ title: string; pageIndex: number; chapterIndex: number; progressPercent: number }> = [];
       let chapterCounter = 0;
+      let hasSeenChapterOne = false;
 
       rawChapters.forEach((chText) => {
         const trimmed = chText.trim();
@@ -256,8 +271,12 @@ export function useReaderPagination({
         if (segs.length > 0) {
           chapterCounter++;
           const chTitle = cleanChapterTitle(trimmed, chapterCounter);
+          if (/^(?:Chapter\s+1\b|Глава\s+1\b|Part\s+1\b|Section\s+1\b|^i\b|^1\b)/i.test(chTitle.trim())) {
+            hasSeenChapterOne = true;
+          }
+          const isIntro = !hasSeenChapterOne || /^(?:cover|title|dedication|epigraph|copyright|contents|обложка|титул|посвящение|эпиграф)/i.test(chTitle.trim());
           const startPageIndex = allPages.length;
-          const chPages = chunkSegmentsIntoScreenPages(segs, 220);
+          const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro);
           allPages.push(...chPages);
           entries.push({
             title: chTitle,
@@ -285,6 +304,7 @@ export function useReaderPagination({
           const allPages: TextSegment[][] = [];
           const entries: Array<{ title: string; pageIndex: number; chapterIndex: number; progressPercent: number }> = [];
           let chapterCounter = 0;
+          let hasSeenChapterOne = false;
 
           rawChapters.forEach((chText) => {
             const trimmed = chText.trim();
@@ -294,8 +314,12 @@ export function useReaderPagination({
             if (segs.length > 0) {
               chapterCounter++;
               const chTitle = cleanChapterTitle(trimmed, chapterCounter);
+              if (/^(?:Chapter\s+1\b|Глава\s+1\b|Part\s+1\b|Section\s+1\b|^i\b|^1\b)/i.test(chTitle.trim())) {
+                hasSeenChapterOne = true;
+              }
+              const isIntro = !hasSeenChapterOne || /^(?:cover|title|dedication|epigraph|copyright|contents|обложка|титул|посвящение|эпиграф)/i.test(chTitle.trim());
               const startPageIndex = allPages.length;
-              const chPages = chunkSegmentsIntoScreenPages(segs, 220);
+              const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro);
               allPages.push(...chPages);
               entries.push({
                 title: chTitle,

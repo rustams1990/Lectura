@@ -491,6 +491,30 @@ function ReaderPanel({
       .map((key) => vocab[key]);
   }, [vocab, textForSearch, lesson.targetLanguage]);
 
+  // Check if active page is a dedication, cover, or title page
+  const isDedicationOrTitlePage = useMemo(() => {
+    if (lesson.lessonType !== "book" || activeSegmentsForPage.length === 0) return false;
+    
+    let totalWords = 0;
+    let hasImage = false;
+    for (const seg of activeSegmentsForPage) {
+      if (/^\[IMG(?:_REF)?:/.test(seg.text.trim())) {
+        hasImage = true;
+      } else {
+        totalWords += seg.text.split(/\s+/).filter(Boolean).length;
+      }
+    }
+
+    const fullPageText = activeSegmentsForPage.map(s => s.text).join(" ").trim();
+    
+    // Check dedication keywords
+    const isDedicationKeyword = /^(?:for\b|to\b|i\s+started\s+this\s+for|dedicated\s+to|dedication|in\s+memory\s+of|посвящается|для\b|посвящение)/i.test(fullPageText);
+    
+    if (hasImage && totalWords <= 30) return true;
+    if (totalWords > 0 && totalWords <= 70 && (isDedicationKeyword || activeSegmentsForPage.length <= 3)) return true;
+    return false;
+  }, [activeSegmentsForPage, lesson.lessonType]);
+
   // Precompute tokens and phrase matches for the active segments on this page
   const { allPageTokens, pagePhraseMatches, pageDetectedMatches, sentenceTokenRanges } = useMemo(() => {
     // 1. Tokenize everything on the page first, keeping track of segment index (pIdx) and sentence index (sIdx)
@@ -998,7 +1022,11 @@ function ReaderPanel({
         onMouseUp={handleTextSelection}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`prose max-w-none space-y-5 text-left antialiased tracking-normal leading-relaxed flex-1 w-full ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
+        className={`prose max-w-none antialiased tracking-normal leading-relaxed flex-1 w-full ${
+          isDedicationOrTitlePage
+            ? "flex flex-col items-center justify-center text-center my-auto min-h-[60vh] py-8 space-y-4"
+            : "space-y-5 text-left"
+        } ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
       >
         {showOnlyUnknown && unknownViewMode === "list" && (
           <ReaderUnknownWordsList
@@ -1796,10 +1824,26 @@ function ReaderPanel({
             const isFirstParagraph = pIdx === 0;
             const isBook = lesson.lessonType === "book";
             const trimmedText = seg.text.trim();
+
+            const isIntroductionHeading = isBook && /^(?:INTRODUCTION|PREFACE|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ВВЕДЕНИЕ|ЭПИЛОГ|DEDICATION|ПОСВЯЩЕНИЕ)$/i.test(trimmedText);
             const isChapterHeading = isBook && (
-              /^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION)$/i.test(trimmedText) ||
+              isIntroductionHeading ||
+              /^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|CONTENTS)$/i.test(trimmedText) ||
               (trimmedText.length < 60 && /^(?:Chapter|Глава|Part|Часть|Section|[IVXLCDM]+\b)/i.test(trimmedText))
             );
+
+            if (isIntroductionHeading) {
+              return (
+                <h2 
+                  key={pIdx} 
+                  id={`segment-row-${globalSegmentIdx}`}
+                  className="text-center font-bold tracking-widest text-xl mb-6 uppercase text-sky-700 dark:text-sky-400 font-serif antialiased select-text mt-4"
+                  style={{ textIndent: 0 }}
+                >
+                  {renderParagraphContent()}
+                </h2>
+              );
+            }
 
             if (isChapterHeading) {
               return (
@@ -1811,6 +1855,19 @@ function ReaderPanel({
                 >
                   {renderParagraphContent()}
                 </h2>
+              );
+            }
+
+            if (isDedicationOrTitlePage) {
+              return (
+                <p 
+                  key={pIdx} 
+                  id={`segment-row-${globalSegmentIdx}`}
+                  className="italic text-stone-600 dark:text-stone-300 font-serif text-lg leading-relaxed text-center my-3 antialiased select-text max-w-xl mx-auto"
+                  style={{ textIndent: 0 }}
+                >
+                  {renderParagraphContent()}
+                </p>
               );
             }
 
