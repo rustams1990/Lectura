@@ -782,7 +782,7 @@ function ReaderPanel({
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
-    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-6 sm:p-10 space-y-4 sm:space-y-6 min-h-[70vh] flex flex-col justify-between" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
+    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-6 sm:p-10 pb-28 sm:pb-32 space-y-4 sm:space-y-6 min-h-[70vh] flex flex-col justify-between" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
       <div id="reader-top-anchor" className="h-0 pointer-events-none" />
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
@@ -1016,12 +1016,13 @@ function ReaderPanel({
           let wordRenderCount = 0;
 
           // Check if this segment represents an inline image placeholder
-          const isImage = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
+          const trimmedSegText = seg.text.trim();
+          const isImage = /^\[IMG(?:_REF)?:/.test(trimmedSegText) && trimmedSegText.endsWith("]");
           if (isImage) {
             try {
-              const payload = seg.text.startsWith("[IMG_REF:")
-                ? seg.text.substring(9, seg.text.length - 1)
-                : seg.text.substring(5, seg.text.length - 1);
+              const payload = trimmedSegText.startsWith("[IMG_REF:")
+                ? trimmedSegText.substring(9, trimmedSegText.length - 1)
+                : trimmedSegText.substring(5, trimmedSegText.length - 1);
               const pipeIdx = payload.indexOf("|");
               const lastPipeIdx = payload.lastIndexOf("|");
               let dataUrl = payload;
@@ -1038,51 +1039,26 @@ function ReaderPanel({
               }
 
               if (dataUrl.startsWith("epub_img_") || !dataUrl.startsWith("data:")) {
-                const resolved = lessonImagesMap?.[dataUrl];
-                if (!resolved) return null;
+                const resolved = lessonImagesMap?.[dataUrl] || (lesson as any).images?.[dataUrl] || (lesson as any).media?.images?.[dataUrl];
+                if (!resolved) {
+                  console.warn("[ReaderPanel] Could not resolve image ID:", dataUrl, "in lesson images");
+                  return null;
+                }
                 dataUrl = resolved;
-              } else if (seg.text.startsWith("[IMG_REF:")) {
+              } else if (trimmedSegText.startsWith("[IMG_REF:")) {
                 return null;
               }
 
               if (!dataUrl.startsWith("data:image/")) return null;
 
-              const containerStyle: React.CSSProperties = {
-                maxWidth: "100%",
-                margin: "1.5rem auto",
-                display: "flex",
-                justifyContent: "center",
-                flexDirection: "column",
-                alignItems: "center",
-              };
-
-              const imgStyle: React.CSSProperties = {
-                maxHeight: "450px",
-                objectFit: "contain",
-              };
-
-              if (width) {
-                imgStyle.width = width.match(/^\d+$/) ? `${width}px` : width;
-              } else {
-                imgStyle.width = "auto";
-              }
-
-              if (height) {
-                imgStyle.height = height.match(/^\d+$/) ? `${height}px` : height;
-              } else {
-                imgStyle.height = "auto";
-              }
-
               return (
                 <div 
                   key={pIdx} 
-                  style={containerStyle} 
-                  className="my-6 p-2 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-200/40 dark:border-zinc-800/40 shadow-xs flex flex-col items-center select-none"
+                  className="my-4 max-w-full flex justify-center flex-col items-center select-none reader-image-container"
                 >
                   <img 
                     src={dataUrl} 
-                    style={imgStyle} 
-                    className="rounded-xl shadow-xs max-w-full" 
+                    className="rounded-xl shadow-md max-w-full max-h-72 object-contain mb-6 mx-auto block" 
                     alt={t('reader.illustration', 'Illustration')} 
                     referrerPolicy="no-referrer"
                     id={`pdf-epub-img-${pIdx}`}
@@ -1903,7 +1879,7 @@ function ReaderPanel({
             {lesson.lessonType === "book" ? (
               /* Immersive Book Mode Floating Fixed Paginator */
               <div className="fixed bottom-6 inset-x-0 flex justify-center pointer-events-none z-30 select-none">
-                <div className="pointer-events-auto flex items-center gap-3 sm:gap-4 px-4 py-2 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 rounded-full shadow-xl text-sm text-stone-700 dark:text-stone-300">
+                <div className="pointer-events-auto flex items-center gap-3 sm:gap-4 px-4 py-2 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 rounded-full shadow-lg text-sm text-stone-700 dark:text-stone-300 opacity-20 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
                   <button
                     type="button"
                     disabled={clampedPageIdx === 0}
