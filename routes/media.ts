@@ -291,7 +291,10 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
         .replace(/<\/p>/gi, "\n\n")
+        .replace(/<\/div>/gi, "\n\n")
         .replace(/<\/h[1-6]>/gi, "\n\n")
+        .replace(/<\/blockquote>/gi, "\n\n")
+        .replace(/<\/li>/gi, "\n")
         .replace(/<br\s*\/?>/gi, "\n")
         .replace(/<[^>]+>/g, "")
         .replace(/&nbsp;/g, " ")
@@ -309,11 +312,18 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
       });
 
       cleanText = cleanText
-        .split("\n")
-        .map((line) => line.trim())
-        .join("\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+        .split("\n\n")
+        .map((para) => {
+          return para
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .join(" ")
+            .replace(/[ \t]+/g, " ")
+            .trim();
+        })
+        .filter(Boolean)
+        .join("\n\n");
 
       if (cleanText) {
         textBlocks.push(cleanText);

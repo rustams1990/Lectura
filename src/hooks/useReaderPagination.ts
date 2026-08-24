@@ -97,7 +97,8 @@ export function useReaderPagination({
       const paras = lesson.text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
       const rawParas = paras.map((p) => ({ text: p.trim(), timestamp: null }));
       
-      if (autoPunctuationSplit) {
+      // For books, preserve intact paragraph blocks (each <p> / paragraph is a single block)
+      if (autoPunctuationSplit && lesson.lessonType !== "book") {
         const sentenceSegments: TextSegment[] = [];
         paras.forEach((p) => {
           const sentences = splitIntoSentences(p.trim(), isCjk);

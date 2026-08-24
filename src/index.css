@@ -213,4 +213,25 @@ html.dark body {
   scroll-margin-top: calc(var(--focus-player-height, 0px) + 24px);
 }
 
+/* ============================================
+   CLASSIC BOOK TYPOGRAPHY (IMMERSIVE BOOK MODE)
+   ============================================ */
+
+.book-paragraph {
+  text-indent: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  line-height: 1.8;
+  font-family: 'Lora', 'Merriweather', 'Literata', Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* Первый абзац после заголовка или картинки без отступа */
+.book-paragraph:first-of-type,
+.book-paragraph-first,
+img + .book-paragraph,
+.reader-image-container + .book-paragraph {
+  text-indent: 0 !important;
+}
+
+
 

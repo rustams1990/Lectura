@@ -1782,17 +1782,18 @@ function ReaderPanel({
             const isBook = lesson.lessonType === "book";
             const indentClass = (!hasTimestamps && !activeSettings.showSentenceTranslations && isBook && !isFirstParagraph)
               ? "indent-6"
-              : "";
+              : (isBook && isFirstParagraph ? "indent-0" : "");
 
             return (
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`reader-line-item paragraph-block relative hover:z-20 text-left antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
+                className={`reader-line-item paragraph-block ${isBook ? "book-paragraph" : ""} relative hover:z-20 text-left antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
                   isSegmentActive
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"
                 }`}
+                style={isBook ? { textAlign: "left", textIndent: isFirstParagraph ? "0" : "1.5rem" } : undefined}
               >
                 {renderParagraphContent()}
               </p>
