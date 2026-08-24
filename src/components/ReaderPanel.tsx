@@ -782,7 +782,14 @@ function ReaderPanel({
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
-    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-6 sm:p-10 pb-28 sm:pb-32 space-y-4 sm:space-y-6 min-h-[70vh] flex flex-col justify-between" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
+    <div 
+      id="reader-top" 
+      className={`relative ${
+        hideMeta 
+          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-10 sm:pt-12 pb-28 sm:pb-32 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
+          : "rounded-3xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"
+      } transition-colors duration-200 overflow-hidden ${currentTheme.container}`}
+    >
       <div id="reader-top-anchor" className="h-0 pointer-events-none" />
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
@@ -1886,7 +1893,7 @@ function ReaderPanel({
 
             {lesson.lessonType === "book" ? (
               /* Immersive Book Mode Floating Fixed Paginator */
-              <div className="fixed bottom-6 inset-x-0 flex justify-center pointer-events-none z-30 select-none">
+              <div className="fixed bottom-4 inset-x-0 mx-auto w-fit z-30 pointer-events-none select-none">
                 <div className="pointer-events-auto flex items-center gap-3 sm:gap-4 px-4 py-2 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 rounded-full shadow-lg text-sm text-stone-700 dark:text-stone-300 opacity-20 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
                   <button
                     type="button"

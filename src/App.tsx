@@ -3184,7 +3184,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200 overflow-x-clip w-full max-w-[100vw]`}>
+    <div className={`min-h-screen ${isImmersiveBook ? `${currentReaderTheme.cardBg} lg:${currentReaderTheme.pageBg}` : currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200 overflow-x-clip w-full max-w-[100vw]`}>
       
       <AppSidebar
         isSidebarOpen={isSidebarOpen}
@@ -3299,7 +3299,7 @@ export default function App() {
       {/* Main Body */}
       <main 
         className={`flex-grow w-full mx-auto ${
-          isImmersiveBook ? "p-2 sm:p-4" : "p-4 sm:p-6 space-y-6"
+          isImmersiveBook ? "p-0 lg:p-4" : "p-4 sm:p-6 space-y-6"
         } transition-all duration-300 ${
           activeTab === "read" ? "max-w-full" : layoutContainerClass
         } ${hasActiveQueue ? "pb-36 sm:pb-32" : ""}`}
