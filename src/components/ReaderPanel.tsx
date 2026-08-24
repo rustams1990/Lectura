@@ -93,10 +93,10 @@ const fontSizeMap = {
 };
 
 const lineHeightMap = {
-  normal: "leading-[1.6]",
-  relaxed: "leading-[1.75]",
-  loose: "leading-[1.9]",
-  "extra-loose": "leading-[2.1]",
+  normal: "leading-[1.65]",
+  relaxed: "leading-[1.8]",
+  loose: "leading-[1.95]",
+  "extra-loose": "leading-[2.15]",
 };
 
 const fontFamilyMap = {
@@ -117,13 +117,13 @@ interface ReaderThemeStyles {
 
 const themeMap: Record<string, ReaderThemeStyles> = {
   default: {
-    container: "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border-zinc-100 dark:border-zinc-800/80",
+    container: "bg-[#faf9f6] dark:bg-zinc-900 text-[#292524] dark:text-zinc-200 border-stone-200/70 dark:border-zinc-800/80 shadow-md",
     barBg: "bg-transparent",
-    pillBg: "bg-transparent text-zinc-800 dark:text-zinc-200",
-    subBadgeBg: "bg-zinc-100/70 dark:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300",
-    selectBg: "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 border-zinc-200 dark:border-zinc-700",
-    divider: "border-zinc-200/80 dark:border-zinc-800/80",
-    subText: "text-zinc-700 dark:text-zinc-300",
+    pillBg: "bg-transparent text-[#292524] dark:text-zinc-200",
+    subBadgeBg: "bg-stone-100/70 dark:bg-zinc-800/60 text-stone-700 dark:text-zinc-300",
+    selectBg: "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 border-stone-200 dark:border-zinc-700",
+    divider: "border-stone-200/80 dark:border-zinc-800/80",
+    subText: "text-stone-600 dark:text-zinc-300",
   },
   cream: {
     container: "bg-[#fcf8f2] dark:bg-zinc-900 text-[#3b2b1a] dark:text-zinc-200 border-[#f3e9d8] dark:border-zinc-800/80",
@@ -1778,11 +1778,17 @@ function ReaderPanel({
             );
           } else {
             // Render classic clean book block paragraphs
+            const isFirstParagraph = pIdx === 0;
+            const isBook = lesson.lessonType === "book";
+            const indentClass = (!hasTimestamps && !activeSettings.showSentenceTranslations && isBook && !isFirstParagraph)
+              ? "indent-7"
+              : "";
+
             return (
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`reader-line-item paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${
+                className={`reader-line-item paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${indentClass} ${
                   isSegmentActive
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"

@@ -61,11 +61,11 @@ import { useTranslation, Trans } from "react-i18next";
 
 const readerThemes = {
   default: {
-    pageBg: "bg-stone-50 dark:bg-zinc-950",
-    text: "text-zinc-900 dark:text-zinc-100",
+    pageBg: "bg-[#f5f3ef] dark:bg-zinc-950",
+    text: "text-[#292524] dark:text-zinc-100",
     headerBg: "bg-white/70 dark:bg-zinc-900/60 border-zinc-200/60 dark:border-zinc-900",
-    cardBg: "bg-white dark:bg-zinc-900",
-    border: "border-zinc-200 dark:border-zinc-800",
+    cardBg: "bg-[#faf9f6] dark:bg-zinc-900",
+    border: "border-stone-200/70 dark:border-zinc-800",
   },
   cream: {
     pageBg: "bg-[#faf5eb] dark:bg-zinc-950",
@@ -810,6 +810,29 @@ export default function App() {
   useEffect(() => {
     readerSettingsRef.current = readerSettings;
   }, [readerSettings]);
+
+  // Auto-apply optimal reading typography when opening a book (lessonType === "book")
+  useEffect(() => {
+    if (activeLesson && activeLesson.lessonType === "book") {
+      setReaderSettings((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        if (next.fontFamily !== "serif") {
+          next.fontFamily = "serif";
+          changed = true;
+        }
+        if (next.readerViewStyle !== "text") {
+          next.readerViewStyle = "text";
+          changed = true;
+        }
+        if (next.wordCardMode !== "calm-sheet") {
+          next.wordCardMode = "calm-sheet";
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [activeLesson?.id, activeLesson?.lessonType]);
 
   const updateSettingsAndSync = (newSettingsOrFn: React.SetStateAction<ReaderSettings>) => {
     setReaderSettings((prev) => {
