@@ -94,7 +94,15 @@ export default function ReaderScreen({
   const { wordCardMode: storeCardMode } = useSettingsStore();
   // true when user has chosen "Calm Sheet" mode in Text Settings
   const isCalmSheet = (readerSettings.wordCardMode || storeCardMode) === "calm-sheet";
+  // true when either in Focus Mode or reading a book
+  const isImmersiveBook = isFocusMode || activeLesson?.lessonType === "book";
+  // In Immersive Book mode, Calm Sheet floating popup is strictly used instead of right Inspector sidebar
+  const effectiveCalmSheet = isCalmSheet || isImmersiveBook;
   const [selectedText, setSelectedText] = useState("");
+  const toolbarVisibility: ReaderToolbarVisibility = {
+    ...DEFAULT_TOOLBAR_VISIBILITY,
+    ...(readerSettings.toolbarVisibility || {}),
+  };
 
   // Global hotkeys: 'T' for parallel translations, 'Escape' to exit Focus Mode
   useEffect(() => {
@@ -122,7 +130,9 @@ export default function ReaderScreen({
   }, [setReaderSettings, isFocusMode, setIsFocusMode]);
 
   // Isolated layout width classes strictly applied inside Reader
-  const readerWidthClasses = isCalmSheet
+  const readerWidthClasses = isImmersiveBook
+    ? "max-w-2xl mx-auto py-2 sm:py-6 lg:py-8"
+    : effectiveCalmSheet
     ? ({
         standard: "max-w-4xl mx-auto",
         wide: "max-w-6xl mx-auto",
@@ -136,21 +146,34 @@ export default function ReaderScreen({
 
   return (
     <>
+      {/* Floating Controls for Immersive Book Mode */}
+      {isImmersiveBook && activeLesson && (
+        <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-200">
+          <button 
+            type="button"
+            onClick={() => {
+              setActiveTab("library");
+              setSelectedWord(null);
+            }}
+            className="px-3 py-1.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border border-stone-200/80 dark:border-zinc-700/80 rounded-full shadow-sm text-xs font-semibold text-stone-700 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+            title={t('reader.library_btn', 'Library')}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>{t('reader.library_btn', 'Library')}</span>
+          </button>
+          <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
+        </div>
+      )}
+
       <div className={`reader-layout-container reader-page-wrapper w-full transition-all duration-200 ${readerWidthClasses}`}>
-        <div className={`grid grid-cols-1 ${isCalmSheet ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-6 items-start`}>
+        <div className={`grid grid-cols-1 ${effectiveCalmSheet ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-6 items-start`}>
           {/* ЛЕВАЯ КОЛОНКА / ОСНОВНОЙ КОНТЕНТ: Текст урока */}
-          <div className={`${isCalmSheet ? 'col-span-1 w-full' : 'lg:col-span-2'} min-w-0 space-y-2.5 sm:space-y-4`}>
+          <div className={`${effectiveCalmSheet ? 'col-span-1 w-full' : 'lg:col-span-2'} min-w-0 space-y-2.5 sm:space-y-4`}>
           {activeLesson ? (
             <>
-              {/* Reader inline toolbar (visible only on PC / Desktop >= lg) */}
-              {(() => {
-                const toolbarVisibility: ReaderToolbarVisibility = {
-                  ...DEFAULT_TOOLBAR_VISIBILITY,
-                  ...(readerSettings.toolbarVisibility || {}),
-                };
-
-                return (
-                  <div className="hidden lg:flex items-center gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
+              {/* Reader inline toolbar (visible only on PC / Desktop >= lg and when not in Immersive Book Mode) */}
+              {!isImmersiveBook && (
+                <div className="hidden lg:flex items-center gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
                     {/* 1. Library (Always visible) */}
                     <button
                       onClick={() => {
@@ -346,8 +369,7 @@ export default function ReaderScreen({
                     {/* 10. Text Settings (AA) (Always visible) */}
                     <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
                   </div>
-                );
-              })()}
+                )}
 
               {/* Interactive Audio Player */}
               {(activeLesson.audioUrl || activeLesson.audioBase64) && (
@@ -379,6 +401,7 @@ export default function ReaderScreen({
                 showOnlyUnknown={showOnlyUnknown}
                 history={history}
                 onUpdateHistory={handleUpdateHistory}
+                hideMeta={isImmersiveBook}
                 onToggleTranslations={() =>
                   setReaderSettings((prev) => ({
                     ...prev,
@@ -395,8 +418,8 @@ export default function ReaderScreen({
           )}
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА: Inspector sidebar — только в режиме Inspector, скрывается в Calm Sheet */}
-        {!isCalmSheet && (
+        {/* ПРАВАЯ КОЛОНКА: Inspector sidebar — только в режиме Inspector, скрывается в Calm Sheet и Immersive Book */}
+        {!effectiveCalmSheet && (
           <aside className="hidden lg:block lg:col-span-1 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-20">
             <div className="h-full w-full">
               {activeLesson ? (
@@ -438,7 +461,7 @@ export default function ReaderScreen({
       </div>
 
       {/* Calm Sheet mode (desktop lg+): floating popup near the clicked word */}
-      {isCalmSheet && selectedWord && activeLesson && (
+      {effectiveCalmSheet && selectedWord && activeLesson && (
         <FloatingWordPopup
           word={selectedWord}
           sentence={selectedContext}

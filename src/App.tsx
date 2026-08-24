@@ -3107,6 +3107,8 @@ export default function App() {
     ? (readerThemes[readerSettings.readerTheme] || readerThemes.default)
     : readerThemes.default;
 
+  const isImmersiveBook = activeTab === "read" && !!activeLesson && (activeLesson.lessonType === "book" || isFocusMode);
+
   if (!isAppLoaded) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-stone-50 dark:bg-zinc-950 font-sans text-zinc-800 dark:text-zinc-100 transition-colors duration-300 relative overflow-hidden">
@@ -3165,7 +3167,7 @@ export default function App() {
 
       {/* Top Header HUD */}
       <AppHeader
-        isFocusMode={isFocusMode}
+        isFocusMode={isFocusMode || isImmersiveBook}
         activeTab={activeTab}
         readerSettings={readerSettings}
         onUpdateReaderSettings={setReaderSettings}
@@ -3194,7 +3196,7 @@ export default function App() {
       />
 
       {/* ── Focus Mode Sticky Header / Video Zone (Mobile / Tablet Only < 1024px) ── */}
-      {isFocusMode && activeTab === "read" && activeLesson && isMobileTablet && (
+      {isFocusMode && activeTab === "read" && activeLesson && isMobileTablet && activeLesson.lessonType !== "book" && (
         <>
           {/* Pinned YouTube Player sticky at top */}
           {activeLesson.youtubeId && showYoutubePlayer ? (
@@ -3260,7 +3262,9 @@ export default function App() {
 
       {/* Main Body */}
       <main 
-        className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${
+        className={`flex-grow w-full mx-auto ${
+          isImmersiveBook ? "p-2 sm:p-4" : "p-4 sm:p-6 space-y-6"
+        } transition-all duration-300 ${
           activeTab === "read" ? "max-w-full" : layoutContainerClass
         } ${hasActiveQueue ? "pb-36 sm:pb-32" : ""}`}
         style={hasActiveQueue ? { paddingBottom: "max(8rem, calc(6rem + env(safe-area-inset-bottom)))" } : undefined}
@@ -3545,11 +3549,13 @@ export default function App() {
         )}
       </main>
 
-      <footer className={`py-6 border-t ${currentReaderTheme.border} text-center text-xs ${currentReaderTheme.text} opacity-50 ${currentReaderTheme.pageBg} transition-colors duration-200`}>
-        <p className="leading-relaxed">
-          {t('app.footer', 'Lectura {{version}} © 2026. Interactive system for reading and language learning.', { version: APP_VERSION })}
-        </p>
-      </footer>
+      {!isImmersiveBook && (
+        <footer className={`py-6 border-t ${currentReaderTheme.border} text-center text-xs ${currentReaderTheme.text} opacity-50 ${currentReaderTheme.pageBg} transition-colors duration-200`}>
+          <p className="leading-relaxed">
+            {t('app.footer', 'Lectura {{version}} © 2026. Interactive system for reading and language learning.', { version: APP_VERSION })}
+          </p>
+        </footer>
+      )}
       <MatchPairsModal
         isOpen={showMatchPairsModal}
         onClose={() => setShowMatchPairsModal(false)}

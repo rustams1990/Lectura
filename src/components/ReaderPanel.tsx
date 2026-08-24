@@ -782,7 +782,7 @@ function ReaderPanel({
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
-    <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
+    <div id="reader-top" className={`relative rounded-3xl ${hideMeta ? "border shadow-md p-5 sm:p-8 lg:p-12 space-y-4 sm:space-y-6" : "border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"} transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
       <div id="reader-top-anchor" className="h-0 pointer-events-none" />
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
