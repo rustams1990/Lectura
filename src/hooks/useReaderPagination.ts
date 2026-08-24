@@ -155,6 +155,26 @@ export function useReaderPagination({
   const hasTimestamps = useMemo(() => segments.some((s) => s.timestamp !== null), [segments]);
 
   const pages = useMemo<TextSegment[][]>(() => {
+    // 1. If text contains explicit page breaks (---PAGE--- or [PAGE_BREAK]), split strictly by chapters/sections!
+    if (lesson.text && (lesson.text.includes("---PAGE---") || lesson.text.includes("[PAGE_BREAK]") || lesson.text.includes("[PAGE]"))) {
+      const rawChapters = lesson.text.split(/\n\s*---PAGE---\s*\n|\n\s*\[PAGE(?:_BREAK)?\]\s*\n/);
+      const chapterPages: TextSegment[][] = [];
+
+      rawChapters.forEach((chText) => {
+        const trimmed = chText.trim();
+        if (!trimmed) return;
+        const paras = trimmed.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+        const segs: TextSegment[] = paras.map((p) => ({ text: p.trim(), timestamp: null }));
+        if (segs.length > 0) {
+          chapterPages.push(segs);
+        }
+      });
+
+      if (chapterPages.length > 0) {
+        return chapterPages;
+      }
+    }
+
     let pSize = pageSize || "auto";
     if (pSize === "auto") {
       if (hasTimestamps) pSize = "p15";

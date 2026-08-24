@@ -330,12 +330,11 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
       }
     }
 
-    let combinedText = textBlocks.join("\n\n");
+    let combinedText = textBlocks.join("\n\n---PAGE---\n\n");
     combinedText = combinedText
       .replace(/\r\n/g, "\n")
       .replace(/[ \t]+([.,!?:;…»)'"”\u2019\u201d\u2018\u201c\]\}]+)/g, "$1")
       .replace(/([«(\[{“\u2018\u201c])[ \t]+/g, "$1")
-      .replace(/\n{3,}/g, "\n\n")
       .trim();
 
     const result: EpubParseResult = { title, text: combinedText };

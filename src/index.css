@@ -233,5 +233,12 @@ img + .book-paragraph,
   text-indent: 0 !important;
 }
 
+.book-chapter-container {
+  min-height: 90vh;
+  padding-top: 3rem;
+  margin-bottom: 5rem;
+  border-top: 1px dashed rgba(0, 0, 0, 0.05);
+}
+
 
 
