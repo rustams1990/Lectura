@@ -66,6 +66,7 @@ export interface Lesson {
   channelUrl?: string | null;
   author?: string | null;
   playlistId?: string | null;
+  images?: Record<string, string>;
 }
 
 export interface PlaylistItem {

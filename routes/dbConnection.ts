@@ -85,7 +85,8 @@ function setupSchema(db: Database.Database) {
       channelAvatar TEXT,
       channelUrl TEXT,
       playlistId TEXT,
-      wordTimestamps TEXT
+      wordTimestamps TEXT,
+      images TEXT
     );
 
     CREATE TABLE IF NOT EXISTS lesson_types (
@@ -322,6 +323,9 @@ function setupSchema(db: Database.Database) {
   }
   if (!lessonsCols.includes("playlistId")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN playlistId TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("images")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN images TEXT;`); } catch (_) {}
   }
 
   // playlists: user_id & isArchived columns

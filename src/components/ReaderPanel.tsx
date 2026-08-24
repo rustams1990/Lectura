@@ -1040,16 +1040,24 @@ function ReaderPanel({
 
               if (dataUrl.startsWith("epub_img_") || !dataUrl.startsWith("data:")) {
                 const resolved = lessonImagesMap?.[dataUrl] || (lesson as any).images?.[dataUrl] || (lesson as any).media?.images?.[dataUrl];
-                if (!resolved) {
+                if (resolved) {
+                  dataUrl = resolved;
+                } else if (dataUrl.startsWith("epub_img_")) {
                   console.warn("[ReaderPanel] Could not resolve image ID:", dataUrl, "in lesson images");
                   return null;
                 }
-                dataUrl = resolved;
               } else if (trimmedSegText.startsWith("[IMG_REF:")) {
                 return null;
               }
 
-              if (!dataUrl.startsWith("data:image/")) return null;
+              // Normalize host: replace http://localhost:... or http://127.0.0.1:... with current window.location.origin
+              if (typeof dataUrl === "string" && typeof window !== "undefined" && window.location?.origin) {
+                dataUrl = dataUrl.replace(/^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, window.location.origin);
+              }
+
+              if (!dataUrl || (!dataUrl.startsWith("data:image/") && !dataUrl.startsWith("http://") && !dataUrl.startsWith("https://") && !dataUrl.startsWith("/"))) {
+                return null;
+              }
 
               return (
                 <div 

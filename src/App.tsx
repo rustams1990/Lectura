@@ -2084,8 +2084,10 @@ export default function App() {
 
   const activeLessonImagesMap = useMemo(() => {
     if (!activeLesson?.id) return {};
-    return getLessonImagesMap(activeLesson.id);
-  }, [activeLesson?.id, lessonImagesVersion]);
+    const fromStore = getLessonImagesMap(activeLesson.id);
+    const fromLesson = activeLesson.images || {};
+    return { ...fromLesson, ...fromStore };
+  }, [activeLesson?.id, activeLesson?.images, lessonImagesVersion]);
 
   useEffect(() => {
     if (activeLesson?.youtubeId) {
@@ -2611,14 +2613,25 @@ export default function App() {
 
 
 
-  const handleAddLesson = (newL: Lesson, images?: Record<string, { dataUrl: string; width: string; height: string }>) => {
+  const handleAddLesson = (newL: Lesson, images?: Record<string, { dataUrl: string; width: string; height: string } | string>) => {
     lastLocalChangeTime.current = Date.now();
+    const flatImagesMap: Record<string, string> = {};
+    if (images) {
+      for (const [id, img] of Object.entries(images)) {
+        if (typeof img === "string") {
+          flatImagesMap[id] = img;
+        } else if (img && typeof (img as any).dataUrl === "string") {
+          flatImagesMap[id] = (img as any).dataUrl;
+        }
+      }
+    }
     const lessonWithDate: Lesson = {
       ...newL,
       createdAt: newL.createdAt || Date.now(),
+      images: Object.keys(flatImagesMap).length > 0 ? flatImagesMap : (newL.images || undefined),
     };
     if (images && Object.keys(images).length > 0) {
-      setLessonImages(lessonWithDate.id, images);
+      setLessonImages(lessonWithDate.id, images as any);
       setLessonImagesVersion((v) => v + 1);
     }
     let updatedLessons: Lesson[] = [];

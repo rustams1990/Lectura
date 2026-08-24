@@ -374,6 +374,7 @@ export function getLocalServerDb(userId: string = "default") {
         channelAvatarUrl: l.channelAvatarUrl || null,
         channelUrl: l.channelUrl || null,
         playlistId: l.playlistId || null,
+        images: l.images ? (typeof l.images === "string" ? JSON.parse(l.images) : l.images) : undefined,
       };
     });
 
@@ -568,8 +569,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, channelUrl, playlistId
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, channelUrl, playlistId, images
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertPlaylist = db.prepare(`
@@ -751,7 +752,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           l.channelName || l.channelTitle || null,
           l.channelAvatarUrl || l.channelAvatar || null,
           l.channelUrl || null,
-          l.playlistId || null
+          l.playlistId || null,
+          l.images ? (typeof l.images === "string" ? l.images : JSON.stringify(l.images)) : null
         );
       }
 
