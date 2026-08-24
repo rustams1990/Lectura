@@ -786,7 +786,7 @@ function ReaderPanel({
       id="reader-top" 
       className={`relative ${
         hideMeta 
-          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-10 sm:pt-12 pb-28 sm:pb-32 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
+          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-6 sm:pt-8 lg:pt-10 pb-28 sm:pb-32 min-h-screen lg:min-h-[70vh] flex flex-col justify-start items-stretch" 
           : "rounded-3xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"
       } transition-colors duration-200 overflow-hidden ${currentTheme.container}`}
     >
@@ -981,7 +981,7 @@ function ReaderPanel({
         onMouseUp={handleTextSelection}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`prose max-w-none space-y-5 text-left antialiased tracking-normal leading-relaxed ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
+        className={`prose max-w-none space-y-5 text-left antialiased tracking-normal leading-relaxed flex-1 w-full ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
       >
         {showOnlyUnknown && unknownViewMode === "list" && (
           <ReaderUnknownWordsList
