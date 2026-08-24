@@ -811,29 +811,6 @@ export default function App() {
     readerSettingsRef.current = readerSettings;
   }, [readerSettings]);
 
-  // Auto-apply optimal reading typography when opening a book (lessonType === "book")
-  useEffect(() => {
-    if (activeLesson && activeLesson.lessonType === "book") {
-      setReaderSettings((prev) => {
-        let changed = false;
-        const next = { ...prev };
-        if (next.fontFamily !== "serif") {
-          next.fontFamily = "serif";
-          changed = true;
-        }
-        if (next.readerViewStyle !== "text") {
-          next.readerViewStyle = "text";
-          changed = true;
-        }
-        if (next.wordCardMode !== "calm-sheet") {
-          next.wordCardMode = "calm-sheet";
-          changed = true;
-        }
-        return changed ? next : prev;
-      });
-    }
-  }, [activeLesson?.id, activeLesson?.lessonType]);
-
   const updateSettingsAndSync = (newSettingsOrFn: React.SetStateAction<ReaderSettings>) => {
     setReaderSettings((prev) => {
       const next = typeof newSettingsOrFn === "function" ? newSettingsOrFn(prev) : newSettingsOrFn;
@@ -2020,6 +1997,29 @@ export default function App() {
   useEffect(() => {
     setActiveLesson(activeLesson || null);
   }, [activeLesson, setActiveLesson]);
+
+  // Auto-apply optimal reading typography when opening a book (lessonType === "book")
+  useEffect(() => {
+    if (activeLesson && activeLesson.lessonType === "book") {
+      setReaderSettings((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        if (next.fontFamily !== "serif") {
+          next.fontFamily = "serif";
+          changed = true;
+        }
+        if (next.readerViewStyle !== "text") {
+          next.readerViewStyle = "text";
+          changed = true;
+        }
+        if (next.wordCardMode !== "calm-sheet") {
+          next.wordCardMode = "calm-sheet";
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [activeLesson?.id, activeLesson?.lessonType]);
 
   useEffect(() => {
     try {
