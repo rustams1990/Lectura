@@ -4,6 +4,7 @@ import {
   SaveLessonPayload,
   SaveWordPayload,
   WordMap,
+  YouTubeActivityPayload,
 } from '../types/index';
 import { StorageService } from './storage';
 
@@ -553,5 +554,116 @@ export class LecturaApiClient {
       }
     } catch (_) {}
     return null;
+  }
+
+  /**
+   * Logs media watch/listening activity to Lectura server
+   */
+  async logActivity(payload: YouTubeActivityPayload): Promise<{ success: boolean; loggedSeconds?: number; totalListeningSeconds?: number }> {
+    if (this.isContentScript()) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: 'LOG_YOUTUBE_ACTIVITY', payload }, (response) => {
+          if (response?.success) {
+            resolve(response.data || { success: true });
+          } else {
+            resolve({ success: false });
+          }
+        });
+      });
+    }
+
+    const settings = await this.getActiveSettings();
+    const url = this.sanitizeUrl(settings.serverUrl, '/api/history/log');
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: this.buildHeaders(settings),
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (err: any) {
+      console.warn('[LecturaApiClient] Failed to log activity to server:', err?.message || err);
+    }
+    return { success: false };
+  }
+
+  /**
+   * Retrieves reading / listening activity history
+   */
+  async getActivityHistory(language?: string): Promise<{
+    success: boolean;
+    history: any[];
+    userGoals?: { dailyGoalMinutes?: number; dailyGoalsByLanguage?: Record<string, number> };
+    customFlags?: Record<string, string>;
+  }> {
+    const settings = await this.getActiveSettings();
+    const langParam = language && language !== 'all' ? `?language=${encodeURIComponent(language)}` : '';
+    const url = this.sanitizeUrl(settings.serverUrl, `/api/history${langParam}`);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.buildHeaders(settings),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          success: true,
+          history: data.history || [],
+          userGoals: data.userGoals,
+          customFlags: data.customFlags,
+        };
+      }
+    } catch (err: any) {
+      console.warn('[LecturaApiClient] Failed to fetch activity history:', err?.message || err);
+    }
+    return { success: false, history: [] };
+  }
+
+  /**
+   * Retrieves activity history logs for a specific day (YYYY-MM-DD)
+   */
+  async getDayActivity(dateStr: string, language?: string): Promise<{ success: boolean; logs: any[] }> {
+    const settings = await this.getActiveSettings();
+    const langParam = language && language !== 'all' ? `&language=${encodeURIComponent(language)}` : '';
+    const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}`);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.buildHeaders(settings),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return { success: true, logs: data.logs || [] };
+      }
+    } catch (err: any) {
+      console.warn('[LecturaApiClient] Failed to fetch day activity:', err?.message || err);
+    }
+    return { success: false, logs: [] };
+  }
+
+  /**
+   * Deletes a specific activity log entry
+   */
+  async deleteActivityLog(logId: string | number): Promise<{ success: boolean }> {
+    const settings = await this.getActiveSettings();
+    const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/log/${encodeURIComponent(String(logId))}`);
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: this.buildHeaders(settings),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        return { success: true };
+      }
+    } catch (err: any) {
+      console.warn('[LecturaApiClient] Failed to delete activity log:', err?.message || err);
+    }
+    return { success: false };
   }
 }

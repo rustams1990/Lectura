@@ -1450,7 +1450,7 @@ export default function SettingsModal({
                       🔬 {t("settings.card_mode_full", "Расширенный инспектор")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_full_desc", "Полная панель со всеми тегами, AI-разбором и провайдерами перевода")}
+                      {t("settings.card_mode_full_desc", "Полная панель со всеми тегами и провайдерами перевода")}
                     </span>
                   </button>
 

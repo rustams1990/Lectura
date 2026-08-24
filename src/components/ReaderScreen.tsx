@@ -7,7 +7,7 @@ import ReaderView from "./ReaderView";
 import WordDetailContainer from "./WordDetailContainer";
 import FloatingWordPopup from "./FloatingWordPopup";
 import AiHubModal from "./AiHubModal";
-import { Lesson, HistoryEntry, ReaderSettings, VocabItem } from "../types";
+import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBILITY, ReaderToolbarVisibility } from "../types";
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
 import { useSettingsStore } from "../store/settingsStore";
@@ -84,16 +84,16 @@ export default function ReaderScreen({
     setShowOnlyUnknown,
     showYoutubePlayer,
     setShowYoutubePlayer,
-    layoutWidthMode,
-    setLayoutWidthMode,
+    readerTextWidth,
+    setReaderTextWidth,
     showAiHubModal,
     setShowAiHubModal,
   } = useUIStore();
   const { t } = useTranslation();
   const { selectedElement, selectedWordRect } = useVocab();
   const { wordCardMode: storeCardMode } = useSettingsStore();
+  // true when user has chosen "Calm Sheet" mode in Text Settings
   const isCalmSheet = (readerSettings.wordCardMode || storeCardMode) === "calm-sheet";
-
   const [selectedText, setSelectedText] = useState("");
 
   // Global hotkeys: 'T' for parallel translations, 'Escape' to exit Focus Mode
@@ -121,196 +121,233 @@ export default function ReaderScreen({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setReaderSettings, isFocusMode, setIsFocusMode]);
 
+  // Isolated layout width classes strictly applied inside Reader
+  const readerWidthClasses = isCalmSheet
+    ? ({
+        standard: "max-w-4xl mx-auto",
+        wide: "max-w-6xl mx-auto",
+        full: "w-full px-2 sm:px-4 lg:px-6",
+      }[readerTextWidth || "standard"])
+    : ({
+        standard: "max-w-7xl mx-auto",
+        wide: "max-w-[1560px] mx-auto",
+        full: "w-full px-2 sm:px-4 lg:px-6",
+      }[readerTextWidth || "standard"]);
+
   return (
-    <>      <div className="grid grid-cols-12 gap-6 items-start">
-        {/* Middle Main - Reader and Audio player - Full width in Calm Sheet mode, 8 cols in Full Inspector mode */}
-        <div className={isCalmSheet ? "col-span-12 min-w-0 space-y-2.5 sm:space-y-4" : "col-span-12 md:col-span-8 lg:col-span-8 min-w-0 space-y-2.5 sm:space-y-4"}>
+    <>
+      <div className={`reader-layout-container reader-page-wrapper w-full transition-all duration-200 ${readerWidthClasses}`}>
+        <div className={`grid grid-cols-1 ${isCalmSheet ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-6 items-start`}>
+          {/* ЛЕВАЯ КОЛОНКА / ОСНОВНОЙ КОНТЕНТ: Текст урока */}
+          <div className={`${isCalmSheet ? 'col-span-1 w-full' : 'lg:col-span-2'} min-w-0 space-y-2.5 sm:space-y-4`}>
           {activeLesson ? (
             <>
-              {/* Quiet minimal inline toolbar (hidden on mobile/tablet, shown only on desktop lg:) */}
-              <div className="hidden lg:flex items-center justify-between gap-x-3 gap-y-2 pb-2.5 pt-1 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200">
-                {/* Left side actions scrollable bar */}
-                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar min-w-0 flex-1 pr-1">
-                  <button
-                    onClick={() => {
-                      setActiveTab("library");
-                      setSelectedWord(null);
-                    }}
-                    className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:shadow-xs transition-all active:scale-97 cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    {t('reader.library_btn', 'Библиотека')}
-                  </button>
+              {/* Reader inline toolbar (visible only on PC / Desktop >= lg) */}
+              {(() => {
+                const toolbarVisibility: ReaderToolbarVisibility = {
+                  ...DEFAULT_TOOLBAR_VISIBILITY,
+                  ...(readerSettings.toolbarVisibility || {}),
+                };
 
-                  {/* AI Hub Modal Launcher */}
-                  <button
-                    onClick={() => setShowAiHubModal(true)}
-                    className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
-                    title={t('reader.ai_hub_title', 'Открыть ИИ-Центр (Поиск выражений, сленга и анализ свойств слов)')}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{t('reader.ai_hub_btn', 'AI Hub')}</span>
-                  </button>
-
-                  {/* Parallel Sentence Translation Mode Toggle */}
-                  <button
-                    onClick={() =>
-                      setReaderSettings((prev) => ({
-                        ...prev,
-                        showSentenceTranslations: !prev.showSentenceTranslations,
-                      }))
-                    }
-                    className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      readerSettings.showSentenceTranslations
-                        ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50 shadow-xs"
-                        : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
-                    }`}
-                    title={t('reader.parallel_toggle_title', 'Построчный перевод предложений (HotKey: T)')}
-                  >
-                    <Languages className="w-3.5 h-3.5" />
-                    <span>{t('reader.parallel_btn', 'Перевод')}</span>
-                  </button>
-
-                  {/* Focus Mode Toggle */}
-                  <button
-                    onClick={() => setIsFocusMode(!isFocusMode)}
-                    className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      isFocusMode
-                        ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50 shadow-xs"
-                        : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
-                    }`}
-                    title={isFocusMode ? t('app.focus_exit', 'Выйти из фокуса (Esc)') : t('reader.focus_btn', 'Режим фокуса')}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{isFocusMode ? t('app.focus_exit', 'Выйти из фокуса') : t('reader.focus_btn', 'Focus Mode')}</span>
-                  </button>
-
-                  <button
-                    onClick={() => setShowMatchPairsModal(true)}
-                    className="flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border border-zinc-200 dark:border-zinc-800 text-xs font-bold rounded-xl transition-all active:scale-97 cursor-pointer"
-                    title={t('reader.pairs_btn_title', 'Игра: сопоставление слов и перевода')}
-                  >
-                    <Trophy className="w-3.5 h-3.5" />
-                    {t('reader.pairs_btn', 'Игра: Пары')}
-                  </button>
-
-                  {/* Unknown words only toggle button */}
-                  <button
-                    onClick={() => setShowOnlyUnknown(!showOnlyUnknown)}
-                    className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      showOnlyUnknown
-                        ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm"
-                        : "bg-white hover:bg-zinc-55 hover:text-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800"
-                    }`}
-                    title={t('reader.unknown_btn_title', 'Показать только неизвестные слова в уроке')}
-                  >
-                    {showOnlyUnknown ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                    <span>{t('reader.unknown_btn', 'Только неизвестные')}</span>
-                  </button>
-
-                  {activeLesson?.youtubeId && (
+                return (
+                  <div className="hidden lg:flex items-center gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
+                    {/* 1. Library (Always visible) */}
                     <button
                       onClick={() => {
-                        const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
-                        if (isMobileOrTablet) {
-                          if (isFocusMode && showYoutubePlayer) {
-                            setShowYoutubePlayer(false);
-                          } else {
-                            setIsFocusMode(true);
-                            setShowYoutubePlayer(true);
-                          }
-                        } else {
-                          setShowYoutubePlayer(!showYoutubePlayer);
-                        }
+                        setActiveTab("library");
+                        setSelectedWord(null);
                       }}
-                      className={`flex items-center justify-center gap-1.5 h-8 px-2.5 shrink-0 whitespace-nowrap border rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        (showYoutubePlayer && !isFocusMode) || (isFocusMode && showYoutubePlayer)
-                          ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
-                          : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 border-zinc-200 dark:border-zinc-800"
-                      }`}
-                      title={t('reader.video_btn_title', 'Toggle YouTube Video window')}
+                      className="px-3.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
                     >
-                      <Tv className="w-3.5 h-3.5" />
-                      <span>{t('reader.video_btn', 'Видео')}</span>
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>{t('reader.library_btn', 'Library')}</span>
                     </button>
-                  )}
 
-                  {/* Reader View Style Selector: Badges vs Clean Book Text */}
-                  <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setReaderSettings((prev) => ({ ...prev, readerViewStyle: "badges" }))}
-                      className={`h-6 px-1.5 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        (readerSettings.readerViewStyle || "badges") === "badges"
-                          ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                      title={t('reader.view_badges_title', 'Card-style word tiles (LingQ style)')}
-                    >
-                      <Brain className="w-3 h-3" />
-                      <span>{t('reader.view_badges', 'Плитки')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReaderSettings((prev) => ({ ...prev, readerViewStyle: "text" }))}
-                      className={`h-6 px-1.5 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        readerSettings.readerViewStyle === "text"
-                          ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                      title={t('reader.view_text_title', 'Clean continuous book text')}
-                    >
-                      <BookOpen className="w-3 h-3" />
-                      <span>{t('reader.view_text', 'Книга')}</span>
-                    </button>
+                    {/* 2. AI Hub */}
+                    {toolbarVisibility.showAiHub !== false && (
+                      <button
+                        onClick={() => setShowAiHubModal(true)}
+                        className="px-3.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                        title={t('reader.ai_hub_title', 'Open AI Hub (Phrases, slang and word analysis)')}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                        <span>{t('reader.ai_hub_btn', 'AI Hub')}</span>
+                      </button>
+                    )}
+
+                    {/* 3. Translation */}
+                    {toolbarVisibility.showTranslation !== false && (
+                      <button
+                        onClick={() =>
+                          setReaderSettings((prev) => ({
+                            ...prev,
+                            showSentenceTranslations: !prev.showSentenceTranslations,
+                          }))
+                        }
+                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                          readerSettings.showSentenceTranslations
+                            ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
+                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                        }`}
+                        title={
+                          readerSettings.showSentenceTranslations
+                            ? t('reader.hide_translations_title', 'Hide parallel sentence translation (T)')
+                            : t('reader.show_translations_title', 'Show parallel sentence translation (T)')
+                        }
+                      >
+                        <Languages className="w-3.5 h-3.5" />
+                        <span>{t('reader.translations_btn', 'Translation')}</span>
+                      </button>
+                    )}
+
+                    {/* 4. Focus Mode */}
+                    {toolbarVisibility.showFocusMode !== false && (
+                      <button
+                        onClick={() => setIsFocusMode(!isFocusMode)}
+                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                          isFocusMode
+                            ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
+                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                        }`}
+                        title={isFocusMode ? t('app.focus_exit', 'Exit Focus (Esc)') : t('reader.focus_btn', 'Focus Mode')}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>{isFocusMode ? t('app.focus_exit', 'Exit Focus') : t('reader.focus_btn', 'Focus Mode')}</span>
+                      </button>
+                    )}
+
+                    {/* 5. Play: Pairs */}
+                    {toolbarVisibility.showPlayPairs !== false && (
+                      <button
+                        onClick={() => setShowMatchPairsModal(true)}
+                        className="px-3.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                        title={t('reader.pairs_btn_title', 'Game: word and translation matching')}
+                      >
+                        <Trophy className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                        <span>{t('reader.pairs_btn', 'Play: Pairs')}</span>
+                      </button>
+                    )}
+
+                    {/* 6. Unknown Only */}
+                    {toolbarVisibility.showUnknownOnly !== false && (
+                      <button
+                        onClick={() => setShowOnlyUnknown(!showOnlyUnknown)}
+                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                          showOnlyUnknown
+                            ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-800"
+                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                        }`}
+                        title={t('reader.unknown_btn_title', 'Show only unknown words in the lesson')}
+                      >
+                        <EyeOff className="w-3.5 h-3.5" />
+                        <span>{t('reader.unknown_btn', 'Unknown Only')}</span>
+                      </button>
+                    )}
+
+                    {/* 7. Video */}
+                    {toolbarVisibility.showVideoToggle !== false && activeLesson?.youtubeId && (
+                      <button
+                        onClick={() => {
+                          const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
+                          if (isMobileOrTablet) {
+                            if (isFocusMode && showYoutubePlayer) {
+                              setShowYoutubePlayer(false);
+                            } else {
+                              setIsFocusMode(true);
+                              setShowYoutubePlayer(true);
+                            }
+                          } else {
+                            setShowYoutubePlayer(!showYoutubePlayer);
+                          }
+                        }}
+                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                          (showYoutubePlayer && !isFocusMode) || (isFocusMode && showYoutubePlayer)
+                            ? "bg-teal-50/60 dark:bg-teal-950/40 border-teal-300 dark:border-teal-800 text-teal-600 dark:text-teal-400"
+                            : "bg-teal-50/60 dark:bg-teal-950/30 border-teal-300/80 dark:border-teal-800/80 text-teal-600 dark:text-teal-400 hover:bg-teal-100/50"
+                        }`}
+                        title={t('reader.video_btn_title', 'Toggle YouTube Video window')}
+                      >
+                        <Tv className="w-3.5 h-3.5" />
+                        <span>{t('reader.video_btn', 'Video')}</span>
+                      </button>
+                    )}
+
+                    {/* 8. Переключатель Badges / Book */}
+                    {toolbarVisibility.showDisplayMode !== false && (
+                      <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setReaderSettings((prev) => ({ ...prev, readerViewStyle: 'badges' }))}
+                          className={`h-6 px-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                            (!readerSettings.readerViewStyle || readerSettings.readerViewStyle === 'badges')
+                              ? 'bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-300'
+                          }`}
+                          title={t('reader.view_badges_title', 'Badge/Pill highlight tiles view')}
+                        >
+                          <Brain className="w-3.5 h-3.5" />
+                          <span>{t('reader.view_badges', 'Badges')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReaderSettings((prev) => ({ ...prev, readerViewStyle: 'text' }))}
+                          className={`h-6 px-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                            readerSettings.readerViewStyle === 'text'
+                              ? 'bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-300'
+                          }`}
+                          title={t('reader.view_text_title', 'Clean continuous book typography view')}
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>{t('reader.view_text', 'Book')}</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 9. Переключатель STANDARD / WIDE / FULL */}
+                    {toolbarVisibility.showWidthToggle !== false && (
+                      <div className="flex items-center gap-2.5 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-[11px] font-bold shadow-xs shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setReaderTextWidth('standard')}
+                          className={`transition-colors cursor-pointer ${
+                            (readerTextWidth || 'standard') === 'standard'
+                              ? 'text-teal-600 dark:text-teal-400 font-bold'
+                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 font-medium'
+                          }`}
+                        >
+                          STANDARD
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReaderTextWidth('wide')}
+                          className={`transition-colors cursor-pointer ${
+                            readerTextWidth === 'wide'
+                              ? 'text-teal-600 dark:text-teal-400 font-bold'
+                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 font-medium'
+                          }`}
+                        >
+                          WIDE
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReaderTextWidth('full')}
+                          className={`transition-colors cursor-pointer ${
+                            readerTextWidth === 'full'
+                              ? 'text-teal-600 dark:text-teal-400 font-bold'
+                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 font-medium'
+                          }`}
+                        >
+                          FULL
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 10. Text Settings (AA) (Always visible) */}
+                    <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
                   </div>
-
-                  {/* Reader Layout Width Controls */}
-                  <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setLayoutWidthMode("standard")}
-                      className={`h-6 px-1.5 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        layoutWidthMode === "standard"
-                          ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                      title={t('reader.width_standard_title', 'Default width (1280px)')}
-                    >
-                      {t('reader.width_standard', 'Стандарт')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLayoutWidthMode("wide")}
-                      className={`h-6 px-1.5 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        layoutWidthMode === "wide"
-                          ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                      title={t('reader.width_wide_title', 'Wide width (1560px)')}
-                    >
-                      {t('reader.width_wide', 'Широкий')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLayoutWidthMode("full")}
-                      className={`h-6 px-1.5 flex items-center justify-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        layoutWidthMode === "full"
-                          ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-100/70 dark:border-zinc-700"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                      title={t('reader.width_full_title', 'Full screen width')}
-                    >
-                      {t('reader.width_full', 'Экран')}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Right side settings buttons */}
-                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                  <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Interactive Audio Player */}
               {(activeLesson.audioUrl || activeLesson.audioBase64) && (
@@ -358,12 +395,13 @@ export default function ReaderScreen({
           )}
         </div>
 
-        {/* Right Sidebar - Active Word Explainer definitions (only in Full Inspector mode) */}
+        {/* ПРАВАЯ КОЛОНКА: Inspector sidebar — только в режиме Inspector, скрывается в Calm Sheet */}
         {!isCalmSheet && (
-          <div className="hidden md:block md:col-span-4 lg:col-span-4 md:sticky md:top-[24px] max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-25">
-            <div className="h-full">
+          <aside className="hidden lg:block lg:col-span-1 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-20">
+            <div className="h-full w-full">
               {activeLesson ? (
                 <WordDetailContainer
+                  forceInspector={true}
                   word={selectedWord}
                   sentence={selectedContext}
                   targetLanguage={activeLesson.targetLanguage}
@@ -387,20 +425,54 @@ export default function ReaderScreen({
                   onOpenLesson={handleOpenLesson}
                 />
               ) : (
-                <div className="text-center p-4 text-zinc-400">{t('reader.select_first', 'Select a lesson first')}</div>
+                <div className="empty-inspector-placeholder bg-white/60 dark:bg-zinc-900/60 rounded-2xl border border-dashed border-stone-300 dark:border-zinc-800 p-8 text-center text-stone-400">
+                  <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p className="font-medium text-sm">No Word Selected</p>
+                  <p className="text-xs text-stone-400 mt-1">Click on any word to view translation and definitions</p>
+                </div>
               )}
             </div>
-          </div>
+          </aside>
         )}
       </div>
-      
-      {/* On small screens (< md), if a word is selected, show it in a sliding bottom sheet (only in Full Inspector mode) */}
-      {!isCalmSheet && selectedWord && activeLesson && (
-        <div 
-          className="fixed inset-0 z-[70] md:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
+      </div>
+
+      {/* Calm Sheet mode (desktop lg+): floating popup near the clicked word */}
+      {isCalmSheet && selectedWord && activeLesson && (
+        <FloatingWordPopup
+          word={selectedWord}
+          sentence={selectedContext}
+          targetLanguage={activeLesson.targetLanguage}
+          translationLanguage={activeLesson.translationLanguage}
+          existingVocab={activeVocabItem}
+          wordLinks={wordLinks}
+          vocab={vocab}
+          onSaveVocab={handleSaveVocabItem}
+          onDeleteVocab={handleDeleteVocabItem}
+          onSaveWordLink={handleSaveWordLink}
+          onDeleteWordLink={handleDeleteWordLink}
+          onClose={() => setSelectedWord(null)}
+          settings={readerSettings}
+          onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
+          onWordClick={handleWordClick}
+          lessonText={activeLesson?.text}
+          lessons={lessons}
+          detectedPhrases={activeLesson.detectedPhrases}
+          textLemmas={activeLesson?.text_lemmas}
+          currentLessonId={activeLesson?.id}
+          onOpenLesson={handleOpenLesson}
+          targetEl={selectedElement}
+          targetRect={selectedWordRect}
+        />
+      )}
+
+      {/* Mobile/tablet (< lg): bottom sheet for both Inspector and Calm Sheet modes */}
+      {selectedWord && activeLesson && (
+        <div
+          className="fixed inset-0 z-[70] lg:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
           onClick={() => setSelectedWord(null)}
         >
-          <div 
+          <div
             className={`font-sans max-h-[80vh] w-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} rounded-t-3xl border-t ${currentReaderTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -434,35 +506,6 @@ export default function ReaderScreen({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Floating Contextual Popover (when in Calm Sheet / Calm Light mode) */}
-      {isCalmSheet && selectedWord && activeLesson && (
-        <FloatingWordPopup
-          word={selectedWord}
-          sentence={selectedContext}
-          targetLanguage={activeLesson.targetLanguage}
-          translationLanguage={activeLesson.translationLanguage}
-          existingVocab={activeVocabItem}
-          wordLinks={wordLinks}
-          vocab={vocab}
-          onSaveVocab={handleSaveVocabItem}
-          onDeleteVocab={handleDeleteVocabItem}
-          onSaveWordLink={handleSaveWordLink}
-          onDeleteWordLink={handleDeleteWordLink}
-          onClose={() => setSelectedWord(null)}
-          settings={readerSettings}
-          onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
-          onWordClick={handleWordClick}
-          lessonText={activeLesson?.text}
-          lessons={lessons}
-          detectedPhrases={activeLesson.detectedPhrases}
-          textLemmas={activeLesson?.text_lemmas}
-          currentLessonId={activeLesson?.id}
-          onOpenLesson={handleOpenLesson}
-          targetEl={selectedElement}
-          targetRect={selectedWordRect}
-        />
       )}
 
       {/* AI Hub Modal */}

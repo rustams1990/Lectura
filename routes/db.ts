@@ -62,75 +62,110 @@ function getLangCode(langName: string): string {
 
 // Keyless freedictionaryapi.com Fetcher
 async function fetchFreeDictionaryFromCom(word: string, langCode: string) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
   try {
     const url = `https://freedictionaryapi.com/api/v1/entries/${langCode}/${encodeURIComponent(word)}?translations=true`;
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "LecturaApp/2.99 (https://github.com/lectura; contact@lectura.local)",
+        "Accept": "application/json"
       }
     });
+    clearTimeout(timeoutId);
     if (!response.ok) return null;
     const data = await response.json();
     if (data && data.entries && Array.isArray(data.entries) && data.entries.length > 0) {
       return data;
     }
-  } catch (e) {
-    console.error("freedictionaryapi.com fetch failed for word:", word, e);
+  } catch (e: any) {
+    clearTimeout(timeoutId);
+    if (e?.name === 'AbortError' || e?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+      console.warn(`[FreeDictAPI] Timeout for word "${word}" (${langCode})`);
+    } else {
+      console.warn(`[FreeDictAPI] Failed for word "${word}":`, e?.message || e);
+    }
   }
   return null;
 }
 
 // Keyless Free Dictionary API Fetcher
 async function fetchFreeDictionary(word: string, langCode: string) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
   try {
     const url = `https://api.dictionaryapi.dev/api/v2/entries/${langCode}/${encodeURIComponent(word)}`;
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "LecturaApp/2.99 (https://github.com/lectura; contact@lectura.local)",
+        "Accept": "application/json"
       }
     });
+    clearTimeout(timeoutId);
     if (!response.ok) return null;
     const data = await response.json();
     if (Array.isArray(data) && data.length > 0) {
       return data[0];
     }
-  } catch (e) {
-    console.error("Free Dictionary API fetch failed for word:", word, e);
+  } catch (e: any) {
+    clearTimeout(timeoutId);
+    if (e?.name === 'AbortError' || e?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+      console.warn(`[DictionaryAPI.dev] Timeout for word "${word}" (${langCode})`);
+    } else {
+      console.warn(`[DictionaryAPI.dev] Failed for word "${word}":`, e?.message || e);
+    }
   }
   return null;
 }
 
-// Keyless Wiktionary REST Definition API Fetcher
-async function fetchWiktionary(word: string, langCode: string) {
+// Keyless Wiktionary REST Definition API Fetcher with proper User-Agent & timeout
+async function fetchWiktionarySingle(word: string, lang: string = 'en') {
+  const cleanWord = word.trim().toLowerCase();
+  const endpoint = `https://${lang}.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(cleanWord)}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s timeout
+
   try {
-    const url = `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`;
-    const response = await fetch(url, {
+    const response = await fetch(endpoint, {
+      signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        'User-Agent': 'LecturaApp/2.99 (https://github.com/lectura; contact@lectura.local)',
+        'Accept': 'application/json'
       }
     });
-    if (response.ok) {
-      return await response.json();
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      // 404 is expected when word doesn't exist in Wiktionary
+      return null;
     }
-  } catch (e) {
-    console.error("Wiktionary API 'en' fetch failed for word:", word, e);
+
+    return await response.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+
+    if (error?.name === 'AbortError' || error?.code === 'UND_ERR_CONNECT_TIMEOUT' || error?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+      console.warn(`[Wiktionary] Timeout for word "${cleanWord}" (${lang}) — skipping definition.`);
+    } else {
+      console.warn(`[Wiktionary] Failed to fetch "${cleanWord}" (${lang}): ${error?.message || error}`);
+    }
+
+    return null;
+  }
+}
+
+async function fetchWiktionary(word: string, langCode: string) {
+  const primaryResult = await fetchWiktionarySingle(word, 'en');
+  if (primaryResult) return primaryResult;
+
+  if (langCode && langCode !== 'en') {
+    return await fetchWiktionarySingle(word, langCode);
   }
 
-  if (langCode !== "en") {
-    try {
-      const fallbackUrl = `https://${langCode}.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`;
-      const response = await fetch(fallbackUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-      });
-      if (response.ok) {
-        return await response.json();
-      }
-    } catch (e) {
-      console.error("Wiktionary fallback fetch failed for word:", word, e);
-    }
-  }
   return null;
 }
 
@@ -250,11 +285,22 @@ export function getLocalServerDb(userId: string = "default") {
     ).get(userId) as { value: string } | undefined;
     const listeningSeconds = listeningRow ? parseFloat(listeningRow.value) || 0 : 0;
 
-    // Language flags — global (shared across users)
+    // Language flags — global (shared across users) + user scoped overrides
     const langRows = db.prepare("SELECT code, flag FROM languages WHERE flag IS NOT NULL").all() as { code: string; flag: string }[];
     const languageFlags: Record<string, string> = {};
     for (const row of langRows) {
       languageFlags[row.code] = row.flag;
+    }
+    const userLangFlagsRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'languageFlags'").get(userId) as { value: string } | undefined;
+    if (userLangFlagsRow?.value) {
+      try {
+        const parsed = JSON.parse(userLangFlagsRow.value);
+        if (parsed && typeof parsed === 'object') {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'string') languageFlags[k] = v;
+          }
+        }
+      } catch (_) {}
     }
 
     // Lessons — strictly this user's, newest first (Whisper books appear at the top)
@@ -545,6 +591,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       for (const [lang, flag] of Object.entries(flags)) {
         const name = lang.charAt(0).toUpperCase() + lang.slice(1);
         insertLanguage.run(lang, name, flag as string);
+      }
+      if (data.languageFlags && typeof data.languageFlags === "object") {
+        insertMetadata.run(userId, "languageFlags", JSON.stringify(data.languageFlags));
       }
 
       const vocabWords = data.vocab || {};
@@ -1696,6 +1745,358 @@ router.post("/history/assign-channel", (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("[POST /api/history/assign-channel] Error:", err);
     return res.status(500).json({ error: "Failed to assign channel in batch" });
+  }
+});
+
+// 15b. Log Media Watch Activity & Listening History (POST /api/history/log & POST /api/activity/log)
+const logActivityHandler = (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const {
+    videoId,
+    videoTitle,
+    channelName,
+    channelAvatarUrl,
+    channelUrl,
+    thumbnailUrl,
+    durationSeconds,
+    watchedSeconds,
+    language,
+    timestamp,
+  } = req.body || {};
+
+  const seconds = Math.round(Number(watchedSeconds) || 0);
+  if (seconds <= 0) {
+    return res.json({ success: true, loggedSeconds: 0, message: "Ignored (0 seconds)" });
+  }
+
+  try {
+    const db = getDbConnection(userId);
+    const cleanVideoId = String(videoId || "").trim();
+    const cleanTitle = String(videoTitle || cleanVideoId || "YouTube Video").trim();
+    const cleanChannel = channelName ? String(channelName).trim() : "YouTube";
+    const cleanCover = thumbnailUrl || (cleanVideoId ? `https://img.youtube.com/vi/${cleanVideoId}/hqdefault.jpg` : null);
+    const targetLang = language ? String(language).toLowerCase().trim() : "en";
+    const nowIso = timestamp ? new Date(timestamp).toISOString() : new Date().toISOString();
+    const todayDatePrefix = nowIso.slice(0, 10); // e.g. "2026-08-24"
+
+    const lessonId = cleanVideoId ? `youtube_${cleanVideoId}` : `custom_activity_${Date.now().toString(36)}`;
+
+    // Check if a history record for this video on the SAME day already exists for this user
+    let existingEntry: any = null;
+    if (cleanVideoId) {
+      existingEntry = db.prepare(`
+        SELECT * FROM reading_history
+        WHERE user_id = ? 
+          AND (lessonId = ? OR (coverUrl LIKE ? AND lessonType = 'youtube'))
+          AND timestamp LIKE ?
+        ORDER BY timestamp DESC LIMIT 1
+      `).get(userId, lessonId, `%${cleanVideoId}%`, `${todayDatePrefix}%`);
+    }
+
+    if (existingEntry) {
+      // Accumulate watchedSeconds into the existing daily entry
+      const updatedDuration = (existingEntry.durationSeconds || 0) + seconds;
+      db.prepare(`
+        UPDATE reading_history SET
+          durationSeconds = ?,
+          timestamp = ?,
+          lessonTitle = COALESCE(?, lessonTitle),
+          channelName = COALESCE(?, channelName),
+          channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+          channelUrl = COALESCE(?, channelUrl),
+          coverUrl = COALESCE(?, coverUrl)
+        WHERE user_id = ? AND id = ?
+      `).run(
+        updatedDuration,
+        nowIso,
+        cleanTitle,
+        cleanChannel,
+        channelAvatarUrl || null,
+        channelUrl || null,
+        cleanCover,
+        userId,
+        existingEntry.id
+      );
+    } else {
+      // Create new history entry
+      const historyId = "hist_yt_" + (cleanVideoId || Date.now().toString(36)) + "_" + Date.now().toString(36);
+      db.prepare(`
+        INSERT INTO reading_history (
+          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        historyId,
+        userId,
+        lessonId,
+        cleanTitle,
+        "youtube",
+        cleanCover,
+        targetLang,
+        nowIso,
+        "listen",
+        "in_progress",
+        seconds,
+        cleanChannel,
+        channelAvatarUrl || null,
+        channelUrl || null,
+        "video",
+        cleanTitle,
+        "custom",
+        JSON.stringify(["youtube", "extension"])
+      );
+    }
+
+    // Update listeningSeconds in metadata table
+    const currentListeningRow = db.prepare(
+      "SELECT value FROM metadata WHERE user_id = ? AND key = 'listeningSeconds'"
+    ).get(userId) as { value: string } | undefined;
+    const currentTotal = currentListeningRow ? (parseFloat(currentListeningRow.value) || 0) : 0;
+    const newTotal = Math.round(currentTotal + seconds);
+
+    db.prepare(
+      "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'listeningSeconds', ?)"
+    ).run(userId, String(newTotal));
+
+    return res.json({
+      success: true,
+      loggedSeconds: seconds,
+      totalListeningSeconds: newTotal,
+      videoId: cleanVideoId,
+    });
+  } catch (err: any) {
+    console.error("[POST /api/history/log] Error:", err);
+    return res.status(500).json({ error: "Failed to log listening activity: " + err.message });
+  }
+};
+
+router.post("/history/log", logActivityHandler);
+router.post("/activity/log", logActivityHandler);
+
+// 15c. Get Reading / Listening Activity History (GET /api/history & GET /api/activity)
+const getActivityHistoryHandler = (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ" });
+  }
+
+  try {
+    const db = getDbConnection(userId);
+    const lang = req.query.language ? String(req.query.language).toLowerCase() : null;
+    let query = "SELECT * FROM reading_history WHERE user_id = ?";
+    const params: any[] = [userId];
+    if (lang && lang !== "all") {
+      query += " AND (targetLanguage = ? OR targetLanguage LIKE ?)";
+      params.push(lang, `${lang}%`);
+    }
+    query += " ORDER BY timestamp DESC";
+
+    const rows = db.prepare(query).all(...params) as any[];
+    const readerSettingsRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'readerSettings'").get(userId) as { value: string } | undefined;
+    let dailyGoalMinutes = 15;
+    let dailyGoalsByLanguage: Record<string, number> = {};
+    if (readerSettingsRow?.value) {
+      try {
+        const parsed = JSON.parse(readerSettingsRow.value);
+        if (typeof parsed.dailyGoalMinutes === 'number') dailyGoalMinutes = parsed.dailyGoalMinutes;
+        if (parsed.dailyGoalsByLanguage && typeof parsed.dailyGoalsByLanguage === 'object') {
+          dailyGoalsByLanguage = parsed.dailyGoalsByLanguage;
+        }
+      } catch (_) {}
+    }
+
+    const langRows = db.prepare("SELECT code, flag FROM languages WHERE flag IS NOT NULL").all() as { code: string; flag: string }[];
+    const customFlags: Record<string, string> = {};
+    for (const row of langRows) {
+      if (row.code && row.flag) {
+        customFlags[row.code.toLowerCase().trim()] = row.flag;
+      }
+    }
+
+    const userFlagsRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'studyLanguageFlags'").get(userId) as { value: string } | undefined;
+    if (userFlagsRow?.value) {
+      try {
+        const parsed = JSON.parse(userFlagsRow.value);
+        if (parsed && typeof parsed === 'object') {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'string') customFlags[k.toLowerCase().trim()] = v;
+          }
+        }
+      } catch (_) {}
+    }
+
+    const languageFlagsRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'languageFlags'").get(userId) as { value: string } | undefined;
+    if (languageFlagsRow?.value) {
+      try {
+        const parsed = JSON.parse(languageFlagsRow.value);
+        if (parsed && typeof parsed === 'object') {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'string') customFlags[k.toLowerCase().trim()] = v;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return res.json({
+      success: true,
+      userGoals: {
+        dailyGoalMinutes,
+        dailyGoalsByLanguage,
+      },
+      customFlags,
+      history: rows.map((h) => ({
+        id: h.id,
+        lessonId: h.lessonId,
+        lessonTitle: h.lessonTitle,
+        lessonType: h.lessonType || "youtube",
+        coverUrl: h.coverUrl || null,
+        targetLanguage: h.targetLanguage || "en",
+        timestamp: h.timestamp,
+        actionType: h.actionType,
+        status: h.status || "in_progress",
+        durationSeconds: h.durationSeconds || 0,
+        channelName: h.channelName || null,
+        category: h.category || undefined,
+        customTitle: h.customTitle || undefined,
+      })),
+    });
+  } catch (err: any) {
+    console.error("[GET /api/history] Error:", err);
+    return res.status(500).json({ error: "Failed to load history: " + err.message });
+  }
+};
+
+router.get("/history", getActivityHistoryHandler);
+router.get("/activity", getActivityHistoryHandler);
+
+// 15d. Get Granular Day History (GET /api/activity/day & GET /api/history/day)
+const getDayActivityHandler = (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ" });
+  }
+
+  const dateStr = req.query.date ? String(req.query.date).trim() : new Date().toISOString().slice(0, 10);
+  const lang = req.query.language ? String(req.query.language).toLowerCase().trim() : null;
+
+  try {
+    const db = getDbConnection(userId);
+    let query = "SELECT * FROM reading_history WHERE user_id = ? AND timestamp LIKE ?";
+    const params: any[] = [userId, `${dateStr}%`];
+
+    if (lang && lang !== "all") {
+      query += " AND (targetLanguage = ? OR targetLanguage LIKE ?)";
+      params.push(lang, `${lang}%`);
+    }
+    query += " ORDER BY timestamp DESC";
+
+    const rows = db.prepare(query).all(...params) as any[];
+
+    const flags: Record<string, string> = {
+      en: "🇺🇸", es: "🇪🇸", pt: "🇵🇹", ru: "🇷🇺", uk: "🇺🇦",
+      fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", zh: "🇨🇳", ja: "🇯🇵",
+      ar: "🇸🇦", tr: "🇹🇷", pl: "🇵🇱", sv: "🇸🇪", nl: "🇳🇱",
+      kk: "🇰🇿", ko: "🇰🇷", he: "🇮🇱", hi: "🇮🇳", fa: "🇮🇷", el: "🇬🇷"
+    };
+
+    const langAliasMap: Record<string, string> = {
+      sp: "es", spa: "es", spanish: "es", esp: "es",
+      eng: "en", english: "en",
+      rus: "ru", russian: "ru",
+      ger: "de", deu: "de", german: "de", deutsch: "de",
+      fra: "fr", fre: "fr", french: "fr",
+      por: "pt", portuguese: "pt",
+      ita: "it", italian: "it",
+      ukr: "uk", ukrainian: "uk",
+      kaz: "kk", kazakh: "kk",
+      chi: "zh", zho: "zh", chinese: "zh",
+      jpn: "ja", japanese: "ja",
+      kor: "ko", korean: "ko",
+      tur: "tr", turkish: "tr",
+      pol: "pl", polish: "pl",
+      swe: "sv", swedish: "sv",
+      dut: "nl", nld: "nl", dutch: "nl",
+      ara: "ar", arabic: "ar"
+    };
+
+    const userFlagsRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'studyLanguageFlags'").get(userId) as { value: string } | undefined;
+    let userCustomFlags: Record<string, string> = {};
+    if (userFlagsRow?.value) {
+      try { userCustomFlags = JSON.parse(userFlagsRow.value); } catch (_) {}
+    }
+
+    const logs = rows.map((h) => {
+      const durSec = Number(h.durationSeconds) || 0;
+      const rawLang = (h.targetLanguage || "en").toLowerCase().trim();
+      const cleanLang = rawLang.replace(/[-_].*$/, "");
+      const langCode = langAliasMap[rawLang] || langAliasMap[cleanLang] || cleanLang.slice(0, 2);
+      const flag = userCustomFlags[langCode] || flags[langCode] || "🌐";
+      const minutes = Math.max(1, Math.round(durSec / 60));
+      const videoId = h.lessonId && h.lessonId.startsWith("youtube_") ? h.lessonId.replace("youtube_", "") : "";
+      const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : (h.sourceUrl || "");
+
+      return {
+        id: h.id,
+        title: h.lessonTitle || h.customTitle || "YouTube Video",
+        minutes,
+        durationSeconds: durSec,
+        language: langCode,
+        flag,
+        channel: h.channelName || "YouTube",
+        source: h.lessonType === "article" ? "Article" : "YouTube",
+        url,
+        timestamp: h.timestamp,
+      };
+    });
+
+    return res.json({ success: true, date: dateStr, logs });
+  } catch (err: any) {
+    console.error("[GET /api/activity/day] Error:", err);
+    return res.status(500).json({ error: "Failed to load day activity: " + err.message });
+  }
+};
+
+router.get("/activity/day", getDayActivityHandler);
+router.get("/history/day", getDayActivityHandler);
+
+// 15e. Delete Activity Log (DELETE /api/activity/log/:id)
+router.delete("/activity/log/:id", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ" });
+  }
+
+  const { id } = req.params;
+  try {
+    const db = getDbConnection(userId);
+    const result = db.prepare("DELETE FROM reading_history WHERE user_id = ? AND id = ?").run(userId, id);
+    return res.json({ success: true, id, changes: result.changes });
+  } catch (err: any) {
+    console.error("[DELETE /api/activity/log/:id] Error:", err);
+    return res.status(500).json({ error: "Failed to delete activity log: " + err.message });
   }
 });
 

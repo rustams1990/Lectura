@@ -8,6 +8,7 @@
     targetLanguage: "en",
     nativeLanguage: "ru",
     enableYoutubeOverlay: true,
+    trackListeningActivity: true,
     enableDualSubtitles: false,
     subtitleSizePreset: "md",
     captureVideoSnapshot: false,
@@ -15,9 +16,10 @@
     enableInSituSelection: true,
     highlightKnownWords: false,
     autoPauseOnHover: true,
-    subtitleFontSize: 24,
+    subtitleFontSize: 22,
     subtitleBgOpacity: 75,
-    subtitleHighlightMode: "underline",
+    subtitleBgColor: "rgba(0, 0, 0, 0.45)",
+    subtitleHighlightMode: "color",
     ttsDialect: "en-US",
     popupTheme: "glass",
     interfaceLanguage: "en"
@@ -54,15 +56,15 @@
      */
     static async getSettings() {
       return new Promise((resolve) => {
-        chrome.storage.sync.get(DEFAULT_SETTINGS, (items) => {
-          if (chrome.runtime.lastError) {
-            console.warn("[Lectura Storage] sync get error, fallback to local:", chrome.runtime.lastError);
-            chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
-              resolve({ ...DEFAULT_SETTINGS, ...localItems });
-            });
-          } else {
-            resolve({ ...DEFAULT_SETTINGS, ...items });
-          }
+        chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
+          chrome.storage.sync.get(DEFAULT_SETTINGS, (syncItems) => {
+            const merged = {
+              ...DEFAULT_SETTINGS,
+              ...syncItems || {},
+              ...localItems || {}
+            };
+            resolve(merged);
+          });
         });
       });
     }
@@ -71,18 +73,10 @@
      */
     static async saveSettings(settings) {
       return new Promise((resolve, reject) => {
-        chrome.storage.sync.set(settings, () => {
-          if (chrome.runtime.lastError) {
-            chrome.storage.local.set(settings, () => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-              } else {
-                resolve();
-              }
-            });
-          } else {
-            chrome.storage.local.set(settings, () => resolve());
-          }
+        chrome.storage.local.set(settings, () => {
+          chrome.storage.sync.set(settings, () => {
+            resolve();
+          });
         });
       });
     }
@@ -600,6 +594,107 @@
       }
       return null;
     }
+    /**
+     * Logs media watch/listening activity to Lectura server
+     */
+    async logActivity(payload) {
+      if (this.isContentScript()) {
+        return new Promise((resolve) => {
+          chrome.runtime.sendMessage({ type: "LOG_YOUTUBE_ACTIVITY", payload }, (response) => {
+            if (response?.success) {
+              resolve(response.data || { success: true });
+            } else {
+              resolve({ success: false });
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/log");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: this.buildHeaders(settings),
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to log activity to server:", err?.message || err);
+      }
+      return { success: false };
+    }
+    /**
+     * Retrieves reading / listening activity history
+     */
+    async getActivityHistory(language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `?language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/history${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            success: true,
+            history: data.history || [],
+            userGoals: data.userGoals,
+            customFlags: data.customFlags
+          };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch activity history:", err?.message || err);
+      }
+      return { success: false, history: [] };
+    }
+    /**
+     * Retrieves activity history logs for a specific day (YYYY-MM-DD)
+     */
+    async getDayActivity(dateStr, language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `&language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return { success: true, logs: data.logs || [] };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch day activity:", err?.message || err);
+      }
+      return { success: false, logs: [] };
+    }
+    /**
+     * Deletes a specific activity log entry
+     */
+    async deleteActivityLog(logId) {
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/log/${encodeURIComponent(String(logId))}`);
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return { success: true };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to delete activity log:", err?.message || err);
+      }
+      return { success: false };
+    }
   };
 
   // extension/src/services/i18n.ts
@@ -617,6 +712,9 @@
       save_config: "Save",
       save_all_changes: "Save All Changes",
       all_settings_saved: "All settings saved successfully!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F Settings",
+      tab_activity: "\u{1F4CA} Activity",
       // Sections
       section_connection: "1. Connection & Authentication",
       section_connection_desc: "Specify your local or remote Lectura server URL and access credentials.",
@@ -645,6 +743,8 @@
       style_color: "\u{1F3A8} Color",
       subtitle_size: "Subtitle Size",
       subtitle_size_full: "Subtitle Size Preset",
+      subtitle_font_size: "Subtitle Font Size (px)",
+      subtitle_bg_color: "Subtitle Background Color",
       size_sm: "Small (16px \u2014 Compact)",
       size_md: "Medium (21px \u2014 Default)",
       size_lg: "Large (27px \u2014 Fullscreen / 4K)",
@@ -654,6 +754,10 @@
       theme_extended: "\u{1F4DA} Extended (Dictionary)",
       theme_compact: "\u26A1 Compact (Minimal)",
       // Toggles
+      enable_yt_overlay: "Enable YouTube Overlay",
+      enable_yt_overlay_hint: "Show interactive subtitles",
+      track_listening_activity: "Track Listening Activity",
+      track_listening_hint: "Record watch time in calendar",
       enable_overlay: "Enable YouTube Interactive Overlay",
       enable_overlay_desc: "Renders clickable word tokens over video subtitles and enables interactive learning.",
       enable_dual_subs: "Dual Subtitles",
@@ -676,6 +780,19 @@
       importing: "Parsing Article...",
       saving_to_lectura: "Saving to Lectura...",
       imported: "Imported!",
+      // Activity & History
+      day_history: "Day History",
+      click_day_hint: "Click a day in calendar",
+      delete_entry: "Delete entry",
+      confirm_delete_log: "Delete this video viewing entry from history?",
+      failed_delete_log: "Failed to delete log entry",
+      no_activity_day: "No activity recorded for this day",
+      failed_load_day_activity: "Failed to load day activity",
+      goal_per_day: "Goal",
+      overall: "Overall",
+      stat_week: "WEEK",
+      stat_month: "MONTH",
+      stat_languages: "LANGUAGES",
       // Overlay Card & Tooltips
       tab_meaning: "Meaning",
       tab_definition: "Definition",
@@ -714,6 +831,9 @@
       save_config: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
       save_all_changes: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0432\u0441\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F",
       all_settings_saved: "\u0412\u0441\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+      tab_activity: "\u{1F4CA} \u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C",
       // Sections
       section_connection: "1. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F",
       section_connection_desc: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043D\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0435\u0440\u0430 Lectura \u0438 \u0434\u0430\u043D\u043D\u044B\u0435 \u0434\u043E\u0441\u0442\u0443\u043F\u0430.",
@@ -742,6 +862,8 @@
       style_color: "\u{1F3A8} \u0426\u0432\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430",
       subtitle_size: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432",
       subtitle_size_full: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432",
+      subtitle_font_size: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0448\u0440\u0438\u0444\u0442\u0430 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 (px)",
+      subtitle_bg_color: "\u0426\u0432\u0435\u0442 \u0444\u043E\u043D\u0430 \u043F\u043B\u0430\u0448\u043A\u0438",
       size_sm: "\u041C\u0435\u043B\u043A\u0438\u0439 (16px \u2014 \u041E\u043A\u043E\u043D\u043D\u044B\u0439)",
       size_md: "\u0421\u0440\u0435\u0434\u043D\u0438\u0439 (21px \u2014 \u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442)",
       size_lg: "\u041A\u0440\u0443\u043F\u043D\u044B\u0439 (27px \u2014 \u041F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u044B\u0439)",
@@ -751,6 +873,10 @@
       theme_extended: "\u{1F4DA} Extended (\u0421\u043B\u043E\u0432\u0430\u0440\u043D\u044B\u0439)",
       theme_compact: "\u26A1 Compact (\u041C\u0438\u043D\u0438)",
       // Toggles
+      enable_yt_overlay: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B YouTube",
+      enable_yt_overlay_hint: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
+      track_listening_activity: "\u0423\u0447\u0435\u0442 \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430",
+      track_listening_hint: "\u0417\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0442\u044C \u0432\u0440\u0435\u043C\u044F \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
       enable_overlay: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043E\u0432\u0435\u0440\u043B\u0435\u0439 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 YouTube",
       enable_overlay_desc: "\u041E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0435\u0442 \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u043A\u043B\u0438\u043A\u0430\u0431\u0435\u043B\u044C\u043D\u044B\u0435 \u0441\u043B\u043E\u0432\u0430 \u043F\u043E\u0432\u0435\u0440\u0445 \u0432\u0438\u0434\u0435\u043E \u0438 \u0432\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u043E\u0431\u0443\u0447\u0435\u043D\u0438\u0435.",
       enable_dual_subs: "\u0414\u0432\u043E\u0439\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
@@ -773,6 +899,19 @@
       importing: "\u0427\u0442\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u044C\u0438...",
       saving_to_lectura: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0432 Lectura...",
       imported: "\u0418\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E!",
+      // Activity & History
+      day_history: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0437\u0430 \u0434\u0435\u043D\u044C",
+      click_day_hint: "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u0434\u0435\u043D\u044C \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0435",
+      delete_entry: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C",
+      confirm_delete_log: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u044D\u0442\u0443 \u0437\u0430\u043F\u0438\u0441\u044C \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430 \u0432\u0438\u0434\u0435\u043E \u0438\u0437 \u0438\u0441\u0442\u043E\u0440\u0438\u0438?",
+      failed_delete_log: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0443\u0434\u0430\u043B\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C",
+      no_activity_day: "\u041D\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u0435\u0439 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u0438 \u0437\u0430 \u044D\u0442\u043E\u0442 \u0434\u0435\u043D\u044C",
+      failed_load_day_activity: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C \u0437\u0430 \u0434\u0435\u043D\u044C",
+      goal_per_day: "\u0426\u0435\u043B\u044C",
+      overall: "\u0412\u0441\u0435\u0433\u043E",
+      stat_week: "\u041D\u0415\u0414\u0415\u041B\u042F",
+      stat_month: "\u041C\u0415\u0421\u042F\u0426",
+      stat_languages: "\u042F\u0417\u042B\u041A\u0418",
       // Overlay Card & Tooltips
       tab_meaning: "\u041F\u0435\u0440\u0435\u0432\u043E\u0434",
       tab_definition: "\u041E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u0435",
@@ -811,6 +950,9 @@
       save_config: "Guardar",
       save_all_changes: "Guardar todos los cambios",
       all_settings_saved: "\xA1Todos los ajustes se han guardado con \xE9xito!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F Ajustes",
+      tab_activity: "\u{1F4CA} Actividad",
       // Sections
       section_connection: "1. Conexi\xF3n y Autenticaci\xF3n",
       section_connection_desc: "Especifica la URL del servidor Lectura y las credenciales de acceso.",
@@ -839,6 +981,8 @@
       style_color: "\u{1F3A8} Color",
       subtitle_size: "Tama\xF1o de subt\xEDtulos",
       subtitle_size_full: "Tama\xF1o de subt\xEDtulos",
+      subtitle_font_size: "Tama\xF1o de fuente de subt\xEDtulos (px)",
+      subtitle_bg_color: "Color de fondo de subt\xEDtulos",
       size_sm: "Peque\xF1o (16px \u2014 Compacto)",
       size_md: "Medio (21px \u2014 Est\xE1ndar)",
       size_lg: "Grande (27px \u2014 Pantalla completa)",
@@ -848,6 +992,10 @@
       theme_extended: "\u{1F4DA} Extended (Diccionario)",
       theme_compact: "\u26A1 Compact (M\xEDnimo)",
       // Toggles
+      enable_yt_overlay: "Activar subt\xEDtulos de YouTube",
+      enable_yt_overlay_hint: "Mostrar subt\xEDtulos interactivos",
+      track_listening_activity: "Registrar tiempo de escucha",
+      track_listening_hint: "Guardar tiempo en el calendario",
       enable_overlay: "Activar superposici\xF3n de YouTube",
       enable_overlay_desc: "Muestra palabras interactivas sobre los subt\xEDtulos del video y habilita el aprendizaje.",
       enable_dual_subs: "Subt\xEDtulos dobles",
@@ -870,6 +1018,19 @@
       importing: "Analizando art\xEDculo...",
       saving_to_lectura: "Guardando en Lectura...",
       imported: "\xA1Importado!",
+      // Activity & History
+      day_history: "Historial del d\xEDa",
+      click_day_hint: "Haz clic en un d\xEDa del calendario",
+      delete_entry: "Eliminar registro",
+      confirm_delete_log: "\xBFEliminar este registro de video del historial?",
+      failed_delete_log: "Error al eliminar el registro",
+      no_activity_day: "No hay actividad registrada para este d\xEDa",
+      failed_load_day_activity: "Error al cargar la actividad del d\xEDa",
+      goal_per_day: "Meta",
+      overall: "Total",
+      stat_week: "SEMANA",
+      stat_month: "MES",
+      stat_languages: "IDIOMAS",
       // Overlay Card & Tooltips
       tab_meaning: "Significado",
       tab_definition: "Definici\xF3n",
@@ -931,9 +1092,273 @@
   }
 
   // extension/src/popup/popup.ts
+  var LECTURA_LANGUAGES_MAP = {
+    en: { code: "en", name: "English", flag: "\u{1F1FA}\u{1F1F8}" },
+    es: { code: "es", name: "Spanish", flag: "\u{1F1EA}\u{1F1F8}" },
+    ru: { code: "ru", name: "Russian", flag: "\u{1F1F7}\u{1F1FA}" },
+    fr: { code: "fr", name: "French", flag: "\u{1F1EB}\u{1F1F7}" },
+    de: { code: "de", name: "German", flag: "\u{1F1E9}\u{1F1EA}" },
+    pt: { code: "pt", name: "Portuguese", flag: "\u{1F1F5}\u{1F1F9}" },
+    it: { code: "it", name: "Italian", flag: "\u{1F1EE}\u{1F1F9}" },
+    uk: { code: "uk", name: "Ukrainian", flag: "\u{1F1FA}\u{1F1E6}" },
+    kk: { code: "kk", name: "Kazakh", flag: "\u{1F1F0}\u{1F1FF}" },
+    zh: { code: "zh", name: "Chinese", flag: "\u{1F1E8}\u{1F1F3}" },
+    ja: { code: "ja", name: "Japanese", flag: "\u{1F1EF}\u{1F1F5}" },
+    ko: { code: "ko", name: "Korean", flag: "\u{1F1F0}\u{1F1F7}" },
+    tr: { code: "tr", name: "Turkish", flag: "\u{1F1F9}\u{1F1F7}" },
+    pl: { code: "pl", name: "Polish", flag: "\u{1F1F5}\u{1F1F1}" },
+    sv: { code: "sv", name: "Swedish", flag: "\u{1F1F8}\u{1F1EA}" },
+    nl: { code: "nl", name: "Dutch", flag: "\u{1F1F3}\u{1F1F1}" },
+    ar: { code: "ar", name: "Arabic", flag: "\u{1F1F8}\u{1F1E6}" },
+    he: { code: "he", name: "Hebrew", flag: "\u{1F1EE}\u{1F1F1}" },
+    hi: { code: "hi", name: "Hindi", flag: "\u{1F1EE}\u{1F1F3}" },
+    fa: { code: "fa", name: "Persian", flag: "\u{1F1EE}\u{1F1F7}" },
+    el: { code: "el", name: "Greek", flag: "\u{1F1EC}\u{1F1F7}" }
+  };
+  var LANGUAGE_ALIASES = {
+    sp: "es",
+    spa: "es",
+    spanish: "es",
+    esp: "es",
+    espanol: "es",
+    espa\u00F1ol: "es",
+    eng: "en",
+    english: "en",
+    rus: "ru",
+    russian: "ru",
+    ger: "de",
+    deu: "de",
+    german: "de",
+    deutsch: "de",
+    fra: "fr",
+    fre: "fr",
+    french: "fr",
+    por: "pt",
+    portuguese: "pt",
+    ita: "it",
+    italian: "it",
+    ukr: "uk",
+    ukrainian: "uk",
+    kaz: "kk",
+    kazakh: "kk",
+    chi: "zh",
+    zho: "zh",
+    chinese: "zh",
+    jpn: "ja",
+    japanese: "ja",
+    kor: "ko",
+    korean: "ko",
+    tur: "tr",
+    turkish: "tr",
+    pol: "pl",
+    polish: "pl",
+    swe: "sv",
+    swedish: "sv",
+    dut: "nl",
+    nld: "nl",
+    dutch: "nl",
+    ara: "ar",
+    arabic: "ar"
+  };
+  function normalizeLanguageCode(rawCode) {
+    if (!rawCode) return "en";
+    const raw = rawCode.toLowerCase().trim();
+    if (LANGUAGE_ALIASES[raw]) return LANGUAGE_ALIASES[raw];
+    const clean = raw.replace(/[-_].*$/, "");
+    if (LANGUAGE_ALIASES[clean]) return LANGUAGE_ALIASES[clean];
+    if (LECTURA_LANGUAGES_MAP[clean]) return clean;
+    return clean.slice(0, 2);
+  }
+  var DEFAULT_LANGUAGE_FLAGS = {
+    en: "us",
+    es: "es",
+    ru: "ru",
+    pt: "br",
+    it: "it",
+    fr: "fr",
+    de: "de",
+    uk: "ua",
+    ua: "ua",
+    kk: "kz",
+    zh: "cn",
+    ja: "jp",
+    ko: "kr",
+    ar: "sa",
+    tr: "tr",
+    pl: "pl",
+    sv: "se",
+    nl: "nl",
+    he: "il",
+    hi: "in",
+    fa: "ir",
+    el: "gr"
+  };
+  var LANGUAGE_NAMES = {
+    en: "English",
+    es: "Spanish",
+    ru: "Russian",
+    pt: "Portuguese",
+    it: "Italian",
+    fr: "French",
+    de: "German",
+    uk: "Ukrainian",
+    ua: "Ukrainian",
+    kk: "Kazakh",
+    zh: "Chinese",
+    ja: "Japanese",
+    ko: "Korean",
+    ar: "Arabic",
+    tr: "Turkish",
+    pl: "Polish",
+    sv: "Swedish",
+    nl: "Dutch",
+    he: "Hebrew",
+    hi: "Hindi",
+    fa: "Persian",
+    el: "Greek"
+  };
+  var FLAG_EMOJI_TO_CODE = {
+    "\u{1F1FA}\u{1F1F8}": "us",
+    "\u{1F1E8}\u{1F1E6}": "ca",
+    "\u{1F1F2}\u{1F1FD}": "mx",
+    "\u{1F1E8}\u{1F1F4}": "co",
+    "\u{1F1E6}\u{1F1F7}": "ar",
+    "\u{1F1E8}\u{1F1F1}": "cl",
+    "\u{1F1F5}\u{1F1EA}": "pe",
+    "\u{1F1FB}\u{1F1EA}": "ve",
+    "\u{1F1EA}\u{1F1E8}": "ec",
+    "\u{1F1EC}\u{1F1F9}": "gt",
+    "\u{1F1E8}\u{1F1FA}": "cu",
+    "\u{1F1E9}\u{1F1F4}": "do",
+    "\u{1F1ED}\u{1F1F3}": "hn",
+    "\u{1F1F5}\u{1F1FE}": "py",
+    "\u{1F1F8}\u{1F1FB}": "sv",
+    "\u{1F1F3}\u{1F1EE}": "ni",
+    "\u{1F1E8}\u{1F1F7}": "cr",
+    "\u{1F1F5}\u{1F1E6}": "pa",
+    "\u{1F1FA}\u{1F1FE}": "uy",
+    "\u{1F1E7}\u{1F1F4}": "bo",
+    "\u{1F1E7}\u{1F1F7}": "br",
+    "\u{1F1EF}\u{1F1F2}": "jm",
+    "\u{1F1ED}\u{1F1F9}": "ht",
+    "\u{1F1F8}\u{1F1F7}": "sr",
+    "\u{1F1EC}\u{1F1E7}": "gb",
+    "\u{1F1EA}\u{1F1F8}": "es",
+    "\u{1F1E9}\u{1F1EA}": "de",
+    "\u{1F1E6}\u{1F1F9}": "at",
+    "\u{1F1E8}\u{1F1ED}": "ch",
+    "\u{1F1EB}\u{1F1F7}": "fr",
+    "\u{1F1F7}\u{1F1FA}": "ru",
+    "\u{1F1EE}\u{1F1F9}": "it",
+    "\u{1F1F5}\u{1F1F9}": "pt",
+    "\u{1F1FA}\u{1F1E6}": "ua",
+    "\u{1F1F5}\u{1F1F1}": "pl",
+    "\u{1F1F8}\u{1F1EA}": "se",
+    "\u{1F1F3}\u{1F1F1}": "nl",
+    "\u{1F1E7}\u{1F1EA}": "be",
+    "\u{1F1EC}\u{1F1F7}": "gr",
+    "\u{1F1EE}\u{1F1EA}": "ie",
+    "\u{1F1E7}\u{1F1FE}": "by",
+    "\u{1F1EF}\u{1F1F5}": "jp",
+    "\u{1F1E8}\u{1F1F3}": "cn",
+    "\u{1F1F9}\u{1F1FC}": "tw",
+    "\u{1F1F0}\u{1F1F7}": "kr",
+    "\u{1F1F0}\u{1F1F5}": "kp",
+    "\u{1F1F9}\u{1F1F7}": "tr",
+    "\u{1F1F8}\u{1F1E6}": "sa",
+    "\u{1F1E6}\u{1F1EA}": "ae",
+    "\u{1F1EA}\u{1F1EC}": "eg",
+    "\u{1F1EE}\u{1F1F7}": "ir",
+    "\u{1F1EE}\u{1F1F1}": "il",
+    "\u{1F1EE}\u{1F1F3}": "in",
+    "\u{1F1F0}\u{1F1FF}": "kz",
+    "\u{1F1E6}\u{1F1FA}": "au",
+    "\u{1F1F3}\u{1F1FF}": "nz",
+    "\u{1F1FB}\u{1F1F3}": "vn"
+  };
+  function getLanguageFlagCode(langCode, userFlags = {}) {
+    const norm = normalizeLanguageCode(langCode);
+    const rawLower = (langCode || "").toLowerCase().trim();
+    let customVal = userFlags[norm] || userFlags[rawLower];
+    if (!customVal && userFlags && typeof userFlags === "object") {
+      for (const [k, v] of Object.entries(userFlags)) {
+        if (normalizeLanguageCode(k) === norm && v) {
+          customVal = v;
+          break;
+        }
+      }
+    }
+    if (customVal && typeof customVal === "string") {
+      const trimmed = customVal.trim();
+      if (FLAG_EMOJI_TO_CODE[trimmed]) {
+        return FLAG_EMOJI_TO_CODE[trimmed].toLowerCase();
+      }
+      if (/^[a-zA-Z]{2,3}$/.test(trimmed)) {
+        return trimmed.toLowerCase();
+      }
+    }
+    const defaults = {
+      en: "us",
+      es: "es",
+      ru: "ru",
+      pt: "br",
+      it: "it",
+      fr: "fr",
+      de: "de",
+      uk: "ua",
+      ua: "ua",
+      kk: "kz",
+      zh: "cn",
+      ja: "jp",
+      ko: "kr",
+      ar: "sa",
+      tr: "tr",
+      pl: "pl",
+      sv: "se",
+      nl: "nl",
+      he: "il",
+      hi: "in",
+      fa: "ir",
+      el: "gr"
+    };
+    return defaults[norm] || norm || "us";
+  }
+  function getFlagImageUrl(flagCode) {
+    const code = (flagCode || "us").toLowerCase().trim();
+    return `https://flagcdn.com/w40/${code}.png`;
+  }
+  function getLanguageFlagUrl(langCode, userCustomFlags = {}) {
+    const flagCode = getLanguageFlagCode(langCode, userCustomFlags);
+    return getFlagImageUrl(flagCode);
+  }
+  function getLanguageDisplay(code, userCustomFlags) {
+    const normCode = normalizeLanguageCode(code);
+    const base = LECTURA_LANGUAGES_MAP[normCode] || {
+      code: normCode,
+      name: LANGUAGE_NAMES[normCode] || (code.length > 2 ? code.charAt(0).toUpperCase() + code.slice(1) : normCode.toUpperCase()),
+      flag: "\u{1F310}"
+    };
+    if (userCustomFlags && userCustomFlags[normCode]) {
+      return { ...base, flag: userCustomFlags[normCode] };
+    }
+    return base;
+  }
   var PopupController = class {
     constructor() {
+      this.currentSubtitleBgColor = "rgba(0, 0, 0, 0.45)";
       this.currentSubtitleMode = "underline";
+      this.currentCalendarYear = (/* @__PURE__ */ new Date()).getFullYear();
+      this.currentCalendarMonth = (/* @__PURE__ */ new Date()).getMonth();
+      // 0-indexed (0 = Jan, 7 = Aug)
+      this.selectedDateStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      this.selectedActivityLang = "all";
+      this.activityHistoryCache = [];
+      this.userCustomFlagsCache = {};
+      this.currentUiLang = "en";
+      this.userGoalsCache = {
+        dailyGoalMinutes: 15,
+        dailyGoalsByLanguage: {}
+      };
       this.apiClient = new LecturaApiClient();
       document.addEventListener("DOMContentLoaded", () => this.init());
     }
@@ -944,9 +1369,15 @@
       this.userProfileSelect = document.getElementById("userProfileSelect");
       this.targetLanguageSelect = document.getElementById("targetLanguage");
       this.ttsDialectSelect = document.getElementById("ttsDialect");
+      this.studyLangFlagImg = document.getElementById("studyLangFlagImg");
       this.subSizeSelect = document.getElementById("subSizeSelect");
+      this.subFontSizeInput = document.getElementById("subFontSize");
+      this.subFontSizeValue = document.getElementById("subFontSizeValue");
+      this.subBgColorPicker = document.getElementById("subBgColorPicker");
       this.dualSubsCheck = document.getElementById("dualSubsCheck");
       this.pauseOnWordClickCheck = document.getElementById("pauseOnWordClickCheck");
+      this.enableYoutubeOverlayCheck = document.getElementById("enableYoutubeOverlayCheck");
+      this.trackListeningActivityCheck = document.getElementById("trackListeningActivityCheck");
       this.popupThemeSelect = document.getElementById("popupThemeSelect");
       this.connectionBadge = document.getElementById("connectionBadge");
       this.statusAlert = document.getElementById("statusAlert");
@@ -958,30 +1389,95 @@
       this.btnOptions = document.getElementById("btnOptions");
       this.btnModeUnderline = document.getElementById("btnModeUnderline");
       this.btnModeColor = document.getElementById("btnModeColor");
+      this.tabBtnSettings = document.getElementById("tabBtnSettings");
+      this.tabBtnActivity = document.getElementById("tabBtnActivity");
+      this.tabContentSettings = document.getElementById("tabContentSettings");
+      this.tabContentActivity = document.getElementById("tabContentActivity");
+      this.activityLangPillsContainer = document.getElementById("activityLangPills");
+      this.statWeek = document.getElementById("statWeek");
+      this.statMonth = document.getElementById("statMonth");
+      this.statLangsCount = document.getElementById("statLangsCount");
+      this.prevMonthBtn = document.getElementById("prevMonthBtn");
+      this.nextMonthBtn = document.getElementById("nextMonthBtn");
+      this.currentMonthYearLabel = document.getElementById("currentMonthYearLabel");
+      this.calendarDaysGrid = document.getElementById("calendarDaysGrid");
+      this.calendarGoalBadge = document.getElementById("calendarGoalBadge");
+      this.selectedDateLabel = document.getElementById("selectedDateLabel");
+      this.dayLogsContainer = document.getElementById("dayLogsContainer");
       this.bindEvents();
       await this.loadSettings();
       await this.loadProfiles();
       await this.testConnection(false);
+      chrome.storage.local.get(["activePopupTab"], (res) => {
+        if (res.activePopupTab === "activity") {
+          this.switchTab("activity");
+        }
+      });
+    }
+    updateStudyLanguageFlag(langCode) {
+      if (!this.studyLangFlagImg) return;
+      const flagUrl = getLanguageFlagUrl(langCode, this.userCustomFlagsCache);
+      this.studyLangFlagImg.src = flagUrl;
     }
     bindEvents() {
-      this.btnTestConnection.addEventListener("click", async () => {
-        await this.loadProfiles();
-        await this.testConnection(true);
-      });
-      this.btnSaveConfig.addEventListener("click", () => this.saveConfig());
-      this.btnImportPage.addEventListener("click", () => this.importCurrentPage());
-      this.btnOpenLectura.addEventListener("click", () => this.openLecturaApp());
-      this.btnSyncWords.addEventListener("click", () => this.syncWords());
-      this.btnOptions.addEventListener("click", () => {
-        chrome.runtime.openOptionsPage();
-      });
-      this.btnModeUnderline.addEventListener("click", () => this.setSubtitleMode("underline"));
-      this.btnModeColor.addEventListener("click", () => this.setSubtitleMode("color"));
+      if (this.btnTestConnection) {
+        this.btnTestConnection.addEventListener("click", async () => {
+          await this.loadProfiles();
+          await this.testConnection(true);
+        });
+      }
+      if (this.btnSaveConfig) {
+        this.btnSaveConfig.addEventListener("click", () => this.saveConfig());
+      }
+      if (this.btnImportPage) {
+        this.btnImportPage.addEventListener("click", () => this.importCurrentPage());
+      }
+      if (this.btnOpenLectura) {
+        this.btnOpenLectura.addEventListener("click", () => this.openLecturaApp());
+      }
+      if (this.btnSyncWords) {
+        this.btnSyncWords.addEventListener("click", () => this.syncWords());
+      }
+      if (this.btnOptions) {
+        this.btnOptions.addEventListener("click", () => {
+          chrome.runtime.openOptionsPage();
+        });
+      }
+      if (this.targetLanguageSelect) {
+        this.targetLanguageSelect.addEventListener("change", async () => {
+          const lang = this.targetLanguageSelect.value;
+          await StorageService.saveSettings({ targetLanguage: lang });
+          this.updateStudyLanguageFlag(lang);
+          try {
+            const tabs = await chrome.tabs.query({});
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, {
+                  type: "UPDATE_TARGET_LANGUAGE",
+                  language: lang
+                }).catch(() => {
+                });
+              }
+            }
+          } catch (_) {
+          }
+        });
+      }
+      if (this.btnModeUnderline) {
+        this.btnModeUnderline.addEventListener("click", () => this.setSubtitleMode("underline"));
+      }
+      if (this.btnModeColor) {
+        this.btnModeColor.addEventListener("click", () => this.setSubtitleMode("color"));
+      }
       if (this.interfaceLanguageSelect) {
         this.interfaceLanguageSelect.addEventListener("change", async () => {
-          const lang = this.interfaceLanguageSelect.value || "en";
+          const lang = this.interfaceLanguageSelect?.value || "en";
+          this.currentUiLang = lang;
           await StorageService.saveSettings({ interfaceLanguage: lang });
           applyI18nToDOM(document, lang);
+          this.renderLanguageFilters();
+          this.renderCalendar();
+          this.loadDayLogs(this.selectedDateStr);
           try {
             const tabs = await chrome.tabs.query({});
             for (const tab of tabs) {
@@ -997,15 +1493,21 @@
           }
         });
       }
-      this.userProfileSelect.addEventListener("change", async () => {
-        const selectedUserId = this.userProfileSelect.value;
-        await StorageService.saveSettings({ selectedUserId });
-      });
-      this.subSizeSelect.addEventListener("change", async () => {
-        const sizePreset = this.subSizeSelect.value || "md";
-        await StorageService.saveSettings({ subtitleSizePreset: sizePreset });
-        chrome.storage.local.set({ sub_size_preset: sizePreset });
-      });
+      if (this.userProfileSelect) {
+        this.userProfileSelect.addEventListener("change", async () => {
+          const selectedUserId = this.userProfileSelect?.value;
+          if (selectedUserId) {
+            await StorageService.saveSettings({ selectedUserId });
+          }
+        });
+      }
+      if (this.subSizeSelect) {
+        this.subSizeSelect.addEventListener("change", async () => {
+          const sizePreset = this.subSizeSelect?.value || "md";
+          await StorageService.saveSettings({ subtitleSizePreset: sizePreset });
+          chrome.storage.local.set({ sub_size_preset: sizePreset });
+        });
+      }
       this.popupThemeSelect.addEventListener("change", async () => {
         const theme = this.popupThemeSelect.value || "compact";
         await StorageService.saveSettings({ popupTheme: theme });
@@ -1024,15 +1526,461 @@
         } catch (_) {
         }
       });
+      if (this.enableYoutubeOverlayCheck) {
+        this.enableYoutubeOverlayCheck.addEventListener("change", async () => {
+          const enabled = this.enableYoutubeOverlayCheck.checked;
+          await StorageService.saveSettings({ enableYoutubeOverlay: enabled });
+          chrome.storage.local.set({ enableYoutubeOverlay: enabled });
+          try {
+            const tabs = await chrome.tabs.query({});
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, {
+                  type: "UPDATE_YOUTUBE_OVERLAY_ENABLED",
+                  enabled
+                }).catch(() => {
+                });
+              }
+            }
+          } catch (_) {
+          }
+        });
+      }
+      if (this.trackListeningActivityCheck) {
+        this.trackListeningActivityCheck.addEventListener("change", async () => {
+          const enabled = this.trackListeningActivityCheck.checked;
+          await StorageService.saveSettings({ trackListeningActivity: enabled });
+          chrome.storage.local.set({ trackListeningActivity: enabled });
+          try {
+            const tabs = await chrome.tabs.query({});
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, {
+                  type: "UPDATE_TRACK_ACTIVITY_ENABLED",
+                  enabled
+                }).catch(() => {
+                });
+              }
+            }
+          } catch (_) {
+          }
+        });
+      }
       this.dualSubsCheck.addEventListener("change", async () => {
         const enabled = this.dualSubsCheck.checked;
         await StorageService.saveSettings({ enableDualSubtitles: enabled });
         chrome.storage.local.set({ dual_subs: enabled });
       });
+      if (this.subFontSizeInput) {
+        this.subFontSizeInput.addEventListener("input", () => {
+          const val = parseInt(this.subFontSizeInput.value, 10) || 22;
+          if (this.subFontSizeValue) {
+            this.subFontSizeValue.textContent = `${val}px`;
+          }
+          chrome.storage.local.set({ subtitleFontSize: val });
+          document.documentElement.style.setProperty("--lectura-sub-font-size", `${val}px`);
+          try {
+            chrome.tabs.query({}).then((tabs) => {
+              for (const tab of tabs) {
+                if (tab.id) {
+                  chrome.tabs.sendMessage(tab.id, {
+                    type: "UPDATE_SUB_FONT_SIZE",
+                    size: val
+                  }).catch(() => {
+                  });
+                }
+              }
+            }).catch(() => {
+            });
+          } catch (_) {
+          }
+        });
+      }
+      document.querySelectorAll(".sub-bg-preset-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const color = e.currentTarget.dataset.color;
+          if (color) {
+            this.applyBgColor(color);
+          }
+        });
+      });
+      if (this.subBgColorPicker) {
+        this.subBgColorPicker.addEventListener("input", (e) => {
+          const hex = e.target.value;
+          this.applyBgColor(`${hex}E6`);
+        });
+      }
       this.pauseOnWordClickCheck.addEventListener("change", async () => {
         const enabled = this.pauseOnWordClickCheck.checked;
         await StorageService.saveSettings({ pauseOnWordClick: enabled });
       });
+      this.tabBtnSettings?.addEventListener("click", () => this.switchTab("settings"));
+      this.tabBtnActivity?.addEventListener("click", () => this.switchTab("activity"));
+      this.prevMonthBtn?.addEventListener("click", () => {
+        this.currentCalendarMonth--;
+        if (this.currentCalendarMonth < 0) {
+          this.currentCalendarMonth = 11;
+          this.currentCalendarYear--;
+        }
+        this.renderCalendar();
+        this.renderSummaryStats();
+      });
+      this.nextMonthBtn?.addEventListener("click", () => {
+        this.currentCalendarMonth++;
+        if (this.currentCalendarMonth > 11) {
+          this.currentCalendarMonth = 0;
+          this.currentCalendarYear++;
+        }
+        this.renderCalendar();
+        this.renderSummaryStats();
+      });
+      this.activityLangPillsContainer?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".lang-pill");
+        if (!btn) return;
+        const lang = btn.dataset.lang || "all";
+        this.selectedActivityLang = lang;
+        this.renderLanguageFilters();
+        this.renderCalendar();
+        this.renderSummaryStats();
+        this.loadDayLogs(this.selectedDateStr);
+      });
+      this.calendarDaysGrid?.addEventListener("click", (e) => {
+        const cell = e.target.closest(".cal-day-cell");
+        if (!cell || !cell.dataset.date) return;
+        this.selectedDateStr = cell.dataset.date;
+        this.calendarDaysGrid.querySelectorAll(".cal-day-cell").forEach((c) => c.classList.remove("selected-day"));
+        cell.classList.add("selected-day");
+        this.loadDayLogs(this.selectedDateStr);
+      });
+      this.dayLogsContainer?.addEventListener("click", async (e) => {
+        const btn = e.target.closest(".delete-log-btn");
+        if (!btn || !btn.dataset.id) return;
+        const logId = btn.dataset.id;
+        await this.handleDeleteActivityLog(logId, this.selectedDateStr);
+      });
+    }
+    switchTab(activeTab) {
+      if (activeTab === "settings") {
+        this.tabContentSettings?.classList.remove("hidden");
+        this.tabContentActivity?.classList.add("hidden");
+        this.tabBtnSettings?.classList.add("active");
+        this.tabBtnActivity?.classList.remove("active");
+      } else {
+        this.tabContentActivity?.classList.remove("hidden");
+        this.tabContentSettings?.classList.add("hidden");
+        this.tabBtnActivity?.classList.add("active");
+        this.tabBtnSettings?.classList.remove("active");
+        this.loadActivityHistory();
+        this.loadDayLogs(this.selectedDateStr);
+      }
+      chrome.storage.local.set({ activePopupTab: activeTab });
+    }
+    async loadActivityHistory() {
+      try {
+        const res = await this.apiClient.getActivityHistory();
+        if (res.success) {
+          if (Array.isArray(res.history)) {
+            this.activityHistoryCache = res.history;
+          }
+          if (res.userGoals) {
+            this.userGoalsCache = res.userGoals;
+          }
+          if (res.customFlags) {
+            this.userCustomFlagsCache = { ...this.userCustomFlagsCache, ...res.customFlags };
+            chrome.storage.local.set({ userCustomFlags: this.userCustomFlagsCache });
+          }
+        }
+      } catch (_) {
+      }
+      this.renderLanguageFilters();
+      this.renderCalendar();
+      this.renderSummaryStats();
+    }
+    getTargetGoalMinutes(langCode) {
+      if (langCode === "all") {
+        const goals2 = this.userGoalsCache?.dailyGoalsByLanguage;
+        if (goals2 && Object.keys(goals2).length > 0) {
+          const sum = Object.values(goals2).reduce((acc, g) => acc + (Number(g) || 0), 0);
+          if (sum > 0) return sum;
+        }
+        return this.userGoalsCache?.dailyGoalMinutes || 60;
+      }
+      const goals = this.userGoalsCache?.dailyGoalsByLanguage || {};
+      const normLang = normalizeLanguageCode(langCode);
+      const langMeta = LECTURA_LANGUAGES_MAP[normLang];
+      for (const [k, v] of Object.entries(goals)) {
+        const normK = normalizeLanguageCode(k);
+        if (normK === normLang || langMeta && k.toLowerCase() === langMeta.name.toLowerCase()) {
+          if (typeof v === "number" && v > 0) return v;
+        }
+      }
+      return this.userGoalsCache?.dailyGoalMinutes || 15;
+    }
+    renderLanguageFilters() {
+      if (!this.activityLangPillsContainer) return;
+      const langMinutesMap = {};
+      for (const item of this.activityHistoryCache) {
+        const code = normalizeLanguageCode(item.targetLanguage || "en");
+        const sec = Number(item.durationSeconds) || 0;
+        langMinutesMap[code] = (langMinutesMap[code] || 0) + Math.round(sec / 60);
+      }
+      const activeLangCodes = Object.keys(langMinutesMap).filter((code) => langMinutesMap[code] > 0);
+      if (this.selectedActivityLang !== "all" && !activeLangCodes.includes(this.selectedActivityLang)) {
+        this.selectedActivityLang = "all";
+      }
+      const overallLabel = t("overall", this.currentUiLang);
+      let html = `
+      <button type="button" class="lang-pill ${this.selectedActivityLang === "all" ? "active" : ""}" data-lang="all">
+        <span class="text-base">\u{1F310}</span>
+        <span class="font-semibold text-xs">${overallLabel}</span>
+      </button>
+    `;
+      for (const code of activeLangCodes) {
+        const name = LANGUAGE_NAMES[code] || LECTURA_LANGUAGES_MAP[code]?.name || code.toUpperCase();
+        const flagUrl = getLanguageFlagUrl(code, this.userCustomFlagsCache);
+        const isSel = this.selectedActivityLang === code ? "active" : "";
+        html += `
+        <button type="button" class="lang-pill ${isSel}" data-lang="${code}">
+          <img src="${flagUrl}" alt="${name}" class="w-4 h-4 rounded-full object-cover shadow-xs" />
+          <span class="font-semibold text-xs">${name}</span>
+        </button>
+      `;
+      }
+      this.activityLangPillsContainer.innerHTML = html;
+    }
+    renderCalendar() {
+      const monthNames = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December"
+      ];
+      if (this.currentMonthYearLabel) {
+        this.currentMonthYearLabel.textContent = `${monthNames[this.currentCalendarMonth]} ${this.currentCalendarYear}`;
+      }
+      const targetGoalMinutes = this.getTargetGoalMinutes(this.selectedActivityLang);
+      if (this.calendarGoalBadge) {
+        const goalLabel = t("goal_per_day", this.currentUiLang);
+        this.calendarGoalBadge.textContent = `${goalLabel}: ${targetGoalMinutes} m/day`;
+      }
+      if (!this.calendarDaysGrid) return;
+      this.calendarDaysGrid.innerHTML = "";
+      const year = this.currentCalendarYear;
+      const month = this.currentCalendarMonth;
+      const firstDayDate = new Date(year, month, 1);
+      const startingDay = (firstDayDate.getDay() + 6) % 7;
+      const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+      const prevMonthDays = new Date(year, month, 0).getDate();
+      const today = /* @__PURE__ */ new Date();
+      const isCurrentMonthAndYear = today.getFullYear() === year && today.getMonth() === month;
+      const todayDate = today.getDate();
+      const dailySecondsMap = {};
+      for (const item of this.activityHistoryCache) {
+        const itemCode = normalizeLanguageCode(item.targetLanguage || "en");
+        if (this.selectedActivityLang !== "all" && itemCode !== this.selectedActivityLang) {
+          continue;
+        }
+        if (!item.timestamp) continue;
+        const d = new Date(item.timestamp);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+          const dayNum = d.getDate();
+          dailySecondsMap[dayNum] = (dailySecondsMap[dayNum] || 0) + (Number(item.durationSeconds) || 0);
+        }
+      }
+      for (let i = startingDay - 1; i >= 0; i--) {
+        const prevDay = prevMonthDays - i;
+        const prevMonthIdx = month === 0 ? 11 : month - 1;
+        const prevYear = month === 0 ? year - 1 : year;
+        const prevDateStr = `${prevYear}-${String(prevMonthIdx + 1).padStart(2, "0")}-${String(prevDay).padStart(2, "0")}`;
+        const cell = document.createElement("div");
+        cell.className = "cal-day-cell other-month";
+        cell.dataset.date = prevDateStr;
+        if (this.selectedDateStr === prevDateStr) cell.classList.add("selected-day");
+        cell.textContent = String(prevDay);
+        this.calendarDaysGrid.appendChild(cell);
+      }
+      for (let day = 1; day <= totalDaysInMonth; day++) {
+        const cell = document.createElement("div");
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        cell.dataset.date = dateStr;
+        const totalSec = dailySecondsMap[day] || 0;
+        const totalMin = Math.round(totalSec / 60);
+        const isToday = isCurrentMonthAndYear && day === todayDate;
+        const isSelected = this.selectedDateStr === dateStr;
+        if (totalMin > 0) {
+          const isGoalReached = totalMin >= targetGoalMinutes;
+          const statusClass = isGoalReached ? "cal-day-completed" : "cal-day-partial";
+          cell.className = `cal-day-cell ${statusClass}${isToday ? " cal-day-today today" : ""}${isSelected ? " selected-day" : ""}`;
+          const timeLabel = totalMin < 60 ? `${totalMin}m` : `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
+          cell.innerHTML = `
+          <span class="day-num">${day}</span>
+          <span class="day-time">${timeLabel}</span>
+        `;
+        } else {
+          cell.className = `cal-day-cell cal-day-empty inactive${isToday ? " cal-day-today today" : ""}${isSelected ? " selected-day" : ""}`;
+          cell.textContent = String(day);
+        }
+        this.calendarDaysGrid.appendChild(cell);
+      }
+      const totalRendered = startingDay + totalDaysInMonth;
+      const remaining = (7 - totalRendered % 7) % 7;
+      for (let day = 1; day <= remaining; day++) {
+        const nextMonthIdx = month === 11 ? 0 : month + 1;
+        const nextYear = month === 11 ? year + 1 : year;
+        const nextDateStr = `${nextYear}-${String(nextMonthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const cell = document.createElement("div");
+        cell.className = "cal-day-cell other-month";
+        cell.dataset.date = nextDateStr;
+        if (this.selectedDateStr === nextDateStr) cell.classList.add("selected-day");
+        cell.textContent = String(day);
+        this.calendarDaysGrid.appendChild(cell);
+      }
+    }
+    async loadDayLogs(dateStr) {
+      if (!this.dayLogsContainer) return;
+      if (this.selectedDateLabel) {
+        try {
+          const parts = dateStr.split("-");
+          if (parts.length === 3) {
+            const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            this.selectedDateLabel.textContent = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+          } else {
+            this.selectedDateLabel.textContent = dateStr;
+          }
+        } catch (_) {
+          this.selectedDateLabel.textContent = dateStr;
+        }
+      }
+      try {
+        const res = await this.apiClient.getDayActivity(dateStr, this.selectedActivityLang);
+        if (res.success && Array.isArray(res.logs) && res.logs.length > 0) {
+          let html = "";
+          for (const log of res.logs) {
+            const normCode = normalizeLanguageCode(log.language);
+            const name = LANGUAGE_NAMES[normCode] || LECTURA_LANGUAGES_MAP[normCode]?.name || normCode.toUpperCase();
+            const flagUrl = getLanguageFlagUrl(log.language, this.userCustomFlagsCache);
+            const safeTitle = (log.title || "YouTube Video").replace(/"/g, "&quot;");
+            const safeChannel = (log.channel || "YouTube").replace(/"/g, "&quot;");
+            const safeSource = (log.source || "YouTube").replace(/"/g, "&quot;");
+            html += `
+            <div class="history-item">
+              <div class="history-item-content">
+                <div class="history-item-header">
+                  <a href="${log.url || "#"}" target="_blank" class="history-item-title" title="${safeTitle}">
+                    ${safeTitle}
+                  </a>
+                  <span class="history-item-minutes">${log.minutes} m</span>
+                </div>
+                <div class="history-item-meta">
+                  <span class="inline-flex items-center gap-1.5">
+                    <img src="${flagUrl}" alt="${name}" class="w-3.5 h-3.5 rounded-full object-cover shadow-xs inline-block" />
+                    <span>${name}</span>
+                  </span>
+                  <span>\u2022</span>
+                  <span>${safeSource}</span>
+                  <span>\u2022</span>
+                  <span class="truncate">${safeChannel}</span>
+                </div>
+              </div>
+              <button type="button" class="delete-log-btn" data-id="${log.id}" title="${t("delete_entry", this.currentUiLang)}">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          `;
+          }
+          this.dayLogsContainer.innerHTML = html;
+        } else {
+          this.dayLogsContainer.innerHTML = `<div class="day-logs-empty">${t("no_activity_day", this.currentUiLang)}</div>`;
+        }
+      } catch (err) {
+        this.dayLogsContainer.innerHTML = `<div class="day-logs-empty">${t("failed_load_day_activity", this.currentUiLang)}</div>`;
+      }
+    }
+    async handleDeleteActivityLog(logId, dateStr) {
+      const confirmed = window.confirm(t("confirm_delete_log", this.currentUiLang));
+      if (!confirmed) return;
+      try {
+        const res = await this.apiClient.deleteActivityLog(logId);
+        if (res.success) {
+          await this.loadDayLogs(dateStr);
+          await this.loadActivityHistory();
+        } else {
+          alert(t("failed_delete_log", this.currentUiLang));
+        }
+      } catch (err) {
+        console.error("Failed to delete log:", err);
+        alert(t("failed_delete_log", this.currentUiLang));
+      }
+    }
+    renderSummaryStats() {
+      const filtered = this.activityHistoryCache.filter((item) => {
+        if (this.selectedActivityLang === "all") return true;
+        const code = normalizeLanguageCode(item.targetLanguage || "en");
+        return code === this.selectedActivityLang;
+      });
+      const activeLangs = new Set(
+        this.activityHistoryCache.filter((h) => (Number(h.durationSeconds) || 0) > 0).map((h) => normalizeLanguageCode(h.targetLanguage || "en"))
+      );
+      if (this.statLangsCount) {
+        this.statLangsCount.textContent = String(Math.max(1, activeLangs.size));
+      }
+      const now = /* @__PURE__ */ new Date();
+      const dayOfWeek = (now.getDay() + 6) % 7;
+      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek, 0, 0, 0);
+      const sunday = new Date(monday.getTime() + 7 * 24 * 60 * 60 * 1e3);
+      let weekSeconds = 0;
+      let monthSeconds = 0;
+      const currentYear = this.currentCalendarYear;
+      const currentMonth = this.currentCalendarMonth;
+      for (const item of filtered) {
+        if (!item.timestamp) continue;
+        const d = new Date(item.timestamp);
+        const sec = Number(item.durationSeconds) || 0;
+        if (d >= monday && d < sunday) {
+          weekSeconds += sec;
+        }
+        if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
+          monthSeconds += sec;
+        }
+      }
+      if (this.statWeek) {
+        const weekMin = Math.round(weekSeconds / 60);
+        this.statWeek.textContent = weekMin < 60 ? `${weekMin} m` : `${Math.floor(weekMin / 60)} h ${weekMin % 60} m`;
+      }
+      if (this.statMonth) {
+        const monthMin = Math.round(monthSeconds / 60);
+        this.statMonth.textContent = monthMin < 60 ? `${monthMin} m` : `${Math.floor(monthMin / 60)} h ${monthMin % 60} m`;
+      }
+    }
+    applyBgColor(color) {
+      this.currentSubtitleBgColor = color;
+      chrome.storage.local.set({ subtitleBgColor: color });
+      document.documentElement.style.setProperty("--lectura-sub-bg-color", color);
+      try {
+        chrome.tabs.query({}).then((tabs) => {
+          for (const tab of tabs) {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, {
+                type: "UPDATE_SUB_BG_COLOR",
+                color
+              }).catch(() => {
+              });
+            }
+          }
+        }).catch(() => {
+        });
+      } catch (_) {
+      }
     }
     async setSubtitleMode(mode) {
       this.currentSubtitleMode = mode;
@@ -1050,9 +1998,16 @@
     }
     async loadSettings() {
       const settings = await StorageService.getSettings();
-      this.serverUrlInput.value = settings.serverUrl || "http://localhost:3000";
-      this.authTokenInput.value = settings.authToken || "";
-      this.targetLanguageSelect.value = settings.targetLanguage || "es";
+      if (this.serverUrlInput) {
+        this.serverUrlInput.value = settings.serverUrl || "http://localhost:3000";
+      }
+      if (this.authTokenInput) {
+        this.authTokenInput.value = settings.authToken || "";
+      }
+      if (this.targetLanguageSelect) {
+        this.targetLanguageSelect.value = settings.targetLanguage || "es";
+        this.updateStudyLanguageFlag(this.targetLanguageSelect.value);
+      }
       if (this.interfaceLanguageSelect) {
         this.interfaceLanguageSelect.value = settings.interfaceLanguage || "en";
       }
@@ -1062,8 +2017,22 @@
       if (this.subSizeSelect) {
         this.subSizeSelect.value = settings.subtitleSizePreset || "md";
       }
+      if (this.subFontSizeInput) {
+        const size = settings.subtitleFontSize || 22;
+        this.subFontSizeInput.value = String(size);
+        if (this.subFontSizeValue) {
+          this.subFontSizeValue.textContent = `${size}px`;
+        }
+      }
+      this.currentSubtitleBgColor = settings.subtitleBgColor || "rgba(0, 0, 0, 0.45)";
       if (this.popupThemeSelect) {
         this.popupThemeSelect.value = settings.popupTheme || "glass";
+      }
+      if (this.enableYoutubeOverlayCheck) {
+        this.enableYoutubeOverlayCheck.checked = settings.enableYoutubeOverlay ?? true;
+      }
+      if (this.trackListeningActivityCheck) {
+        this.trackListeningActivityCheck.checked = settings.trackListeningActivity ?? true;
       }
       if (this.dualSubsCheck) {
         this.dualSubsCheck.checked = settings.enableDualSubtitles ?? false;
@@ -1073,12 +2042,23 @@
       }
       this.currentSubtitleMode = settings.subtitleHighlightMode || "underline";
       this.updateModeButtonsUI(this.currentSubtitleMode);
-      applyI18nToDOM(document, settings.interfaceLanguage || "en");
+      this.currentUiLang = settings.interfaceLanguage || "en";
+      applyI18nToDOM(document, this.currentUiLang);
+      chrome.storage.local.get(["userCustomFlags", "userProfile", "lecturaServerSettings"], (res) => {
+        const storedFlags = res.userCustomFlags || res.userProfile?.languageFlags || res.lecturaServerSettings?.languageFlags || {};
+        if (storedFlags && typeof storedFlags === "object") {
+          this.userCustomFlagsCache = { ...this.userCustomFlagsCache, ...storedFlags };
+          if (this.targetLanguageSelect) {
+            this.updateStudyLanguageFlag(this.targetLanguageSelect.value);
+          }
+        }
+      });
     }
     async loadProfiles() {
+      if (!this.userProfileSelect) return;
       try {
-        const currentUrl = this.serverUrlInput.value.trim().replace(/\/+$/, "") || "http://localhost:3000";
         const settings = await StorageService.getSettings();
+        const currentUrl = (this.serverUrlInput?.value?.trim() || settings.serverUrl || "http://localhost:3000").replace(/\/+$/, "");
         const client = new LecturaApiClient({ ...settings, serverUrl: currentUrl });
         const profiles = await client.getProfiles();
         const savedUserId = settings.selectedUserId || "";
@@ -1107,12 +2087,14 @@
     getFormSettings() {
       const sizePreset = this.subSizeSelect?.value || "md";
       return {
-        serverUrl: this.serverUrlInput.value.trim().replace(/\/+$/, ""),
-        authToken: this.authTokenInput.value.trim(),
-        selectedUserId: this.userProfileSelect.value,
-        targetLanguage: this.targetLanguageSelect.value,
+        serverUrl: this.serverUrlInput ? this.serverUrlInput.value.trim().replace(/\/+$/, "") : void 0,
+        authToken: this.authTokenInput ? this.authTokenInput.value.trim() : void 0,
+        selectedUserId: this.userProfileSelect ? this.userProfileSelect.value : void 0,
+        targetLanguage: this.targetLanguageSelect ? this.targetLanguageSelect.value : "es",
         ttsDialect: this.ttsDialectSelect ? this.ttsDialectSelect.value : "en-US",
         subtitleSizePreset: sizePreset,
+        subtitleFontSize: parseInt(this.subFontSizeInput?.value || "22", 10) || 22,
+        subtitleBgColor: this.currentSubtitleBgColor || "rgba(0, 0, 0, 0.45)",
         enableDualSubtitles: this.dualSubsCheck ? this.dualSubsCheck.checked : false,
         pauseOnWordClick: this.pauseOnWordClickCheck ? this.pauseOnWordClickCheck.checked : false,
         subtitleHighlightMode: this.currentSubtitleMode,
@@ -1126,53 +2108,65 @@
       chrome.storage.local.set({
         dual_subs: newSettings.enableDualSubtitles ?? false,
         sub_size_preset: newSettings.subtitleSizePreset || "md",
-        popup_theme: newSettings.popupTheme || "glass"
+        popup_theme: newSettings.popupTheme || "glass",
+        subtitleBgColor: newSettings.subtitleBgColor || "rgba(0, 0, 0, 0.45)"
       });
       this.showAlert("Settings & Profile saved successfully!", "success");
       await this.syncWords();
     }
     async testConnection(showUserFeedback = true) {
-      this.connectionBadge.textContent = "Checking...";
-      this.connectionBadge.className = "badge badge-checking";
-      this.btnTestConnection.disabled = true;
+      if (this.connectionBadge) {
+        this.connectionBadge.textContent = "Checking...";
+        this.connectionBadge.className = "ext-status-badge badge-checking";
+      }
+      if (this.btnTestConnection) {
+        this.btnTestConnection.disabled = true;
+      }
       try {
         const formSettings = this.getFormSettings();
+        const settings = await StorageService.getSettings();
         const testClient = new LecturaApiClient({
-          serverUrl: formSettings.serverUrl || "http://localhost:3000",
-          authToken: formSettings.authToken || "",
-          selectedUserId: formSettings.selectedUserId || "",
+          serverUrl: formSettings.serverUrl || settings.serverUrl || "http://localhost:3000",
+          authToken: formSettings.authToken || settings.authToken || "",
+          selectedUserId: formSettings.selectedUserId || settings.selectedUserId || "",
           syncKey: "",
-          targetLanguage: formSettings.targetLanguage || "es",
+          targetLanguage: formSettings.targetLanguage || settings.targetLanguage || "es",
           nativeLanguage: "ru",
           enableYoutubeOverlay: true,
           enableInSituSelection: true,
           highlightKnownWords: false,
           autoPauseOnHover: true,
-          subtitleFontSize: 24,
+          subtitleFontSize: 22,
           subtitleBgOpacity: 75,
           subtitleHighlightMode: formSettings.subtitleHighlightMode || "underline"
         });
         const health = await testClient.checkHealth();
         const versionStr = health.version ? `v${health.version}` : "Online";
         const userStr = health.userId ? ` \u2022 User: ${health.userId}` : "";
-        this.connectionBadge.textContent = `Connected (${versionStr})`;
-        this.connectionBadge.className = "ext-status-badge badge-connected";
+        if (this.connectionBadge) {
+          this.connectionBadge.textContent = `Connected (${versionStr})`;
+          this.connectionBadge.className = "ext-status-badge badge-connected";
+        }
         if (showUserFeedback) {
           this.showAlert(`Connected to Lectura! (${versionStr}${userStr})`, "success");
         }
       } catch (err) {
-        this.connectionBadge.textContent = "Disconnected";
-        this.connectionBadge.className = "ext-status-badge badge-disconnected";
+        if (this.connectionBadge) {
+          this.connectionBadge.textContent = "Disconnected";
+          this.connectionBadge.className = "ext-status-badge badge-disconnected";
+        }
         if (showUserFeedback) {
           this.showAlert(`Connection failed: ${err.message || "Cannot reach server"}`, "error");
         }
       } finally {
-        this.btnTestConnection.disabled = false;
+        if (this.btnTestConnection) {
+          this.btnTestConnection.disabled = false;
+        }
       }
     }
     async importCurrentPage() {
       this.btnImportPage.disabled = true;
-      this.btnImportPage.innerHTML = `<span class="btn-icon">\u23F3</span> Parsing Article...`;
+      this.btnImportPage.innerHTML = `<span class="btn-icon">\u23F3</span> ${t("importing", this.currentUiLang)}`;
       try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab?.id) {
@@ -1193,7 +2187,7 @@
             this.resetImportButton();
             return;
           }
-          this.btnImportPage.innerHTML = `<span class="btn-icon">\u{1F4E4}</span> Saving to Lectura...`;
+          this.btnImportPage.innerHTML = `<span class="btn-icon">\u{1F4E4}</span> ${t("saving_to_lectura", this.currentUiLang)}`;
           try {
             const settings = await StorageService.getSettings();
             const saveRes = await this.apiClient.saveLesson({
@@ -1206,7 +2200,7 @@
               lessonType: "article"
             });
             this.showAlert(`Lesson "${article.title}" saved to Lectura!`, "success");
-            this.btnImportPage.innerHTML = `<span class="btn-icon">\u2705</span> Imported!`;
+            this.btnImportPage.innerHTML = `<span class="btn-icon">\u2705</span> ${t("imported", this.currentUiLang)}`;
           } catch (err) {
             this.showAlert(`Failed to import lesson: ${err.message || "Server error"}`, "error");
             this.resetImportButton();
@@ -1219,7 +2213,7 @@
     }
     resetImportButton() {
       this.btnImportPage.disabled = false;
-      this.btnImportPage.innerHTML = `<span class="btn-icon">\u{1F4E5}</span> Import Current Page`;
+      this.btnImportPage.innerHTML = `<span class="btn-icon">\u{1F4E5}</span> ${t("import_video_page", this.currentUiLang)}`;
     }
     async openLecturaApp() {
       const settings = await StorageService.getSettings();
@@ -1228,7 +2222,7 @@
     }
     async syncWords() {
       this.btnSyncWords.disabled = true;
-      this.btnSyncWords.innerHTML = `<span class="btn-icon">\u23F3</span> Syncing...`;
+      this.btnSyncWords.innerHTML = `<span class="btn-icon">\u23F3</span> ${t("syncing", this.currentUiLang)}`;
       try {
         const settings = await StorageService.getSettings();
         const res = await this.apiClient.getWords(settings.targetLanguage);
@@ -1237,7 +2231,7 @@
         this.showAlert(`Word sync failed: ${err.message}`, "error");
       } finally {
         this.btnSyncWords.disabled = false;
-        this.btnSyncWords.innerHTML = `<span class="btn-icon">\u{1F504}</span> Sync Words`;
+        this.btnSyncWords.innerHTML = `<span class="btn-icon">\u{1F504}</span> ${t("sync_words", this.currentUiLang)}`;
       }
     }
     showAlert(message, type) {

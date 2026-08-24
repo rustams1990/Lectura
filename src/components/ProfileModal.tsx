@@ -117,7 +117,7 @@ export function UserAvatarDisplay({
   );
 }
 
-export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
+export function ProfileModalComponent({ isOpen, onClose }: ProfileModalProps) {
   const { user, updateProfile, changePassword, uploadAvatar } = useAuth();
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -141,13 +141,13 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user) {
+    if (isOpen && user) {
       setDisplayName(user.displayName || user.username || "");
       setSelectedAvatar(user.avatarUrl || "");
       setPasswordHint(user.passwordHint || "");
       setSecurityPasswordHint(user.passwordHint || "");
     }
-  }, [user, isOpen]);
+  }, [isOpen, user?.id]);
 
   if (!isOpen || !user) return null;
 
@@ -517,3 +517,6 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     </div>
   );
 }
+
+const ProfileModal = React.memo(ProfileModalComponent);
+export default ProfileModal;

@@ -28,7 +28,9 @@ const UI_LANGUAGES = [
   { code: "ko", name: "한국어", flag: "🇰🇷" },
 ];
 
-export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initialUsername = "" }: AuthModalProps) {
+const DEFAULT_AVATARS = ["🦊", "🦉", "🐱", "🐼", "🚀", "👑", "⚡", "🌟", "🎨", "📚"];
+
+export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initialUsername = "" }: AuthModalProps) {
   const { loginLocalServer, registerLocalServer } = useAuth();
   const { t, i18n } = useTranslation();
   
@@ -55,16 +57,13 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
   const [hintResult, setHintResult] = useState<{ searched: boolean; hint: string | null } | null>(null);
 
   useEffect(() => {
-    if (initialUsername) {
-      setEmailOrUsername(initialUsername);
-    }
-  }, [initialUsername, isOpen]);
-
-  useEffect(() => {
     if (isOpen) {
+      if (initialUsername) {
+        setEmailOrUsername(initialUsername);
+      }
       setServerUrlState(getServerBaseUrl());
     }
-  }, [isOpen]);
+  }, [isOpen, initialUsername]);
 
   const handleLanguageChange = (lang: string) => {
     i18n.changeLanguage(lang);
@@ -570,7 +569,7 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
                           {t('profile.avatar', 'Аватар:')}
                         </label>
                         <div className="flex gap-1.5 overflow-x-auto py-1 custom-scrollbar">
-                          {["🦊", "🦉", "🐱", "🐼", "🚀", "👑", "⚡", "🌟", "🎨", "📚"].map((emoji) => (
+                          {DEFAULT_AVATARS.map((emoji) => (
                             <button
                               key={emoji}
                               type="button"
@@ -625,3 +624,6 @@ export default function AuthModal({ isOpen, onClose, onLocalServerLogin, initial
     </div>
   );
 }
+
+const AuthModal = React.memo(AuthModalComponent);
+export default AuthModal;

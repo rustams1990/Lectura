@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   targetLanguage: 'en',
   nativeLanguage: 'ru',
   enableYoutubeOverlay: true,
+  trackListeningActivity: true,
   enableDualSubtitles: false,
   subtitleSizePreset: 'md',
   captureVideoSnapshot: false,
@@ -15,9 +16,10 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   enableInSituSelection: true,
   highlightKnownWords: false,
   autoPauseOnHover: true,
-  subtitleFontSize: 24,
+  subtitleFontSize: 22,
   subtitleBgOpacity: 75,
-  subtitleHighlightMode: 'underline',
+  subtitleBgColor: 'rgba(0, 0, 0, 0.45)',
+  subtitleHighlightMode: 'color',
   ttsDialect: 'en-US',
   popupTheme: 'glass',
   interfaceLanguage: 'en',
@@ -57,15 +59,15 @@ export class StorageService {
    */
   static async getSettings(): Promise<ExtensionSettings> {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(DEFAULT_SETTINGS, (items) => {
-        if (chrome.runtime.lastError) {
-          console.warn('[Lectura Storage] sync get error, fallback to local:', chrome.runtime.lastError);
-          chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
-            resolve({ ...DEFAULT_SETTINGS, ...localItems });
-          });
-        } else {
-          resolve({ ...DEFAULT_SETTINGS, ...items });
-        }
+      chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
+        chrome.storage.sync.get(DEFAULT_SETTINGS, (syncItems) => {
+          const merged = {
+            ...DEFAULT_SETTINGS,
+            ...(syncItems || {}),
+            ...(localItems || {}),
+          };
+          resolve(merged);
+        });
       });
     });
   }
@@ -75,19 +77,10 @@ export class StorageService {
    */
   static async saveSettings(settings: Partial<ExtensionSettings>): Promise<void> {
     return new Promise((resolve, reject) => {
-      chrome.storage.sync.set(settings, () => {
-        if (chrome.runtime.lastError) {
-          // Fallback to local
-          chrome.storage.local.set(settings, () => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve();
-            }
-          });
-        } else {
-          chrome.storage.local.set(settings, () => resolve());
-        }
+      chrome.storage.local.set(settings, () => {
+        chrome.storage.sync.set(settings, () => {
+          resolve();
+        });
       });
     });
   }

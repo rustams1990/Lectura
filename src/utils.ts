@@ -18,7 +18,6 @@ export function generateHistoryId(options?: {
   const source = options?.source || "unknown";
 
   if (!durationSeconds || durationSeconds <= 0) {
-    console.error('BLOCKED ATTEMPT TO CREATE 0s HISTORY:', { source, durationSeconds, actionType: options?.actionType });
     return null;
   }
 

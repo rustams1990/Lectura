@@ -130,6 +130,7 @@ export default function FloatingWordPopup(props: FloatingWordPopupProps) {
         top: `${finalTop}px`,
         left: `${finalLeft}px`,
         width: "430px",
+        background: "transparent",
       }}
       onClick={(e) => e.stopPropagation()}
     >

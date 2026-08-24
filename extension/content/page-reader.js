@@ -8,6 +8,7 @@
     targetLanguage: "en",
     nativeLanguage: "ru",
     enableYoutubeOverlay: true,
+    trackListeningActivity: true,
     enableDualSubtitles: false,
     subtitleSizePreset: "md",
     captureVideoSnapshot: false,
@@ -15,9 +16,10 @@
     enableInSituSelection: true,
     highlightKnownWords: false,
     autoPauseOnHover: true,
-    subtitleFontSize: 24,
+    subtitleFontSize: 22,
     subtitleBgOpacity: 75,
-    subtitleHighlightMode: "underline",
+    subtitleBgColor: "rgba(0, 0, 0, 0.45)",
+    subtitleHighlightMode: "color",
     ttsDialect: "en-US",
     popupTheme: "glass",
     interfaceLanguage: "en"
@@ -54,15 +56,15 @@
      */
     static async getSettings() {
       return new Promise((resolve) => {
-        chrome.storage.sync.get(DEFAULT_SETTINGS, (items) => {
-          if (chrome.runtime.lastError) {
-            console.warn("[Lectura Storage] sync get error, fallback to local:", chrome.runtime.lastError);
-            chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
-              resolve({ ...DEFAULT_SETTINGS, ...localItems });
-            });
-          } else {
-            resolve({ ...DEFAULT_SETTINGS, ...items });
-          }
+        chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
+          chrome.storage.sync.get(DEFAULT_SETTINGS, (syncItems) => {
+            const merged = {
+              ...DEFAULT_SETTINGS,
+              ...syncItems || {},
+              ...localItems || {}
+            };
+            resolve(merged);
+          });
         });
       });
     }
@@ -71,18 +73,10 @@
      */
     static async saveSettings(settings) {
       return new Promise((resolve, reject) => {
-        chrome.storage.sync.set(settings, () => {
-          if (chrome.runtime.lastError) {
-            chrome.storage.local.set(settings, () => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-              } else {
-                resolve();
-              }
-            });
-          } else {
-            chrome.storage.local.set(settings, () => resolve());
-          }
+        chrome.storage.local.set(settings, () => {
+          chrome.storage.sync.set(settings, () => {
+            resolve();
+          });
         });
       });
     }
@@ -599,6 +593,107 @@
       } catch (_2) {
       }
       return null;
+    }
+    /**
+     * Logs media watch/listening activity to Lectura server
+     */
+    async logActivity(payload) {
+      if (this.isContentScript()) {
+        return new Promise((resolve) => {
+          chrome.runtime.sendMessage({ type: "LOG_YOUTUBE_ACTIVITY", payload }, (response) => {
+            if (response?.success) {
+              resolve(response.data || { success: true });
+            } else {
+              resolve({ success: false });
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/log");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: this.buildHeaders(settings),
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to log activity to server:", err?.message || err);
+      }
+      return { success: false };
+    }
+    /**
+     * Retrieves reading / listening activity history
+     */
+    async getActivityHistory(language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `?language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/history${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            success: true,
+            history: data.history || [],
+            userGoals: data.userGoals,
+            customFlags: data.customFlags
+          };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch activity history:", err?.message || err);
+      }
+      return { success: false, history: [] };
+    }
+    /**
+     * Retrieves activity history logs for a specific day (YYYY-MM-DD)
+     */
+    async getDayActivity(dateStr, language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `&language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return { success: true, logs: data.logs || [] };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch day activity:", err?.message || err);
+      }
+      return { success: false, logs: [] };
+    }
+    /**
+     * Deletes a specific activity log entry
+     */
+    async deleteActivityLog(logId) {
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/log/${encodeURIComponent(String(logId))}`);
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return { success: true };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to delete activity log:", err?.message || err);
+      }
+      return { success: false };
     }
   };
 

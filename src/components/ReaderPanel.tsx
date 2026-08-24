@@ -783,6 +783,7 @@ function ReaderPanel({
 
   return (
     <div id="reader-top" className={`relative rounded-2xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6 transition-colors duration-200 overflow-hidden ${currentTheme.container}`}>
+      <div id="reader-top-anchor" className="h-0 pointer-events-none" />
       {/* Top Reading Progress Line */}
       {activeSettings.showProgressBar && !lesson.youtubeId && !currentYoutubeTime && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-200/50 dark:bg-zinc-800/50">
@@ -795,10 +796,10 @@ function ReaderPanel({
 
       {/* Title / status — hidden in Focus Mode via hideMeta prop */}
       {!hideMeta && (
-        <div className={`pb-2.5 sm:pb-3.5 border-b ${currentTheme.divider} flex items-center justify-between gap-3 min-w-0`}>
-          {/* Main Lesson Title (Truncated on long titles so it never overlaps right controls) */}
+        <div className={`pb-2.5 sm:pb-3.5 border-b ${currentTheme.divider} flex items-center justify-end lg:justify-between gap-3 min-w-0`}>
+          {/* Main Lesson Title (Truncated on long titles, hidden on mobile/tablet to avoid duplication with video header, shown on PC) */}
           <h1 
-            className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate max-w-[60%] sm:max-w-[70%] md:max-w-[75%] min-w-0"
+            className="hidden lg:block text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate max-w-[60%] sm:max-w-[70%] md:max-w-[75%] min-w-0"
             title={lesson.title}
           >
             {lesson.title}
@@ -809,64 +810,72 @@ function ReaderPanel({
             {/* 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
             <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
               {/* 1. Translation Toggle */}
-              <button
-                type="button"
-                onClick={onToggleTranslations}
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                  activeSettings.showSentenceTranslations
-                    ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
-                }`}
-                title={activeSettings.showSentenceTranslations ? t("reader.hide_translations_title", "Скрыть перевод предложений (T)") : t("reader.show_translations_title", "Показать перевод предложений (T)")}
-              >
-                <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </button>
+              {activeSettings.toolbarVisibility?.showTranslation !== false && (
+                <button
+                  type="button"
+                  onClick={onToggleTranslations}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                    activeSettings.showSentenceTranslations
+                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                      : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                  }`}
+                  title={activeSettings.showSentenceTranslations ? t("reader.hide_translations_title", "Скрыть перевод предложений (T)") : t("reader.show_translations_title", "Показать перевод предложений (T)")}
+                >
+                  <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              )}
 
               {/* 2. Focus Mode */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isFocusMode) {
-                    setShowYoutubePlayer(true);
-                  }
-                  setIsFocusMode(!isFocusMode);
-                }}
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                  isFocusMode
-                    ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
-                }`}
-                title={t("reader.focus_btn", "Режим фокуса")}
-              >
-                <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </button>
+              {activeSettings.toolbarVisibility?.showFocusMode !== false && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isFocusMode) {
+                      setShowYoutubePlayer(true);
+                    }
+                    setIsFocusMode(!isFocusMode);
+                  }}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                    isFocusMode
+                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                      : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                  }`}
+                  title={t("reader.focus_btn", "Режим фокуса")}
+                >
+                  <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              )}
 
               {/* 3. Play: Match Pairs */}
-              <button
-                type="button"
-                onClick={() => setShowMatchPairsModal(true)}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                title={t("reader.pairs_btn_title", "Игра: Пары")}
-              >
-                <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </button>
+              {activeSettings.toolbarVisibility?.showPlayPairs !== false && (
+                <button
+                  type="button"
+                  onClick={() => setShowMatchPairsModal(true)}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  title={t("reader.pairs_btn_title", "Игра: Пары")}
+                >
+                  <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              )}
 
               {/* 4. Unknown Only */}
-              <button
-                type="button"
-                onClick={() => (onWordClick ? storeSetShowOnlyUnknown(!storeShowOnlyUnknown) : null)}
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                  storeShowOnlyUnknown || showOnlyUnknown
-                    ? "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-400/10 border border-amber-500/30 shadow-3xs"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
-                }`}
-                title={t("reader.unknown_btn_title", "Только неизвестные слова")}
-              >
-                {(storeShowOnlyUnknown || showOnlyUnknown) ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              </button>
+              {activeSettings.toolbarVisibility?.showUnknownOnly !== false && (
+                <button
+                  type="button"
+                  onClick={() => (onWordClick ? storeSetShowOnlyUnknown(!storeShowOnlyUnknown) : null)}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                    storeShowOnlyUnknown || showOnlyUnknown
+                      ? "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-400/10 border border-amber-500/30 shadow-3xs"
+                      : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                  }`}
+                  title={t("reader.unknown_btn_title", "Только неизвестные слова")}
+                >
+                  {(storeShowOnlyUnknown || showOnlyUnknown) ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                </button>
+              )}
 
               {/* 5. Video */}
-              {lesson.youtubeId && (
+              {activeSettings.toolbarVisibility?.showVideoToggle !== false && lesson.youtubeId && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1729,7 +1738,7 @@ function ReaderPanel({
               <div 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`relative hover:z-20 flex items-baseline gap-3 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-all duration-300 ${getSegmentSpacingClass()} ${
+                className={`reader-line-item relative hover:z-20 flex items-baseline gap-3 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-all duration-300 ${getSegmentSpacingClass()} ${
                   isSegmentActive 
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-amber-500 shadow-xs scale-[1.008]" 
                     : "border-transparent hover:bg-zinc-100/30 dark:hover:bg-zinc-800/10"
@@ -1773,7 +1782,7 @@ function ReaderPanel({
               <p 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${
+                className={`reader-line-item paragraph-block relative hover:z-20 text-justify antialiased selection:bg-teal-200 dark:selection:bg-teal-900 transition-all duration-300 rounded-lg ${getBookParagraphSpacingClass()} ${
                   isSegmentActive
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"

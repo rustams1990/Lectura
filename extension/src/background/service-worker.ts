@@ -352,6 +352,14 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
     return true;
   }
 
+  if (message.type === 'LOG_YOUTUBE_ACTIVITY') {
+    apiClient
+      .logActivity(message.payload)
+      .then((res) => sendResponse({ success: true, data: res }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.type === 'OPEN_OPTIONS') {
     chrome.runtime.openOptionsPage();
     sendResponse({ success: true });

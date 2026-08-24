@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ReaderSettings, DateFormatOption, TimeFormatOption, FirstDayOfWeekOption, WordCardMode } from '../types';
+import { ReaderSettings, DateFormatOption, TimeFormatOption, FirstDayOfWeekOption, WordCardMode, DEFAULT_TOOLBAR_VISIBILITY } from '../types';
 
 export type { WordCardMode };
 
@@ -47,6 +47,7 @@ const defaultSettings: ReaderSettings = {
   timeFormat: 'auto',
   firstDayOfWeek: 'auto',
   wordCardMode: initialMode,
+  toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

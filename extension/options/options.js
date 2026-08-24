@@ -8,6 +8,7 @@
     targetLanguage: "en",
     nativeLanguage: "ru",
     enableYoutubeOverlay: true,
+    trackListeningActivity: true,
     enableDualSubtitles: false,
     subtitleSizePreset: "md",
     captureVideoSnapshot: false,
@@ -15,9 +16,10 @@
     enableInSituSelection: true,
     highlightKnownWords: false,
     autoPauseOnHover: true,
-    subtitleFontSize: 24,
+    subtitleFontSize: 22,
     subtitleBgOpacity: 75,
-    subtitleHighlightMode: "underline",
+    subtitleBgColor: "rgba(0, 0, 0, 0.45)",
+    subtitleHighlightMode: "color",
     ttsDialect: "en-US",
     popupTheme: "glass",
     interfaceLanguage: "en"
@@ -54,15 +56,15 @@
      */
     static async getSettings() {
       return new Promise((resolve) => {
-        chrome.storage.sync.get(DEFAULT_SETTINGS, (items) => {
-          if (chrome.runtime.lastError) {
-            console.warn("[Lectura Storage] sync get error, fallback to local:", chrome.runtime.lastError);
-            chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
-              resolve({ ...DEFAULT_SETTINGS, ...localItems });
-            });
-          } else {
-            resolve({ ...DEFAULT_SETTINGS, ...items });
-          }
+        chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
+          chrome.storage.sync.get(DEFAULT_SETTINGS, (syncItems) => {
+            const merged = {
+              ...DEFAULT_SETTINGS,
+              ...syncItems || {},
+              ...localItems || {}
+            };
+            resolve(merged);
+          });
         });
       });
     }
@@ -71,18 +73,10 @@
      */
     static async saveSettings(settings) {
       return new Promise((resolve, reject) => {
-        chrome.storage.sync.set(settings, () => {
-          if (chrome.runtime.lastError) {
-            chrome.storage.local.set(settings, () => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-              } else {
-                resolve();
-              }
-            });
-          } else {
-            chrome.storage.local.set(settings, () => resolve());
-          }
+        chrome.storage.local.set(settings, () => {
+          chrome.storage.sync.set(settings, () => {
+            resolve();
+          });
         });
       });
     }
@@ -600,6 +594,107 @@
       }
       return null;
     }
+    /**
+     * Logs media watch/listening activity to Lectura server
+     */
+    async logActivity(payload) {
+      if (this.isContentScript()) {
+        return new Promise((resolve) => {
+          chrome.runtime.sendMessage({ type: "LOG_YOUTUBE_ACTIVITY", payload }, (response) => {
+            if (response?.success) {
+              resolve(response.data || { success: true });
+            } else {
+              resolve({ success: false });
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/log");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: this.buildHeaders(settings),
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to log activity to server:", err?.message || err);
+      }
+      return { success: false };
+    }
+    /**
+     * Retrieves reading / listening activity history
+     */
+    async getActivityHistory(language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `?language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/history${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            success: true,
+            history: data.history || [],
+            userGoals: data.userGoals,
+            customFlags: data.customFlags
+          };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch activity history:", err?.message || err);
+      }
+      return { success: false, history: [] };
+    }
+    /**
+     * Retrieves activity history logs for a specific day (YYYY-MM-DD)
+     */
+    async getDayActivity(dateStr, language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `&language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return { success: true, logs: data.logs || [] };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch day activity:", err?.message || err);
+      }
+      return { success: false, logs: [] };
+    }
+    /**
+     * Deletes a specific activity log entry
+     */
+    async deleteActivityLog(logId) {
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/log/${encodeURIComponent(String(logId))}`);
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return { success: true };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to delete activity log:", err?.message || err);
+      }
+      return { success: false };
+    }
   };
 
   // extension/src/services/i18n.ts
@@ -617,6 +712,9 @@
       save_config: "Save",
       save_all_changes: "Save All Changes",
       all_settings_saved: "All settings saved successfully!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F Settings",
+      tab_activity: "\u{1F4CA} Activity",
       // Sections
       section_connection: "1. Connection & Authentication",
       section_connection_desc: "Specify your local or remote Lectura server URL and access credentials.",
@@ -645,6 +743,8 @@
       style_color: "\u{1F3A8} Color",
       subtitle_size: "Subtitle Size",
       subtitle_size_full: "Subtitle Size Preset",
+      subtitle_font_size: "Subtitle Font Size (px)",
+      subtitle_bg_color: "Subtitle Background Color",
       size_sm: "Small (16px \u2014 Compact)",
       size_md: "Medium (21px \u2014 Default)",
       size_lg: "Large (27px \u2014 Fullscreen / 4K)",
@@ -654,6 +754,10 @@
       theme_extended: "\u{1F4DA} Extended (Dictionary)",
       theme_compact: "\u26A1 Compact (Minimal)",
       // Toggles
+      enable_yt_overlay: "Enable YouTube Overlay",
+      enable_yt_overlay_hint: "Show interactive subtitles",
+      track_listening_activity: "Track Listening Activity",
+      track_listening_hint: "Record watch time in calendar",
       enable_overlay: "Enable YouTube Interactive Overlay",
       enable_overlay_desc: "Renders clickable word tokens over video subtitles and enables interactive learning.",
       enable_dual_subs: "Dual Subtitles",
@@ -676,6 +780,19 @@
       importing: "Parsing Article...",
       saving_to_lectura: "Saving to Lectura...",
       imported: "Imported!",
+      // Activity & History
+      day_history: "Day History",
+      click_day_hint: "Click a day in calendar",
+      delete_entry: "Delete entry",
+      confirm_delete_log: "Delete this video viewing entry from history?",
+      failed_delete_log: "Failed to delete log entry",
+      no_activity_day: "No activity recorded for this day",
+      failed_load_day_activity: "Failed to load day activity",
+      goal_per_day: "Goal",
+      overall: "Overall",
+      stat_week: "WEEK",
+      stat_month: "MONTH",
+      stat_languages: "LANGUAGES",
       // Overlay Card & Tooltips
       tab_meaning: "Meaning",
       tab_definition: "Definition",
@@ -714,6 +831,9 @@
       save_config: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
       save_all_changes: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0432\u0441\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F",
       all_settings_saved: "\u0412\u0441\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+      tab_activity: "\u{1F4CA} \u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C",
       // Sections
       section_connection: "1. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F",
       section_connection_desc: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043D\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0435\u0440\u0430 Lectura \u0438 \u0434\u0430\u043D\u043D\u044B\u0435 \u0434\u043E\u0441\u0442\u0443\u043F\u0430.",
@@ -742,6 +862,8 @@
       style_color: "\u{1F3A8} \u0426\u0432\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430",
       subtitle_size: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432",
       subtitle_size_full: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432",
+      subtitle_font_size: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0448\u0440\u0438\u0444\u0442\u0430 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 (px)",
+      subtitle_bg_color: "\u0426\u0432\u0435\u0442 \u0444\u043E\u043D\u0430 \u043F\u043B\u0430\u0448\u043A\u0438",
       size_sm: "\u041C\u0435\u043B\u043A\u0438\u0439 (16px \u2014 \u041E\u043A\u043E\u043D\u043D\u044B\u0439)",
       size_md: "\u0421\u0440\u0435\u0434\u043D\u0438\u0439 (21px \u2014 \u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442)",
       size_lg: "\u041A\u0440\u0443\u043F\u043D\u044B\u0439 (27px \u2014 \u041F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u044B\u0439)",
@@ -751,6 +873,10 @@
       theme_extended: "\u{1F4DA} Extended (\u0421\u043B\u043E\u0432\u0430\u0440\u043D\u044B\u0439)",
       theme_compact: "\u26A1 Compact (\u041C\u0438\u043D\u0438)",
       // Toggles
+      enable_yt_overlay: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B YouTube",
+      enable_yt_overlay_hint: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
+      track_listening_activity: "\u0423\u0447\u0435\u0442 \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430",
+      track_listening_hint: "\u0417\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0442\u044C \u0432\u0440\u0435\u043C\u044F \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
       enable_overlay: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043E\u0432\u0435\u0440\u043B\u0435\u0439 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 YouTube",
       enable_overlay_desc: "\u041E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0435\u0442 \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u043A\u043B\u0438\u043A\u0430\u0431\u0435\u043B\u044C\u043D\u044B\u0435 \u0441\u043B\u043E\u0432\u0430 \u043F\u043E\u0432\u0435\u0440\u0445 \u0432\u0438\u0434\u0435\u043E \u0438 \u0432\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u043E\u0431\u0443\u0447\u0435\u043D\u0438\u0435.",
       enable_dual_subs: "\u0414\u0432\u043E\u0439\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
@@ -773,6 +899,19 @@
       importing: "\u0427\u0442\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u044C\u0438...",
       saving_to_lectura: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0432 Lectura...",
       imported: "\u0418\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E!",
+      // Activity & History
+      day_history: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0437\u0430 \u0434\u0435\u043D\u044C",
+      click_day_hint: "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u0434\u0435\u043D\u044C \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0435",
+      delete_entry: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C",
+      confirm_delete_log: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u044D\u0442\u0443 \u0437\u0430\u043F\u0438\u0441\u044C \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430 \u0432\u0438\u0434\u0435\u043E \u0438\u0437 \u0438\u0441\u0442\u043E\u0440\u0438\u0438?",
+      failed_delete_log: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0443\u0434\u0430\u043B\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C",
+      no_activity_day: "\u041D\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u0435\u0439 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u0438 \u0437\u0430 \u044D\u0442\u043E\u0442 \u0434\u0435\u043D\u044C",
+      failed_load_day_activity: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C \u0437\u0430 \u0434\u0435\u043D\u044C",
+      goal_per_day: "\u0426\u0435\u043B\u044C",
+      overall: "\u0412\u0441\u0435\u0433\u043E",
+      stat_week: "\u041D\u0415\u0414\u0415\u041B\u042F",
+      stat_month: "\u041C\u0415\u0421\u042F\u0426",
+      stat_languages: "\u042F\u0417\u042B\u041A\u0418",
       // Overlay Card & Tooltips
       tab_meaning: "\u041F\u0435\u0440\u0435\u0432\u043E\u0434",
       tab_definition: "\u041E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u0435",
@@ -811,6 +950,9 @@
       save_config: "Guardar",
       save_all_changes: "Guardar todos los cambios",
       all_settings_saved: "\xA1Todos los ajustes se han guardado con \xE9xito!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F Ajustes",
+      tab_activity: "\u{1F4CA} Actividad",
       // Sections
       section_connection: "1. Conexi\xF3n y Autenticaci\xF3n",
       section_connection_desc: "Especifica la URL del servidor Lectura y las credenciales de acceso.",
@@ -839,6 +981,8 @@
       style_color: "\u{1F3A8} Color",
       subtitle_size: "Tama\xF1o de subt\xEDtulos",
       subtitle_size_full: "Tama\xF1o de subt\xEDtulos",
+      subtitle_font_size: "Tama\xF1o de fuente de subt\xEDtulos (px)",
+      subtitle_bg_color: "Color de fondo de subt\xEDtulos",
       size_sm: "Peque\xF1o (16px \u2014 Compacto)",
       size_md: "Medio (21px \u2014 Est\xE1ndar)",
       size_lg: "Grande (27px \u2014 Pantalla completa)",
@@ -848,6 +992,10 @@
       theme_extended: "\u{1F4DA} Extended (Diccionario)",
       theme_compact: "\u26A1 Compact (M\xEDnimo)",
       // Toggles
+      enable_yt_overlay: "Activar subt\xEDtulos de YouTube",
+      enable_yt_overlay_hint: "Mostrar subt\xEDtulos interactivos",
+      track_listening_activity: "Registrar tiempo de escucha",
+      track_listening_hint: "Guardar tiempo en el calendario",
       enable_overlay: "Activar superposici\xF3n de YouTube",
       enable_overlay_desc: "Muestra palabras interactivas sobre los subt\xEDtulos del video y habilita el aprendizaje.",
       enable_dual_subs: "Subt\xEDtulos dobles",
@@ -870,6 +1018,19 @@
       importing: "Analizando art\xEDculo...",
       saving_to_lectura: "Guardando en Lectura...",
       imported: "\xA1Importado!",
+      // Activity & History
+      day_history: "Historial del d\xEDa",
+      click_day_hint: "Haz clic en un d\xEDa del calendario",
+      delete_entry: "Eliminar registro",
+      confirm_delete_log: "\xBFEliminar este registro de video del historial?",
+      failed_delete_log: "Error al eliminar el registro",
+      no_activity_day: "No hay actividad registrada para este d\xEDa",
+      failed_load_day_activity: "Error al cargar la actividad del d\xEDa",
+      goal_per_day: "Meta",
+      overall: "Total",
+      stat_week: "SEMANA",
+      stat_month: "MES",
+      stat_languages: "IDIOMAS",
       // Overlay Card & Tooltips
       tab_meaning: "Significado",
       tab_definition: "Definici\xF3n",
@@ -933,6 +1094,7 @@
   // extension/src/options/options.ts
   var OptionsController = class {
     constructor() {
+      this.currentSubtitleBgColor = "rgba(15, 23, 42, 0.90)";
       this.apiClient = new LecturaApiClient();
       document.addEventListener("DOMContentLoaded", () => this.init());
     }
@@ -952,6 +1114,9 @@
       this.subtitleSizePresetSelect = document.getElementById("subtitleSizePreset");
       this.autoPauseOnHoverCheck = document.getElementById("autoPauseOnHover");
       this.subtitleFontSizeInput = document.getElementById("subtitleFontSize");
+      this.subtitleFontSizeValue = document.getElementById("subtitleFontSizeValue");
+      this.subBgColorPicker = document.getElementById("subBgColorPicker");
+      this.subBgColorValue = document.getElementById("subBgColorValue");
       this.subtitleBgOpacityInput = document.getElementById("subtitleBgOpacity");
       this.subtitleHighlightModeSelect = document.getElementById("subtitleHighlightMode");
       this.popupThemeSelect = document.getElementById("popupTheme");
@@ -966,12 +1131,74 @@
       await this.loadProfiles();
       await this.testConnection();
     }
+    applyBgColor(color) {
+      this.currentSubtitleBgColor = color;
+      if (this.subBgColorValue) {
+        this.subBgColorValue.textContent = color;
+      }
+      chrome.storage.local.set({ subtitleBgColor: color });
+      document.documentElement.style.setProperty("--lectura-sub-bg-color", color);
+      try {
+        chrome.tabs.query({}).then((tabs) => {
+          for (const tab of tabs) {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, {
+                type: "UPDATE_SUB_BG_COLOR",
+                color
+              }).catch(() => {
+              });
+            }
+          }
+        }).catch(() => {
+        });
+      } catch (_) {
+      }
+    }
     bindEvents() {
       this.btnTest.addEventListener("click", async () => {
         await this.loadProfiles();
         await this.testConnection();
       });
       this.btnSave.addEventListener("click", () => this.saveSettings());
+      if (this.subtitleFontSizeInput) {
+        this.subtitleFontSizeInput.addEventListener("input", () => {
+          const val = parseInt(this.subtitleFontSizeInput.value, 10) || 22;
+          if (this.subtitleFontSizeValue) {
+            this.subtitleFontSizeValue.textContent = `${val}px`;
+          }
+          chrome.storage.local.set({ subtitleFontSize: val });
+          document.documentElement.style.setProperty("--lectura-sub-font-size", `${val}px`);
+          try {
+            chrome.tabs.query({}).then((tabs) => {
+              for (const tab of tabs) {
+                if (tab.id) {
+                  chrome.tabs.sendMessage(tab.id, {
+                    type: "UPDATE_SUB_FONT_SIZE",
+                    size: val
+                  }).catch(() => {
+                  });
+                }
+              }
+            }).catch(() => {
+            });
+          } catch (_) {
+          }
+        });
+      }
+      document.querySelectorAll(".sub-bg-preset-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const color = e.currentTarget.dataset.color;
+          if (color) {
+            this.applyBgColor(color);
+          }
+        });
+      });
+      if (this.subBgColorPicker) {
+        this.subBgColorPicker.addEventListener("input", (e) => {
+          const hex = e.target.value;
+          this.applyBgColor(`${hex}E6`);
+        });
+      }
       if (this.interfaceLanguageSelect) {
         this.interfaceLanguageSelect.addEventListener("change", async () => {
           const lang = this.interfaceLanguageSelect.value || "en";
@@ -1046,7 +1273,15 @@
         this.autoPauseOnHoverCheck.checked = settings.autoPauseOnHover ?? true;
       }
       if (this.subtitleFontSizeInput) {
-        this.subtitleFontSizeInput.value = String(settings.subtitleFontSize || 24);
+        const size = settings.subtitleFontSize || 22;
+        this.subtitleFontSizeInput.value = String(size);
+        if (this.subtitleFontSizeValue) {
+          this.subtitleFontSizeValue.textContent = `${size}px`;
+        }
+      }
+      this.currentSubtitleBgColor = settings.subtitleBgColor || "rgba(0, 0, 0, 0.45)";
+      if (this.subBgColorValue) {
+        this.subBgColorValue.textContent = this.currentSubtitleBgColor;
       }
       if (this.subtitleBgOpacityInput) {
         this.subtitleBgOpacityInput.value = String(settings.subtitleBgOpacity ?? 75);
@@ -1103,8 +1338,9 @@
         pauseOnWordClick: this.pauseOnWordClickCheck ? this.pauseOnWordClickCheck.checked : false,
         subtitleSizePreset: sizePreset,
         autoPauseOnHover: this.autoPauseOnHoverCheck ? this.autoPauseOnHoverCheck.checked : true,
-        subtitleFontSize: parseInt(this.subtitleFontSizeInput?.value || "24", 10) || 24,
+        subtitleFontSize: parseInt(this.subtitleFontSizeInput?.value || "22", 10) || 22,
         subtitleBgOpacity: parseInt(this.subtitleBgOpacityInput?.value || "75", 10) || 75,
+        subtitleBgColor: this.currentSubtitleBgColor || "rgba(15, 23, 42, 0.90)",
         subtitleHighlightMode: this.subtitleHighlightModeSelect.value || "underline",
         enableInSituSelection: this.enableInSituSelectionCheck.checked,
         highlightKnownWords: this.highlightKnownWordsCheck.checked

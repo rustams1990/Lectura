@@ -169,12 +169,27 @@ html.dark body {
 .lectura-floating-popover {
   position: absolute;
   z-index: 9999;
-  width: 420px;
+  width: 430px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
   animation: popoverFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.16),
-              0 0 0 1px rgba(0, 0, 0, 0.06);
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* Основной контейнер всплывающей карточки */
+.word-popup-card {
+  border-radius: 20px !important;
+  overflow: hidden !important; /* Обрезает все прямоугольные подложки и внутренние слои */
+  background: #ffffff !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dark .word-popup-card {
+  background: #18181b !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
 }
 
 @keyframes popoverFadeIn {
@@ -187,4 +202,15 @@ html.dark body {
     transform: translateY(0) scale(1);
   }
 }
+
+/* ============================================
+   READER SCROLL MARGINS & PAGINATION
+   ============================================ */
+
+.reader-line-item:first-child,
+#reader-top,
+#reader-top-anchor {
+  scroll-margin-top: calc(var(--focus-player-height, 0px) + 24px);
+}
+
 

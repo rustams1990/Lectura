@@ -468,31 +468,50 @@ export function useReaderPagination({
   }, [activeSegmentIndex, pages, segments, currentPageIdx]);
 
   const lastPageIdxRef = useRef(currentPageIdx);
+  const pageJustChangedRef = useRef(false);
 
+  // Reliable scroll-to-top on page change (pagination, fast jump, arrow keys, auto page advance)
   useEffect(() => {
     const pageChanged = lastPageIdxRef.current !== currentPageIdx;
     lastPageIdxRef.current = currentPageIdx;
 
     if (pageChanged) {
-      const topEl = document.getElementById("reader-top");
-      if (topEl) topEl.scrollIntoView({ behavior: "auto", block: "start" });
-    }
+      pageJustChangedRef.current = true;
+      const timer = setTimeout(() => {
+        pageJustChangedRef.current = false;
+      }, 600);
 
-    if (activeSegmentIndex >= 0) {
+      // Scroll smoothly to top of the reader text
+      requestAnimationFrame(() => {
+        const topAnchor = document.getElementById("reader-top-anchor") || document.getElementById("reader-top");
+        if (topAnchor) {
+          topAnchor.scrollIntoView({ behavior: "smooth", block: "start" });
+        } else {
+          const scrollContainer = document.querySelector(".reader-scroll-container") || window;
+          scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      });
+
+      return () => clearTimeout(timer);
+    }
+  }, [currentPageIdx]);
+
+  // Audio/segment auto-scroll (only when playback advances within the current page)
+  useEffect(() => {
+    if (activeSegmentIndex >= 0 && !pageJustChangedRef.current) {
       const activeEl = document.getElementById(`segment-row-${activeSegmentIndex}`);
       if (activeEl) {
         activeEl.scrollIntoView({
-          behavior: pageChanged ? "auto" : "smooth",
+          behavior: "smooth",
           block: "nearest",
         });
       }
     }
-  }, [activeSegmentIndex, currentPageIdx]);
+  }, [activeSegmentIndex]);
 
   const navigateToPage = (index: number) => {
     didUserNavigateRef.current = true;
     setCurrentPageIdx(index);
-    document.getElementById("reader-top")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return {

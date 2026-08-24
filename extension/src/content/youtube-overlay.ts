@@ -1,8 +1,378 @@
 import { LecturaApiClient } from '../services/api';
 import { StorageService } from '../services/storage';
-import { ExtensionSettings, SubtitleCue, WordMap, WordMapItem } from '../types/index';
+import { ExtensionSettings, SubtitleCue, WordMap, WordMapItem, YouTubeActivityPayload } from '../types/index';
 import { getSuggestedLemmas } from '../services/morphology';
 import { t } from '../services/i18n';
+
+/**
+ * Instantly initializes subtitle appearance CSS variables on DOM / Shadow host
+ */
+export function initSubtitleAppearance() {
+  chrome.storage.local.get(['subtitleFontSize', 'subtitleBgColor'], (res) => {
+    if (res.subtitleFontSize) {
+      document.documentElement.style.setProperty('--lectura-sub-font-size', `${res.subtitleFontSize}px`);
+      const host = document.getElementById('lectura-yt-shadow-host');
+      if (host) host.style.setProperty('--lectura-sub-font-size', `${res.subtitleFontSize}px`);
+      const subBox = host?.shadowRoot?.getElementById('lectura-subtitles-overlay');
+      if (subBox) subBox.style.setProperty('--lectura-sub-font-size', `${res.subtitleFontSize}px`);
+    }
+    if (res.subtitleBgColor) {
+      document.documentElement.style.setProperty('--lectura-sub-bg-color', res.subtitleBgColor);
+      const host = document.getElementById('lectura-yt-shadow-host');
+      if (host) host.style.setProperty('--lectura-sub-bg-color', res.subtitleBgColor);
+      const subBox = host?.shadowRoot?.getElementById('lectura-subtitles-overlay');
+      if (subBox) subBox.style.setProperty('--lectura-sub-bg-color', res.subtitleBgColor);
+    }
+  });
+}
+
+// 1) Run immediately upon content script execution
+initSubtitleAppearance();
+
+// 2) Run upon YouTube SPA navigation
+window.addEventListener('yt-navigate-finish', () => {
+  initSubtitleAppearance();
+});
+
+/**
+ * Removes internal stutter/repeated phrases within a single caption string (e.g. "If you If you" -> "If you")
+ */
+export function removeInternalRepeats(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\b([\p{L}\p{N}'’\-]+)\s+\1\b/giu, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Merges two subtitle texts eliminating overlapping prefix/suffix words (Subtitle Cue De-overlapping)
+ */
+export function mergeSubtitleCuesCleanly(prevText: string, newText: string): string {
+  const cleanPrev = (prevText || '').trim().replace(/\s+/g, ' ');
+  const cleanNew = (newText || '').trim().replace(/\s+/g, ' ');
+
+  if (!cleanPrev) return removeInternalRepeats(cleanNew);
+  if (!cleanNew) return removeInternalRepeats(cleanPrev);
+
+  // If new text already contains or starts with prev text (rolling ASR)
+  if (cleanNew.toLowerCase().startsWith(cleanPrev.toLowerCase())) {
+    return removeInternalRepeats(cleanNew);
+  }
+
+  // If prev text already ends with new text
+  if (cleanPrev.toLowerCase().endsWith(cleanNew.toLowerCase())) {
+    return removeInternalRepeats(cleanPrev);
+  }
+
+  // Search for overlap between the end of prev and start of new
+  const prevWords = cleanPrev.split(/\s+/);
+  const newWords = cleanNew.split(/\s+/);
+
+  const maxOverlap = Math.min(prevWords.length, newWords.length);
+
+  for (let len = maxOverlap; len > 0; len--) {
+    const prevSlice = prevWords.slice(prevWords.length - len).join(' ');
+    const newSlice = newWords.slice(0, len).join(' ');
+
+    if (prevSlice.toLowerCase() === newSlice.toLowerCase()) {
+      // Overlap found: take prev + remaining unique slice of new
+      const merged = [...prevWords, ...newWords.slice(len)].join(' ');
+      return removeInternalRepeats(merged);
+    }
+  }
+
+  return removeInternalRepeats(`${cleanPrev} ${cleanNew}`);
+}
+
+/**
+ * Deduplicates an array of visual segment strings (from DOM or caption events)
+ */
+export function deduplicateSubtitleSegments(segments: string[]): string {
+  if (!segments || segments.length === 0) return '';
+
+  const cleanSegments = segments
+    .map((s) => (s || '').trim().replace(/\s+/g, ' '))
+    .filter((s) => s.length > 0);
+
+  if (cleanSegments.length === 0) return '';
+  if (cleanSegments.length === 1) return removeInternalRepeats(cleanSegments[0]);
+
+  let merged = cleanSegments[0];
+  for (let i = 1; i < cleanSegments.length; i++) {
+    merged = mergeSubtitleCuesCleanly(merged, cleanSegments[i]);
+  }
+
+  return removeInternalRepeats(merged);
+}
+
+/**
+ * Extracts and deduplicates the active cue text at the given playback time
+ */
+export function getActiveCueText(cues: SubtitleCue[], currentTime: number): string {
+  if (!cues || cues.length === 0) return '';
+  const currentCue = cues.find((c) => currentTime >= c.startTime && currentTime <= c.endTime);
+  if (!currentCue) return '';
+  return removeInternalRepeats(currentCue.text);
+}
+
+export interface CaptionWord {
+  text: string;
+  start: number; // in seconds
+  end: number;   // in seconds
+}
+
+export interface CleanSentence {
+  id: number;
+  start: number;
+  end: number;
+  text: string;
+  words?: CaptionWord[];
+}
+
+export interface StaticSubtitleWord {
+  word: string;
+  start: number;
+  end: number;
+}
+
+export interface StaticSubtitleBlock {
+  id: number;
+  startTime: number;
+  endTime: number;
+  fullText: string;
+  words: StaticSubtitleWord[];
+}
+
+export interface MergedSubtitleSentence {
+  start: number;
+  end: number;
+  text: string;
+  words?: Array<{ word: string; start: number; end: number }>;
+}
+
+/**
+ * Extracts ALL words across all events into a single continuous stream with no gaps or lost tokens
+ */
+export function extractAllWordsFromEvents(events: any[]): CaptionWord[] {
+  const allWords: CaptionWord[] = [];
+  if (!Array.isArray(events) || events.length === 0) return allWords;
+
+  for (const ev of events) {
+    if (!ev || !ev.segs || !Array.isArray(ev.segs)) continue;
+    const eventStartSec = (ev.tStartMs || 0) / 1000;
+    const eventDurSec = (ev.dDurationMs || 1000) / 1000;
+
+    for (const seg of ev.segs) {
+      const txt = seg?.utf8;
+      if (!txt || txt === '\n' || txt === '\r\n') continue;
+
+      const offsetSec = (seg.tOffsetMs || 0) / 1000;
+      const start = eventStartSec + offsetSec;
+      const end = start + Math.max(0.4, eventDurSec);
+
+      // Split into individual words while preserving all punctuation
+      const tokens = txt.trim().split(/\s+/);
+      for (const token of tokens) {
+        if (token) {
+          allWords.push({ text: token, start, end });
+        }
+      }
+    }
+  }
+
+  return allWords;
+}
+
+/**
+ * Normalizes punctuation: glues standalone punctuation tokens to the previous word
+ */
+export function normalizeCaptionTokens(tokens: CaptionWord[]): CaptionWord[] {
+  const clean: CaptionWord[] = [];
+  for (const t of tokens) {
+    const text = t.text.trim();
+    if (/^[.,!?;:]+$/.test(text) && clean.length > 0) {
+      // Приклеиваем знак к предыдущему слову
+      clean[clean.length - 1].text += text;
+      clean[clean.length - 1].end = Math.max(clean[clean.length - 1].end, t.end);
+    } else if (text) {
+      clean.push({ ...t, text });
+    }
+  }
+  return clean;
+}
+
+/**
+ * Losslessly chunks the continuous word stream into wide reference blocks (24-28 words)
+ * Guarantees that EVERY word belongs to a sentence block and ZERO words are dropped.
+ */
+export function buildSentencesWithoutLoss(words: CaptionWord[]): CleanSentence[] {
+  const normalized = normalizeCaptionTokens(words);
+  const blocks: CleanSentence[] = [];
+  if (!normalized || normalized.length === 0) return blocks;
+
+  let currentWords: CaptionWord[] = [];
+  let blockIdCounter = 1;
+
+  for (let i = 0; i < normalized.length; i++) {
+    currentWords.push(normalized[i]);
+
+    const isFullLength = currentWords.length >= 24;
+    const isPunctuationBoundary = /[.!?]$/.test(normalized[i].text) && currentWords.length >= 20;
+    const isLast = i === normalized.length - 1;
+
+    // Close block when 22-26 words accumulated
+    if (isFullLength || isPunctuationBoundary || isLast) {
+      const start = currentWords[0].start;
+      const end = currentWords[currentWords.length - 1].end + 0.15;
+      const fullText = currentWords.map((cw) => cw.text).join(' ').replace(/\s+/g, ' ').trim();
+
+      if (fullText) {
+        blocks.push({
+          id: blockIdCounter++,
+          start,
+          end: Math.max(end, start + 1.6),
+          text: fullText,
+          words: [...currentWords],
+        });
+      }
+      currentWords = [];
+    }
+  }
+
+  // Safety flush: if any words remained, add them as a final block
+  if (currentWords.length > 0) {
+    const start = currentWords[0].start;
+    const end = currentWords[currentWords.length - 1].end + 0.15;
+    const fullText = currentWords.map((cw) => cw.text).join(' ').replace(/\s+/g, ' ').trim();
+    if (fullText) {
+      blocks.push({
+        id: blockIdCounter++,
+        start,
+        end: Math.max(end, start + 1.6),
+        text: fullText,
+        words: [...currentWords],
+      });
+    }
+  }
+
+  return blocks;
+}
+
+/**
+ * Strict timing finalizer: ensures that the end time of the current block NEVER overlaps
+ * or exceeds the start time of the subsequent block.
+ */
+export function finalizeSubtitleBlockTimings(blocks: CleanSentence[]): CleanSentence[] {
+  for (let i = 0; i < blocks.length - 1; i++) {
+    const curr = blocks[i];
+    const next = blocks[i + 1];
+
+    // Current block MUST end exactly when the next block starts (e.g. at 0:06)
+    if (curr.end > next.start) {
+      curr.end = next.start;
+    }
+  }
+  return blocks;
+}
+
+/**
+ * Strict sentence splitting for official YouTube JSON3 events track (Lossless)
+ */
+export function parseJson3IntoCleanSentences(events: any[]): CleanSentence[] {
+  const words = extractAllWordsFromEvents(events);
+  const blocks = buildSentencesWithoutLoss(words);
+  return finalizeSubtitleBlockTimings(blocks);
+}
+
+/**
+ * Strict sentence splitting for XML/srv1 timedtext tracks (Lossless)
+ */
+export function parseXmlIntoCleanSentences(xmlString: string): CleanSentence[] {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlString, 'text/xml');
+    const textNodes = doc.querySelectorAll('text');
+    const allWords: CaptionWord[] = [];
+
+    textNodes.forEach((node) => {
+      const start = parseFloat(node.getAttribute('start') || '0');
+      const dur = parseFloat(node.getAttribute('dur') || '3');
+      const rawText = (node.textContent || '').trim();
+      if (!rawText) return;
+
+      const tokens = rawText.split(/\s+/);
+      const step = dur / Math.max(1, tokens.length);
+
+      tokens.forEach((token, idx) => {
+        if (token) {
+          allWords.push({
+            text: token,
+            start: start + idx * step,
+            end: start + (idx + 1) * step + 0.4,
+          });
+        }
+      });
+    });
+
+    const blocks = buildSentencesWithoutLoss(allWords);
+    return finalizeSubtitleBlockTimings(blocks);
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * Parses full YouTube TimedText data (JSON3 or XML) and pre-segments into full static 2-line sentence blocks
+ */
+export function parseTimedTextData(data: string | any): StaticSubtitleBlock[] {
+  const sentences = typeof data === 'string' && !data.trim().startsWith('{')
+    ? parseXmlIntoCleanSentences(data)
+    : parseJson3IntoCleanSentences(typeof data === 'object' ? data.events : (JSON.parse(data || '{}').events || []));
+
+  return sentences.map((s) => ({
+    id: s.id,
+    startTime: s.start,
+    endTime: s.end,
+    fullText: s.text,
+    words: s.text.split(/\s+/).map((w, idx) => ({
+      word: w,
+      start: s.start + idx * 0.25,
+      end: s.start + (idx + 1) * 0.25,
+    })),
+  }));
+}
+
+/**
+ * Groups short rapid ASR cues into cohesive 2-line logical sentences/clauses
+ */
+export function groupCuesIntoSentences(rawCues: SubtitleCue[]): MergedSubtitleSentence[] {
+  const sentences: MergedSubtitleSentence[] = [];
+  let currentGroup: SubtitleCue[] = [];
+
+  for (let i = 0; i < rawCues.length; i++) {
+    const cue = rawCues[i];
+    currentGroup.push(cue);
+
+    const fullText = currentGroup.map((c) => c.text.trim()).join(' ');
+    const cleanedText = removeInternalRepeats(fullText);
+    const hasPunctuationEnd = /[.!?]$/.test(cleanedText.trim());
+    const isTooLong = cleanedText.length > 90 || cleanedText.split(/\s+/).length >= 18;
+    const isLast = i === rawCues.length - 1;
+
+    // Закрываем блок, если предложение закончилось точкой или накопилось достаточно слов для 2 строк
+    if (hasPunctuationEnd || isTooLong || isLast) {
+      sentences.push({
+        start: currentGroup[0].startTime,
+        end: currentGroup[currentGroup.length - 1].endTime,
+        text: cleanedText,
+      });
+      currentGroup = [];
+    }
+  }
+
+  return sentences;
+}
 
 export interface DialectInfo {
   code: string;
@@ -169,6 +539,19 @@ class YouTubeLecturaOverlay {
   // AbortController for in-flight translation requests
   private translationAbortController: AbortController | null = null;
 
+  // YouTube Watch Time & Activity Tracking (Listening History)
+  private activeWatchSeconds: number = 0;
+  private watchTimer: number | null = null;
+  private hasActivityListeners: boolean = false;
+
+  // Full Static Sentence Display State (Track Pre-fetching & Strict Sentence Splitting)
+  public preparsedSentences: CleanSentence[] = [];
+  public currentSentenceIndex: number = -1;
+  private isLoadingSubtitles: boolean = false;
+  private animFrameId: number | null = null;
+  private staticSubtitleBlocks: StaticSubtitleBlock[] = [];
+  private activeBlockId: number | null = null;
+
   constructor() {
     this.setupShiftTracking();
     this.setupClickOutsideListener();
@@ -192,6 +575,9 @@ class YouTubeLecturaOverlay {
       console.log('[Lectura YT] YouTube overlay is disabled in settings.');
       return;
     }
+    this.updateSubtitleContainerMode(this.settings.subtitleHighlightMode || 'color');
+    this.applySubtitleFontSize(this.settings.subtitleFontSize || 22);
+    this.applySubtitleBgColor(this.settings.subtitleBgColor || 'rgba(0, 0, 0, 0.45)');
 
     // Clear any corrupt/legacy position keys from previous sessions
     chrome.storage.local.remove([
@@ -234,6 +620,38 @@ class YouTubeLecturaOverlay {
     this.handleUrlChange();
   }
 
+  public applySubtitleFontSize(fontSizePx: number) {
+    if (this.settings) {
+      this.settings.subtitleFontSize = fontSizePx;
+    }
+    if (this.overlayContainer) {
+      this.overlayContainer.style.setProperty('--lectura-sub-font-size', `${fontSizePx}px`);
+    }
+    if (this.subtitleBox) {
+      this.subtitleBox.style.setProperty('--lectura-sub-font-size', `${fontSizePx}px`);
+    }
+    if (this.shadowRoot?.host instanceof HTMLElement) {
+      this.shadowRoot.host.style.setProperty('--lectura-sub-font-size', `${fontSizePx}px`);
+    }
+    document.documentElement.style.setProperty('--lectura-sub-font-size', `${fontSizePx}px`);
+  }
+
+  public applySubtitleBgColor(color: string) {
+    if (this.settings) {
+      this.settings.subtitleBgColor = color;
+    }
+    if (this.overlayContainer) {
+      this.overlayContainer.style.setProperty('--lectura-sub-bg-color', color);
+    }
+    if (this.subtitleBox) {
+      this.subtitleBox.style.setProperty('--lectura-sub-bg-color', color);
+    }
+    if (this.shadowRoot?.host instanceof HTMLElement) {
+      this.shadowRoot.host.style.setProperty('--lectura-sub-bg-color', color);
+    }
+    document.documentElement.style.setProperty('--lectura-sub-bg-color', color);
+  }
+
   /**
    * Listens for live configuration changes from Popup or Options page
    */
@@ -244,6 +662,18 @@ class YouTubeLecturaOverlay {
           const newMode = (changes.subtitleHighlightMode.newValue || 'underline') as 'underline' | 'color';
           if (this.settings) this.settings.subtitleHighlightMode = newMode;
           this.updateSubtitleContainerMode(newMode);
+        }
+        if (changes.subtitleFontSize) {
+          const newSize = changes.subtitleFontSize.newValue;
+          if (newSize) {
+            this.applySubtitleFontSize(newSize);
+          }
+        }
+        if (changes.subtitleBgColor) {
+          const newColor = changes.subtitleBgColor.newValue;
+          if (newColor) {
+            this.applySubtitleBgColor(newColor);
+          }
         }
         if (changes.dual_subs !== undefined || changes.enableDualSubtitles !== undefined) {
           const newDualVal = changes.dual_subs?.newValue ?? changes.enableDualSubtitles?.newValue;
@@ -264,16 +694,6 @@ class YouTubeLecturaOverlay {
           const newPreset = (changes.sub_size_preset?.newValue || changes.subtitleSizePreset?.newValue) as 'sm' | 'md' | 'lg';
           if (newPreset && ['sm', 'md', 'lg'].includes(newPreset)) {
             this.applySizePreset(newPreset, false);
-          }
-        }
-        if (changes.captureVideoSnapshot !== undefined) {
-          if (this.settings) {
-            this.settings.captureVideoSnapshot = changes.captureVideoSnapshot.newValue;
-          }
-        }
-        if (changes.pauseOnWordClick !== undefined) {
-          if (this.settings) {
-            this.settings.pauseOnWordClick = changes.pauseOnWordClick.newValue;
           }
         }
         if (changes.subtitleFontSize || changes.subtitleBgOpacity) {
@@ -314,6 +734,27 @@ class YouTubeLecturaOverlay {
         }
         if (this.activeWordData && this.popupCard && this.popupCard.style.display !== 'none') {
           this.showWordCard(this.activeWordData.word, this.activeWordData.contextSentence, this.activeWordData.targetToken);
+        }
+      }
+      if (message.type === 'UPDATE_SUB_FONT_SIZE' && message.size) {
+        this.applySubtitleFontSize(message.size);
+      }
+      if (message.type === 'UPDATE_SUB_BG_COLOR' && message.color) {
+        this.applySubtitleBgColor(message.color);
+      }
+      if (message.type === 'UPDATE_YOUTUBE_OVERLAY_ENABLED') {
+        if (this.settings) {
+          this.settings.enableYoutubeOverlay = !!message.enabled;
+        }
+        if (this.overlayContainer) {
+          this.overlayContainer.style.display = message.enabled ? '' : 'none';
+        } else if (message.enabled) {
+          this.init();
+        }
+      }
+      if (message.type === 'UPDATE_TRACK_ACTIVITY_ENABLED') {
+        if (this.settings) {
+          this.settings.trackListeningActivity = !!message.enabled;
         }
       }
     });
@@ -440,9 +881,18 @@ class YouTubeLecturaOverlay {
   }
 
   private resetState() {
+    if (this.activeWatchSeconds > 0) {
+      this.flushActivityToLectura();
+    }
+
+    this.preparsedSentences = [];
+    this.currentSentenceIndex = -1;
+    this.isLoadingSubtitles = false;
     this.activeCues = [];
     this.currentCueIndex = -1;
     this.currentSubtitleText = '';
+    this.staticSubtitleBlocks = [];
+    this.activeBlockId = null;
     this.isPhraseSelecting = false;
     this.startTokenIndex = null;
     this.selectedTokens = [];
@@ -457,6 +907,10 @@ class YouTubeLecturaOverlay {
     if (this.mutationObserver) {
       this.mutationObserver.disconnect();
       this.mutationObserver = null;
+    }
+    if (this.animFrameId) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
     }
     if (this.videoElement && this.timeUpdateHandler) {
       this.videoElement.removeEventListener('timeupdate', this.timeUpdateHandler);
@@ -477,16 +931,126 @@ class YouTubeLecturaOverlay {
       this.playerContainer = player;
       this.videoElement = video;
       this.buildOverlay();
-      this.observeNativeSubtitles();
+      this.hideNativeCaptions();
+      this.loadFullVideoSubtitles(this.currentVideoId);
       this.setupTimeListener();
+      this.setupActivityTracking();
       this.isInitialized = true;
-
-      // Start continuous backup sync interval
-      setInterval(() => {
-        this.syncNativeCaptions();
-      }, 300);
     } else {
       setTimeout(() => this.waitForPlayerAndInit(retries + 1), 300);
+    }
+  }
+
+  /**
+   * Tracks active watch time of HTML5 YouTube video player
+   */
+  private setupActivityTracking() {
+    if (!this.videoElement) return;
+
+    if (!this.hasActivityListeners) {
+      this.hasActivityListeners = true;
+
+      // Flush when video pauses or finishes
+      this.videoElement.addEventListener('pause', () => {
+        this.flushActivityToLectura();
+      });
+
+      this.videoElement.addEventListener('ended', () => {
+        this.flushActivityToLectura();
+      });
+
+      // Flush before unloading page or switching tab visibility
+      window.addEventListener('beforeunload', () => {
+        this.flushActivityToLectura();
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          this.flushActivityToLectura();
+        }
+      });
+    }
+
+    if (this.watchTimer) {
+      clearInterval(this.watchTimer);
+      this.watchTimer = null;
+    }
+
+    // Heartbeat ticker every 5 seconds
+    this.watchTimer = window.setInterval(() => {
+      const video = this.videoElement || (document.querySelector('video.html5-main-video, #movie_player video') as HTMLVideoElement);
+      if (!video) return;
+
+      // Only accumulate if video is currently playing and tracking is enabled
+      if (this.settings && this.settings.trackListeningActivity === false) {
+        return;
+      }
+      if (!video.paused && !video.ended && video.readyState >= 2) {
+        this.activeWatchSeconds += 5;
+
+        // Send batch activity log every 30 seconds of accumulated watch time
+        if (this.activeWatchSeconds >= 30) {
+          this.flushActivityToLectura();
+        }
+      }
+    }, 5000);
+  }
+
+  /**
+   * Flushes accumulated watch seconds to Lectura server
+   */
+  private async flushActivityToLectura() {
+    if (this.activeWatchSeconds <= 0) return;
+
+    const secondsToFlush = this.activeWatchSeconds;
+    this.activeWatchSeconds = 0; // Reset accumulated watch buffer immediately
+
+    const videoId = this.currentVideoId || this.extractVideoId(window.location.href);
+    if (!videoId) return;
+
+    const video = this.videoElement || (document.querySelector('video.html5-main-video, #movie_player video') as HTMLVideoElement);
+
+    // Extract rich metadata from YouTube DOM
+    const titleEl = document.querySelector('h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer');
+    const title = titleEl?.textContent?.trim() || document.title.replace(/ - YouTube$/, '').trim() || `YouTube Video (${videoId})`;
+
+    const channelEl = document.querySelector('#channel-name #text a, ytd-channel-name #text a, #upload-info #channel-name a');
+    const channelName = channelEl?.textContent?.trim() || 'YouTube';
+    const channelUrl = (channelEl as HTMLAnchorElement)?.href || null;
+
+    const avatarEl = document.querySelector('#channel-header-container img, #avatar img, ytd-video-owner-renderer img#img') as HTMLImageElement;
+    const channelAvatarUrl = avatarEl?.src || null;
+
+    const thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    const studyLang = this.getEffectiveLang() || this.settings?.targetLanguage || 'en';
+
+    const payload: YouTubeActivityPayload = {
+      videoId,
+      videoTitle: title,
+      channelName,
+      channelAvatarUrl,
+      channelUrl,
+      thumbnailUrl: thumbnail,
+      durationSeconds: Math.floor(video?.duration || 0),
+      watchedSeconds: secondsToFlush,
+      language: studyLang,
+      timestamp: Date.now(),
+    };
+
+    console.log('[Lectura YT Tracker] Logging watching activity:', {
+      videoId,
+      title,
+      watchedSeconds: secondsToFlush,
+      language: studyLang,
+    });
+
+    try {
+      chrome.runtime.sendMessage({
+        type: 'LOG_YOUTUBE_ACTIVITY',
+        payload,
+      });
+    } catch (err) {
+      console.warn('[Lectura YT Tracker] Failed to send activity log to background:', err);
     }
   }
 
@@ -519,9 +1083,22 @@ class YouTubeLecturaOverlay {
 
     // Subtitle Container
     this.subtitleBox = document.createElement('div');
+    this.subtitleBox.id = 'lectura-subtitles-overlay';
     this.subtitleBox.className = 'lectura-subtitles-container';
-    this.updateSubtitleContainerMode(this.settings?.subtitleHighlightMode || 'underline');
+    this.updateSubtitleContainerMode(this.settings?.subtitleHighlightMode || 'color');
     this.applySizePreset(this.currentSizePreset, false);
+
+    // Apply saved appearance immediately upon overlay creation
+    const currentFontSize = this.settings?.subtitleFontSize || 22;
+    const currentBgColor = this.settings?.subtitleBgColor || 'rgba(0, 0, 0, 0.45)';
+    this.applySubtitleFontSize(currentFontSize);
+    this.applySubtitleBgColor(currentBgColor);
+
+    chrome.storage.local.get(['subtitleFontSize', 'subtitleBgColor'], (res) => {
+      if (res.subtitleFontSize) this.applySubtitleFontSize(res.subtitleFontSize);
+      if (res.subtitleBgColor) this.applySubtitleBgColor(res.subtitleBgColor);
+    });
+
     this.subtitleBox.style.display = 'none';
     this.shadowRoot.appendChild(this.subtitleBox);
 
@@ -614,72 +1191,166 @@ class YouTubeLecturaOverlay {
       :host {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         color: #ffffff;
+        --lectura-sub-font-size: 22px;
+        --lectura-sub-bg-color: rgba(0, 0, 0, 0.45);
       }
+      /* ОБЫЧНЫЙ РЕЖИМ (В ОКНЕ) */
+      #lectura-subtitles-overlay,
       .lectura-subtitles-container {
         position: absolute !important;
+        bottom: 72px !important;
         left: 50% !important;
-        bottom: 74px !important;
-        top: auto !important;
-        right: auto !important;
         transform: translateX(-50%) !important;
-
-        width: max-content !important;
+        width: auto !important;
         max-width: 86% !important;
-        min-width: 300px !important;
-
-        padding: 7px 22px !important;
-        background: rgba(15, 23, 42, 0.88) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
-        border-radius: 6px !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+        z-index: 99999999 !important;
+        pointer-events: none !important;
+        display: flex !important;
+        justify-content: center !important;
         box-sizing: border-box !important;
+        user-select: none !important;
+        overflow: visible !important;
+        transition: bottom 0.2s ease, top 0.2s ease, font-size 0.15s ease;
+      }
 
-        font-size: 21px !important;
-        line-height: 1.3 !important;
+      .lectura-sub-box,
+      .lectura-subtitles-box {
+        pointer-events: auto !important;
+        width: fit-content !important;
+        max-width: 100% !important;
+        background: var(--lectura-sub-bg-color, rgba(0, 0, 0, 0.45)) !important;
+        backdrop-filter: blur(5px) !important;
+        -webkit-backdrop-filter: blur(5px) !important;
+        border-radius: 6px !important;
+        padding: 6px 16px !important;
+        box-sizing: border-box !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+        text-align: center !important;
+      }
+
+      .lectura-sub-line,
+      .lectura-sub-box,
+      .lectura-subtitles-box,
+      .lectura-subtitles-box p {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: var(--lectura-sub-font-size, 22px) !important;
+        font-weight: 700 !important;
+        line-height: 1.45 !important;
+        color: #ffffff !important;           /* СТРОГО БЕЛЫЙ ЦВЕТ ДЛЯ ПУНКТУАЦИИ И ТЕКСТА */
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+        white-space: nowrap !important; /* Гарантирует ровно 2 строки, не дает словам сползать */
+        text-align: center !important;
+      }
+
+      /* Знаки препинания снаружи и внутри токенов */
+      .lectura-punct,
+      .punct {
+        color: #ffffff !important;
+        text-decoration: none !important;
+        white-space: nowrap !important;
+        display: inline !important;
+      }
+
+      /* Цветные слова по статусам */
+      .lectura-word-token,
+      .lectura-token {
+        display: inline !important;
+        cursor: pointer !important;
+        padding: 0 1px !important;
+        margin: 0 1px !important;
+        font-weight: 700 !important;
+        transition: background 0.12s ease, color 0.12s ease !important;
+      }
+
+      .lectura-word-token:hover,
+      .lectura-token:hover {
+        background: rgba(255, 255, 255, 0.25) !important;
+      }
+
+      /* ПОЛНОЭКРАННЫЙ РЕЖИМ (.ytp-fullscreen) */
+      :host-context(.ytp-fullscreen) #lectura-subtitles-overlay,
+      :host-context(.ytp-fullscreen) .lectura-subtitles-container,
+      .ytp-fullscreen #lectura-subtitles-overlay,
+      .ytp-fullscreen .lectura-subtitles-container {
+        bottom: 96px !important;
+        max-width: 90% !important;          /* Даем достаточно ширины, чтобы строчки не ломались */
+        width: auto !important;
+      }
+
+      :host-context(.ytp-fullscreen) .lectura-sub-box,
+      :host-context(.ytp-fullscreen) .lectura-subtitles-box,
+      .ytp-fullscreen .lectura-sub-box,
+      .ytp-fullscreen .lectura-subtitles-box {
+        padding: 12px 30px !important;
+      }
+
+      :host-context(.ytp-fullscreen) .lectura-sub-line,
+      :host-context(.ytp-fullscreen) .sub-line,
+      .ytp-fullscreen .lectura-sub-line,
+      .ytp-fullscreen .sub-line {
+        /* В полноэкранном режиме увеличиваем шрифт пропорционально выбранному значению */
+        font-size: calc(var(--lectura-sub-font-size, 22px) * 1.18) !important;
+        line-height: 1.45 !important;
+        white-space: nowrap !important;
+      }
+
+      .punct {
+        white-space: nowrap !important;
+        display: inline !important;
+      }
+
+      /* Если включена вторая строка перевода */
+      .lectura-subtitles-translation,
+      .lectura-sub-translation {
+        font-size: 16px !important;
+        font-weight: 500 !important;
+        color: #cbd5e1 !important;
+        margin-top: 6px !important;
+        line-height: 1.35 !important;
         text-align: center !important;
         white-space: normal !important;
         word-break: normal !important;
-        overflow-wrap: normal !important;
-
-        z-index: 50 !important;
         user-select: none !important;
-        pointer-events: auto !important;
-        overflow: visible !important;
-        transition: bottom 0.2s ease, top 0.2s ease, font-size 0.15s ease, padding 0.15s ease;
+        transition: opacity 0.15s ease !important;
+        display: block !important;
       }
 
       /* Пресет Small (для оконного режима / маленьких экранов) */
       .lectura-subtitles-container.sub-size-sm {
-        font-size: 16px !important;
-        padding: 5px 16px !important;
-        bottom: 68px !important;
-        max-width: 88% !important;
+        min-width: 380px !important;
+        max-width: 86% !important;
+        bottom: 48px !important;
       }
       .lectura-subtitles-container.sub-size-sm .lectura-line {
         font-size: 16px !important;
+        padding: 7px 16px !important;
+        border-radius: 10px !important;
       }
 
       /* Пресет Medium (стандарт по умолчанию) */
       .lectura-subtitles-container.sub-size-md {
-        font-size: 21px !important;
-        padding: 7px 22px !important;
-        bottom: 74px !important;
-        max-width: 86% !important;
+        min-width: 480px !important;
+        max-width: 82% !important;
+        bottom: 54px !important;
       }
       .lectura-subtitles-container.sub-size-md .lectura-line {
-        font-size: 21px !important;
+        font-size: 20px !important;
+        padding: 10px 20px !important;
+        border-radius: 12px !important;
       }
 
       /* Пресет Large (для Fullscreen / 2K / 4K мониторов) */
       .lectura-subtitles-container.sub-size-lg {
-        font-size: 27px !important;
-        padding: 9px 28px !important;
-        bottom: 84px !important;
-        max-width: 84% !important;
+        min-width: 560px !important;
+        max-width: 80% !important;
+        bottom: 64px !important;
       }
       .lectura-subtitles-container.sub-size-lg .lectura-line {
-        font-size: 27px !important;
+        font-size: 26px !important;
+        padding: 12px 26px !important;
+        border-radius: 14px !important;
       }
 
       /* Убираем лишние внешние отступы у слов */
@@ -710,23 +1381,12 @@ class YouTubeLecturaOverlay {
         transform: translateX(-50%) !important;
       }
 
-      .lectura-line {
-        font-size: inherit !important;
-        font-weight: 600;
-        letter-spacing: 0.2px;
-        line-height: 1.3 !important;
-        display: inline;
-        word-break: normal !important;
-        overflow-wrap: normal !important;
-        white-space: normal !important;
-      }
-
       /* Dual Subtitles Translation Line */
       .lectura-sub-translation {
         color: #94a3b8;
         font-size: 0.78em;
         font-weight: 500;
-        margin-top: 4px;
+        margin-top: 6px;
         line-height: 1.25;
         text-align: center;
         white-space: normal;
@@ -738,110 +1398,137 @@ class YouTubeLecturaOverlay {
       /* ==========================================================
          ОБЩАЯ БАЗА ДЛЯ ВСЕХ ТОКЕНОВ СУБТИТРОВ
          ========================================================== */
-      .lectura-token {
-        display: inline-block;
-        padding: 0 1px;
-        margin: 0;
-        border-radius: 3px;
-        cursor: pointer;
+      .lectura-token,
+      .lectura-sub-word {
+        display: inline-block !important;
+        margin: 0 2px !important;
+        cursor: pointer !important;
+        border-radius: 4px !important;
+        padding: 0 2px !important;
+        transition: all 0.12s ease !important;
         font-weight: 600;
-        transition: all 0.15s ease;
         background: transparent;
       }
-      .lectura-token:hover {
-        background: rgba(59, 130, 246, 0.5) !important;
-        color: #ffffff !important;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
-      }
-      .lectura-token.lectura-token--selected {
-        background: rgba(56, 189, 248, 0.35) !important;
-        outline: 2px solid #38bdf8 !important;
-        outline-offset: 1px;
-        border-radius: 4px !important;
-        color: #ffffff !important;
-        box-shadow: 0 0 10px rgba(56, 189, 248, 0.6) !important;
+      .lectura-token:hover,
+      .lectura-sub-word:hover {
+        background: rgba(255, 255, 255, 0.2) !important;
+        color: #38bdf8 !important;
       }
 
       /* ==========================================================
          РЕЖИМ 1: ЦВЕТНЫЕ СЛОВА (Colored Text)
-         Буквы окрашиваются в точный цвет статуса Lectura
          ========================================================== */
-      .sub-mode--color .lectura-token {
+      .sub-mode--color .lectura-token,
+      .sub-mode--color .lectura-word-token {
         text-decoration: none !important;
         border-bottom: none !important;
       }
       .sub-mode--color .lectura-token.status-new,
-      .sub-mode--color .lectura-token.status-0 {
-        color: #38bdf8; /* Голубой / Новый (New 0) */
+      .sub-mode--color .lectura-token.status-0,
+      .sub-mode--color .lectura-word-token.status-new,
+      .sub-mode--color .lectura-word-token.status-0,
+      .lectura-token.status-new,
+      .lectura-token.status-0 {
+        color: #38bdf8 !important; /* Голубой / Новый (New 0) */
       }
-      .sub-mode--color .lectura-token.status-1 {
-        color: #fb7185; /* Розовый (Stage 1) */
+      .sub-mode--color .lectura-token.status-1,
+      .sub-mode--color .lectura-word-token.status-1,
+      .lectura-token.status-1 {
+        color: #fb7185 !important; /* Розовый (Stage 1) */
       }
-      .sub-mode--color .lectura-token.status-2 {
-        color: #facc15; /* Желтый / Янтарный (Stage 2) */
+      .sub-mode--color .lectura-token.status-2,
+      .sub-mode--color .lectura-word-token.status-2,
+      .lectura-token.status-2 {
+        color: #facc15 !important; /* Желтый / Янтарный (Stage 2) */
       }
       .sub-mode--color .lectura-token.status-3,
-      .sub-mode--color .lectura-token.status-learning {
-        color: #34d399; /* Зеленый / Изумрудный (Stage 3) */
+      .sub-mode--color .lectura-token.status-learning,
+      .sub-mode--color .lectura-word-token.status-3,
+      .sub-mode--color .lectura-word-token.status-learning,
+      .lectura-token.status-3,
+      .lectura-token.status-learning {
+        color: #34d399 !important; /* Зеленый / Изумрудный (Stage 3) */
       }
-      .sub-mode--color .lectura-token.status-4 {
-        color: #60a5fa; /* Синий (Stage 4) */
+      .sub-mode--color .lectura-token.status-4,
+      .sub-mode--color .lectura-word-token.status-4,
+      .lectura-token.status-4 {
+        color: #60a5fa !important; /* Синий (Stage 4) */
       }
-      .sub-mode--color .lectura-token.status-5 {
-        color: #c084fc; /* Фиолетовый (Stage 5) */
+      .sub-mode--color .lectura-token.status-5,
+      .sub-mode--color .lectura-word-token.status-5,
+      .lectura-token.status-5 {
+        color: #c084fc !important; /* Фиолетовый (Stage 5) */
       }
-      .sub-mode--color .lectura-token.status-known {
-        color: #ffffff; /* Белый для выученных */
+      .sub-mode--color .lectura-token.status-known,
+      .sub-mode--color .lectura-word-token.status-known,
+      .lectura-token.status-known {
+        color: #ffffff !important; /* Белый для выученных */
       }
-      .sub-mode--color .lectura-token.status-ignored {
-        color: #94a3b8;
-        opacity: 0.5;
+      .sub-mode--color .lectura-token.status-ignored,
+      .sub-mode--color .lectura-word-token.status-ignored,
+      .lectura-token.status-ignored {
+        color: #94a3b8 !important;
+        opacity: 0.5 !important;
       }
 
       /* ==========================================================
          РЕЖИМ 2: ПОДЧЕРКИВАНИЕ СНИЗУ (Underline)
          Все буквы белые с тенью, статус кодируется линией Lectura
          ========================================================== */
-      .sub-mode--underline .lectura-token {
+      .sub-mode--underline .lectura-token,
+      .sub-mode--underline .lectura-word-token,
+      .highlight-style-underline .lectura-token,
+      .highlight-style-underline .lectura-word-token {
         color: #ffffff !important;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.8);
-        text-underline-offset: 4px;
-        text-decoration-thickness: 2.5px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.8) !important;
+        text-decoration-skip-ink: none !important;
+        -webkit-text-decoration-skip-ink: none !important;
+        text-underline-offset: 4px !important;
+        text-decoration-thickness: 2.5px !important;
       }
       .sub-mode--underline .lectura-token.status-new,
-      .sub-mode--underline .lectura-token.status-0 {
-        text-decoration: underline;
-        text-decoration-color: #38bdf8; /* Голубая линия (0 / Новый) */
+      .sub-mode--underline .lectura-token.status-0,
+      .sub-mode--underline .lectura-word-token.status-new,
+      .sub-mode--underline .lectura-word-token.status-0 {
+        text-decoration: underline !important;
+        text-decoration-color: #38bdf8 !important; /* Голубая линия (0 / Новый) */
       }
-      .sub-mode--underline .lectura-token.status-1 {
-        text-decoration: underline;
-        text-decoration-color: #fb7185; /* Розовая линия (1) */
+      .sub-mode--underline .lectura-token.status-1,
+      .sub-mode--underline .lectura-word-token.status-1 {
+        text-decoration: underline !important;
+        text-decoration-color: #fb7185 !important; /* Розовая линия (1) */
       }
-      .sub-mode--underline .lectura-token.status-2 {
-        text-decoration: underline;
-        text-decoration-color: #facc15; /* Желтая линия (2) */
+      .sub-mode--underline .lectura-token.status-2,
+      .sub-mode--underline .lectura-word-token.status-2 {
+        text-decoration: underline !important;
+        text-decoration-color: #facc15 !important; /* Желтая линия (2) */
       }
       .sub-mode--underline .lectura-token.status-3,
-      .sub-mode--underline .lectura-token.status-learning {
-        text-decoration: underline;
-        text-decoration-color: #34d399; /* Зеленая линия (3) */
+      .sub-mode--underline .lectura-token.status-learning,
+      .sub-mode--underline .lectura-word-token.status-3,
+      .sub-mode--underline .lectura-word-token.status-learning {
+        text-decoration: underline !important;
+        text-decoration-color: #34d399 !important; /* Зеленая линия (3) */
       }
-      .sub-mode--underline .lectura-token.status-4 {
-        text-decoration: underline;
-        text-decoration-color: #60a5fa; /* Синяя линия (4) */
+      .sub-mode--underline .lectura-token.status-4,
+      .sub-mode--underline .lectura-word-token.status-4 {
+        text-decoration: underline !important;
+        text-decoration-color: #60a5fa !important; /* Синяя линия (4) */
       }
-      .sub-mode--underline .lectura-token.status-5 {
-        text-decoration: underline;
-        text-decoration-color: #c084fc; /* Фиолетовая линия (5) */
+      .sub-mode--underline .lectura-token.status-5,
+      .sub-mode--underline .lectura-word-token.status-5 {
+        text-decoration: underline !important;
+        text-decoration-color: #c084fc !important; /* Фиолетовая линия (5) */
       }
-      .sub-mode--underline .lectura-token.status-known {
-        text-decoration: none; /* Без подчеркивания (Known) */
+      .sub-mode--underline .lectura-token.status-known,
+      .sub-mode--underline .lectura-word-token.status-known {
+        text-decoration: none !important; /* Без подчеркивания (Known) */
       }
-      .sub-mode--underline .lectura-token.status-ignored {
-        text-decoration: none;
+      .sub-mode--underline .lectura-token.status-ignored,
+      .sub-mode--underline .lectura-word-token.status-ignored {
+        text-decoration: none !important;
         color: #94a3b8 !important;
-        opacity: 0.5;
+        opacity: 0.5 !important;
       }
 
       /* Mini Hover Tooltip (Language Reactor Style) */
@@ -2144,6 +2831,21 @@ class YouTubeLecturaOverlay {
       }
     });
 
+    // 1b. Listen for pre-segmented TimedText full track payload
+    window.addEventListener('LECTURA_TIMEDTEXT_DATA', (event: any) => {
+      const { lang, text } = event?.detail || {};
+      if (text) {
+        const blocks = parseTimedTextData(text);
+        if (blocks.length > 0) {
+          this.staticSubtitleBlocks = blocks;
+          console.log(`✨ [Lectura Subtitles] Successfully pre-segmented ${blocks.length} static full-sentence blocks for ${lang || 'active track'}`);
+          if (this.videoElement) {
+            this.updateSubtitleOverlay(this.videoElement.currentTime);
+          }
+        }
+      }
+    });
+
     // 2. Observe Resource Timing entries directly in content script for timedtext URLs
     try {
       if (typeof window !== 'undefined' && window.PerformanceObserver) {
@@ -2180,25 +2882,35 @@ class YouTubeLecturaOverlay {
         script.id = scriptId;
         script.textContent = `
           (function() {
-            function notifyLang(lang) {
-              if (!lang) return;
-              try {
-                window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_LANG', { detail: { lang: lang } }));
-              } catch (_) {}
+            function notifyTimedText(lang, url, text) {
+              if (lang) {
+                try {
+                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_LANG', { detail: { lang: lang } }));
+                } catch (_) {}
+              }
+              if (text) {
+                try {
+                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_DATA', { detail: { lang: lang, url: url, text: text } }));
+                } catch (_) {}
+              }
             }
 
             // Intercept fetch
             const origFetch = window.fetch;
             window.fetch = async function(...args) {
               const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url);
+              const res = await origFetch.apply(this, args);
               if (url && typeof url === 'string' && url.includes('/api/timedtext')) {
                 try {
                   const parsed = new URL(url, window.location.origin);
                   const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  if (lang) notifyLang(lang);
+                  const clone = res.clone();
+                  clone.text().then(text => {
+                    notifyTimedText(lang, url, text);
+                  }).catch(() => notifyTimedText(lang, url, null));
                 } catch (_) {}
               }
-              return origFetch.apply(this, args);
+              return res;
             };
 
             // Intercept XMLHttpRequest
@@ -2208,7 +2920,9 @@ class YouTubeLecturaOverlay {
                 try {
                   const parsed = new URL(url, window.location.origin);
                   const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  if (lang) notifyLang(lang);
+                  this.addEventListener('load', function() {
+                    notifyTimedText(lang, url, this.responseText);
+                  });
                 } catch (_) {}
               }
               return origOpen.apply(this, arguments);
@@ -2340,31 +3054,92 @@ class YouTubeLecturaOverlay {
     } catch (_) {}
   }
 
-  private observeNativeSubtitles() {
-    const targets = [
-      document.querySelector('#movie_player'),
-      document.querySelector('.ytp-caption-window-container'),
-      document.body,
-    ].filter(Boolean) as HTMLElement[];
+  public async loadFullVideoSubtitles(videoId: string, targetLang?: string): Promise<boolean> {
+    if (!videoId) return false;
+    const lang = normalizeLangCode(targetLang || this.getEffectiveLang() || 'es');
 
-    if (this.mutationObserver) {
-      this.mutationObserver.disconnect();
+    let trackUrl: string | null = null;
+    const ytPlayer = document.getElementById('movie_player') as any;
+
+    if (ytPlayer && typeof ytPlayer.getPlayerResponse === 'function') {
+      try {
+        const pResponse = ytPlayer.getPlayerResponse();
+        const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (Array.isArray(tracks) && tracks.length > 0) {
+          const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+          if (matchingTrack?.baseUrl) {
+            trackUrl = matchingTrack.baseUrl;
+          }
+        }
+      } catch (_) {}
     }
 
-    this.mutationObserver = new MutationObserver(() => {
-      this.syncNativeCaptions();
-    });
-
-    for (const target of targets) {
-      this.mutationObserver.observe(target, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-      });
+    if (!trackUrl) {
+      try {
+        const initResp = (window as any).ytInitialPlayerResponse;
+        const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (Array.isArray(tracks) && tracks.length > 0) {
+          const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+          if (matchingTrack?.baseUrl) {
+            trackUrl = matchingTrack.baseUrl;
+          }
+        }
+      } catch (_) {}
     }
 
-    this.hideNativeCaptions();
-    this.syncNativeCaptions();
+    if (!trackUrl) {
+      try {
+        const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const entry = entries[i];
+          if (entry.name && entry.name.includes('/api/timedtext') && entry.name.includes(`v=${videoId}`)) {
+            trackUrl = entry.name;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (trackUrl) {
+      try {
+        const finalUrl = trackUrl.includes('fmt=') ? trackUrl : `${trackUrl}&fmt=json3`;
+        const res = await fetch(finalUrl);
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('json') || finalUrl.includes('fmt=json3')) {
+            const data = await res.json();
+            if (data && data.events) {
+              const sentences = parseJson3IntoCleanSentences(data.events);
+              if (sentences.length > 0) {
+                this.preparsedSentences = sentences;
+                this.currentSentenceIndex = -1;
+                console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (JSON3) for ${lang}!`);
+                if (this.videoElement) {
+                  this.updateSubtitleOverlay(this.videoElement.currentTime);
+                }
+                return true;
+              }
+            }
+          } else {
+            const text = await res.text();
+            const sentences = parseXmlIntoCleanSentences(text);
+            if (sentences.length > 0) {
+              this.preparsedSentences = sentences;
+              this.currentSentenceIndex = -1;
+              console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (XML) for ${lang}!`);
+              if (this.videoElement) {
+                this.updateSubtitleOverlay(this.videoElement.currentTime);
+              }
+              return true;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ [Lectura Subtitles] Failed to fetch caption track directly:', err);
+      }
+    }
+
+    return false;
   }
 
   private hideNativeCaptions() {
@@ -2373,8 +3148,13 @@ class YouTubeLecturaOverlay {
       const style = document.createElement('style');
       style.id = 'lectura-hide-yt-captions';
       style.textContent = `
-        .caption-window {
+        .ytp-caption-window-bottom,
+        .caption-window,
+        .ytp-caption-segment,
+        .caption-visual-line {
+          display: none !important;
           opacity: 0 !important;
+          visibility: hidden !important;
           pointer-events: none !important;
         }
       `;
@@ -2383,79 +3163,6 @@ class YouTubeLecturaOverlay {
   }
 
   private currentDetectedLanguage: string = 'Spanish';
-
-  private syncNativeCaptions() {
-    // Check if user switched caption track in YouTube player menu
-    const ytPlayer = document.getElementById('movie_player') as any;
-    if (ytPlayer && typeof ytPlayer.getOption === 'function') {
-      try {
-        const track = ytPlayer.getOption('captions', 'track');
-        if (track && track.languageCode) {
-          const trackCode = track.languageCode.slice(0, 2).toLowerCase();
-          if (trackCode && trackCode !== this.videoSessionLanguage) {
-            (window as any).__LECTURA_ACTIVE_LANG__ = trackCode;
-            (window as any).__LECTURA_YT_TRACK_LANG__ = trackCode;
-            this.videoSessionLanguage = trackCode;
-            this.currentDetectedLanguage = getLanguageDisplayName(trackCode);
-            this.syncVocabulary(trackCode);
-          }
-        }
-      } catch (_) {}
-    }
-
-    const isPopupOpen = Boolean(this.popupCard && this.popupCard.style.display !== 'none');
-    if (this.isPhraseSelecting || this.isShiftDown || isPopupOpen) {
-      return;
-    }
-
-    const rawSegments = document.querySelectorAll('.ytp-caption-segment');
-    const segments = rawSegments.length > 0 ? rawSegments : document.querySelectorAll('.caption-visual-line');
-
-    if (!segments || segments.length === 0) {
-      if (this.subtitleBox && this.subtitleBox.style.display !== 'none') {
-        this.subtitleBox.style.display = 'none';
-        this.subtitleBox.innerHTML = '';
-        this.currentSubtitleText = '';
-      }
-      return;
-    }
-
-    const fullText = Array.from(segments)
-      .map((s) => s.textContent || '')
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (fullText && (fullText !== this.currentSubtitleText || !this.subtitleBox || this.subtitleBox.style.display === 'none')) {
-      this.currentSubtitleText = fullText;
-
-      const langCode = this.getEffectiveLang();
-      if (!this.cachedWordsByLang[langCode]) {
-        StorageService.getCachedWords(langCode).then((w) => {
-          this.cachedWordsByLang[langCode] = w;
-          this.renderSubtitleTokens(fullText);
-        });
-      }
-
-      this.renderSubtitleTokens(fullText);
-
-      if (this.videoElement) {
-        const currentTime = this.videoElement.currentTime;
-        const lastCue = this.activeCues[this.activeCues.length - 1];
-        if (!lastCue || Math.abs(lastCue.startTime - currentTime) > 1) {
-          const cue: SubtitleCue = {
-            id: `cue_${Date.now()}`,
-            startTime: currentTime,
-            endTime: currentTime + 4,
-            text: fullText,
-          };
-          this.activeCues.push(cue);
-          if (this.activeCues.length > 200) this.activeCues.shift();
-          this.currentCueIndex = this.activeCues.length - 1;
-        }
-      }
-    }
-  }
 
   private static readonly ENGLISH_IRREGULARS: Record<string, string> = {
     am: 'be', is: 'be', are: 'be', was: 'be', were: 'be', been: 'be', being: 'be',
@@ -2647,23 +3354,28 @@ class YouTubeLecturaOverlay {
   }
 
   /**
-   * Tokenizes subtitle text with natural punctuation formatting and Lectura status highlights
+   * Tokenizes subtitle text with natural punctuation formatting and Lectura status highlights.
+   * Renders into .lectura-sub-box with .lectura-sub-line lines and .lectura-word-token tokens.
    */
   private renderSubtitleTokens(text: string) {
     if (!this.subtitleBox) return;
 
-    this.subtitleBox.innerHTML = '';
-    const lineEl = document.createElement('div');
-    lineEl.className = 'lectura-line';
+    const cleanedText = removeInternalRepeats(text);
+    if (!cleanedText) {
+      this.subtitleBox.innerHTML = '';
+      this.subtitleBox.style.display = 'none';
+      return;
+    }
 
-    // Split words while preserving punctuation attachment
-    const words = text.split(/\s+/);
+    this.subtitleBox.innerHTML = '';
+
+    const words = cleanedText.split(/\s+/).filter(Boolean);
+    const boxEl = document.createElement('div');
+    boxEl.className = 'lectura-sub-box';
+
     let tokenIndexCounter = 0;
 
-    for (let i = 0; i < words.length; i++) {
-      const token = words[i];
-      if (!token) continue;
-
+    const renderWordToken = (token: string, parentEl: HTMLElement, isLastInLine: boolean) => {
       // Extract core word and attached leading/trailing punctuation (strictly preserving all unicode diacritics and letters)
       const match = token.match(/^([\p{P}\s¿¡«"'(]*)([\p{L}\p{N}'-]+)([\p{P}\s?!.,:;"»')]*)$/u) ||
         token.match(/^([^a-zA-ZÀ-ÿ0-9_'-]*)([a-zA-ZÀ-ÿ0-9_'-]+)([^a-zA-ZÀ-ÿ0-9_'-]*)$/);
@@ -2677,11 +3389,11 @@ class YouTubeLecturaOverlay {
           const leadSpan = document.createElement('span');
           leadSpan.className = 'punct';
           leadSpan.textContent = leadingPunct;
-          lineEl.appendChild(leadSpan);
+          parentEl.appendChild(leadSpan);
         }
 
         const span = document.createElement('span');
-        span.className = 'lectura-token';
+        span.className = 'lectura-word-token lectura-token';
         span.textContent = coreWord;
         span.dataset.word = coreWord.toLowerCase();
         span.dataset.tokenIndex = String(tokenIndexCounter++);
@@ -2711,7 +3423,7 @@ class YouTubeLecturaOverlay {
             this.videoElement.pause();
           }
 
-          const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token') || []);
+          const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token') || []);
           const clickedIdx = parseInt(span.dataset.tokenIndex || '0', 10);
 
           if ((e.shiftKey || this.isShiftDown) && this.startTokenIndex !== null && allTokens.length > 0) {
@@ -2741,44 +3453,61 @@ class YouTubeLecturaOverlay {
           }
         });
 
-        lineEl.appendChild(span);
+        parentEl.appendChild(span);
 
         if (trailingPunct) {
           const trailSpan = document.createElement('span');
           trailSpan.className = 'punct';
           trailSpan.textContent = trailingPunct;
-          lineEl.appendChild(trailSpan);
+          parentEl.appendChild(trailSpan);
         }
       } else {
         // Pure punctuation token (e.g. "?", "!", "...", ",")
         const isPurePunct = /^[^a-zA-ZÀ-ÿ0-9_'-]+$/.test(token);
         if (isPurePunct) {
-          // If previous sibling was a space textNode, remove it so punctuation stays glued to previous word
-          if (lineEl.lastChild && lineEl.lastChild.nodeType === Node.TEXT_NODE && lineEl.lastChild.textContent === ' ') {
-            lineEl.removeChild(lineEl.lastChild);
+          if (parentEl.lastChild && parentEl.lastChild.nodeType === Node.TEXT_NODE && parentEl.lastChild.textContent === ' ') {
+            parentEl.removeChild(parentEl.lastChild);
           }
           const punctSpan = document.createElement('span');
           punctSpan.className = 'punct';
           punctSpan.textContent = token;
-          lineEl.appendChild(punctSpan);
+          parentEl.appendChild(punctSpan);
         } else {
-          lineEl.appendChild(document.createTextNode(token));
+          parentEl.appendChild(document.createTextNode(token));
         }
       }
 
       // Single space between words
-      if (i < words.length - 1) {
-        lineEl.appendChild(document.createTextNode(' '));
+      if (!isLastInLine) {
+        parentEl.appendChild(document.createTextNode(' '));
       }
-    }
+    };
 
-    this.subtitleBox.appendChild(lineEl);
+    const mid = Math.ceil(words.length / 2);
+    const line1Words = words.slice(0, mid);
+    const line2Words = words.slice(mid);
+
+    const line1Div = document.createElement('div');
+    line1Div.className = 'lectura-sub-line';
+    for (let i = 0; i < line1Words.length; i++) {
+      renderWordToken(line1Words[i], line1Div, i === line1Words.length - 1);
+    }
+    boxEl.appendChild(line1Div);
+
+    if (line2Words.length > 0) {
+      const line2Div = document.createElement('div');
+      line2Div.className = 'lectura-sub-line';
+      for (let i = 0; i < line2Words.length; i++) {
+        renderWordToken(line2Words[i], line2Div, i === line2Words.length - 1);
+      }
+      boxEl.appendChild(line2Div);
+    }
 
     // Dual Subtitles translation line
     const transDiv = document.createElement('div');
     transDiv.className = 'lectura-sub-translation';
     transDiv.style.display = this.enableDualSubtitles ? 'block' : 'none';
-    this.subtitleBox.appendChild(transDiv);
+    boxEl.appendChild(transDiv);
 
     if (this.enableDualSubtitles) {
       this.fetchFullSentenceTranslation(text).then((trans) => {
@@ -2788,7 +3517,8 @@ class YouTubeLecturaOverlay {
       });
     }
 
-    this.subtitleBox.style.display = 'block';
+    this.subtitleBox.appendChild(boxEl);
+    this.subtitleBox.style.display = 'flex';
   }
 
   private static fullSentenceCache = new Map<string, string>();
@@ -4104,12 +4834,109 @@ class YouTubeLecturaOverlay {
     }, 4000);
   }
 
+  /**
+   * Timeline-driven Atomic Subtitle Renderer (Strict Full Sentence Display)
+   * If inside the same sentence (newIndex === currentSentenceIndex), DOES NOTHING to DOM!
+   */
+  public updateSubtitleOverlay(currentTime: number) {
+    const isPopupOpen = Boolean(this.popupCard && this.popupCard.style.display !== 'none');
+    if (this.isPhraseSelecting || this.isShiftDown || isPopupOpen) {
+      return;
+    }
+
+    if (!this.preparsedSentences || this.preparsedSentences.length === 0) {
+      if (this.currentVideoId && !this.isLoadingSubtitles) {
+        this.isLoadingSubtitles = true;
+        this.loadFullVideoSubtitles(this.currentVideoId).finally(() => {
+          this.isLoadingSubtitles = false;
+        });
+      }
+      return;
+    }
+
+    // Find sentence index for the exact currentTime (with strict next block start precedence)
+    const newIndex = this.preparsedSentences.findIndex((s, idx) => {
+      const next = this.preparsedSentences[idx + 1];
+      const effectiveEnd = next ? Math.min(s.end, next.start) : s.end;
+      return currentTime >= s.start && currentTime < effectiveEnd;
+    });
+
+    // 1. If inside the SAME sentence — DO NOTHING TO THE DOM!
+    // Text remains 100% static and stable!
+    if (newIndex === this.currentSentenceIndex) {
+      return;
+    }
+
+    this.currentSentenceIndex = newIndex;
+
+    // 2. If between sentences or past end — hide box
+    if (newIndex === -1) {
+      if (this.subtitleBox && this.subtitleBox.style.display !== 'none') {
+        this.subtitleBox.style.display = 'none';
+        this.subtitleBox.innerHTML = '';
+      }
+      return;
+    }
+
+    // 3. New sentence: ATOMIC SINGLE-SHOT RENDER OF THE COMPLETE SENTENCE
+    const sentence = this.preparsedSentences[newIndex];
+    this.currentSubtitleText = sentence.text;
+    this.renderSubtitleTokens(sentence.text);
+  }
+
   private setupTimeListener() {
     if (!this.videoElement) return;
+
+    // Continuous frame-accurate synchronization loop via requestAnimationFrame (0ms lag)
+    const tick = () => {
+      if (this.videoElement && !this.videoElement.paused && !this.videoElement.ended) {
+        this.updateSubtitleOverlay(this.videoElement.currentTime);
+        this.animFrameId = requestAnimationFrame(tick);
+      } else {
+        this.animFrameId = null;
+      }
+    };
+
+    const startLoop = () => {
+      if (!this.animFrameId) {
+        this.animFrameId = requestAnimationFrame(tick);
+      }
+    };
+
+    const stopLoop = () => {
+      if (this.animFrameId) {
+        cancelAnimationFrame(this.animFrameId);
+        this.animFrameId = null;
+      }
+    };
+
+    this.videoElement.addEventListener('play', startLoop);
+    this.videoElement.addEventListener('playing', startLoop);
+    this.videoElement.addEventListener('pause', stopLoop);
+    this.videoElement.addEventListener('ended', stopLoop);
+
+    this.videoElement.addEventListener('seeked', () => {
+      if (this.videoElement) {
+        this.updateSubtitleOverlay(this.videoElement.currentTime);
+      }
+    });
+
+    this.videoElement.addEventListener('seeking', () => {
+      if (this.videoElement) {
+        this.updateSubtitleOverlay(this.videoElement.currentTime);
+      }
+    });
+
     this.timeUpdateHandler = () => {
-      this.syncNativeCaptions();
+      if (this.videoElement) {
+        this.updateSubtitleOverlay(this.videoElement.currentTime);
+      }
     };
     this.videoElement.addEventListener('timeupdate', this.timeUpdateHandler);
+
+    if (!this.videoElement.paused) {
+      startLoop();
+    }
   }
 
   private setupKeyboardShortcuts() {

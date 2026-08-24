@@ -135,6 +135,28 @@ export interface IgnoreCategorySettings {
   anglicisms: boolean;
 }
 
+export interface ReaderToolbarVisibility {
+  showAiHub: boolean;        // default: true
+  showTranslation: boolean;  // default: true
+  showFocusMode: boolean;    // default: true
+  showPlayPairs: boolean;    // default: true
+  showUnknownOnly: boolean;  // default: true
+  showVideoToggle: boolean;  // default: true
+  showDisplayMode: boolean;  // default: true (Badges / Book)
+  showWidthToggle: boolean;  // default: true (Standard / Wide / Full)
+}
+
+export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
+  showAiHub: true,
+  showTranslation: true,
+  showFocusMode: true,
+  showPlayPairs: true,
+  showUnknownOnly: true,
+  showVideoToggle: true,
+  showDisplayMode: true,
+  showWidthToggle: true,
+};
+
 export interface ReaderSettings {
   fontSize: "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   lineHeight: "normal" | "relaxed" | "loose" | "extra-loose";
@@ -179,6 +201,7 @@ export interface ReaderSettings {
   firstDayOfWeek?: FirstDayOfWeekOption;
   defaultVideoViewMode?: "focus" | "floating" | "off"; // Default view mode for YouTube & video lessons on mobile/tablet
   wordCardMode?: WordCardMode; // "full-inspector" or "calm-sheet"
+  toolbarVisibility?: Partial<ReaderToolbarVisibility>;
 }
 
 export type WordCardMode = 'full-inspector' | 'calm-sheet';

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { safeLocalStorageSetItem } from "../utils";
 import { clearLocalUserDataCache } from "../db";
 import { resolveServerUrl } from "../utils/mobileServerBridge";
@@ -88,35 +88,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [localSyncError, setLocalSyncError] = useState<boolean>(false);
 
-  const setStorageMode = (mode: "server" | "local") => {
+  const setStorageMode = useCallback((mode: "server" | "local") => {
     setStorageModeState(mode);
     safeLocalStorageSetItem("vocab_clone_storage_mode", mode);
-  };
+  }, []);
 
-  const setLocalSyncKey = (key: string) => {
+  const setLocalSyncKey = useCallback((key: string) => {
     setLocalSyncKeyState(key);
     safeLocalStorageSetItem("vocab_clone_local_sync_key", key);
     setLocalSyncError(false);
-  };
+  }, []);
 
   // Helper to upsert saved account into list & localStorage
-  const upsertSavedAccount = (token: string, user: LocalUser) => {
+  const upsertSavedAccount = useCallback((token: string, user: LocalUser) => {
     setSavedAccounts(prev => {
       const filtered = prev.filter(acc => acc.token !== token && acc.user.id !== user.id && acc.user.email !== user.email);
       const updated: SavedAccount[] = [{ token, user, lastUsed: Date.now() }, ...filtered];
       safeLocalStorageSetItem("vocab_clone_saved_accounts", JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
 
   // Remove saved account by token or userId
-  const removeSavedAccount = (targetTokenOrUserId: string) => {
+  const removeSavedAccount = useCallback((targetTokenOrUserId: string) => {
     setSavedAccounts(prev => {
       const updated = prev.filter(acc => acc.token !== targetTokenOrUserId && acc.user.id !== targetTokenOrUserId);
       safeLocalStorageSetItem("vocab_clone_saved_accounts", JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
 
   // Synchronize serverToken & localUser to localStorage safely
   useEffect(() => {
@@ -131,7 +131,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (localUser) {
       safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(localUser));
       if (serverToken) {
-        upsertSavedAccount(serverToken, localUser);
+        setSavedAccounts(prev => {
+          const existing = prev.find(acc => acc.token === serverToken);
+          if (
+            existing &&
+            existing.user.id === localUser.id &&
+            existing.user.username === localUser.username &&
+            existing.user.displayName === localUser.displayName &&
+            existing.user.avatarUrl === localUser.avatarUrl &&
+            existing.user.passwordHint === localUser.passwordHint
+          ) {
+            return prev; // No change needed, prevent re-render
+          }
+          const filtered = prev.filter(acc => acc.token !== serverToken && acc.user.id !== localUser.id && acc.user.email !== localUser.email);
+          const updated: SavedAccount[] = [{ token: serverToken, user: localUser, lastUsed: Date.now() }, ...filtered];
+          safeLocalStorageSetItem("vocab_clone_saved_accounts", JSON.stringify(updated));
+          return updated;
+        });
       }
     } else {
       localStorage.removeItem("vocab_clone_local_user");
@@ -184,9 +200,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setIsAuthLoading(false);
     }
-  }, [storageMode]);
+  }, [storageMode, upsertSavedAccount, removeSavedAccount, setStorageMode]);
 
-  const loginLocalServer = async (username: string, password = ""): Promise<{ success: boolean; error?: string }> => {
+  const loginLocalServer = useCallback(async (username: string, password = ""): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch(resolveServerUrl("/api/auth/login"), {
         method: "POST",
@@ -214,9 +230,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось подключиться к серверу" };
     }
-  };
+  }, [upsertSavedAccount, setStorageMode]);
 
-  const registerLocalServer = async (username: string, password = "", passwordHint = "", avatarUrl = ""): Promise<{ success: boolean; error?: string }> => {
+  const registerLocalServer = useCallback(async (username: string, password = "", passwordHint = "", avatarUrl = ""): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch(resolveServerUrl("/api/auth/register"), {
         method: "POST",
@@ -244,9 +260,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось подключиться к серверу" };
     }
-  };
+  }, [upsertSavedAccount, setStorageMode]);
 
-  const updateProfile = async (patch: { displayName?: string; avatarUrl?: string | null; passwordHint?: string | null }): Promise<{ success: boolean; error?: string }> => {
+  const updateProfile = useCallback(async (patch: { displayName?: string; avatarUrl?: string | null; passwordHint?: string | null }): Promise<{ success: boolean; error?: string }> => {
     try {
       if (!serverToken) {
         return { success: false, error: "Не авторизован" };
@@ -270,9 +286,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось обновить профиль" };
     }
-  };
+  }, [serverToken, upsertSavedAccount]);
 
-  const changePassword = async (currentPassword: string, newPassword: string, passwordHint?: string): Promise<{ success: boolean; error?: string }> => {
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string, passwordHint?: string): Promise<{ success: boolean; error?: string }> => {
     try {
       if (!serverToken) {
         return { success: false, error: "Не авторизован" };
@@ -298,9 +314,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось сменить пароль" };
     }
-  };
+  }, [serverToken, localUser, upsertSavedAccount]);
 
-  const uploadAvatar = async (avatarData: string): Promise<{ success: boolean; avatarUrl?: string; error?: string }> => {
+  const uploadAvatar = useCallback(async (avatarData: string): Promise<{ success: boolean; avatarUrl?: string; error?: string }> => {
     try {
       if (!serverToken) {
         return { success: false, error: "Не авторизован" };
@@ -326,9 +342,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось загрузить аватар" };
     }
-  };
+  }, [serverToken, localUser, upsertSavedAccount]);
 
-  const switchAccount = async (targetToken: string): Promise<{ success: boolean; error?: string; is401?: boolean; expiredAccount?: SavedAccount }> => {
+  const switchAccount = useCallback(async (targetToken: string): Promise<{ success: boolean; error?: string; is401?: boolean; expiredAccount?: SavedAccount }> => {
     const account = savedAccounts.find(a => a.token === targetToken);
     try {
       const res = await fetch(resolveServerUrl("/api/auth/me"), {
@@ -358,9 +374,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось переключить аккаунт" };
     }
-  };
+  }, [savedAccounts, upsertSavedAccount, removeSavedAccount, setStorageMode]);
 
-  const logout = async (options?: { all?: boolean }) => {
+  const logout = useCallback(async (options?: { all?: boolean }) => {
     if (serverToken) {
       try {
         await fetch(resolveServerUrl("/api/auth/logout"), {
@@ -405,36 +421,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setServerToken("");
       setLocalUser(null);
     }
-  };
+  }, [serverToken, savedAccounts]);
 
   const activeUser = storageMode === "server" ? localUser : null;
   const isAuthenticated = !!activeUser || storageMode === "local";
 
+  const contextValue = useMemo(() => ({
+    user: activeUser,
+    localUser,
+    serverToken,
+    storageMode,
+    setStorageMode,
+    localSyncKey,
+    setLocalSyncKey,
+    localSyncError,
+    setLocalSyncError,
+    isAuthLoading,
+    isAuthenticated,
+    savedAccounts,
+    loginLocalServer,
+    registerLocalServer,
+    updateProfile,
+    changePassword,
+    uploadAvatar,
+    switchAccount,
+    removeSavedAccount,
+    logout,
+  }), [
+    activeUser,
+    localUser,
+    serverToken,
+    storageMode,
+    setStorageMode,
+    localSyncKey,
+    setLocalSyncKey,
+    localSyncError,
+    setLocalSyncError,
+    isAuthLoading,
+    isAuthenticated,
+    savedAccounts,
+    loginLocalServer,
+    registerLocalServer,
+    updateProfile,
+    changePassword,
+    uploadAvatar,
+    switchAccount,
+    removeSavedAccount,
+    logout,
+  ]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        user: activeUser,
-        localUser,
-        serverToken,
-        storageMode,
-        setStorageMode,
-        localSyncKey,
-        setLocalSyncKey,
-        localSyncError,
-        setLocalSyncError,
-        isAuthLoading,
-        isAuthenticated,
-        savedAccounts,
-        loginLocalServer,
-        registerLocalServer,
-        updateProfile,
-        changePassword,
-        uploadAvatar,
-        switchAccount,
-        removeSavedAccount,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

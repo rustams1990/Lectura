@@ -31,15 +31,18 @@ export interface WordDetailContainerProps {
   textLemmas?: Record<string, string>;
   currentLessonId?: string;
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
+  /** When true, always renders the full Inspector (WordExplainer) regardless of wordCardMode setting. */
+  forceInspector?: boolean;
 }
 
 export default function WordDetailContainer(props: WordDetailContainerProps) {
   const { wordCardMode: storeMode } = useSettingsStore();
   const effectiveMode = props.settings?.wordCardMode || storeMode || "full-inspector";
 
-  if (effectiveMode === "calm-sheet") {
-    return <CalmSheetWordCard {...props} />;
+  // Desktop sidebar always shows the full Inspector, never the compact Calm Sheet popup
+  if (props.forceInspector || effectiveMode !== "calm-sheet") {
+    return <WordExplainer {...props} />;
   }
 
-  return <WordExplainer {...props} />;
+  return <CalmSheetWordCard {...props} />;
 }

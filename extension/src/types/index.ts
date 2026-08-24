@@ -12,6 +12,7 @@ export interface ExtensionSettings {
   targetLanguage: string;
   nativeLanguage: string;
   enableYoutubeOverlay: boolean;
+  trackListeningActivity?: boolean;
   enableDualSubtitles?: boolean;
   subtitleSizePreset?: 'sm' | 'md' | 'lg';
   captureVideoSnapshot?: boolean;
@@ -21,6 +22,7 @@ export interface ExtensionSettings {
   autoPauseOnHover: boolean;
   subtitleFontSize: number;
   subtitleBgOpacity: number;
+  subtitleBgColor?: string;
   subtitleHighlightMode: 'underline' | 'color';
   ttsDialect?: string;
   popupTheme?: 'compact' | 'extended' | 'glass' | 'calm_light';
@@ -84,6 +86,19 @@ export interface HealthCheckResponse {
   timestamp?: number;
 }
 
+export interface YouTubeActivityPayload {
+  videoId: string;
+  videoTitle: string;
+  channelName?: string;
+  channelAvatarUrl?: string;
+  channelUrl?: string;
+  thumbnailUrl?: string;
+  durationSeconds?: number;
+  watchedSeconds: number;
+  language?: string;
+  timestamp?: number | string;
+}
+
 export interface ExtMessage {
   type:
     | 'CHECK_HEALTH'
@@ -93,6 +108,7 @@ export interface ExtMessage {
     | 'GET_CACHED_WORDS'
     | 'TRANSLATE_TEXT'
     | 'EXTRACT_ARTICLE'
+    | 'LOG_YOUTUBE_ACTIVITY'
     | 'OPEN_OPTIONS';
   payload?: any;
 }

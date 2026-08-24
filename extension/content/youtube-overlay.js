@@ -8,6 +8,7 @@
     targetLanguage: "en",
     nativeLanguage: "ru",
     enableYoutubeOverlay: true,
+    trackListeningActivity: true,
     enableDualSubtitles: false,
     subtitleSizePreset: "md",
     captureVideoSnapshot: false,
@@ -15,9 +16,10 @@
     enableInSituSelection: true,
     highlightKnownWords: false,
     autoPauseOnHover: true,
-    subtitleFontSize: 24,
+    subtitleFontSize: 22,
     subtitleBgOpacity: 75,
-    subtitleHighlightMode: "underline",
+    subtitleBgColor: "rgba(0, 0, 0, 0.45)",
+    subtitleHighlightMode: "color",
     ttsDialect: "en-US",
     popupTheme: "glass",
     interfaceLanguage: "en"
@@ -54,15 +56,15 @@
      */
     static async getSettings() {
       return new Promise((resolve) => {
-        chrome.storage.sync.get(DEFAULT_SETTINGS, (items) => {
-          if (chrome.runtime.lastError) {
-            console.warn("[Lectura Storage] sync get error, fallback to local:", chrome.runtime.lastError);
-            chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
-              resolve({ ...DEFAULT_SETTINGS, ...localItems });
-            });
-          } else {
-            resolve({ ...DEFAULT_SETTINGS, ...items });
-          }
+        chrome.storage.local.get(DEFAULT_SETTINGS, (localItems) => {
+          chrome.storage.sync.get(DEFAULT_SETTINGS, (syncItems) => {
+            const merged = {
+              ...DEFAULT_SETTINGS,
+              ...syncItems || {},
+              ...localItems || {}
+            };
+            resolve(merged);
+          });
         });
       });
     }
@@ -71,18 +73,10 @@
      */
     static async saveSettings(settings) {
       return new Promise((resolve, reject) => {
-        chrome.storage.sync.set(settings, () => {
-          if (chrome.runtime.lastError) {
-            chrome.storage.local.set(settings, () => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-              } else {
-                resolve();
-              }
-            });
-          } else {
-            chrome.storage.local.set(settings, () => resolve());
-          }
+        chrome.storage.local.set(settings, () => {
+          chrome.storage.sync.set(settings, () => {
+            resolve();
+          });
         });
       });
     }
@@ -599,6 +593,107 @@
       } catch (_2) {
       }
       return null;
+    }
+    /**
+     * Logs media watch/listening activity to Lectura server
+     */
+    async logActivity(payload) {
+      if (this.isContentScript()) {
+        return new Promise((resolve) => {
+          chrome.runtime.sendMessage({ type: "LOG_YOUTUBE_ACTIVITY", payload }, (response) => {
+            if (response?.success) {
+              resolve(response.data || { success: true });
+            } else {
+              resolve({ success: false });
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/log");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: this.buildHeaders(settings),
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to log activity to server:", err?.message || err);
+      }
+      return { success: false };
+    }
+    /**
+     * Retrieves reading / listening activity history
+     */
+    async getActivityHistory(language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `?language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/history${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            success: true,
+            history: data.history || [],
+            userGoals: data.userGoals,
+            customFlags: data.customFlags
+          };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch activity history:", err?.message || err);
+      }
+      return { success: false, history: [] };
+    }
+    /**
+     * Retrieves activity history logs for a specific day (YYYY-MM-DD)
+     */
+    async getDayActivity(dateStr, language) {
+      const settings = await this.getActiveSettings();
+      const langParam = language && language !== "all" ? `&language=${encodeURIComponent(language)}` : "";
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}`);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return { success: true, logs: data.logs || [] };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to fetch day activity:", err?.message || err);
+      }
+      return { success: false, logs: [] };
+    }
+    /**
+     * Deletes a specific activity log entry
+     */
+    async deleteActivityLog(logId) {
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/log/${encodeURIComponent(String(logId))}`);
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: this.buildHeaders(settings),
+          signal: AbortSignal.timeout(5e3)
+        });
+        if (response.ok) {
+          return { success: true };
+        }
+      } catch (err) {
+        console.warn("[LecturaApiClient] Failed to delete activity log:", err?.message || err);
+      }
+      return { success: false };
     }
   };
 
@@ -29751,6 +29846,9 @@
       save_config: "Save",
       save_all_changes: "Save All Changes",
       all_settings_saved: "All settings saved successfully!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F Settings",
+      tab_activity: "\u{1F4CA} Activity",
       // Sections
       section_connection: "1. Connection & Authentication",
       section_connection_desc: "Specify your local or remote Lectura server URL and access credentials.",
@@ -29779,6 +29877,8 @@
       style_color: "\u{1F3A8} Color",
       subtitle_size: "Subtitle Size",
       subtitle_size_full: "Subtitle Size Preset",
+      subtitle_font_size: "Subtitle Font Size (px)",
+      subtitle_bg_color: "Subtitle Background Color",
       size_sm: "Small (16px \u2014 Compact)",
       size_md: "Medium (21px \u2014 Default)",
       size_lg: "Large (27px \u2014 Fullscreen / 4K)",
@@ -29788,6 +29888,10 @@
       theme_extended: "\u{1F4DA} Extended (Dictionary)",
       theme_compact: "\u26A1 Compact (Minimal)",
       // Toggles
+      enable_yt_overlay: "Enable YouTube Overlay",
+      enable_yt_overlay_hint: "Show interactive subtitles",
+      track_listening_activity: "Track Listening Activity",
+      track_listening_hint: "Record watch time in calendar",
       enable_overlay: "Enable YouTube Interactive Overlay",
       enable_overlay_desc: "Renders clickable word tokens over video subtitles and enables interactive learning.",
       enable_dual_subs: "Dual Subtitles",
@@ -29810,6 +29914,19 @@
       importing: "Parsing Article...",
       saving_to_lectura: "Saving to Lectura...",
       imported: "Imported!",
+      // Activity & History
+      day_history: "Day History",
+      click_day_hint: "Click a day in calendar",
+      delete_entry: "Delete entry",
+      confirm_delete_log: "Delete this video viewing entry from history?",
+      failed_delete_log: "Failed to delete log entry",
+      no_activity_day: "No activity recorded for this day",
+      failed_load_day_activity: "Failed to load day activity",
+      goal_per_day: "Goal",
+      overall: "Overall",
+      stat_week: "WEEK",
+      stat_month: "MONTH",
+      stat_languages: "LANGUAGES",
       // Overlay Card & Tooltips
       tab_meaning: "Meaning",
       tab_definition: "Definition",
@@ -29848,6 +29965,9 @@
       save_config: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
       save_all_changes: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0432\u0441\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F",
       all_settings_saved: "\u0412\u0441\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+      tab_activity: "\u{1F4CA} \u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C",
       // Sections
       section_connection: "1. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F",
       section_connection_desc: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043D\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0435\u0440\u0430 Lectura \u0438 \u0434\u0430\u043D\u043D\u044B\u0435 \u0434\u043E\u0441\u0442\u0443\u043F\u0430.",
@@ -29876,6 +29996,8 @@
       style_color: "\u{1F3A8} \u0426\u0432\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430",
       subtitle_size: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432",
       subtitle_size_full: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432",
+      subtitle_font_size: "\u0420\u0430\u0437\u043C\u0435\u0440 \u0448\u0440\u0438\u0444\u0442\u0430 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 (px)",
+      subtitle_bg_color: "\u0426\u0432\u0435\u0442 \u0444\u043E\u043D\u0430 \u043F\u043B\u0430\u0448\u043A\u0438",
       size_sm: "\u041C\u0435\u043B\u043A\u0438\u0439 (16px \u2014 \u041E\u043A\u043E\u043D\u043D\u044B\u0439)",
       size_md: "\u0421\u0440\u0435\u0434\u043D\u0438\u0439 (21px \u2014 \u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442)",
       size_lg: "\u041A\u0440\u0443\u043F\u043D\u044B\u0439 (27px \u2014 \u041F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u044B\u0439)",
@@ -29885,6 +30007,10 @@
       theme_extended: "\u{1F4DA} Extended (\u0421\u043B\u043E\u0432\u0430\u0440\u043D\u044B\u0439)",
       theme_compact: "\u26A1 Compact (\u041C\u0438\u043D\u0438)",
       // Toggles
+      enable_yt_overlay: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B YouTube",
+      enable_yt_overlay_hint: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
+      track_listening_activity: "\u0423\u0447\u0435\u0442 \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430",
+      track_listening_hint: "\u0417\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0442\u044C \u0432\u0440\u0435\u043C\u044F \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C",
       enable_overlay: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043E\u0432\u0435\u0440\u043B\u0435\u0439 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 YouTube",
       enable_overlay_desc: "\u041E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0435\u0442 \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u043A\u043B\u0438\u043A\u0430\u0431\u0435\u043B\u044C\u043D\u044B\u0435 \u0441\u043B\u043E\u0432\u0430 \u043F\u043E\u0432\u0435\u0440\u0445 \u0432\u0438\u0434\u0435\u043E \u0438 \u0432\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u043E\u0431\u0443\u0447\u0435\u043D\u0438\u0435.",
       enable_dual_subs: "\u0414\u0432\u043E\u0439\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
@@ -29907,6 +30033,19 @@
       importing: "\u0427\u0442\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u044C\u0438...",
       saving_to_lectura: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0432 Lectura...",
       imported: "\u0418\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E!",
+      // Activity & History
+      day_history: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0437\u0430 \u0434\u0435\u043D\u044C",
+      click_day_hint: "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043D\u0430 \u0434\u0435\u043D\u044C \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0435",
+      delete_entry: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C",
+      confirm_delete_log: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u044D\u0442\u0443 \u0437\u0430\u043F\u0438\u0441\u044C \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430 \u0432\u0438\u0434\u0435\u043E \u0438\u0437 \u0438\u0441\u0442\u043E\u0440\u0438\u0438?",
+      failed_delete_log: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0443\u0434\u0430\u043B\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C",
+      no_activity_day: "\u041D\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u0435\u0439 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u0438 \u0437\u0430 \u044D\u0442\u043E\u0442 \u0434\u0435\u043D\u044C",
+      failed_load_day_activity: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C \u0437\u0430 \u0434\u0435\u043D\u044C",
+      goal_per_day: "\u0426\u0435\u043B\u044C",
+      overall: "\u0412\u0441\u0435\u0433\u043E",
+      stat_week: "\u041D\u0415\u0414\u0415\u041B\u042F",
+      stat_month: "\u041C\u0415\u0421\u042F\u0426",
+      stat_languages: "\u042F\u0417\u042B\u041A\u0418",
       // Overlay Card & Tooltips
       tab_meaning: "\u041F\u0435\u0440\u0435\u0432\u043E\u0434",
       tab_definition: "\u041E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u0435",
@@ -29945,6 +30084,9 @@
       save_config: "Guardar",
       save_all_changes: "Guardar todos los cambios",
       all_settings_saved: "\xA1Todos los ajustes se han guardado con \xE9xito!",
+      // Tabs
+      tab_settings: "\u2699\uFE0F Ajustes",
+      tab_activity: "\u{1F4CA} Actividad",
       // Sections
       section_connection: "1. Conexi\xF3n y Autenticaci\xF3n",
       section_connection_desc: "Especifica la URL del servidor Lectura y las credenciales de acceso.",
@@ -29973,6 +30115,8 @@
       style_color: "\u{1F3A8} Color",
       subtitle_size: "Tama\xF1o de subt\xEDtulos",
       subtitle_size_full: "Tama\xF1o de subt\xEDtulos",
+      subtitle_font_size: "Tama\xF1o de fuente de subt\xEDtulos (px)",
+      subtitle_bg_color: "Color de fondo de subt\xEDtulos",
       size_sm: "Peque\xF1o (16px \u2014 Compacto)",
       size_md: "Medio (21px \u2014 Est\xE1ndar)",
       size_lg: "Grande (27px \u2014 Pantalla completa)",
@@ -29982,6 +30126,10 @@
       theme_extended: "\u{1F4DA} Extended (Diccionario)",
       theme_compact: "\u26A1 Compact (M\xEDnimo)",
       // Toggles
+      enable_yt_overlay: "Activar subt\xEDtulos de YouTube",
+      enable_yt_overlay_hint: "Mostrar subt\xEDtulos interactivos",
+      track_listening_activity: "Registrar tiempo de escucha",
+      track_listening_hint: "Guardar tiempo en el calendario",
       enable_overlay: "Activar superposici\xF3n de YouTube",
       enable_overlay_desc: "Muestra palabras interactivas sobre los subt\xEDtulos del video y habilita el aprendizaje.",
       enable_dual_subs: "Subt\xEDtulos dobles",
@@ -30004,6 +30152,19 @@
       importing: "Analizando art\xEDculo...",
       saving_to_lectura: "Guardando en Lectura...",
       imported: "\xA1Importado!",
+      // Activity & History
+      day_history: "Historial del d\xEDa",
+      click_day_hint: "Haz clic en un d\xEDa del calendario",
+      delete_entry: "Eliminar registro",
+      confirm_delete_log: "\xBFEliminar este registro de video del historial?",
+      failed_delete_log: "Error al eliminar el registro",
+      no_activity_day: "No hay actividad registrada para este d\xEDa",
+      failed_load_day_activity: "Error al cargar la actividad del d\xEDa",
+      goal_per_day: "Meta",
+      overall: "Total",
+      stat_week: "SEMANA",
+      stat_month: "MES",
+      stat_languages: "IDIOMAS",
       // Overlay Card & Tooltips
       tab_meaning: "Significado",
       tab_definition: "Definici\xF3n",
@@ -30037,6 +30198,232 @@
   }
 
   // extension/src/content/youtube-overlay.ts
+  function initSubtitleAppearance() {
+    chrome.storage.local.get(["subtitleFontSize", "subtitleBgColor"], (res) => {
+      if (res.subtitleFontSize) {
+        document.documentElement.style.setProperty("--lectura-sub-font-size", `${res.subtitleFontSize}px`);
+        const host = document.getElementById("lectura-yt-shadow-host");
+        if (host) host.style.setProperty("--lectura-sub-font-size", `${res.subtitleFontSize}px`);
+        const subBox = host?.shadowRoot?.getElementById("lectura-subtitles-overlay");
+        if (subBox) subBox.style.setProperty("--lectura-sub-font-size", `${res.subtitleFontSize}px`);
+      }
+      if (res.subtitleBgColor) {
+        document.documentElement.style.setProperty("--lectura-sub-bg-color", res.subtitleBgColor);
+        const host = document.getElementById("lectura-yt-shadow-host");
+        if (host) host.style.setProperty("--lectura-sub-bg-color", res.subtitleBgColor);
+        const subBox = host?.shadowRoot?.getElementById("lectura-subtitles-overlay");
+        if (subBox) subBox.style.setProperty("--lectura-sub-bg-color", res.subtitleBgColor);
+      }
+    });
+  }
+  initSubtitleAppearance();
+  window.addEventListener("yt-navigate-finish", () => {
+    initSubtitleAppearance();
+  });
+  function removeInternalRepeats(text) {
+    if (!text) return "";
+    return text.replace(/\b([\p{L}\p{N}'’\-]+)\s+\1\b/giu, "$1").replace(/\s+/g, " ").trim();
+  }
+  function mergeSubtitleCuesCleanly(prevText, newText) {
+    const cleanPrev = (prevText || "").trim().replace(/\s+/g, " ");
+    const cleanNew = (newText || "").trim().replace(/\s+/g, " ");
+    if (!cleanPrev) return removeInternalRepeats(cleanNew);
+    if (!cleanNew) return removeInternalRepeats(cleanPrev);
+    if (cleanNew.toLowerCase().startsWith(cleanPrev.toLowerCase())) {
+      return removeInternalRepeats(cleanNew);
+    }
+    if (cleanPrev.toLowerCase().endsWith(cleanNew.toLowerCase())) {
+      return removeInternalRepeats(cleanPrev);
+    }
+    const prevWords = cleanPrev.split(/\s+/);
+    const newWords = cleanNew.split(/\s+/);
+    const maxOverlap = Math.min(prevWords.length, newWords.length);
+    for (let len = maxOverlap; len > 0; len--) {
+      const prevSlice = prevWords.slice(prevWords.length - len).join(" ");
+      const newSlice = newWords.slice(0, len).join(" ");
+      if (prevSlice.toLowerCase() === newSlice.toLowerCase()) {
+        const merged = [...prevWords, ...newWords.slice(len)].join(" ");
+        return removeInternalRepeats(merged);
+      }
+    }
+    return removeInternalRepeats(`${cleanPrev} ${cleanNew}`);
+  }
+  function deduplicateSubtitleSegments(segments) {
+    if (!segments || segments.length === 0) return "";
+    const cleanSegments = segments.map((s3) => (s3 || "").trim().replace(/\s+/g, " ")).filter((s3) => s3.length > 0);
+    if (cleanSegments.length === 0) return "";
+    if (cleanSegments.length === 1) return removeInternalRepeats(cleanSegments[0]);
+    let merged = cleanSegments[0];
+    for (let i3 = 1; i3 < cleanSegments.length; i3++) {
+      merged = mergeSubtitleCuesCleanly(merged, cleanSegments[i3]);
+    }
+    return removeInternalRepeats(merged);
+  }
+  function getActiveCueText(cues, currentTime) {
+    if (!cues || cues.length === 0) return "";
+    const currentCue = cues.find((c2) => currentTime >= c2.startTime && currentTime <= c2.endTime);
+    if (!currentCue) return "";
+    return removeInternalRepeats(currentCue.text);
+  }
+  function extractAllWordsFromEvents(events) {
+    const allWords = [];
+    if (!Array.isArray(events) || events.length === 0) return allWords;
+    for (const ev of events) {
+      if (!ev || !ev.segs || !Array.isArray(ev.segs)) continue;
+      const eventStartSec = (ev.tStartMs || 0) / 1e3;
+      const eventDurSec = (ev.dDurationMs || 1e3) / 1e3;
+      for (const seg of ev.segs) {
+        const txt = seg?.utf8;
+        if (!txt || txt === "\n" || txt === "\r\n") continue;
+        const offsetSec = (seg.tOffsetMs || 0) / 1e3;
+        const start2 = eventStartSec + offsetSec;
+        const end2 = start2 + Math.max(0.4, eventDurSec);
+        const tokens = txt.trim().split(/\s+/);
+        for (const token of tokens) {
+          if (token) {
+            allWords.push({ text: token, start: start2, end: end2 });
+          }
+        }
+      }
+    }
+    return allWords;
+  }
+  function normalizeCaptionTokens(tokens) {
+    const clean2 = [];
+    for (const t4 of tokens) {
+      const text = t4.text.trim();
+      if (/^[.,!?;:]+$/.test(text) && clean2.length > 0) {
+        clean2[clean2.length - 1].text += text;
+        clean2[clean2.length - 1].end = Math.max(clean2[clean2.length - 1].end, t4.end);
+      } else if (text) {
+        clean2.push({ ...t4, text });
+      }
+    }
+    return clean2;
+  }
+  function buildSentencesWithoutLoss(words) {
+    const normalized = normalizeCaptionTokens(words);
+    const blocks = [];
+    if (!normalized || normalized.length === 0) return blocks;
+    let currentWords = [];
+    let blockIdCounter = 1;
+    for (let i3 = 0; i3 < normalized.length; i3++) {
+      currentWords.push(normalized[i3]);
+      const isFullLength = currentWords.length >= 24;
+      const isPunctuationBoundary = /[.!?]$/.test(normalized[i3].text) && currentWords.length >= 20;
+      const isLast = i3 === normalized.length - 1;
+      if (isFullLength || isPunctuationBoundary || isLast) {
+        const start2 = currentWords[0].start;
+        const end2 = currentWords[currentWords.length - 1].end + 0.15;
+        const fullText = currentWords.map((cw) => cw.text).join(" ").replace(/\s+/g, " ").trim();
+        if (fullText) {
+          blocks.push({
+            id: blockIdCounter++,
+            start: start2,
+            end: Math.max(end2, start2 + 1.6),
+            text: fullText,
+            words: [...currentWords]
+          });
+        }
+        currentWords = [];
+      }
+    }
+    if (currentWords.length > 0) {
+      const start2 = currentWords[0].start;
+      const end2 = currentWords[currentWords.length - 1].end + 0.15;
+      const fullText = currentWords.map((cw) => cw.text).join(" ").replace(/\s+/g, " ").trim();
+      if (fullText) {
+        blocks.push({
+          id: blockIdCounter++,
+          start: start2,
+          end: Math.max(end2, start2 + 1.6),
+          text: fullText,
+          words: [...currentWords]
+        });
+      }
+    }
+    return blocks;
+  }
+  function finalizeSubtitleBlockTimings(blocks) {
+    for (let i3 = 0; i3 < blocks.length - 1; i3++) {
+      const curr = blocks[i3];
+      const next = blocks[i3 + 1];
+      if (curr.end > next.start) {
+        curr.end = next.start;
+      }
+    }
+    return blocks;
+  }
+  function parseJson3IntoCleanSentences(events) {
+    const words = extractAllWordsFromEvents(events);
+    const blocks = buildSentencesWithoutLoss(words);
+    return finalizeSubtitleBlockTimings(blocks);
+  }
+  function parseXmlIntoCleanSentences(xmlString) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlString, "text/xml");
+      const textNodes = doc.querySelectorAll("text");
+      const allWords = [];
+      textNodes.forEach((node) => {
+        const start2 = parseFloat(node.getAttribute("start") || "0");
+        const dur = parseFloat(node.getAttribute("dur") || "3");
+        const rawText = (node.textContent || "").trim();
+        if (!rawText) return;
+        const tokens = rawText.split(/\s+/);
+        const step = dur / Math.max(1, tokens.length);
+        tokens.forEach((token, idx) => {
+          if (token) {
+            allWords.push({
+              text: token,
+              start: start2 + idx * step,
+              end: start2 + (idx + 1) * step + 0.4
+            });
+          }
+        });
+      });
+      const blocks = buildSentencesWithoutLoss(allWords);
+      return finalizeSubtitleBlockTimings(blocks);
+    } catch (_2) {
+      return [];
+    }
+  }
+  function parseTimedTextData(data) {
+    const sentences = typeof data === "string" && !data.trim().startsWith("{") ? parseXmlIntoCleanSentences(data) : parseJson3IntoCleanSentences(typeof data === "object" ? data.events : JSON.parse(data || "{}").events || []);
+    return sentences.map((s3) => ({
+      id: s3.id,
+      startTime: s3.start,
+      endTime: s3.end,
+      fullText: s3.text,
+      words: s3.text.split(/\s+/).map((w, idx) => ({
+        word: w,
+        start: s3.start + idx * 0.25,
+        end: s3.start + (idx + 1) * 0.25
+      }))
+    }));
+  }
+  function groupCuesIntoSentences(rawCues) {
+    const sentences = [];
+    let currentGroup = [];
+    for (let i3 = 0; i3 < rawCues.length; i3++) {
+      const cue = rawCues[i3];
+      currentGroup.push(cue);
+      const fullText = currentGroup.map((c2) => c2.text.trim()).join(" ");
+      const cleanedText = removeInternalRepeats(fullText);
+      const hasPunctuationEnd = /[.!?]$/.test(cleanedText.trim());
+      const isTooLong = cleanedText.length > 90 || cleanedText.split(/\s+/).length >= 18;
+      const isLast = i3 === rawCues.length - 1;
+      if (hasPunctuationEnd || isTooLong || isLast) {
+        sentences.push({
+          start: currentGroup[0].startTime,
+          end: currentGroup[currentGroup.length - 1].endTime,
+          text: cleanedText
+        });
+        currentGroup = [];
+      }
+    }
+    return sentences;
+  }
   var LANGUAGE_DIALECTS = {
     es: [
       { code: "es-MX", label: "\u{1F1F2}\u{1F1FD} MX", name: "Mexican Spanish" },
@@ -30170,6 +30557,17 @@
       this.enableDualSubtitles = false;
       // AbortController for in-flight translation requests
       this.translationAbortController = null;
+      // YouTube Watch Time & Activity Tracking (Listening History)
+      this.activeWatchSeconds = 0;
+      this.watchTimer = null;
+      this.hasActivityListeners = false;
+      // Full Static Sentence Display State (Track Pre-fetching & Strict Sentence Splitting)
+      this.preparsedSentences = [];
+      this.currentSentenceIndex = -1;
+      this.isLoadingSubtitles = false;
+      this.animFrameId = null;
+      this.staticSubtitleBlocks = [];
+      this.activeBlockId = null;
       this.videoSessionLanguage = "";
       this.currentDetectedLanguage = "Spanish";
       this.activeWordData = null;
@@ -30189,6 +30587,9 @@
         console.log("[Lectura YT] YouTube overlay is disabled in settings.");
         return;
       }
+      this.updateSubtitleContainerMode(this.settings.subtitleHighlightMode || "color");
+      this.applySubtitleFontSize(this.settings.subtitleFontSize || 22);
+      this.applySubtitleBgColor(this.settings.subtitleBgColor || "rgba(0, 0, 0, 0.45)");
       chrome.storage.local.remove([
         "lectura_subtitle_pos",
         "subtitles_custom_pos",
@@ -30214,6 +30615,36 @@
       this.setupKeyboardShortcuts();
       this.handleUrlChange();
     }
+    applySubtitleFontSize(fontSizePx) {
+      if (this.settings) {
+        this.settings.subtitleFontSize = fontSizePx;
+      }
+      if (this.overlayContainer) {
+        this.overlayContainer.style.setProperty("--lectura-sub-font-size", `${fontSizePx}px`);
+      }
+      if (this.subtitleBox) {
+        this.subtitleBox.style.setProperty("--lectura-sub-font-size", `${fontSizePx}px`);
+      }
+      if (this.shadowRoot?.host instanceof HTMLElement) {
+        this.shadowRoot.host.style.setProperty("--lectura-sub-font-size", `${fontSizePx}px`);
+      }
+      document.documentElement.style.setProperty("--lectura-sub-font-size", `${fontSizePx}px`);
+    }
+    applySubtitleBgColor(color) {
+      if (this.settings) {
+        this.settings.subtitleBgColor = color;
+      }
+      if (this.overlayContainer) {
+        this.overlayContainer.style.setProperty("--lectura-sub-bg-color", color);
+      }
+      if (this.subtitleBox) {
+        this.subtitleBox.style.setProperty("--lectura-sub-bg-color", color);
+      }
+      if (this.shadowRoot?.host instanceof HTMLElement) {
+        this.shadowRoot.host.style.setProperty("--lectura-sub-bg-color", color);
+      }
+      document.documentElement.style.setProperty("--lectura-sub-bg-color", color);
+    }
     /**
      * Listens for live configuration changes from Popup or Options page
      */
@@ -30224,6 +30655,18 @@
             const newMode = changes.subtitleHighlightMode.newValue || "underline";
             if (this.settings) this.settings.subtitleHighlightMode = newMode;
             this.updateSubtitleContainerMode(newMode);
+          }
+          if (changes.subtitleFontSize) {
+            const newSize = changes.subtitleFontSize.newValue;
+            if (newSize) {
+              this.applySubtitleFontSize(newSize);
+            }
+          }
+          if (changes.subtitleBgColor) {
+            const newColor = changes.subtitleBgColor.newValue;
+            if (newColor) {
+              this.applySubtitleBgColor(newColor);
+            }
           }
           if (changes.dual_subs !== void 0 || changes.enableDualSubtitles !== void 0) {
             const newDualVal = changes.dual_subs?.newValue ?? changes.enableDualSubtitles?.newValue;
@@ -30244,16 +30687,6 @@
             const newPreset = changes.sub_size_preset?.newValue || changes.subtitleSizePreset?.newValue;
             if (newPreset && ["sm", "md", "lg"].includes(newPreset)) {
               this.applySizePreset(newPreset, false);
-            }
-          }
-          if (changes.captureVideoSnapshot !== void 0) {
-            if (this.settings) {
-              this.settings.captureVideoSnapshot = changes.captureVideoSnapshot.newValue;
-            }
-          }
-          if (changes.pauseOnWordClick !== void 0) {
-            if (this.settings) {
-              this.settings.pauseOnWordClick = changes.pauseOnWordClick.newValue;
             }
           }
           if (changes.subtitleFontSize || changes.subtitleBgOpacity) {
@@ -30292,6 +30725,27 @@
           }
           if (this.activeWordData && this.popupCard && this.popupCard.style.display !== "none") {
             this.showWordCard(this.activeWordData.word, this.activeWordData.contextSentence, this.activeWordData.targetToken);
+          }
+        }
+        if (message.type === "UPDATE_SUB_FONT_SIZE" && message.size) {
+          this.applySubtitleFontSize(message.size);
+        }
+        if (message.type === "UPDATE_SUB_BG_COLOR" && message.color) {
+          this.applySubtitleBgColor(message.color);
+        }
+        if (message.type === "UPDATE_YOUTUBE_OVERLAY_ENABLED") {
+          if (this.settings) {
+            this.settings.enableYoutubeOverlay = !!message.enabled;
+          }
+          if (this.overlayContainer) {
+            this.overlayContainer.style.display = message.enabled ? "" : "none";
+          } else if (message.enabled) {
+            this.init();
+          }
+        }
+        if (message.type === "UPDATE_TRACK_ACTIVITY_ENABLED") {
+          if (this.settings) {
+            this.settings.trackListeningActivity = !!message.enabled;
           }
         }
       });
@@ -30403,9 +30857,17 @@
       });
     }
     resetState() {
+      if (this.activeWatchSeconds > 0) {
+        this.flushActivityToLectura();
+      }
+      this.preparsedSentences = [];
+      this.currentSentenceIndex = -1;
+      this.isLoadingSubtitles = false;
       this.activeCues = [];
       this.currentCueIndex = -1;
       this.currentSubtitleText = "";
+      this.staticSubtitleBlocks = [];
+      this.activeBlockId = null;
       this.isPhraseSelecting = false;
       this.startTokenIndex = null;
       this.selectedTokens = [];
@@ -30419,6 +30881,10 @@
       if (this.mutationObserver) {
         this.mutationObserver.disconnect();
         this.mutationObserver = null;
+      }
+      if (this.animFrameId) {
+        cancelAnimationFrame(this.animFrameId);
+        this.animFrameId = null;
       }
       if (this.videoElement && this.timeUpdateHandler) {
         this.videoElement.removeEventListener("timeupdate", this.timeUpdateHandler);
@@ -30436,14 +30902,99 @@
         this.playerContainer = player;
         this.videoElement = video;
         this.buildOverlay();
-        this.observeNativeSubtitles();
+        this.hideNativeCaptions();
+        this.loadFullVideoSubtitles(this.currentVideoId);
         this.setupTimeListener();
+        this.setupActivityTracking();
         this.isInitialized = true;
-        setInterval(() => {
-          this.syncNativeCaptions();
-        }, 300);
       } else {
         setTimeout(() => this.waitForPlayerAndInit(retries + 1), 300);
+      }
+    }
+    /**
+     * Tracks active watch time of HTML5 YouTube video player
+     */
+    setupActivityTracking() {
+      if (!this.videoElement) return;
+      if (!this.hasActivityListeners) {
+        this.hasActivityListeners = true;
+        this.videoElement.addEventListener("pause", () => {
+          this.flushActivityToLectura();
+        });
+        this.videoElement.addEventListener("ended", () => {
+          this.flushActivityToLectura();
+        });
+        window.addEventListener("beforeunload", () => {
+          this.flushActivityToLectura();
+        });
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden") {
+            this.flushActivityToLectura();
+          }
+        });
+      }
+      if (this.watchTimer) {
+        clearInterval(this.watchTimer);
+        this.watchTimer = null;
+      }
+      this.watchTimer = window.setInterval(() => {
+        const video = this.videoElement || document.querySelector("video.html5-main-video, #movie_player video");
+        if (!video) return;
+        if (this.settings && this.settings.trackListeningActivity === false) {
+          return;
+        }
+        if (!video.paused && !video.ended && video.readyState >= 2) {
+          this.activeWatchSeconds += 5;
+          if (this.activeWatchSeconds >= 30) {
+            this.flushActivityToLectura();
+          }
+        }
+      }, 5e3);
+    }
+    /**
+     * Flushes accumulated watch seconds to Lectura server
+     */
+    async flushActivityToLectura() {
+      if (this.activeWatchSeconds <= 0) return;
+      const secondsToFlush = this.activeWatchSeconds;
+      this.activeWatchSeconds = 0;
+      const videoId = this.currentVideoId || this.extractVideoId(window.location.href);
+      if (!videoId) return;
+      const video = this.videoElement || document.querySelector("video.html5-main-video, #movie_player video");
+      const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer");
+      const title = titleEl?.textContent?.trim() || document.title.replace(/ - YouTube$/, "").trim() || `YouTube Video (${videoId})`;
+      const channelEl = document.querySelector("#channel-name #text a, ytd-channel-name #text a, #upload-info #channel-name a");
+      const channelName = channelEl?.textContent?.trim() || "YouTube";
+      const channelUrl = channelEl?.href || null;
+      const avatarEl = document.querySelector("#channel-header-container img, #avatar img, ytd-video-owner-renderer img#img");
+      const channelAvatarUrl = avatarEl?.src || null;
+      const thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      const studyLang = this.getEffectiveLang() || this.settings?.targetLanguage || "en";
+      const payload = {
+        videoId,
+        videoTitle: title,
+        channelName,
+        channelAvatarUrl,
+        channelUrl,
+        thumbnailUrl: thumbnail,
+        durationSeconds: Math.floor(video?.duration || 0),
+        watchedSeconds: secondsToFlush,
+        language: studyLang,
+        timestamp: Date.now()
+      };
+      console.log("[Lectura YT Tracker] Logging watching activity:", {
+        videoId,
+        title,
+        watchedSeconds: secondsToFlush,
+        language: studyLang
+      });
+      try {
+        chrome.runtime.sendMessage({
+          type: "LOG_YOUTUBE_ACTIVITY",
+          payload
+        });
+      } catch (err) {
+        console.warn("[Lectura YT Tracker] Failed to send activity log to background:", err);
       }
     }
     /**
@@ -30469,9 +31020,18 @@
       styleEl.textContent = this.getShadowStyles();
       this.shadowRoot.appendChild(styleEl);
       this.subtitleBox = document.createElement("div");
+      this.subtitleBox.id = "lectura-subtitles-overlay";
       this.subtitleBox.className = "lectura-subtitles-container";
-      this.updateSubtitleContainerMode(this.settings?.subtitleHighlightMode || "underline");
+      this.updateSubtitleContainerMode(this.settings?.subtitleHighlightMode || "color");
       this.applySizePreset(this.currentSizePreset, false);
+      const currentFontSize = this.settings?.subtitleFontSize || 22;
+      const currentBgColor = this.settings?.subtitleBgColor || "rgba(0, 0, 0, 0.45)";
+      this.applySubtitleFontSize(currentFontSize);
+      this.applySubtitleBgColor(currentBgColor);
+      chrome.storage.local.get(["subtitleFontSize", "subtitleBgColor"], (res) => {
+        if (res.subtitleFontSize) this.applySubtitleFontSize(res.subtitleFontSize);
+        if (res.subtitleBgColor) this.applySubtitleBgColor(res.subtitleBgColor);
+      });
       this.subtitleBox.style.display = "none";
       this.shadowRoot.appendChild(this.subtitleBox);
       this.hoverTooltip = document.createElement("div");
@@ -30545,72 +31105,166 @@
       :host {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         color: #ffffff;
+        --lectura-sub-font-size: 22px;
+        --lectura-sub-bg-color: rgba(0, 0, 0, 0.45);
       }
+      /* \u041E\u0411\u042B\u0427\u041D\u042B\u0419 \u0420\u0415\u0416\u0418\u041C (\u0412 \u041E\u041A\u041D\u0415) */
+      #lectura-subtitles-overlay,
       .lectura-subtitles-container {
         position: absolute !important;
+        bottom: 72px !important;
         left: 50% !important;
-        bottom: 74px !important;
-        top: auto !important;
-        right: auto !important;
         transform: translateX(-50%) !important;
-
-        width: max-content !important;
+        width: auto !important;
         max-width: 86% !important;
-        min-width: 300px !important;
-
-        padding: 7px 22px !important;
-        background: rgba(15, 23, 42, 0.88) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
-        border-radius: 6px !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+        z-index: 99999999 !important;
+        pointer-events: none !important;
+        display: flex !important;
+        justify-content: center !important;
         box-sizing: border-box !important;
+        user-select: none !important;
+        overflow: visible !important;
+        transition: bottom 0.2s ease, top 0.2s ease, font-size 0.15s ease;
+      }
 
-        font-size: 21px !important;
-        line-height: 1.3 !important;
+      .lectura-sub-box,
+      .lectura-subtitles-box {
+        pointer-events: auto !important;
+        width: fit-content !important;
+        max-width: 100% !important;
+        background: var(--lectura-sub-bg-color, rgba(0, 0, 0, 0.45)) !important;
+        backdrop-filter: blur(5px) !important;
+        -webkit-backdrop-filter: blur(5px) !important;
+        border-radius: 6px !important;
+        padding: 6px 16px !important;
+        box-sizing: border-box !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+        text-align: center !important;
+      }
+
+      .lectura-sub-line,
+      .lectura-sub-box,
+      .lectura-subtitles-box,
+      .lectura-subtitles-box p {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: var(--lectura-sub-font-size, 22px) !important;
+        font-weight: 700 !important;
+        line-height: 1.45 !important;
+        color: #ffffff !important;           /* \u0421\u0422\u0420\u041E\u0413\u041E \u0411\u0415\u041B\u042B\u0419 \u0426\u0412\u0415\u0422 \u0414\u041B\u042F \u041F\u0423\u041D\u041A\u0422\u0423\u0410\u0426\u0418\u0418 \u0418 \u0422\u0415\u041A\u0421\u0422\u0410 */
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+        white-space: nowrap !important; /* \u0413\u0430\u0440\u0430\u043D\u0442\u0438\u0440\u0443\u0435\u0442 \u0440\u043E\u0432\u043D\u043E 2 \u0441\u0442\u0440\u043E\u043A\u0438, \u043D\u0435 \u0434\u0430\u0435\u0442 \u0441\u043B\u043E\u0432\u0430\u043C \u0441\u043F\u043E\u043B\u0437\u0430\u0442\u044C */
+        text-align: center !important;
+      }
+
+      /* \u0417\u043D\u0430\u043A\u0438 \u043F\u0440\u0435\u043F\u0438\u043D\u0430\u043D\u0438\u044F \u0441\u043D\u0430\u0440\u0443\u0436\u0438 \u0438 \u0432\u043D\u0443\u0442\u0440\u0438 \u0442\u043E\u043A\u0435\u043D\u043E\u0432 */
+      .lectura-punct,
+      .punct {
+        color: #ffffff !important;
+        text-decoration: none !important;
+        white-space: nowrap !important;
+        display: inline !important;
+      }
+
+      /* \u0426\u0432\u0435\u0442\u043D\u044B\u0435 \u0441\u043B\u043E\u0432\u0430 \u043F\u043E \u0441\u0442\u0430\u0442\u0443\u0441\u0430\u043C */
+      .lectura-word-token,
+      .lectura-token {
+        display: inline !important;
+        cursor: pointer !important;
+        padding: 0 1px !important;
+        margin: 0 1px !important;
+        font-weight: 700 !important;
+        transition: background 0.12s ease, color 0.12s ease !important;
+      }
+
+      .lectura-word-token:hover,
+      .lectura-token:hover {
+        background: rgba(255, 255, 255, 0.25) !important;
+      }
+
+      /* \u041F\u041E\u041B\u041D\u041E\u042D\u041A\u0420\u0410\u041D\u041D\u042B\u0419 \u0420\u0415\u0416\u0418\u041C (.ytp-fullscreen) */
+      :host-context(.ytp-fullscreen) #lectura-subtitles-overlay,
+      :host-context(.ytp-fullscreen) .lectura-subtitles-container,
+      .ytp-fullscreen #lectura-subtitles-overlay,
+      .ytp-fullscreen .lectura-subtitles-container {
+        bottom: 96px !important;
+        max-width: 90% !important;          /* \u0414\u0430\u0435\u043C \u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u0448\u0438\u0440\u0438\u043D\u044B, \u0447\u0442\u043E\u0431\u044B \u0441\u0442\u0440\u043E\u0447\u043A\u0438 \u043D\u0435 \u043B\u043E\u043C\u0430\u043B\u0438\u0441\u044C */
+        width: auto !important;
+      }
+
+      :host-context(.ytp-fullscreen) .lectura-sub-box,
+      :host-context(.ytp-fullscreen) .lectura-subtitles-box,
+      .ytp-fullscreen .lectura-sub-box,
+      .ytp-fullscreen .lectura-subtitles-box {
+        padding: 12px 30px !important;
+      }
+
+      :host-context(.ytp-fullscreen) .lectura-sub-line,
+      :host-context(.ytp-fullscreen) .sub-line,
+      .ytp-fullscreen .lectura-sub-line,
+      .ytp-fullscreen .sub-line {
+        /* \u0412 \u043F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u043E\u043C \u0440\u0435\u0436\u0438\u043C\u0435 \u0443\u0432\u0435\u043B\u0438\u0447\u0438\u0432\u0430\u0435\u043C \u0448\u0440\u0438\u0444\u0442 \u043F\u0440\u043E\u043F\u043E\u0440\u0446\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u043E\u043C\u0443 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044E */
+        font-size: calc(var(--lectura-sub-font-size, 22px) * 1.18) !important;
+        line-height: 1.45 !important;
+        white-space: nowrap !important;
+      }
+
+      .punct {
+        white-space: nowrap !important;
+        display: inline !important;
+      }
+
+      /* \u0415\u0441\u043B\u0438 \u0432\u043A\u043B\u044E\u0447\u0435\u043D\u0430 \u0432\u0442\u043E\u0440\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430 \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0430 */
+      .lectura-subtitles-translation,
+      .lectura-sub-translation {
+        font-size: 16px !important;
+        font-weight: 500 !important;
+        color: #cbd5e1 !important;
+        margin-top: 6px !important;
+        line-height: 1.35 !important;
         text-align: center !important;
         white-space: normal !important;
         word-break: normal !important;
-        overflow-wrap: normal !important;
-
-        z-index: 50 !important;
         user-select: none !important;
-        pointer-events: auto !important;
-        overflow: visible !important;
-        transition: bottom 0.2s ease, top 0.2s ease, font-size 0.15s ease, padding 0.15s ease;
+        transition: opacity 0.15s ease !important;
+        display: block !important;
       }
 
       /* \u041F\u0440\u0435\u0441\u0435\u0442 Small (\u0434\u043B\u044F \u043E\u043A\u043E\u043D\u043D\u043E\u0433\u043E \u0440\u0435\u0436\u0438\u043C\u0430 / \u043C\u0430\u043B\u0435\u043D\u044C\u043A\u0438\u0445 \u044D\u043A\u0440\u0430\u043D\u043E\u0432) */
       .lectura-subtitles-container.sub-size-sm {
-        font-size: 16px !important;
-        padding: 5px 16px !important;
-        bottom: 68px !important;
-        max-width: 88% !important;
+        min-width: 380px !important;
+        max-width: 86% !important;
+        bottom: 48px !important;
       }
       .lectura-subtitles-container.sub-size-sm .lectura-line {
         font-size: 16px !important;
+        padding: 7px 16px !important;
+        border-radius: 10px !important;
       }
 
       /* \u041F\u0440\u0435\u0441\u0435\u0442 Medium (\u0441\u0442\u0430\u043D\u0434\u0430\u0440\u0442 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E) */
       .lectura-subtitles-container.sub-size-md {
-        font-size: 21px !important;
-        padding: 7px 22px !important;
-        bottom: 74px !important;
-        max-width: 86% !important;
+        min-width: 480px !important;
+        max-width: 82% !important;
+        bottom: 54px !important;
       }
       .lectura-subtitles-container.sub-size-md .lectura-line {
-        font-size: 21px !important;
+        font-size: 20px !important;
+        padding: 10px 20px !important;
+        border-radius: 12px !important;
       }
 
       /* \u041F\u0440\u0435\u0441\u0435\u0442 Large (\u0434\u043B\u044F Fullscreen / 2K / 4K \u043C\u043E\u043D\u0438\u0442\u043E\u0440\u043E\u0432) */
       .lectura-subtitles-container.sub-size-lg {
-        font-size: 27px !important;
-        padding: 9px 28px !important;
-        bottom: 84px !important;
-        max-width: 84% !important;
+        min-width: 560px !important;
+        max-width: 80% !important;
+        bottom: 64px !important;
       }
       .lectura-subtitles-container.sub-size-lg .lectura-line {
-        font-size: 27px !important;
+        font-size: 26px !important;
+        padding: 12px 26px !important;
+        border-radius: 14px !important;
       }
 
       /* \u0423\u0431\u0438\u0440\u0430\u0435\u043C \u043B\u0438\u0448\u043D\u0438\u0435 \u0432\u043D\u0435\u0448\u043D\u0438\u0435 \u043E\u0442\u0441\u0442\u0443\u043F\u044B \u0443 \u0441\u043B\u043E\u0432 */
@@ -30641,23 +31295,12 @@
         transform: translateX(-50%) !important;
       }
 
-      .lectura-line {
-        font-size: inherit !important;
-        font-weight: 600;
-        letter-spacing: 0.2px;
-        line-height: 1.3 !important;
-        display: inline;
-        word-break: normal !important;
-        overflow-wrap: normal !important;
-        white-space: normal !important;
-      }
-
       /* Dual Subtitles Translation Line */
       .lectura-sub-translation {
         color: #94a3b8;
         font-size: 0.78em;
         font-weight: 500;
-        margin-top: 4px;
+        margin-top: 6px;
         line-height: 1.25;
         text-align: center;
         white-space: normal;
@@ -30669,110 +31312,137 @@
       /* ==========================================================
          \u041E\u0411\u0429\u0410\u042F \u0411\u0410\u0417\u0410 \u0414\u041B\u042F \u0412\u0421\u0415\u0425 \u0422\u041E\u041A\u0415\u041D\u041E\u0412 \u0421\u0423\u0411\u0422\u0418\u0422\u0420\u041E\u0412
          ========================================================== */
-      .lectura-token {
-        display: inline-block;
-        padding: 0 1px;
-        margin: 0;
-        border-radius: 3px;
-        cursor: pointer;
+      .lectura-token,
+      .lectura-sub-word {
+        display: inline-block !important;
+        margin: 0 2px !important;
+        cursor: pointer !important;
+        border-radius: 4px !important;
+        padding: 0 2px !important;
+        transition: all 0.12s ease !important;
         font-weight: 600;
-        transition: all 0.15s ease;
         background: transparent;
       }
-      .lectura-token:hover {
-        background: rgba(59, 130, 246, 0.5) !important;
-        color: #ffffff !important;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
-      }
-      .lectura-token.lectura-token--selected {
-        background: rgba(56, 189, 248, 0.35) !important;
-        outline: 2px solid #38bdf8 !important;
-        outline-offset: 1px;
-        border-radius: 4px !important;
-        color: #ffffff !important;
-        box-shadow: 0 0 10px rgba(56, 189, 248, 0.6) !important;
+      .lectura-token:hover,
+      .lectura-sub-word:hover {
+        background: rgba(255, 255, 255, 0.2) !important;
+        color: #38bdf8 !important;
       }
 
       /* ==========================================================
          \u0420\u0415\u0416\u0418\u041C 1: \u0426\u0412\u0415\u0422\u041D\u042B\u0415 \u0421\u041B\u041E\u0412\u0410 (Colored Text)
-         \u0411\u0443\u043A\u0432\u044B \u043E\u043A\u0440\u0430\u0448\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u0432 \u0442\u043E\u0447\u043D\u044B\u0439 \u0446\u0432\u0435\u0442 \u0441\u0442\u0430\u0442\u0443\u0441\u0430 Lectura
          ========================================================== */
-      .sub-mode--color .lectura-token {
+      .sub-mode--color .lectura-token,
+      .sub-mode--color .lectura-word-token {
         text-decoration: none !important;
         border-bottom: none !important;
       }
       .sub-mode--color .lectura-token.status-new,
-      .sub-mode--color .lectura-token.status-0 {
-        color: #38bdf8; /* \u0413\u043E\u043B\u0443\u0431\u043E\u0439 / \u041D\u043E\u0432\u044B\u0439 (New 0) */
+      .sub-mode--color .lectura-token.status-0,
+      .sub-mode--color .lectura-word-token.status-new,
+      .sub-mode--color .lectura-word-token.status-0,
+      .lectura-token.status-new,
+      .lectura-token.status-0 {
+        color: #38bdf8 !important; /* \u0413\u043E\u043B\u0443\u0431\u043E\u0439 / \u041D\u043E\u0432\u044B\u0439 (New 0) */
       }
-      .sub-mode--color .lectura-token.status-1 {
-        color: #fb7185; /* \u0420\u043E\u0437\u043E\u0432\u044B\u0439 (Stage 1) */
+      .sub-mode--color .lectura-token.status-1,
+      .sub-mode--color .lectura-word-token.status-1,
+      .lectura-token.status-1 {
+        color: #fb7185 !important; /* \u0420\u043E\u0437\u043E\u0432\u044B\u0439 (Stage 1) */
       }
-      .sub-mode--color .lectura-token.status-2 {
-        color: #facc15; /* \u0416\u0435\u043B\u0442\u044B\u0439 / \u042F\u043D\u0442\u0430\u0440\u043D\u044B\u0439 (Stage 2) */
+      .sub-mode--color .lectura-token.status-2,
+      .sub-mode--color .lectura-word-token.status-2,
+      .lectura-token.status-2 {
+        color: #facc15 !important; /* \u0416\u0435\u043B\u0442\u044B\u0439 / \u042F\u043D\u0442\u0430\u0440\u043D\u044B\u0439 (Stage 2) */
       }
       .sub-mode--color .lectura-token.status-3,
-      .sub-mode--color .lectura-token.status-learning {
-        color: #34d399; /* \u0417\u0435\u043B\u0435\u043D\u044B\u0439 / \u0418\u0437\u0443\u043C\u0440\u0443\u0434\u043D\u044B\u0439 (Stage 3) */
+      .sub-mode--color .lectura-token.status-learning,
+      .sub-mode--color .lectura-word-token.status-3,
+      .sub-mode--color .lectura-word-token.status-learning,
+      .lectura-token.status-3,
+      .lectura-token.status-learning {
+        color: #34d399 !important; /* \u0417\u0435\u043B\u0435\u043D\u044B\u0439 / \u0418\u0437\u0443\u043C\u0440\u0443\u0434\u043D\u044B\u0439 (Stage 3) */
       }
-      .sub-mode--color .lectura-token.status-4 {
-        color: #60a5fa; /* \u0421\u0438\u043D\u0438\u0439 (Stage 4) */
+      .sub-mode--color .lectura-token.status-4,
+      .sub-mode--color .lectura-word-token.status-4,
+      .lectura-token.status-4 {
+        color: #60a5fa !important; /* \u0421\u0438\u043D\u0438\u0439 (Stage 4) */
       }
-      .sub-mode--color .lectura-token.status-5 {
-        color: #c084fc; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u044B\u0439 (Stage 5) */
+      .sub-mode--color .lectura-token.status-5,
+      .sub-mode--color .lectura-word-token.status-5,
+      .lectura-token.status-5 {
+        color: #c084fc !important; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u044B\u0439 (Stage 5) */
       }
-      .sub-mode--color .lectura-token.status-known {
-        color: #ffffff; /* \u0411\u0435\u043B\u044B\u0439 \u0434\u043B\u044F \u0432\u044B\u0443\u0447\u0435\u043D\u043D\u044B\u0445 */
+      .sub-mode--color .lectura-token.status-known,
+      .sub-mode--color .lectura-word-token.status-known,
+      .lectura-token.status-known {
+        color: #ffffff !important; /* \u0411\u0435\u043B\u044B\u0439 \u0434\u043B\u044F \u0432\u044B\u0443\u0447\u0435\u043D\u043D\u044B\u0445 */
       }
-      .sub-mode--color .lectura-token.status-ignored {
-        color: #94a3b8;
-        opacity: 0.5;
+      .sub-mode--color .lectura-token.status-ignored,
+      .sub-mode--color .lectura-word-token.status-ignored,
+      .lectura-token.status-ignored {
+        color: #94a3b8 !important;
+        opacity: 0.5 !important;
       }
 
       /* ==========================================================
          \u0420\u0415\u0416\u0418\u041C 2: \u041F\u041E\u0414\u0427\u0415\u0420\u041A\u0418\u0412\u0410\u041D\u0418\u0415 \u0421\u041D\u0418\u0417\u0423 (Underline)
          \u0412\u0441\u0435 \u0431\u0443\u043A\u0432\u044B \u0431\u0435\u043B\u044B\u0435 \u0441 \u0442\u0435\u043D\u044C\u044E, \u0441\u0442\u0430\u0442\u0443\u0441 \u043A\u043E\u0434\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043B\u0438\u043D\u0438\u0435\u0439 Lectura
          ========================================================== */
-      .sub-mode--underline .lectura-token {
+      .sub-mode--underline .lectura-token,
+      .sub-mode--underline .lectura-word-token,
+      .highlight-style-underline .lectura-token,
+      .highlight-style-underline .lectura-word-token {
         color: #ffffff !important;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.8);
-        text-underline-offset: 4px;
-        text-decoration-thickness: 2.5px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.8) !important;
+        text-decoration-skip-ink: none !important;
+        -webkit-text-decoration-skip-ink: none !important;
+        text-underline-offset: 4px !important;
+        text-decoration-thickness: 2.5px !important;
       }
       .sub-mode--underline .lectura-token.status-new,
-      .sub-mode--underline .lectura-token.status-0 {
-        text-decoration: underline;
-        text-decoration-color: #38bdf8; /* \u0413\u043E\u043B\u0443\u0431\u0430\u044F \u043B\u0438\u043D\u0438\u044F (0 / \u041D\u043E\u0432\u044B\u0439) */
+      .sub-mode--underline .lectura-token.status-0,
+      .sub-mode--underline .lectura-word-token.status-new,
+      .sub-mode--underline .lectura-word-token.status-0 {
+        text-decoration: underline !important;
+        text-decoration-color: #38bdf8 !important; /* \u0413\u043E\u043B\u0443\u0431\u0430\u044F \u043B\u0438\u043D\u0438\u044F (0 / \u041D\u043E\u0432\u044B\u0439) */
       }
-      .sub-mode--underline .lectura-token.status-1 {
-        text-decoration: underline;
-        text-decoration-color: #fb7185; /* \u0420\u043E\u0437\u043E\u0432\u0430\u044F \u043B\u0438\u043D\u0438\u044F (1) */
+      .sub-mode--underline .lectura-token.status-1,
+      .sub-mode--underline .lectura-word-token.status-1 {
+        text-decoration: underline !important;
+        text-decoration-color: #fb7185 !important; /* \u0420\u043E\u0437\u043E\u0432\u0430\u044F \u043B\u0438\u043D\u0438\u044F (1) */
       }
-      .sub-mode--underline .lectura-token.status-2 {
-        text-decoration: underline;
-        text-decoration-color: #facc15; /* \u0416\u0435\u043B\u0442\u0430\u044F \u043B\u0438\u043D\u0438\u044F (2) */
+      .sub-mode--underline .lectura-token.status-2,
+      .sub-mode--underline .lectura-word-token.status-2 {
+        text-decoration: underline !important;
+        text-decoration-color: #facc15 !important; /* \u0416\u0435\u043B\u0442\u0430\u044F \u043B\u0438\u043D\u0438\u044F (2) */
       }
       .sub-mode--underline .lectura-token.status-3,
-      .sub-mode--underline .lectura-token.status-learning {
-        text-decoration: underline;
-        text-decoration-color: #34d399; /* \u0417\u0435\u043B\u0435\u043D\u0430\u044F \u043B\u0438\u043D\u0438\u044F (3) */
+      .sub-mode--underline .lectura-token.status-learning,
+      .sub-mode--underline .lectura-word-token.status-3,
+      .sub-mode--underline .lectura-word-token.status-learning {
+        text-decoration: underline !important;
+        text-decoration-color: #34d399 !important; /* \u0417\u0435\u043B\u0435\u043D\u0430\u044F \u043B\u0438\u043D\u0438\u044F (3) */
       }
-      .sub-mode--underline .lectura-token.status-4 {
-        text-decoration: underline;
-        text-decoration-color: #60a5fa; /* \u0421\u0438\u043D\u044F\u044F \u043B\u0438\u043D\u0438\u044F (4) */
+      .sub-mode--underline .lectura-token.status-4,
+      .sub-mode--underline .lectura-word-token.status-4 {
+        text-decoration: underline !important;
+        text-decoration-color: #60a5fa !important; /* \u0421\u0438\u043D\u044F\u044F \u043B\u0438\u043D\u0438\u044F (4) */
       }
-      .sub-mode--underline .lectura-token.status-5 {
-        text-decoration: underline;
-        text-decoration-color: #c084fc; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u0430\u044F \u043B\u0438\u043D\u0438\u044F (5) */
+      .sub-mode--underline .lectura-token.status-5,
+      .sub-mode--underline .lectura-word-token.status-5 {
+        text-decoration: underline !important;
+        text-decoration-color: #c084fc !important; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u0430\u044F \u043B\u0438\u043D\u0438\u044F (5) */
       }
-      .sub-mode--underline .lectura-token.status-known {
-        text-decoration: none; /* \u0411\u0435\u0437 \u043F\u043E\u0434\u0447\u0435\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u044F (Known) */
+      .sub-mode--underline .lectura-token.status-known,
+      .sub-mode--underline .lectura-word-token.status-known {
+        text-decoration: none !important; /* \u0411\u0435\u0437 \u043F\u043E\u0434\u0447\u0435\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u044F (Known) */
       }
-      .sub-mode--underline .lectura-token.status-ignored {
-        text-decoration: none;
+      .sub-mode--underline .lectura-token.status-ignored,
+      .sub-mode--underline .lectura-word-token.status-ignored {
+        text-decoration: none !important;
         color: #94a3b8 !important;
-        opacity: 0.5;
+        opacity: 0.5 !important;
       }
 
       /* Mini Hover Tooltip (Language Reactor Style) */
@@ -32070,6 +32740,19 @@
           }
         }
       });
+      window.addEventListener("LECTURA_TIMEDTEXT_DATA", (event) => {
+        const { lang, text } = event?.detail || {};
+        if (text) {
+          const blocks = parseTimedTextData(text);
+          if (blocks.length > 0) {
+            this.staticSubtitleBlocks = blocks;
+            console.log(`\u2728 [Lectura Subtitles] Successfully pre-segmented ${blocks.length} static full-sentence blocks for ${lang || "active track"}`);
+            if (this.videoElement) {
+              this.updateSubtitleOverlay(this.videoElement.currentTime);
+            }
+          }
+        }
+      });
       try {
         if (typeof window !== "undefined" && window.PerformanceObserver) {
           const observer = new PerformanceObserver((list4) => {
@@ -32105,25 +32788,35 @@
           script.id = scriptId;
           script.textContent = `
           (function() {
-            function notifyLang(lang) {
-              if (!lang) return;
-              try {
-                window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_LANG', { detail: { lang: lang } }));
-              } catch (_) {}
+            function notifyTimedText(lang, url, text) {
+              if (lang) {
+                try {
+                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_LANG', { detail: { lang: lang } }));
+                } catch (_) {}
+              }
+              if (text) {
+                try {
+                  window.dispatchEvent(new CustomEvent('LECTURA_TIMEDTEXT_DATA', { detail: { lang: lang, url: url, text: text } }));
+                } catch (_) {}
+              }
             }
 
             // Intercept fetch
             const origFetch = window.fetch;
             window.fetch = async function(...args) {
               const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url);
+              const res = await origFetch.apply(this, args);
               if (url && typeof url === 'string' && url.includes('/api/timedtext')) {
                 try {
                   const parsed = new URL(url, window.location.origin);
                   const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  if (lang) notifyLang(lang);
+                  const clone = res.clone();
+                  clone.text().then(text => {
+                    notifyTimedText(lang, url, text);
+                  }).catch(() => notifyTimedText(lang, url, null));
                 } catch (_) {}
               }
-              return origFetch.apply(this, args);
+              return res;
             };
 
             // Intercept XMLHttpRequest
@@ -32133,7 +32826,9 @@
                 try {
                   const parsed = new URL(url, window.location.origin);
                   const lang = parsed.searchParams.get('lang') || parsed.searchParams.get('tlang');
-                  if (lang) notifyLang(lang);
+                  this.addEventListener('load', function() {
+                    notifyTimedText(lang, url, this.responseText);
+                  });
                 } catch (_) {}
               }
               return origOpen.apply(this, arguments);
@@ -32257,27 +32952,89 @@
       } catch (_2) {
       }
     }
-    observeNativeSubtitles() {
-      const targets = [
-        document.querySelector("#movie_player"),
-        document.querySelector(".ytp-caption-window-container"),
-        document.body
-      ].filter(Boolean);
-      if (this.mutationObserver) {
-        this.mutationObserver.disconnect();
+    async loadFullVideoSubtitles(videoId, targetLang) {
+      if (!videoId) return false;
+      const lang = normalizeLangCode(targetLang || this.getEffectiveLang() || "es");
+      let trackUrl = null;
+      const ytPlayer = document.getElementById("movie_player");
+      if (ytPlayer && typeof ytPlayer.getPlayerResponse === "function") {
+        try {
+          const pResponse = ytPlayer.getPlayerResponse();
+          const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
+            if (matchingTrack?.baseUrl) {
+              trackUrl = matchingTrack.baseUrl;
+            }
+          }
+        } catch (_2) {
+        }
       }
-      this.mutationObserver = new MutationObserver(() => {
-        this.syncNativeCaptions();
-      });
-      for (const target of targets) {
-        this.mutationObserver.observe(target, {
-          childList: true,
-          subtree: true,
-          characterData: true
-        });
+      if (!trackUrl) {
+        try {
+          const initResp = window.ytInitialPlayerResponse;
+          const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
+            if (matchingTrack?.baseUrl) {
+              trackUrl = matchingTrack.baseUrl;
+            }
+          }
+        } catch (_2) {
+        }
       }
-      this.hideNativeCaptions();
-      this.syncNativeCaptions();
+      if (!trackUrl) {
+        try {
+          const entries = performance.getEntriesByType("resource");
+          for (let i3 = entries.length - 1; i3 >= 0; i3--) {
+            const entry = entries[i3];
+            if (entry.name && entry.name.includes("/api/timedtext") && entry.name.includes(`v=${videoId}`)) {
+              trackUrl = entry.name;
+              break;
+            }
+          }
+        } catch (_2) {
+        }
+      }
+      if (trackUrl) {
+        try {
+          const finalUrl = trackUrl.includes("fmt=") ? trackUrl : `${trackUrl}&fmt=json3`;
+          const res = await fetch(finalUrl);
+          if (res.ok) {
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("json") || finalUrl.includes("fmt=json3")) {
+              const data = await res.json();
+              if (data && data.events) {
+                const sentences = parseJson3IntoCleanSentences(data.events);
+                if (sentences.length > 0) {
+                  this.preparsedSentences = sentences;
+                  this.currentSentenceIndex = -1;
+                  console.log(`\u2705 [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (JSON3) for ${lang}!`);
+                  if (this.videoElement) {
+                    this.updateSubtitleOverlay(this.videoElement.currentTime);
+                  }
+                  return true;
+                }
+              }
+            } else {
+              const text = await res.text();
+              const sentences = parseXmlIntoCleanSentences(text);
+              if (sentences.length > 0) {
+                this.preparsedSentences = sentences;
+                this.currentSentenceIndex = -1;
+                console.log(`\u2705 [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (XML) for ${lang}!`);
+                if (this.videoElement) {
+                  this.updateSubtitleOverlay(this.videoElement.currentTime);
+                }
+                return true;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("\u26A0\uFE0F [Lectura Subtitles] Failed to fetch caption track directly:", err);
+        }
+      }
+      return false;
     }
     hideNativeCaptions() {
       const existingStyle = document.getElementById("lectura-hide-yt-captions");
@@ -32285,72 +33042,17 @@
         const style = document.createElement("style");
         style.id = "lectura-hide-yt-captions";
         style.textContent = `
-        .caption-window {
+        .ytp-caption-window-bottom,
+        .caption-window,
+        .ytp-caption-segment,
+        .caption-visual-line {
+          display: none !important;
           opacity: 0 !important;
+          visibility: hidden !important;
           pointer-events: none !important;
         }
       `;
         document.head.appendChild(style);
-      }
-    }
-    syncNativeCaptions() {
-      const ytPlayer = document.getElementById("movie_player");
-      if (ytPlayer && typeof ytPlayer.getOption === "function") {
-        try {
-          const track = ytPlayer.getOption("captions", "track");
-          if (track && track.languageCode) {
-            const trackCode = track.languageCode.slice(0, 2).toLowerCase();
-            if (trackCode && trackCode !== this.videoSessionLanguage) {
-              window.__LECTURA_ACTIVE_LANG__ = trackCode;
-              window.__LECTURA_YT_TRACK_LANG__ = trackCode;
-              this.videoSessionLanguage = trackCode;
-              this.currentDetectedLanguage = getLanguageDisplayName(trackCode);
-              this.syncVocabulary(trackCode);
-            }
-          }
-        } catch (_2) {
-        }
-      }
-      const isPopupOpen = Boolean(this.popupCard && this.popupCard.style.display !== "none");
-      if (this.isPhraseSelecting || this.isShiftDown || isPopupOpen) {
-        return;
-      }
-      const rawSegments = document.querySelectorAll(".ytp-caption-segment");
-      const segments = rawSegments.length > 0 ? rawSegments : document.querySelectorAll(".caption-visual-line");
-      if (!segments || segments.length === 0) {
-        if (this.subtitleBox && this.subtitleBox.style.display !== "none") {
-          this.subtitleBox.style.display = "none";
-          this.subtitleBox.innerHTML = "";
-          this.currentSubtitleText = "";
-        }
-        return;
-      }
-      const fullText = Array.from(segments).map((s3) => s3.textContent || "").join(" ").replace(/\s+/g, " ").trim();
-      if (fullText && (fullText !== this.currentSubtitleText || !this.subtitleBox || this.subtitleBox.style.display === "none")) {
-        this.currentSubtitleText = fullText;
-        const langCode = this.getEffectiveLang();
-        if (!this.cachedWordsByLang[langCode]) {
-          StorageService.getCachedWords(langCode).then((w) => {
-            this.cachedWordsByLang[langCode] = w;
-            this.renderSubtitleTokens(fullText);
-          });
-        }
-        this.renderSubtitleTokens(fullText);
-        if (this.videoElement) {
-          const currentTime = this.videoElement.currentTime;
-          const lastCue = this.activeCues[this.activeCues.length - 1];
-          if (!lastCue || Math.abs(lastCue.startTime - currentTime) > 1) {
-            const cue = {
-              id: `cue_${Date.now()}`,
-              startTime: currentTime,
-              endTime: currentTime + 4,
-              text: fullText
-            };
-            this.activeCues.push(cue);
-            if (this.activeCues.length > 200) this.activeCues.shift();
-            this.currentCueIndex = this.activeCues.length - 1;
-          }
-        }
       }
     }
     static {
@@ -32743,18 +33445,23 @@
       return filtered.slice(0, 4);
     }
     /**
-     * Tokenizes subtitle text with natural punctuation formatting and Lectura status highlights
+     * Tokenizes subtitle text with natural punctuation formatting and Lectura status highlights.
+     * Renders into .lectura-sub-box with .lectura-sub-line lines and .lectura-word-token tokens.
      */
     renderSubtitleTokens(text) {
       if (!this.subtitleBox) return;
+      const cleanedText = removeInternalRepeats(text);
+      if (!cleanedText) {
+        this.subtitleBox.innerHTML = "";
+        this.subtitleBox.style.display = "none";
+        return;
+      }
       this.subtitleBox.innerHTML = "";
-      const lineEl = document.createElement("div");
-      lineEl.className = "lectura-line";
-      const words = text.split(/\s+/);
+      const words = cleanedText.split(/\s+/).filter(Boolean);
+      const boxEl = document.createElement("div");
+      boxEl.className = "lectura-sub-box";
       let tokenIndexCounter = 0;
-      for (let i3 = 0; i3 < words.length; i3++) {
-        const token = words[i3];
-        if (!token) continue;
+      const renderWordToken = (token, parentEl, isLastInLine) => {
         const match2 = token.match(/^([\p{P}\s¿¡«"'(]*)([\p{L}\p{N}'-]+)([\p{P}\s?!.,:;"»')]*)$/u) || token.match(/^([^a-zA-ZÀ-ÿ0-9_'-]*)([a-zA-ZÀ-ÿ0-9_'-]+)([^a-zA-ZÀ-ÿ0-9_'-]*)$/);
         if (match2) {
           const leadingPunct = match2[1];
@@ -32764,10 +33471,10 @@
             const leadSpan = document.createElement("span");
             leadSpan.className = "punct";
             leadSpan.textContent = leadingPunct;
-            lineEl.appendChild(leadSpan);
+            parentEl.appendChild(leadSpan);
           }
           const span = document.createElement("span");
-          span.className = "lectura-token";
+          span.className = "lectura-word-token lectura-token";
           span.textContent = coreWord;
           span.dataset.word = coreWord.toLowerCase();
           span.dataset.tokenIndex = String(tokenIndexCounter++);
@@ -32789,7 +33496,7 @@
             if (this.settings?.pauseOnWordClick && this.videoElement && !this.videoElement.paused) {
               this.videoElement.pause();
             }
-            const allTokens = Array.from(this.subtitleBox?.querySelectorAll(".lectura-token") || []);
+            const allTokens = Array.from(this.subtitleBox?.querySelectorAll(".lectura-token, .lectura-word-token") || []);
             const clickedIdx = parseInt(span.dataset.tokenIndex || "0", 10);
             if ((e2.shiftKey || this.isShiftDown) && this.startTokenIndex !== null && allTokens.length > 0) {
               const minIdx = Math.min(this.startTokenIndex, clickedIdx);
@@ -32812,36 +33519,52 @@
               this.showWordCard(coreWord, text, span);
             }
           });
-          lineEl.appendChild(span);
+          parentEl.appendChild(span);
           if (trailingPunct) {
             const trailSpan = document.createElement("span");
             trailSpan.className = "punct";
             trailSpan.textContent = trailingPunct;
-            lineEl.appendChild(trailSpan);
+            parentEl.appendChild(trailSpan);
           }
         } else {
           const isPurePunct = /^[^a-zA-ZÀ-ÿ0-9_'-]+$/.test(token);
           if (isPurePunct) {
-            if (lineEl.lastChild && lineEl.lastChild.nodeType === Node.TEXT_NODE && lineEl.lastChild.textContent === " ") {
-              lineEl.removeChild(lineEl.lastChild);
+            if (parentEl.lastChild && parentEl.lastChild.nodeType === Node.TEXT_NODE && parentEl.lastChild.textContent === " ") {
+              parentEl.removeChild(parentEl.lastChild);
             }
             const punctSpan = document.createElement("span");
             punctSpan.className = "punct";
             punctSpan.textContent = token;
-            lineEl.appendChild(punctSpan);
+            parentEl.appendChild(punctSpan);
           } else {
-            lineEl.appendChild(document.createTextNode(token));
+            parentEl.appendChild(document.createTextNode(token));
           }
         }
-        if (i3 < words.length - 1) {
-          lineEl.appendChild(document.createTextNode(" "));
+        if (!isLastInLine) {
+          parentEl.appendChild(document.createTextNode(" "));
         }
+      };
+      const mid = Math.ceil(words.length / 2);
+      const line1Words = words.slice(0, mid);
+      const line2Words = words.slice(mid);
+      const line1Div = document.createElement("div");
+      line1Div.className = "lectura-sub-line";
+      for (let i3 = 0; i3 < line1Words.length; i3++) {
+        renderWordToken(line1Words[i3], line1Div, i3 === line1Words.length - 1);
       }
-      this.subtitleBox.appendChild(lineEl);
+      boxEl.appendChild(line1Div);
+      if (line2Words.length > 0) {
+        const line2Div = document.createElement("div");
+        line2Div.className = "lectura-sub-line";
+        for (let i3 = 0; i3 < line2Words.length; i3++) {
+          renderWordToken(line2Words[i3], line2Div, i3 === line2Words.length - 1);
+        }
+        boxEl.appendChild(line2Div);
+      }
       const transDiv = document.createElement("div");
       transDiv.className = "lectura-sub-translation";
       transDiv.style.display = this.enableDualSubtitles ? "block" : "none";
-      this.subtitleBox.appendChild(transDiv);
+      boxEl.appendChild(transDiv);
       if (this.enableDualSubtitles) {
         this.fetchFullSentenceTranslation(text).then((trans) => {
           if (trans && this.currentSubtitleText === text && transDiv.parentElement) {
@@ -32849,7 +33572,8 @@
           }
         });
       }
-      this.subtitleBox.style.display = "block";
+      this.subtitleBox.appendChild(boxEl);
+      this.subtitleBox.style.display = "flex";
     }
     static {
       this.fullSentenceCache = /* @__PURE__ */ new Map();
@@ -34000,12 +34724,88 @@
         this.toastElement?.classList.remove("show");
       }, 4e3);
     }
+    /**
+     * Timeline-driven Atomic Subtitle Renderer (Strict Full Sentence Display)
+     * If inside the same sentence (newIndex === currentSentenceIndex), DOES NOTHING to DOM!
+     */
+    updateSubtitleOverlay(currentTime) {
+      const isPopupOpen = Boolean(this.popupCard && this.popupCard.style.display !== "none");
+      if (this.isPhraseSelecting || this.isShiftDown || isPopupOpen) {
+        return;
+      }
+      if (!this.preparsedSentences || this.preparsedSentences.length === 0) {
+        if (this.currentVideoId && !this.isLoadingSubtitles) {
+          this.isLoadingSubtitles = true;
+          this.loadFullVideoSubtitles(this.currentVideoId).finally(() => {
+            this.isLoadingSubtitles = false;
+          });
+        }
+        return;
+      }
+      const newIndex = this.preparsedSentences.findIndex((s3, idx) => {
+        const next = this.preparsedSentences[idx + 1];
+        const effectiveEnd = next ? Math.min(s3.end, next.start) : s3.end;
+        return currentTime >= s3.start && currentTime < effectiveEnd;
+      });
+      if (newIndex === this.currentSentenceIndex) {
+        return;
+      }
+      this.currentSentenceIndex = newIndex;
+      if (newIndex === -1) {
+        if (this.subtitleBox && this.subtitleBox.style.display !== "none") {
+          this.subtitleBox.style.display = "none";
+          this.subtitleBox.innerHTML = "";
+        }
+        return;
+      }
+      const sentence = this.preparsedSentences[newIndex];
+      this.currentSubtitleText = sentence.text;
+      this.renderSubtitleTokens(sentence.text);
+    }
     setupTimeListener() {
       if (!this.videoElement) return;
+      const tick = () => {
+        if (this.videoElement && !this.videoElement.paused && !this.videoElement.ended) {
+          this.updateSubtitleOverlay(this.videoElement.currentTime);
+          this.animFrameId = requestAnimationFrame(tick);
+        } else {
+          this.animFrameId = null;
+        }
+      };
+      const startLoop = () => {
+        if (!this.animFrameId) {
+          this.animFrameId = requestAnimationFrame(tick);
+        }
+      };
+      const stopLoop = () => {
+        if (this.animFrameId) {
+          cancelAnimationFrame(this.animFrameId);
+          this.animFrameId = null;
+        }
+      };
+      this.videoElement.addEventListener("play", startLoop);
+      this.videoElement.addEventListener("playing", startLoop);
+      this.videoElement.addEventListener("pause", stopLoop);
+      this.videoElement.addEventListener("ended", stopLoop);
+      this.videoElement.addEventListener("seeked", () => {
+        if (this.videoElement) {
+          this.updateSubtitleOverlay(this.videoElement.currentTime);
+        }
+      });
+      this.videoElement.addEventListener("seeking", () => {
+        if (this.videoElement) {
+          this.updateSubtitleOverlay(this.videoElement.currentTime);
+        }
+      });
       this.timeUpdateHandler = () => {
-        this.syncNativeCaptions();
+        if (this.videoElement) {
+          this.updateSubtitleOverlay(this.videoElement.currentTime);
+        }
       };
       this.videoElement.addEventListener("timeupdate", this.timeUpdateHandler);
+      if (!this.videoElement.paused) {
+        startLoop();
+      }
     }
     setupKeyboardShortcuts() {
       window.addEventListener("keydown", (e2) => {

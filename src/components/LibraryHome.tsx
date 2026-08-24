@@ -1086,7 +1086,7 @@ function LibraryHome({
   }, [searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived]);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="library-container w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
       <StatsWidget
         stats={languageAwareStats}
         selectedLanguage={selectedLanguage}

@@ -181,7 +181,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     pendingDeltaRef.current = 0;
     lastTickTimeRef.current = Date.now();
 
-    if (toFlush > 0 || cur !== undefined) {
+    if (toFlush > 0) {
       onListeningTick?.(toFlush, true, cur);
     }
     if (cur !== undefined) {

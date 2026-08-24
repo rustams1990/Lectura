@@ -20,6 +20,10 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     save_all_changes: "Save All Changes",
     all_settings_saved: "All settings saved successfully!",
 
+    // Tabs
+    tab_settings: "⚙️ Settings",
+    tab_activity: "📊 Activity",
+
     // Sections
     section_connection: "1. Connection & Authentication",
     section_connection_desc: "Specify your local or remote Lectura server URL and access credentials.",
@@ -49,6 +53,8 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     style_color: "🎨 Color",
     subtitle_size: "Subtitle Size",
     subtitle_size_full: "Subtitle Size Preset",
+    subtitle_font_size: "Subtitle Font Size (px)",
+    subtitle_bg_color: "Subtitle Background Color",
     size_sm: "Small (16px — Compact)",
     size_md: "Medium (21px — Default)",
     size_lg: "Large (27px — Fullscreen / 4K)",
@@ -60,6 +66,10 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     theme_compact: "⚡ Compact (Minimal)",
 
     // Toggles
+    enable_yt_overlay: "Enable YouTube Overlay",
+    enable_yt_overlay_hint: "Show interactive subtitles",
+    track_listening_activity: "Track Listening Activity",
+    track_listening_hint: "Record watch time in calendar",
     enable_overlay: "Enable YouTube Interactive Overlay",
     enable_overlay_desc: "Renders clickable word tokens over video subtitles and enables interactive learning.",
     enable_dual_subs: "Dual Subtitles",
@@ -83,6 +93,20 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     importing: "Parsing Article...",
     saving_to_lectura: "Saving to Lectura...",
     imported: "Imported!",
+
+    // Activity & History
+    day_history: "Day History",
+    click_day_hint: "Click a day in calendar",
+    delete_entry: "Delete entry",
+    confirm_delete_log: "Delete this video viewing entry from history?",
+    failed_delete_log: "Failed to delete log entry",
+    no_activity_day: "No activity recorded for this day",
+    failed_load_day_activity: "Failed to load day activity",
+    goal_per_day: "Goal",
+    overall: "Overall",
+    stat_week: "WEEK",
+    stat_month: "MONTH",
+    stat_languages: "LANGUAGES",
 
     // Overlay Card & Tooltips
     tab_meaning: "Meaning",
@@ -123,6 +147,10 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     save_all_changes: "Сохранить все изменения",
     all_settings_saved: "Все настройки успешно сохранены!",
 
+    // Tabs
+    tab_settings: "⚙️ Настройки",
+    tab_activity: "📊 Активность",
+
     // Sections
     section_connection: "1. Подключение и Авторизация",
     section_connection_desc: "Укажите адрес локального или удаленного сервера Lectura и данные доступа.",
@@ -152,6 +180,8 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     style_color: "🎨 Цвет текста",
     subtitle_size: "Размер субтитров",
     subtitle_size_full: "Размер субтитров",
+    subtitle_font_size: "Размер шрифта субтитров (px)",
+    subtitle_bg_color: "Цвет фона плашки",
     size_sm: "Мелкий (16px — Оконный)",
     size_md: "Средний (21px — Стандарт)",
     size_lg: "Крупный (27px — Полноэкранный)",
@@ -163,6 +193,10 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     theme_compact: "⚡ Compact (Мини)",
 
     // Toggles
+    enable_yt_overlay: "Включить субтитры YouTube",
+    enable_yt_overlay_hint: "Показывать интерактивные субтитры",
+    track_listening_activity: "Учет времени просмотра",
+    track_listening_hint: "Записывать время в календарь",
     enable_overlay: "Включить оверлей субтитров YouTube",
     enable_overlay_desc: "Отображает интерактивные кликабельные слова поверх видео и включает обучение.",
     enable_dual_subs: "Двойные субтитры",
@@ -186,6 +220,20 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     importing: "Чтение статьи...",
     saving_to_lectura: "Сохранение в Lectura...",
     imported: "Импортировано!",
+
+    // Activity & History
+    day_history: "История за день",
+    click_day_hint: "Нажмите на день в календаре",
+    delete_entry: "Удалить запись",
+    confirm_delete_log: "Удалить эту запись просмотра видео из истории?",
+    failed_delete_log: "Не удалось удалить запись",
+    no_activity_day: "Нет записей активности за этот день",
+    failed_load_day_activity: "Не удалось загрузить активность за день",
+    goal_per_day: "Цель",
+    overall: "Всего",
+    stat_week: "НЕДЕЛЯ",
+    stat_month: "МЕСЯЦ",
+    stat_languages: "ЯЗЫКИ",
 
     // Overlay Card & Tooltips
     tab_meaning: "Перевод",
@@ -226,6 +274,10 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     save_all_changes: "Guardar todos los cambios",
     all_settings_saved: "¡Todos los ajustes se han guardado con éxito!",
 
+    // Tabs
+    tab_settings: "⚙️ Ajustes",
+    tab_activity: "📊 Actividad",
+
     // Sections
     section_connection: "1. Conexión y Autenticación",
     section_connection_desc: "Especifica la URL del servidor Lectura y las credenciales de acceso.",
@@ -255,6 +307,8 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     style_color: "🎨 Color",
     subtitle_size: "Tamaño de subtítulos",
     subtitle_size_full: "Tamaño de subtítulos",
+    subtitle_font_size: "Tamaño de fuente de subtítulos (px)",
+    subtitle_bg_color: "Color de fondo de subtítulos",
     size_sm: "Pequeño (16px — Compacto)",
     size_md: "Medio (21px — Estándar)",
     size_lg: "Grande (27px — Pantalla completa)",
@@ -266,6 +320,10 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     theme_compact: "⚡ Compact (Mínimo)",
 
     // Toggles
+    enable_yt_overlay: "Activar subtítulos de YouTube",
+    enable_yt_overlay_hint: "Mostrar subtítulos interactivos",
+    track_listening_activity: "Registrar tiempo de escucha",
+    track_listening_hint: "Guardar tiempo en el calendario",
     enable_overlay: "Activar superposición de YouTube",
     enable_overlay_desc: "Muestra palabras interactivas sobre los subtítulos del video y habilita el aprendizaje.",
     enable_dual_subs: "Subtítulos dobles",
@@ -289,6 +347,20 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     importing: "Analizando artículo...",
     saving_to_lectura: "Guardando en Lectura...",
     imported: "¡Importado!",
+
+    // Activity & History
+    day_history: "Historial del día",
+    click_day_hint: "Haz clic en un día del calendario",
+    delete_entry: "Eliminar registro",
+    confirm_delete_log: "¿Eliminar este registro de video del historial?",
+    failed_delete_log: "Error al eliminar el registro",
+    no_activity_day: "No hay actividad registrada para este día",
+    failed_load_day_activity: "Error al cargar la actividad del día",
+    goal_per_day: "Meta",
+    overall: "Total",
+    stat_week: "SEMANA",
+    stat_month: "MES",
+    stat_languages: "IDIOMAS",
 
     // Overlay Card & Tooltips
     tab_meaning: "Significado",

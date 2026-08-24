@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { ReaderSettings } from "../types";
+import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY } from "../types";
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -70,22 +70,39 @@ export default function TextSettingsControls({
     }
   };
 
+  const toolbarVisibility: ReaderToolbarVisibility = {
+    ...DEFAULT_TOOLBAR_VISIBILITY,
+    ...(settings.toolbarVisibility || {}),
+  };
+
+  const updateToolbarVisibility = (key: keyof ReaderToolbarVisibility, value: boolean) => {
+    updateKey("toolbarVisibility", {
+      ...toolbarVisibility,
+      [key]: value,
+    });
+  };
+
   return (
     <div className="relative inline-block text-left">
       <button
         id="btn-toggle-typography"
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={
           compact
-            ? "p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-3xs active:scale-95 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200/60 dark:border-zinc-800/80"
-            : "flex items-center justify-center gap-1.5 h-9 px-3 shrink-0 whitespace-nowrap text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/55 dark:hover:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all active:scale-95 cursor-pointer"
+            ? "p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-xs active:scale-95 bg-white hover:bg-slate-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-200 dark:border-zinc-800"
+            : "w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer active:scale-95"
         }
-        title="Adjust text appearance, size, theme and fonts"
+        title={t('reader.text_settings_title', 'Text Settings')}
       >
-        <Type className={compact ? "w-4 h-4 text-zinc-600 dark:text-zinc-300" : "w-3.5 h-3.5 text-zinc-500"} />
-        <span className={compact ? "hidden sm:inline text-xs font-black" : ""}>
-          {compact ? "AA" : "Text Settings (AA)"}
-        </span>
+        {compact ? (
+          <>
+            <Type className="w-4 h-4 text-slate-600 dark:text-zinc-300" />
+            <span className="hidden sm:inline text-xs font-black">AA</span>
+          </>
+        ) : (
+          "AA"
+        )}
       </button>
 
       {isOpen && (
@@ -188,7 +205,7 @@ export default function TextSettingsControls({
             {/* Word Card Mode: Full Inspector vs Calm Sheet */}
             <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
-                {t('reader.word_card_mode_label', 'Вид карточки слова')}
+                {t('reader.word_card_mode_label', 'Word Card View')}
               </span>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
@@ -199,10 +216,10 @@ export default function TextSettingsControls({
                       ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                       : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                   }`}
-                  title="Полный инспектор со всеми тегами и AI провайдерами"
+                  title={t('reader.card_full_inspector_title', 'Full inspector with all tags and translation providers')}
                 >
-                  <span className="font-extrabold">{t('reader.card_full_inspector', 'Инспектор')}</span>
-                  <span className="text-[9px] opacity-80 font-normal leading-none">Full Inspector</span>
+                  <span className="font-extrabold">{t('reader.card_full_inspector', 'Inspector')}</span>
+                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_full_inspector_sub', 'Full Inspector')}</span>
                 </button>
                 <button
                   type="button"
@@ -212,10 +229,10 @@ export default function TextSettingsControls({
                       ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                       : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                   }`}
-                  title="Минималистичная светлая карточка с табами и статусом"
+                  title={t('reader.card_calm_sheet_title', 'Minimalist light card with tabs and status')}
                 >
                   <span className="font-extrabold">{t('reader.card_calm_sheet', 'Calm Sheet')}</span>
-                  <span className="text-[9px] opacity-80 font-normal leading-none">Минималистичный</span>
+                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_calm_sheet_sub', 'Minimalist')}</span>
                 </button>
               </div>
             </div>
@@ -475,6 +492,141 @@ export default function TextSettingsControls({
               </select>
             </div>
 
+            {/* Toolbar Buttons Visibility Config */}
+            <div className="space-y-2 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                {t('reader.toolbar_visibility_label', 'Toolbar Buttons')}
+              </span>
+              <div className="space-y-2 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800">
+                {/* 1. AI Hub */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_ai_hub', 'AI Hub')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showAiHub !== false}
+                      onChange={(e) => updateToolbarVisibility("showAiHub", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 2. Translation */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_translation', 'Translation (T)')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showTranslation !== false}
+                      onChange={(e) => updateToolbarVisibility("showTranslation", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 3. Focus Mode */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_focus_mode', 'Focus Mode')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showFocusMode !== false}
+                      onChange={(e) => updateToolbarVisibility("showFocusMode", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 4. Play: Pairs */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_play_pairs', 'Play: Pairs')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showPlayPairs !== false}
+                      onChange={(e) => updateToolbarVisibility("showPlayPairs", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 5. Unknown Only */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_unknown_only', 'Unknown Only')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showUnknownOnly !== false}
+                      onChange={(e) => updateToolbarVisibility("showUnknownOnly", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 6. Video Window */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_video', 'Video Window Toggle')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showVideoToggle !== false}
+                      onChange={(e) => updateToolbarVisibility("showVideoToggle", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 7. Display Mode (Badges / Book) */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_display_mode', 'Display Mode (Badges / Book)')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showDisplayMode !== false}
+                      onChange={(e) => updateToolbarVisibility("showDisplayMode", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 8. Width (Standard / Wide / Full) */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                    {t('reader.tb_width_toggle', 'Width (Standard / Wide / Full)')}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showWidthToggle !== false}
+                      onChange={(e) => updateToolbarVisibility("showWidthToggle", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
         </>
       )}

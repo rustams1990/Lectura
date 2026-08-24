@@ -19,6 +19,10 @@ class OptionsController {
   private subtitleSizePresetSelect!: HTMLSelectElement;
   private autoPauseOnHoverCheck!: HTMLInputElement;
   private subtitleFontSizeInput!: HTMLInputElement;
+  private subtitleFontSizeValue!: HTMLElement;
+  private subBgColorPicker!: HTMLInputElement;
+  private subBgColorValue!: HTMLElement;
+  private currentSubtitleBgColor: string = 'rgba(15, 23, 42, 0.90)';
   private subtitleBgOpacityInput!: HTMLInputElement;
   private subtitleHighlightModeSelect!: HTMLSelectElement;
   private popupThemeSelect!: HTMLSelectElement;
@@ -52,6 +56,9 @@ class OptionsController {
     this.subtitleSizePresetSelect = document.getElementById('subtitleSizePreset') as HTMLSelectElement;
     this.autoPauseOnHoverCheck = document.getElementById('autoPauseOnHover') as HTMLInputElement;
     this.subtitleFontSizeInput = document.getElementById('subtitleFontSize') as HTMLInputElement;
+    this.subtitleFontSizeValue = document.getElementById('subtitleFontSizeValue') as HTMLElement;
+    this.subBgColorPicker = document.getElementById('subBgColorPicker') as HTMLInputElement;
+    this.subBgColorValue = document.getElementById('subBgColorValue') as HTMLElement;
     this.subtitleBgOpacityInput = document.getElementById('subtitleBgOpacity') as HTMLInputElement;
     this.subtitleHighlightModeSelect = document.getElementById('subtitleHighlightMode') as HTMLSelectElement;
     this.popupThemeSelect = document.getElementById('popupTheme') as HTMLSelectElement;
@@ -69,12 +76,72 @@ class OptionsController {
     await this.testConnection();
   }
 
+  private applyBgColor(color: string) {
+    this.currentSubtitleBgColor = color;
+    if (this.subBgColorValue) {
+      this.subBgColorValue.textContent = color;
+    }
+    chrome.storage.local.set({ subtitleBgColor: color });
+    document.documentElement.style.setProperty('--lectura-sub-bg-color', color);
+    try {
+      chrome.tabs.query({}).then((tabs) => {
+        for (const tab of tabs) {
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: 'UPDATE_SUB_BG_COLOR',
+              color,
+            }).catch(() => {});
+          }
+        }
+      }).catch(() => {});
+    } catch (_) {}
+  }
+
   private bindEvents() {
     this.btnTest.addEventListener('click', async () => {
       await this.loadProfiles();
       await this.testConnection();
     });
     this.btnSave.addEventListener('click', () => this.saveSettings());
+
+    if (this.subtitleFontSizeInput) {
+      this.subtitleFontSizeInput.addEventListener('input', () => {
+        const val = parseInt(this.subtitleFontSizeInput.value, 10) || 22;
+        if (this.subtitleFontSizeValue) {
+          this.subtitleFontSizeValue.textContent = `${val}px`;
+        }
+        chrome.storage.local.set({ subtitleFontSize: val });
+        document.documentElement.style.setProperty('--lectura-sub-font-size', `${val}px`);
+        try {
+          chrome.tabs.query({}).then((tabs) => {
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, {
+                  type: 'UPDATE_SUB_FONT_SIZE',
+                  size: val,
+                }).catch(() => {});
+              }
+            }
+          }).catch(() => {});
+        } catch (_) {}
+      });
+    }
+
+    document.querySelectorAll('.sub-bg-preset-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const color = (e.currentTarget as HTMLElement).dataset.color;
+        if (color) {
+          this.applyBgColor(color);
+        }
+      });
+    });
+
+    if (this.subBgColorPicker) {
+      this.subBgColorPicker.addEventListener('input', (e) => {
+        const hex = (e.target as HTMLInputElement).value;
+        this.applyBgColor(`${hex}E6`);
+      });
+    }
 
     if (this.interfaceLanguageSelect) {
       this.interfaceLanguageSelect.addEventListener('change', async () => {
@@ -151,7 +218,15 @@ class OptionsController {
       this.autoPauseOnHoverCheck.checked = settings.autoPauseOnHover ?? true;
     }
     if (this.subtitleFontSizeInput) {
-      this.subtitleFontSizeInput.value = String(settings.subtitleFontSize || 24);
+      const size = settings.subtitleFontSize || 22;
+      this.subtitleFontSizeInput.value = String(size);
+      if (this.subtitleFontSizeValue) {
+        this.subtitleFontSizeValue.textContent = `${size}px`;
+      }
+    }
+    this.currentSubtitleBgColor = settings.subtitleBgColor || 'rgba(0, 0, 0, 0.45)';
+    if (this.subBgColorValue) {
+      this.subBgColorValue.textContent = this.currentSubtitleBgColor;
     }
     if (this.subtitleBgOpacityInput) {
       this.subtitleBgOpacityInput.value = String(settings.subtitleBgOpacity ?? 75);
@@ -216,8 +291,9 @@ class OptionsController {
       pauseOnWordClick: this.pauseOnWordClickCheck ? this.pauseOnWordClickCheck.checked : false,
       subtitleSizePreset: sizePreset,
       autoPauseOnHover: this.autoPauseOnHoverCheck ? this.autoPauseOnHoverCheck.checked : true,
-      subtitleFontSize: parseInt(this.subtitleFontSizeInput?.value || '24', 10) || 24,
+      subtitleFontSize: parseInt(this.subtitleFontSizeInput?.value || '22', 10) || 22,
       subtitleBgOpacity: parseInt(this.subtitleBgOpacityInput?.value || '75', 10) || 75,
+      subtitleBgColor: this.currentSubtitleBgColor || 'rgba(15, 23, 42, 0.90)',
       subtitleHighlightMode: (this.subtitleHighlightModeSelect.value || 'underline') as 'underline' | 'color',
       enableInSituSelection: this.enableInSituSelectionCheck.checked,
       highlightKnownWords: this.highlightKnownWordsCheck.checked,

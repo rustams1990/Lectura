@@ -391,7 +391,7 @@ export default function CalmSheetWordCard({
   }
 
   return (
-    <div className="w-full bg-[#f8fafc] dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-4 shadow-xl text-slate-900 dark:text-slate-100 font-sans select-text">
+    <div className="word-popup-card w-full bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-[20px] p-4 shadow-2xl text-slate-900 dark:text-slate-100 font-sans select-text overflow-hidden">
       {/* 1. Header Tab Bar (5 compact tabs) */}
       <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-zinc-800 pb-2 mb-3 gap-1.5 w-full">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0">

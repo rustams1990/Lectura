@@ -9,7 +9,7 @@ import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
-import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist } from "./types";
+import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist, DEFAULT_TOOLBAR_VISIBILITY } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import AppSidebar from "./components/layout/AppSidebar";
 import AppHeader from "./components/layout/AppHeader";
@@ -113,6 +113,7 @@ export default function App() {
     showOnlyUnknown, setShowOnlyUnknown,
     zoomScale, setZoomScale,
     layoutWidthMode, setLayoutWidthMode,
+    interfaceMaxWidth, setInterfaceMaxWidth,
     isSidebarOpen, setIsSidebarOpen
   } = useUIStore();
   const { t } = useTranslation();
@@ -453,9 +454,8 @@ export default function App() {
   ) => {
     if (!targetLesson || !targetLesson.id) return;
 
-    // Absolute Circuit Breaker: Zero duration records are illegal.
-    if (!durationSeconds || durationSeconds <= 0) {
-      console.error('BLOCKED ATTEMPT TO CREATE 0s HISTORY:', { targetLesson, actionType, durationSeconds });
+    // Absolute Circuit Breaker: Zero duration records are not permitted for read/listen activities.
+    if (actionType !== "complete" && (!durationSeconds || durationSeconds <= 0)) {
       return;
     }
     
@@ -789,6 +789,7 @@ export default function App() {
       defaultVideoViewMode: "focus",
       readerViewStyle: "badges",
       wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || "full-inspector",
+      toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
     };
     try {
       const saved = localStorage.getItem("vocab_clone_reader_settings");
@@ -2992,8 +2993,6 @@ export default function App() {
       ? forceFlushOrExactTime
       : exactTime;
 
-    console.log('[TICK-INPUT]', { seconds, source, activeLessonId, historyLength: history.length });
-
     if (seconds <= 0 && !forceFlush) return;
 
     const effectiveSeconds = seconds > 0 ? Math.min(seconds, 5.0) : 0;
@@ -3044,8 +3043,8 @@ export default function App() {
       return;
     }
 
-    if (effectiveSeconds > 0 || forceFlush) {
-      const deltaToRecord = effectiveSeconds > 0 ? effectiveSeconds : 0;
+    if (effectiveSeconds > 0) {
+      const deltaToRecord = effectiveSeconds;
       const pos = currentPos;
       
       if (isGlobalTrack) {
@@ -3079,17 +3078,21 @@ export default function App() {
     return () => {
       // Immediate Flush on Component Unmount: so no timers linger in the background
       if (listeningBufferRef.current > 0) {
-        handleListeningTick(0, "local", true);
+        handleListeningTick(listeningBufferRef.current, "local", true);
+        listeningBufferRef.current = 0;
       }
     };
   }, []);
 
-  const layoutContainerClass =
-    layoutWidthMode === "standard"
-      ? "max-w-7xl"
-      : layoutWidthMode === "wide"
+  // Global application layout container class (for Library, History, Podcasts, Statistics, Practice, Header)
+  const activeInterfaceMaxWidth = interfaceMaxWidth || layoutWidthMode || "standard";
+  const globalLayoutClass =
+    activeInterfaceMaxWidth === "wide"
       ? "max-w-[1560px]"
-      : "max-w-full lg:px-12 md:px-8";
+      : activeInterfaceMaxWidth === "full"
+      ? "max-w-full lg:px-12 md:px-8"
+      : "max-w-7xl";
+  const layoutContainerClass = globalLayoutClass;
 
   const handleExitFocusMode = useCallback(() => {
     if (activeLesson) {
@@ -3190,8 +3193,8 @@ export default function App() {
         onManualSync={() => loadDataFromLocalServer()}
       />
 
-      {/* ── Focus Mode Sticky Header / Video Zone ── */}
-      {isFocusMode && activeTab === "read" && activeLesson && (
+      {/* ── Focus Mode Sticky Header / Video Zone (Mobile / Tablet Only < 1024px) ── */}
+      {isFocusMode && activeTab === "read" && activeLesson && isMobileTablet && (
         <>
           {/* Pinned YouTube Player sticky at top */}
           {activeLesson.youtubeId && showYoutubePlayer ? (
@@ -3257,9 +3260,9 @@ export default function App() {
 
       {/* Main Body */}
       <main 
-        className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${layoutContainerClass} ${
-          hasActiveQueue ? "pb-36 sm:pb-32" : ""
-        }`}
+        className={`flex-grow w-full mx-auto p-4 sm:p-6 space-y-6 transition-all duration-300 ${
+          activeTab === "read" ? "max-w-full" : layoutContainerClass
+        } ${hasActiveQueue ? "pb-36 sm:pb-32" : ""}`}
         style={hasActiveQueue ? { paddingBottom: "max(8rem, calc(6rem + env(safe-area-inset-bottom)))" } : undefined}
       >
         
@@ -3581,8 +3584,8 @@ export default function App() {
         onDeleteWordLink={handleDeleteWordLink}
         zoomScale={zoomScale}
         onZoomScaleChange={setZoomScale}
-        layoutWidthMode={layoutWidthMode}
-        onLayoutWidthModeChange={setLayoutWidthMode}
+        layoutWidthMode={activeInterfaceMaxWidth}
+        onLayoutWidthModeChange={setInterfaceMaxWidth}
         storageMode={storageMode}
         onStorageModeChange={setStorageMode}
         localSyncKey={localSyncKey}
@@ -3783,8 +3786,9 @@ export default function App() {
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
       />
-      {/* Floating draggable/resizable YouTube player window (Desktop only when not in Focus Mode) */}
-      {activeLesson && activeLesson.youtubeId && showYoutubePlayer && activeTab === "read" && !isFocusMode && !isMobileTablet && (
+
+      {/* Floating draggable/resizable YouTube player window (Desktop >= 1024px, both standard and Focus Mode) */}
+      {activeLesson && activeLesson.youtubeId && showYoutubePlayer && activeTab === "read" && !isMobileTablet && (
         <YoutubePlayerWindow
           lesson={activeLesson}
           onClose={() => setShowYoutubePlayer(false)}
