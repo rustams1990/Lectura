@@ -13,15 +13,31 @@ interface TextSettingsControlsProps {
   settings: ReaderSettings;
   onUpdateSettings: (settings: ReaderSettings) => void;
   compact?: boolean;
+  lessonType?: string;
 }
 
 export default function TextSettingsControls({
   settings,
   onUpdateSettings,
   compact = false,
+  lessonType,
 }: TextSettingsControlsProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+
+  const isBookMode = lessonType === "book" || settings.readerViewStyle === "text";
+
+  const activeFontFamily = isBookMode
+    ? (settings.bookFontFamily || "serif")
+    : (settings.fontFamily || "sans");
+
+  const activeDisplayMode = isBookMode
+    ? (settings.bookReaderViewStyle || "text")
+    : (settings.readerViewStyle || "badges");
+
+  const activeWordCardMode = isBookMode
+    ? (settings.bookWordCardMode || "calm-sheet")
+    : (settings.wordCardMode || "full-inspector");
 
   const fontSizes: ReaderSettings["fontSize"][] = ["sm", "base", "lg", "xl", "2xl", "3xl", "4xl"];
   const fonts: { id: ReaderSettings["fontFamily"]; name: string }[] = [
@@ -55,6 +71,48 @@ export default function TextSettingsControls({
       ...settings,
       [key]: value,
     });
+  };
+
+  const handleFontFamilyChange = (font: ReaderSettings["fontFamily"]) => {
+    if (isBookMode) {
+      onUpdateSettings({ ...settings, bookFontFamily: font });
+      try {
+        localStorage.setItem("lectura_book_font_family", font || "serif");
+      } catch (_) {}
+    } else {
+      onUpdateSettings({ ...settings, fontFamily: font });
+      try {
+        localStorage.setItem("lectura_font_family", font || "sans");
+      } catch (_) {}
+    }
+  };
+
+  const handleDisplayModeChange = (mode: "badges" | "text") => {
+    if (isBookMode) {
+      onUpdateSettings({ ...settings, bookReaderViewStyle: mode });
+      try {
+        localStorage.setItem("lectura_book_reader_view_style", mode);
+      } catch (_) {}
+    } else {
+      onUpdateSettings({ ...settings, readerViewStyle: mode });
+      try {
+        localStorage.setItem("lectura_reader_view_style", mode);
+      } catch (_) {}
+    }
+  };
+
+  const handleWordCardModeChange = (mode: WordCardMode) => {
+    if (isBookMode) {
+      onUpdateSettings({ ...settings, bookWordCardMode: mode });
+      try {
+        localStorage.setItem("lectura_book_word_card_mode", mode);
+      } catch (_) {}
+    } else {
+      onUpdateSettings({ ...settings, wordCardMode: mode });
+      try {
+        localStorage.setItem("lectura_word_card_mode", mode);
+      } catch (_) {}
+    }
   };
 
   const handleDecreaseFont = () => {
@@ -142,7 +200,7 @@ export default function TextSettingsControls({
                   <Minus className="w-3 h-3" />
                 </button>
                 <span className="text-xs font-mono font-bold uppercase text-zinc-600 dark:text-zinc-400 select-none">
-                  {(settings.fontFamily === "serif" ? "Serif" : (settings.fontFamily === "mono" ? "Mono" : "Sans"))} {settings.fontSize.toUpperCase()}
+                  {(activeFontFamily === "serif" ? "Serif" : (activeFontFamily === "mono" ? "Mono" : "Sans"))} {settings.fontSize.toUpperCase()}
                 </span>
                 <button
                   type="button"
@@ -163,9 +221,9 @@ export default function TextSettingsControls({
                 {fonts.map((f) => (
                   <button
                     key={f.id}
-                    onClick={() => updateKey("fontFamily", f.id)}
+                    onClick={() => handleFontFamilyChange(f.id)}
                     className={`px-1 py-2 text-[10px] rounded-lg border font-medium transition-all cursor-pointer ${
-                      settings.fontFamily === f.id
+                      activeFontFamily === f.id
                         ? "bg-teal-600 border-teal-600 text-white font-bold"
                         : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                     }`}
@@ -184,9 +242,9 @@ export default function TextSettingsControls({
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => updateKey("readerViewStyle", "badges")}
+                  onClick={() => handleDisplayModeChange("badges")}
                   className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    (settings.readerViewStyle || "badges") === "badges"
+                    activeDisplayMode === "badges"
                       ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                       : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                   }`}
@@ -195,9 +253,9 @@ export default function TextSettingsControls({
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateKey("readerViewStyle", "text")}
+                  onClick={() => handleDisplayModeChange("text")}
                   className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    settings.readerViewStyle === "text"
+                    activeDisplayMode === "text"
                       ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                       : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                   }`}
@@ -208,70 +266,39 @@ export default function TextSettingsControls({
             </div>
 
             {/* Word Card Mode: Full Inspector vs Calm Sheet */}
-            {(() => {
-              const isBookMode = settings.readerViewStyle === "text";
-              const currentMode = isBookMode
-                ? (settings.bookWordCardMode || "calm-sheet")
-                : (settings.wordCardMode || "full-inspector");
-
-              return (
-                <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
-                  <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
-                    {t('reader.word_card_mode_label', 'Word Card View')}
-                  </span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onUpdateSettings({
-                          ...settings,
-                          wordCardMode: "full-inspector",
-                          bookWordCardMode: "full-inspector",
-                        });
-                        try {
-                          localStorage.setItem("lectura_word_card_mode", "full-inspector");
-                          localStorage.setItem("lectura_book_word_card_mode", "full-inspector");
-                        } catch (_) {}
-                      }}
-                      className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
-                        currentMode === "full-inspector"
-                          ? "bg-teal-600 border-teal-600 text-white shadow-xs"
-                          : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
-                      }`}
-                      title={t('reader.card_full_inspector_title', 'Full inspector with all tags and translation providers')}
-                    >
-                      <span className="font-extrabold">{t('reader.card_full_inspector', 'Inspector')}</span>
-                      <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_full_inspector_sub', 'Full Inspector')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onUpdateSettings({
-                          ...settings,
-                          wordCardMode: isBookMode ? (settings.wordCardMode || "full-inspector") : "calm-sheet",
-                          bookWordCardMode: "calm-sheet",
-                        });
-                        try {
-                          if (!isBookMode) {
-                            localStorage.setItem("lectura_word_card_mode", "calm-sheet");
-                          }
-                          localStorage.setItem("lectura_book_word_card_mode", "calm-sheet");
-                        } catch (_) {}
-                      }}
-                      className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
-                        currentMode === "calm-sheet"
-                          ? "bg-teal-600 border-teal-600 text-white shadow-xs"
-                          : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
-                      }`}
-                      title={t('reader.card_calm_sheet_title', 'Minimalist light card with tabs and status')}
-                    >
-                      <span className="font-extrabold">{t('reader.card_calm_sheet', 'Calm Sheet')}</span>
-                      <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_calm_sheet_sub', 'Minimalist')}</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
+                {t('reader.word_card_mode_label', 'Word Card View')}
+              </span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleWordCardModeChange("full-inspector")}
+                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
+                    activeWordCardMode === "full-inspector"
+                      ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  }`}
+                  title={t('reader.card_full_inspector_title', 'Full inspector with all tags and translation providers')}
+                >
+                  <span className="font-extrabold">{t('reader.card_full_inspector', 'Inspector')}</span>
+                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_full_inspector_sub', 'Full Inspector')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleWordCardModeChange("calm-sheet")}
+                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
+                    activeWordCardMode === "calm-sheet"
+                      ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  }`}
+                  title={t('reader.card_calm_sheet_title', 'Minimalist light card with tabs and status')}
+                >
+                  <span className="font-extrabold">{t('reader.card_calm_sheet', 'Calm Sheet')}</span>
+                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_calm_sheet_sub', 'Minimalist')}</span>
+                </button>
+              </div>
+            </div>
 
             {/* Color Readers Palette Settings */}
             <div className="space-y-1.5">

@@ -32,6 +32,7 @@ const defaultSettings: ReaderSettings = {
   fontSize: 'base',
   lineHeight: 'relaxed',
   fontFamily: 'sans',
+  bookFontFamily: 'serif',
   readerTheme: 'default',
   maxWidth: 'wide',
   pageSize: 'auto',
@@ -46,7 +47,10 @@ const defaultSettings: ReaderSettings = {
   dateFormat: 'auto',
   timeFormat: 'auto',
   firstDayOfWeek: 'auto',
+  readerViewStyle: 'badges',
+  bookReaderViewStyle: 'text',
   wordCardMode: initialMode,
+  bookWordCardMode: 'calm-sheet',
   toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
 };
 
@@ -76,6 +80,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       if (newSettings.bookWordCardMode && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_book_word_card_mode', newSettings.bookWordCardMode);
+      }
+      if (newSettings.readerViewStyle && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_reader_view_style', newSettings.readerViewStyle);
+      }
+      if (newSettings.bookReaderViewStyle && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_book_reader_view_style', newSettings.bookReaderViewStyle);
+      }
+      if (newSettings.fontFamily && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_font_family', newSettings.fontFamily);
+      }
+      if (newSettings.bookFontFamily && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_book_font_family', newSettings.bookFontFamily);
       }
       return {
         settings: merged,

@@ -41,6 +41,7 @@ interface AppHeaderProps {
   lessonCountByLanguage?: Record<string, number>;
   onOpenBook?: (bookId: string) => void;
   onManualSync?: () => void;
+  activeLessonType?: string;
 }
 
 export default function AppHeader({
@@ -70,6 +71,7 @@ export default function AppHeader({
   lessonCountByLanguage = {},
   onOpenBook,
   onManualSync,
+  activeLessonType,
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
   const { t, i18n } = useTranslation();
@@ -170,6 +172,7 @@ export default function AppHeader({
                   settings={readerSettings}
                   onUpdateSettings={onUpdateReaderSettings}
                   compact
+                  lessonType={activeLessonType}
                 />
               )}
             </div>

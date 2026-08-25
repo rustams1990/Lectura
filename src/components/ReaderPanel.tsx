@@ -362,11 +362,12 @@ function ReaderPanel({
     return totalChars > 0 && (cjkChars / totalChars) > 0.3;
   }, [textForSearch]);
 
-  const activeSettings = useMemo<Required<ReaderSettings>>(() => {
+  const activeSettings = useMemo(() => {
+    const isBook = lesson.lessonType === "book";
     return {
       fontSize: settings?.fontSize || "lg",
       lineHeight: settings?.lineHeight || "loose",
-      fontFamily: settings?.fontFamily || "sans",
+      fontFamily: isBook ? (settings?.bookFontFamily || "serif") : (settings?.fontFamily || "sans"),
       readerTheme: settings?.readerTheme || "default",
       maxWidth: settings?.maxWidth || "wide",
       pageSize: settings?.pageSize || "auto",
@@ -382,9 +383,14 @@ function ReaderPanel({
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
       showProgressBar: settings?.showProgressBar !== false,
       showSentenceTranslations: !!settings?.showSentenceTranslations,
-      readerViewStyle: settings?.readerViewStyle || "badges",
+      readerViewStyle: isBook ? (settings?.bookReaderViewStyle || "text") : (settings?.readerViewStyle || "badges"),
+      wordCardMode: isBook ? (settings?.bookWordCardMode || "calm-sheet") : (settings?.wordCardMode || "full-inspector"),
+      bookWordCardMode: settings?.bookWordCardMode || "calm-sheet",
+      bookReaderViewStyle: settings?.bookReaderViewStyle || "text",
+      bookFontFamily: settings?.bookFontFamily || "serif",
+      toolbarVisibility: settings?.toolbarVisibility,
     };
-  }, [settings]);
+  }, [settings, lesson.lessonType]);
 
   const {
     segments,
@@ -889,6 +895,7 @@ function ReaderPanel({
               settings={activeSettings}
               onUpdateSettings={onUpdateSettings || (() => {})}
               compact={false}
+              lessonType={lesson.lessonType}
             />
           </div>
         </header>

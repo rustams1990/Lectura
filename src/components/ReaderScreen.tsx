@@ -358,7 +358,11 @@ export default function ReaderScreen({
                     )}
 
                     {/* 10. Text Settings (AA) (Always visible) */}
-                    <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
+                    <TextSettingsControls
+                      settings={readerSettings}
+                      onUpdateSettings={setReaderSettings}
+                      lessonType={activeLesson?.lessonType}
+                    />
                   </div>
                 )}
 

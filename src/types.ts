@@ -201,7 +201,10 @@ export interface ReaderSettings {
   timeFormat?: TimeFormatOption;
   firstDayOfWeek?: FirstDayOfWeekOption;
   defaultVideoViewMode?: "focus" | "floating" | "off"; // Default view mode for YouTube & video lessons on mobile/tablet
-  wordCardMode?: WordCardMode; // "full-inspector" or "calm-sheet"
+  readerViewStyle?: "badges" | "text"; // standard lessons display mode (default "badges")
+  bookReaderViewStyle?: "badges" | "text"; // book lessons display mode (default "text")
+  bookFontFamily?: "sans" | "serif" | "mono"; // book lessons font family (default "serif")
+  wordCardMode?: WordCardMode; // "full-inspector" or "calm-sheet" (for standard/video lessons, default "full-inspector")
   bookWordCardMode?: WordCardMode; // specific override for book mode (default "calm-sheet")
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
 }

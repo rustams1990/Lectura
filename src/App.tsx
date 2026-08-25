@@ -764,7 +764,6 @@ export default function App() {
     const defaults: ReaderSettings = {
       fontSize: "xl",
       lineHeight: "loose",
-      fontFamily: "sans",
       readerTheme: "default",
       maxWidth: "medium",
       pageSize: "auto",
@@ -787,7 +786,10 @@ export default function App() {
       timeFormat: "auto",
       firstDayOfWeek: "auto",
       defaultVideoViewMode: "focus",
-      readerViewStyle: "badges",
+      readerViewStyle: (localStorage.getItem("lectura_reader_view_style") as any) || "badges",
+      bookReaderViewStyle: (localStorage.getItem("lectura_book_reader_view_style") as any) || "text",
+      fontFamily: (localStorage.getItem("lectura_font_family") as any) || "sans",
+      bookFontFamily: (localStorage.getItem("lectura_book_font_family") as any) || "serif",
       wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || "full-inspector",
       bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || "calm-sheet",
       toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
@@ -1999,25 +2001,6 @@ export default function App() {
     setActiveLesson(activeLesson || null);
   }, [activeLesson, setActiveLesson]);
 
-  // Auto-apply optimal reading typography when opening a book (lessonType === "book")
-  useEffect(() => {
-    if (activeLesson && activeLesson.lessonType === "book") {
-      setReaderSettings((prev) => {
-        let changed = false;
-        const next = { ...prev };
-        if (next.fontFamily !== "serif") {
-          next.fontFamily = "serif";
-          changed = true;
-        }
-        if (next.readerViewStyle !== "text") {
-          next.readerViewStyle = "text";
-          changed = true;
-        }
-        return changed ? next : prev;
-      });
-    }
-  }, [activeLesson?.id, activeLesson?.lessonType]);
-
   useEffect(() => {
     try {
       localStorage.setItem("vocab_clone_dark_mode", isDarkMode ? "true" : "false");
@@ -3226,6 +3209,7 @@ export default function App() {
         lessonCountByLanguage={lessonCountByLanguage}
         onOpenBook={handleOpenWhisperBook}
         onManualSync={() => loadDataFromLocalServer()}
+        activeLessonType={activeLesson?.lessonType}
       />
 
       {/* ── Focus Mode Sticky Header / Video Zone (Mobile / Tablet Only < 1024px) ── */}
