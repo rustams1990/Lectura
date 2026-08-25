@@ -551,7 +551,11 @@ function ReaderPanel({
         if (isCjk) return str;
         return str
           .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
-          .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1");
+          .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
+          .replace(/(\w)[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*(\w)/g, "$1$2$3")
+          .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
+          .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1")
+          .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1");
       });
 
       sentenceStrings.forEach((sentText, sIdx) => {
@@ -1101,7 +1105,11 @@ function ReaderPanel({
             if (isCjk) return str;
             return str
               .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
-              .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1");
+              .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
+              .replace(/(\w)[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*(\w)/g, "$1$2$3")
+              .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
+              .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1")
+              .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1");
           });
 
           // Precalculate total words in this segment for word-by-word highlight
@@ -1277,7 +1285,12 @@ function ReaderPanel({
               const tok = tokens[tIdx];
 
               if (!tok.isWord) {
-                elements.push(<span key={`nonword-${tIdx}`} className="opacity-95">{tok.raw}</span>);
+                // If this token is whitespace and next token is punctuation, skip whitespace so punctuation glues to previous word
+                if (/^\s+$/.test(tok.raw) && tIdx + 1 < tokens.length && !tokens[tIdx + 1].isWord && /^[.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+$/.test(tokens[tIdx + 1].raw.trim())) {
+                  tIdx++;
+                  continue;
+                }
+                elements.push(<span key={`nonword-${tIdx}`} className="opacity-95 select-none">{tok.raw}</span>);
                 tIdx++;
                 continue;
               }
@@ -1868,10 +1881,18 @@ function ReaderPanel({
             const trimmedText = seg.text.trim();
 
             const isIntroductionHeading = isBook && /^(?:INTRODUCTION|PREFACE|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ВВЕДЕНИЕ|ЭПИЛОГ|DEDICATION|ПОСВЯЩЕНИЕ)$/i.test(trimmedText);
+            const bookTitle = (lesson.title || "").trim();
+            let strippedHeadingText = trimmedText;
+            if (bookTitle && strippedHeadingText.toLowerCase().startsWith(bookTitle.toLowerCase())) {
+              strippedHeadingText = strippedHeadingText.substring(bookTitle.length).trim().replace(/^[-:—.\s]+/, "");
+            }
+
             const isChapterHeading = isBook && (
               isIntroductionHeading ||
               /^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|CONTENTS)$/i.test(trimmedText) ||
-              (trimmedText.length < 60 && /^(?:Chapter|Глава|Part|Часть|Section|[IVXLCDM]+\b)/i.test(trimmedText))
+              /^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|CONTENTS)$/i.test(strippedHeadingText) ||
+              (trimmedText.length < 60 && /^(?:Chapter|Глава|Part|Часть|Section|[IVXLCDM]+\b)/i.test(trimmedText)) ||
+              (strippedHeadingText.length < 60 && /^(?:Chapter|Глава|Part|Часть|Section|[IVXLCDM]+\b)/i.test(strippedHeadingText))
             );
 
             if (isIntroductionHeading) {
@@ -1892,7 +1913,7 @@ function ReaderPanel({
                 <h2 
                   key={pIdx} 
                   id={`segment-row-${globalSegmentIdx}`}
-                  className="text-center text-2xl font-serif font-bold text-sky-700 dark:text-sky-400 tracking-wider mb-8 mt-2 antialiased select-text"
+                  className="text-center text-2xl font-serif font-bold text-sky-700 dark:text-sky-400 tracking-wider mb-6 mt-2 antialiased select-text"
                   style={{ textIndent: 0 }}
                 >
                   {renderParagraphContent()}
