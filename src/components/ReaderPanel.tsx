@@ -810,6 +810,31 @@ function ReaderPanel({
     }
   };
 
+  const getPhraseTextColorClass = (status: WordStatus) => {
+    switch (status) {
+      case "0":
+      case "new" as any:
+        return "text-rose-600 dark:text-rose-400";
+      case "1":
+        return "text-rose-600 dark:text-rose-400";
+      case "2":
+        return "text-amber-700 dark:text-amber-400";
+      case "3":
+      case "learning" as any:
+        return "text-emerald-700 dark:text-emerald-400";
+      case "4":
+        return "text-blue-700 dark:text-blue-400";
+      case "5":
+        return "text-purple-700 dark:text-purple-400";
+      case "known":
+        return "text-zinc-600 dark:text-zinc-400";
+      case "ignored":
+        return "text-zinc-400/80 dark:text-zinc-500/80";
+      default:
+        return "text-teal-700 dark:text-teal-400";
+    }
+  };
+
   const handleWordSelect = (e: React.MouseEvent | undefined, rawToken: string, cleanWord: string, fullPara: string) => {
     if (e) {
       e.stopPropagation();
