@@ -74,6 +74,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (newSettings.wordCardMode && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_word_card_mode', newSettings.wordCardMode);
       }
+      if (newSettings.bookWordCardMode && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_book_word_card_mode', newSettings.bookWordCardMode);
+      }
       return {
         settings: merged,
         wordCardMode: mode,

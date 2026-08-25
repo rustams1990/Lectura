@@ -789,6 +789,7 @@ export default function App() {
       defaultVideoViewMode: "focus",
       readerViewStyle: "badges",
       wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || "full-inspector",
+      bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || "calm-sheet",
       toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
     };
     try {
@@ -2010,10 +2011,6 @@ export default function App() {
         }
         if (next.readerViewStyle !== "text") {
           next.readerViewStyle = "text";
-          changed = true;
-        }
-        if (next.wordCardMode !== "calm-sheet") {
-          next.wordCardMode = "calm-sheet";
           changed = true;
         }
         return changed ? next : prev;

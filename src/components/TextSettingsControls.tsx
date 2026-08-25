@@ -208,39 +208,72 @@ export default function TextSettingsControls({
             </div>
 
             {/* Word Card Mode: Full Inspector vs Calm Sheet */}
-            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
-              <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
-                {t('reader.word_card_mode_label', 'Word Card View')}
-              </span>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => updateKey("wordCardMode", "full-inspector")}
-                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
-                    (settings.wordCardMode || "full-inspector") === "full-inspector"
-                      ? "bg-teal-600 border-teal-600 text-white shadow-xs"
-                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
-                  }`}
-                  title={t('reader.card_full_inspector_title', 'Full inspector with all tags and translation providers')}
-                >
-                  <span className="font-extrabold">{t('reader.card_full_inspector', 'Inspector')}</span>
-                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_full_inspector_sub', 'Full Inspector')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateKey("wordCardMode", "calm-sheet")}
-                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
-                    settings.wordCardMode === "calm-sheet"
-                      ? "bg-teal-600 border-teal-600 text-white shadow-xs"
-                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
-                  }`}
-                  title={t('reader.card_calm_sheet_title', 'Minimalist light card with tabs and status')}
-                >
-                  <span className="font-extrabold">{t('reader.card_calm_sheet', 'Calm Sheet')}</span>
-                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_calm_sheet_sub', 'Minimalist')}</span>
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const isBookMode = settings.readerViewStyle === "text";
+              const currentMode = isBookMode
+                ? (settings.bookWordCardMode || "calm-sheet")
+                : (settings.wordCardMode || "full-inspector");
+
+              return (
+                <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+                  <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
+                    {t('reader.word_card_mode_label', 'Word Card View')}
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isBookMode) {
+                          updateKey("bookWordCardMode", "full-inspector");
+                          try {
+                            localStorage.setItem("lectura_book_word_card_mode", "full-inspector");
+                          } catch (_) {}
+                        } else {
+                          updateKey("wordCardMode", "full-inspector");
+                          try {
+                            localStorage.setItem("lectura_word_card_mode", "full-inspector");
+                          } catch (_) {}
+                        }
+                      }}
+                      className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
+                        currentMode === "full-inspector"
+                          ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                          : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                      }`}
+                      title={t('reader.card_full_inspector_title', 'Full inspector with all tags and translation providers')}
+                    >
+                      <span className="font-extrabold">{t('reader.card_full_inspector', 'Inspector')}</span>
+                      <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_full_inspector_sub', 'Full Inspector')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isBookMode) {
+                          updateKey("bookWordCardMode", "calm-sheet");
+                          try {
+                            localStorage.setItem("lectura_book_word_card_mode", "calm-sheet");
+                          } catch (_) {}
+                        } else {
+                          updateKey("wordCardMode", "calm-sheet");
+                          try {
+                            localStorage.setItem("lectura_word_card_mode", "calm-sheet");
+                          } catch (_) {}
+                        }
+                      }}
+                      className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
+                        currentMode === "calm-sheet"
+                          ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                          : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                      }`}
+                      title={t('reader.card_calm_sheet_title', 'Minimalist light card with tabs and status')}
+                    >
+                      <span className="font-extrabold">{t('reader.card_calm_sheet', 'Calm Sheet')}</span>
+                      <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_calm_sheet_sub', 'Minimalist')}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Color Readers Palette Settings */}
             <div className="space-y-1.5">

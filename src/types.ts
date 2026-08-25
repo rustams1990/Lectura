@@ -202,6 +202,7 @@ export interface ReaderSettings {
   firstDayOfWeek?: FirstDayOfWeekOption;
   defaultVideoViewMode?: "focus" | "floating" | "off"; // Default view mode for YouTube & video lessons on mobile/tablet
   wordCardMode?: WordCardMode; // "full-inspector" or "calm-sheet"
+  bookWordCardMode?: WordCardMode; // specific override for book mode (default "calm-sheet")
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
 }
 

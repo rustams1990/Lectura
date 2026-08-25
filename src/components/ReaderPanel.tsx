@@ -282,9 +282,12 @@ function ReaderPanel({
     showYoutubePlayer,
     setShowYoutubePlayer,
   } = useUIStore();
+  const isBookLesson = lesson.lessonType === "book";
   const { wordCardMode: storeCardMode } = useSettingsStore();
-  const wordCardMode = settings?.wordCardMode || storeCardMode || "full-inspector";
-  const isCalmSheet = wordCardMode === "calm-sheet";
+  const wordCardMode = isBookLesson
+    ? (settings?.bookWordCardMode || "calm-sheet")
+    : (settings?.wordCardMode || storeCardMode || "full-inspector");
+  const isCalmSheet = wordCardMode === "calm-sheet" || isBookLesson;
   const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);
 
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");

@@ -92,10 +92,16 @@ export default function ReaderScreen({
   const { t } = useTranslation();
   const { selectedElement, selectedWordRect } = useVocab();
   const { wordCardMode: storeCardMode } = useSettingsStore();
-  // true when user has chosen "Calm Sheet" mode in Text Settings
-  const isCalmSheet = (readerSettings.wordCardMode || storeCardMode) === "calm-sheet";
+  const isBookLesson = activeLesson?.lessonType === "book";
+  // Context-aware word card mode:
+  // For books: defaults to "calm-sheet" (floating popup)
+  // For videos / audio / regular lessons: defaults to "full-inspector" (right desktop sidebar)
+  const effectiveWordCardMode = isBookLesson
+    ? (readerSettings.bookWordCardMode || "calm-sheet")
+    : (readerSettings.wordCardMode || storeCardMode || "full-inspector");
+  const isCalmSheet = effectiveWordCardMode === "calm-sheet";
   // true when either in Focus Mode or reading a book
-  const isImmersiveBook = isFocusMode || activeLesson?.lessonType === "book";
+  const isImmersiveBook = isFocusMode || isBookLesson;
   // In Immersive Book mode, Calm Sheet floating popup is strictly used instead of right Inspector sidebar
   const effectiveCalmSheet = isCalmSheet || isImmersiveBook;
   const [selectedText, setSelectedText] = useState("");
