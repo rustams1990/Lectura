@@ -94,16 +94,16 @@ export default function ReaderScreen({
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const isBookLesson = activeLesson?.lessonType === "book";
   // Context-aware word card mode:
-  // For books: defaults to "calm-sheet" (floating popup)
+  // For books: defaults to "calm-sheet" (floating popup), but respects user's explicit choice
   // For videos / audio / regular lessons: defaults to "full-inspector" (right desktop sidebar)
   const effectiveWordCardMode = isBookLesson
-    ? (readerSettings.bookWordCardMode || "calm-sheet")
+    ? (readerSettings.bookWordCardMode || (readerSettings.wordCardMode === "full-inspector" ? "full-inspector" : "calm-sheet"))
     : (readerSettings.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = effectiveWordCardMode === "calm-sheet";
-  // true when either in Focus Mode or reading a book
-  const isImmersiveBook = isFocusMode || isBookLesson;
-  // In Immersive Book mode, Calm Sheet floating popup is strictly used instead of right Inspector sidebar
-  const effectiveCalmSheet = isCalmSheet || isImmersiveBook;
+  // In Focus mode or when Calm Sheet is active, use floating popup. When in Inspector mode, ALWAYS use right Inspector sidebar!
+  const effectiveCalmSheet = isCalmSheet || isFocusMode;
+  // Immersive book mode: centered column without top toolbar when using Calm Sheet floating popup
+  const isImmersiveBook = isFocusMode || (isBookLesson && effectiveCalmSheet);
   const [selectedText, setSelectedText] = useState("");
   const toolbarVisibility: ReaderToolbarVisibility = {
     ...DEFAULT_TOOLBAR_VISIBILITY,

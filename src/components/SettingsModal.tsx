@@ -1439,7 +1439,13 @@ export default function SettingsModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
                     type="button"
-                    onClick={() => onSettingsChange?.({ wordCardMode: "full-inspector" })}
+                    onClick={() => {
+                      onSettingsChange?.({ wordCardMode: "full-inspector", bookWordCardMode: "full-inspector" });
+                      try {
+                        localStorage.setItem("lectura_word_card_mode", "full-inspector");
+                        localStorage.setItem("lectura_book_word_card_mode", "full-inspector");
+                      } catch (_) {}
+                    }}
                     className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
                       (settings?.wordCardMode || "full-inspector") === "full-inspector"
                         ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
@@ -1456,7 +1462,13 @@ export default function SettingsModal({
 
                   <button
                     type="button"
-                    onClick={() => onSettingsChange?.({ wordCardMode: "calm-sheet" })}
+                    onClick={() => {
+                      onSettingsChange?.({ wordCardMode: "calm-sheet", bookWordCardMode: "calm-sheet" });
+                      try {
+                        localStorage.setItem("lectura_word_card_mode", "calm-sheet");
+                        localStorage.setItem("lectura_book_word_card_mode", "calm-sheet");
+                      } catch (_) {}
+                    }}
                     className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
                       settings?.wordCardMode === "calm-sheet"
                         ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"

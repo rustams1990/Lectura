@@ -223,17 +223,15 @@ export default function TextSettingsControls({
                     <button
                       type="button"
                       onClick={() => {
-                        if (isBookMode) {
-                          updateKey("bookWordCardMode", "full-inspector");
-                          try {
-                            localStorage.setItem("lectura_book_word_card_mode", "full-inspector");
-                          } catch (_) {}
-                        } else {
-                          updateKey("wordCardMode", "full-inspector");
-                          try {
-                            localStorage.setItem("lectura_word_card_mode", "full-inspector");
-                          } catch (_) {}
-                        }
+                        onUpdateSettings({
+                          ...settings,
+                          wordCardMode: "full-inspector",
+                          bookWordCardMode: "full-inspector",
+                        });
+                        try {
+                          localStorage.setItem("lectura_word_card_mode", "full-inspector");
+                          localStorage.setItem("lectura_book_word_card_mode", "full-inspector");
+                        } catch (_) {}
                       }}
                       className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
                         currentMode === "full-inspector"
@@ -248,17 +246,17 @@ export default function TextSettingsControls({
                     <button
                       type="button"
                       onClick={() => {
-                        if (isBookMode) {
-                          updateKey("bookWordCardMode", "calm-sheet");
-                          try {
-                            localStorage.setItem("lectura_book_word_card_mode", "calm-sheet");
-                          } catch (_) {}
-                        } else {
-                          updateKey("wordCardMode", "calm-sheet");
-                          try {
+                        onUpdateSettings({
+                          ...settings,
+                          wordCardMode: isBookMode ? (settings.wordCardMode || "full-inspector") : "calm-sheet",
+                          bookWordCardMode: "calm-sheet",
+                        });
+                        try {
+                          if (!isBookMode) {
                             localStorage.setItem("lectura_word_card_mode", "calm-sheet");
-                          } catch (_) {}
-                        }
+                          }
+                          localStorage.setItem("lectura_book_word_card_mode", "calm-sheet");
+                        } catch (_) {}
                       }}
                       className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
                         currentMode === "calm-sheet"
