@@ -694,7 +694,14 @@
     "next_page": "다음",
     "chapters_total": "개 챕터",
     "pages_total": "페이지",
-    "chapter_num": "제 {{num}} 장"
+    "chapter_num": "제 {{num}} 장",
+    "mode_label": "읽기 인터페이스",
+    "mode_book_focus": "책 포커스",
+    "mode_study": "학습 모드",
+    "study_mode_short": "학습",
+    "book_mode_short": "책",
+    "switch_to_study": "학습 모드로 전환 (인스펙터)",
+    "switch_to_book": "책 포커스 모드로 전환"
   },
   "app": {
     "idioms_error": "관용어 감지 오류:",

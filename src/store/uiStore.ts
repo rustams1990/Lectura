@@ -3,6 +3,7 @@ import { create } from 'zustand';
 type TabType = 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts';
 export type LayoutWidthType = 'standard' | 'wide' | 'ultra' | 'full';
 export type ReaderTextWidthType = 'standard' | 'wide' | 'full';
+export type BookDisplayMode = 'book' | 'study';
 
 interface UIState {
   isSidebarOpen: boolean;
@@ -13,6 +14,7 @@ interface UIState {
   showYoutubePlayer: boolean;
   showAiHubModal: boolean;
   isFocusMode: boolean;
+  bookDisplayMode: BookDisplayMode;
   showOnlyUnknown: boolean;
   zoomScale: number;
   layoutWidthMode: LayoutWidthType;
@@ -28,6 +30,7 @@ interface UIState {
   setShowYoutubePlayer: (show: boolean) => void;
   setShowAiHubModal: (show: boolean) => void;
   setIsFocusMode: (isFocus: boolean) => void;
+  setBookDisplayMode: (mode: BookDisplayMode) => void;
   setShowOnlyUnknown: (show: boolean) => void;
   setZoomScale: (scale: number) => void;
   setLayoutWidthMode: (mode: LayoutWidthType) => void;
@@ -54,6 +57,15 @@ export const useUIStore = create<UIState>((set) => ({
   showYoutubePlayer: true,
   showAiHubModal: false,
   isFocusMode: false,
+  bookDisplayMode: (() => {
+    try {
+      const saved = localStorage.getItem("lectura_book_display_mode");
+      if (saved === 'book' || saved === 'study') {
+        return saved as BookDisplayMode;
+      }
+    } catch (_) {}
+    return "book";
+  })(),
   showOnlyUnknown: false,
   zoomScale: 100,
   layoutWidthMode: 'standard',
@@ -84,6 +96,10 @@ export const useUIStore = create<UIState>((set) => ({
   setShowYoutubePlayer: (show) => set({ showYoutubePlayer: show }),
   setShowAiHubModal: (show) => set({ showAiHubModal: show }),
   setIsFocusMode: (isFocus) => set({ isFocusMode: isFocus }),
+  setBookDisplayMode: (mode) => {
+    try { localStorage.setItem("lectura_book_display_mode", mode); } catch (_) {}
+    set({ bookDisplayMode: mode });
+  },
   setShowOnlyUnknown: (show) => set({ showOnlyUnknown: show }),
   setZoomScale: (scale) => set({ zoomScale: scale }),
   setLayoutWidthMode: (mode) => {

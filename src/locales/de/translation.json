@@ -694,7 +694,14 @@
     "next_page": "Nächste",
     "chapters_total": "Kapitel",
     "pages_total": "Seiten",
-    "chapter_num": "Kapitel {{num}}"
+    "chapter_num": "Kapitel {{num}}",
+    "mode_label": "Lesemodus",
+    "mode_book_focus": "Buch-Fokus",
+    "mode_study": "Lernmodus",
+    "study_mode_short": "Lernen",
+    "book_mode_short": "Buch",
+    "switch_to_study": "In den Lernmodus wechseln (Inspektor)",
+    "switch_to_book": "In den Buch-Fokus wechseln"
   },
   "app": {
     "idioms_error": "Error detecting idioms: ",

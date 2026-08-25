@@ -694,7 +694,14 @@
     "next_page": "Suivant",
     "chapters_total": "chapitres",
     "pages_total": "pages",
-    "chapter_num": "Chapitre {{num}}"
+    "chapter_num": "Chapitre {{num}}",
+    "mode_label": "Interface de lecture",
+    "mode_book_focus": "Focus Livre",
+    "mode_study": "Mode Étude",
+    "study_mode_short": "Étude",
+    "book_mode_short": "Livre",
+    "switch_to_study": "Passer en mode étude (Inspecteur)",
+    "switch_to_book": "Passer en focus livre"
   },
   "app": {
     "idioms_error": "Erreur de détection des expressions idiomatiques :",

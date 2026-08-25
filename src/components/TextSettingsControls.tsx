@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY } from "../types";
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useUIStore } from "../store/uiStore";
 
 interface TextSettingsControlsProps {
   settings: ReaderSettings;
@@ -23,6 +24,7 @@ export default function TextSettingsControls({
   lessonType,
 }: TextSettingsControlsProps) {
   const { t } = useTranslation();
+  const { bookDisplayMode, setBookDisplayMode } = useUIStore();
   const [isOpen, setIsOpen] = useState(false);
 
   const isBookMode = lessonType === "book";
@@ -213,6 +215,48 @@ export default function TextSettingsControls({
                 </button>
               </div>
             </div>
+
+            {/* Reading Interface (Book Focus vs Study Mode) for Books */}
+            {isBookMode && (
+              <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+                <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
+                  {t('reader.mode_label', 'Reading Interface')}
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookDisplayMode("book");
+                      handleWordCardModeChange("calm-sheet");
+                      handleDisplayModeChange("text");
+                      handleFontFamilyChange("serif");
+                    }}
+                    className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      bookDisplayMode === "book"
+                        ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    <span>📖 {t('reader.mode_book_focus', 'Book Focus')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookDisplayMode("study");
+                      handleWordCardModeChange("full-inspector");
+                      handleDisplayModeChange("badges");
+                    }}
+                    className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      bookDisplayMode === "study"
+                        ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    <span>🎓 {t('reader.mode_study', 'Study Mode')}</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Font Family choosing */}
             <div className="space-y-1.5">

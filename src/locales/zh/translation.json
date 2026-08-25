@@ -694,7 +694,14 @@
     "next_page": "下一页",
     "chapters_total": "章",
     "pages_total": "页",
-    "chapter_num": "第 {{num}} 章"
+    "chapter_num": "第 {{num}} 章",
+    "mode_label": "阅读界面",
+    "mode_book_focus": "书籍专注",
+    "mode_study": "学习模式",
+    "study_mode_short": "学习",
+    "book_mode_short": "书籍",
+    "switch_to_study": "切换至学习模式（检查器）",
+    "switch_to_book": "切换至书籍专注模式"
   },
   "app": {
     "idioms_error": "检测习语时出错：",

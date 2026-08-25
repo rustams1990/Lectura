@@ -694,7 +694,14 @@
     "next_page": "Następna",
     "chapters_total": "rozdziałów",
     "pages_total": "stron",
-    "chapter_num": "Rozdział {{num}}"
+    "chapter_num": "Rozdział {{num}}",
+    "mode_label": "Interfejs czytania",
+    "mode_book_focus": "Tryb książkowy",
+    "mode_study": "Tryb nauki",
+    "study_mode_short": "Nauka",
+    "book_mode_short": "Książka",
+    "switch_to_study": "Przełącz do trybu nauki (Inspektor)",
+    "switch_to_book": "Przełącz do trybu książkowego"
   },
   "app": {
     "idioms_error": "Błąd podczas wykrywania idiomów:",

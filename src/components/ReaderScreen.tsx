@@ -88,22 +88,28 @@ export default function ReaderScreen({
     setReaderTextWidth,
     showAiHubModal,
     setShowAiHubModal,
+    bookDisplayMode,
+    setBookDisplayMode,
   } = useUIStore();
   const { t } = useTranslation();
   const { selectedElement, selectedWordRect } = useVocab();
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const isBookLesson = activeLesson?.lessonType === "book";
+  const isBookFocus = isBookLesson && bookDisplayMode === "book";
   // Context-aware word card mode:
-  // For books: defaults to "calm-sheet" (floating popup), but respects user's explicit choice
-  // For videos / audio / regular lessons: defaults to "full-inspector" (right desktop sidebar)
+  // For books in Book Focus mode: defaults to "calm-sheet" (floating popup)
+  // For books in Study mode: defaults to "full-inspector" (right desktop sidebar)
+  // For videos / audio / regular lessons: defaults to "full-inspector"
   const effectiveWordCardMode = isBookLesson
-    ? (readerSettings.bookWordCardMode || "calm-sheet")
+    ? (bookDisplayMode === "study"
+        ? (readerSettings.wordCardMode || "full-inspector")
+        : (readerSettings.bookWordCardMode || "calm-sheet"))
     : (readerSettings.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = effectiveWordCardMode === "calm-sheet";
   // In Focus mode or when Calm Sheet is active, use floating popup. When in Inspector mode, ALWAYS use right Inspector sidebar!
   const effectiveCalmSheet = isCalmSheet || isFocusMode;
-  // Immersive book mode: centered column without top toolbar when using Calm Sheet floating popup
-  const isImmersiveBook = isFocusMode || (isBookLesson && effectiveCalmSheet);
+  // Immersive book mode: centered column without top toolbar when using Book Focus mode or fullscreen focus
+  const isImmersiveBook = isFocusMode || isBookFocus;
   const [selectedText, setSelectedText] = useState("");
   const toolbarVisibility: ReaderToolbarVisibility = {
     ...DEFAULT_TOOLBAR_VISIBILITY,
@@ -176,6 +182,25 @@ export default function ReaderScreen({
                       <ChevronLeft className="w-3.5 h-3.5" />
                       <span>{t('reader.library_btn', 'Library')}</span>
                     </button>
+
+                    {/* Book Focus Mode Toggle (For books in Study mode) */}
+                    {isBookLesson && (
+                      <button
+                        onClick={() => {
+                          setBookDisplayMode("book");
+                          setReaderSettings((prev) => ({
+                            ...prev,
+                            bookWordCardMode: "calm-sheet",
+                            bookReaderViewStyle: "text",
+                            bookFontFamily: "serif",
+                          }));
+                        }}
+                        className="px-3.5 py-1.5 bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 rounded-xl text-xs font-semibold text-teal-700 dark:text-teal-300 shadow-xs hover:bg-teal-100/80 dark:hover:bg-teal-900/70 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                        title={t('reader.switch_to_book', 'Switch to Book Focus Mode')}
+                      >
+                        <span>📖 {t('reader.mode_book_focus', 'Book Focus')}</span>
+                      </button>
+                    )}
 
                     {/* 2. AI Hub */}
                     {toolbarVisibility.showAiHub !== false && (

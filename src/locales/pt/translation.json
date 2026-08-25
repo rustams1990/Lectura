@@ -694,7 +694,14 @@
     "next_page": "Seguinte",
     "chapters_total": "capítulos",
     "pages_total": "páginas",
-    "chapter_num": "Capítulo {{num}}"
+    "chapter_num": "Capítulo {{num}}",
+    "mode_label": "Interface de leitura",
+    "mode_book_focus": "Foco Livro",
+    "mode_study": "Modo Estudo",
+    "study_mode_short": "Estudo",
+    "book_mode_short": "Livro",
+    "switch_to_study": "Mudar para modo estudo (Inspetor)",
+    "switch_to_book": "Mudar para foco livro"
   },
   "app": {
     "idioms_error": "Erro ao detectar expressões idiomáticas:",

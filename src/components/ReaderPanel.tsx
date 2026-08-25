@@ -281,11 +281,15 @@ function ReaderPanel({
     setShowOnlyUnknown: storeSetShowOnlyUnknown,
     showYoutubePlayer,
     setShowYoutubePlayer,
+    bookDisplayMode,
+    setBookDisplayMode,
   } = useUIStore();
   const isBookLesson = lesson.lessonType === "book";
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const wordCardMode = isBookLesson
-    ? (settings?.bookWordCardMode || "calm-sheet")
+    ? (bookDisplayMode === "study"
+        ? (settings?.wordCardMode || "full-inspector")
+        : (settings?.bookWordCardMode || "calm-sheet"))
     : (settings?.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = wordCardMode === "calm-sheet";
   const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);
@@ -890,6 +894,33 @@ function ReaderPanel({
               title={t('reader.toc', 'Table of Contents')}
             >
               <span>📑 {t('reader.chapters', 'Chapters')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const nextMode = bookDisplayMode === "book" ? "study" : "book";
+                setBookDisplayMode(nextMode);
+                if (onUpdateSettings) {
+                  if (nextMode === "study") {
+                    onUpdateSettings({
+                      ...settings,
+                      wordCardMode: "full-inspector",
+                      readerViewStyle: "badges",
+                    });
+                  } else {
+                    onUpdateSettings({
+                      ...settings,
+                      bookWordCardMode: "calm-sheet",
+                      bookReaderViewStyle: "text",
+                      bookFontFamily: "serif",
+                    });
+                  }
+                }
+              }}
+              className="px-2.5 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950/40 text-teal-700 dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/60 transition-colors flex items-center gap-1.5 cursor-pointer font-semibold"
+              title={bookDisplayMode === "book" ? t('reader.switch_to_study', 'Switch to Study Mode (Full Inspector)') : t('reader.switch_to_book', 'Switch to Book Focus')}
+            >
+              <span>{bookDisplayMode === "book" ? "🎓 " + t('reader.study_mode_short', 'Study') : "📖 " + t('reader.book_mode_short', 'Book')}</span>
             </button>
             <TextSettingsControls
               settings={activeSettings}

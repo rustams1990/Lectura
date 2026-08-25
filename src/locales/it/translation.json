@@ -694,7 +694,14 @@
     "next_page": "Successivo",
     "chapters_total": "capitoli",
     "pages_total": "pagine",
-    "chapter_num": "Capitolo {{num}}"
+    "chapter_num": "Capitolo {{num}}",
+    "mode_label": "Interfaccia di lettura",
+    "mode_book_focus": "Focus Libro",
+    "mode_study": "Modalità Studio",
+    "study_mode_short": "Studio",
+    "book_mode_short": "Libro",
+    "switch_to_study": "Passa alla modalità studio (Ispettore)",
+    "switch_to_book": "Passa a focus libro"
   },
   "app": {
     "idioms_error": "Errore durante il rilevamento degli idiomi:",

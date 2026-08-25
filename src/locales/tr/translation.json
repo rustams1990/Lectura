@@ -694,7 +694,14 @@
     "next_page": "Sonraki",
     "chapters_total": "bölüm",
     "pages_total": "sayfa",
-    "chapter_num": "Bölüm {{num}}"
+    "chapter_num": "Bölüm {{num}}",
+    "mode_label": "Okuma Arayüzü",
+    "mode_book_focus": "Kitap Odak",
+    "mode_study": "Çalışma Modu",
+    "study_mode_short": "Çalışma",
+    "book_mode_short": "Kitap",
+    "switch_to_study": "Çalışma Moduna Geç (İnceleyici)",
+    "switch_to_book": "Kitap Odak Moduna Geç"
   },
   "app": {
     "idioms_error": "Deyimler tespit edilirken hata oluştu:",

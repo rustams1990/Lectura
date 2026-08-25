@@ -707,7 +707,14 @@
     "next_page": "Siguiente",
     "chapters_total": "capítulos",
     "pages_total": "páginas",
-    "chapter_num": "Capítulo {{num}}"
+    "chapter_num": "Capítulo {{num}}",
+    "mode_label": "Interfaz de lectura",
+    "mode_book_focus": "Enfoque libro",
+    "mode_study": "Modo estudio",
+    "study_mode_short": "Estudio",
+    "book_mode_short": "Libro",
+    "switch_to_study": "Cambiar al modo estudio (Inspector)",
+    "switch_to_book": "Cambiar al enfoque libro"
   },
   "app": {
     "idioms_error": "Error detecting idioms: ",

@@ -694,7 +694,14 @@
     "next_page": "Наступна",
     "chapters_total": "розділів",
     "pages_total": "сторінок",
-    "chapter_num": "Розділ {{num}}"
+    "chapter_num": "Розділ {{num}}",
+    "mode_label": "Режим інтерфейсу",
+    "mode_book_focus": "Книга (Фокус)",
+    "mode_study": "Навчання (Study)",
+    "study_mode_short": "Навчання",
+    "book_mode_short": "Книга",
+    "switch_to_study": "Перемкнути в режим навчання (Інспектор)",
+    "switch_to_book": "Перемкнути в книжковий фокус-режим"
   },
   "app": {
     "idioms_error": "Помилка виявлення ідіом:",
