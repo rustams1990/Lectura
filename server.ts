@@ -19,7 +19,7 @@ import translateRouter from "./routes/translate.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { APP_VERSION } from "./src/version.ts";
 
-// Lectura Server Entry v2.99.97
+// Lectura Server Entry v2.99.98
 dotenv.config();
 
 async function startServer() {

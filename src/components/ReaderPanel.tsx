@@ -1290,7 +1290,15 @@ function ReaderPanel({
                   tIdx++;
                   continue;
                 }
-                elements.push(<span key={`nonword-${tIdx}`} className="opacity-95 select-none">{tok.raw}</span>);
+                const isPunct = /^[.,!?:;…»\)'"”\u2019\u201d\u2026\[\]\(\)\{\}«“]+$/.test(tok.raw.trim());
+                elements.push(
+                  <span 
+                    key={`nonword-${tIdx}`} 
+                    className={isPunct ? "select-none text-inherit pointer-events-none opacity-95 inline" : "select-none opacity-95 inline"}
+                  >
+                    {tok.raw}
+                  </span>
+                );
                 tIdx++;
                 continue;
               }
@@ -1338,75 +1346,50 @@ function ReaderPanel({
                   }
                 });
 
-                const isPhraseSelected = activeWord?.toLowerCase() === matchedPhrase.phrase.toLowerCase();
-
-                // Build clean phrase display
-                let prefix = "";
-                let suffix = "";
                 const firstTok = phraseTokens[0];
                 const lastTok = phraseTokens[phraseTokens.length - 1];
-
-                const firstClean = firstTok.clean;
-                const firstRaw = firstTok.raw;
-                const cleanedAtStartIdx = firstRaw.toLowerCase().indexOf(firstClean);
-                if (cleanedAtStartIdx > 0) {
-                  prefix = firstRaw.substring(0, cleanedAtStartIdx);
+                let prefix = "";
+                let suffix = "";
+                if (firstTok) {
+                  const cleanedAt = firstTok.raw.toLowerCase().indexOf(firstTok.clean);
+                  if (cleanedAt > 0) prefix = firstTok.raw.substring(0, cleanedAt);
                 }
-
-                const lastClean = lastTok.clean;
-                const lastRaw = lastTok.raw;
-                const lastCleanedStartIdx = lastRaw.toLowerCase().indexOf(lastClean);
-                if (lastCleanedStartIdx >= 0) {
-                  const cleanedAtEndIdx = lastCleanedStartIdx + lastClean.length;
-                  if (cleanedAtEndIdx < lastRaw.length) {
-                    suffix = lastRaw.substring(cleanedAtEndIdx);
+                if (lastTok && lastTok.clean) {
+                  const cleanedAt = lastTok.raw.toLowerCase().indexOf(lastTok.clean);
+                  if (cleanedAt >= 0) {
+                    const end = cleanedAt + lastTok.clean.length;
+                    if (end < lastTok.raw.length) suffix = lastTok.raw.substring(end);
                   }
                 }
 
-                let phraseDisplay = "";
-                if (phraseTokens.length === 1) {
-                  phraseDisplay = firstClean;
-                } else {
-                  const middleRaw = phraseTokens.slice(1, -1).map(t => t.raw).join("");
-                  const firstWordPortion = cleanedAtStartIdx >= 0 ? firstRaw.substring(cleanedAtStartIdx) : firstRaw;
-                  const lastWordPortion = lastCleanedStartIdx >= 0 ? lastRaw.substring(0, lastCleanedStartIdx + lastClean.length) : lastRaw;
-                  phraseDisplay = firstWordPortion + middleRaw + lastWordPortion;
-                }
+                const phraseDisplay = phraseTokens.map((t, idx) => {
+                  let text = t.raw;
+                  if (idx === 0) text = text.substring(prefix.length);
+                  if (idx === phraseTokens.length - 1) text = text.substring(0, text.length - suffix.length);
+                  return text;
+                }).join("");
 
+                const isPhraseSelected = activeWord?.toLowerCase() === matchedPhrase.phrase.toLowerCase();
                 const status = matchedPhrase.vocabItem.status;
+
                 let styleClass = "";
+                const borderClass = `border-b-2 border-dashed ${getPhraseBorderColorClass(status)}`;
 
                 if (isTextMode) {
-                  const textColorClass =
-                    status === "1" ? "text-rose-600 dark:text-rose-400 font-semibold" :
-                    status === "2" ? "text-amber-600 dark:text-amber-400 font-semibold" :
-                    (status === "3" || (status as any) === "learning") ? "text-emerald-600 dark:text-emerald-400 font-medium" :
-                    status === "4" ? "text-blue-600 dark:text-blue-400 font-semibold" :
-                    status === "5" ? "text-purple-600 dark:text-purple-400 font-semibold" :
-                    (status === "ignored" || status === "known") ? "text-inherit font-normal" :
-                    "text-sky-600 dark:text-sky-400 font-medium";
-
+                  const textColorClass = getPhraseTextColorClass(status);
                   styleClass = `${textColorClass} border-b-2 border-dashed ${getPhraseBorderColorClass(status)} hover:underline cursor-pointer transition-colors`;
-                  if (showOnlyUnknown && unknownViewMode === "text" && (status === "ignored" || status === "known")) {
-                    styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2px] hover:blur-none hover:opacity-100 duration-300`;
-                  }
                   if (isPhraseActive) {
-                    styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-amber-500 font-bold bg-amber-500/15 dark:bg-amber-500/25 rounded-xs px-0.5`;
+                    styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-bold bg-amber-500/15 rounded px-0.5`;
                   } else if (isPhraseSelected) {
-                    styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-teal-500 font-bold bg-teal-500/15 dark:bg-teal-500/25 rounded-xs px-0.5`;
+                    styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 font-bold bg-teal-500/15 rounded px-0.5`;
                   }
                 } else {
-                  const borderClass = `border-b-2 border-dashed ${getPhraseBorderColorClass(status)}`;
-
-                  if (status === "ignored" || status === "known") {
-                    styleClass = `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer rounded px-1 transition-colors font-normal ${borderClass}`;
-                    if (showOnlyUnknown && unknownViewMode === "text") {
-                      styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2px] hover:blur-none hover:opacity-100 duration-300`;
-                    }
+                  if (status === "0" || (status as any) === "new") {
+                    styleClass = `bg-[#f8b4be]/45 dark:bg-rose-950/60 hover:bg-[#f8b4be]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "1") {
-                    styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "2") {
-                    styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-950 dark:text-amber-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "3" || (status as any) === "learning") {
                     styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "4") {
@@ -1425,11 +1408,19 @@ function ReaderPanel({
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline-flex items-baseline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
-                    {prefix && <span className="opacity-80 select-none">{prefix}</span>}
-                    <button
+                  <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                    {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
+                    <span
+                      role="button"
+                      tabIndex={0}
                       id={`word-phrase-${matchedPhrase.phrase}-${tIdx}`}
                       onClick={(e) => handleWordSelect(e, matchedPhrase.phrase, matchedPhrase.phrase, sentText)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleWordSelect(e as any, matchedPhrase.phrase, matchedPhrase.phrase, sentText);
+                        }
+                      }}
                       onMouseEnter={(e) => {
                         if (isFloatingModalOpen) return;
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -1440,13 +1431,13 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} select-text font-inherit`}
+                      className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text font-inherit`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
                       {phraseDisplay}
-                    </button>
-                    {suffix && <span className="opacity-80 select-none">{suffix}</span>}
+                    </span>
+                    {suffix && <span className="select-none pointer-events-none opacity-90">{suffix}</span>}
                   </span>
                 );
 
@@ -1563,11 +1554,19 @@ function ReaderPanel({
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline-flex items-baseline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
-                    {prefix && <span className="opacity-80 select-none">{prefix}</span>}
-                    <button
+                  <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                    {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
+                    <span
+                      role="button"
+                      tabIndex={0}
                       id={`word-detected-${matchedDetected.phrase}-${tIdx}`}
                       onClick={(e) => handleWordSelect(e, matchedDetected.phrase, matchedDetected.phrase, sentText)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleWordSelect(e as any, matchedDetected.phrase, matchedDetected.phrase, sentText);
+                        }
+                      }}
                       onMouseEnter={(e) => {
                         if (isFloatingModalOpen) return;
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -1578,7 +1577,7 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} inline-flex items-center select-text font-inherit`}
+                      className={`${styleClass} inline-flex items-center cursor-pointer select-text font-inherit`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
@@ -1620,8 +1619,8 @@ function ReaderPanel({
                           ✨
                         </span>
                       )}
-                    </button>
-                    {suffix && <span className="opacity-80 select-none">{suffix}</span>}
+                    </span>
+                    {suffix && <span className="select-none pointer-events-none opacity-90">{suffix}</span>}
                   </span>
                 );
 
@@ -1710,12 +1709,19 @@ function ReaderPanel({
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
               elements.push(
-                <span key={tIdx} className={`inline-flex items-baseline relative ${isTextMode ? "" : "my-[2px] py-[0.5px]"} ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
-                  {prefix && <span className="opacity-80 select-none">{prefix}</span>}
-                  <button
-                    type="button"
+                <span key={tIdx} className={`inline relative ${isTextMode ? "" : "my-[2px] py-[0.5px]"} ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                  {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
+                  <span
+                    role="button"
+                    tabIndex={0}
                     id={`word-${cleanWord}-${tIdx}`}
                     onClick={(e) => handleWordSelect(e, rawString, cleanWord, sentText)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleWordSelect(e as any, rawString, cleanWord, sentText);
+                      }
+                    }}
                     onMouseEnter={(e) => {
                       if (isFloatingModalOpen) return;
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -1760,13 +1766,13 @@ function ReaderPanel({
                       setHoveredWordId(null);
                       setHoveredWordObj(null);
                     }}
-                    className={`${styleClass} inline-block select-text font-inherit`}
+                    className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text font-inherit transition-opacity`}
                     style={{ outline: "none" }}
                     spellCheck={false}
                   >
                     {wordContent}
-                  </button>
-                  {suffix && <span className="opacity-80 select-none">{suffix}</span>}
+                  </span>
+                  {suffix && <span className="select-none pointer-events-none opacity-90">{suffix}</span>}
                 </span>
               );
 
