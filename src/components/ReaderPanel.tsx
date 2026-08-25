@@ -2030,22 +2030,31 @@ function ReaderPanel({
               {t('reader.saved_phrases_title', 'Saved Phrases in Chapter')} ({activePhrasesInLesson.length})
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {activePhrasesInLesson.map((phrase, pIdx) => {
-                const details = phrasesMap[phrase.toLowerCase()];
-                if (!details) return null;
-                const isSaved = (userPhrases || []).includes(phrase.toLowerCase());
+              {activePhrasesInLesson.map((item: any, pIdx) => {
+                const phrase = (typeof item === 'string' ? item : item?.word) || '';
+                if (!phrase) return null;
+                const details = (lesson.detectedPhrases && lesson.detectedPhrases[phrase.toLowerCase()]) || item;
+                const meaning = details?.translation || details?.meaning || '';
+                const phraseType = details?.type || (typeof item === 'object' && item?.tags?.includes('idiom') ? 'idiom' : undefined);
                 return (
                   <button
                     key={pIdx}
                     type="button"
-                    onClick={() => onWordClick && onWordClick(phrase, details.targetWord || phrase)}
+                    onClick={() => onWordClick && onWordClick(phrase, lesson.text)}
                     className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-teal-500/10 dark:bg-teal-400/10 text-teal-800 dark:text-teal-300 border border-teal-500/20 hover:bg-teal-500/20 dark:hover:bg-teal-400/20 transition-all cursor-pointer select-none"
-                    title={details.meaning}
+                    title={meaning}
                   >
-                    <span>{isSaved ? `📖 ${phrase}` : `✨ ${phrase}`}</span>
-                    <span className="text-[8px] opacity-75 font-normal px-1 rounded-sm bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 uppercase tracking-wider">
-                      {getPhraseTypeLabel(details.type, t).toLowerCase()}
-                    </span>
+                    <span>📖 {phrase}</span>
+                    {meaning && (
+                      <span className="text-[10px] opacity-75 font-normal ml-1">
+                        {meaning}
+                      </span>
+                    )}
+                    {phraseType && (
+                      <span className="text-[8px] opacity-75 font-normal px-1 rounded-sm bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 uppercase tracking-wider ml-0.5">
+                        {getPhraseTypeLabel(phraseType, t).toLowerCase()}
+                      </span>
+                    )}
                   </button>
                 );
               })}

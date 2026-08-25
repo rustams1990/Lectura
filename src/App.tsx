@@ -184,13 +184,13 @@ export default function App() {
   const vocabRef = useRef<Record<string, VocabItem>>(vocab);
   useEffect(() => {
     vocabRef.current = vocab;
-    safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(vocab));
+    vocabStore.setItem("words", vocab).catch(() => {});
   }, [vocab]);
 
   const wordLinksRef = useRef<Record<string, string>>(wordLinks);
   useEffect(() => {
     wordLinksRef.current = wordLinks;
-    safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(wordLinks));
+    vocabStore.setItem("aliases", wordLinks).catch(() => {});
   }, [wordLinks]);
 
   const { showToast } = useToast();
@@ -1530,11 +1530,11 @@ export default function App() {
             settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(cleanHistory)).catch(() => {});
           }
 
-          // Sync into localStorage as fallback buffer (sanitizing heavy base64 fields)
+          // Sync into local stores
           if (d.lessons) lessonsStore.setItem("lessons", d.lessons);
           if (d.lessonTypes) lessonsStore.setItem("lessontypes", d.lessonTypes);
-          safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(normalizedCloudVocab));
-          safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(normalizedCloudWordLinks));
+          vocabStore.setItem("words", normalizedCloudVocab).catch(() => {});
+          vocabStore.setItem("aliases", normalizedCloudWordLinks).catch(() => {});
           if (d.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", d.listeningSeconds.toString());
           if (d.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(d.languageFlags));
 
@@ -1817,18 +1817,32 @@ export default function App() {
       // Local browser storage
       const localLessonsStr = localStorage.getItem("vocab_clone_lessons");
       const localTypesStr = localStorage.getItem("vocab_clone_lessontypes");
-      const localWordsStr = localStorage.getItem("vocab_clone_words");
       const localListeningStr = localStorage.getItem("vocab_clone_listening");
-      const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
       const localFlagsStr = localStorage.getItem("vocab_clone_language_flags");
 
       const userDel = localStorage.getItem("vocab_clone_user_deleted_lessons") === "true";
       setLessons(safeParse(localLessonsStr, userDel ? [] : BUILT_IN_LESSONS));
       setLessonTypes(ensureDefaultLessonTypes(safeParse(localTypesStr, DEFAULT_LESSON_TYPES) as LessonType[]));
-      setVocab(normalizeVocabRecord(safeParse(localWordsStr, {})));
       setListeningSeconds(localListeningStr ? parseFloat(localListeningStr) || 0 : 0);
-      setWordLinks(normalizeWordLinksRecord(safeParse(localAliasesStr, {})));
       setLanguageFlags(safeParse(localFlagsStr, {}));
+
+      vocabStore.getItem("words").then((savedVocab) => {
+        if (savedVocab) {
+          setVocab(normalizeVocabRecord(savedVocab as Record<string, VocabItem>));
+        } else {
+          const localWordsStr = localStorage.getItem("vocab_clone_words");
+          if (localWordsStr) setVocab(normalizeVocabRecord(safeParse(localWordsStr, {})));
+        }
+      }).catch(() => {});
+
+      vocabStore.getItem("aliases").then((savedAliases) => {
+        if (savedAliases) {
+          setWordLinks(normalizeWordLinksRecord(savedAliases as Record<string, string>));
+        } else {
+          const localAliasesStr = localStorage.getItem("vocab_clone_aliases");
+          if (localAliasesStr) setWordLinks(normalizeWordLinksRecord(safeParse(localAliasesStr, {})));
+        }
+      }).catch(() => {});
     }
   }, [storageMode, activeUser]);
 
@@ -3704,8 +3718,8 @@ export default function App() {
           if (imported.lessons) safeLocalStorageSetItem("vocab_clone_lessons", JSON.stringify(imported.lessons));
           if (imported.playlists) safeLocalStorageSetItem("vocab_clone_playlists", JSON.stringify(imported.playlists));
           if (imported.lessonTypes) safeLocalStorageSetItem("vocab_clone_lessontypes", JSON.stringify(imported.lessonTypes));
-          if (importedVocab) safeLocalStorageSetItem("vocab_clone_words", JSON.stringify(parsedVocab));
-          if (imported.wordLinks) safeLocalStorageSetItem("vocab_clone_aliases", JSON.stringify(parsedWordLinks));
+          if (importedVocab) vocabStore.setItem("words", parsedVocab).catch(() => {});
+          if (imported.wordLinks) vocabStore.setItem("aliases", parsedWordLinks).catch(() => {});
           if (imported.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", imported.listeningSeconds.toString());
           if (imported.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(imported.languageFlags));
 

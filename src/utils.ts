@@ -504,16 +504,22 @@ import { settingsStore, vocabStore, lessonsStore } from "./db";
  * Automatically falls back to IndexedDB (localforage) so that large vocabularies and history never get lost.
  */
 export function safeLocalStorageSetItem(key: string, value: string): void {
+  // Heavy data collections (vocabulary and aliases) live exclusively in IndexedDB (localforage)
+  if (key === "vocab_clone_words") {
+    try { vocabStore.setItem("words", JSON.parse(value)); } catch (_) { vocabStore.setItem("words", value); }
+    return;
+  }
+  if (key === "vocab_clone_aliases") {
+    try { vocabStore.setItem("aliases", JSON.parse(value)); } catch (_) { vocabStore.setItem("aliases", value); }
+    return;
+  }
+
   try {
     localStorage.setItem(key, value);
   } catch (err) {
     console.warn(`[Storage Fallback] Failed to save key "${key}" to localStorage (quota exceeded). Writing to IndexedDB...`, err);
     try {
-      if (key === "vocab_clone_words") {
-        try { vocabStore.setItem("words", JSON.parse(value)); } catch (_) { vocabStore.setItem("words", value); }
-      } else if (key === "vocab_clone_aliases") {
-        try { vocabStore.setItem("aliases", JSON.parse(value)); } catch (_) { vocabStore.setItem("aliases", value); }
-      } else if (key === "vocab_clone_lessons") {
+      if (key === "vocab_clone_lessons") {
         try { lessonsStore.setItem("lessons", JSON.parse(value)); } catch (_) { lessonsStore.setItem("lessons", value); }
       } else if (key === "vocab_clone_lessontypes") {
         try { lessonsStore.setItem("lessontypes", JSON.parse(value)); } catch (_) { lessonsStore.setItem("lessontypes", value); }

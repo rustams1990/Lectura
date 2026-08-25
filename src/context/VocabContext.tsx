@@ -101,23 +101,17 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Auto-save vocab changes to IndexedDB and localStorage safely
+  // Auto-save vocab changes to IndexedDB safely
   useEffect(() => {
     if (isLoaded) {
       vocabStore.setItem('words', vocab).catch(console.error);
-      try {
-        localStorage.setItem("vocab_clone_words", JSON.stringify(vocab));
-      } catch (_) {}
     }
   }, [vocab, isLoaded]);
 
-  // Auto-save wordLinks changes to IndexedDB and localStorage safely
+  // Auto-save wordLinks changes to IndexedDB safely
   useEffect(() => {
     if (isLoaded) {
       vocabStore.setItem('aliases', wordLinks).catch(console.error);
-      try {
-        localStorage.setItem("vocab_clone_aliases", JSON.stringify(wordLinks));
-      } catch (_) {}
     }
   }, [wordLinks, isLoaded]);
 
@@ -201,9 +195,6 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         nextVocab[targetLangKey] = updated;
       });
 
-      try {
-        localStorage.setItem("vocab_clone_words", JSON.stringify(nextVocab));
-      } catch (_) {}
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: nextVocab }));
       }
@@ -253,9 +244,6 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         delete copy[k];
       });
 
-      try {
-        localStorage.setItem("vocab_clone_words", JSON.stringify(copy));
-      } catch (_) {}
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: copy }));
       }
@@ -304,9 +292,6 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         importedCount++;
       });
 
-      try {
-        localStorage.setItem("vocab_clone_words", JSON.stringify(nextVocab));
-      } catch (_) {}
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: nextVocab }));
       }
