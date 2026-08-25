@@ -1428,19 +1428,34 @@ export class PageReader {
         position: fixed;
         bottom: 24px;
         right: 24px;
-        background: #0284c7;
+        background: rgba(15, 23, 42, 0.88);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         color: #ffffff;
         padding: 10px 18px;
         border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
         font-size: 13px;
         font-weight: 600;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
         opacity: 0;
+        transform: translateY(4px);
         pointer-events: none;
-        transition: opacity 0.3s ease;
+        transition: opacity 0.25s ease, transform 0.25s ease;
         z-index: 2147483647;
       }
-      .lectura-toast.show { opacity: 1; }
+      .lectura-toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .lectura-toast.toast-error {
+        background: rgba(220, 38, 38, 0.92) !important;
+        border-color: rgba(239, 68, 68, 0.6) !important;
+      }
+      .lectura-toast.toast-success {
+        background: rgba(13, 148, 136, 0.92) !important;
+        border-color: rgba(45, 212, 191, 0.4) !important;
+      }
     `;
 
     this.shadowRoot.appendChild(style);
@@ -2348,7 +2363,7 @@ export class PageReader {
       const transEl = this.tooltipElement?.querySelector('.lectura-card-translation') || this.tooltipElement?.querySelector('.glass-main-translation');
       const translationText = transEl?.textContent || '';
       await this.saveWord(word, translationText, targetStatus, contextSentence, isMultiWord);
-      this.showToast(`Saved status: ${targetStatus}`);
+      this.showToast(`Saved status: ${targetStatus}`, 'success');
     });
 
     // Close button listener
@@ -2370,7 +2385,7 @@ export class PageReader {
         dialectEl.textContent = `${activeLang} | ${currentDialect.label}`;
         dialectEl.title = `Dialect: ${currentDialect.name} (${currentDialect.code})`;
         await chrome.storage.local.set({ [`lectura_tts_dialect_${currentLang}`]: currentDialect.code });
-        this.showToast(`Dialect: ${currentDialect.name} (${currentDialect.label})`);
+        this.showToast(`Dialect: ${currentDialect.name} (${currentDialect.label})`, 'info');
         this.playTts(word, currentDialect.code);
       });
     });
@@ -2406,9 +2421,9 @@ export class PageReader {
           const lemmaInput = this.tooltipElement?.querySelector('.lectura-lemma-input, #root-input-field') as HTMLInputElement | null;
           if (lemmaInput) lemmaInput.value = cleanParent;
 
-          this.showToast(`✓ Linked "${word}" ➔ "${cleanParent}"`);
+          this.showToast(`✓ Linked "${word}" ➔ "${cleanParent}"`, 'success');
         } catch (err: any) {
-          this.showToast(`Failed to link: ${err?.message || 'Error'}`);
+          this.showToast(`Failed to link: ${err?.message || 'Error'}`, 'error');
         }
       };
 
@@ -2590,19 +2605,32 @@ export class PageReader {
         this.cachedWordsByLang[currentLang] = {};
       }
       this.cachedWordsByLang[currentLang][cleanLower] = { status, translation: translationToSave };
-      this.showToast(`Saved '${word}' (${status}) [${currentLang.toUpperCase()}]`);
+      this.showToast(`Saved '${word}' (${status}) [${currentLang.toUpperCase()}]`, 'success');
     } catch (err: any) {
-      this.showToast(`Failed to save: ${err.message || 'Server error'}`);
+      this.showToast(`Failed to save: ${err.message || 'Server error'}`, 'error');
     }
   }
 
-  private showToast(message: string) {
+  private toastTimeoutId: number | null = null;
+
+  private showToast(message: string, type: 'info' | 'success' | 'error' = 'info') {
     if (!this.toastElement) return;
+    if (this.toastTimeoutId) {
+      window.clearTimeout(this.toastTimeoutId);
+      this.toastTimeoutId = null;
+    }
     this.toastElement.textContent = message;
+    this.toastElement.className = 'lectura-toast';
+    if (type === 'error') {
+      this.toastElement.classList.add('toast-error');
+    } else if (type === 'success') {
+      this.toastElement.classList.add('toast-success');
+    }
     this.toastElement.classList.add('show');
-    setTimeout(() => {
+    this.toastTimeoutId = window.setTimeout(() => {
       this.toastElement?.classList.remove('show');
-    }, 3000);
+      this.toastTimeoutId = null;
+    }, 2800);
   }
 
   public applyPopupTheme(themeName: string) {
