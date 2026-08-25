@@ -19,7 +19,7 @@ import translateRouter from "./routes/translate.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { APP_VERSION } from "./src/version.ts";
 
-// Lectura Server Entry v2.99.100
+// Lectura Server Entry v2.99.101
 dotenv.config();
 
 async function startServer() {
@@ -50,9 +50,9 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: "25mb" }));
-  app.use(express.urlencoded({ limit: "25mb", extended: true }));
-  app.use(express.raw({ type: ["audio/*", "application/octet-stream"], limit: "25mb" }));
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.raw({ type: ["audio/*", "application/octet-stream"], limit: "50mb" }));
 
   app.post("/api/log", (req, res) => {
     console.log("BROWSER ERROR:", req.body);

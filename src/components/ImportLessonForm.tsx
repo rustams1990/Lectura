@@ -463,6 +463,15 @@ export default function ImportLessonForm({
     setFileError(null);
     setFileSuccess(null);
 
+    const MAX_CLIENT_EPUB_SIZE = 45 * 1024 * 1024; // 45 MB raw file
+    if (file.size > MAX_CLIENT_EPUB_SIZE) {
+      const errorMsg = t('import.file_too_large', 'Файл слишком большой. Максимальный размер EPUB — 45 МБ.');
+      showToast(errorMsg, 'error');
+      setFileError(errorMsg);
+      setIsFileLoading(false);
+      return;
+    }
+
     // If media file (audio/video), queue directly to Faster-Whisper
     const isAudioOrVideo = /\.(mp3|m4a|wav|ogg|flac|aac|wma|webm|mp4|mkv|mov|avi)$/i.test(file.name) || file.type.startsWith("audio/") || file.type.startsWith("video/");
     if (isAudioOrVideo) {
