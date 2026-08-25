@@ -61,11 +61,11 @@ import { useTranslation, Trans } from "react-i18next";
 
 const readerThemes = {
   default: {
-    pageBg: "bg-[#f5f3ef] dark:bg-zinc-950",
-    text: "text-[#292524] dark:text-zinc-100",
-    headerBg: "bg-white/70 dark:bg-zinc-900/60 border-zinc-200/60 dark:border-zinc-900",
-    cardBg: "bg-[#faf9f6] dark:bg-zinc-900",
-    border: "border-stone-200/70 dark:border-zinc-800",
+    pageBg: "bg-stone-50 dark:bg-zinc-950",
+    text: "text-zinc-900 dark:text-zinc-100",
+    headerBg: "bg-white/80 dark:bg-zinc-900/80 border-zinc-200/60 dark:border-zinc-900",
+    cardBg: "bg-white dark:bg-zinc-900",
+    border: "border-zinc-200/70 dark:border-zinc-800",
   },
   cream: {
     pageBg: "bg-[#faf5eb] dark:bg-zinc-950",
@@ -3121,13 +3121,13 @@ export default function App() {
     setIsFocusMode(false);
   }, [activeLesson, setIsFocusMode]);
 
+  const isBookLesson = activeLesson?.lessonType === "book";
+  const isBookFocusMode = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
+  const isImmersiveBook = activeTab === "read" && !!activeLesson && isBookFocusMode;
+
   const currentReaderTheme = (activeTab === "read" && activeLesson)
     ? (readerThemes[readerSettings.readerTheme] || readerThemes.default)
     : readerThemes.default;
-
-  const isBookLesson = activeLesson?.lessonType === "book";
-  const isBookFocusMode = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
-  const isImmersiveBook = activeTab === "read" && !!activeLesson && (isBookFocusMode || (!isBookLesson && isFocusMode));
 
   if (!isAppLoaded) {
     return (
@@ -3168,7 +3168,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isImmersiveBook ? `${currentReaderTheme.cardBg} lg:${currentReaderTheme.pageBg}` : currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200 overflow-x-clip w-full max-w-[100vw]`}>
+    <div className={`min-h-screen ${currentReaderTheme.pageBg} ${currentReaderTheme.text} flex flex-col font-sans transition-colors duration-200 overflow-x-clip w-full max-w-[100vw]`}>
       
       <AppSidebar
         isSidebarOpen={isSidebarOpen}

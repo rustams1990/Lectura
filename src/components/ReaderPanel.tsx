@@ -121,9 +121,9 @@ interface ReaderThemeStyles {
 
 const themeMap: Record<string, ReaderThemeStyles> = {
   default: {
-    container: "bg-[#faf9f6] dark:bg-zinc-900 text-[#292524] dark:text-zinc-200 border-stone-200/70 dark:border-zinc-800/80 shadow-md",
+    container: "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200 border-stone-200/70 dark:border-zinc-800/80 shadow-sm",
     barBg: "bg-transparent",
-    pillBg: "bg-transparent text-[#292524] dark:text-zinc-200",
+    pillBg: "bg-transparent text-zinc-900 dark:text-zinc-200",
     subBadgeBg: "bg-stone-100/70 dark:bg-zinc-800/60 text-stone-700 dark:text-zinc-300",
     selectBg: "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 border-stone-200 dark:border-zinc-700",
     divider: "border-stone-200/80 dark:border-zinc-800/80",
@@ -151,7 +151,7 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
     barBg: "bg-transparent",
     pillBg: "bg-transparent text-slate-800 dark:text-slate-100",
-    subBadgeBg: "bg-slate-200/70 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300",
+    subBadgeBg: "bg-slate-200/70 dark:bg-slate-800/70 text-slate-700 dark:bg-slate-300",
     selectBg: "bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 border-slate-300 dark:border-slate-700",
     divider: "border-slate-200 dark:border-slate-800",
     subText: "text-slate-700 dark:text-slate-300",
@@ -848,13 +848,20 @@ function ReaderPanel({
     return () => window.removeEventListener("scroll", handleScroll);
   }, [currentPageIdx, pages.length]);
 
+  // Reader background cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up when leaving reader to Library / other views
+    };
+  }, [activeSettings.readerTheme]);
+
   const currentTheme = themeMap[activeSettings.readerTheme] || themeMap.default;
   const isMediaLesson = !!lesson.youtubeId || lesson.lessonType === "youtube" || lesson.lessonType === "podcast" || !!lesson.audioUrl || !!(lesson as any).audioFile || !!(lesson as any).audio;
 
   return (
     <div 
       id="reader-top" 
-      className={`relative ${
+      className={`reader-container book-page-sheet relative ${
         hideMeta 
           ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-3 sm:pt-4 pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
           : "rounded-3xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"

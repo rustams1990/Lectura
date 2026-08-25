@@ -345,7 +345,7 @@ export default function TextSettingsControls({
             </div>
 
             {/* Color Readers Palette Settings */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">Background Tone</span>
               <div className="grid grid-cols-4 gap-1.5">
                 {themes.map((t) => (

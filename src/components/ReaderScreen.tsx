@@ -111,7 +111,7 @@ export default function ReaderScreen({
   // In Focus mode or when Calm Sheet is active, use floating popup. When in Inspector mode, ALWAYS use right Inspector sidebar!
   const effectiveCalmSheet = isBookLesson ? isCalmSheet : (isCalmSheet || isFocusMode);
   // Immersive book mode: centered column without top toolbar when using Book Focus mode
-  const isImmersiveBook = isBookLesson ? isBookFocus : isFocusMode;
+  const isImmersiveBook = isBookLesson && isBookFocus;
   const [selectedText, setSelectedText] = useState("");
   const toolbarVisibility: ReaderToolbarVisibility = {
     ...DEFAULT_TOOLBAR_VISIBILITY,
@@ -399,7 +399,7 @@ export default function ReaderScreen({
                   onAudioUpload={handleAudioUploaded}
                   onListeningTick={handleListeningTick}
                   onAudioEnded={() => handleMediaEnded(activeLesson)}
-                  readerTheme={readerSettings.readerTheme}
+                  readerTheme={isBookLesson && isBookFocus ? readerSettings.readerTheme : "default"}
                   showSentenceTranslations={readerSettings.showSentenceTranslations}
                   onToggleSentenceTranslations={() =>
                     setReaderSettings((prev) => ({
@@ -471,10 +471,16 @@ export default function ReaderScreen({
                   onOpenLesson={handleOpenLesson}
                 />
               ) : (
-                <div className="empty-inspector-placeholder bg-white/60 dark:bg-zinc-900/60 rounded-2xl border border-dashed border-stone-300 dark:border-zinc-800 p-8 text-center text-stone-400">
-                  <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p className="font-medium text-sm">No Word Selected</p>
-                  <p className="text-xs text-stone-400 mt-1">Click on any word to view translation and definitions</p>
+                <div className="empty-inspector-placeholder bg-white dark:bg-zinc-900 rounded-2xl border border-stone-200/70 dark:border-zinc-800 shadow-sm p-6 sm:p-8 text-center flex flex-col items-center justify-center space-y-3 min-h-[340px] text-zinc-900 dark:text-zinc-100">
+                  <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-full text-zinc-400 dark:text-zinc-500">
+                    <BookOpen className="w-8 h-8" />
+                  </div>
+                  <div className="max-w-xs">
+                    <h3 className="font-bold text-base text-zinc-800 dark:text-zinc-200">No Word Selected</h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                      Click on any word to view translation and definitions
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

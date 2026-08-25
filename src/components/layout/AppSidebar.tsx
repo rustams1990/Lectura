@@ -52,7 +52,7 @@ export default function AppSidebar({
       {/* Sidebar Panel */}
       <div 
         id="sidebar-panel"
-        className={`relative flex flex-col w-full max-w-[280px] sm:max-w-xs h-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} border-r ${currentReaderTheme.border} shadow-2xl p-5 overflow-y-auto animate-in slide-in-from-left duration-200 z-10`}
+        className="relative flex flex-col w-full max-w-[280px] sm:max-w-xs h-full bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 border-r border-zinc-200/80 dark:border-zinc-800 shadow-2xl p-5 overflow-y-auto animate-in slide-in-from-left duration-200 z-10"
       >
         {/* Header / Brand in Sidebar */}
         <div className="flex items-center justify-between pb-5 border-b border-zinc-100 dark:border-zinc-800">
