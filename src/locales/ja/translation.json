@@ -682,7 +682,19 @@
     "volume": "音量",
     "translations_btn": "翻訳",
     "show_translations_title": "文の対訳を表示 (T)",
-    "hide_translations_title": "文の対訳を非表示 (T)"
+    "hide_translations_title": "文の対訳を非表示 (T)",
+    "chapters": "章",
+    "toc": "目次",
+    "search_chapters": "章を検索...",
+    "no_chapters_found": "章が見つかりません",
+    "page": "ページ",
+    "page_short": "p.",
+    "of": "/",
+    "prev_page": "前へ",
+    "next_page": "次へ",
+    "chapters_total": "章",
+    "pages_total": "ページ",
+    "chapter_num": "第{{num}}章"
   },
   "app": {
     "idioms_error": "イディオムの検出エラー:",

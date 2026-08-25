@@ -750,7 +750,19 @@
     "tb_unknown_only": "Unknown Only",
     "tb_video": "Video Window Toggle",
     "tb_display_mode": "Display Mode (Badges / Book)",
-    "tb_width_toggle": "Width (Standard / Wide / Full)"
+    "tb_width_toggle": "Width (Standard / Wide / Full)",
+    "chapters": "Chapters",
+    "toc": "Table of Contents",
+    "search_chapters": "Search chapters...",
+    "no_chapters_found": "No chapters found",
+    "page": "Page",
+    "page_short": "p.",
+    "of": "of",
+    "prev_page": "Previous",
+    "next_page": "Next",
+    "chapters_total": "chapters",
+    "pages_total": "pages",
+    "chapter_num": "Chapter {{num}}"
   },
   "app": {
     "idioms_error": "Error detecting idioms: ",

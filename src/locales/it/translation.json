@@ -682,7 +682,19 @@
     "volume": "Volume",
     "translations_btn": "Traduzione",
     "show_translations_title": "Mostra traduzione parallela delle frasi (T)",
-    "hide_translations_title": "Nascondi traduzione parallela delle frasi (T)"
+    "hide_translations_title": "Nascondi traduzione parallela delle frasi (T)",
+    "chapters": "Capitoli",
+    "toc": "Indice",
+    "search_chapters": "Cerca capitoli...",
+    "no_chapters_found": "Nessun capitolo trovato",
+    "page": "Pagina",
+    "page_short": "pag.",
+    "of": "di",
+    "prev_page": "Precedente",
+    "next_page": "Successivo",
+    "chapters_total": "capitoli",
+    "pages_total": "pagine",
+    "chapter_num": "Capitolo {{num}}"
   },
   "app": {
     "idioms_error": "Errore durante il rilevamento degli idiomi:",

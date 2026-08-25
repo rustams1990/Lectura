@@ -682,7 +682,19 @@
     "volume": "음량",
     "translations_btn": "번역",
     "show_translations_title": "문장 대역 보기 (T)",
-    "hide_translations_title": "문장 대역 숨기기 (T)"
+    "hide_translations_title": "문장 대역 숨기기 (T)",
+    "chapters": "챕터",
+    "toc": "목차",
+    "search_chapters": "챕터 검색...",
+    "no_chapters_found": "챕터를 찾을 수 없습니다",
+    "page": "페이지",
+    "page_short": "p.",
+    "of": "/",
+    "prev_page": "이전",
+    "next_page": "다음",
+    "chapters_total": "개 챕터",
+    "pages_total": "페이지",
+    "chapter_num": "제 {{num}} 장"
   },
   "app": {
     "idioms_error": "관용어 감지 오류:",

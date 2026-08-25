@@ -878,9 +878,9 @@ function ReaderPanel({
                 window.dispatchEvent(new CustomEvent("toggle-book-toc"));
               }}
               className="px-2.5 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-800 dark:hover:text-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
-              title={t('reader.toc', 'Оглавление')}
+              title={t('reader.toc', 'Table of Contents')}
             >
-              <span>📑 {t('reader.chapters', 'Главы')}</span>
+              <span>📑 {t('reader.chapters', 'Chapters')}</span>
             </button>
             <TextSettingsControls
               settings={activeSettings}
@@ -2080,11 +2080,11 @@ function ReaderPanel({
                   }}
                   className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer font-medium"
                 >
-                  ‹ {t('reader.prev_page', 'Предыдущая')}
+                  ‹ {t('reader.prev_page', 'Previous')}
                 </button>
 
                 <div className="flex items-center gap-1.5 font-medium text-stone-600 dark:text-stone-400">
-                  <span>{t('reader.page', 'Страница')}</span>
+                  <span>{t('reader.page', 'Page')}</span>
                   <select
                     value={clampedPageIdx + 1}
                     onChange={(e) => {
@@ -2099,7 +2099,7 @@ function ReaderPanel({
                       </option>
                     ))}
                   </select>
-                  <span>{t('reader.of', 'из')} {pages.length}</span>
+                  <span>{t('reader.of', 'of')} {pages.length}</span>
                 </div>
 
                 <button
@@ -2111,7 +2111,7 @@ function ReaderPanel({
                   }}
                   className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer font-medium"
                 >
-                  {t('reader.next_page', 'Следующая')} ›
+                  {t('reader.next_page', 'Next')} ›
                 </button>
               </div>
             ) : (

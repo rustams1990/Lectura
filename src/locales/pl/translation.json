@@ -682,7 +682,19 @@
     "volume": "Głośność",
     "translations_btn": "Tłumaczenie",
     "show_translations_title": "Pokaż tłumaczenie zdań (T)",
-    "hide_translations_title": "Ukryj tłumaczenie zdań (T)"
+    "hide_translations_title": "Ukryj tłumaczenie zdań (T)",
+    "chapters": "Rozdziały",
+    "toc": "Spis treści",
+    "search_chapters": "Szukaj rozdziałów...",
+    "no_chapters_found": "Nie znaleziono rozdziałów",
+    "page": "Strona",
+    "page_short": "str.",
+    "of": "z",
+    "prev_page": "Poprzednia",
+    "next_page": "Następna",
+    "chapters_total": "rozdziałów",
+    "pages_total": "stron",
+    "chapter_num": "Rozdział {{num}}"
   },
   "app": {
     "idioms_error": "Błąd podczas wykrywania idiomów:",

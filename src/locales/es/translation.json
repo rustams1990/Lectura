@@ -695,7 +695,19 @@
     "volume": "Volume",
     "translations_btn": "Traducción",
     "show_translations_title": "Mostrar traducción paralela de oraciones (T)",
-    "hide_translations_title": "Ocultar traducción paralela de oraciones (T)"
+    "hide_translations_title": "Ocultar traducción paralela de oraciones (T)",
+    "chapters": "Capítulos",
+    "toc": "Índice",
+    "search_chapters": "Buscar capítulos...",
+    "no_chapters_found": "No se encontraron capítulos",
+    "page": "Página",
+    "page_short": "pág.",
+    "of": "de",
+    "prev_page": "Anterior",
+    "next_page": "Siguiente",
+    "chapters_total": "capítulos",
+    "pages_total": "páginas",
+    "chapter_num": "Capítulo {{num}}"
   },
   "app": {
     "idioms_error": "Error detecting idioms: ",

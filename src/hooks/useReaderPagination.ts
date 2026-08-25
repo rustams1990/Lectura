@@ -213,10 +213,12 @@ export function useReaderPagination({
       if (/^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ВВЕДЕНИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION|ПОСВЯЩЕНИЕ|ЭПИГРАФ|EPIGRAPH|TITLE|COVER)/i.test(firstLine)) {
         return firstLine;
       }
-      if (firstLine.length > 0 && firstLine.length < 60 && !/[.?!]$/.test(firstLine)) {
+      if (firstLine.length > 0 && firstLine.length < 80 && !/[.?!]$/.test(firstLine)) {
         return firstLine;
       }
-      return `Глава ${fallbackNum}`;
+      const targetLang = (lesson.targetLanguage || "").toLowerCase();
+      const isRuOrUk = targetLang.startsWith("ru") || targetLang.startsWith("uk") || targetLang === "russian" || targetLang === "ukrainian";
+      return isRuOrUk ? `Глава ${fallbackNum}` : `Chapter ${fallbackNum}`;
     };
 
     // 1. If lesson has explicit structured chapters array (e.g. lesson.chapters or lesson.parts)
@@ -340,10 +342,13 @@ export function useReaderPagination({
       }
 
       // Default chunking for book mode: ~220 words per page
+      const targetLang = (lesson.targetLanguage || "").toLowerCase();
+      const isRuOrUk = targetLang.startsWith("ru") || targetLang.startsWith("uk") || targetLang === "russian" || targetLang === "ukrainian";
+      const pageLabel = isRuOrUk ? "Страница" : "Page";
       const bookPages = chunkSegmentsIntoScreenPages(segments, 220);
       if (bookPages.length > 0) {
         const entries = bookPages.map((_, i) => ({
-          title: `Страница ${i + 1}`,
+          title: `${pageLabel} ${i + 1}`,
           pageIndex: i,
           chapterIndex: i,
           progressPercent: Math.round(((i + 1) / bookPages.length) * 100),

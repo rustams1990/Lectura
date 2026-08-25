@@ -682,7 +682,19 @@
     "volume": "Гучність",
     "translations_btn": "Переклад",
     "show_translations_title": "Показати паралельний переклад речень (T)",
-    "hide_translations_title": "Приховати паралельний переклад речень (T)"
+    "hide_translations_title": "Приховати паралельний переклад речень (T)",
+    "chapters": "Розділи",
+    "toc": "Зміст",
+    "search_chapters": "Пошук розділів...",
+    "no_chapters_found": "Розділи не знайдені",
+    "page": "Сторінка",
+    "page_short": "стор.",
+    "of": "з",
+    "prev_page": "Попередня",
+    "next_page": "Наступна",
+    "chapters_total": "розділів",
+    "pages_total": "сторінок",
+    "chapter_num": "Розділ {{num}}"
   },
   "app": {
     "idioms_error": "Помилка виявлення ідіом:",

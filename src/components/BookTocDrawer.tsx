@@ -69,7 +69,7 @@ export const BookTocDrawer: React.FC<BookTocDrawerProps> = ({
             </div>
             <div className="min-w-0">
               <h3 className="font-serif font-bold text-sm sm:text-base text-stone-800 dark:text-stone-100 truncate">
-                {t("reader.toc", "Оглавление")}
+                {t("reader.toc", "Table of Contents")}
               </h3>
               {bookTitle && (
                 <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate max-w-[170px]">
@@ -83,7 +83,7 @@ export const BookTocDrawer: React.FC<BookTocDrawerProps> = ({
             type="button"
             onClick={onClose}
             className="w-7 h-7 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            title={t("common.close", "Закрыть")}
+            title={t("common.close", "Close")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -97,7 +97,7 @@ export const BookTocDrawer: React.FC<BookTocDrawerProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t("reader.search_chapters", "Поиск глав...")}
+              placeholder={t("reader.search_chapters", "Search chapters...")}
               className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-white dark:bg-zinc-800/80 border border-stone-200 dark:border-zinc-700/80 text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
           </div>
@@ -107,7 +107,7 @@ export const BookTocDrawer: React.FC<BookTocDrawerProps> = ({
         <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 mt-3.5 scrollbar-thin">
           {filteredEntries.length === 0 ? (
             <div className="py-8 text-center text-xs text-stone-400">
-              {t("reader.no_chapters_found", "Главы не найдены")}
+              {t("reader.no_chapters_found", "No chapters found")}
             </div>
           ) : (
             filteredEntries.map((entry, idx) => {
@@ -149,7 +149,7 @@ export const BookTocDrawer: React.FC<BookTocDrawerProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0 text-[10px] tabular-nums font-mono opacity-60">
                     <span>
-                      {t("reader.page", "стр.")} {entry.pageIndex + 1}
+                      {t("reader.page_short", "p.")} {entry.pageIndex + 1}
                     </span>
                     {entry.progressPercent > 0 && (
                       <span>• {entry.progressPercent}%</span>
@@ -164,10 +164,10 @@ export const BookTocDrawer: React.FC<BookTocDrawerProps> = ({
         {/* Footer */}
         <div className="pt-3 border-t border-stone-200/80 dark:border-zinc-800 flex items-center justify-between text-[11px] font-mono text-stone-500 dark:text-stone-400">
           <span>
-            {tocEntries.length} {t("reader.chapters_total", "глав")}
+            {tocEntries.length} {t("reader.chapters_total", "chapters")}
           </span>
           <span>
-            {totalPages} {t("reader.pages_total", "страниц")}
+            {totalPages} {t("reader.pages_total", "pages")}
           </span>
         </div>
       </div>

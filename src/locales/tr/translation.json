@@ -682,7 +682,19 @@
     "volume": "Ses düzeyi",
     "translations_btn": "Çeviri",
     "show_translations_title": "Paralel cümle çevirisini göster (T)",
-    "hide_translations_title": "Paralel cümle çevirisini gizle (T)"
+    "hide_translations_title": "Paralel cümle çevirisini gizle (T)",
+    "chapters": "Bölümler",
+    "toc": "İçindekiler",
+    "search_chapters": "Bölüm ara...",
+    "no_chapters_found": "Bölüm bulunamadı",
+    "page": "Sayfa",
+    "page_short": "s.",
+    "of": "/",
+    "prev_page": "Önceki",
+    "next_page": "Sonraki",
+    "chapters_total": "bölüm",
+    "pages_total": "sayfa",
+    "chapter_num": "Bölüm {{num}}"
   },
   "app": {
     "idioms_error": "Deyimler tespit edilirken hata oluştu:",

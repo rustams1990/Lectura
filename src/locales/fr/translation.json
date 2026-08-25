@@ -682,7 +682,19 @@
     "volume": "Volume",
     "translations_btn": "Traduction",
     "show_translations_title": "Afficher la traduction parallèle des phrases (T)",
-    "hide_translations_title": "Masquer la traduction parallèle des phrases (T)"
+    "hide_translations_title": "Masquer la traduction parallèle des phrases (T)",
+    "chapters": "Chapitres",
+    "toc": "Table des matières",
+    "search_chapters": "Rechercher des chapitres...",
+    "no_chapters_found": "Aucun chapitre trouvé",
+    "page": "Page",
+    "page_short": "p.",
+    "of": "sur",
+    "prev_page": "Précédent",
+    "next_page": "Suivant",
+    "chapters_total": "chapitres",
+    "pages_total": "pages",
+    "chapter_num": "Chapitre {{num}}"
   },
   "app": {
     "idioms_error": "Erreur de détection des expressions idiomatiques :",

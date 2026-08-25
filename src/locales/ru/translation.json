@@ -750,7 +750,19 @@
     "tb_unknown_only": "Только неизвестные",
     "tb_video": "Кнопка видео",
     "tb_display_mode": "Режим отображения (Плашки / Книга)",
-    "tb_width_toggle": "Ширина текста (Стандарт / Широкий / Экран)"
+    "tb_width_toggle": "Ширина текста (Стандарт / Широкий / Экран)",
+    "chapters": "Главы",
+    "toc": "Оглавление",
+    "search_chapters": "Поиск глав...",
+    "no_chapters_found": "Главы не найдены",
+    "page": "Страница",
+    "page_short": "стр.",
+    "of": "из",
+    "prev_page": "Предыдущая",
+    "next_page": "Следующая",
+    "chapters_total": "глав",
+    "pages_total": "страниц",
+    "chapter_num": "Глава {{num}}"
   },
   "app": {
     "idioms_error": "Ошибка при распознавании идиом: ",

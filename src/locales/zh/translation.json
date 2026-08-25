@@ -682,7 +682,19 @@
     "volume": "音量",
     "translations_btn": "翻译",
     "show_translations_title": "显示句子对照翻译 (T)",
-    "hide_translations_title": "隐藏句子对照翻译 (T)"
+    "hide_translations_title": "隐藏句子对照翻译 (T)",
+    "chapters": "章节",
+    "toc": "目录",
+    "search_chapters": "搜索章节...",
+    "no_chapters_found": "未找到章节",
+    "page": "页",
+    "page_short": "页",
+    "of": "/",
+    "prev_page": "上一页",
+    "next_page": "下一页",
+    "chapters_total": "章",
+    "pages_total": "页",
+    "chapter_num": "第 {{num}} 章"
   },
   "app": {
     "idioms_error": "检测习语时出错：",
