@@ -1047,6 +1047,7 @@ function ReaderPanel({
         )}
 
         {!(showOnlyUnknown && unknownViewMode === "list") && activeSegmentsForPage.map((seg, pIdx) => {
+          if (!seg || !seg.text || seg.text.trim().length === 0) return null;
           const globalSegmentIdx = segments.indexOf(seg);
           const isSegmentActive = globalSegmentIdx === activeSegmentIndex && activeSegmentIndex >= 0;
 
@@ -1892,8 +1893,8 @@ function ReaderPanel({
           }
         })}
 
-        {/* Active saved Phrases and Idioms shelf */}
-        {activePhrasesInLesson.length > 0 && !(showOnlyUnknown && unknownViewMode === "list") && (
+        {/* Active saved Phrases and Idioms shelf (only in standard lessons, not in Immersive Book Mode) */}
+        {activePhrasesInLesson.length > 0 && !(showOnlyUnknown && unknownViewMode === "list") && lesson.lessonType !== "book" && (
           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 mt-6 space-y-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 block">
               {t('reader.saved_phrases_title', 'Saved Phrases in Chapter')} ({activePhrasesInLesson.length})
@@ -1922,8 +1923,8 @@ function ReaderPanel({
           </div>
         )}
 
-        {/* Auto-detected Phrases and Idioms shelf */}
-        {lesson.detectedPhrases && Object.keys(lesson.detectedPhrases).length > 0 && !(showOnlyUnknown && unknownViewMode === "list") && (
+        {/* Auto-detected Phrases and Idioms shelf (only in standard lessons, not in Immersive Book Mode) */}
+        {lesson.detectedPhrases && Object.keys(lesson.detectedPhrases).length > 0 && !(showOnlyUnknown && unknownViewMode === "list") && lesson.lessonType !== "book" && (
           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800/80 mt-4 space-y-2">
             <h4 className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
               {t('reader.ai_detected_idioms', 'AI Detected Idioms')} ({Object.keys(lesson.detectedPhrases).length})
@@ -1960,7 +1961,7 @@ function ReaderPanel({
 
         {/* Beautiful Pagination HUD bar custom control */}
         {pages.length > 1 && !(showOnlyUnknown && unknownViewMode === "list") && (
-          <div className={`border-t ${currentTheme.divider} pt-5 mt-6 space-y-4`}>
+          <div className={lesson.lessonType === "book" ? "mt-auto w-full" : `border-t ${currentTheme.divider} pt-5 mt-6 space-y-4`}>
             {/* Quick jump timeline slider row (non-book or when many pages) */}
             {lesson.lessonType !== "book" && (
               <div className={`flex items-center justify-between gap-3 ${currentTheme.barBg} p-2.5 rounded-xl`}>
@@ -1990,7 +1991,7 @@ function ReaderPanel({
 
             {lesson.lessonType === "book" ? (
               /* Immersive Book Mode Static Footer Paginator */
-              <div className={`pt-6 pb-2 flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 font-sans select-none border-t ${currentTheme.divider} mt-8`}>
+              <div className="pt-4 pb-1 flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 font-sans select-none mt-auto">
                 <button
                   type="button"
                   disabled={clampedPageIdx === 0}
