@@ -116,6 +116,28 @@ export function fuseJapaneseTokens(tokens: Token[]): Token[] {
   return currentTokens;
 }
 
+export function isRomanNumeral(text: string, isEnglish: boolean = false): boolean {
+  if (!text) return false;
+  const clean = text.replace(/^[“"'(«\[]+|[.,;:!?”"')»\]]+$/g, '').trim();
+  if (!clean) return false;
+  // If single 'I' in English without Roman dot (e.g. not "I."), treat as the English pronoun "I"
+  if (isEnglish && clean.toUpperCase() === "I" && !/[IVXLCDM]+\./i.test(text)) {
+    return false;
+  }
+  return (
+    /^[IVXLCDM]+$/i.test(clean) &&
+    clean.length > 0 &&
+    /^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/i.test(clean)
+  );
+}
+
+export function isNumericOrRoman(text: string, isEnglish: boolean = false): boolean {
+  if (!text) return false;
+  const clean = text.replace(/^[“"'(«\[]+|[.,;:!?”"')»\]]+$/g, '').trim();
+  if (!clean) return false;
+  return /^\d+$/.test(clean) || isRomanNumeral(text, isEnglish);
+}
+
 export function cleanWordForLookup(raw: string): string {
   if (!raw) return "";
   let clean = raw.trim();
@@ -171,6 +193,8 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
 
     return tokens;
   } else {
+    const isEnglish = langName.toLowerCase().startsWith("en") || langName.toLowerCase() === "english" || langName.toLowerCase() === "английский";
+
     // 1. Separate fused punctuation and quotes/words without space (e.g. wrong,“both -> wrong, “both)
     let normalizedText = sentText
       .replace(/([,.:;!?])(["“«])/g, "$1 $2")
@@ -195,6 +219,7 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
       }
       const clean = cleanWordForLookup(part);
       const isNumericOrTimestamp = (str: string): boolean => {
+        if (!str) return false;
         if (/\d/.test(str)) {
           if (/\d+:\d+/.test(str)) return true;
           if (/^\d+([.,%/-]\d+)*%?$/.test(str)) return true;
@@ -203,11 +228,11 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
         }
         return false;
       };
-      const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
+      const isNumOrRoman = isNumericOrRoman(part, isEnglish) || isNumericOrTimestamp(clean) || /^\d+$/.test(clean);
       return {
         raw: part,
-        clean: clean,
-        isWord: clean.length > 0 && !isNumeric,
+        clean: isNumOrRoman ? "" : clean,
+        isWord: clean.length > 0 && !isNumOrRoman,
       };
     });
   }

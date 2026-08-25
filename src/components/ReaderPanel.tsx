@@ -36,7 +36,7 @@ import { TooltipPortal } from "./TooltipPortal";
 import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 import TextSettingsControls from "./TextSettingsControls";
 import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
-import { segmentSentenceTokens, cleanWordForLookup } from "../tokenizer";
+import { segmentSentenceTokens, cleanWordForLookup, isNumericOrRoman } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
 import { useTranslation } from "react-i18next";
 import { ignoreListManager } from "../services/ignoreListService";
@@ -1300,10 +1300,12 @@ function ReaderPanel({
                   continue;
                 }
                 const isPunct = /^[.,!?:;…»\)'"”\u2019\u201d\u2026\[\]\(\)\{\}«“]+$/.test(tok.raw.trim());
+                const isEnglish = lesson.targetLanguage.toLowerCase().startsWith("en") || lesson.targetLanguage.toLowerCase() === "english" || lesson.targetLanguage.toLowerCase() === "английский";
+                const isNum = isNumericOrRoman(tok.raw, isEnglish);
                 elements.push(
                   <span 
                     key={`nonword-${tIdx}`} 
-                    className={isPunct ? "select-none text-inherit pointer-events-none opacity-95 inline" : "select-none opacity-95 inline"}
+                    className={isPunct || isNum ? "select-none text-inherit pointer-events-none opacity-95 inline" : "select-none opacity-95 inline"}
                   >
                     {tok.raw}
                   </span>
