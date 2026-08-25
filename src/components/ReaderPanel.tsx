@@ -36,7 +36,7 @@ import { TooltipPortal } from "./TooltipPortal";
 import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 import TextSettingsControls from "./TextSettingsControls";
 import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
-import { segmentSentenceTokens } from "../tokenizer";
+import { segmentSentenceTokens, cleanWordForLookup } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
 import { useTranslation } from "react-i18next";
 import { ignoreListManager } from "../services/ignoreListService";
@@ -550,12 +550,16 @@ function ReaderPanel({
       const sentenceStrings = rawSentences.map((str) => {
         if (isCjk) return str;
         return str
+          .replace(/([,.:;!?])(["“«])/g, "$1 $2")
+          .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
+          .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2")
           .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
           .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
-          .replace(/(\w)[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*(\w)/g, "$1$2$3")
+          .replace(/([\p{L}\p{N}])[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*([\p{L}\p{N}])/gu, "$1$2$3")
           .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
           .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1")
-          .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1");
+          .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1")
+          .replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
       });
 
       sentenceStrings.forEach((sentText, sIdx) => {
@@ -795,13 +799,14 @@ function ReaderPanel({
       e.stopPropagation();
       e.preventDefault();
     }
-    const key = resolveWord(cleanWord);
+    const resolvedClean = cleanWordForLookup(cleanWord) || cleanWord;
+    const key = resolveWord(resolvedClean);
     const sentences = splitIntoSentences(fullPara, isCjk);
     const associatedSentence = sentences.find((s) => s.includes(rawToken)) || fullPara;
     setHoveredWordObj(null);
     setHoveredWordId(null, isCjk);
     const targetEl = (e?.currentTarget as HTMLElement) || null;
-    onWordClick(cleanWord, associatedSentence.trim(), targetEl);
+    onWordClick(resolvedClean, associatedSentence.trim(), targetEl);
   };
 
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -1104,12 +1109,16 @@ function ReaderPanel({
           const sentenceStrings = rawSentences.map((str) => {
             if (isCjk) return str;
             return str
+              .replace(/([,.:;!?])(["“«])/g, "$1 $2")
+              .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
+              .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2")
               .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
               .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
-              .replace(/(\w)[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*(\w)/g, "$1$2$3")
+              .replace(/([\p{L}\p{N}])[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*([\p{L}\p{N}])/gu, "$1$2$3")
               .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
               .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1")
-              .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1");
+              .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1")
+              .replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
           });
 
           // Precalculate total words in this segment for word-by-word highlight

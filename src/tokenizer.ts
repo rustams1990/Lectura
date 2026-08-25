@@ -116,6 +116,16 @@ export function fuseJapaneseTokens(tokens: Token[]): Token[] {
   return currentTokens;
 }
 
+export function cleanWordForLookup(raw: string): string {
+  if (!raw) return "";
+  let clean = raw.trim();
+  // Strip leading and trailing punctuation, quotes, brackets, dashes
+  clean = clean.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "");
+  // Strip leading or trailing apostrophes/quotes
+  clean = clean.replace(/^['’"`“«»]+|['’"`”«»]+$/gu, "");
+  return clean.toLowerCase();
+}
+
 export function segmentSentenceTokens(sentText: string, langName: string = ""): Token[] {
   const isCjk = isCjkLanguage(langName) || isCjkText(sentText);
 
@@ -161,21 +171,29 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
 
     return tokens;
   } else {
-    // Normalize extraneous whitespace before trailing punctuation and after opening punctuation
+    // 1. Separate fused punctuation and quotes/words without space (e.g. wrong,“both -> wrong, “both)
     let normalizedText = sentText
+      .replace(/([,.:;!?])(["“«])/g, "$1 $2")
+      .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
+      .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2");
+
+    // 2. Normalize whitespace around punctuation and preserve contractions
+    normalizedText = normalizedText
       .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
       .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
-      .replace(/(\w)[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*(\w)/g, "$1$2$3")
+      .replace(/([\p{L}\p{N}])[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*([\p{L}\p{N}])/gu, "$1$2$3")
       .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
       .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1");
 
     normalizedText = normalizedText.replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1");
+    normalizedText = normalizedText.replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
+
     const parts = normalizedText.split(/(\s+)/);
     return parts.map((part) => {
       if (/^\s+$/.test(part)) {
         return { raw: part, clean: "", isWord: false };
       }
-      const clean = part.replace(/^[^\w\p{L}]+|[^\w\p{L}]+$/gu, "");
+      const clean = cleanWordForLookup(part);
       const isNumericOrTimestamp = (str: string): boolean => {
         if (/\d/.test(str)) {
           if (/\d+:\d+/.test(str)) return true;
@@ -188,7 +206,7 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
       const isNumeric = /^\d+$/.test(clean) || isNumericOrTimestamp(clean);
       return {
         raw: part,
-        clean: clean.toLowerCase(),
+        clean: clean,
         isWord: clean.length > 0 && !isNumeric,
       };
     });
