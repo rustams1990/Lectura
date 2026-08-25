@@ -24,7 +24,7 @@ export default function TextSettingsControls({
   lessonType,
 }: TextSettingsControlsProps) {
   const { t } = useTranslation();
-  const { bookDisplayMode, setBookDisplayMode } = useUIStore();
+  const { bookDisplayMode, setBookDisplayMode, bookReaderView, setBookReaderView } = useUIStore();
   const [isOpen, setIsOpen] = useState(false);
 
   const isBookMode = lessonType === "book";
@@ -226,13 +226,13 @@ export default function TextSettingsControls({
                   <button
                     type="button"
                     onClick={() => {
-                      setBookDisplayMode("book");
+                      setBookReaderView("focus");
                       handleWordCardModeChange("calm-sheet");
                       handleDisplayModeChange("text");
                       handleFontFamilyChange("serif");
                     }}
                     className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      bookDisplayMode === "book"
+                      bookReaderView === "focus" || bookDisplayMode === "book"
                         ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                         : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                     }`}
@@ -242,12 +242,12 @@ export default function TextSettingsControls({
                   <button
                     type="button"
                     onClick={() => {
-                      setBookDisplayMode("study");
+                      setBookReaderView("study");
                       handleWordCardModeChange("full-inspector");
                       handleDisplayModeChange("badges");
                     }}
                     className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      bookDisplayMode === "study"
+                      bookReaderView === "study"
                         ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                         : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                     }`}

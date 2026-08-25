@@ -3,6 +3,7 @@ import { create } from 'zustand';
 type TabType = 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts';
 export type LayoutWidthType = 'standard' | 'wide' | 'ultra' | 'full';
 export type ReaderTextWidthType = 'standard' | 'wide' | 'full';
+export type BookReaderViewType = 'focus' | 'study';
 export type BookDisplayMode = 'book' | 'study';
 
 interface UIState {
@@ -15,6 +16,7 @@ interface UIState {
   showAiHubModal: boolean;
   isFocusMode: boolean;
   bookDisplayMode: BookDisplayMode;
+  bookReaderView: BookReaderViewType;
   showOnlyUnknown: boolean;
   zoomScale: number;
   layoutWidthMode: LayoutWidthType;
@@ -31,6 +33,7 @@ interface UIState {
   setShowAiHubModal: (show: boolean) => void;
   setIsFocusMode: (isFocus: boolean) => void;
   setBookDisplayMode: (mode: BookDisplayMode) => void;
+  setBookReaderView: (view: BookReaderViewType) => void;
   setShowOnlyUnknown: (show: boolean) => void;
   setZoomScale: (scale: number) => void;
   setLayoutWidthMode: (mode: LayoutWidthType) => void;
@@ -57,12 +60,19 @@ export const useUIStore = create<UIState>((set) => ({
   showYoutubePlayer: true,
   showAiHubModal: false,
   isFocusMode: false,
+  bookReaderView: (() => {
+    try {
+      const saved = localStorage.getItem("lectura_book_reader_view") || localStorage.getItem("lectura_book_display_mode");
+      if (saved === 'study') return 'study';
+      if (saved === 'focus' || saved === 'book') return 'focus';
+    } catch (_) {}
+    return "focus";
+  })(),
   bookDisplayMode: (() => {
     try {
-      const saved = localStorage.getItem("lectura_book_display_mode");
-      if (saved === 'book' || saved === 'study') {
-        return saved as BookDisplayMode;
-      }
+      const saved = localStorage.getItem("lectura_book_display_mode") || localStorage.getItem("lectura_book_reader_view");
+      if (saved === 'study') return 'study';
+      if (saved === 'book' || saved === 'focus') return 'book';
     } catch (_) {}
     return "book";
   })(),
@@ -96,9 +106,20 @@ export const useUIStore = create<UIState>((set) => ({
   setShowYoutubePlayer: (show) => set({ showYoutubePlayer: show }),
   setShowAiHubModal: (show) => set({ showAiHubModal: show }),
   setIsFocusMode: (isFocus) => set({ isFocusMode: isFocus }),
+  setBookReaderView: (view) => {
+    try {
+      localStorage.setItem("lectura_book_reader_view", view);
+      localStorage.setItem("lectura_book_display_mode", view === 'focus' ? 'book' : 'study');
+    } catch (_) {}
+    set({ bookReaderView: view, bookDisplayMode: view === 'focus' ? 'book' : 'study' });
+  },
   setBookDisplayMode: (mode) => {
-    try { localStorage.setItem("lectura_book_display_mode", mode); } catch (_) {}
-    set({ bookDisplayMode: mode });
+    const view: BookReaderViewType = mode === 'study' ? 'study' : 'focus';
+    try {
+      localStorage.setItem("lectura_book_reader_view", view);
+      localStorage.setItem("lectura_book_display_mode", mode);
+    } catch (_) {}
+    set({ bookDisplayMode: mode, bookReaderView: view });
   },
   setShowOnlyUnknown: (show) => set({ showOnlyUnknown: show }),
   setZoomScale: (scale) => set({ zoomScale: scale }),

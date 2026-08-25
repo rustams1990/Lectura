@@ -90,26 +90,28 @@ export default function ReaderScreen({
     setShowAiHubModal,
     bookDisplayMode,
     setBookDisplayMode,
+    bookReaderView,
+    setBookReaderView,
   } = useUIStore();
   const { t } = useTranslation();
   const { selectedElement, selectedWordRect } = useVocab();
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const isBookLesson = activeLesson?.lessonType === "book";
-  const isBookFocus = isBookLesson && bookDisplayMode === "book";
+  const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
   // Context-aware word card mode:
   // For books in Book Focus mode: defaults to "calm-sheet" (floating popup)
   // For books in Study mode: defaults to "full-inspector" (right desktop sidebar)
   // For videos / audio / regular lessons: defaults to "full-inspector"
   const effectiveWordCardMode = isBookLesson
-    ? (bookDisplayMode === "study"
-        ? (readerSettings.wordCardMode || "full-inspector")
-        : (readerSettings.bookWordCardMode || "calm-sheet"))
+    ? (isBookFocus
+        ? (readerSettings.bookWordCardMode || "calm-sheet")
+        : (readerSettings.wordCardMode || "full-inspector"))
     : (readerSettings.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = effectiveWordCardMode === "calm-sheet";
   // In Focus mode or when Calm Sheet is active, use floating popup. When in Inspector mode, ALWAYS use right Inspector sidebar!
-  const effectiveCalmSheet = isCalmSheet || isFocusMode;
-  // Immersive book mode: centered column without top toolbar when using Book Focus mode or fullscreen focus
-  const isImmersiveBook = isFocusMode || isBookFocus;
+  const effectiveCalmSheet = isBookLesson ? isCalmSheet : (isCalmSheet || isFocusMode);
+  // Immersive book mode: centered column without top toolbar when using Book Focus mode
+  const isImmersiveBook = isBookLesson ? isBookFocus : isFocusMode;
   const [selectedText, setSelectedText] = useState("");
   const toolbarVisibility: ReaderToolbarVisibility = {
     ...DEFAULT_TOOLBAR_VISIBILITY,
@@ -187,7 +189,7 @@ export default function ReaderScreen({
                     {isBookLesson && (
                       <button
                         onClick={() => {
-                          setBookDisplayMode("book");
+                          setBookReaderView("focus");
                           setReaderSettings((prev) => ({
                             ...prev,
                             bookWordCardMode: "calm-sheet",

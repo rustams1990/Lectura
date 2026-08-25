@@ -111,6 +111,7 @@ export default function App() {
     showYoutubePlayer, setShowYoutubePlayer,
     isFocusMode, setIsFocusMode,
     bookDisplayMode, setBookDisplayMode,
+    bookReaderView, setBookReaderView,
     showOnlyUnknown, setShowOnlyUnknown,
     zoomScale, setZoomScale,
     layoutWidthMode, setLayoutWidthMode,
@@ -3125,8 +3126,8 @@ export default function App() {
     : readerThemes.default;
 
   const isBookLesson = activeLesson?.lessonType === "book";
-  const isBookFocusMode = isBookLesson && bookDisplayMode === "book";
-  const isImmersiveBook = activeTab === "read" && !!activeLesson && (isBookFocusMode || isFocusMode);
+  const isBookFocusMode = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
+  const isImmersiveBook = activeTab === "read" && !!activeLesson && (isBookFocusMode || (!isBookLesson && isFocusMode));
 
   if (!isAppLoaded) {
     return (

@@ -283,13 +283,16 @@ function ReaderPanel({
     setShowYoutubePlayer,
     bookDisplayMode,
     setBookDisplayMode,
+    bookReaderView,
+    setBookReaderView,
   } = useUIStore();
   const isBookLesson = lesson.lessonType === "book";
+  const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const wordCardMode = isBookLesson
-    ? (bookDisplayMode === "study"
-        ? (settings?.wordCardMode || "full-inspector")
-        : (settings?.bookWordCardMode || "calm-sheet"))
+    ? (isBookFocus
+        ? (settings?.bookWordCardMode || "calm-sheet")
+        : (settings?.wordCardMode || "full-inspector"))
     : (settings?.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = wordCardMode === "calm-sheet";
   const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);
@@ -898,10 +901,10 @@ function ReaderPanel({
             <button
               type="button"
               onClick={() => {
-                const nextMode = bookDisplayMode === "book" ? "study" : "book";
-                setBookDisplayMode(nextMode);
+                const nextView = isBookFocus ? "study" : "focus";
+                setBookReaderView(nextView);
                 if (onUpdateSettings) {
-                  if (nextMode === "study") {
+                  if (nextView === "study") {
                     onUpdateSettings({
                       ...settings,
                       wordCardMode: "full-inspector",
@@ -918,9 +921,9 @@ function ReaderPanel({
                 }
               }}
               className="px-2.5 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950/40 text-teal-700 dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/60 transition-colors flex items-center gap-1.5 cursor-pointer font-semibold"
-              title={bookDisplayMode === "book" ? t('reader.switch_to_study', 'Switch to Study Mode (Full Inspector)') : t('reader.switch_to_book', 'Switch to Book Focus')}
+              title={isBookFocus ? t('reader.switch_to_study', 'Switch to Study Mode (Full Inspector)') : t('reader.switch_to_book', 'Switch to Book Focus')}
             >
-              <span>{bookDisplayMode === "book" ? "🎓 " + t('reader.study_mode_short', 'Study') : "📖 " + t('reader.book_mode_short', 'Book')}</span>
+              <span>{isBookFocus ? "🎓 " + t('reader.study_mode_short', 'Study') : "📖 " + t('reader.book_mode_short', 'Book')}</span>
             </button>
             <TextSettingsControls
               settings={activeSettings}
