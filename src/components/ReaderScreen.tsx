@@ -150,36 +150,6 @@ export default function ReaderScreen({
 
   return (
     <>
-      {/* Floating Controls for Immersive Book Mode */}
-      {isImmersiveBook && activeLesson && (
-        <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex items-center gap-2 opacity-50 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
-          <button 
-            type="button"
-            onClick={() => {
-              setActiveTab("library");
-              setSelectedWord(null);
-            }}
-            className="px-3 py-1.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border border-stone-200/80 dark:border-zinc-700/80 rounded-full shadow-sm text-xs font-semibold text-stone-700 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-            title={t('reader.library_btn', 'Library')}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span>{t('reader.library_btn', 'Library')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent("toggle-book-toc"));
-            }}
-            className="px-3 py-1.5 bg-white/90 dark:bg-zinc-900/90 backdrop-blur border border-stone-200/80 dark:border-zinc-700/80 rounded-full shadow-sm text-xs font-semibold text-stone-700 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-            title={t('reader.toc', 'Оглавление')}
-          >
-            <List className="w-3.5 h-3.5" />
-            <span>{t('reader.chapters', 'Главы')}</span>
-          </button>
-          <TextSettingsControls settings={readerSettings} onUpdateSettings={setReaderSettings} />
-        </div>
-      )}
-
       <div className={`reader-layout-container reader-page-wrapper w-full transition-all duration-200 ${readerWidthClasses}`}>
         <div className={`grid grid-cols-1 ${effectiveCalmSheet ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-6 items-start`}>
           {/* ЛЕВАЯ КОЛОНКА / ОСНОВНОЙ КОНТЕНТ: Текст урока */}
@@ -412,6 +382,7 @@ export default function ReaderScreen({
                 key={activeLesson.id}
                 lessonImagesMap={activeLessonImagesMap}
                 settings={readerSettings}
+                onUpdateSettings={setReaderSettings}
                 onEditClick={() => setEditingLesson(activeLesson)}
                 showOnlyUnknown={showOnlyUnknown}
                 history={history}

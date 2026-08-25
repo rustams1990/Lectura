@@ -28,11 +28,13 @@ import {
   Maximize2,
   Gamepad2,
   Tv,
+  ChevronLeft,
 } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 import { useReaderHistory } from "../hooks/useReaderHistory";
 import { TooltipPortal } from "./TooltipPortal";
 import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
+import TextSettingsControls from "./TextSettingsControls";
 import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
 import { segmentSentenceTokens } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
@@ -72,6 +74,7 @@ interface ReaderPanelProps {
   onWordClick: (word: string, context: string, targetEl?: HTMLElement | null) => void;
   onMarkKnown: (word: string) => void;
   settings?: ReaderSettings;
+  onUpdateSettings?: (settings: ReaderSettings) => void;
   onEditClick?: () => void;
   currentYoutubeTime?: number | null;
   onTimestampClick?: (seconds: number) => void;
@@ -258,6 +261,7 @@ function ReaderPanel({
   onWordClick,
   onMarkKnown,
   settings,
+  onUpdateSettings,
   onEditClick,
   currentYoutubeTime,
   onTimestampClick,
@@ -271,6 +275,7 @@ function ReaderPanel({
   const {
     isFocusMode,
     setIsFocusMode,
+    setActiveTab,
     setShowMatchPairsModal,
     showOnlyUnknown: storeShowOnlyUnknown,
     setShowOnlyUnknown: storeSetShowOnlyUnknown,
@@ -826,7 +831,7 @@ function ReaderPanel({
       id="reader-top" 
       className={`relative ${
         hideMeta 
-          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-6 sm:pt-8 lg:pt-10 pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
+          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-3 sm:pt-4 pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
           : "rounded-3xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"
       } transition-colors duration-200 overflow-hidden ${currentTheme.container}`}
     >
@@ -839,6 +844,42 @@ function ReaderPanel({
             style={{ width: `${scrollProgress}%` }}
           />
         </div>
+      )}
+
+      {/* Static Header for Immersive Book Mode */}
+      {lesson.lessonType === "book" && (
+        <header className="flex items-center justify-between py-2 mb-4 border-b border-stone-200/60 dark:border-zinc-800/60 select-none text-xs text-stone-500 dark:text-zinc-400">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("library");
+              window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+            }}
+            className="hover:text-stone-800 dark:hover:text-zinc-200 transition-colors flex items-center gap-1 cursor-pointer font-medium"
+            title={t('reader.library_btn', 'Library')}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>{t('reader.library_btn', 'Library')}</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent("toggle-book-toc"));
+              }}
+              className="px-2.5 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-800 dark:hover:text-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+              title={t('reader.toc', 'Оглавление')}
+            >
+              <span>📑 {t('reader.chapters', 'Главы')}</span>
+            </button>
+            <TextSettingsControls
+              settings={activeSettings}
+              onUpdateSettings={onUpdateSettings || (() => {})}
+              compact={false}
+            />
+          </div>
+        </header>
       )}
 
       {/* Title / status — hidden in Focus Mode via hideMeta prop */}

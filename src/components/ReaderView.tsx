@@ -9,6 +9,7 @@ interface ReaderViewProps {
   key?: string;
   lessonImagesMap?: Record<string, string>;
   settings?: ReaderSettings;
+  onUpdateSettings?: (settings: ReaderSettings) => void;
   onEditClick?: () => void;
   showOnlyUnknown?: boolean;
   history?: HistoryEntry[];
@@ -21,6 +22,7 @@ interface ReaderViewProps {
 export default function ReaderView({
   lessonImagesMap,
   settings,
+  onUpdateSettings,
   onEditClick,
   showOnlyUnknown,
   history,
@@ -71,6 +73,7 @@ export default function ReaderView({
       onWordClick={handleWordClick}
       onMarkKnown={(w) => handleUpdateStatusDirect(w, "known", activeLesson.targetLanguage)}
       settings={settings}
+      onUpdateSettings={onUpdateSettings}
       onEditClick={onEditClick}
       currentYoutubeTime={currentTime}
       onTimestampClick={(seconds) => setSeekToTime(seconds)}
