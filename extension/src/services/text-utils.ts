@@ -38,7 +38,7 @@ export function cleanWordForLookup(raw: string): string {
 }
 
 /**
- * Checks if a token is purely numeric, timestamp, currency amount, or non-word symbols
+ * Checks if a token is purely numeric, timestamp, currency amount, numbers with suffixes (4s, 90s, 1080p, 4k, 60fps), or non-word symbols
  */
 export function isNumericOrSymbolToken(str: string): boolean {
   if (!str) return true;
@@ -51,11 +51,25 @@ export function isNumericOrSymbolToken(str: string): boolean {
   // Pure digits: 4, 70, 1999
   if (/^\d+$/.test(clean)) return true;
 
+  // Numbers with plural/decade 's' suffix: 4s, 70s, 80s, 90s, 1990s, 2000s
+  if (/^\d+s$/i.test(clean)) return true;
+
+  // Numbers with ordinals or common technical/measurement/time units:
+  // e.g. 1st, 2nd, 3rd, 4th, 4k, 8k, 1080p, 720p, 60fps, 120hz, 500mb, 4gb, 1tb, 50kg, 100m, 5min, 2h, 30sec, 120px, 16pt, 2em
+  if (/^\d+([.,]\d+)?(k|p|fps|mb|gb|tb|hz|khz|mhz|ghz|m|cm|mm|km|s|sec|min|mins|h|hr|hrs|px|pt|em|rem|g|kg|mg|oz|lb|lbs|v|w|a|mah|db|st|nd|rd|th)$/i.test(clean)) {
+    return true;
+  }
+
+  // Any number-prefixed alphanumeric token (e.g. 3d, 4g, 5g, 2x, 10x, 34a, 12b)
+  if (/^\d+[a-zA-Z]{1,3}$/i.test(clean)) {
+    return true;
+  }
+
   // Timestamps: 12:30, 01:45:00
   if (/^\d+:\d+/.test(clean)) return true;
 
-  // Numeric amounts with symbols/percentages: $70, 100%, 3.14, 1,000, 50-60
-  if (/^[\$€£¥₹₽#]?\d+([.,%/-]\d+)*%?$/.test(clean)) return true;
+  // Numeric amounts with symbols/percentages: $70, 100%, 3.14, 1,000, 50-60, +45, -10
+  if (/^[+-]?[\$€£¥₹₽#]?\d+([.,%/-]\d+)*%?$/.test(clean)) return true;
 
   return false;
 }

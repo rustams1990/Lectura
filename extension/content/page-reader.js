@@ -30118,8 +30118,15 @@
     if (!clean2) return true;
     if (!new RegExp("\\p{L}", "u").test(clean2)) return true;
     if (/^\d+$/.test(clean2)) return true;
+    if (/^\d+s$/i.test(clean2)) return true;
+    if (/^\d+([.,]\d+)?(k|p|fps|mb|gb|tb|hz|khz|mhz|ghz|m|cm|mm|km|s|sec|min|mins|h|hr|hrs|px|pt|em|rem|g|kg|mg|oz|lb|lbs|v|w|a|mah|db|st|nd|rd|th)$/i.test(clean2)) {
+      return true;
+    }
+    if (/^\d+[a-zA-Z]{1,3}$/i.test(clean2)) {
+      return true;
+    }
     if (/^\d+:\d+/.test(clean2)) return true;
-    if (/^[\$€£¥₹₽#]?\d+([.,%/-]\d+)*%?$/.test(clean2)) return true;
+    if (/^[+-]?[\$€£¥₹₽#]?\d+([.,%/-]\d+)*%?$/.test(clean2)) return true;
     return false;
   }
   function isWordToken(token, isEnglish = false) {
