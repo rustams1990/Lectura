@@ -1917,10 +1917,10 @@ function ReaderPanel({
                 <h2 
                   key={pIdx} 
                   id={`segment-row-${globalSegmentIdx}`}
-                  className="text-center font-bold tracking-widest text-xl mb-6 uppercase text-sky-700 dark:text-sky-400 font-serif antialiased select-text mt-4"
+                  className="text-center font-bold tracking-widest text-xl my-6 uppercase text-stone-800 dark:text-stone-100 font-serif antialiased select-text"
                   style={{ textIndent: 0 }}
                 >
-                  {renderParagraphContent()}
+                  {trimmedText}
                 </h2>
               );
             }
@@ -1930,10 +1930,10 @@ function ReaderPanel({
                 <h2 
                   key={pIdx} 
                   id={`segment-row-${globalSegmentIdx}`}
-                  className="text-center text-2xl font-serif font-bold text-sky-700 dark:text-sky-400 tracking-wider mb-6 mt-2 antialiased select-text"
+                  className="text-center text-2xl font-serif font-bold text-stone-800 dark:text-stone-100 tracking-wider my-6 antialiased select-text"
                   style={{ textIndent: 0 }}
                 >
-                  {renderParagraphContent()}
+                  {trimmedText}
                 </h2>
               );
             }
