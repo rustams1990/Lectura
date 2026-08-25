@@ -97,7 +97,7 @@ export default function ReaderScreen({
   // For books: defaults to "calm-sheet" (floating popup), but respects user's explicit choice
   // For videos / audio / regular lessons: defaults to "full-inspector" (right desktop sidebar)
   const effectiveWordCardMode = isBookLesson
-    ? (readerSettings.bookWordCardMode || (readerSettings.wordCardMode === "full-inspector" ? "full-inspector" : "calm-sheet"))
+    ? (readerSettings.bookWordCardMode || "calm-sheet")
     : (readerSettings.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = effectiveWordCardMode === "calm-sheet";
   // In Focus mode or when Calm Sheet is active, use floating popup. When in Inspector mode, ALWAYS use right Inspector sidebar!

@@ -285,7 +285,7 @@ function ReaderPanel({
   const isBookLesson = lesson.lessonType === "book";
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const wordCardMode = isBookLesson
-    ? (settings?.bookWordCardMode || (settings?.wordCardMode === "full-inspector" ? "full-inspector" : "calm-sheet"))
+    ? (settings?.bookWordCardMode || "calm-sheet")
     : (settings?.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = wordCardMode === "calm-sheet";
   const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);

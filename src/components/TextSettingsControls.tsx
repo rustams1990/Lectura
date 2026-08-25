@@ -25,7 +25,7 @@ export default function TextSettingsControls({
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
 
-  const isBookMode = lessonType === "book" || settings.readerViewStyle === "text";
+  const isBookMode = lessonType === "book";
 
   const activeFontFamily = isBookMode
     ? (settings.bookFontFamily || "serif")
