@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY } from "../types";
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -105,21 +106,25 @@ export default function TextSettingsControls({
         )}
       </button>
 
-      {isOpen && (
-        <>
+      {isOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 select-none">
           {/* Backdrop closer */}
-          <div className="fixed inset-0 z-[9998]" onClick={() => setIsOpen(false)} />
+          <div 
+            className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-[2px] animate-in fade-in duration-150" 
+            onClick={() => setIsOpen(false)} 
+          />
           
-          <div className="fixed inset-x-3 top-14 max-h-[85vh] overflow-y-auto sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2.5 sm:w-85 sm:max-h-[80vh] bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-4 sm:p-5 z-[9999] space-y-4 animate-in fade-in slide-in-from-top-3 duration-150 scrollbar-thin">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
+          <div className="relative w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-5 sm:p-6 z-10 space-y-4 animate-in zoom-in-95 duration-150 scrollbar-thin">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
               <span className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5" /> Text Appearance
+                <Sliders className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" /> {t('reader.text_appearance', 'Text Appearance')}
               </span>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
-                className="text-[10px] font-bold text-teal-600 hover:underline"
+                className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
               >
-                Done
+                {t('common.done', 'Done')}
               </button>
             </div>
 
@@ -628,7 +633,8 @@ export default function TextSettingsControls({
               </div>
             </div>
           </div>
-        </>
+        </div>,
+        document.body
       )}
     </div>
   );

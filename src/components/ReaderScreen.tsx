@@ -152,7 +152,7 @@ export default function ReaderScreen({
     <>
       {/* Floating Controls for Immersive Book Mode */}
       {isImmersiveBook && activeLesson && (
-        <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-200">
+        <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex items-center gap-2 opacity-50 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
           <button 
             type="button"
             onClick={() => {
