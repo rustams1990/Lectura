@@ -113,6 +113,126 @@ body {
   border: 1px solid #cbd5e1;
 }
 
+/* Master Power Switch Card */
+.ext-master-power-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1.5px solid #059669;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);
+  transition: all 0.2s ease;
+}
+
+.ext-master-power-card.disabled {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+.power-card-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.power-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  transition: all 0.2s ease;
+}
+
+.ext-master-power-card.disabled .power-status-dot {
+  background: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.15);
+}
+
+.power-text-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.power-status-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.power-status-desc {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+/* Site Quick Toggle Row */
+.site-quick-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.site-quick-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 180px;
+}
+
+.site-quick-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.site-quick-domain {
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.site-quick-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.site-quick-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.site-quick-btn.is-disabled-site {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.site-quick-btn.is-disabled-site:hover {
+  background: #fecaca;
+}
+
 /* Cards */
 .ext-card {
   background: #ffffff;

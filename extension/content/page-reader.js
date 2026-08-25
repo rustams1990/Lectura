@@ -22,7 +22,12 @@
     subtitleHighlightMode: "color",
     ttsDialect: "en-US",
     popupTheme: "glass",
-    interfaceLanguage: "en"
+    interfaceLanguage: "en",
+    isEnabled: true,
+    onlyOnModifierKey: false,
+    modifierKey: "alt",
+    disabledDomains: ["chatgpt.com", "claude.ai", "gemini.google.com"],
+    domainFilterMode: "blacklist"
   };
   function normalizeLangKey(lang) {
     if (!lang) return "en";
@@ -30058,7 +30063,59 @@
     });
   }
 
+  // extension/src/services/domain-filter.ts
+  function normalizeDomain(raw) {
+    if (!raw) return "";
+    let clean2 = raw.trim().toLowerCase();
+    clean2 = clean2.replace(/^https?:\/\//i, "");
+    clean2 = clean2.replace(/[\/?#].*$/, "");
+    clean2 = clean2.replace(/:\d+$/, "");
+    clean2 = clean2.replace(/^\*\./, "");
+    clean2 = clean2.replace(/^\.+|\.+$/g, "").trim();
+    return clean2;
+  }
+  function isDomainMatch(hostname, pattern) {
+    const normHost = normalizeDomain(hostname);
+    const normPattern = normalizeDomain(pattern);
+    if (!normHost || !normPattern) return false;
+    if (normHost === normPattern) return true;
+    if (normHost.endsWith("." + normPattern)) return true;
+    return false;
+  }
+  function isDomainDisabled(hostname, domainList = [], mode = "blacklist") {
+    if (!hostname) return false;
+    const validDomains = (domainList || []).map(normalizeDomain).filter(Boolean);
+    if (validDomains.length === 0) {
+      return false;
+    }
+    const isMatched = validDomains.some((pattern) => isDomainMatch(hostname, pattern));
+    if (mode === "whitelist") {
+      return !isMatched;
+    }
+    return isMatched;
+  }
+
   // extension/src/content/page-reader.ts
+  function isEditableElement(target) {
+    if (!target || !(target instanceof HTMLElement)) return false;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return true;
+    if (target.isContentEditable) return true;
+    if (target.getAttribute("contenteditable") === "true") return true;
+    if (target.closest('input, textarea, select, [contenteditable="true"], .monaco-editor, [role="textbox"]')) return true;
+    return false;
+  }
+  function isModifierKeyPressed(e2, key = "alt") {
+    if (key === "alt") {
+      return !!e2.altKey;
+    }
+    if (key === "ctrl") {
+      return !!(e2.ctrlKey || e2.metaKey);
+    }
+    if (key === "shift") {
+      return !!e2.shiftKey;
+    }
+    return false;
+  }
   console.log("%c[LECTURA ACTIVE]", "background: #0284c7; color: white; padding: 4px 8px; font-size: 14px; font-weight: bold; border-radius: 4px;", window.location.href);
   var LANGUAGE_DIALECTS = {
     es: [
@@ -30174,11 +30231,17 @@
     }
     try {
       const settings = await StorageService.getSettings();
+      if (settings.isEnabled === false) {
+        return true;
+      }
       if (settings?.serverUrl) {
         const configuredOrigin = new URL(settings.serverUrl).origin;
         if (window.location.origin === configuredOrigin) {
           return true;
         }
+      }
+      if (isDomainDisabled(window.location.hostname, settings.disabledDomains || [], settings.domainFilterMode || "blacklist")) {
+        return true;
       }
     } catch (_2) {
     }
@@ -30208,9 +30271,21 @@
     static {
       this.localTranslationCache = /* @__PURE__ */ new Map();
     }
+    /**
+     * Evaluates if the extension should actively capture words and display popups on the current page
+     */
+    isExtensionActiveOnPage() {
+      if (!this.settings) return true;
+      if (this.settings.isEnabled === false) return false;
+      if (!this.settings.enableInSituSelection) return false;
+      if (isDomainDisabled(window.location.hostname, this.settings.disabledDomains || [], this.settings.domainFilterMode || "blacklist")) {
+        return false;
+      }
+      return true;
+    }
     async init() {
       if (await shouldSkipInjection()) {
-        console.log("\u{1F6D1} [Lectura Extension] Detected native Lectura application. Skipping extension injection.");
+        console.log("\u{1F6D1} [Lectura Extension] Skipping extension injection on this page.");
         return;
       }
       console.log("[Lectura] Web reader active on:", window.location.href);
@@ -31464,12 +31539,22 @@
         if (this.tooltipHost && e2.composedPath().includes(this.tooltipHost)) {
           return;
         }
-        if (e2.shiftKey) {
+        if (isEditableElement(e2.target)) {
+          return;
+        }
+        if (!this.isExtensionActiveOnPage()) {
+          this.hideWordPopup();
+          return;
+        }
+        const modifier = this.settings?.modifierKey || "alt";
+        const isModifierActive = isModifierKeyPressed(e2, modifier);
+        const isShiftClick = e2.shiftKey;
+        if (isModifierActive || isShiftClick) {
           const pointData = this.getWordAtPoint(e2.clientX, e2.clientY);
           if (pointData) {
             e2.preventDefault();
             e2.stopPropagation();
-            console.log("[Lectura] Found word on Shift+Click:", pointData.word);
+            console.log("[Lectura] Found word on Modifier/Shift+Click:", pointData.word);
             this.showWordPopup(pointData.word, pointData.rect, pointData.sentence, false);
             return;
           }
@@ -31485,7 +31570,13 @@
         }
       }, true);
       document.addEventListener("mousemove", (e2) => {
+        if (!this.isExtensionActiveOnPage()) {
+          return;
+        }
         if (this.tooltipElement && this.tooltipElement.style.display !== "none") {
+          return;
+        }
+        if (isEditableElement(e2.target)) {
           return;
         }
         if (this.tooltipHost && e2.composedPath().includes(this.tooltipHost)) {
@@ -31495,14 +31586,16 @@
           window.clearTimeout(this.hoverThrottleTimer);
         }
         this.hoverThrottleTimer = window.setTimeout(() => {
-          if (e2.shiftKey || this.isShiftDown) {
+          const modifier = this.settings?.modifierKey || "alt";
+          const isModifierActive = isModifierKeyPressed(e2, modifier) || e2.shiftKey || this.isShiftDown;
+          if (isModifierActive) {
             if (this.tooltipElement && this.tooltipElement.style.display !== "none") {
               return;
             }
             const res = this.getWordAtPoint(e2.clientX, e2.clientY);
             if (res) {
               if (res.word.toLowerCase() !== this.activeWord.toLowerCase() || !this.tooltipElement || this.tooltipElement.style.display === "none") {
-                console.log("[Lectura] Found word on Shift+Hover:", res.word);
+                console.log("[Lectura] Found word on Hover:", res.word);
                 this.showWordPopup(res.word, res.rect, res.sentence, false);
               }
             }
@@ -31513,19 +31606,43 @@
         if (this.tooltipHost && e2.composedPath().includes(this.tooltipHost)) {
           return;
         }
+        if (isEditableElement(e2.target)) {
+          return;
+        }
+        if (!this.isExtensionActiveOnPage()) {
+          this.hideWordPopup();
+          return;
+        }
         const selection = window.getSelection();
-        const selectedText = selection?.toString().trim();
-        if (selectedText && selectedText.length > 1 && /[\s\u2013\u2014-]/.test(selectedText)) {
+        if (!selection || selection.isCollapsed) {
+          return;
+        }
+        if (isEditableElement(selection.anchorNode?.parentElement) || isEditableElement(selection.focusNode?.parentElement)) {
+          return;
+        }
+        if (this.settings?.onlyOnModifierKey) {
+          const modifier = this.settings?.modifierKey || "alt";
+          const isModifierActive = isModifierKeyPressed(e2, modifier);
+          if (!isModifierActive) {
+            return;
+          }
+          if (e2.altKey && e2.target?.closest("a")) {
+            e2.preventDefault();
+          }
+        }
+        const selectedText = selection.toString().trim();
+        if (selectedText && selectedText.length > 0) {
           const wordsCount = selectedText.split(/\s+/).length;
-          if (wordsCount >= 2 && wordsCount <= 8) {
+          if (wordsCount <= 12) {
             try {
-              const range = selection?.getRangeAt(0);
+              const range = selection.getRangeAt(0);
               if (range) {
                 const rect = range.getBoundingClientRect();
                 if (rect.width > 0 && rect.height > 0) {
                   const fullSentence = range.startContainer.textContent?.trim() || selectedText;
-                  console.log("\u{1F517} [Lectura] Phrase/Idiom selected:", selectedText);
-                  this.showWordPopup(selectedText, rect, fullSentence, true);
+                  const isPhrase = wordsCount >= 2;
+                  console.log("\u{1F517} [Lectura] Text selected:", selectedText, { isPhrase });
+                  this.showWordPopup(selectedText, rect, fullSentence, isPhrase);
                 }
               }
             } catch (_2) {
@@ -32404,8 +32521,12 @@
         }
         return true;
       });
-      chrome.storage.onChanged.addListener((changes, area) => {
+      chrome.storage.onChanged.addListener(async (changes, area) => {
         if (area === "sync" || area === "local") {
+          this.settings = await StorageService.getSettings();
+          if (!this.isExtensionActiveOnPage()) {
+            this.hideWordPopup();
+          }
           if (changes.popupTheme || changes.popup_theme) {
             const newTheme = changes.popupTheme?.newValue || changes.popup_theme?.newValue || "compact";
             this.applyPopupTheme(newTheme);

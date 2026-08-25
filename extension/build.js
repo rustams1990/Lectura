@@ -144,6 +144,22 @@ function generateLecturaPngIcons(iconsDir) {
         }
         const pngBuf = Buffer.from(UPNG.encode([out.buffer], size, size, 0));
         fs.writeFileSync(path.join(iconsDir, `icon${size}.png`), pngBuf);
+
+        // Generate grayscale/muted icon for disabled state
+        const outDisabled = new Uint8Array(size * size * 4);
+        for (let i = 0; i < size * size; i++) {
+          const r = out[i * 4];
+          const g = out[i * 4 + 1];
+          const b = out[i * 4 + 2];
+          const a = out[i * 4 + 3];
+          const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+          outDisabled[i * 4] = gray;
+          outDisabled[i * 4 + 1] = gray;
+          outDisabled[i * 4 + 2] = gray;
+          outDisabled[i * 4 + 3] = Math.round(a * 0.65);
+        }
+        const disabledPngBuf = Buffer.from(UPNG.encode([outDisabled.buffer], size, size, 0));
+        fs.writeFileSync(path.join(iconsDir, `icon${size}_disabled.png`), disabledPngBuf);
       }
       return;
     }

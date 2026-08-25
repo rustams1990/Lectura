@@ -2,6 +2,7 @@ import { LecturaApiClient } from '../services/api';
 import { StorageService } from '../services/storage';
 import { ExtensionSettings } from '../types/index';
 import { applyI18nToDOM, t } from '../services/i18n';
+import { isDomainDisabled, normalizeDomain } from '../services/domain-filter';
 
 export interface LanguageMeta {
   code: string;
@@ -246,6 +247,15 @@ class PopupController {
   private btnTestConnection?: HTMLButtonElement | null;
   private btnSaveConfig?: HTMLButtonElement | null;
   private btnImportPage!: HTMLButtonElement;
+  private masterPowerCard!: HTMLElement;
+  private globalEnabledToggle!: HTMLInputElement;
+  private powerStatusDot!: HTMLElement;
+  private powerStatusTitle!: HTMLElement;
+  private powerStatusDesc!: HTMLElement;
+  private currentTabDomain!: HTMLElement;
+  private btnToggleSiteBlacklist!: HTMLButtonElement;
+  private activeHostname: string = '';
+
   private btnOpenLectura!: HTMLButtonElement;
   private btnSyncWords!: HTMLButtonElement;
   private btnOptions!: HTMLButtonElement;
@@ -300,6 +310,14 @@ class PopupController {
   }
 
   private async init() {
+    this.masterPowerCard = document.getElementById('masterPowerCard') as HTMLElement;
+    this.globalEnabledToggle = document.getElementById('globalEnabledToggle') as HTMLInputElement;
+    this.powerStatusDot = document.getElementById('powerStatusDot') as HTMLElement;
+    this.powerStatusTitle = document.getElementById('powerStatusTitle') as HTMLElement;
+    this.powerStatusDesc = document.getElementById('powerStatusDesc') as HTMLElement;
+    this.currentTabDomain = document.getElementById('currentTabDomain') as HTMLElement;
+    this.btnToggleSiteBlacklist = document.getElementById('btnToggleSiteBlacklist') as HTMLButtonElement;
+
     this.serverUrlInput = document.getElementById('serverUrl') as HTMLInputElement | null;
     this.authTokenInput = document.getElementById('authToken') as HTMLInputElement | null;
     this.interfaceLanguageSelect = document.getElementById('interfaceLanguage') as HTMLSelectElement | null;
@@ -347,6 +365,7 @@ class PopupController {
 
     this.bindEvents();
     await this.loadSettings();
+    await this.detectActiveTabDomain();
     await this.loadProfiles();
     await this.testConnection(false);
 
@@ -560,6 +579,38 @@ class PopupController {
       const enabled = this.pauseOnWordClickCheck.checked;
       await StorageService.saveSettings({ pauseOnWordClick: enabled });
     });
+
+    if (this.globalEnabledToggle) {
+      this.globalEnabledToggle.addEventListener('change', async () => {
+        const isEnabled = this.globalEnabledToggle.checked;
+        await StorageService.saveSettings({ isEnabled });
+        this.updatePowerSwitchUI(isEnabled);
+      });
+    }
+
+    if (this.btnToggleSiteBlacklist) {
+      this.btnToggleSiteBlacklist.addEventListener('click', async () => {
+        if (!this.activeHostname) return;
+        const settings = await StorageService.getSettings();
+        const domains = [...(settings.disabledDomains || [])];
+        const isCurrentlyDisabled = isDomainDisabled(this.activeHostname, domains, settings.domainFilterMode || 'blacklist');
+
+        if (isCurrentlyDisabled) {
+          // Remove from blacklist
+          const norm = normalizeDomain(this.activeHostname);
+          const filtered = domains.filter((d) => normalizeDomain(d) !== norm);
+          await StorageService.saveSettings({ disabledDomains: filtered });
+        } else {
+          // Add to blacklist
+          const norm = normalizeDomain(this.activeHostname);
+          if (!domains.some((d) => normalizeDomain(d) === norm)) {
+            domains.push(norm);
+          }
+          await StorageService.saveSettings({ disabledDomains: domains });
+        }
+        await this.updateSiteToggleUI();
+      });
+    }
 
     // Tab Switching
     this.tabBtnSettings?.addEventListener('click', () => this.switchTab('settings'));
@@ -1047,6 +1098,12 @@ class PopupController {
     this.currentSubtitleMode = settings.subtitleHighlightMode || 'underline';
     this.updateModeButtonsUI(this.currentSubtitleMode);
 
+    const isEnabled = settings.isEnabled !== false;
+    if (this.globalEnabledToggle) {
+      this.globalEnabledToggle.checked = isEnabled;
+    }
+    this.updatePowerSwitchUI(isEnabled);
+
     // Apply active UI language translations
     this.currentUiLang = settings.interfaceLanguage || 'en';
     applyI18nToDOM(document, this.currentUiLang);
@@ -1060,6 +1117,80 @@ class PopupController {
         }
       }
     });
+
+    await this.updateSiteToggleUI();
+  }
+
+  private updatePowerSwitchUI(isEnabled: boolean) {
+    if (!this.masterPowerCard) return;
+    if (isEnabled) {
+      this.masterPowerCard.classList.remove('disabled');
+      if (this.powerStatusDot) this.powerStatusDot.classList.add('active');
+      if (this.powerStatusTitle) {
+        this.powerStatusTitle.textContent = t('ext_enabled', this.currentUiLang as any) || 'Lectura Active';
+      }
+      if (this.powerStatusDesc) {
+        this.powerStatusDesc.textContent = t('ext_enabled_desc', this.currentUiLang as any) || 'Translating & capturing vocabulary';
+      }
+    } else {
+      this.masterPowerCard.classList.add('disabled');
+      if (this.powerStatusDot) this.powerStatusDot.classList.remove('active');
+      if (this.powerStatusTitle) {
+        this.powerStatusTitle.textContent = t('ext_disabled', this.currentUiLang as any) || 'Lectura Paused';
+      }
+      if (this.powerStatusDesc) {
+        this.powerStatusDesc.textContent = t('ext_disabled_desc', this.currentUiLang as any) || 'All translations and overlays paused';
+      }
+    }
+  }
+
+  private async detectActiveTabDomain() {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const activeTab = tabs[0];
+      if (activeTab && activeTab.url) {
+        const urlObj = new URL(activeTab.url);
+        if (urlObj.protocol.startsWith('http')) {
+          this.activeHostname = urlObj.hostname;
+          if (this.currentTabDomain) {
+            this.currentTabDomain.textContent = this.activeHostname;
+          }
+          await this.updateSiteToggleUI();
+          return;
+        }
+      }
+    } catch (_) {}
+
+    this.activeHostname = '';
+    if (this.currentTabDomain) {
+      this.currentTabDomain.textContent = 'Current tab';
+    }
+  }
+
+  private async updateSiteToggleUI() {
+    if (!this.btnToggleSiteBlacklist) return;
+    if (!this.activeHostname) {
+      this.btnToggleSiteBlacklist.style.display = 'none';
+      return;
+    }
+    this.btnToggleSiteBlacklist.style.display = '';
+
+    const settings = await StorageService.getSettings();
+    const isSiteDisabled = isDomainDisabled(
+      this.activeHostname,
+      settings.disabledDomains || [],
+      settings.domainFilterMode || 'blacklist'
+    );
+
+    if (isSiteDisabled) {
+      this.btnToggleSiteBlacklist.classList.add('is-disabled-site');
+      this.btnToggleSiteBlacklist.textContent = t('enable_on_site', this.currentUiLang as any) || 'Enable on this site';
+      this.btnToggleSiteBlacklist.title = 'Enable Lectura on ' + this.activeHostname;
+    } else {
+      this.btnToggleSiteBlacklist.classList.remove('is-disabled-site');
+      this.btnToggleSiteBlacklist.textContent = t('disable_on_site', this.currentUiLang as any) || 'Disable on this site';
+      this.btnToggleSiteBlacklist.title = 'Disable Lectura on ' + this.activeHostname;
+    }
   }
 
   private async loadProfiles() {

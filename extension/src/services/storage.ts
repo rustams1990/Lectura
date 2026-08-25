@@ -23,6 +23,11 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   ttsDialect: 'en-US',
   popupTheme: 'glass',
   interfaceLanguage: 'en',
+  isEnabled: true,
+  onlyOnModifierKey: false,
+  modifierKey: 'alt',
+  disabledDomains: ['chatgpt.com', 'claude.ai', 'gemini.google.com'],
+  domainFilterMode: 'blacklist',
 };
 
 export function normalizeLangKey(lang?: string): string {

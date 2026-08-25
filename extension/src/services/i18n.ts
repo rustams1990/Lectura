@@ -65,6 +65,15 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     theme_extended: "📚 Extended (Dictionary)",
     theme_compact: "⚡ Compact (Minimal)",
 
+    // Power & Master Toggle
+    ext_enabled: "Lectura Active",
+    ext_enabled_desc: "Translating & capturing vocabulary",
+    ext_disabled: "Lectura Paused",
+    ext_disabled_desc: "All translations and overlays paused",
+    disable_on_site: "Disable on this site",
+    enable_on_site: "Enable on this site",
+    site_disabled_badge: "Disabled on site",
+
     // Toggles
     enable_yt_overlay: "Enable YouTube Overlay",
     enable_yt_overlay_hint: "Show interactive subtitles",
@@ -81,8 +90,24 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     pause_on_click_desc: "Automatically pause video playback when clicking a subtitle word or phrase.",
     enable_insitu: "Enable In-Situ Word Tooltip",
     enable_insitu_desc: "Shows floating translation card when selecting text or double-clicking a word on any web page.",
+    only_on_modifier: "Require Modifier Key for Popups",
+    only_on_modifier_desc: "Only show word/phrase translation popup when selecting text while holding a modifier key.",
+    modifier_key: "Modifier Key",
+    modifier_key_hint: "Hold this key while selecting text to open the translation card.",
+    modifier_alt: "Alt (Option on macOS) — Recommended",
+    modifier_shift: "Shift",
+    modifier_ctrl: "Ctrl (Command on macOS)",
     highlight_learned: "Highlight Learned Vocabulary Words",
     highlight_learned_desc: "Color-codes words on web pages based on your Lectura learning progress (1-5, Known).",
+
+    // Domain Rules Section
+    section_domain_rules: "4. Website Filtering & Exclusions",
+    section_domain_rules_desc: "Control which websites Lectura operates on or automatically ignores.",
+    filter_mode: "Filter Mode",
+    mode_blacklist: "Blacklist (Disable on listed sites)",
+    mode_whitelist: "Whitelist (Enable ONLY on listed sites)",
+    domains_list: "Domains List (one per line)",
+    domains_list_hint: "e.g. chatgpt.com, gemini.google.com, claude.ai. Subdomains are automatically included.",
 
     // Quick Actions
     import_video_page: "📥 Import Current Video / Page",
@@ -192,6 +217,15 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     theme_extended: "📚 Extended (Словарный)",
     theme_compact: "⚡ Compact (Мини)",
 
+    // Power & Master Toggle
+    ext_enabled: "Lectura активна",
+    ext_enabled_desc: "Перевод и захват слов включены",
+    ext_disabled: "Lectura выключена",
+    ext_disabled_desc: "Все переводы и оверлеи отключены",
+    disable_on_site: "Отключить на этом сайте",
+    enable_on_site: "Включить на этом сайте",
+    site_disabled_badge: "Отключено на сайте",
+
     // Toggles
     enable_yt_overlay: "Включить субтитры YouTube",
     enable_yt_overlay_hint: "Показывать интерактивные субтитры",
@@ -208,8 +242,24 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     pause_on_click_desc: "Автоматически ставить видео на паузу при открытии карточки слова.",
     enable_insitu: "Всплывающий перевод на веб-страницах",
     enable_insitu_desc: "Показывает плавающую карточку перевода при выделении текста или двойном клике.",
+    only_on_modifier: "Открывать карточку только при зажатой клавише",
+    only_on_modifier_desc: "Показывать карточку перевода ТОЛЬКО если текст выделяется с зажатой клавишей (Alt / Shift / Ctrl).",
+    modifier_key: "Клавиша-модификатор",
+    modifier_key_hint: "Зажмите эту клавишу при выделении текста, чтобы открыть карточку перевода.",
+    modifier_alt: "Alt (Option на macOS) — Рекомендуется",
+    modifier_shift: "Shift",
+    modifier_ctrl: "Ctrl (Command на macOS)",
     highlight_learned: "Подсветка изученных слов на сайтах",
     highlight_learned_desc: "Окрашивает слова на веб-страницах в соответствии с вашим прогрессом (1-5, Изучено).",
+
+    // Domain Rules Section
+    section_domain_rules: "4. Черный список и исключения сайтов",
+    section_domain_rules_desc: "Укажите сайты, на которых расширение должно работать или автоматически отключаться.",
+    filter_mode: "Режим фильтра",
+    mode_blacklist: "Черный список (Отключить на указанных сайтах)",
+    mode_whitelist: "Белый список (Включить ТОЛЬКО на указанных сайтах)",
+    domains_list: "Список доменов (по одному на строку)",
+    domains_list_hint: "например, chatgpt.com, gemini.google.com, claude.ai. Поддомены отключаются автоматически.",
 
     // Quick Actions
     import_video_page: "📥 Импортировать страницу / видео",
@@ -319,6 +369,15 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     theme_extended: "📚 Extended (Diccionario)",
     theme_compact: "⚡ Compact (Mínimo)",
 
+    // Power & Master Toggle
+    ext_enabled: "Lectura activa",
+    ext_enabled_desc: "Traducción y captura de palabras activas",
+    ext_disabled: "Lectura pausada",
+    ext_disabled_desc: "Todas las traducciones y superposiciones desactivadas",
+    disable_on_site: "Desactivar en este sitio",
+    enable_on_site: "Activar en este sitio",
+    site_disabled_badge: "Desactivado en sitio",
+
     // Toggles
     enable_yt_overlay: "Activar subtítulos de YouTube",
     enable_yt_overlay_hint: "Mostrar subtítulos interactivos",
@@ -335,8 +394,24 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     pause_on_click_desc: "Pausa automáticamente el video al hacer clic en una palabra o frase de los subtítulos.",
     enable_insitu: "Activar tooltip en páginas web",
     enable_insitu_desc: "Muestra una tarjeta de traducción al seleccionar texto o hacer doble clic en cualquier página.",
+    only_on_modifier: "Abrir tarjeta solo con tecla modificadora",
+    only_on_modifier_desc: "Mostrar tarjeta de traducción solo al seleccionar texto manteniendo presionada una tecla modificadora.",
+    modifier_key: "Tecla modificadora",
+    modifier_key_hint: "Mantén presionada esta tecla al seleccionar texto para abrir la tarjeta de traducción.",
+    modifier_alt: "Alt (Option en macOS) — Recomendado",
+    modifier_shift: "Shift",
+    modifier_ctrl: "Ctrl (Command en macOS)",
     highlight_learned: "Resaltar vocabulario aprendido",
     highlight_learned_desc: "Colorea las palabras en la web según tu progreso en Lectura (1-5, Aprendida).",
+
+    // Domain Rules Section
+    section_domain_rules: "4. Filtrado de sitios web y exclusiones",
+    section_domain_rules_desc: "Controla en qué sitios web opera Lectura o en cuáles se desactiva automáticamente.",
+    filter_mode: "Modo de filtro",
+    mode_blacklist: "Lista negra (Desactivar en sitios indicados)",
+    mode_whitelist: "Lista blanca (Activar SOLO en sitios indicados)",
+    domains_list: "Lista de dominios (uno por línea)",
+    domains_list_hint: "p. ej. chatgpt.com, gemini.google.com, claude.ai. Los subdominios se incluyen automáticamente.",
 
     // Quick Actions
     import_video_page: "📥 Importar página / video actual",

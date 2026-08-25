@@ -235,12 +235,52 @@
         </label>
 
         <label class="toggle-option-card">
+          <input type="checkbox" id="onlyOnModifierKey" />
+          <div class="toggle-info">
+            <h4 data-i18n="only_on_modifier">Require Modifier Key for Popups</h4>
+            <p data-i18n="only_on_modifier_desc">Only show word/phrase translation popup when selecting text while holding a modifier key.</p>
+          </div>
+        </label>
+
+        <div id="modifierKeyGroup" style="margin-top: 10px; background: rgba(241, 245, 249, 0.6); padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <label class="field-label" for="modifierKeySelect" data-i18n="modifier_key">Modifier Key</label>
+          <select id="modifierKeySelect" class="form-select">
+            <option value="alt" data-i18n="modifier_alt">Alt (Option on macOS) — Recommended</option>
+            <option value="shift" data-i18n="modifier_shift">Shift</option>
+            <option value="ctrl" data-i18n="modifier_ctrl">Ctrl (Command on macOS)</option>
+          </select>
+          <span class="field-hint" data-i18n="modifier_key_hint">Hold this key while selecting text to open the translation card.</span>
+        </div>
+
+        <label class="toggle-option-card">
           <input type="checkbox" id="highlightKnownWords" />
           <div class="toggle-info">
             <h4 data-i18n="highlight_learned">Highlight Learned Vocabulary Words</h4>
             <p data-i18n="highlight_learned_desc">Color-codes words on web pages based on your Lectura learning progress (1-5, Known).</p>
           </div>
         </label>
+      </section>
+
+      <!-- Section 4: Website Filtering & Exclusions -->
+      <section class="settings-section-card">
+        <div>
+          <h2 class="section-title" data-i18n="section_domain_rules">4. Website Filtering & Exclusions</h2>
+          <p class="section-desc" data-i18n="section_domain_rules_desc">Control which websites Lectura operates on or automatically ignores.</p>
+        </div>
+
+        <div>
+          <label class="field-label" for="domainFilterMode" data-i18n="filter_mode">Filter Mode</label>
+          <select id="domainFilterMode" class="form-select">
+            <option value="blacklist" selected data-i18n="mode_blacklist">Blacklist (Disable on listed sites)</option>
+            <option value="whitelist" data-i18n="mode_whitelist">Whitelist (Enable ONLY on listed sites)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="field-label" for="disabledDomainsText" data-i18n="domains_list">Domains List (one per line)</label>
+          <textarea id="disabledDomainsText" class="form-input" style="height: 100px; font-family: monospace; font-size: 13px; line-height: 1.4; resize: vertical; padding: 8px 12px;" placeholder="chatgpt.com&#10;gemini.google.com&#10;claude.ai" spellcheck="false"></textarea>
+          <span class="field-hint" data-i18n="domains_list_hint">e.g. chatgpt.com, gemini.google.com, claude.ai. Subdomains are automatically included.</span>
+        </div>
       </section>
     </main>
 

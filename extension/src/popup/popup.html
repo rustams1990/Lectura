@@ -36,6 +36,31 @@
 
     <!-- Tab 1: Settings Content -->
     <div id="tabContentSettings" class="tab-content">
+      <!-- 0. Master Power Switch & Quick Site Toggle -->
+      <div class="ext-master-power-card" id="masterPowerCard" style="margin-bottom: 8px;">
+        <div class="power-card-left">
+          <div class="power-status-dot active" id="powerStatusDot"></div>
+          <div class="power-text-block">
+            <div class="power-status-title" id="powerStatusTitle" data-i18n="ext_enabled">Lectura Active</div>
+            <div class="power-status-desc" id="powerStatusDesc" data-i18n="ext_enabled_desc">Translating & capturing vocabulary</div>
+          </div>
+        </div>
+        <label class="ext-switch power-switch">
+          <input type="checkbox" id="globalEnabledToggle" checked />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="site-quick-toggle-row" id="siteQuickToggleRow" style="margin-bottom: 8px;">
+        <div class="site-quick-info">
+          <span class="site-quick-icon">🌐</span>
+          <span class="site-quick-domain" id="currentTabDomain">loading...</span>
+        </div>
+        <button type="button" class="site-quick-btn" id="btnToggleSiteBlacklist" data-i18n="disable_on_site">
+          Disable on this site
+        </button>
+      </div>
+
       <!-- 1. Quick Study Language Bar -->
       <section class="ext-card" style="padding: 9px 12px; margin-bottom: 8px;">
         <div class="ext-field-group" style="margin-bottom: 0;">

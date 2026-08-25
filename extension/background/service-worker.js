@@ -21,7 +21,12 @@ var DEFAULT_SETTINGS = {
   subtitleHighlightMode: "color",
   ttsDialect: "en-US",
   popupTheme: "glass",
-  interfaceLanguage: "en"
+  interfaceLanguage: "en",
+  isEnabled: true,
+  onlyOnModifierKey: false,
+  modifierKey: "alt",
+  disabledDomains: ["chatgpt.com", "claude.ai", "gemini.google.com"],
+  domainFilterMode: "blacklist"
 };
 function normalizeLangKey(lang) {
   if (!lang) return "en";
@@ -29836,9 +29841,49 @@ function cleanWordForTranslation(rawWord) {
   if (!rawWord) return "";
   return rawWord.trim().replace(/^[\p{P}\s¿¡«"'(]+|[\p{P}\s?!.,:;"»')]+$/gu, "").toLowerCase();
 }
-chrome.runtime.onInstalled.addListener(() => {
+async function updateExtensionIcon(isEnabled) {
+  try {
+    if (isEnabled) {
+      await chrome.action.setIcon({
+        path: {
+          "16": "icons/icon16.png",
+          "32": "icons/icon32.png",
+          "48": "icons/icon48.png",
+          "128": "icons/icon128.png"
+        }
+      });
+      await chrome.action.setBadgeText({ text: "" });
+      await chrome.action.setTitle({ title: "Lectura Web Importer (Active)" });
+    } else {
+      await chrome.action.setIcon({
+        path: {
+          "16": "icons/icon16_disabled.png",
+          "32": "icons/icon32_disabled.png",
+          "48": "icons/icon48_disabled.png",
+          "128": "icons/icon128_disabled.png"
+        }
+      });
+      await chrome.action.setBadgeText({ text: "OFF" });
+      await chrome.action.setBadgeBackgroundColor({ color: "#64748b" });
+      await chrome.action.setTitle({ title: "Lectura Web Importer (Paused)" });
+    }
+  } catch (err) {
+    console.warn("[Lectura Service Worker] Failed to update action icon:", err);
+  }
+}
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" || areaName === "sync") {
+    if (changes.isEnabled !== void 0) {
+      const isEnabled = changes.isEnabled.newValue !== false;
+      updateExtensionIcon(isEnabled);
+    }
+  }
+});
+chrome.runtime.onInstalled.addListener(async () => {
   console.log("[Lectura Service Worker] Extension installed/updated.");
   StorageService.purgeLegacyCaches();
+  const settings = await StorageService.getSettings();
+  updateExtensionIcon(settings.isEnabled !== false);
   chrome.contextMenus.create({
     id: "lectura-import-article",
     title: "\u{1F4D6} Import Page to Lectura",
@@ -29851,6 +29896,10 @@ chrome.runtime.onInstalled.addListener(() => {
   });
   chrome.alarms.create("sync_words_alarm", { periodInMinutes: 30 });
   syncWordsCache();
+});
+chrome.runtime.onStartup.addListener(async () => {
+  const settings = await StorageService.getSettings();
+  updateExtensionIcon(settings.isEnabled !== false);
 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "sync_words_alarm") {
@@ -30106,7 +30155,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 export {
-  cleanWordForTranslation
+  cleanWordForTranslation,
+  updateExtensionIcon
 };
 /**
  * @license

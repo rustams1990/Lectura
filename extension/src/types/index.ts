@@ -27,6 +27,11 @@ export interface ExtensionSettings {
   ttsDialect?: string;
   popupTheme?: 'compact' | 'extended' | 'glass' | 'calm_light';
   interfaceLanguage?: 'en' | 'ru' | 'es';
+  isEnabled?: boolean;
+  onlyOnModifierKey?: boolean;
+  modifierKey?: 'alt' | 'ctrl' | 'shift';
+  disabledDomains?: string[];
+  domainFilterMode?: 'blacklist' | 'whitelist';
 }
 
 export interface WordMapItem {

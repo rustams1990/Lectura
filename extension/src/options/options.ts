@@ -27,6 +27,10 @@ class OptionsController {
   private subtitleHighlightModeSelect!: HTMLSelectElement;
   private popupThemeSelect!: HTMLSelectElement;
   private enableInSituSelectionCheck!: HTMLInputElement;
+  private onlyOnModifierKeyCheck!: HTMLInputElement;
+  private modifierKeySelect!: HTMLSelectElement;
+  private domainFilterModeSelect!: HTMLSelectElement;
+  private disabledDomainsTextarea!: HTMLTextAreaElement;
   private highlightKnownWordsCheck!: HTMLInputElement;
 
   private serverStatusBadge!: HTMLElement;
@@ -63,6 +67,10 @@ class OptionsController {
     this.subtitleHighlightModeSelect = document.getElementById('subtitleHighlightMode') as HTMLSelectElement;
     this.popupThemeSelect = document.getElementById('popupTheme') as HTMLSelectElement;
     this.enableInSituSelectionCheck = document.getElementById('enableInSituSelection') as HTMLInputElement;
+    this.onlyOnModifierKeyCheck = document.getElementById('onlyOnModifierKey') as HTMLInputElement;
+    this.modifierKeySelect = document.getElementById('modifierKeySelect') as HTMLSelectElement;
+    this.domainFilterModeSelect = document.getElementById('domainFilterMode') as HTMLSelectElement;
+    this.disabledDomainsTextarea = document.getElementById('disabledDomainsText') as HTMLTextAreaElement;
     this.highlightKnownWordsCheck = document.getElementById('highlightKnownWords') as HTMLInputElement;
 
     this.serverStatusBadge = document.getElementById('serverStatus') as HTMLElement;
@@ -233,6 +241,19 @@ class OptionsController {
     }
     this.subtitleHighlightModeSelect.value = settings.subtitleHighlightMode || 'underline';
     this.enableInSituSelectionCheck.checked = settings.enableInSituSelection ?? true;
+    if (this.onlyOnModifierKeyCheck) {
+      this.onlyOnModifierKeyCheck.checked = settings.onlyOnModifierKey ?? false;
+    }
+    if (this.modifierKeySelect) {
+      this.modifierKeySelect.value = settings.modifierKey || 'alt';
+    }
+    if (this.domainFilterModeSelect) {
+      this.domainFilterModeSelect.value = settings.domainFilterMode || 'blacklist';
+    }
+    if (this.disabledDomainsTextarea) {
+      const defaultDomains = ['chatgpt.com', 'claude.ai', 'gemini.google.com'];
+      this.disabledDomainsTextarea.value = (settings.disabledDomains || defaultDomains).join('\n');
+    }
     this.highlightKnownWordsCheck.checked = settings.highlightKnownWords ?? false;
 
     // Apply translations
@@ -275,6 +296,11 @@ class OptionsController {
 
   private getFormSettings(): ExtensionSettings {
     const sizePreset = (this.subtitleSizePresetSelect?.value || 'md') as 'sm' | 'md' | 'lg';
+    const rawDomains = (this.disabledDomainsTextarea?.value || '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
     return {
       serverUrl: this.serverUrlInput.value.trim().replace(/\/+$/, ''),
       authToken: this.authTokenInput.value.trim(),
@@ -296,6 +322,10 @@ class OptionsController {
       subtitleBgColor: this.currentSubtitleBgColor || 'rgba(15, 23, 42, 0.90)',
       subtitleHighlightMode: (this.subtitleHighlightModeSelect.value || 'underline') as 'underline' | 'color',
       enableInSituSelection: this.enableInSituSelectionCheck.checked,
+      onlyOnModifierKey: this.onlyOnModifierKeyCheck ? this.onlyOnModifierKeyCheck.checked : false,
+      modifierKey: (this.modifierKeySelect?.value || 'alt') as 'alt' | 'ctrl' | 'shift',
+      domainFilterMode: (this.domainFilterModeSelect?.value || 'blacklist') as 'blacklist' | 'whitelist',
+      disabledDomains: rawDomains,
       highlightKnownWords: this.highlightKnownWordsCheck.checked,
     };
   }

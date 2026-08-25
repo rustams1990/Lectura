@@ -22,7 +22,12 @@
     subtitleHighlightMode: "color",
     ttsDialect: "en-US",
     popupTheme: "glass",
-    interfaceLanguage: "en"
+    interfaceLanguage: "en",
+    isEnabled: true,
+    onlyOnModifierKey: false,
+    modifierKey: "alt",
+    disabledDomains: ["chatgpt.com", "claude.ai", "gemini.google.com"],
+    domainFilterMode: "blacklist"
   };
   function normalizeLangKey(lang) {
     if (!lang) return "en";
@@ -29887,6 +29892,14 @@
       theme_calm_light: "\u{1F33F} Calm Light (Pastel)",
       theme_extended: "\u{1F4DA} Extended (Dictionary)",
       theme_compact: "\u26A1 Compact (Minimal)",
+      // Power & Master Toggle
+      ext_enabled: "Lectura Active",
+      ext_enabled_desc: "Translating & capturing vocabulary",
+      ext_disabled: "Lectura Paused",
+      ext_disabled_desc: "All translations and overlays paused",
+      disable_on_site: "Disable on this site",
+      enable_on_site: "Enable on this site",
+      site_disabled_badge: "Disabled on site",
       // Toggles
       enable_yt_overlay: "Enable YouTube Overlay",
       enable_yt_overlay_hint: "Show interactive subtitles",
@@ -29903,8 +29916,23 @@
       pause_on_click_desc: "Automatically pause video playback when clicking a subtitle word or phrase.",
       enable_insitu: "Enable In-Situ Word Tooltip",
       enable_insitu_desc: "Shows floating translation card when selecting text or double-clicking a word on any web page.",
+      only_on_modifier: "Require Modifier Key for Popups",
+      only_on_modifier_desc: "Only show word/phrase translation popup when selecting text while holding a modifier key.",
+      modifier_key: "Modifier Key",
+      modifier_key_hint: "Hold this key while selecting text to open the translation card.",
+      modifier_alt: "Alt (Option on macOS) \u2014 Recommended",
+      modifier_shift: "Shift",
+      modifier_ctrl: "Ctrl (Command on macOS)",
       highlight_learned: "Highlight Learned Vocabulary Words",
       highlight_learned_desc: "Color-codes words on web pages based on your Lectura learning progress (1-5, Known).",
+      // Domain Rules Section
+      section_domain_rules: "4. Website Filtering & Exclusions",
+      section_domain_rules_desc: "Control which websites Lectura operates on or automatically ignores.",
+      filter_mode: "Filter Mode",
+      mode_blacklist: "Blacklist (Disable on listed sites)",
+      mode_whitelist: "Whitelist (Enable ONLY on listed sites)",
+      domains_list: "Domains List (one per line)",
+      domains_list_hint: "e.g. chatgpt.com, gemini.google.com, claude.ai. Subdomains are automatically included.",
       // Quick Actions
       import_video_page: "\u{1F4E5} Import Current Video / Page",
       open_app: "\u{1F680} Open App",
@@ -30006,6 +30034,14 @@
       theme_calm_light: "\u{1F33F} Calm Light (\u0421\u0432\u0435\u0442\u043B\u0430\u044F \u043F\u0430\u0441\u0442\u0435\u043B\u044C)",
       theme_extended: "\u{1F4DA} Extended (\u0421\u043B\u043E\u0432\u0430\u0440\u043D\u044B\u0439)",
       theme_compact: "\u26A1 Compact (\u041C\u0438\u043D\u0438)",
+      // Power & Master Toggle
+      ext_enabled: "Lectura \u0430\u043A\u0442\u0438\u0432\u043D\u0430",
+      ext_enabled_desc: "\u041F\u0435\u0440\u0435\u0432\u043E\u0434 \u0438 \u0437\u0430\u0445\u0432\u0430\u0442 \u0441\u043B\u043E\u0432 \u0432\u043A\u043B\u044E\u0447\u0435\u043D\u044B",
+      ext_disabled: "Lectura \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u0430",
+      ext_disabled_desc: "\u0412\u0441\u0435 \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u044B \u0438 \u043E\u0432\u0435\u0440\u043B\u0435\u0438 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u044B",
+      disable_on_site: "\u041E\u0442\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043D\u0430 \u044D\u0442\u043E\u043C \u0441\u0430\u0439\u0442\u0435",
+      enable_on_site: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043D\u0430 \u044D\u0442\u043E\u043C \u0441\u0430\u0439\u0442\u0435",
+      site_disabled_badge: "\u041E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u043D\u0430 \u0441\u0430\u0439\u0442\u0435",
       // Toggles
       enable_yt_overlay: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B YouTube",
       enable_yt_overlay_hint: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
@@ -30022,8 +30058,23 @@
       pause_on_click_desc: "\u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0432\u0438\u0434\u0435\u043E \u043D\u0430 \u043F\u0430\u0443\u0437\u0443 \u043F\u0440\u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u0438 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 \u0441\u043B\u043E\u0432\u0430.",
       enable_insitu: "\u0412\u0441\u043F\u043B\u044B\u0432\u0430\u044E\u0449\u0438\u0439 \u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u043D\u0430 \u0432\u0435\u0431-\u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445",
       enable_insitu_desc: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 \u043F\u043B\u0430\u0432\u0430\u044E\u0449\u0443\u044E \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0430 \u043F\u0440\u0438 \u0432\u044B\u0434\u0435\u043B\u0435\u043D\u0438\u0438 \u0442\u0435\u043A\u0441\u0442\u0430 \u0438\u043B\u0438 \u0434\u0432\u043E\u0439\u043D\u043E\u043C \u043A\u043B\u0438\u043A\u0435.",
+      only_on_modifier: "\u041E\u0442\u043A\u0440\u044B\u0432\u0430\u0442\u044C \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u0438 \u0437\u0430\u0436\u0430\u0442\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0448\u0435",
+      only_on_modifier_desc: "\u041F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0430 \u0422\u041E\u041B\u042C\u041A\u041E \u0435\u0441\u043B\u0438 \u0442\u0435\u043A\u0441\u0442 \u0432\u044B\u0434\u0435\u043B\u044F\u0435\u0442\u0441\u044F \u0441 \u0437\u0430\u0436\u0430\u0442\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0448\u0435\u0439 (Alt / Shift / Ctrl).",
+      modifier_key: "\u041A\u043B\u0430\u0432\u0438\u0448\u0430-\u043C\u043E\u0434\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440",
+      modifier_key_hint: "\u0417\u0430\u0436\u043C\u0438\u0442\u0435 \u044D\u0442\u0443 \u043A\u043B\u0430\u0432\u0438\u0448\u0443 \u043F\u0440\u0438 \u0432\u044B\u0434\u0435\u043B\u0435\u043D\u0438\u0438 \u0442\u0435\u043A\u0441\u0442\u0430, \u0447\u0442\u043E\u0431\u044B \u043E\u0442\u043A\u0440\u044B\u0442\u044C \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u043F\u0435\u0440\u0435\u0432\u043E\u0434\u0430.",
+      modifier_alt: "Alt (Option \u043D\u0430 macOS) \u2014 \u0420\u0435\u043A\u043E\u043C\u0435\u043D\u0434\u0443\u0435\u0442\u0441\u044F",
+      modifier_shift: "Shift",
+      modifier_ctrl: "Ctrl (Command \u043D\u0430 macOS)",
       highlight_learned: "\u041F\u043E\u0434\u0441\u0432\u0435\u0442\u043A\u0430 \u0438\u0437\u0443\u0447\u0435\u043D\u043D\u044B\u0445 \u0441\u043B\u043E\u0432 \u043D\u0430 \u0441\u0430\u0439\u0442\u0430\u0445",
       highlight_learned_desc: "\u041E\u043A\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u0442 \u0441\u043B\u043E\u0432\u0430 \u043D\u0430 \u0432\u0435\u0431-\u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445 \u0432 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0438 \u0441 \u0432\u0430\u0448\u0438\u043C \u043F\u0440\u043E\u0433\u0440\u0435\u0441\u0441\u043E\u043C (1-5, \u0418\u0437\u0443\u0447\u0435\u043D\u043E).",
+      // Domain Rules Section
+      section_domain_rules: "4. \u0427\u0435\u0440\u043D\u044B\u0439 \u0441\u043F\u0438\u0441\u043E\u043A \u0438 \u0438\u0441\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u0441\u0430\u0439\u0442\u043E\u0432",
+      section_domain_rules_desc: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0441\u0430\u0439\u0442\u044B, \u043D\u0430 \u043A\u043E\u0442\u043E\u0440\u044B\u0445 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435 \u0434\u043E\u043B\u0436\u043D\u043E \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0438\u043B\u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043E\u0442\u043A\u043B\u044E\u0447\u0430\u0442\u044C\u0441\u044F.",
+      filter_mode: "\u0420\u0435\u0436\u0438\u043C \u0444\u0438\u043B\u044C\u0442\u0440\u0430",
+      mode_blacklist: "\u0427\u0435\u0440\u043D\u044B\u0439 \u0441\u043F\u0438\u0441\u043E\u043A (\u041E\u0442\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043D\u0430 \u0443\u043A\u0430\u0437\u0430\u043D\u043D\u044B\u0445 \u0441\u0430\u0439\u0442\u0430\u0445)",
+      mode_whitelist: "\u0411\u0435\u043B\u044B\u0439 \u0441\u043F\u0438\u0441\u043E\u043A (\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0422\u041E\u041B\u042C\u041A\u041E \u043D\u0430 \u0443\u043A\u0430\u0437\u0430\u043D\u043D\u044B\u0445 \u0441\u0430\u0439\u0442\u0430\u0445)",
+      domains_list: "\u0421\u043F\u0438\u0441\u043E\u043A \u0434\u043E\u043C\u0435\u043D\u043E\u0432 (\u043F\u043E \u043E\u0434\u043D\u043E\u043C\u0443 \u043D\u0430 \u0441\u0442\u0440\u043E\u043A\u0443)",
+      domains_list_hint: "\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, chatgpt.com, gemini.google.com, claude.ai. \u041F\u043E\u0434\u0434\u043E\u043C\u0435\u043D\u044B \u043E\u0442\u043A\u043B\u044E\u0447\u0430\u044E\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438.",
       // Quick Actions
       import_video_page: "\u{1F4E5} \u0418\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0443 / \u0432\u0438\u0434\u0435\u043E",
       open_app: "\u{1F680} \u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435",
@@ -30125,6 +30176,14 @@
       theme_calm_light: "\u{1F33F} Calm Light (Pastel)",
       theme_extended: "\u{1F4DA} Extended (Diccionario)",
       theme_compact: "\u26A1 Compact (M\xEDnimo)",
+      // Power & Master Toggle
+      ext_enabled: "Lectura activa",
+      ext_enabled_desc: "Traducci\xF3n y captura de palabras activas",
+      ext_disabled: "Lectura pausada",
+      ext_disabled_desc: "Todas las traducciones y superposiciones desactivadas",
+      disable_on_site: "Desactivar en este sitio",
+      enable_on_site: "Activar en este sitio",
+      site_disabled_badge: "Desactivado en sitio",
       // Toggles
       enable_yt_overlay: "Activar subt\xEDtulos de YouTube",
       enable_yt_overlay_hint: "Mostrar subt\xEDtulos interactivos",
@@ -30141,8 +30200,23 @@
       pause_on_click_desc: "Pausa autom\xE1ticamente el video al hacer clic en una palabra o frase de los subt\xEDtulos.",
       enable_insitu: "Activar tooltip en p\xE1ginas web",
       enable_insitu_desc: "Muestra una tarjeta de traducci\xF3n al seleccionar texto o hacer doble clic en cualquier p\xE1gina.",
+      only_on_modifier: "Abrir tarjeta solo con tecla modificadora",
+      only_on_modifier_desc: "Mostrar tarjeta de traducci\xF3n solo al seleccionar texto manteniendo presionada una tecla modificadora.",
+      modifier_key: "Tecla modificadora",
+      modifier_key_hint: "Mant\xE9n presionada esta tecla al seleccionar texto para abrir la tarjeta de traducci\xF3n.",
+      modifier_alt: "Alt (Option en macOS) \u2014 Recomendado",
+      modifier_shift: "Shift",
+      modifier_ctrl: "Ctrl (Command en macOS)",
       highlight_learned: "Resaltar vocabulario aprendido",
       highlight_learned_desc: "Colorea las palabras en la web seg\xFAn tu progreso en Lectura (1-5, Aprendida).",
+      // Domain Rules Section
+      section_domain_rules: "4. Filtrado de sitios web y exclusiones",
+      section_domain_rules_desc: "Controla en qu\xE9 sitios web opera Lectura o en cu\xE1les se desactiva autom\xE1ticamente.",
+      filter_mode: "Modo de filtro",
+      mode_blacklist: "Lista negra (Desactivar en sitios indicados)",
+      mode_whitelist: "Lista blanca (Activar SOLO en sitios indicados)",
+      domains_list: "Lista de dominios (uno por l\xEDnea)",
+      domains_list_hint: "p. ej. chatgpt.com, gemini.google.com, claude.ai. Los subdominios se incluyen autom\xE1ticamente.",
       // Quick Actions
       import_video_page: "\u{1F4E5} Importar p\xE1gina / video actual",
       open_app: "\u{1F680} Abrir aplicaci\xF3n",
@@ -30583,7 +30657,7 @@
       await StorageService.purgeLegacyCaches();
       this.setupTimedTextNetworkInterceptor();
       this.settings = await StorageService.getSettings();
-      if (!this.settings.enableYoutubeOverlay) {
+      if (this.settings.isEnabled === false || !this.settings.enableYoutubeOverlay) {
         console.log("[Lectura YT] YouTube overlay is disabled in settings.");
         return;
       }
@@ -30681,6 +30755,15 @@
                   });
                 }
               }
+            }
+          }
+          if (changes.isEnabled !== void 0) {
+            const isEnabled = changes.isEnabled.newValue !== false;
+            if (this.overlayContainer) {
+              this.overlayContainer.style.display = isEnabled && this.settings?.enableYoutubeOverlay !== false ? "" : "none";
+            }
+            if (this.popupCard && !isEnabled) {
+              this.popupCard.style.display = "none";
             }
           }
           if (changes.sub_size_preset || changes.subtitleSizePreset) {

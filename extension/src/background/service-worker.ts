@@ -13,12 +13,56 @@ export function cleanWordForTranslation(rawWord: string): string {
     .toLowerCase();
 }
 
+export async function updateExtensionIcon(isEnabled: boolean) {
+  try {
+    if (isEnabled) {
+      await chrome.action.setIcon({
+        path: {
+          '16': 'icons/icon16.png',
+          '32': 'icons/icon32.png',
+          '48': 'icons/icon48.png',
+          '128': 'icons/icon128.png',
+        },
+      });
+      await chrome.action.setBadgeText({ text: '' });
+      await chrome.action.setTitle({ title: 'Lectura Web Importer (Active)' });
+    } else {
+      await chrome.action.setIcon({
+        path: {
+          '16': 'icons/icon16_disabled.png',
+          '32': 'icons/icon32_disabled.png',
+          '48': 'icons/icon48_disabled.png',
+          '128': 'icons/icon128_disabled.png',
+        },
+      });
+      await chrome.action.setBadgeText({ text: 'OFF' });
+      await chrome.action.setBadgeBackgroundColor({ color: '#64748b' });
+      await chrome.action.setTitle({ title: 'Lectura Web Importer (Paused)' });
+    }
+  } catch (err) {
+    console.warn('[Lectura Service Worker] Failed to update action icon:', err);
+  }
+}
+
+// Storage Listener for real-time isEnabled updates
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' || areaName === 'sync') {
+    if (changes.isEnabled !== undefined) {
+      const isEnabled = changes.isEnabled.newValue !== false;
+      updateExtensionIcon(isEnabled);
+    }
+  }
+});
+
 // Initialize Extension
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   console.log('[Lectura Service Worker] Extension installed/updated.');
 
   // Purge legacy mixed-language caches
   StorageService.purgeLegacyCaches();
+
+  const settings = await StorageService.getSettings();
+  updateExtensionIcon(settings.isEnabled !== false);
 
   // Create Context Menus
   chrome.contextMenus.create({
@@ -38,6 +82,11 @@ chrome.runtime.onInstalled.addListener(() => {
 
   // Initial words sync
   syncWordsCache();
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  const settings = await StorageService.getSettings();
+  updateExtensionIcon(settings.isEnabled !== false);
 });
 
 // Periodic Alarm Listener

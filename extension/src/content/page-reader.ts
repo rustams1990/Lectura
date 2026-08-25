@@ -3,6 +3,35 @@ import { StorageService } from '../services/storage';
 import { ExtensionSettings, ExtMessage, WordMap } from '../types/index';
 import { ArticleExtractor } from './article-extractor';
 import { getSuggestedLemmas } from '../services/morphology';
+import { isDomainDisabled } from '../services/domain-filter';
+
+/**
+ * Checks whether an element is an input, textarea, select, contenteditable or code editor
+ */
+export function isEditableElement(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return true;
+  if (target.isContentEditable) return true;
+  if (target.getAttribute('contenteditable') === 'true') return true;
+  if (target.closest('input, textarea, select, [contenteditable="true"], .monaco-editor, [role="textbox"]')) return true;
+  return false;
+}
+
+/**
+ * Cross-platform modifier key tester (supports Mac Command as Ctrl and Option as Alt)
+ */
+export function isModifierKeyPressed(e: MouseEvent | KeyboardEvent, key: 'alt' | 'ctrl' | 'shift' = 'alt'): boolean {
+  if (key === 'alt') {
+    return !!e.altKey;
+  }
+  if (key === 'ctrl') {
+    return !!(e.ctrlKey || e.metaKey);
+  }
+  if (key === 'shift') {
+    return !!e.shiftKey;
+  }
+  return false;
+}
 
 console.log('%c[LECTURA ACTIVE]', 'background: #0284c7; color: white; padding: 4px 8px; font-size: 14px; font-weight: bold; border-radius: 4px;', window.location.href);
 
@@ -145,7 +174,7 @@ export async function getEffectiveLanguage(sampleText?: string): Promise<string>
 }
 
 /**
- * Detects whether the current page is the native Lectura application and should skip injection
+ * Detects whether the current page is the native Lectura application, disabled, or blacklisted
  */
 export async function shouldSkipInjection(): Promise<boolean> {
   // 1. Check DOM meta / attribute signature of native Lectura application
@@ -159,14 +188,22 @@ export async function shouldSkipInjection(): Promise<boolean> {
     if ((window as any).__LECTURA_APP_IDENTIFIER__ === 'lectura-core-app') return true;
   }
 
-  // 2. Check against configured server URL in storage
+  // 2. Check settings (isEnabled and domain blacklist/whitelist)
   try {
     const settings = await StorageService.getSettings();
+    if (settings.isEnabled === false) {
+      return true;
+    }
+
     if (settings?.serverUrl) {
       const configuredOrigin = new URL(settings.serverUrl).origin;
       if (window.location.origin === configuredOrigin) {
         return true;
       }
+    }
+
+    if (isDomainDisabled(window.location.hostname, settings.disabledDomains || [], settings.domainFilterMode || 'blacklist')) {
+      return true;
     }
   } catch (_) {}
 
@@ -200,9 +237,22 @@ export class PageReader {
     this.init();
   }
 
+  /**
+   * Evaluates if the extension should actively capture words and display popups on the current page
+   */
+  public isExtensionActiveOnPage(): boolean {
+    if (!this.settings) return true;
+    if (this.settings.isEnabled === false) return false;
+    if (!this.settings.enableInSituSelection) return false;
+    if (isDomainDisabled(window.location.hostname, this.settings.disabledDomains || [], this.settings.domainFilterMode || 'blacklist')) {
+      return false;
+    }
+    return true;
+  }
+
   private async init() {
     if (await shouldSkipInjection()) {
-      console.log('🛑 [Lectura Extension] Detected native Lectura application. Skipping extension injection.');
+      console.log('🛑 [Lectura Extension] Skipping extension injection on this page.');
       return;
     }
 
@@ -1481,25 +1531,40 @@ export class PageReader {
   }
 
   private setupPointHoverListeners() {
-    // 1. Shift+Click capture event listener (single-word lookup)
+    // 1. Click capture event listener (single-word lookup on modifier click)
     document.addEventListener('click', (e: MouseEvent) => {
       // Ignore clicks inside our tooltip
       if (this.tooltipHost && e.composedPath().includes(this.tooltipHost)) {
         return;
       }
 
-      if (e.shiftKey) {
+      // Ignore clicks inside editable fields
+      if (isEditableElement(e.target)) {
+        return;
+      }
+
+      // If extension is disabled or blacklisted, hide and return
+      if (!this.isExtensionActiveOnPage()) {
+        this.hideWordPopup();
+        return;
+      }
+
+      const modifier = this.settings?.modifierKey || 'alt';
+      const isModifierActive = isModifierKeyPressed(e, modifier);
+      const isShiftClick = e.shiftKey;
+
+      if (isModifierActive || isShiftClick) {
         const pointData = this.getWordAtPoint(e.clientX, e.clientY);
         if (pointData) {
           e.preventDefault();
           e.stopPropagation();
-          console.log('[Lectura] Found word on Shift+Click:', pointData.word);
+          console.log('[Lectura] Found word on Modifier/Shift+Click:', pointData.word);
           this.showWordPopup(pointData.word, pointData.rect, pointData.sentence, false);
           return;
         }
       }
 
-      // If clicked outside word without Shift and no text selected, hide tooltip
+      // If clicked outside word without modifier and no text selected, hide tooltip
       if (this.tooltipElement && this.tooltipElement.style.display !== 'none') {
         const selection = window.getSelection();
         if (!selection || selection.toString().trim().length === 0) {
@@ -1513,8 +1578,17 @@ export class PageReader {
 
     // 2. Mousemove for Yomitan/Migaku style Shift+Hover scanning
     document.addEventListener('mousemove', (e: MouseEvent) => {
+      if (!this.isExtensionActiveOnPage()) {
+        return;
+      }
+
       // If modal/popup is currently open, completely block hover tooltips
       if (this.tooltipElement && this.tooltipElement.style.display !== 'none') {
+        return;
+      }
+
+      // Ignore hovering over editable elements
+      if (isEditableElement(e.target)) {
         return;
       }
 
@@ -1528,14 +1602,17 @@ export class PageReader {
       }
 
       this.hoverThrottleTimer = window.setTimeout(() => {
-        if (e.shiftKey || this.isShiftDown) {
+        const modifier = this.settings?.modifierKey || 'alt';
+        const isModifierActive = isModifierKeyPressed(e, modifier) || e.shiftKey || this.isShiftDown;
+
+        if (isModifierActive) {
           if (this.tooltipElement && this.tooltipElement.style.display !== 'none') {
             return;
           }
           const res = this.getWordAtPoint(e.clientX, e.clientY);
           if (res) {
             if (res.word.toLowerCase() !== this.activeWord.toLowerCase() || !this.tooltipElement || this.tooltipElement.style.display === 'none') {
-              console.log('[Lectura] Found word on Shift+Hover:', res.word);
+              console.log('[Lectura] Found word on Hover:', res.word);
               this.showWordPopup(res.word, res.rect, res.sentence, false);
             }
           }
@@ -1543,28 +1620,65 @@ export class PageReader {
       }, 40);
     }, { passive: true });
 
-    // 3. Selection capture (Phrase & Idiom Lookup)
+    // 3. Selection capture (Single Word, Phrase & Idiom Lookup)
     document.addEventListener('mouseup', (e: MouseEvent) => {
       // Ignore mouseup inside our tooltip
       if (this.tooltipHost && e.composedPath().includes(this.tooltipHost)) {
         return;
       }
 
-      const selection = window.getSelection();
-      const selectedText = selection?.toString().trim();
+      // Ignore mouseup inside inputs, textareas, contenteditable elements
+      if (isEditableElement(e.target)) {
+        return;
+      }
 
-      // If user selected a phrase (2 to 8 words with space/hyphen)
-      if (selectedText && selectedText.length > 1 && /[\s\u2013\u2014-]/.test(selectedText)) {
+      if (!this.isExtensionActiveOnPage()) {
+        this.hideWordPopup();
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        return;
+      }
+
+      // Check if selection anchor is inside an editable element
+      if (
+        isEditableElement(selection.anchorNode?.parentElement) ||
+        isEditableElement(selection.focusNode?.parentElement)
+      ) {
+        return;
+      }
+
+      // Modifier key check (if enabled in settings)
+      if (this.settings?.onlyOnModifierKey) {
+        const modifier = this.settings?.modifierKey || 'alt';
+        const isModifierActive = isModifierKeyPressed(e, modifier);
+        if (!isModifierActive) {
+          // Normal text selection without modifier key -> do not open card
+          return;
+        }
+        // Prevent default browser link navigation or download if Alt was pressed
+        if (e.altKey && (e.target as HTMLElement)?.closest('a')) {
+          e.preventDefault();
+        }
+      }
+
+      const selectedText = selection.toString().trim();
+
+      // If user selected valid text (word or phrase up to 12 words)
+      if (selectedText && selectedText.length > 0) {
         const wordsCount = selectedText.split(/\s+/).length;
-        if (wordsCount >= 2 && wordsCount <= 8) {
+        if (wordsCount <= 12) {
           try {
-            const range = selection?.getRangeAt(0);
+            const range = selection.getRangeAt(0);
             if (range) {
               const rect = range.getBoundingClientRect();
               if (rect.width > 0 && rect.height > 0) {
                 const fullSentence = range.startContainer.textContent?.trim() || selectedText;
-                console.log('🔗 [Lectura] Phrase/Idiom selected:', selectedText);
-                this.showWordPopup(selectedText, rect, fullSentence, true);
+                const isPhrase = wordsCount >= 2;
+                console.log('🔗 [Lectura] Text selected:', selectedText, { isPhrase });
+                this.showWordPopup(selectedText, rect, fullSentence, isPhrase);
               }
             }
           } catch (_) {}
@@ -2532,8 +2646,15 @@ export class PageReader {
       return true;
     });
 
-    chrome.storage.onChanged.addListener((changes, area) => {
+    chrome.storage.onChanged.addListener(async (changes, area) => {
       if (area === 'sync' || area === 'local') {
+        this.settings = await StorageService.getSettings();
+
+        // If extension disabled or site became blacklisted -> immediately close any active tooltip
+        if (!this.isExtensionActiveOnPage()) {
+          this.hideWordPopup();
+        }
+
         if (changes.popupTheme || changes.popup_theme) {
           const newTheme = changes.popupTheme?.newValue || changes.popup_theme?.newValue || 'compact';
           this.applyPopupTheme(newTheme);

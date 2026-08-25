@@ -571,7 +571,7 @@ class YouTubeLecturaOverlay {
     this.setupTimedTextNetworkInterceptor();
 
     this.settings = await StorageService.getSettings();
-    if (!this.settings.enableYoutubeOverlay) {
+    if (this.settings.isEnabled === false || !this.settings.enableYoutubeOverlay) {
       console.log('[Lectura YT] YouTube overlay is disabled in settings.');
       return;
     }
@@ -688,6 +688,15 @@ class YouTubeLecturaOverlay {
                 });
               }
             }
+          }
+        }
+        if (changes.isEnabled !== undefined) {
+          const isEnabled = changes.isEnabled.newValue !== false;
+          if (this.overlayContainer) {
+            this.overlayContainer.style.display = (isEnabled && this.settings?.enableYoutubeOverlay !== false) ? '' : 'none';
+          }
+          if (this.popupCard && !isEnabled) {
+            this.popupCard.style.display = 'none';
           }
         }
         if (changes.sub_size_preset || changes.subtitleSizePreset) {
