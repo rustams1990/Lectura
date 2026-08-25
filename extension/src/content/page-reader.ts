@@ -4,6 +4,7 @@ import { ExtensionSettings, ExtMessage, WordMap } from '../types/index';
 import { ArticleExtractor } from './article-extractor';
 import { getSuggestedLemmas } from '../services/morphology';
 import { isDomainDisabled } from '../services/domain-filter';
+import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken } from '../services/text-utils';
 
 /**
  * Checks whether an element is an input, textarea, select, contenteditable or code editor
@@ -1504,8 +1505,8 @@ export class PageReader {
     const word = fullText.slice(start, end).trim();
     if (!word || word.length < 1) return null;
 
-    // Clean word bounds: skip pure punctuation/numbers
-    if (!/[\p{L}]/u.test(word)) return null;
+    // Clean word bounds: skip pure punctuation, numbers, timestamps, currencies
+    if (!/[\p{L}]/u.test(word) || !isWordToken(word)) return null;
 
     try {
       const wordRange = document.createRange();
@@ -1669,6 +1670,13 @@ export class PageReader {
       // If user selected valid text (word or phrase up to 12 words)
       if (selectedText && selectedText.length > 0) {
         const wordsCount = selectedText.split(/\s+/).length;
+        if (wordsCount === 1) {
+          if (!isWordToken(selectedText)) return;
+        } else if (!/\p{L}/u.test(selectedText)) {
+          // Selected multi-word range has no actual letters (e.g. "12 34 56" or "$10 - $20")
+          return;
+        }
+
         if (wordsCount <= 12) {
           try {
             const range = selection.getRangeAt(0);

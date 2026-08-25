@@ -30095,6 +30095,42 @@
     return isMatched;
   }
 
+  // extension/src/services/text-utils.ts
+  function isRomanNumeral(text, isEnglish = false) {
+    if (!text) return false;
+    const clean2 = text.replace(/^[“"'(«\[$€£¥₹₽#]+|[.,;:!?”"')»\]%]+$/g, "").trim();
+    if (!clean2) return false;
+    if (isEnglish && clean2.toUpperCase() === "I" && !/[IVXLCDM]+\./i.test(text)) {
+      return false;
+    }
+    return /^[IVXLCDM]+$/i.test(clean2) && clean2.length > 0 && /^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/i.test(clean2);
+  }
+  function cleanWordForLookup(raw) {
+    if (!raw) return "";
+    let clean2 = raw.trim();
+    clean2 = clean2.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "");
+    clean2 = clean2.replace(/^['’"`“«»]+|['’"`”«»]+$/gu, "");
+    return clean2.toLowerCase();
+  }
+  function isNumericOrSymbolToken(str) {
+    if (!str) return true;
+    const clean2 = str.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "").trim();
+    if (!clean2) return true;
+    if (!new RegExp("\\p{L}", "u").test(clean2)) return true;
+    if (/^\d+$/.test(clean2)) return true;
+    if (/^\d+:\d+/.test(clean2)) return true;
+    if (/^[\$€£¥₹₽#]?\d+([.,%/-]\d+)*%?$/.test(clean2)) return true;
+    return false;
+  }
+  function isWordToken(token, isEnglish = false) {
+    if (!token || !token.trim()) return false;
+    const clean2 = cleanWordForLookup(token);
+    if (!clean2 || clean2.length === 0) return false;
+    if (isNumericOrSymbolToken(token) || isNumericOrSymbolToken(clean2)) return false;
+    if (isRomanNumeral(token, isEnglish) || isRomanNumeral(clean2, isEnglish)) return false;
+    return true;
+  }
+
   // extension/src/content/page-reader.ts
   function isEditableElement(target) {
     if (!target || !(target instanceof HTMLElement)) return false;
@@ -31514,7 +31550,7 @@
       }
       const word = fullText.slice(start2, end2).trim();
       if (!word || word.length < 1) return null;
-      if (!/[\p{L}]/u.test(word)) return null;
+      if (!/[\p{L}]/u.test(word) || !isWordToken(word)) return null;
       try {
         const wordRange = document.createRange();
         wordRange.setStart(textNode, start2);
@@ -31633,6 +31669,11 @@
         const selectedText = selection.toString().trim();
         if (selectedText && selectedText.length > 0) {
           const wordsCount = selectedText.split(/\s+/).length;
+          if (wordsCount === 1) {
+            if (!isWordToken(selectedText)) return;
+          } else if (!new RegExp("\\p{L}", "u").test(selectedText)) {
+            return;
+          }
           if (wordsCount <= 12) {
             try {
               const range = selection.getRangeAt(0);
@@ -32545,4 +32586,11 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ */
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * 
+ * Shared Text & Token utilities for Lectura Extension
+ * Aligned directly with Lectura web app tokenizer rules
  */

@@ -3,6 +3,7 @@ import { StorageService } from '../services/storage';
 import { ExtensionSettings, SubtitleCue, WordMap, WordMapItem, YouTubeActivityPayload } from '../types/index';
 import { getSuggestedLemmas } from '../services/morphology';
 import { t } from '../services/i18n';
+import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken } from '../services/text-utils';
 
 /**
  * Instantly initializes subtitle appearance CSS variables on DOM / Shadow host
@@ -428,11 +429,7 @@ export function normalizeLangCode(lang?: string): string {
  * Cleans punctuation from edges of words while strictly preserving all accents and diacritics (á, é, í, ó, ú, ñ, ü, etc.)
  */
 export function cleanWordForTranslation(rawWord: string): string {
-  if (!rawWord) return '';
-  return rawWord
-    .trim()
-    .replace(/^[\p{P}\s¿¡«"'(]+|[\p{P}\s?!.,:;"»')]+$/gu, '')
-    .toLowerCase();
+  return cleanWordForLookup(rawWord);
 }
 
 export function getDialectsForLanguage(lang: string): DialectInfo[] {
@@ -1476,8 +1473,8 @@ class YouTubeLecturaOverlay {
       .sub-mode--color .lectura-token.status-ignored,
       .sub-mode--color .lectura-word-token.status-ignored,
       .lectura-token.status-ignored {
-        color: #94a3b8 !important;
-        opacity: 0.5 !important;
+        color: #ffffff !important; /* Четкий белый для игнорируемых */
+        opacity: 1 !important;
       }
 
       /* ==========================================================
@@ -1535,9 +1532,19 @@ class YouTubeLecturaOverlay {
       }
       .sub-mode--underline .lectura-token.status-ignored,
       .sub-mode--underline .lectura-word-token.status-ignored {
-        text-decoration: none !important;
-        color: #94a3b8 !important;
-        opacity: 0.5 !important;
+        text-decoration: none !important; /* Без подчеркивания (Ignored) */
+        color: #ffffff !important;
+        opacity: 1 !important;
+      }
+
+      /* Нейтральный текст без токенизации (цифры, знаки валют, спецсимволы) */
+      .lectura-sub-static {
+        color: #ffffff !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.8) !important;
+        cursor: default;
+        user-select: text;
+        display: inline-block;
+        padding: 0 1px;
       }
 
       /* Mini Hover Tooltip (Language Reactor Style) */
@@ -3399,6 +3406,23 @@ class YouTubeLecturaOverlay {
           leadSpan.className = 'punct';
           leadSpan.textContent = leadingPunct;
           parentEl.appendChild(leadSpan);
+        }
+
+        const isEnglish = this.getEffectiveLang().toLowerCase().startsWith('en');
+        if (!isWordToken(coreWord, isEnglish)) {
+          // Render numbers, currencies, timestamps, etc. as neutral static text without status highlight or hover tooltip
+          const staticSpan = document.createElement('span');
+          staticSpan.className = 'lectura-sub-static';
+          staticSpan.textContent = coreWord;
+          parentEl.appendChild(staticSpan);
+
+          if (trailingPunct) {
+            const trailSpan = document.createElement('span');
+            trailSpan.className = 'punct';
+            trailSpan.textContent = trailingPunct;
+            parentEl.appendChild(trailSpan);
+          }
+          return;
         }
 
         const span = document.createElement('span');

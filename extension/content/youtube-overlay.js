@@ -30271,6 +30271,42 @@
     return currentDict[key] || EXTENSION_TRANSLATIONS.en[key] || key;
   }
 
+  // extension/src/services/text-utils.ts
+  function isRomanNumeral(text, isEnglish = false) {
+    if (!text) return false;
+    const clean2 = text.replace(/^[“"'(«\[$€£¥₹₽#]+|[.,;:!?”"')»\]%]+$/g, "").trim();
+    if (!clean2) return false;
+    if (isEnglish && clean2.toUpperCase() === "I" && !/[IVXLCDM]+\./i.test(text)) {
+      return false;
+    }
+    return /^[IVXLCDM]+$/i.test(clean2) && clean2.length > 0 && /^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/i.test(clean2);
+  }
+  function cleanWordForLookup(raw) {
+    if (!raw) return "";
+    let clean2 = raw.trim();
+    clean2 = clean2.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "");
+    clean2 = clean2.replace(/^['’"`“«»]+|['’"`”«»]+$/gu, "");
+    return clean2.toLowerCase();
+  }
+  function isNumericOrSymbolToken(str) {
+    if (!str) return true;
+    const clean2 = str.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "").trim();
+    if (!clean2) return true;
+    if (!new RegExp("\\p{L}", "u").test(clean2)) return true;
+    if (/^\d+$/.test(clean2)) return true;
+    if (/^\d+:\d+/.test(clean2)) return true;
+    if (/^[\$€£¥₹₽#]?\d+([.,%/-]\d+)*%?$/.test(clean2)) return true;
+    return false;
+  }
+  function isWordToken(token, isEnglish = false) {
+    if (!token || !token.trim()) return false;
+    const clean2 = cleanWordForLookup(token);
+    if (!clean2 || clean2.length === 0) return false;
+    if (isNumericOrSymbolToken(token) || isNumericOrSymbolToken(clean2)) return false;
+    if (isRomanNumeral(token, isEnglish) || isRomanNumeral(clean2, isEnglish)) return false;
+    return true;
+  }
+
   // extension/src/content/youtube-overlay.ts
   function initSubtitleAppearance() {
     chrome.storage.local.get(["subtitleFontSize", "subtitleBgColor"], (res) => {
@@ -30541,8 +30577,7 @@
     return l2.slice(0, 2);
   }
   function cleanWordForTranslation(rawWord) {
-    if (!rawWord) return "";
-    return rawWord.trim().replace(/^[\p{P}\s¿¡«"'(]+|[\p{P}\s?!.,:;"»')]+$/gu, "").toLowerCase();
+    return cleanWordForLookup(rawWord);
   }
   function getDialectsForLanguage(lang) {
     const code = normalizeLangCode(lang);
@@ -31464,8 +31499,8 @@
       .sub-mode--color .lectura-token.status-ignored,
       .sub-mode--color .lectura-word-token.status-ignored,
       .lectura-token.status-ignored {
-        color: #94a3b8 !important;
-        opacity: 0.5 !important;
+        color: #ffffff !important; /* \u0427\u0435\u0442\u043A\u0438\u0439 \u0431\u0435\u043B\u044B\u0439 \u0434\u043B\u044F \u0438\u0433\u043D\u043E\u0440\u0438\u0440\u0443\u0435\u043C\u044B\u0445 */
+        opacity: 1 !important;
       }
 
       /* ==========================================================
@@ -31523,9 +31558,19 @@
       }
       .sub-mode--underline .lectura-token.status-ignored,
       .sub-mode--underline .lectura-word-token.status-ignored {
-        text-decoration: none !important;
-        color: #94a3b8 !important;
-        opacity: 0.5 !important;
+        text-decoration: none !important; /* \u0411\u0435\u0437 \u043F\u043E\u0434\u0447\u0435\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u044F (Ignored) */
+        color: #ffffff !important;
+        opacity: 1 !important;
+      }
+
+      /* \u041D\u0435\u0439\u0442\u0440\u0430\u043B\u044C\u043D\u044B\u0439 \u0442\u0435\u043A\u0441\u0442 \u0431\u0435\u0437 \u0442\u043E\u043A\u0435\u043D\u0438\u0437\u0430\u0446\u0438\u0438 (\u0446\u0438\u0444\u0440\u044B, \u0437\u043D\u0430\u043A\u0438 \u0432\u0430\u043B\u044E\u0442, \u0441\u043F\u0435\u0446\u0441\u0438\u043C\u0432\u043E\u043B\u044B) */
+      .lectura-sub-static {
+        color: #ffffff !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.8) !important;
+        cursor: default;
+        user-select: text;
+        display: inline-block;
+        padding: 0 1px;
       }
 
       /* Mini Hover Tooltip (Language Reactor Style) */
@@ -33556,6 +33601,20 @@
             leadSpan.textContent = leadingPunct;
             parentEl.appendChild(leadSpan);
           }
+          const isEnglish = this.getEffectiveLang().toLowerCase().startsWith("en");
+          if (!isWordToken(coreWord, isEnglish)) {
+            const staticSpan = document.createElement("span");
+            staticSpan.className = "lectura-sub-static";
+            staticSpan.textContent = coreWord;
+            parentEl.appendChild(staticSpan);
+            if (trailingPunct) {
+              const trailSpan = document.createElement("span");
+              trailSpan.className = "punct";
+              trailSpan.textContent = trailingPunct;
+              parentEl.appendChild(trailSpan);
+            }
+            return;
+          }
           const span = document.createElement("span");
           span.className = "lectura-word-token lectura-token";
           span.textContent = coreWord;
@@ -35016,4 +35075,11 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ */
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * 
+ * Shared Text & Token utilities for Lectura Extension
+ * Aligned directly with Lectura web app tokenizer rules
  */
