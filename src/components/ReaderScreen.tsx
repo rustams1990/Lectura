@@ -125,10 +125,17 @@ export default function ReaderScreen({
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
         return;
       }
-      if (e.key === "Escape" && isFocusMode) {
-        e.preventDefault();
-        setIsFocusMode(false);
-        return;
+      if (e.key === "Escape") {
+        if (selectedWord) {
+          e.preventDefault();
+          setSelectedWord(null);
+          return;
+        }
+        if (isFocusMode) {
+          e.preventDefault();
+          setIsFocusMode(false);
+          return;
+        }
       }
       if ((e.key === "t" || e.key === "T" || e.key === "е" || e.key === "Е") && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
@@ -141,7 +148,7 @@ export default function ReaderScreen({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [setReaderSettings, isFocusMode, setIsFocusMode]);
+  }, [setReaderSettings, isFocusMode, setIsFocusMode, selectedWord, setSelectedWord]);
 
   // Isolated layout width classes strictly applied inside Reader
   const readerWidthClasses = isImmersiveBook

@@ -84,6 +84,7 @@ interface ReaderPanelProps {
   /** When true, hides the title/badges/status header (used in Focus Mode) */
   hideMeta?: boolean;
   onToggleTranslations?: () => void;
+  onClearSelection?: () => void;
 }
 
 const fontSizeMap = {
@@ -277,8 +278,25 @@ function ReaderPanel({
   onUpdateHistory,
   hideMeta = false,
   onToggleTranslations,
+  onClearSelection,
 }: ReaderPanelProps) {
   const { t } = useTranslation();
+
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('[data-token]') || 
+      target.closest('.reader-word-token') || 
+      target.closest('.word-explainer') || 
+      target.closest('.modal-content') ||
+      target.closest('button') || 
+      target.closest('a')
+    ) {
+      return;
+    }
+    onClearSelection?.();
+  };
+
   const {
     isFocusMode,
     setIsFocusMode,
@@ -895,6 +913,7 @@ function ReaderPanel({
   return (
     <div 
       id="reader-top" 
+      onClick={handleBackgroundClick}
       className={`reader-container book-page-sheet relative w-full max-w-none lg:max-w-none ${
         hideMeta 
           ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-4 py-3 lg:px-10 lg:pt-4 lg:pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 

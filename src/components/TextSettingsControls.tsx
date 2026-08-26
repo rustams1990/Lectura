@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, startTransition } from "react";
 import { createPortal } from "react-dom";
 import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY } from "../types";
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
@@ -24,7 +24,10 @@ export default function TextSettingsControls({
   lessonType,
 }: TextSettingsControlsProps) {
   const { t } = useTranslation();
-  const { bookDisplayMode, setBookDisplayMode, bookReaderView, setBookReaderView } = useUIStore();
+  const bookDisplayMode = useUIStore((s) => s.bookDisplayMode);
+  const setBookDisplayMode = useUIStore((s) => s.setBookDisplayMode);
+  const bookReaderView = useUIStore((s) => s.bookReaderView);
+  const setBookReaderView = useUIStore((s) => s.setBookReaderView);
   const [isOpen, setIsOpen] = useState(false);
 
   const isBookMode = lessonType === "book";
@@ -69,52 +72,60 @@ export default function TextSettingsControls({
   ];
 
   const updateKey = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
-    onUpdateSettings({
-      ...settings,
-      [key]: value,
+    startTransition(() => {
+      onUpdateSettings({
+        ...settings,
+        [key]: value,
+      });
     });
   };
 
   const handleFontFamilyChange = (font: ReaderSettings["fontFamily"]) => {
-    if (isBookMode) {
-      onUpdateSettings({ ...settings, bookFontFamily: font });
-      try {
-        localStorage.setItem("lectura_book_font_family", font || "serif");
-      } catch (_) {}
-    } else {
-      onUpdateSettings({ ...settings, fontFamily: font });
-      try {
-        localStorage.setItem("lectura_font_family", font || "sans");
-      } catch (_) {}
-    }
+    startTransition(() => {
+      if (isBookMode) {
+        onUpdateSettings({ ...settings, bookFontFamily: font });
+        try {
+          localStorage.setItem("lectura_book_font_family", font || "serif");
+        } catch (_) {}
+      } else {
+        onUpdateSettings({ ...settings, fontFamily: font });
+        try {
+          localStorage.setItem("lectura_font_family", font || "sans");
+        } catch (_) {}
+      }
+    });
   };
 
   const handleDisplayModeChange = (mode: "badges" | "text") => {
-    if (isBookMode) {
-      onUpdateSettings({ ...settings, bookReaderViewStyle: mode });
-      try {
-        localStorage.setItem("lectura_book_reader_view_style", mode);
-      } catch (_) {}
-    } else {
-      onUpdateSettings({ ...settings, readerViewStyle: mode });
-      try {
-        localStorage.setItem("lectura_reader_view_style", mode);
-      } catch (_) {}
-    }
+    startTransition(() => {
+      if (isBookMode) {
+        onUpdateSettings({ ...settings, bookReaderViewStyle: mode });
+        try {
+          localStorage.setItem("lectura_book_reader_view_style", mode);
+        } catch (_) {}
+      } else {
+        onUpdateSettings({ ...settings, readerViewStyle: mode });
+        try {
+          localStorage.setItem("lectura_reader_view_style", mode);
+        } catch (_) {}
+      }
+    });
   };
 
-  const handleWordCardModeChange = (mode: WordCardMode) => {
-    if (isBookMode) {
-      onUpdateSettings({ ...settings, bookWordCardMode: mode });
-      try {
-        localStorage.setItem("lectura_book_word_card_mode", mode);
-      } catch (_) {}
-    } else {
-      onUpdateSettings({ ...settings, wordCardMode: mode });
-      try {
-        localStorage.setItem("lectura_word_card_mode", mode);
-      } catch (_) {}
-    }
+  const handleWordCardModeChange = (mode: string) => {
+    startTransition(() => {
+      if (isBookMode) {
+        onUpdateSettings({ ...settings, bookWordCardMode: mode as any });
+        try {
+          localStorage.setItem("lectura_book_word_card_mode", mode);
+        } catch (_) {}
+      } else {
+        onUpdateSettings({ ...settings, wordCardMode: mode as any });
+        try {
+          localStorage.setItem("lectura_word_card_mode", mode);
+        } catch (_) {}
+      }
+    });
   };
 
   const handleDecreaseFont = () => {
@@ -170,11 +181,14 @@ export default function TextSettingsControls({
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 select-none">
           {/* Backdrop closer */}
           <div 
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-[2px] animate-in fade-in duration-150" 
+            className="fixed inset-0 bg-black/50 dark:bg-black/70 animate-in fade-in duration-150" 
             onClick={() => setIsOpen(false)} 
           />
           
-          <div className="relative w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-5 sm:p-6 z-10 space-y-4 animate-in zoom-in-95 duration-150 scrollbar-thin">
+          <div 
+            className="relative w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-5 sm:p-6 z-10 space-y-4 animate-in zoom-in-95 duration-150 scrollbar-thin overscroll-contain contain-content will-change-transform"
+            style={{ transform: "translateZ(0)" }}
+          >
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
               <span className="text-xs font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" /> {t('reader.text_appearance', 'Text Appearance')}
@@ -226,7 +240,9 @@ export default function TextSettingsControls({
                   <button
                     type="button"
                     onClick={() => {
-                      setBookReaderView("focus");
+                      startTransition(() => {
+                        setBookReaderView("focus");
+                      });
                       handleWordCardModeChange("calm-sheet");
                       handleDisplayModeChange("text");
                       handleFontFamilyChange("serif");
@@ -242,7 +258,9 @@ export default function TextSettingsControls({
                   <button
                     type="button"
                     onClick={() => {
-                      setBookReaderView("study");
+                      startTransition(() => {
+                        setBookReaderView("study");
+                      });
                       handleWordCardModeChange("full-inspector");
                       handleDisplayModeChange("badges");
                     }}

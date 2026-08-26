@@ -31,7 +31,7 @@ export default function ReaderView({
   onToggleTranslations,
 }: ReaderViewProps) {
   const { activeLesson, currentTime, setSeekToTime } = useLesson();
-  const { vocab, selectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
+  const { vocab, selectedWord, setSelectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
 
   // Auto-activate Focus Mode or default video mode for video lessons on mobile & tablet devices (< 1024px)
   React.useEffect(() => {
@@ -74,6 +74,7 @@ export default function ReaderView({
       onMarkKnown={(w) => handleUpdateStatusDirect(w, "known", activeLesson.targetLanguage)}
       settings={settings}
       onUpdateSettings={onUpdateSettings}
+      onClearSelection={() => setSelectedWord(null)}
       onEditClick={onEditClick}
       currentYoutubeTime={currentTime}
       onTimestampClick={(seconds) => setSeekToTime(seconds)}
