@@ -51,6 +51,8 @@ const defaultSettings: ReaderSettings = {
   bookReaderViewStyle: 'text',
   wordCardMode: initialMode,
   bookWordCardMode: 'calm-sheet',
+  showTimestamps: true,
+  cjkWordSpacing: false,
   toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
 };
 
@@ -92,6 +94,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       if (newSettings.bookFontFamily && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_book_font_family', newSettings.bookFontFamily);
+      }
+      if (newSettings.showTimestamps !== undefined && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_show_timestamps', String(newSettings.showTimestamps));
       }
       return {
         settings: merged,

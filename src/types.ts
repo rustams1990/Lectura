@@ -162,6 +162,7 @@ export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
 
 export interface ReaderSettings {
   showTimestamps?: boolean;
+  cjkWordSpacing?: boolean;
   fontSize: "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   lineHeight: "normal" | "relaxed" | "loose" | "extra-loose";
   fontFamily: "sans" | "serif" | "mono";

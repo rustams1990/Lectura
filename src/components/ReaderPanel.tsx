@@ -398,6 +398,7 @@ function ReaderPanel({
       showProgressBar: settings?.showProgressBar !== false,
       showSentenceTranslations: !!settings?.showSentenceTranslations,
       showTimestamps: settings?.showTimestamps === undefined ? true : (settings?.showTimestamps === "false" ? false : Boolean(settings?.showTimestamps)),
+      cjkWordSpacing: !!settings?.cjkWordSpacing,
       readerViewStyle: isBook ? (settings?.bookReaderViewStyle || "text") : (settings?.readerViewStyle || "badges"),
       wordCardMode: isBook ? (settings?.bookWordCardMode || "calm-sheet") : (settings?.wordCardMode || "full-inspector"),
       bookWordCardMode: settings?.bookWordCardMode || "calm-sheet",
@@ -1399,6 +1400,22 @@ function ReaderPanel({
               }
             };
 
+            const isPunctuationToken = (tok: any) => {
+              return !tok.isWord && /^[.,!?:;…»\)'"”\u2019\u201d\u2026\[\]\(\)\{\}«“、。！？]+$/.test(tok.raw.trim());
+            };
+
+            const getCjkSpacingClass = (lastIdx: number) => {
+              if (!isCjk || !activeSettings.cjkWordSpacing) return "";
+              const nextTok = lastIdx + 1 < tokens.length ? tokens[lastIdx + 1] : null;
+              if (nextTok) {
+                // If next token is punctuation, no spacing
+                if (isPunctuationToken(nextTok)) return "";
+                // If next token is whitespace, no extra spacing needed
+                if (!nextTok.isWord && /^\s+$/.test(nextTok.raw)) return "";
+              }
+              return "mr-[0.2em]";
+            };
+
             while (tIdx < tokens.length) {
               const tok = tokens[tIdx];
 
@@ -1528,7 +1545,7 @@ function ReaderPanel({
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
                     {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                     <span
                       role="button"
@@ -1674,7 +1691,7 @@ function ReaderPanel({
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
                     {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                     <span
                       role="button"
@@ -1829,7 +1846,7 @@ function ReaderPanel({
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
               elements.push(
-                <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
                   {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                   <span
                     role="button"
