@@ -794,6 +794,7 @@ export default function App() {
       bookFontFamily: (localStorage.getItem("lectura_book_font_family") as any) || "serif",
       wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || "full-inspector",
       bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || "calm-sheet",
+      showTimestamps: localStorage.getItem("lectura_show_timestamps") !== "false",
       toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
     };
     try {

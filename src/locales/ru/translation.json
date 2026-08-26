@@ -749,6 +749,9 @@
     "translations_btn": "Перевод",
     "show_translations_title": "Показать параллельный перевод предложений (T)",
     "hide_translations_title": "Скрыть параллельный перевод предложений (T)",
+    "timestamps_btn": "Таймкоды",
+    "show_timestamps_title": "Показать временные метки",
+    "hide_timestamps_title": "Скрыть временные метки",
     "toolbar_visibility_label": "Кнопки панели инструментов",
     "tb_ai_hub": "ИИ-Центр",
     "tb_translation": "Перевод предложений (T)",
@@ -758,6 +761,7 @@
     "tb_video": "Кнопка видео",
     "tb_display_mode": "Режим отображения (Плашки / Книга)",
     "tb_width_toggle": "Ширина текста (Стандарт / Широкий / Экран)",
+    "tb_timestamps": "Таймкоды строк (0:02)",
     "chapters": "Главы",
     "toc": "Оглавление",
     "search_chapters": "Поиск глав...",
@@ -1064,7 +1068,9 @@
     "reset_meaning_dicts_confirm": "Сбросить словари перевода на стандартные?",
     "reset_def_dicts_confirm": "Сбросить толковые словари на стандартные?",
     "parallel_translations": "Параллельный перевод предложений (T)",
-    "parallel_translations_desc": "Построчный подстрочный перевод под предложениями"
+    "parallel_translations_desc": "Построчный подстрочный перевод под предложениями",
+    "show_timestamps": "Временные метки (0:02, 0:12)",
+    "show_timestamps_desc": "Показывать таймкоды строк в аудио- и видеоуроках"
   },
   "stats_page": {
     "profiler_success": "Успешно! Проанализировано {{lessonsCount}} уроков ({{tokensCount}} словоупотреблений). Автоматически обновлено {{updatedCount}} слов в словаре добавлением CEFR-тегов важности (A1, A2, B1, B2, C1).",

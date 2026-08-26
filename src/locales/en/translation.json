@@ -749,6 +749,9 @@
     "translations_btn": "Translation",
     "show_translations_title": "Show parallel sentence translation (T)",
     "hide_translations_title": "Hide parallel sentence translation (T)",
+    "timestamps_btn": "Timestamps",
+    "show_timestamps_title": "Show timestamps",
+    "hide_timestamps_title": "Hide timestamps",
     "toolbar_visibility_label": "Toolbar Buttons",
     "tb_ai_hub": "AI Hub",
     "tb_translation": "Translation (T)",
@@ -758,6 +761,7 @@
     "tb_video": "Video Window Toggle",
     "tb_display_mode": "Display Mode (Badges / Book)",
     "tb_width_toggle": "Width (Standard / Wide / Full)",
+    "tb_timestamps": "Line Timestamps (0:02)",
     "chapters": "Chapters",
     "toc": "Table of Contents",
     "search_chapters": "Search chapters...",
@@ -1064,7 +1068,9 @@
     "reset_meaning_dicts_confirm": "Are you sure you want to reset Meaning dictionaries to defaults?",
     "reset_def_dicts_confirm": "Are you sure you want to reset Definition dictionaries to defaults?",
     "parallel_translations": "Parallel Translation (T)",
-    "parallel_translations_desc": "Show line-by-line sentence translations under text"
+    "parallel_translations_desc": "Show line-by-line sentence translations under text",
+    "show_timestamps": "Timestamps (0:02, 0:12)",
+    "show_timestamps_desc": "Show line-by-line timestamps in video and audio lessons"
   },
   "stats_page": {
     "profiler_success": "Successfully analyzed {{lessonsCount}} lessons ({{tokensCount}} words). Automatically updated {{updatedCount}} words in dictionary with CEFR priority tags (A1, A2, B1, B2, C1).",
