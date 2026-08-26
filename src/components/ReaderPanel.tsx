@@ -313,11 +313,13 @@ function ReaderPanel({
   } = useUIStore();
   const isBookLesson = lesson.lessonType === "book";
   const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
-  const { wordCardMode: storeCardMode } = useSettingsStore();
+  const storeFontSize = useSettingsStore((s) => s.fontSize);
+  const storeCardMode = useSettingsStore((s) => s.wordCardMode);
+  
   const wordCardMode = isBookLesson
     ? (isBookFocus
         ? (settings?.bookWordCardMode || "calm-sheet")
-        : (settings?.wordCardMode || "full-inspector"))
+        : (settings?.wordCardMode || storeCardMode || "full-inspector"))
     : (settings?.wordCardMode || storeCardMode || "full-inspector");
   const isCalmSheet = wordCardMode === "calm-sheet";
   const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);
@@ -397,7 +399,7 @@ function ReaderPanel({
   const activeSettings = useMemo(() => {
     const isBook = lesson.lessonType === "book";
     return {
-      fontSize: settings?.fontSize || "lg",
+      fontSize: storeFontSize || settings?.fontSize || "lg",
       lineHeight: settings?.lineHeight || "loose",
       fontFamily: isBook ? (settings?.bookFontFamily || "serif") : (settings?.fontFamily || "sans"),
       readerTheme: settings?.readerTheme || "default",
@@ -424,7 +426,7 @@ function ReaderPanel({
       bookFontFamily: settings?.bookFontFamily || "serif",
       toolbarVisibility: settings?.toolbarVisibility,
     };
-  }, [settings, lesson.lessonType]);
+  }, [settings, lesson.lessonType, storeFontSize]);
 
   const {
     segments,
@@ -1587,7 +1589,7 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text font-inherit`}
+                      className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text text-[length:inherit]`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
@@ -1733,7 +1735,7 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} inline-flex items-center cursor-pointer select-text font-inherit`}
+                      className={`${styleClass} inline-flex items-center cursor-pointer select-text text-[length:inherit]`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
@@ -1922,7 +1924,7 @@ function ReaderPanel({
                       setHoveredWordId(null);
                       setHoveredWordObj(null);
                     }}
-                    className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text font-inherit transition-opacity`}
+                    className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text text-[length:inherit] transition-opacity`}
                     style={{ outline: "none" }}
                     spellCheck={false}
                   >
@@ -1945,7 +1947,7 @@ function ReaderPanel({
                 const trans = sentenceTranslationsMap[cleanSent] || lesson.sentenceTranslations?.[cleanSent];
                 return (
                   <div key={sIdx} className="sentence-block mb-3.5 last:mb-0 space-y-0.5 select-text text-left">
-                    <div className="original-text leading-relaxed text-inherit font-inherit select-text">
+                    <div className="original-text leading-relaxed text-inherit text-[length:inherit] select-text">
                       {renderSentenceTokens(sentText, sIdx)}
                     </div>
                     {trans ? (
@@ -2025,7 +2027,7 @@ function ReaderPanel({
                             onTimestampClick(secs);
                           }
                         }}
-                        className={`text-xs sm:text-sm font-semibold font-mono tracking-tight transition-all cursor-pointer rounded-md px-1.5 py-0.5 hover:scale-105 active:scale-95 inline-block ${
+                        className={`font-semibold font-mono tracking-tight transition-all cursor-pointer rounded-md px-1.5 py-0.5 hover:scale-105 active:scale-95 inline-block ${
                           isSegmentActive
                             ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-zinc-950 shadow-xs font-bold"
                             : "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/45"
@@ -2042,7 +2044,7 @@ function ReaderPanel({
                   </div>
                 )}
                 <div className="flex-1 min-w-0 w-full pl-0">
-                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 text-sm sm:text-base w-full">
+                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 w-full">
                     {renderParagraphContent()}
                   </p>
                 </div>
