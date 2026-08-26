@@ -287,7 +287,7 @@ export const usePodcastStore = create<PodcastState>((set, get) => ({
       set(state => ({
         importedEpisodes: { ...state.importedEpisodes, [guid]: data.lessonId },
       }));
-      return data.lessonId as string;
+      window.dispatchEvent(new CustomEvent("lectura:refresh_lessons")); return data.lessonId as string;
     } catch (e) {
       console.error("[PodcastStore] importEpisode error:", e);
       return null;
