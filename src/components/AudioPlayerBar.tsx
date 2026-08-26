@@ -213,8 +213,6 @@ export default function AudioPlayerBar({
     };
   }, [isPlaying, isGlobalPlayingThisLesson]);
 
-  if (!activeLesson) return null;
-
   const isValidUrl = (url: any): boolean => {
     if (!url || typeof url !== "string") return false;
     const trimmed = url.trim();
@@ -231,12 +229,17 @@ export default function AudioPlayerBar({
     return true;
   };
 
-  const hasAudio = isValidUrl(activeLesson.audioUrl) || isValidUrl(activeLesson.audioBase64);
-  const rawAudioSrc = isValidUrl(activeLesson.audioUrl)
-    ? activeLesson.audioUrl!.trim()
-    : (isValidUrl(activeLesson.audioBase64) 
-        ? (activeLesson.audioBase64!.trim().startsWith("data:") ? activeLesson.audioBase64!.trim() : `data:audio/mp3;base64,${activeLesson.audioBase64!.trim()}`)
-        : "");
+  const hasAudio = Boolean(
+    activeLesson &&
+    (isValidUrl(activeLesson.audioUrl) || isValidUrl(activeLesson.audioBase64))
+  );
+  const rawAudioSrc = activeLesson
+    ? (isValidUrl(activeLesson.audioUrl)
+        ? activeLesson.audioUrl!.trim()
+        : (isValidUrl(activeLesson.audioBase64) 
+            ? (activeLesson.audioBase64!.trim().startsWith("data:") ? activeLesson.audioBase64!.trim() : `data:audio/mp3;base64,${activeLesson.audioBase64!.trim()}`)
+            : ""))
+    : "";
 
   // Transform /api/audio-files/name.mp3 to /api/audio-stream/name to bypass download manager extensions
   const audioSrc = useMemo(() => {
@@ -519,6 +522,10 @@ export default function AudioPlayerBar({
     const secs = Math.floor(time % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  if (!activeLesson || !hasAudio) {
+    return null;
+  }
 
   return (
     <div className={`sticky top-0 z-20 ${themeStyles.stickyWrapper} ${themeStyles.divider} py-2 sm:py-2.5 px-3 sm:px-4 rounded-xl sm:rounded-2xl shadow-sm transition-all w-full`}>
