@@ -145,6 +145,7 @@ export interface ReaderToolbarVisibility {
   showVideoToggle: boolean;  // default: true
   showDisplayMode: boolean;  // default: true (Badges / Book)
   showWidthToggle: boolean;  // default: true (Standard / Wide / Full)
+  showTimestampsToggle: boolean; // default: true
 }
 
 export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
@@ -156,9 +157,11 @@ export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
   showVideoToggle: true,
   showDisplayMode: true,
   showWidthToggle: true,
+  showTimestampsToggle: true,
 };
 
 export interface ReaderSettings {
+  showTimestamps?: boolean;
   fontSize: "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   lineHeight: "normal" | "relaxed" | "loose" | "extra-loose";
   fontFamily: "sans" | "serif" | "mono";

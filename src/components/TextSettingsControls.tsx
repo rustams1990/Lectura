@@ -567,6 +567,29 @@ export default function TextSettingsControls({
               </div>
             </div>
 
+            {/* Show Timestamps Toggle */}
+            <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                    {t('explainer.show_timestamps', 'Timestamps (0:02, 0:12)')}
+                  </span>
+                  <span className="text-[9px] text-zinc-400 font-normal block leading-tight">
+                    {t('explainer.show_timestamps_desc', 'Show line-by-line timestamps in video and audio lessons')}
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={settings.showTimestamps === undefined ? true : (settings.showTimestamps === "false" ? false : Boolean(settings.showTimestamps))}
+                    onChange={(e) => updateKey("showTimestamps", e.target.checked)}
+                  />
+                  <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                </label>
+              </div>
+            </div>
+
             {/* Reading Progress Bar Toggle */}
             <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <div className="flex items-center justify-between">
@@ -727,6 +750,20 @@ export default function TextSettingsControls({
                       type="checkbox"
                       checked={toolbarVisibility.showWidthToggle !== false}
                       onChange={(e) => updateToolbarVisibility("showWidthToggle", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {/* 9. Timestamps Toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">Timestamps Toggle Button</span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={toolbarVisibility.showTimestampsToggle !== false}
+                      onChange={(e) => updateToolbarVisibility("showTimestampsToggle", e.target.checked)}
                       className="sr-only peer"
                     />
                     <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>

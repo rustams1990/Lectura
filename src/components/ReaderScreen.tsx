@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages, List } from "lucide-react";
+import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages, List, Clock } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
@@ -313,7 +313,35 @@ export default function ReaderScreen({
                       </button>
                     )}
 
-                    {/* 8. Переключатель Badges / Book */}
+                    {/* 8. Timestamps */}
+                    {toolbarVisibility.showTimestampsToggle !== false && !!(activeLesson && (activeLesson.youtubeId || activeLesson.audioUrl || activeLesson.audioBase64 || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "podcast" || activeLesson.lessonType === "audio" || /\b(\d{1,2}:)?\d{1,2}:\d{2}\b/.test(activeLesson.text))) && (
+                      <button
+                        onClick={() =>
+                          setReaderSettings((prev) => {
+                            const prevVal = prev.showTimestamps === undefined ? true : (prev.showTimestamps === "false" ? false : Boolean(prev.showTimestamps));
+                            return {
+                              ...prev,
+                              showTimestamps: !prevVal,
+                            };
+                          })
+                        }
+                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                          (readerSettings.showTimestamps === undefined ? true : (readerSettings.showTimestamps === "false" ? false : Boolean(readerSettings.showTimestamps)))
+                            ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
+                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                        }`}
+                        title={
+                          (readerSettings.showTimestamps === undefined ? true : (readerSettings.showTimestamps === "false" ? false : Boolean(readerSettings.showTimestamps)))
+                            ? t('reader.hide_timestamps_title', 'Hide timestamps')
+                            : t('reader.show_timestamps_title', 'Show timestamps')
+                        }
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{t('reader.timestamps_btn', 'Timestamps')}</span>
+                      </button>
+                    )}
+
+                    {/* 9. Переключатель Badges / Book */}
                     {toolbarVisibility.showDisplayMode !== false && (
                       <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
                         <button

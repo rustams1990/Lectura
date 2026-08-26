@@ -397,6 +397,7 @@ function ReaderPanel({
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
       showProgressBar: settings?.showProgressBar !== false,
       showSentenceTranslations: !!settings?.showSentenceTranslations,
+      showTimestamps: settings?.showTimestamps === undefined ? true : (settings?.showTimestamps === "false" ? false : Boolean(settings?.showTimestamps)),
       readerViewStyle: isBook ? (settings?.bookReaderViewStyle || "text") : (settings?.readerViewStyle || "badges"),
       wordCardMode: isBook ? (settings?.bookWordCardMode || "calm-sheet") : (settings?.wordCardMode || "full-inspector"),
       bookWordCardMode: settings?.bookWordCardMode || "calm-sheet",
@@ -1079,6 +1080,31 @@ function ReaderPanel({
                   title={t("reader.video_btn_title", "Видео")}
                 >
                   <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              )}
+
+              {/* 6. Timestamps */}
+              {activeSettings.toolbarVisibility?.showTimestampsToggle !== false && hasTimestamps && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateSettings?.({
+                      ...settings,
+                      showTimestamps: activeSettings.showTimestamps === false ? true : false,
+                    })
+                  }
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                    activeSettings.showTimestamps !== false
+                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                      : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-black/5 dark:hover:bg-white/5"
+                  }`}
+                  title={
+                    activeSettings.showTimestamps !== false
+                      ? t("reader.hide_timestamps_title", "Скрыть временные метки")
+                      : t("reader.show_timestamps_title", "Показать временные метки")
+                  }
+                >
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               )}
             </div>
@@ -1931,44 +1957,56 @@ function ReaderPanel({
           };
 
           if (hasTimestamps) {
-            // Render beautiful unified line-by-line subtitle transcript layout exactly like screenshot 1
+            const showTs = activeSettings.showTimestamps === undefined ? true : (activeSettings.showTimestamps === "false" ? false : Boolean(activeSettings.showTimestamps));
+            // Render beautiful unified line-by-line subtitle transcript layout
             return (
               <div 
                 key={pIdx} 
                 id={`segment-row-${globalSegmentIdx}`}
-                className={`reader-line-item relative hover:z-20 flex items-baseline gap-3 px-3 sm:px-4 border-l-[3.5px] rounded-r-2xl transition-colors duration-150 ${getSegmentSpacingClass()} ${
+                onClick={(e) => {
+                  if (!showTs && seg.timestamp && onTimestampClick) {
+                    const target = e.target as HTMLElement;
+                    if (!target.closest('button') && !target.closest('[role="button"]') && window.getSelection()?.toString().length === 0) {
+                      const secs = parseTimestampToSeconds(seg.timestamp);
+                      onTimestampClick(secs);
+                    }
+                  }
+                }}
+                className={`reader-line-item relative hover:z-20 flex items-baseline ${showTs ? "gap-3 px-3 sm:px-4" : "gap-0 px-2 sm:px-3"} border-l-[3.5px] rounded-r-2xl transition-colors duration-150 ${getSegmentSpacingClass()} ${
                   isSegmentActive 
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-amber-500 shadow-xs scale-[1.008]" 
                     : "border-transparent hover:bg-zinc-100/30 dark:hover:bg-zinc-800/10"
-                }`}
+                } ${!showTs && seg.timestamp ? "cursor-pointer" : ""}`}
               >
-                <div className="w-12 sm:w-16 shrink-0 select-none text-left">
-                  {seg.timestamp ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onTimestampClick) {
-                          const secs = parseTimestampToSeconds(seg.timestamp);
-                          onTimestampClick(secs);
-                        }
-                      }}
-                      className={`text-xs sm:text-sm font-semibold font-mono tracking-tight transition-all cursor-pointer rounded-md px-1.5 py-0.5 hover:scale-105 active:scale-95 inline-block ${
-                        isSegmentActive
-                          ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-zinc-950 shadow-xs font-bold"
-                          : "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/45"
-                      }`}
-                      title={t('reader.click_to_seek', 'Click to seek video to this timestamp')}
-                    >
-                      {formatTime(parseTimestampToSeconds(seg.timestamp))}
-                    </button>
-                  ) : (
-                    <span className="text-xs font-mono text-zinc-300 dark:text-zinc-700 select-none">
-                      ··
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 text-sm sm:text-base">
+                {showTs && (
+                  <div className="w-12 sm:w-16 shrink-0 select-none text-left">
+                    {seg.timestamp ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onTimestampClick) {
+                            const secs = parseTimestampToSeconds(seg.timestamp);
+                            onTimestampClick(secs);
+                          }
+                        }}
+                        className={`text-xs sm:text-sm font-semibold font-mono tracking-tight transition-all cursor-pointer rounded-md px-1.5 py-0.5 hover:scale-105 active:scale-95 inline-block ${
+                          isSegmentActive
+                            ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-zinc-950 shadow-xs font-bold"
+                            : "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/45"
+                        }`}
+                        title={t('reader.click_to_seek', 'Click to seek video to this timestamp')}
+                      >
+                        {formatTime(parseTimestampToSeconds(seg.timestamp))}
+                      </button>
+                    ) : (
+                      <span className="text-xs font-mono text-zinc-300 dark:text-zinc-700 select-none">
+                        ··
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0 w-full pl-0">
+                  <p className="m-0 text-left antialiased text-inherit selection:bg-teal-200 dark:selection:bg-teal-900 text-sm sm:text-base w-full">
                     {renderParagraphContent()}
                   </p>
                 </div>
