@@ -466,5 +466,9 @@ export function useWhisperQueue() {
     cancelTask: whisperQueueService.cancelTask.bind(whisperQueueService),
     clearCompletedTask: whisperQueueService.clearCompletedTask.bind(whisperQueueService),
     clearAllCompleted: whisperQueueService.clearAllCompleted.bind(whisperQueueService),
+    registerCustomTask: whisperQueueService.registerCustomTask.bind(whisperQueueService),
+    updateCustomTask: whisperQueueService.updateCustomTask.bind(whisperQueueService),
+    completeCustomTask: whisperQueueService.completeCustomTask.bind(whisperQueueService),
+    failCustomTask: whisperQueueService.failCustomTask.bind(whisperQueueService),
   };
 }

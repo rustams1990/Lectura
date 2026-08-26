@@ -362,10 +362,10 @@ export default function PodcastsPage({
     const taskId = `podcast_import_${ep.guid}_${Date.now()}`;
     const cleanTitle = ep.title || "Podcast Episode";
 
-    registerCustomTask(taskId, cleanTitle, t("podcasts.stage_importing", "Downloading & processing episode..."));
+    registerCustomTask({ id: taskId, title: cleanTitle, stageText: t("podcasts.stage_importing", "Downloading & processing episode...") });
 
     try {
-      updateCustomTask(taskId, 30, t("podcasts.stage_transcribing_whisper", "Speech recognition via Whisper..."));
+      updateCustomTask(taskId, { progress: 30, stageText: t("podcasts.stage_transcribing_whisper", "Speech recognition via Whisper...") });
 
       const lessonId = await importEpisode(
         ep,
