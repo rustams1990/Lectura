@@ -342,9 +342,6 @@ export const usePlaylistStore = create<PlaylistState>()(
     {
       name: 'lectura_playlist_state',
       partialize: (state) => ({
-        queue: state.queue,
-        currentIndex: state.currentIndex,
-        currentTime: state.currentTime,
         playbackRate: state.playbackRate,
         repeatMode: state.repeatMode,
         volume: state.volume,

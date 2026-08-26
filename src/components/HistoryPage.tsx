@@ -664,16 +664,8 @@ function HistoryPage({
       if (idsToDelete.length === 0) idsToDelete.push(id);
 
       try {
-        const rawLocal = localStorage.getItem("vocab_clone_reading_history");
-        if (rawLocal) {
-          try {
-            const parsed = JSON.parse(rawLocal);
-            if (Array.isArray(parsed)) {
-              const filtered = parsed.filter((h: any) => !idsToDelete.includes(h.id));
-              localStorage.setItem("vocab_clone_reading_history", JSON.stringify(filtered));
-            }
-          } catch (_) {}
-        }
+        // Local storage was removed here to prevent quota exceeded errors.
+        // History deletion relies on the backend API now.
         const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
         const savedUserStr = localStorage.getItem("vocab_clone_local_user");
         const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;

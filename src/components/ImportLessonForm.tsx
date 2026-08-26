@@ -463,9 +463,9 @@ export default function ImportLessonForm({
     setFileError(null);
     setFileSuccess(null);
 
-    const MAX_CLIENT_EPUB_SIZE = 45 * 1024 * 1024; // 45 MB raw file
+    const MAX_CLIENT_EPUB_SIZE = 100 * 1024 * 1024; // 100 MB raw file
     if (file.size > MAX_CLIENT_EPUB_SIZE) {
-      const errorMsg = t('import.file_too_large', 'Файл слишком большой. Максимальный размер EPUB — 45 МБ.');
+      const errorMsg = t('import.file_too_large', 'Файл слишком большой. Максимальный размер EPUB — 100 МБ.');
       showToast(errorMsg, 'error');
       setFileError(errorMsg);
       setIsFileLoading(false);

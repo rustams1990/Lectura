@@ -2646,7 +2646,7 @@ function StatisticsPage({
                 <div className="space-y-1 pt-1.5 border-t border-zinc-200/50 dark:border-zinc-800/50">
                   <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">{t('stats_page.preview_entries', 'Preview of first few entries:')}</span>
                   <div className="max-h-36 overflow-y-auto bg-zinc-500/5 rounded-lg border border-zinc-200 dark:border-zinc-800 p-2 font-mono text-[10.5px] space-y-1.5 align-middle">
-                    {parsedBatchWords.slice(0, 10).map((w, i) => (
+                    {parsedBatchWords.slice(0, 50).map((w, i) => (
                       <div key={i} className="flex items-center justify-between gap-3 text-zinc-700 dark:text-zinc-300">
                         <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
                           <span className="font-extrabold text-teal-600 dark:text-teal-400 truncate">{w.word}</span>

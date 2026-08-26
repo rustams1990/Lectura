@@ -597,13 +597,16 @@ export default function App() {
 
         updated = [newEntry, ...prev];
       }
-      const sliced = dedupeHistory(updated).slice(0, 500);
-      historyRef.current = sliced;
+      const finalHistory = dedupeHistory(updated);
+      historyRef.current = finalHistory;
       lastLocalChangeTime.current = Date.now();
-      safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(sliced));
-      settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(sliced)).catch(() => {});
-      scheduleBackgroundHistorySync(sliced);
-      return sliced;
+      
+      // We rely on IndexedDB (settingsStore) and the SQLite backend for persistence, 
+      // avoiding window.localStorage to prevent QuotaExceededError for large histories.
+      settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(finalHistory)).catch(() => {});
+      
+      scheduleBackgroundHistorySync(finalHistory);
+      return finalHistory;
     });
   };
 

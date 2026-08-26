@@ -1167,7 +1167,7 @@ function WordExplainer({
         if (!aStartsWith && bStartsWith) return 1;
         return compareWords(a.lower, b.lower, targetLanguage || "spanish", "asc");
       })
-      .slice(0, 10);
+      .slice(0, 50);
   }, [parentWordInput, searchCandidates, word]);
 
   const contextSearchHits = useMemo(() => {
