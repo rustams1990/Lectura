@@ -152,14 +152,14 @@ export default function ReaderScreen({
       }[readerSettings.maxWidth || "medium"])
     : effectiveCalmSheet
     ? ({
-        standard: "max-w-4xl mx-auto",
-        wide: "max-w-6xl mx-auto",
-        full: "w-full px-2 sm:px-4 lg:px-6",
+        standard: "w-full lg:max-w-4xl mx-auto px-0",
+        wide: "w-full lg:max-w-6xl mx-auto px-0",
+        full: "w-full px-0 lg:px-6",
       }[readerTextWidth || "standard"])
     : ({
-        standard: "max-w-7xl mx-auto",
-        wide: "max-w-[1560px] mx-auto",
-        full: "w-full px-2 sm:px-4 lg:px-6",
+        standard: "w-full lg:max-w-7xl mx-auto px-0",
+        wide: "w-full lg:max-w-[1560px] mx-auto px-0",
+        full: "w-full px-0 lg:px-6",
       }[readerTextWidth || "standard"]);
 
   return (

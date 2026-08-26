@@ -3298,7 +3298,7 @@ export default function App() {
       {/* Main Body */}
       <main 
         className={`flex-grow w-full mx-auto ${
-          isImmersiveBook ? "p-0 lg:p-4" : "p-4 sm:p-6 space-y-6"
+          isImmersiveBook ? "p-0 lg:p-4" : activeTab === "read" ? "p-0 lg:p-6" : "p-4 sm:p-6 space-y-6"
         } transition-all duration-300 ${
           activeTab === "read" ? "max-w-full" : layoutContainerClass
         } ${hasActiveQueue ? "pb-36 sm:pb-32" : ""}`}
@@ -3585,7 +3585,7 @@ export default function App() {
       </main>
 
       {!isImmersiveBook && (
-        <footer className={`py-6 border-t ${currentReaderTheme.border} text-center text-xs ${currentReaderTheme.text} opacity-50 ${currentReaderTheme.pageBg} transition-colors duration-200`}>
+        <footer className={`py-6 border-t ${currentReaderTheme.border} text-center text-xs ${currentReaderTheme.text} opacity-50 ${currentReaderTheme.pageBg} transition-colors duration-200 ${activeTab === 'read' ? 'hidden lg:block' : ''}`}>
           <p className="leading-relaxed">
             {t('app.footer', 'Lectura {{version}} © 2026. Interactive system for reading and language learning.', { version: APP_VERSION })}
           </p>

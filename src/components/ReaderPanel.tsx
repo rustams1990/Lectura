@@ -886,10 +886,10 @@ function ReaderPanel({
   return (
     <div 
       id="reader-top" 
-      className={`reader-container book-page-sheet relative ${
+      className={`reader-container book-page-sheet relative w-full max-w-none lg:max-w-none ${
         hideMeta 
-          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-6 md:px-10 lg:px-10 pt-3 sm:pt-4 pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
-          : "rounded-3xl border shadow-sm p-3.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-6"
+          ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-4 py-3 lg:px-10 lg:pt-4 lg:pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
+          : "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-sm px-4 py-3 lg:p-8 space-y-3 lg:space-y-6"
       } transition-colors duration-200 overflow-hidden ${currentTheme.container}`}
     >
       <div id="reader-top-anchor" className="h-0 pointer-events-none" />
