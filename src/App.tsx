@@ -3031,7 +3031,7 @@ export default function App() {
 
     if (seconds <= 0 && !forceFlush) return;
 
-    const effectiveSeconds = seconds > 0 ? Math.min(seconds, 5.0) : 0;
+    const effectiveSeconds = seconds > 0 ? Math.min(seconds, 15.0) : 0;
     const currentPos = resolvedExactTime !== undefined ? resolvedExactTime : getActiveMediaCurrentTime();
 
     if (effectiveSeconds > 0) {

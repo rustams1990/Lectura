@@ -192,6 +192,8 @@ export default function AudioPlayerBar({
         playlistSeek(seekToTime);
       } else if (audioRef.current) {
         audioRef.current.currentTime = seekToTime;
+        lastAudioPosRef.current = seekToTime;
+        lastTickTimeRef.current = Date.now();
         setCurrentTime(seekToTime);
       }
       setSeekToTime(null);
@@ -342,29 +344,32 @@ export default function AudioPlayerBar({
 
     // Direct synchronization with native audio timeupdate to eliminate timer drift
     if (!isGlobalPlayingThisLesson && !usePlaylistStore.getState().isPlaying && !audioRef.current.paused) {
+      const now = Date.now();
+      const wallClockDelta = lastTickTimeRef.current > 0 ? (now - lastTickTimeRef.current) / 1000 : 0;
       let diff = cur - lastAudioPosRef.current;
+
       if (isFirstPlayTickRef.current && cur > 0) {
         isFirstPlayTickRef.current = false;
         // On cold start, credit full initial buffered stream time (up to 15s)
         if (lastAudioPosRef.current <= 1.0 && cur <= 15) {
           diff = cur - lastAudioPosRef.current;
           pendingDeltaRef.current += diff;
-        } else if (diff > 0 && diff <= 3) {
+        } else if (diff > 0 && diff <= 5) {
           pendingDeltaRef.current += diff;
         } else {
           pendingDeltaRef.current = 0;
         }
       } else {
-        if (diff > 0 && diff <= 3) {
+        const maxValidDelta = Math.max(5, wallClockDelta * (effectivePlaybackRate || 1) + 2);
+        if (diff > 0 && diff <= Math.min(15, maxValidDelta)) {
           pendingDeltaRef.current += diff;
-        } else if (diff < 0 || diff > 3) {
-          // Seek / jump protection: reset delta on jumps > 3s or backward seeks
+        } else if (diff < 0 || diff > 15) {
+          // Seek / jump protection: reset delta on jumps > 15s or backward seeks
           pendingDeltaRef.current = 0;
         }
       }
       lastAudioPosRef.current = cur;
 
-      const now = Date.now();
       if (pendingDeltaRef.current >= 1.0 || now - lastTickTimeRef.current >= 1000) {
         if (pendingDeltaRef.current > 0) {
           onListeningTick?.(pendingDeltaRef.current, false, cur);
@@ -374,6 +379,7 @@ export default function AudioPlayerBar({
       }
     } else {
       lastAudioPosRef.current = cur;
+      lastTickTimeRef.current = Date.now();
     }
 
     // Sentence loop mode: when audio crosses into next sentence, jump back to current sentence start
