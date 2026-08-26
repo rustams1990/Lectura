@@ -957,7 +957,7 @@ router.post("/import-episode", async (req: Request, res: Response) => {
       cleanArtworkUrl || null,
       cleanPodcastTitle || null,
       wordTimestampsJson,
-      origGuid || null,
+      null,
       origAudio || null,
       now
     );
