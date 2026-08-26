@@ -103,6 +103,13 @@ const lineHeightMap = {
   "extra-loose": "leading-[2.15]",
 };
 
+const badgeLineHeightMap = {
+  normal: "leading-[2.2]",
+  relaxed: "leading-[2.3]",
+  loose: "leading-[2.4]",
+  "extra-loose": "leading-[2.5]",
+};
+
 const fontFamilyMap = {
   sans: "font-sans",
   serif: "font-serif",
@@ -1148,11 +1155,11 @@ function ReaderPanel({
         onMouseUp={handleTextSelection}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`prose max-w-none antialiased tracking-normal leading-relaxed flex-1 w-full ${
+        className={`prose max-w-none antialiased tracking-normal flex-1 w-full ${
           isDedicationOrTitlePage
             ? "flex flex-col items-center justify-center text-center my-auto min-h-[60vh] py-8 space-y-4"
             : "space-y-5 text-left"
-        } ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${lineHeightMap[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
+        } ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${(isTextMode ? lineHeightMap : badgeLineHeightMap)[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
       >
         {showOnlyUnknown && unknownViewMode === "list" && (
           <ReaderUnknownWordsList
@@ -1495,7 +1502,7 @@ function ReaderPanel({
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
                     {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                     <span
                       role="button"
@@ -1641,7 +1648,7 @@ function ReaderPanel({
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
                     {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                     <span
                       role="button"
@@ -1796,7 +1803,7 @@ function ReaderPanel({
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
               elements.push(
-                <span key={tIdx} className={`inline relative ${isTextMode ? "" : "my-[2px] py-[0.5px]"} ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
+                <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""}`} spellCheck={false}>
                   {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                   <span
                     role="button"
