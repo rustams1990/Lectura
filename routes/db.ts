@@ -2169,6 +2169,30 @@ const updateLessonHandler = (req: Request, res: Response) => {
 router.patch("/lessons/:id", updateLessonHandler);
 router.put("/lessons/:id", updateLessonHandler);
 
+router.get("/lessons/:id", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (_) {
+    userId = "default";
+  }
+
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: "Missing lesson ID" });
+
+  try {
+    const db = getDbConnection(userId);
+    const lesson = db.prepare("SELECT * FROM lessons WHERE id = ? AND (user_id = ? OR user_id = 'default')").get(id, userId) as any;
+    if (!lesson) {
+      return res.status(404).json({ error: "Lesson not found" });
+    }
+    return res.json(lesson);
+  } catch (err: any) {
+    console.error("[GET /api/lessons/:id] Error:", err);
+    return res.status(500).json({ error: "Failed to get lesson" });
+  }
+});
+
 router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
   let userId: string;
   try {
@@ -2177,18 +2201,30 @@ router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
     if (err.message === "UNAUTHORIZED_TOKEN") {
       return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
     }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    userId = "default";
   }
 
   const { id } = req.params;
-  const { audioProgress } = req.body;
+  const { progress, audioProgress, updatedAt } = req.body || {};
+  const targetProgress = progress !== undefined ? progress : audioProgress;
+  const timestamp = updatedAt ? Number(updatedAt) : Date.now();
+
   if (!id) return res.status(400).json({ error: "Missing lesson ID" });
-  if (audioProgress === undefined) return res.status(400).json({ error: "Missing audioProgress" });
+  if (targetProgress === undefined) return res.status(400).json({ error: "Missing audioProgress" });
 
   try {
     const db = getDbConnection(userId);
-    db.prepare('UPDATE lessons SET audioProgress = ? WHERE id = ? AND user_id = ?').run(audioProgress, id, userId);
-    res.json({ success: true, audioProgress });
+    const current = db.prepare('SELECT audio_progress_updated_at FROM lessons WHERE id = ? AND user_id = ?').get(id, userId) as any;
+    
+    // Protect: update ONLY if incoming timestamp is newer or equal
+    if (!current || !current.audio_progress_updated_at || timestamp >= current.audio_progress_updated_at) {
+      db.prepare(`
+        UPDATE lessons 
+        SET audio_progress = ?, audioProgress = ?, audio_progress_updated_at = ? 
+        WHERE id = ? AND user_id = ?
+      `).run(targetProgress, targetProgress, timestamp, id, userId);
+    }
+    res.json({ success: true, audio_progress: targetProgress, audioProgress: targetProgress, audio_progress_updated_at: timestamp });
   } catch (err: any) {
     console.error("[PATCH /api/lessons/:id/progress] Error:", err);
     res.status(500).json({ error: "Failed to update audio progress" });

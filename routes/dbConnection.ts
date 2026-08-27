@@ -87,7 +87,9 @@ function setupSchema(db: Database.Database) {
       playlistId TEXT,
       wordTimestamps TEXT,
       images TEXT,
-      audioProgress INTEGER DEFAULT 0
+      audioProgress INTEGER DEFAULT 0,
+      audio_progress REAL DEFAULT 0,
+      audio_progress_updated_at INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS lesson_types (
@@ -330,6 +332,12 @@ function setupSchema(db: Database.Database) {
   }
   if (!lessonsCols.includes("audioProgress")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN audioProgress INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("audio_progress")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN audio_progress REAL DEFAULT 0;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("audio_progress_updated_at")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN audio_progress_updated_at INTEGER DEFAULT 0;`); } catch (_) {}
   }
 
   // playlists: user_id & isArchived columns

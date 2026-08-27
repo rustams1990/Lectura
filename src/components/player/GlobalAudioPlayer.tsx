@@ -189,16 +189,68 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [setCurrentTime]);
 
-  const saveProgress = useCallback((time: number) => {
+  const saveCurrentProgress = useCallback((exactTime?: number) => {
     const lessonId = currentTrack?.id;
     if (!lessonId) return;
+    const timeToSave = exactTime !== undefined ? exactTime : (
+      isYouTubeTrack && ytPlayerRef.current?.getCurrentTime 
+        ? (ytPlayerRef.current.getCurrentTime() || 0)
+        : (audioRef.current?.currentTime ?? currentTime)
+    );
+    if (timeToSave < 0 || isNaN(timeToSave)) return;
     fetch(`/api/lessons/${lessonId}/progress`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audioProgress: Math.floor(time) }),
+      body: JSON.stringify({ progress: timeToSave, audioProgress: timeToSave, updatedAt: Date.now() }),
       keepalive: true
-    }).catch(e => console.error("Failed to save audio progress:", e));
-  }, [currentTrack?.id]);
+    }).catch(() => {});
+  }, [currentTrack?.id, isYouTubeTrack, currentTime]);
+
+  // Focus & Visibility Re-sync: Sync playback position from remote server when tab gains focus
+  useEffect(() => {
+    const handleFocusSync = async () => {
+      const lessonId = currentTrack?.id;
+      // If audio is currently playing or unmounted - DO NOT touch position
+      if (isPlaying || !lessonId || !audioRef.current) return;
+
+      try {
+        const res = await fetch(`/api/lessons/${lessonId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const remoteTime = Number(data?.audio_progress ?? data?.audioProgress);
+        if (!isNaN(remoteTime) && remoteTime >= 0) {
+          const localTime = isYouTubeTrack && ytPlayerRef.current?.getCurrentTime
+            ? (ytPlayerRef.current.getCurrentTime() || 0)
+            : (audioRef.current.currentTime || 0);
+
+          if (Math.abs(localTime - remoteTime) > 2) {
+            if (isYouTubeTrack && ytPlayerRef.current && isYtReadyRef.current) {
+              try { ytPlayerRef.current.seekTo(remoteTime, false); } catch (_) {}
+            } else if (audioRef.current) {
+              try { audioRef.current.currentTime = remoteTime; } catch (_) {}
+            }
+            setCurrentTime(remoteTime);
+            if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
+              setLessonCurrentTime(remoteTime);
+            }
+          }
+        }
+      } catch (_) {
+        // silent fail
+      }
+    };
+
+    window.addEventListener('focus', handleFocusSync);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocusSync();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('focus', handleFocusSync);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [currentTrack?.id, isPlaying, isYouTubeTrack, activeLesson, setCurrentTime, setLessonCurrentTime]);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     let cur = exactTime;
@@ -213,7 +265,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
 
     if (cur !== undefined && cur > 0) {
-      saveProgress(cur);
+      saveCurrentProgress(cur);
     }
 
     if (sessionStartRef.current > 0) {
@@ -232,7 +284,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     if (cur !== undefined) {
       window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "global" } }));
     }
-  }, [isYouTubeTrack, playbackRate, onListeningTick, saveProgress]);
+  }, [isYouTubeTrack, playbackRate, onListeningTick, saveCurrentProgress]);
 
   const flushPendingListeningTimeRef = useRef(flushPendingListeningTime);
   useEffect(() => {
