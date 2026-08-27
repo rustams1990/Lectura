@@ -150,10 +150,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [isYtApiLoaded]);
 
-  const lastTickTimeRef = useRef<number>(0);
-  const lastAudioPosRef = useRef<number>(0);
-  const pendingDeltaRef = useRef<number>(0);
-  const isFirstPlayTickRef = useRef<boolean>(true);
+  const lastGlobalPlayWallTimeRef = useRef<number>(0);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     let cur = exactTime;
@@ -167,27 +164,23 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       }
     }
 
-    if (!isYouTubeTrack && cur !== undefined) {
-      const diff = cur - lastAudioPosRef.current;
-      if (diff > 0 && diff <= 3) {
-        pendingDeltaRef.current += diff;
+    if (!isYouTubeTrack && lastGlobalPlayWallTimeRef.current > 0) {
+      const now = Date.now();
+      const elapsedSec = (now - lastGlobalPlayWallTimeRef.current) / 1000;
+      lastGlobalPlayWallTimeRef.current = 0;
+      if (elapsedSec > 0.05 && elapsedSec <= 30) {
+        const delta = elapsedSec * (playbackRate || 1);
+        onListeningTick?.(delta, true, cur);
+      } else if (cur !== undefined) {
+        onListeningTick?.(0, true, cur);
       }
-    }
-    if (cur !== undefined) {
-      lastAudioPosRef.current = cur;
-    }
-
-    const toFlush = pendingDeltaRef.current;
-    pendingDeltaRef.current = 0;
-    lastTickTimeRef.current = Date.now();
-
-    if (toFlush > 0) {
-      onListeningTick?.(toFlush, true, cur);
+    } else if (cur !== undefined) {
+      onListeningTick?.(0, true, cur);
     }
     if (cur !== undefined) {
       window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "global" } }));
     }
-  }, [isYouTubeTrack, onListeningTick]);
+  }, [isYouTubeTrack, playbackRate, onListeningTick]);
 
   // Unmount cleanup: immediately flush pending seconds
   useEffect(() => {
@@ -499,42 +492,25 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       setLessonIsPlaying(!audio.paused);
     }
 
-    // Direct synchronization with audio stream to eliminate timer drift
+    // Direct wall-clock active playback tracking for GlobalAudioPlayer
     if (!audio.paused) {
-      let diff = cur - lastAudioPosRef.current;
-      if (isFirstPlayTickRef.current && cur > 0) {
-        isFirstPlayTickRef.current = false;
-        // On cold start, credit full initial buffered stream time (up to 15s)
-        if (lastAudioPosRef.current <= 1.0 && cur <= 15) {
-          diff = cur - lastAudioPosRef.current;
-          pendingDeltaRef.current += diff;
-        } else if (diff > 0 && diff <= 3) {
-          pendingDeltaRef.current += diff;
-        } else {
-          pendingDeltaRef.current = 0;
-        }
-      } else {
-        if (diff > 0 && diff <= 3) {
-          pendingDeltaRef.current += diff;
-        } else if (diff < 0 || diff > 3) {
-          // Protect Seek Threshold: manual seek (>3s) or backward seek
-          pendingDeltaRef.current = 0;
-        }
-      }
-      lastAudioPosRef.current = cur;
-
       const now = Date.now();
-      if (pendingDeltaRef.current >= 1.0 || now - lastTickTimeRef.current >= 1000) {
-        if (pendingDeltaRef.current > 0) {
-          onListeningTick?.(pendingDeltaRef.current, false, cur);
-          pendingDeltaRef.current = 0;
+      if (lastGlobalPlayWallTimeRef.current === 0) {
+        lastGlobalPlayWallTimeRef.current = now;
+        return;
+      }
+      const elapsed = (now - lastGlobalPlayWallTimeRef.current) / 1000;
+      if (elapsed >= 1.0) {
+        const delta = elapsed * (playbackRate || 1);
+        lastGlobalPlayWallTimeRef.current = now;
+        if (delta > 0 && delta <= 15) {
+          onListeningTick?.(delta, false, cur);
         }
-        lastTickTimeRef.current = now;
       }
     } else {
-      lastAudioPosRef.current = cur;
+      lastGlobalPlayWallTimeRef.current = 0;
     }
-  }, [activeLesson, currentTrack, isYouTubeTrack, setCurrentTime, setLessonCurrentTime, setLessonIsPlaying, onListeningTick]);
+  }, [activeLesson, currentTrack, isYouTubeTrack, playbackRate, setCurrentTime, setLessonCurrentTime, setLessonIsPlaying, onListeningTick]);
 
   // High-Frequency Time Engine: continuously reads audio.currentTime every 250ms to drive smooth UI updates and delta tracking for streaming audio
   useEffect(() => {
@@ -697,11 +673,10 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         }}
         onPlaying={() => {
           if (!isYouTubeTrack) {
+            lastGlobalPlayWallTimeRef.current = Date.now();
             setIsPlaying(true);
             if (audioRef.current) {
               const cur = audioRef.current.currentTime;
-              lastAudioPosRef.current = cur;
-              lastTickTimeRef.current = Date.now();
               setCurrentTime(cur);
               if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
                 setLessonCurrentTime(cur);
@@ -721,10 +696,11 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onSeeked={() => {
           if (!isYouTubeTrack && audioRef.current) {
             const cur = audioRef.current.currentTime;
-            lastAudioPosRef.current = cur;
-            lastTickTimeRef.current = Date.now();
-            setCurrentTime(cur);
             flushPendingListeningTime(cur);
+            if (!audioRef.current.paused) {
+              lastGlobalPlayWallTimeRef.current = Date.now();
+            }
+            setCurrentTime(cur);
           }
         }}
         onError={(e) => {
