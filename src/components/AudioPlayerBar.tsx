@@ -175,7 +175,6 @@ export default function AudioPlayerBar({
   const lastPlayWallTimeRef = useRef<number>(0);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
-    if (isGlobalPlayingThisLesson || usePlaylistStore.getState().isPlaying) return;
     const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
 
     if (lastPlayWallTimeRef.current > 0) {
@@ -192,7 +191,7 @@ export default function AudioPlayerBar({
       onListeningTick?.(0, true, cur);
     }
     window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "local" } }));
-  }, [isGlobalPlayingThisLesson, currentTime, effectivePlaybackRate, onListeningTick]);
+  }, [currentTime, effectivePlaybackRate, onListeningTick]);
 
   // Unmount cleanup: immediately flush pending seconds
   useEffect(() => {
@@ -220,8 +219,8 @@ export default function AudioPlayerBar({
     const cur = audioRef.current.currentTime;
     setCurrentTime(cur);
 
-    // Direct wall-clock continuous playback tracking
-    if (!isGlobalPlayingThisLesson && !usePlaylistStore.getState().isPlaying && !audioRef.current.paused) {
+    // Direct wall-clock continuous playback tracking whenever audio is playing
+    if (!audioRef.current.paused) {
       const now = Date.now();
       if (lastPlayWallTimeRef.current === 0) {
         lastPlayWallTimeRef.current = now;

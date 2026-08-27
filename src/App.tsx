@@ -548,10 +548,7 @@ export default function App() {
             ? targetLesson.id
             : (item.lessonId || targetLesson.id);
 
-          const newDuration = Math.max(
-            Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10,
-            lastPosition !== undefined ? Math.round(lastPosition * 10) / 10 : 0
-          );
+          const newDuration = Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10;
 
           return {
             ...item,
@@ -571,10 +568,7 @@ export default function App() {
           };
         });
       } else {
-        const initialDuration = Math.max(
-          Math.round((durationSeconds || 0) * 10) / 10,
-          lastPosition !== undefined ? Math.round(lastPosition * 10) / 10 : 0
-        );
+        const initialDuration = Math.round((durationSeconds || 0) * 10) / 10;
 
         const generatedId = generateHistoryId({
           durationSeconds: initialDuration,

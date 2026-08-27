@@ -770,12 +770,11 @@ function HistoryPage({
       // Best metadata resolution (prefer latest session, fallback to other sessions in group or lesson)
       const bestLastPosition = latest.lastPosition !== undefined ? latest.lastPosition : sortedSessions.find((s) => s.lastPosition !== undefined)?.lastPosition;
 
-      // Sum duration across all sessions of this lesson on this day, or media progress position
-      const summedDuration = sortedSessions.reduce(
+      // Sum duration across all sessions of this lesson on this day
+      const totalDurationSeconds = sortedSessions.reduce(
         (acc, s) => acc + Math.max(0, Number(s.durationSeconds) || 0),
         0
       );
-      const totalDurationSeconds = Math.max(summedDuration, Number(bestLastPosition) || 0);
 
       const bestNotes = sortedSessions.find((s) => s.notes && s.notes.trim())?.notes || latest.notes || "";
       const bestTags = sortedSessions.find((s) => s.tags && s.tags.length > 0)?.tags || latest.tags || [];
