@@ -2017,7 +2017,7 @@ function ReaderPanel({
                 } ${!showTs && seg.timestamp ? "cursor-pointer" : ""}`}
               >
                 {showTs && (
-                  <div className="w-12 sm:w-16 shrink-0 select-none text-left">
+                  <div className="w-12 sm:w-16 shrink-0 select-none text-left pt-0.5">
                     {seg.timestamp ? (
                       <button
                         type="button"
@@ -2027,10 +2027,10 @@ function ReaderPanel({
                             onTimestampClick(secs);
                           }
                         }}
-                        className={`font-semibold font-mono tracking-tight transition-all cursor-pointer rounded-md px-1.5 py-0.5 hover:scale-105 active:scale-95 inline-block ${
+                        className={`font-mono text-xs px-1.5 py-0.5 rounded transition-colors select-none tracking-tight inline-block cursor-pointer ${
                           isSegmentActive
-                            ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-zinc-950 shadow-xs font-bold"
-                            : "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/45"
+                            ? "text-amber-800 dark:text-amber-300 bg-amber-200/60 dark:bg-amber-900/40 font-semibold"
+                            : "text-amber-600/75 dark:text-amber-400/75 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 font-normal"
                         }`}
                         title={t('reader.click_to_seek', 'Click to seek video to this timestamp')}
                       >
