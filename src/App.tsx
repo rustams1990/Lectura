@@ -360,6 +360,9 @@ export default function App() {
     historyRef.current = history;
   }, [history]);
 
+  const delayDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
+  const historySyncDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
+
   const appBroadcastChannelRef = useRef<BroadcastChannel | null>(null);
   useEffect(() => {
     if (typeof window !== "undefined" && "BroadcastChannel" in window) {
