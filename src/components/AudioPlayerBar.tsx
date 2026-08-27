@@ -193,12 +193,17 @@ export default function AudioPlayerBar({
     window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "local" } }));
   }, [currentTime, effectivePlaybackRate, onListeningTick]);
 
+  const flushPendingListeningTimeRef = useRef(flushPendingListeningTime);
+  useEffect(() => {
+    flushPendingListeningTimeRef.current = flushPendingListeningTime;
+  }, [flushPendingListeningTime]);
+
   // Unmount cleanup: immediately flush pending seconds
   useEffect(() => {
     return () => {
-      flushPendingListeningTime();
+      flushPendingListeningTimeRef.current();
     };
-  }, [flushPendingListeningTime]);
+  }, []);
 
   // Extract all timestamp markers from lesson text for smart sentence navigation & loop
   const allTimestamps = useMemo(() => {

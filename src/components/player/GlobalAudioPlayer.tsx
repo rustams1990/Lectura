@@ -182,12 +182,17 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [isYouTubeTrack, playbackRate, onListeningTick]);
 
+  const flushPendingListeningTimeRef = useRef(flushPendingListeningTime);
+  useEffect(() => {
+    flushPendingListeningTimeRef.current = flushPendingListeningTime;
+  }, [flushPendingListeningTime]);
+
   // Unmount cleanup: immediately flush pending seconds
   useEffect(() => {
     return () => {
-      flushPendingListeningTime();
+      flushPendingListeningTimeRef.current();
     };
-  }, [flushPendingListeningTime]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // 3. YouTube Playback Tracking & Synchronization
