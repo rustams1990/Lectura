@@ -775,7 +775,7 @@ function HistoryPage({
         (acc, s) => acc + Math.max(0, Number(s.durationSeconds) || 0),
         0
       );
-      const totalDurationSeconds = Math.max(summedDuration, Number(bestLastPosition) || 0);
+      const totalDurationSeconds = summedDuration;
 
       const bestNotes = sortedSessions.find((s) => s.notes && s.notes.trim())?.notes || latest.notes || "";
       const bestTags = sortedSessions.find((s) => s.tags && s.tags.length > 0)?.tags || latest.tags || [];
@@ -2176,7 +2176,7 @@ function HistoryPage({
                             {(item.durationSeconds || item.lastPosition) ? (
                               <span className="flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
                                 <Clock className="w-2.5 h-2.5" />
-                                {formatDuration(Math.max(item.durationSeconds || 0, Number(item.lastPosition) || 0))}
+                                {formatDuration(item.durationSeconds || 0)}
                               </span>
                             ) : null}
 

@@ -958,9 +958,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         for (const h of historyList) {
           if (!h || !h.id) continue;
           
-          const incomingDuration = Math.max(h.durationSeconds || 0, h.lastPosition || 0);
-          if (incomingDuration <= 0) {
-            // Strict reject: zero duration records are illegal
+          const incomingDuration = h.durationSeconds || 0;
+          const incomingPosition = h.lastPosition || 0;
+          if (incomingDuration <= 0 && incomingPosition <= 0) {
+            // Strict reject: zero duration and zero position records are illegal
             continue;
           }
 
