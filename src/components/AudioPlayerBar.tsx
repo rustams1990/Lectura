@@ -346,11 +346,18 @@ export default function AudioPlayerBar({
       if (usePlaylistStore.getState().isPlaying) {
         usePlaylistStore.getState().setIsPlaying(false);
       }
-      const cur = audioRef.current.currentTime;
+      const audio = audioRef.current;
+      const savedTime = currentTime || 0;
+      if (savedTime > 0 && Math.abs(audio.currentTime - savedTime) > 0.5) {
+        try {
+          audio.currentTime = savedTime;
+        } catch (_) {}
+      }
+      const cur = audio.currentTime;
       sessionStartRef.current = Date.now();
       setCurrentTime(cur);
       window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: activeLesson?.id, guid: (activeLesson as any)?.guid } }));
-      audioRef.current.play().catch((err) => {
+      audio.play().catch((err) => {
         console.error("Playback error:", err?.message || err);
       });
       setIsPlaying(true);
@@ -378,11 +385,19 @@ export default function AudioPlayerBar({
   }, [isGlobalPlayingThisLesson, isSentenceLoop, allTimestamps, playlistCurrentTime, playlistDuration, duration, playlistSeek]);
 
   const handleLoadedMetadata = () => {
-    if (audioRef.current && audioRef.current.duration) {
-      const durSec = Math.round(audioRef.current.duration);
-      setDuration(durSec);
-      if (activeLesson && activeLesson.audioDuration !== durSec) {
-        activeLesson.audioDuration = durSec;
+    if (audioRef.current) {
+      if (audioRef.current.duration) {
+        const durSec = Math.round(audioRef.current.duration);
+        setDuration(durSec);
+        if (activeLesson && activeLesson.audioDuration !== durSec) {
+          activeLesson.audioDuration = durSec;
+        }
+      }
+      const savedTime = currentTime || 0;
+      if (savedTime > 0 && Math.abs(audioRef.current.currentTime - savedTime) > 0.5) {
+        try {
+          audioRef.current.currentTime = savedTime;
+        } catch (_) {}
       }
     }
   };
@@ -495,12 +510,24 @@ export default function AudioPlayerBar({
           onPlay={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
+              const saved = currentTime || 0;
+              if (saved > 0 && Math.abs(audioRef.current.currentTime - saved) > 0.5) {
+                try {
+                  audioRef.current.currentTime = saved;
+                } catch (_) {}
+              }
               setCurrentTime(audioRef.current.currentTime);
             }
           }}
           onPlaying={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
+              const saved = currentTime || 0;
+              if (saved > 0 && Math.abs(audioRef.current.currentTime - saved) > 0.5) {
+                try {
+                  audioRef.current.currentTime = saved;
+                } catch (_) {}
+              }
               setCurrentTime(audioRef.current.currentTime);
             }
           }}

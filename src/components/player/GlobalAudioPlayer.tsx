@@ -317,6 +317,12 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       }
 
       if (isPlaying) {
+        const savedTime = usePlaylistStore.getState().currentTime || 0;
+        if (savedTime > 0 && Math.abs(audio.currentTime - savedTime) > 0.5) {
+          try {
+            audio.currentTime = savedTime;
+          } catch (_) {}
+        }
         const cur = audio.currentTime;
         lastAudioPosRef.current = cur;
         lastTickTimeRef.current = Date.now();
@@ -502,6 +508,12 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         setLessonDuration(dur);
       }
     }
+    const savedTime = usePlaylistStore.getState().currentTime || 0;
+    if (savedTime > 0 && Math.abs(audio.currentTime - savedTime) > 0.5) {
+      try {
+        audio.currentTime = savedTime;
+      } catch (_) {}
+    }
   }, [activeLesson, currentTrack, isYouTubeTrack, setDuration, setLessonDuration]);
 
   // ---------------------------------------------------------------------------
@@ -629,6 +641,12 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
             setIsPlaying(true);
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
+              const saved = usePlaylistStore.getState().currentTime || 0;
+              if (saved > 0 && Math.abs(audioRef.current.currentTime - saved) > 0.5) {
+                try {
+                  audioRef.current.currentTime = saved;
+                } catch (_) {}
+              }
               const cur = audioRef.current.currentTime;
               lastAudioPosRef.current = cur;
               lastTickTimeRef.current = Date.now();
@@ -645,6 +663,12 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
             sessionStartRef.current = Date.now();
             setIsPlaying(true);
             if (audioRef.current) {
+              const saved = usePlaylistStore.getState().currentTime || 0;
+              if (saved > 0 && Math.abs(audioRef.current.currentTime - saved) > 0.5) {
+                try {
+                  audioRef.current.currentTime = saved;
+                } catch (_) {}
+              }
               const cur = audioRef.current.currentTime;
               setCurrentTime(cur);
               if (activeLesson && currentTrack && activeLesson.id === currentTrack.id) {
