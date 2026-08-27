@@ -191,14 +191,16 @@ export default function AudioPlayerBar({
       if (isGlobalPlayingThisLesson) {
         playlistSeek(seekToTime);
       } else if (audioRef.current) {
+        flushPendingListeningTime(audioRef.current.currentTime);
         audioRef.current.currentTime = seekToTime;
-        lastAudioPosRef.current = seekToTime;
-        lastTickTimeRef.current = Date.now();
+        if (!audioRef.current.paused) {
+          lastPlayWallTimeRef.current = Date.now();
+        }
         setCurrentTime(seekToTime);
       }
       setSeekToTime(null);
     }
-  }, [seekToTime, isGlobalPlayingThisLesson, playlistSeek, setCurrentTime, setSeekToTime]);
+  }, [seekToTime, isGlobalPlayingThisLesson, playlistSeek, setCurrentTime, setSeekToTime, flushPendingListeningTime]);
 
   useEffect(() => {
     if (!isGlobalPlayingThisLesson && audioRef.current) {
@@ -272,11 +274,6 @@ export default function AudioPlayerBar({
     return () => unsub();
   }, [setIsPlaying]);
 
-  // Reset first play tick on lesson/src change
-  useEffect(() => {
-    isFirstPlayTickRef.current = true;
-  }, [audioSrc, activeLesson?.id]);
-
   const handlePlayPause = () => {
     if (isGlobalPlayingThisLesson) {
       playlistTogglePlay();
@@ -292,8 +289,7 @@ export default function AudioPlayerBar({
         usePlaylistStore.getState().setIsPlaying(false);
       }
       const cur = audioRef.current.currentTime;
-      lastAudioPosRef.current = cur;
-      lastTickTimeRef.current = Date.now();
+      lastPlayWallTimeRef.current = Date.now();
       setCurrentTime(cur);
       window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: activeLesson?.id, guid: (activeLesson as any)?.guid } }));
       audioRef.current.play().catch((err) => {
@@ -303,32 +299,27 @@ export default function AudioPlayerBar({
     }
   };
 
-  const lastTickTimeRef = useRef<number>(0);
-  const lastAudioPosRef = useRef<number>(0);
-  const pendingDeltaRef = useRef<number>(0);
-  const isFirstPlayTickRef = useRef<boolean>(true);
+  const lastPlayWallTimeRef = useRef<number>(0);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     if (isGlobalPlayingThisLesson || usePlaylistStore.getState().isPlaying) return;
     const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
 
-    if (cur !== undefined) {
-      const diff = cur - lastAudioPosRef.current;
-      if (diff > 0 && diff <= 3) {
-        pendingDeltaRef.current += diff;
+    if (lastPlayWallTimeRef.current > 0) {
+      const now = Date.now();
+      const elapsedSec = (now - lastPlayWallTimeRef.current) / 1000;
+      lastPlayWallTimeRef.current = 0;
+      if (elapsedSec > 0.05 && elapsedSec <= 30) {
+        const delta = elapsedSec * (effectivePlaybackRate || 1);
+        onListeningTick?.(delta, true, cur);
+      } else if (cur !== undefined) {
+        onListeningTick?.(0, true, cur);
       }
-    }
-    lastAudioPosRef.current = cur;
-
-    const toFlush = pendingDeltaRef.current;
-    pendingDeltaRef.current = 0;
-    lastTickTimeRef.current = Date.now();
-
-    if (toFlush > 0 || exactTime !== undefined) {
-      onListeningTick?.(toFlush, true, cur);
+    } else if (cur !== undefined) {
+      onListeningTick?.(0, true, cur);
     }
     window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "local" } }));
-  }, [isGlobalPlayingThisLesson, currentTime, onListeningTick]);
+  }, [isGlobalPlayingThisLesson, currentTime, effectivePlaybackRate, onListeningTick]);
 
   // Unmount cleanup: immediately flush pending seconds
   useEffect(() => {
@@ -342,44 +333,23 @@ export default function AudioPlayerBar({
     const cur = audioRef.current.currentTime;
     setCurrentTime(cur);
 
-    // Direct synchronization with native audio timeupdate to eliminate timer drift
+    // Direct wall-clock continuous playback tracking
     if (!isGlobalPlayingThisLesson && !usePlaylistStore.getState().isPlaying && !audioRef.current.paused) {
       const now = Date.now();
-      const wallClockDelta = lastTickTimeRef.current > 0 ? (now - lastTickTimeRef.current) / 1000 : 0;
-      let diff = cur - lastAudioPosRef.current;
-
-      if (isFirstPlayTickRef.current && cur > 0) {
-        isFirstPlayTickRef.current = false;
-        // On cold start, credit full initial buffered stream time (up to 15s)
-        if (lastAudioPosRef.current <= 1.0 && cur <= 15) {
-          diff = cur - lastAudioPosRef.current;
-          pendingDeltaRef.current += diff;
-        } else if (diff > 0 && diff <= 5) {
-          pendingDeltaRef.current += diff;
-        } else {
-          pendingDeltaRef.current = 0;
-        }
-      } else {
-        const maxValidDelta = Math.max(5, wallClockDelta * (effectivePlaybackRate || 1) + 2);
-        if (diff > 0 && diff <= Math.min(15, maxValidDelta)) {
-          pendingDeltaRef.current += diff;
-        } else if (diff < 0 || diff > 15) {
-          // Seek / jump protection: reset delta on jumps > 15s or backward seeks
-          pendingDeltaRef.current = 0;
-        }
+      if (lastPlayWallTimeRef.current === 0) {
+        lastPlayWallTimeRef.current = now;
+        return;
       }
-      lastAudioPosRef.current = cur;
-
-      if (pendingDeltaRef.current >= 1.0 || now - lastTickTimeRef.current >= 1000) {
-        if (pendingDeltaRef.current > 0) {
-          onListeningTick?.(pendingDeltaRef.current, false, cur);
-          pendingDeltaRef.current = 0;
+      const elapsed = (now - lastPlayWallTimeRef.current) / 1000;
+      if (elapsed >= 1.0) {
+        const delta = elapsed * (effectivePlaybackRate || 1);
+        lastPlayWallTimeRef.current = now;
+        if (delta > 0 && delta <= 15) {
+          onListeningTick?.(delta, false, cur);
         }
-        lastTickTimeRef.current = now;
       }
     } else {
-      lastAudioPosRef.current = cur;
-      lastTickTimeRef.current = Date.now();
+      lastPlayWallTimeRef.current = 0;
     }
 
     // Sentence loop mode: when audio crosses into next sentence, jump back to current sentence start
@@ -541,19 +511,15 @@ export default function AudioPlayerBar({
           ref={audioRef}
           src={audioSrc}
           onPlay={() => {
+            lastPlayWallTimeRef.current = Date.now();
             if (audioRef.current) {
-              const cur = audioRef.current.currentTime;
-              lastAudioPosRef.current = cur;
-              lastTickTimeRef.current = Date.now();
-              setCurrentTime(cur);
+              setCurrentTime(audioRef.current.currentTime);
             }
           }}
           onPlaying={() => {
+            lastPlayWallTimeRef.current = Date.now();
             if (audioRef.current) {
-              const cur = audioRef.current.currentTime;
-              lastAudioPosRef.current = cur;
-              lastTickTimeRef.current = Date.now();
-              setCurrentTime(cur);
+              setCurrentTime(audioRef.current.currentTime);
             }
           }}
           onTimeUpdate={handleTimeUpdate}
@@ -567,10 +533,11 @@ export default function AudioPlayerBar({
           onSeeked={() => {
             if (audioRef.current) {
               const cur = audioRef.current.currentTime;
-              lastAudioPosRef.current = cur;
-              lastTickTimeRef.current = Date.now();
-              setCurrentTime(cur);
               flushPendingListeningTime(cur);
+              if (!audioRef.current.paused) {
+                lastPlayWallTimeRef.current = Date.now();
+              }
+              setCurrentTime(cur);
             }
           }}
           onEnded={() => {

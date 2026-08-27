@@ -365,7 +365,9 @@ export default function App() {
 
   const scheduleBackgroundHistorySync = (nextHistory: HistoryEntry[]) => {
     if (storageMode !== "server") return;
-    if (historySyncDebounceFnRef.current) return;
+    if (historySyncDebounceFnRef.current) {
+      clearTimeout(historySyncDebounceFnRef.current);
+    }
 
     historySyncDebounceFnRef.current = setTimeout(() => {
       historySyncDebounceFnRef.current = null;
@@ -385,7 +387,7 @@ export default function App() {
         undefined,
         playlistsRef.current
       ).catch(() => {});
-    }, 10000);
+    }, 1500);
   };
 
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
@@ -1473,7 +1475,11 @@ export default function App() {
             const serverItemIds = new Set<string>();
             const mergedWithLocal = d.history.map((incomingItem: HistoryEntry) => {
               serverItemIds.add(incomingItem.id);
-              const localMatch = historyRef.current.find(h => h.id === incomingItem.id || (incomingItem.guid && (h as any).guid === incomingItem.guid));
+              const localMatch = historyRef.current.find(h => 
+                h.id === incomingItem.id || 
+                (incomingItem.guid && (h as any).guid === incomingItem.guid) ||
+                (incomingItem.lessonId && h.lessonId === incomingItem.lessonId)
+              );
               if (localMatch) {
                 // Prefer local lessonTitle/targetLanguage when server has garbage/placeholder values
                 const serverTitleIsGarbage = !incomingItem.lessonTitle || GARBAGE_TITLES.has(incomingItem.lessonTitle.trim().toLowerCase());
@@ -1502,17 +1508,14 @@ export default function App() {
               return incomingItem;
             });
 
-            // Only preserve local active session entries created within the last 60 seconds (in-flight playback not yet committed to server)
-            const nowTime = Date.now();
+            // Preserve local active session entries not yet committed to server
             const localOnlyItems = historyRef.current.filter((localItem) => {
               if (serverItemIds.has(localItem.id)) return false;
-              if (d.history.some((srv: HistoryEntry) => (srv as any).guid && (localItem as any).guid === (srv as any).guid)) return false;
-              try {
-                const itemAge = nowTime - new Date(localItem.timestamp).getTime();
-                return itemAge < 60000 && (localItem.durationSeconds || 0) > 0;
-              } catch {
-                return false;
-              }
+              if (d.history.some((srv: HistoryEntry) => 
+                (srv as any).guid && (localItem as any).guid === (srv as any).guid ||
+                (srv.lessonId && localItem.lessonId === srv.lessonId)
+              )) return false;
+              return (localItem.durationSeconds || 0) > 0;
             });
 
             const allHistoryItems = [...localOnlyItems, ...mergedWithLocal];
