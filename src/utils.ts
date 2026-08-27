@@ -741,11 +741,8 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
         return aTrimmed;
       };
 
-      // If exact same record ID, take max. If separate sessions/entries for the same media, sum them.
-      const isExactSameRecord = existing.id === item.id;
-      const durationSeconds = isExactSameRecord
-        ? Math.max(existing.durationSeconds || 0, item.durationSeconds || 0)
-        : Math.round(((existing.durationSeconds || 0) + (item.durationSeconds || 0)) * 10) / 10;
+      // Same media item within 24h: take highest progress/duration to avoid duplicate cross-device summing
+      const durationSeconds = Math.max(existing.durationSeconds || 0, item.durationSeconds || 0);
 
       // Prefer real library lessonId (e.g. podcast_uuid) over temporary streaming ID
       const preferredLessonId = (item.lessonId && !item.lessonId.startsWith("podcast_ep_") && !item.lessonId.startsWith("http"))

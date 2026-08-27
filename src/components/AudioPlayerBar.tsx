@@ -213,11 +213,27 @@ export default function AudioPlayerBar({
   }, [rawAudioSrc]);
 
   const sessionStartRef = useRef<number>(0);
-  const hasRestoredInitialPositionRef = useRef<boolean>(false);
+  const targetSeekTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
-    hasRestoredInitialPositionRef.current = false;
-  }, [activeLesson?.id, audioSrc]);
+    const progress = activeLesson?.audioProgress || 0;
+    if (progress > 0) {
+      targetSeekTimeRef.current = progress;
+    } else {
+      targetSeekTimeRef.current = null;
+    }
+  }, [activeLesson?.id, activeLesson?.audioProgress]);
+
+  const applyTargetSeek = useCallback(() => {
+    if (targetSeekTimeRef.current !== null && audioRef.current) {
+      const targetTime = targetSeekTimeRef.current;
+      targetSeekTimeRef.current = null;
+      try {
+        audioRef.current.currentTime = targetTime;
+        setCurrentTime(targetTime);
+      } catch (_) {}
+    }
+  }, [setCurrentTime]);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
@@ -289,7 +305,7 @@ export default function AudioPlayerBar({
 
   useEffect(() => {
     if (seekToTime !== null && seekToTime !== undefined) {
-      hasRestoredInitialPositionRef.current = true;
+      targetSeekTimeRef.current = null;
       if (activeLesson) {
         activeLesson.audioProgress = seekToTime;
       }
@@ -356,6 +372,7 @@ export default function AudioPlayerBar({
         usePlaylistStore.getState().setIsPlaying(false);
       }
       const audio = audioRef.current;
+      applyTargetSeek();
       const cur = audio.currentTime;
       sessionStartRef.current = Date.now();
       setCurrentTime(cur);
@@ -387,20 +404,6 @@ export default function AudioPlayerBar({
     }
   }, [isGlobalPlayingThisLesson, isSentenceLoop, allTimestamps, playlistCurrentTime, playlistDuration, duration, playlistSeek]);
 
-  // Smoothly sync playback position when activeLesson audioProgress updates from server while paused
-  useEffect(() => {
-    if (!isPlaying && !isGlobalPlayingThisLesson && activeLesson?.audioProgress !== undefined && audioRef.current) {
-      const serverTime = activeLesson.audioProgress;
-      if (serverTime !== undefined && audioRef.current) {
-        if (Math.abs(audioRef.current.currentTime - serverTime) > 2) {
-          audioRef.current.currentTime = serverTime;
-          lastAudioPosRef.current = serverTime;
-          setCurrentTime(serverTime);
-        }
-      }
-    }
-  }, [activeLesson?.audioProgress, isPlaying, isGlobalPlayingThisLesson, setCurrentTime]);
-
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       if (audioRef.current.duration) {
@@ -410,20 +413,17 @@ export default function AudioPlayerBar({
           activeLesson.audioDuration = durSec;
         }
       }
-      const initialTime = activeLesson?.audioProgress || 0;
-      if (!hasRestoredInitialPositionRef.current && initialTime > 0) {
-        try {
-          audioRef.current.currentTime = initialTime;
-          setCurrentTime(initialTime);
-        } catch (_) {}
-        hasRestoredInitialPositionRef.current = true;
-      }
+      applyTargetSeek();
     }
+  };
+
+  const handleCanPlay = () => {
+    applyTargetSeek();
   };
 
   const handleAudioSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
-    hasRestoredInitialPositionRef.current = true;
+    targetSeekTimeRef.current = null;
     if (activeLesson) {
       activeLesson.audioProgress = val;
     }
@@ -441,7 +441,7 @@ export default function AudioPlayerBar({
   };
 
   const handleSkipSeconds = useCallback((delta: number) => {
-    hasRestoredInitialPositionRef.current = true;
+    targetSeekTimeRef.current = null;
     if (isGlobalPlayingThisLesson) {
       playlistSeekDelta(delta);
       return;
@@ -460,6 +460,7 @@ export default function AudioPlayerBar({
   }, [activeLesson, isGlobalPlayingThisLesson, playlistSeekDelta, duration, setCurrentTime, flushPendingListeningTime, onListeningTick]);
 
   const handlePrevSentence = useCallback(() => {
+    targetSeekTimeRef.current = null;
     const cur = isGlobalPlayingThisLesson ? playlistCurrentTime : (audioRef.current?.currentTime ?? currentTime);
     if (allTimestamps.length === 0) { handleSkipSeconds(-5); return; }
     let target = 0;
@@ -478,6 +479,7 @@ export default function AudioPlayerBar({
   }, [allTimestamps, handleSkipSeconds, isGlobalPlayingThisLesson, playlistCurrentTime, playlistSeek, currentTime, setCurrentTime, flushPendingListeningTime, onListeningTick]);
 
   const handleNextSentence = useCallback(() => {
+    targetSeekTimeRef.current = null;
     const cur = isGlobalPlayingThisLesson ? playlistCurrentTime : (audioRef.current?.currentTime ?? currentTime);
     const dur = effectiveDuration;
     if (allTimestamps.length === 0) { handleSkipSeconds(5); return; }
@@ -534,6 +536,7 @@ export default function AudioPlayerBar({
         <audio
           ref={audioRef}
           src={audioSrc}
+          onCanPlay={handleCanPlay}
           onPlay={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {

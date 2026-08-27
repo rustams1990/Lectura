@@ -35,7 +35,7 @@ export function LessonProvider({ children }: { children: ReactNode }) {
     const initialTime = activeLesson?.audioProgress || (activeLesson as any)?.lastPlaybackPosition || 0;
     setCurrentTime(initialTime);
     setDuration(activeLesson?.audioDuration || 0);
-    setSeekToTime(initialTime > 0 ? initialTime : null);
+    setSeekToTime(null);
   }, [activeLesson?.id]);
 
 

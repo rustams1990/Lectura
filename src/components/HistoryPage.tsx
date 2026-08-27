@@ -139,6 +139,11 @@ function HistoryPage({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [channelsLimit, setChannelsLimit] = useState<number | "all">(5);
 
+  // Server-first History Sync: pull fresh history upon opening HistoryPage
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("lectura:refresh_history"));
+  }, []);
+
   // Existing channels from the entire library & history for quick suggestions
   const existingChannels = useMemo(() => {
     const map = new Map<string, { name: string; avatarUrl?: string | null; channelUrl?: string | null }>();

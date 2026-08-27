@@ -155,11 +155,27 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
   }, [isYtApiLoaded]);
 
   const sessionStartRef = useRef<number>(0);
-  const hasRestoredInitialPositionRef = useRef<boolean>(false);
+  const targetSeekTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
-    hasRestoredInitialPositionRef.current = false;
-  }, [currentTrack?.id, audioSrc]);
+    const saved = (activeLesson && currentTrack && activeLesson.id === currentTrack.id ? (activeLesson.audioProgress || 0) : 0) || usePlaylistStore.getState().currentTime || 0;
+    if (saved > 0) {
+      targetSeekTimeRef.current = saved;
+    } else {
+      targetSeekTimeRef.current = null;
+    }
+  }, [currentTrack?.id, audioSrc, activeLesson?.id, activeLesson?.audioProgress]);
+
+  const applyTargetSeek = useCallback(() => {
+    if (targetSeekTimeRef.current !== null && audioRef.current) {
+      const targetTime = targetSeekTimeRef.current;
+      targetSeekTimeRef.current = null;
+      try {
+        audioRef.current.currentTime = targetTime;
+        setCurrentTime(targetTime);
+      } catch (_) {}
+    }
+  }, [setCurrentTime]);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     let cur = exactTime;
@@ -314,14 +330,10 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         lastLoadedSrc.current = audioSrc;
         isFirstPlayTickRef.current = true;
         audio.src = audioSrc;
-
-        const initialTime = usePlaylistStore.getState().currentTime;
-        if (initialTime > 0) {
-          audio.currentTime = initialTime;
-        }
       }
 
       if (isPlaying) {
+        applyTargetSeek();
         const cur = audio.currentTime;
         lastAudioPosRef.current = cur;
         lastTickTimeRef.current = Date.now();
@@ -348,14 +360,14 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         audio.pause();
       }
     }
-  }, [audioSrc, currentTrack?.youtubeId, isPlaying, isYouTubeTrack, isYtApiLoaded, startYtTracking, stopYtTracking]);
+  }, [audioSrc, currentTrack?.youtubeId, isPlaying, isYouTubeTrack, isYtApiLoaded, startYtTracking, stopYtTracking, applyTargetSeek]);
 
   // ---------------------------------------------------------------------------
   // 5. Seek Handling
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (seekTarget === null) return;
-    hasRestoredInitialPositionRef.current = true;
+    targetSeekTimeRef.current = null;
     if (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid)) {
       activeLesson.audioProgress = seekTarget;
     }
@@ -511,29 +523,14 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         setLessonDuration(dur);
       }
     }
-    const initialTime = (activeLesson && currentTrack && activeLesson.id === currentTrack.id ? (activeLesson.audioProgress || 0) : 0) || usePlaylistStore.getState().currentTime || 0;
-    if (!hasRestoredInitialPositionRef.current && initialTime > 0) {
-      try {
-        audio.currentTime = initialTime;
-        setCurrentTime(initialTime);
-      } catch (_) {}
-      hasRestoredInitialPositionRef.current = true;
-    }
-  }, [activeLesson, currentTrack, isYouTubeTrack, setDuration, setLessonDuration, setCurrentTime]);
+    applyTargetSeek();
+  }, [activeLesson, currentTrack, isYouTubeTrack, setDuration, setLessonDuration, applyTargetSeek]);
 
-  // Smoothly sync playback position when track audioProgress updates from server while paused
-  useEffect(() => {
-    if (!isPlaying && activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid)) {
-      const serverTime = activeLesson.audioProgress;
-      if (serverTime !== undefined && audioRef.current) {
-        if (Math.abs(audioRef.current.currentTime - serverTime) > 2) {
-          audioRef.current.currentTime = serverTime;
-          lastAudioPosRef.current = serverTime;
-          setCurrentTime(serverTime);
-        }
-      }
+  const handleCanPlay = useCallback(() => {
+    if (!isYouTubeTrack) {
+      applyTargetSeek();
     }
-  }, [activeLesson?.audioProgress, isPlaying, currentTrack, setCurrentTime]);
+  }, [isYouTubeTrack, applyTargetSeek]);
 
   // ---------------------------------------------------------------------------
   // 9. Media Session API Integration
@@ -552,24 +549,20 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentTrack.title,
       artist: currentTrack.channelName || currentTrack.bookTitle || 'Lectura',
-      album: currentTrack.bookTitle || 'Lectura Playlist',
+      album: currentTrack.podcastTitle || currentTrack.bookTitle || 'Lectura Course',
       artwork,
     });
 
-    navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
-    navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
-    navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-    navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
-    navigator.mediaSession.setActionHandler('seekforward', (d) => seekDelta(d?.seekOffset || 30));
-    navigator.mediaSession.setActionHandler('seekbackward', (d) => seekDelta(-(d?.seekOffset || 15)));
-
     try {
+      navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
+      navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
+      navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
+      navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
+      navigator.mediaSession.setActionHandler('seekforward', (d) => seekDelta(d?.seekOffset || 30));
+      navigator.mediaSession.setActionHandler('seekbackward', (d) => seekDelta(-(d?.seekOffset || 15)));
       navigator.mediaSession.setActionHandler('seekto', (details) => {
         if (details.seekTime !== undefined) seek(details.seekTime);
       });
-    } catch (_) {}
-
-    try {
       navigator.mediaSession.setActionHandler('stop', () => setIsPlaying(false));
     } catch (_) {}
   }, [currentTrack, setIsPlaying, playNext, playPrev, seekDelta, seek]);
@@ -655,8 +648,10 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onEnded={handleEnded}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onCanPlay={handleCanPlay}
         onPlay={() => {
           if (!isYouTubeTrack) {
+            applyTargetSeek();
             setIsPlaying(true);
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
@@ -673,6 +668,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         }}
         onPlaying={() => {
           if (!isYouTubeTrack) {
+            applyTargetSeek();
             sessionStartRef.current = Date.now();
             setIsPlaying(true);
             if (audioRef.current) {

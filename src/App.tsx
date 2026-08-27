@@ -1529,67 +1529,30 @@ export default function App() {
           }
 
           if (d.history && Array.isArray(d.history)) {
-            // Placeholder values from old broken server writes that should be overridden by local data
-            const GARBAGE_TITLES = new Set(['test', 'Занятие', 'imported_record', '']);
-            const serverItemIds = new Set<string>();
-            const mergedWithLocal = d.history.map((incomingItem: HistoryEntry) => {
-              serverItemIds.add(incomingItem.id);
-              const localMatch = historyRef.current.find(h => 
-                h.id === incomingItem.id || 
-                (incomingItem.guid && (h as any).guid === incomingItem.guid) ||
-                (incomingItem.lessonId && h.lessonId === incomingItem.lessonId)
-              );
-              if (localMatch) {
-                // Prefer local lessonTitle/targetLanguage when server has garbage/placeholder values
-                const serverTitleIsGarbage = !incomingItem.lessonTitle || GARBAGE_TITLES.has(incomingItem.lessonTitle.trim().toLowerCase());
-                const serverLangIsGarbage = !incomingItem.targetLanguage || incomingItem.targetLanguage === 'english' || incomingItem.targetLanguage === 'English';
-                return {
-                  ...incomingItem,
-                  id: incomingItem.id || localMatch.id,
-                  lessonTitle: serverTitleIsGarbage && localMatch.lessonTitle ? localMatch.lessonTitle : (incomingItem.lessonTitle || localMatch.lessonTitle),
-                  targetLanguage: serverLangIsGarbage && localMatch.targetLanguage && localMatch.targetLanguage !== 'english' ? localMatch.targetLanguage : (incomingItem.targetLanguage || localMatch.targetLanguage),
-                  lessonType: incomingItem.lessonType || localMatch.lessonType,
-                  coverUrl: incomingItem.coverUrl || localMatch.coverUrl || null,
-                  channelName: incomingItem.channelName || localMatch.channelName || null,
-                  channelAvatarUrl: incomingItem.channelAvatarUrl || localMatch.channelAvatarUrl || null,
-                  channelUrl: incomingItem.channelUrl || localMatch.channelUrl || undefined,
-                  notes: incomingItem.notes || localMatch.notes,
-                  tags: incomingItem.tags && incomingItem.tags.length > 0 ? incomingItem.tags : localMatch.tags,
-                  // Keep highest durationSeconds to prevent stale server snapshots from rolling back active playback
-                  durationSeconds: Math.max(incomingItem.durationSeconds || 0, localMatch.durationSeconds || 0),
-                  // Preserve streaming-only fields from local if not in server
-                  audioUrl: (incomingItem as any).audioUrl || (localMatch as any).audioUrl || null,
-                  podcastTitle: (incomingItem as any).podcastTitle || (localMatch as any).podcastTitle || null,
-                  guid: (incomingItem as any).guid || (localMatch as any).guid || null,
-                  lastPosition: (incomingItem as any).lastPosition ?? (localMatch as any).lastPosition,
-                };
-              }
-              return incomingItem;
-            });
+            const GARBAGE_TITLES = new Set(['test', 'занятие', 'imported_record', '']);
+            const cleanServerHistory = d.history
+              .filter((item: HistoryEntry) => {
+                if ((item.durationSeconds || 0) <= 0) return false;
+                if (item.lessonId === 'imported_record' && GARBAGE_TITLES.has((item.lessonTitle || '').trim().toLowerCase())) {
+                  return false;
+                }
+                return true;
+              });
 
-            // Preserve local active session entries not yet committed to server
-            const localOnlyItems = historyRef.current.filter((localItem) => {
-              if (serverItemIds.has(localItem.id)) return false;
-              if (d.history.some((srv: HistoryEntry) => 
-                (srv as any).guid && (localItem as any).guid === (srv as any).guid ||
+            // Preserve only very recent local sessions (created in the last 10s) not yet sent to server
+            const serverIds = new Set(cleanServerHistory.map((h: HistoryEntry) => h.id));
+            const now = Date.now();
+            const recentUnsynced = historyRef.current.filter((localItem) => {
+              if (serverIds.has(localItem.id)) return false;
+              if (cleanServerHistory.some((srv: HistoryEntry) => 
+                ((srv as any).guid && (localItem as any).guid === (srv as any).guid) ||
                 (srv.lessonId && localItem.lessonId === srv.lessonId)
               )) return false;
-              return (localItem.durationSeconds || 0) > 0;
+              const itemTime = new Date(localItem.timestamp).getTime() || 0;
+              return (now - itemTime < 10000) && (localItem.durationSeconds || 0) > 0;
             });
 
-            const allHistoryItems = [...localOnlyItems, ...mergedWithLocal];
-
-            // Filter out pure garbage entries
-            const filteredHistory = allHistoryItems.filter((item: HistoryEntry) => {
-              if ((item.durationSeconds || 0) <= 0) {
-                return false;
-              }
-              if (item.lessonId === 'imported_record' && GARBAGE_TITLES.has((item.lessonTitle || '').trim().toLowerCase())) {
-                return false;
-              }
-              return true;
-            });
-            const cleanHistory = dedupeHistory(filteredHistory);
+            const cleanHistory = dedupeHistory([...recentUnsynced, ...cleanServerHistory]);
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
@@ -1991,13 +1954,15 @@ export default function App() {
 
     const handleRefreshLessons = () => {
       lastLocalChangeTime.current = 0;
-      loadDataFromLocalServer();
+      loadDataFromLocalServer(true);
     };
     window.addEventListener("lectura:refresh_lessons", handleRefreshLessons);
+    window.addEventListener("lectura:refresh_history", handleRefreshLessons);
 
     return () => {
       window.removeEventListener("lectura:vocab_updated", handleVocabUpdated);
       window.removeEventListener("lectura:refresh_lessons", handleRefreshLessons);
+      window.removeEventListener("lectura:refresh_history", handleRefreshLessons);
     };
   }, [storageMode]);
 
