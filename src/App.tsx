@@ -360,13 +360,51 @@ export default function App() {
     historyRef.current = history;
   }, [history]);
 
-  const delayDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
-  const historySyncDebounceFnRef = useRef<NodeJS.Timeout | null>(null);
+  const appBroadcastChannelRef = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      const channel = new BroadcastChannel("lectura_sync_channel");
+      appBroadcastChannelRef.current = channel;
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === "history_updated" && Array.isArray(event.data.history)) {
+          const clean = dedupeHistory(event.data.history).filter(h => (h.durationSeconds || 0) > 0 || (h.lastPosition || 0) > 0);
+          setHistory(clean);
+          historyRef.current = clean;
+        }
+      };
+      channel.addEventListener("message", handleMessage);
+      return () => {
+        channel.removeEventListener("message", handleMessage);
+        channel.close();
+      };
+    }
+  }, []);
 
-  const scheduleBackgroundHistorySync = (nextHistory: HistoryEntry[]) => {
+  const scheduleBackgroundHistorySync = (nextHistory: HistoryEntry[], forceImmediate: boolean = false) => {
     if (storageMode !== "server") return;
     if (historySyncDebounceFnRef.current) {
       clearTimeout(historySyncDebounceFnRef.current);
+      historySyncDebounceFnRef.current = null;
+    }
+
+    if (forceImmediate) {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypesRef.current,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSecondsRef.current,
+        languageFlagsRef.current,
+        historyRef.current.length > 0 ? historyRef.current : nextHistory,
+        undefined,
+        readerSettingsRef.current,
+        pinnedLanguagesRef.current,
+        hiddenLanguagesRef.current,
+        selectedTargetLanguageRef.current,
+        undefined,
+        playlistsRef.current
+      ).catch(() => {});
+      return;
     }
 
     historySyncDebounceFnRef.current = setTimeout(() => {
@@ -387,7 +425,7 @@ export default function App() {
         undefined,
         playlistsRef.current
       ).catch(() => {});
-    }, 1500);
+    }, 1000);
   };
 
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
@@ -454,7 +492,8 @@ export default function App() {
     },
     actionType: "read" | "listen" | "complete",
     durationSeconds?: number,
-    lastPosition?: number
+    lastPosition?: number,
+    forceImmediate: boolean = false
   ) => {
     if (!targetLesson || !targetLesson.id) return;
 
@@ -617,7 +656,13 @@ export default function App() {
       // avoiding window.localStorage to prevent QuotaExceededError for large histories.
       settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(finalHistory)).catch(() => {});
       
-      scheduleBackgroundHistorySync(finalHistory);
+      if (appBroadcastChannelRef.current) {
+        try {
+          appBroadcastChannelRef.current.postMessage({ type: "history_updated", history: finalHistory });
+        } catch (_) {}
+      }
+
+      scheduleBackgroundHistorySync(finalHistory, forceImmediate);
       return finalHistory;
     });
   };
@@ -3109,9 +3154,9 @@ export default function App() {
           guid: itemToLog.guid || itemToLog.id,
           lastPosition: pos,
         };
-        recordHistoryActivity(entryPayload, "listen", deltaToRecord, pos);
+        recordHistoryActivity(entryPayload, "listen", deltaToRecord, pos, forceFlush);
       } else {
-        recordHistoryActivity(itemToLog, "listen", deltaToRecord, pos);
+        recordHistoryActivity(itemToLog, "listen", deltaToRecord, pos, forceFlush);
       }
     }
   };
