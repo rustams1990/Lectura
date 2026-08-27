@@ -29,24 +29,19 @@ export function LessonProvider({ children }: { children: ReactNode }) {
   const [seekToTime, setSeekToTime] = useState<number | null>(null);
   const [isDetectingIdioms, setIsDetectingIdioms] = useState<boolean>(false);
 
-  // Reset playback state when active lesson changes
-  useEffect(() => {
-    setIsPlaying(false);
-    const initialTime = activeLesson?.audioProgress || (activeLesson as any)?.lastPlaybackPosition || 0;
-    setCurrentTime(initialTime);
-    setDuration(activeLesson?.audioDuration || 0);
-    setSeekToTime(null);
-  }, [activeLesson?.id]);
+  const activeLessonIdRef = useRef<string | null>(null);
 
-  // Reactive synchronization of playback position when lesson data updates while paused
+  // Reset playback state ONLY when active lesson changes (strictly by id)
   useEffect(() => {
-    if (!isPlaying && activeLesson?.audioProgress !== undefined) {
-      const incomingProgress = Number(activeLesson.audioProgress) || 0;
-      if (Math.abs(currentTime - incomingProgress) > 1) {
-        setCurrentTime(incomingProgress);
-      }
+    if (activeLesson?.id && activeLesson.id !== activeLessonIdRef.current) {
+      activeLessonIdRef.current = activeLesson.id;
+      setIsPlaying(false);
+      const initialTime = Number(activeLesson?.audioProgress) || Number((activeLesson as any)?.lastPlaybackPosition) || 0;
+      setCurrentTime(initialTime);
+      setDuration(activeLesson?.audioDuration || 0);
+      setSeekToTime(null);
     }
-  }, [activeLesson?.audioProgress, isPlaying]);
+  }, [activeLesson?.id]);
 
 
   return (

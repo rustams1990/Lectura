@@ -215,14 +215,26 @@ export default function AudioPlayerBar({
   const sessionStartRef = useRef<number>(0);
   const targetSeekTimeRef = useRef<number | null>(null);
 
+  const currentLessonIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const progress = activeLesson?.audioProgress || 0;
-    if (progress > 0) {
-      targetSeekTimeRef.current = progress;
-    } else {
-      targetSeekTimeRef.current = null;
+    if (activeLesson?.id && activeLesson.id !== currentLessonIdRef.current) {
+      currentLessonIdRef.current = activeLesson.id;
+      const initialPos = Number(activeLesson.audioProgress) || 0;
+      if (initialPos > 0) {
+        targetSeekTimeRef.current = initialPos;
+        setCurrentTime(initialPos);
+        if (audioRef.current) {
+          try {
+            audioRef.current.currentTime = initialPos;
+          } catch (_) {}
+        }
+      } else {
+        targetSeekTimeRef.current = null;
+        setCurrentTime(0);
+      }
     }
-  }, [activeLesson?.id, activeLesson?.audioProgress]);
+  }, [activeLesson?.id, setCurrentTime]);
 
   const applyTargetSeek = useCallback(() => {
     if (targetSeekTimeRef.current !== null && audioRef.current) {
@@ -234,21 +246,6 @@ export default function AudioPlayerBar({
       } catch (_) {}
     }
   }, [setCurrentTime]);
-
-  // Reactive synchronization with active lesson audioProgress when paused
-  useEffect(() => {
-    if (!isPlaying && activeLesson?.audioProgress !== undefined) {
-      const incomingProgress = Number(activeLesson.audioProgress) || 0;
-      if (Math.abs(currentTime - incomingProgress) > 1) {
-        setCurrentTime(incomingProgress);
-        if (audioRef.current) {
-          try {
-            audioRef.current.currentTime = incomingProgress;
-          } catch (_) {}
-        }
-      }
-    }
-  }, [activeLesson?.audioProgress, isPlaying, currentTime, setCurrentTime]);
 
   const saveProgress = useCallback((time: number) => {
     const lessonId = activeLesson?.id;
@@ -401,7 +398,8 @@ export default function AudioPlayerBar({
     }
     if (!audioRef.current || !hasAudio) return;
     if (isPlaying) {
-      flushPendingListeningTime(audioRef.current.currentTime);
+      const cur = audioRef.current.currentTime ?? currentTime;
+      flushPendingListeningTime(cur);
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
@@ -410,7 +408,7 @@ export default function AudioPlayerBar({
       }
       const audio = audioRef.current;
       applyTargetSeek();
-      const expectedTime = (activeLesson?.audioProgress && activeLesson.audioProgress > 0) ? activeLesson.audioProgress : currentTime;
+      const expectedTime = currentTime;
       if (expectedTime > 0 && Math.abs(audio.currentTime - expectedTime) > 0.5) {
         try {
           audio.currentTime = expectedTime;
@@ -583,7 +581,7 @@ export default function AudioPlayerBar({
           onPlay={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
-              const expectedTime = (activeLesson?.audioProgress && activeLesson.audioProgress > 0) ? activeLesson.audioProgress : currentTime;
+              const expectedTime = currentTime;
               if (expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
                 try {
                   audioRef.current.currentTime = expectedTime;
@@ -595,7 +593,7 @@ export default function AudioPlayerBar({
           onPlaying={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
-              const expectedTime = (activeLesson?.audioProgress && activeLesson.audioProgress > 0) ? activeLesson.audioProgress : currentTime;
+              const expectedTime = currentTime;
               if (expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
                 try {
                   audioRef.current.currentTime = expectedTime;

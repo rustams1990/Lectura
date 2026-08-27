@@ -157,14 +157,26 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
   const sessionStartRef = useRef<number>(0);
   const targetSeekTimeRef = useRef<number | null>(null);
 
+  const currentTrackIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const saved = (activeLesson && currentTrack && activeLesson.id === currentTrack.id ? (activeLesson.audioProgress || 0) : 0) || usePlaylistStore.getState().currentTime || 0;
-    if (saved > 0) {
-      targetSeekTimeRef.current = saved;
-    } else {
-      targetSeekTimeRef.current = null;
+    if (currentTrack?.id && currentTrack.id !== currentTrackIdRef.current) {
+      currentTrackIdRef.current = currentTrack.id;
+      const initialPos = Number(activeLesson && activeLesson.id === currentTrack.id ? activeLesson.audioProgress : (currentTrack as any).audioProgress) || 0;
+      if (initialPos > 0) {
+        targetSeekTimeRef.current = initialPos;
+        setCurrentTime(initialPos);
+        if (audioRef.current) {
+          try {
+            audioRef.current.currentTime = initialPos;
+          } catch (_) {}
+        }
+      } else {
+        targetSeekTimeRef.current = null;
+        setCurrentTime(0);
+      }
     }
-  }, [currentTrack?.id, audioSrc, activeLesson?.id, activeLesson?.audioProgress]);
+  }, [currentTrack?.id, activeLesson?.id, setCurrentTime]);
 
   const applyTargetSeek = useCallback(() => {
     if (targetSeekTimeRef.current !== null && audioRef.current) {
@@ -176,29 +188,6 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       } catch (_) {}
     }
   }, [setCurrentTime]);
-
-  // Reactive synchronization with active lesson audioProgress when paused
-  useEffect(() => {
-    if (!isPlaying && activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid)) {
-      if (activeLesson.audioProgress !== undefined) {
-        const incomingProgress = Number(activeLesson.audioProgress) || 0;
-        const currentStoreTime = usePlaylistStore.getState().currentTime || 0;
-        if (Math.abs(currentStoreTime - incomingProgress) > 1) {
-          setCurrentTime(incomingProgress);
-          setLessonCurrentTime(incomingProgress);
-          if (isYouTubeTrack && ytPlayerRef.current && isYtReadyRef.current) {
-            try {
-              ytPlayerRef.current.seekTo(incomingProgress, false);
-            } catch (_) {}
-          } else if (audioRef.current) {
-            try {
-              audioRef.current.currentTime = incomingProgress;
-            } catch (_) {}
-          }
-        }
-      }
-    }
-  }, [activeLesson?.audioProgress, isPlaying, activeLesson, currentTrack, setCurrentTime, setLessonCurrentTime, isYouTubeTrack]);
 
   const saveProgress = useCallback((time: number) => {
     const lessonId = currentTrack?.id;
@@ -378,8 +367,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       if (isPlaying) {
         applyTargetSeek();
         const storeTime = usePlaylistStore.getState().currentTime || 0;
-        const lessonSaved = (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid) ? (activeLesson.audioProgress || 0) : 0);
-        const expectedTime = lessonSaved > 0 ? lessonSaved : storeTime;
+        const expectedTime = storeTime;
         if (expectedTime > 0 && Math.abs(audio.currentTime - expectedTime) > 0.5) {
           try {
             audio.currentTime = expectedTime;
@@ -704,8 +692,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           if (!isYouTubeTrack) {
             applyTargetSeek();
             const storeTime = usePlaylistStore.getState().currentTime || 0;
-            const lessonSaved = (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid) ? (activeLesson.audioProgress || 0) : 0);
-            const expectedTime = lessonSaved > 0 ? lessonSaved : storeTime;
+            const expectedTime = storeTime;
             if (audioRef.current && expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
               try {
                 audioRef.current.currentTime = expectedTime;
@@ -729,8 +716,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           if (!isYouTubeTrack) {
             applyTargetSeek();
             const storeTime = usePlaylistStore.getState().currentTime || 0;
-            const lessonSaved = (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid) ? (activeLesson.audioProgress || 0) : 0);
-            const expectedTime = lessonSaved > 0 ? lessonSaved : storeTime;
+            const expectedTime = storeTime;
             if (audioRef.current && expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
               try {
                 audioRef.current.currentTime = expectedTime;
@@ -751,10 +737,8 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onPause={() => {
           if (!isYouTubeTrack) {
             setIsPlaying(false);
-            flushPendingListeningTime();
-            if (audioRef.current) {
-              flushPendingListeningTime(audioRef.current.currentTime);
-            }
+            const exactTime = audioRef.current?.currentTime ?? usePlaylistStore.getState().currentTime ?? 0;
+            flushPendingListeningTime(exactTime);
           }
         }}
         onSeeked={() => {
