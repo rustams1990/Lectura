@@ -3092,7 +3092,7 @@ export default function App() {
       return;
     }
 
-    if (effectiveSeconds > 0) {
+    if (effectiveSeconds > 0 || (forceFlush && currentPos !== undefined && currentPos > 0)) {
       const deltaToRecord = effectiveSeconds;
       const pos = currentPos;
       
