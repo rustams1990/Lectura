@@ -770,11 +770,12 @@ function HistoryPage({
       // Best metadata resolution (prefer latest session, fallback to other sessions in group or lesson)
       const bestLastPosition = latest.lastPosition !== undefined ? latest.lastPosition : sortedSessions.find((s) => s.lastPosition !== undefined)?.lastPosition;
 
-      // Sum duration across all sessions of this lesson on this day
-      const totalDurationSeconds = sortedSessions.reduce(
+      // Sum duration across all sessions of this lesson on this day, or media progress position
+      const summedDuration = sortedSessions.reduce(
         (acc, s) => acc + Math.max(0, Number(s.durationSeconds) || 0),
         0
       );
+      const totalDurationSeconds = Math.max(summedDuration, Number(bestLastPosition) || 0);
 
       const bestNotes = sortedSessions.find((s) => s.notes && s.notes.trim())?.notes || latest.notes || "";
       const bestTags = sortedSessions.find((s) => s.tags && s.tags.length > 0)?.tags || latest.tags || [];
@@ -2172,10 +2173,10 @@ function HistoryPage({
 
                           {/* Duration & Notes */}
                           <div className="flex items-center gap-3 text-[10px] text-zinc-500">
-                            {item.durationSeconds ? (
+                            {(item.durationSeconds || item.lastPosition) ? (
                               <span className="flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
                                 <Clock className="w-2.5 h-2.5" />
-                                {formatDuration(item.durationSeconds)}
+                                {formatDuration(Math.max(item.durationSeconds || 0, Number(item.lastPosition) || 0))}
                               </span>
                             ) : null}
 
