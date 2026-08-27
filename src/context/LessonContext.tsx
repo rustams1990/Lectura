@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { Lesson } from "../types";
 
 interface LessonContextType {
