@@ -337,21 +337,6 @@ function setupSchema(db: Database.Database) {
     try { db.exec(`ALTER TABLE playlists ADD COLUMN isArchived INTEGER DEFAULT 0;`); } catch (_) {}
   }
 
-  // reading_history: lastPosition, audioUrl, guid, podcastTitle columns
-  const historyCols = (db.prepare("PRAGMA table_info(reading_history)").all() as any[]).map(c => c.name);
-  if (!historyCols.includes("lastPosition")) {
-    try { db.exec(`ALTER TABLE reading_history ADD COLUMN lastPosition REAL DEFAULT 0;`); } catch (_) {}
-  }
-  if (!historyCols.includes("audioUrl")) {
-    try { db.exec(`ALTER TABLE reading_history ADD COLUMN audioUrl TEXT;`); } catch (_) {}
-  }
-  if (!historyCols.includes("guid")) {
-    try { db.exec(`ALTER TABLE reading_history ADD COLUMN guid TEXT;`); } catch (_) {}
-  }
-  if (!historyCols.includes("podcastTitle")) {
-    try { db.exec(`ALTER TABLE reading_history ADD COLUMN podcastTitle TEXT;`); } catch (_) {}
-  }
-
   // Auto-enrich existing lessons missing channelName or title
   setTimeout(async () => {
     try {
@@ -472,6 +457,18 @@ function setupSchema(db: Database.Database) {
   }
   if (!historyCols.includes("tags")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN tags TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("lastPosition")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN lastPosition REAL DEFAULT 0;`); } catch (_) {}
+  }
+  if (!historyCols.includes("audioUrl")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN audioUrl TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("guid")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN guid TEXT;`); } catch (_) {}
+  }
+  if (!historyCols.includes("podcastTitle")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN podcastTitle TEXT;`); } catch (_) {}
   }
 
   // Ensure activity_history view exists if any external service/query expects it
