@@ -227,7 +227,7 @@ export default function AudioPlayerBar({
         return;
       }
       const elapsed = (now - lastPlayWallTimeRef.current) / 1000;
-      if (elapsed >= 1.0) {
+      if (elapsed >= 5.0) {
         const delta = elapsed * (effectivePlaybackRate || 1);
         lastPlayWallTimeRef.current = now;
         if (delta > 0 && delta <= 15) {

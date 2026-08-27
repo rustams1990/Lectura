@@ -428,7 +428,7 @@ export default function App() {
         undefined,
         playlistsRef.current
       ).catch(() => {});
-    }, 1000);
+    }, 2000);
   };
 
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {

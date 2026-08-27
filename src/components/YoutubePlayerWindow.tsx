@@ -271,16 +271,18 @@ export default function YoutubePlayerWindow({
           if (lastTickTimeRef.current) {
             const now = Date.now();
             const delta = (now - lastTickTimeRef.current) / 1000;
-            if (delta > 0 && delta <= 3 && onListeningTick) {
-              let exactTime = 0;
-              try {
-                if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
-                  exactTime = playerRef.current.getCurrentTime();
-                }
-              } catch (e) {}
-              onListeningTick(delta, false, exactTime);
+            if (delta >= 5.0) {
+              if (delta > 0 && delta <= 15 && onListeningTick) {
+                let exactTime = 0;
+                try {
+                  if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+                    exactTime = playerRef.current.getCurrentTime();
+                  }
+                } catch (e) {}
+                onListeningTick(delta, false, exactTime);
+              }
+              lastTickTimeRef.current = now;
             }
-            lastTickTimeRef.current = now;
           } else {
             lastTickTimeRef.current = Date.now();
           }
@@ -920,11 +922,13 @@ export default function YoutubePlayerWindow({
                 if (lastTickTimeRef.current) {
                   const now = Date.now();
                   const delta = (now - lastTickTimeRef.current) / 1000;
-                  if (delta > 0 && delta <= 3 && onListeningTick) {
-                    const exactTime = videoElRef.current ? videoElRef.current.currentTime : 0;
-                    onListeningTick(delta, false, exactTime);
+                  if (delta >= 5.0) {
+                    if (delta > 0 && delta <= 15 && onListeningTick) {
+                      const exactTime = videoElRef.current ? videoElRef.current.currentTime : 0;
+                      onListeningTick(delta, false, exactTime);
+                    }
+                    lastTickTimeRef.current = now;
                   }
-                  lastTickTimeRef.current = now;
                 }
               }}
               onPlay={() => {

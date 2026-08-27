@@ -228,10 +228,12 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           if (isActuallyPlaying && onListeningTick) {
             const now = Date.now();
             const delta = (now - lastTickTime) / 1000;
-            if (delta > 0 && delta <= 3) {
-              onListeningTick(delta, false, cur);
+            if (delta >= 5.0) {
+              if (delta > 0 && delta <= 15) {
+                onListeningTick(delta, false, cur);
+              }
+              lastTickTime = now;
             }
-            lastTickTime = now;
           } else {
             lastTickTime = Date.now();
           }
@@ -500,7 +502,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         return;
       }
       const elapsed = (now - lastGlobalPlayWallTimeRef.current) / 1000;
-      if (elapsed >= 1.0) {
+      if (elapsed >= 5.0) {
         const delta = elapsed * (playbackRate || 1);
         lastGlobalPlayWallTimeRef.current = now;
         if (delta > 0 && delta <= 15) {
