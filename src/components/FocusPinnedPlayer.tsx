@@ -316,8 +316,23 @@ export default function FocusPinnedPlayer({
               },
               onStateChange: (ev: any) => {
                 if (dead) return;
-                ev.data === 1 ? startTracking() : stopTracking();
-                if (ev.data === 0) {
+                const state = ev.data;
+                const YTStates = (window as any).YT?.PlayerState;
+                if (state === 1 || (YTStates && state === YTStates.PLAYING)) {
+                  startTracking();
+                } else if (
+                  state === 2 || state === 3 || state === 0 || state === -1 || state === 5 ||
+                  (YTStates && (
+                    state === YTStates.PAUSED ||
+                    state === YTStates.BUFFERING ||
+                    state === YTStates.ENDED ||
+                    state === YTStates.UNSTARTED ||
+                    state === YTStates.CUED
+                  ))
+                ) {
+                  stopTracking();
+                }
+                if (state === 0 || (YTStates && state === YTStates.ENDED)) {
                   try {
                     localStorage.removeItem(`youtube_progress_${lesson.id}`);
                     settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});

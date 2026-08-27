@@ -132,16 +132,32 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           },
           onStateChange: (event: any) => {
             const state = event.data;
-            if (state === YT.PlayerState.PLAYING) {
+            const YTStates = (window as any).YT?.PlayerState;
+            if (state === 1 || (YTStates && state === YTStates.PLAYING)) {
               sessionStartRef.current = Date.now();
               setIsPlaying(true);
-            } else if (state === YT.PlayerState.PAUSED) {
-              setIsPlaying(false);
-              if (ytPlayerRef.current?.getCurrentTime) {
-                flushPendingListeningTime(ytPlayerRef.current.getCurrentTime());
+            } else if (
+              state === 2 || state === 3 || state === 0 || state === -1 || state === 5 ||
+              (YTStates && (
+                state === YTStates.PAUSED || 
+                state === YTStates.BUFFERING || 
+                state === YTStates.ENDED || 
+                state === YTStates.UNSTARTED ||
+                state === YTStates.CUED
+              ))
+            ) {
+              if (sessionStartRef.current > 0) {
+                if (ytPlayerRef.current?.getCurrentTime) {
+                  flushPendingListeningTime(ytPlayerRef.current.getCurrentTime());
+                } else {
+                  flushPendingListeningTime();
+                }
               }
-            } else if (state === YT.PlayerState.ENDED) {
-              handleEnded();
+              if (state === 2 || (YTStates && state === YTStates.PAUSED)) {
+                setIsPlaying(false);
+              } else if (state === 0 || (YTStates && state === YTStates.ENDED)) {
+                handleEnded();
+              }
             }
           },
           onError: (e: any) => {
@@ -272,7 +288,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       const now = Date.now();
       const elapsedSec = Math.round((now - sessionStartRef.current) / 1000);
       sessionStartRef.current = 0;
-      if (elapsedSec >= 3 && elapsedSec <= 7200) {
+      if (elapsedSec >= 1 && elapsedSec <= 7200) {
         const delta = elapsedSec * (playbackRate || 1);
         onListeningTick?.(delta, true, cur);
       } else if (cur !== undefined) {

@@ -219,9 +219,6 @@ export default function YoutubePlayerWindow({
     container.appendChild(placeholder);
 
     const startTrackingTime = () => {
-      if (!lastTickTimeRef.current) {
-        lastTickTimeRef.current = Date.now();
-      }
       if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
       trackingIntervalRef.current = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
@@ -257,7 +254,6 @@ export default function YoutubePlayerWindow({
             }
           } catch (e) {}
         }
-
       }, 500);
     };
 
@@ -278,7 +274,7 @@ export default function YoutubePlayerWindow({
           if (time !== undefined) {
             saveProgressNow(time);
             if (onListeningTick) {
-              if (elapsed >= 3 && elapsed <= 7200) {
+              if (elapsed >= 1 && elapsed < 7200) {
                 onListeningTick(elapsed, true, time);
               } else {
                 onListeningTick(0, true, time);
@@ -372,19 +368,35 @@ export default function YoutubePlayerWindow({
                     } catch (e) {}
                   }, 800);
                 }
-                startTrackingTime();
               },
               onStateChange: (event: any) => {
                 if (isUnmounted) return;
                 playerRef.current = event.target;
-                if (event.data === 1) {
+                const state = event.data;
+                const YTStates = (window as any).YT?.PlayerState;
+
+                // 1: PLAYING
+                if (state === 1 || (YTStates && state === YTStates.PLAYING)) {
+                  lastTickTimeRef.current = Date.now();
                   usePlaylistStore.getState().setIsPlaying(false);
                   window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: lesson.id, guid: youtubeId } }));
                   startTrackingTime();
-                } else if (event.data === 2 || event.data === 0) {
+                } 
+                // 2: PAUSED, 0: ENDED, 3: BUFFERING, -1: UNSTARTED, 5: CUED
+                else if (
+                  state === 2 || state === 0 || state === 3 || state === -1 || state === 5 ||
+                  (YTStates && (
+                    state === YTStates.PAUSED || 
+                    state === YTStates.ENDED || 
+                    state === YTStates.BUFFERING ||
+                    state === YTStates.UNSTARTED ||
+                    state === YTStates.CUED
+                  ))
+                ) {
                   stopTrackingTime();
                 }
-                if (event.data === 0) {
+
+                if (state === 0 || (YTStates && state === YTStates.ENDED)) {
                   try {
                     localStorage.removeItem(`youtube_progress_${lesson.id}`);
                     settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
