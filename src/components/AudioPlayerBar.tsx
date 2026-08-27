@@ -395,6 +395,12 @@ export default function AudioPlayerBar({
       }
       const audio = audioRef.current;
       applyTargetSeek();
+      const expectedTime = (activeLesson?.audioProgress && activeLesson.audioProgress > 0) ? activeLesson.audioProgress : currentTime;
+      if (expectedTime > 0 && Math.abs(audio.currentTime - expectedTime) > 0.5) {
+        try {
+          audio.currentTime = expectedTime;
+        } catch (_) {}
+      }
       const cur = audio.currentTime;
       sessionStartRef.current = Date.now();
       setCurrentTime(cur);
@@ -562,12 +568,24 @@ export default function AudioPlayerBar({
           onPlay={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
+              const expectedTime = (activeLesson?.audioProgress && activeLesson.audioProgress > 0) ? activeLesson.audioProgress : currentTime;
+              if (expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
+                try {
+                  audioRef.current.currentTime = expectedTime;
+                } catch (_) {}
+              }
               setCurrentTime(audioRef.current.currentTime);
             }
           }}
           onPlaying={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
+              const expectedTime = (activeLesson?.audioProgress && activeLesson.audioProgress > 0) ? activeLesson.audioProgress : currentTime;
+              if (expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
+                try {
+                  audioRef.current.currentTime = expectedTime;
+                } catch (_) {}
+              }
               setCurrentTime(audioRef.current.currentTime);
             }
           }}

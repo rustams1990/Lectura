@@ -354,6 +354,14 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
 
       if (isPlaying) {
         applyTargetSeek();
+        const storeTime = usePlaylistStore.getState().currentTime || 0;
+        const lessonSaved = (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid) ? (activeLesson.audioProgress || 0) : 0);
+        const expectedTime = lessonSaved > 0 ? lessonSaved : storeTime;
+        if (expectedTime > 0 && Math.abs(audio.currentTime - expectedTime) > 0.5) {
+          try {
+            audio.currentTime = expectedTime;
+          } catch (_) {}
+        }
         const cur = audio.currentTime;
         lastAudioPosRef.current = cur;
         lastTickTimeRef.current = Date.now();
@@ -672,6 +680,14 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onPlay={() => {
           if (!isYouTubeTrack) {
             applyTargetSeek();
+            const storeTime = usePlaylistStore.getState().currentTime || 0;
+            const lessonSaved = (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid) ? (activeLesson.audioProgress || 0) : 0);
+            const expectedTime = lessonSaved > 0 ? lessonSaved : storeTime;
+            if (audioRef.current && expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
+              try {
+                audioRef.current.currentTime = expectedTime;
+              } catch (_) {}
+            }
             setIsPlaying(true);
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
@@ -689,6 +705,14 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onPlaying={() => {
           if (!isYouTubeTrack) {
             applyTargetSeek();
+            const storeTime = usePlaylistStore.getState().currentTime || 0;
+            const lessonSaved = (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid) ? (activeLesson.audioProgress || 0) : 0);
+            const expectedTime = lessonSaved > 0 ? lessonSaved : storeTime;
+            if (audioRef.current && expectedTime > 0 && Math.abs(audioRef.current.currentTime - expectedTime) > 0.5) {
+              try {
+                audioRef.current.currentTime = expectedTime;
+              } catch (_) {}
+            }
             sessionStartRef.current = Date.now();
             setIsPlaying(true);
             if (audioRef.current) {
