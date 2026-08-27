@@ -470,6 +470,10 @@ export function getLocalServerDb(userId: string = "default") {
         customTitle: h.customTitle || undefined,
         mode: h.mode || undefined,
         tags: h.tags ? (typeof h.tags === "string" ? JSON.parse(h.tags) : h.tags) : [],
+        lastPosition: h.lastPosition !== null && h.lastPosition !== undefined ? Number(h.lastPosition) : undefined,
+        audioUrl: h.audioUrl || undefined,
+        guid: h.guid || undefined,
+        podcastTitle: h.podcastTitle || undefined,
       }));
     } catch (_) {}
 
@@ -939,8 +943,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       const insertHistory = db.prepare(`
         INSERT OR REPLACE INTO reading_history (
-          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, lastPosition, audioUrl, guid, podcastTitle
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
@@ -979,7 +983,11 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             h.category || null,
             h.customTitle || null,
             h.mode || null,
-            h.tags && Array.isArray(h.tags) ? JSON.stringify(h.tags) : null
+            h.tags && Array.isArray(h.tags) ? JSON.stringify(h.tags) : null,
+            h.lastPosition !== undefined && h.lastPosition !== null ? Number(h.lastPosition) : 0,
+            h.audioUrl || null,
+            h.guid || null,
+            h.podcastTitle || null
           );
         }
       }

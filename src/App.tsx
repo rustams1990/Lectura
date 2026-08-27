@@ -548,6 +548,11 @@ export default function App() {
             ? targetLesson.id
             : (item.lessonId || targetLesson.id);
 
+          const newDuration = Math.max(
+            Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10,
+            lastPosition !== undefined ? Math.round(lastPosition * 10) / 10 : 0
+          );
+
           return {
             ...item,
             lessonId: preferredLessonId,
@@ -555,7 +560,7 @@ export default function App() {
             timestamp: now,
             actionType: nextActionType,
             status: nextStatus,
-            durationSeconds: Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10,
+            durationSeconds: newDuration,
             lastPosition: lastPosition !== undefined ? lastPosition : item.lastPosition,
             youtubeId: item.youtubeId || (targetLesson as any).youtubeId || null,
             audioUrl: (targetLesson.audioUrl && targetLesson.audioUrl.startsWith("/api/")) ? targetLesson.audioUrl : (item.audioUrl || targetLesson.audioUrl || null),
@@ -566,8 +571,13 @@ export default function App() {
           };
         });
       } else {
+        const initialDuration = Math.max(
+          Math.round((durationSeconds || 0) * 10) / 10,
+          lastPosition !== undefined ? Math.round(lastPosition * 10) / 10 : 0
+        );
+
         const generatedId = generateHistoryId({
-          durationSeconds,
+          durationSeconds: initialDuration,
           actionType,
           source: `recordHistoryActivity(${targetLesson.id}, ${actionType})`,
         });
@@ -587,7 +597,7 @@ export default function App() {
           timestamp: now,
           actionType: isAudioOrVideo ? "listen" : (actionType === "complete" ? "read" : actionType),
           status: actionType === "complete" ? "completed" : "in_progress",
-          durationSeconds: Math.round((durationSeconds || 0) * 10) / 10,
+          durationSeconds: initialDuration,
           lastPosition: lastPosition !== undefined ? lastPosition : undefined,
           youtubeId: (targetLesson as any).youtubeId || null,
           audioUrl: targetLesson.audioUrl || null,

@@ -767,13 +767,16 @@ function HistoryPage({
         latest.actionType === "listen" ||
         sortedSessions.some((s) => s.actionType === "listen");
 
-      // Sum duration across all sessions of this lesson on this day
-      const totalDurationSeconds = sortedSessions.reduce(
+      // Best metadata resolution (prefer latest session, fallback to other sessions in group or lesson)
+      const bestLastPosition = latest.lastPosition !== undefined ? latest.lastPosition : sortedSessions.find((s) => s.lastPosition !== undefined)?.lastPosition;
+
+      // Sum duration across all sessions of this lesson on this day, or media progress position
+      const summedDuration = sortedSessions.reduce(
         (acc, s) => acc + Math.max(0, Number(s.durationSeconds) || 0),
         0
       );
+      const totalDurationSeconds = Math.max(summedDuration, Number(bestLastPosition) || 0);
 
-      // Best metadata resolution (prefer latest session, fallback to other sessions in group or lesson)
       const bestNotes = sortedSessions.find((s) => s.notes && s.notes.trim())?.notes || latest.notes || "";
       const bestTags = sortedSessions.find((s) => s.tags && s.tags.length > 0)?.tags || latest.tags || [];
       const bestCoverUrl = latest.coverUrl || sortedSessions.find((s) => s.coverUrl)?.coverUrl || lesson?.coverUrl || null;
@@ -783,7 +786,6 @@ function HistoryPage({
       const bestAudioUrl = latest.audioUrl || sortedSessions.find((s) => s.audioUrl)?.audioUrl || lesson?.audioUrl || null;
       const bestPodcastTitle = latest.podcastTitle || sortedSessions.find((s) => s.podcastTitle)?.podcastTitle || null;
       const bestGuid = latest.guid || sortedSessions.find((s) => s.guid)?.guid || null;
-      const bestLastPosition = latest.lastPosition !== undefined ? latest.lastPosition : sortedSessions.find((s) => s.lastPosition !== undefined)?.lastPosition;
 
       aggregated.push({
         ...latest,
