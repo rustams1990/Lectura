@@ -458,8 +458,8 @@ export default function App() {
   ) => {
     if (!targetLesson || !targetLesson.id) return;
 
-    // Absolute Circuit Breaker: Zero duration records are not permitted for read/listen activities.
-    if (actionType !== "complete" && (!durationSeconds || durationSeconds <= 0)) {
+    // Absolute Circuit Breaker: Zero duration records without position are not permitted
+    if (actionType !== "complete" && (!durationSeconds || durationSeconds <= 0) && (lastPosition === undefined || lastPosition <= 0)) {
       return;
     }
     

@@ -260,12 +260,12 @@ export default function AudioPlayerBar({
       if (isGlobalPlayingThisLesson) {
         playlistSeek(seekToTime);
       } else if (audioRef.current) {
-        flushPendingListeningTime(audioRef.current.currentTime);
         audioRef.current.currentTime = seekToTime;
         if (!audioRef.current.paused) {
           lastPlayWallTimeRef.current = Date.now();
         }
         setCurrentTime(seekToTime);
+        flushPendingListeningTime(seekToTime);
         onListeningTick?.(0, true, seekToTime);
       }
       setSeekToTime(null);
@@ -416,10 +416,10 @@ export default function AudioPlayerBar({
       return;
     }
     if (audioRef.current) {
-      flushPendingListeningTime(audioRef.current.currentTime);
       audioRef.current.currentTime = val;
       lastAudioPosRef.current = val;
       setCurrentTime(val);
+      flushPendingListeningTime(val);
       onListeningTick?.(0, true, val);
     }
   };
@@ -431,11 +431,11 @@ export default function AudioPlayerBar({
     }
     if (!audioRef.current) return;
     const cur = audioRef.current.currentTime;
-    flushPendingListeningTime(cur);
     const target = Math.max(0, Math.min(duration || Infinity, cur + delta));
     audioRef.current.currentTime = target;
     lastAudioPosRef.current = target;
     setCurrentTime(target);
+    flushPendingListeningTime(target);
     onListeningTick?.(0, true, target);
   }, [isGlobalPlayingThisLesson, playlistSeekDelta, duration, setCurrentTime, flushPendingListeningTime, onListeningTick]);
 
@@ -449,10 +449,10 @@ export default function AudioPlayerBar({
     if (isGlobalPlayingThisLesson) {
       playlistSeek(target);
     } else if (audioRef.current) {
-      flushPendingListeningTime(audioRef.current.currentTime);
       audioRef.current.currentTime = target;
       lastAudioPosRef.current = target;
       setCurrentTime(target);
+      flushPendingListeningTime(target);
       onListeningTick?.(0, true, target);
     }
   }, [allTimestamps, handleSkipSeconds, isGlobalPlayingThisLesson, playlistCurrentTime, playlistSeek, currentTime, setCurrentTime, flushPendingListeningTime, onListeningTick]);
@@ -468,10 +468,10 @@ export default function AudioPlayerBar({
     if (isGlobalPlayingThisLesson) {
       playlistSeek(target);
     } else if (audioRef.current) {
-      flushPendingListeningTime(audioRef.current.currentTime);
       audioRef.current.currentTime = target;
       lastAudioPosRef.current = target;
       setCurrentTime(target);
+      flushPendingListeningTime(target);
       onListeningTick?.(0, true, target);
     }
   }, [allTimestamps, effectiveDuration, handleSkipSeconds, isGlobalPlayingThisLesson, playlistCurrentTime, playlistSeek, currentTime, setCurrentTime, flushPendingListeningTime, onListeningTick]);
