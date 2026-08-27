@@ -245,14 +245,6 @@ export default function FocusPinnedPlayer({
             }
           } catch {}
         }
-        if (lastTickRef.current) {
-          const now = Date.now();
-          const d = (now - lastTickRef.current) / 1000;
-          if (d > 0 && d <= 3 && onListeningTick) {
-            onListeningTick(d);
-          }
-          lastTickRef.current = now;
-        }
       }, 500);
     };
 
@@ -261,12 +253,22 @@ export default function FocusPinnedPlayer({
         clearInterval(trackingIntervalRef.current);
         trackingIntervalRef.current = null;
       }
+      let elapsed = 0;
+      if (lastTickRef.current) {
+        elapsed = Math.round((Date.now() - lastTickRef.current) / 1000);
+      }
       lastTickRef.current = null;
       try {
         if (playerRef.current?.getCurrentTime) {
           const cur = playerRef.current.getCurrentTime();
           saveNow(cur);
-          if (onListeningTick) onListeningTick(0, true, cur);
+          if (onListeningTick) {
+            if (elapsed >= 3 && elapsed <= 7200) {
+              onListeningTick(elapsed, true, cur);
+            } else {
+              onListeningTick(0, true, cur);
+            }
+          }
         }
       } catch {}
     };

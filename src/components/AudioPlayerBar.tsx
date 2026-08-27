@@ -161,6 +161,7 @@ export default function AudioPlayerBar({
   const effectivePlaybackRate = isGlobalPlayingThisLesson ? playlistPlaybackRate : playbackRate;
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastAudioPosRef = useRef<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isSentenceLoop, setIsSentenceLoop] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(() => {
@@ -172,16 +173,15 @@ export default function AudioPlayerBar({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState<boolean>(false);
 
-  const lastPlayWallTimeRef = useRef<number>(0);
+  const sessionStartRef = useRef<number>(0);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
 
-    if (lastPlayWallTimeRef.current > 0) {
-      const now = Date.now();
-      const elapsedSec = (now - lastPlayWallTimeRef.current) / 1000;
-      lastPlayWallTimeRef.current = 0;
-      if (elapsedSec > 0.05 && elapsedSec <= 30) {
+    if (sessionStartRef.current > 0) {
+      const elapsedSec = Math.round((Date.now() - sessionStartRef.current) / 1000);
+      sessionStartRef.current = 0;
+      if (elapsedSec >= 3 && elapsedSec <= 7200) {
         const delta = elapsedSec * (effectivePlaybackRate || 1);
         onListeningTick?.(delta, true, cur);
       } else if (cur !== undefined) {
@@ -224,24 +224,7 @@ export default function AudioPlayerBar({
     const cur = audioRef.current.currentTime;
     setCurrentTime(cur);
 
-    // Direct wall-clock continuous playback tracking whenever audio is playing
-    if (!audioRef.current.paused) {
-      const now = Date.now();
-      if (lastPlayWallTimeRef.current === 0) {
-        lastPlayWallTimeRef.current = now;
-        return;
-      }
-      const elapsed = (now - lastPlayWallTimeRef.current) / 1000;
-      if (elapsed >= 5.0) {
-        const delta = elapsed * (effectivePlaybackRate || 1);
-        lastPlayWallTimeRef.current = now;
-        if (delta > 0 && delta <= 15) {
-          onListeningTick?.(delta, false, cur);
-        }
-      }
-    } else {
-      lastPlayWallTimeRef.current = 0;
-    }
+
 
     // Sentence loop mode: when audio crosses into next sentence, jump back to current sentence start
     if (isSentenceLoop && allTimestamps.length > 0) {
@@ -267,7 +250,7 @@ export default function AudioPlayerBar({
       } else if (audioRef.current) {
         audioRef.current.currentTime = seekToTime;
         if (!audioRef.current.paused) {
-          lastPlayWallTimeRef.current = Date.now();
+          sessionStartRef.current = Date.now();
         }
         setCurrentTime(seekToTime);
         flushPendingListeningTime(seekToTime);
@@ -364,7 +347,7 @@ export default function AudioPlayerBar({
         usePlaylistStore.getState().setIsPlaying(false);
       }
       const cur = audioRef.current.currentTime;
-      lastPlayWallTimeRef.current = Date.now();
+      sessionStartRef.current = Date.now();
       setCurrentTime(cur);
       window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: activeLesson?.id, guid: (activeLesson as any)?.guid } }));
       audioRef.current.play().catch((err) => {
@@ -374,16 +357,6 @@ export default function AudioPlayerBar({
     }
   };
 
-  // High-Frequency Time Engine: continuously reads audio.currentTime every 250ms for smooth UI updates & delta tracking
-  useEffect(() => {
-    if (!isPlaying || isGlobalPlayingThisLesson) return;
-    const interval = setInterval(() => {
-      const audio = audioRef.current;
-      if (!audio || audio.paused) return;
-      handleTimeUpdate();
-    }, 250);
-    return () => clearInterval(interval);
-  }, [isPlaying, isGlobalPlayingThisLesson]);
 
   // Sentence loop effect for global player mode
   useEffect(() => {
@@ -520,13 +493,13 @@ export default function AudioPlayerBar({
           ref={audioRef}
           src={audioSrc}
           onPlay={() => {
-            lastPlayWallTimeRef.current = Date.now();
+            sessionStartRef.current = Date.now();
             if (audioRef.current) {
               setCurrentTime(audioRef.current.currentTime);
             }
           }}
           onPlaying={() => {
-            lastPlayWallTimeRef.current = Date.now();
+            sessionStartRef.current = Date.now();
             if (audioRef.current) {
               setCurrentTime(audioRef.current.currentTime);
             }
@@ -544,7 +517,7 @@ export default function AudioPlayerBar({
               const cur = audioRef.current.currentTime;
               flushPendingListeningTime(cur);
               if (!audioRef.current.paused) {
-                lastPlayWallTimeRef.current = Date.now();
+                sessionStartRef.current = Date.now();
               }
               setCurrentTime(cur);
               onListeningTick?.(0, true, cur);

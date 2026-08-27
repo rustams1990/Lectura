@@ -15,9 +15,9 @@ export function generateHistoryId(options?: {
   source?: string;
 }): string | null {
   const durationSeconds = options?.durationSeconds;
-  const source = options?.source || "unknown";
+  const actionType = options?.actionType;
 
-  if (!durationSeconds || durationSeconds <= 0) {
+  if (options && (!durationSeconds || durationSeconds <= 0) && actionType !== "complete" && actionType !== "read") {
     return null;
   }
 

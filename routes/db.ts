@@ -1785,7 +1785,7 @@ const logActivityHandler = (req: Request, res: Response) => {
   } = req.body || {};
 
   const seconds = Math.round(Number(watchedSeconds) || 0);
-  if (seconds <= 0) {
+  if (!seconds || seconds <= 0 || seconds > 3600) {
     return res.json({ success: true, loggedSeconds: 0, message: "Ignored (0 seconds)" });
   }
 

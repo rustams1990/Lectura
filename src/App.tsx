@@ -428,7 +428,7 @@ export default function App() {
         undefined,
         playlistsRef.current
       ).catch(() => {});
-    }, 2000);
+    }, 3000);
   };
 
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
@@ -504,6 +504,12 @@ export default function App() {
     if (actionType !== "complete" && (!durationSeconds || durationSeconds <= 0) && (lastPosition === undefined || lastPosition <= 0)) {
       return;
     }
+    
+    // Strict guardrail for garbage time (e.g. infinite loops or anomalies)
+    if (durationSeconds !== undefined && (durationSeconds <= 0 || durationSeconds > 7200)) {
+       durationSeconds = 0;
+    }
+
     
     if ((actionType === "listen" || actionType === "complete") && lastPosition === undefined) {
       const globalTime = getActiveMediaCurrentTime();
@@ -590,10 +596,7 @@ export default function App() {
             ? targetLesson.id
             : (item.lessonId || targetLesson.id);
 
-          const newDuration = Math.max(
-            Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10,
-            lastPosition !== undefined ? Math.round(lastPosition * 10) / 10 : 0
-          );
+          const newDuration = Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10;
 
           return {
             ...item,
@@ -613,10 +616,7 @@ export default function App() {
           };
         });
       } else {
-        const initialDuration = Math.max(
-          Math.round((durationSeconds || 0) * 10) / 10,
-          lastPosition !== undefined ? Math.round(lastPosition * 10) / 10 : 0
-        );
+        const initialDuration = Math.round((durationSeconds || 0) * 10) / 10;
 
         const generatedId = generateHistoryId({
           durationSeconds: initialDuration,
@@ -1722,6 +1722,13 @@ export default function App() {
     return () => unsub();
   }, []);
 
+
+  const pendingSyncDeletedLessonsRef = useRef<string[]>([]);
+  const pendingSyncDeletedPlaylistsRef = useRef<string[]>([]);
+  const pendingSyncDeletedWordKeysRef = useRef<string[]>([]);
+  const pendingSyncDeletedHistoryRef = useRef<string[]>([]);
+  const syncDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const syncDataToLocalServer = async (
     currentLessons = lessonsRef.current,
     currentTypes = lessonTypesRef.current,
@@ -1743,7 +1750,31 @@ export default function App() {
     if (storageMode !== "server") return;
     if (localSyncError) return;
     lastLocalChangeTime.current = Date.now();
-    try {
+    
+    if (deletedLessonIds) pendingSyncDeletedLessonsRef.current.push(...deletedLessonIds);
+    if (deletedPlaylistIds) pendingSyncDeletedPlaylistsRef.current.push(...deletedPlaylistIds);
+    if (deletedWordKeys) pendingSyncDeletedWordKeysRef.current.push(...deletedWordKeys);
+    if (deletedHistoryIds) pendingSyncDeletedHistoryRef.current.push(...deletedHistoryIds);
+
+    if (syncDebounceTimerRef.current) {
+      clearTimeout(syncDebounceTimerRef.current);
+    }
+
+    syncDebounceTimerRef.current = setTimeout(async () => {
+      syncDebounceTimerRef.current = null;
+      lastLocalChangeTime.current = Date.now();
+
+      const finalDeletedLessonIds = [...new Set(pendingSyncDeletedLessonsRef.current)];
+      const finalDeletedPlaylistIds = [...new Set(pendingSyncDeletedPlaylistsRef.current)];
+      const finalDeletedWordKeys = [...new Set(pendingSyncDeletedWordKeysRef.current)];
+      const finalDeletedHistoryIds = [...new Set(pendingSyncDeletedHistoryRef.current)];
+
+      pendingSyncDeletedLessonsRef.current = [];
+      pendingSyncDeletedPlaylistsRef.current = [];
+      pendingSyncDeletedWordKeysRef.current = [];
+      pendingSyncDeletedHistoryRef.current = [];
+
+      try {
       const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
       const savedUserStr = localStorage.getItem("vocab_clone_local_user");
       const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
@@ -1792,7 +1823,7 @@ export default function App() {
       const dailyWordGoal = rawGoal ? parseInt(rawGoal, 10) : undefined;
       const lastActiveLessonId = localStorage.getItem("vocab_clone_last_active_lesson_id") || undefined;
 
-      const finalDeletedHistoryIds = deletedHistoryIds ? [...deletedHistoryIds] : [];
+      // (finalDeletedHistoryIds calculated above in debounce wrapper)
 
       if (finalDeletedHistoryIds.length > 0) {
         console.log('[Sync Delete Request]', { deletedHistoryIds: finalDeletedHistoryIds });
@@ -1828,9 +1859,9 @@ export default function App() {
             lastActiveLessonId,
             videoProgress,
             readingProgress,
-            deletedLessonIds,
-            deletedPlaylistIds,
-            deletedWordKeys,
+            deletedLessonIds: finalDeletedLessonIds.length > 0 ? finalDeletedLessonIds : undefined,
+            deletedPlaylistIds: finalDeletedPlaylistIds.length > 0 ? finalDeletedPlaylistIds : undefined,
+            deletedWordKeys: finalDeletedWordKeys.length > 0 ? finalDeletedWordKeys : undefined,
             deletedHistoryIds: finalDeletedHistoryIds,
           },
         }),
@@ -1872,6 +1903,7 @@ export default function App() {
         error: true,
       }));
     }
+    }, 1500);
   };
 
   // Synchronize with Local Server / Local Cache on mount and mode change
@@ -3092,7 +3124,7 @@ export default function App() {
 
     if (seconds <= 0 && !forceFlush) return;
 
-    const effectiveSeconds = seconds > 0 ? Math.min(seconds, 15.0) : 0;
+    const effectiveSeconds = seconds > 0 ? Math.min(seconds, 7200.0) : 0;
     const currentPos = resolvedExactTime !== undefined ? resolvedExactTime : getActiveMediaCurrentTime();
 
     if (effectiveSeconds > 0) {
@@ -3924,7 +3956,7 @@ export default function App() {
 
       {/* Global Background Audio Player Engine & Media Session API */}
       <GlobalAudioPlayer
-        onListeningTick={(seconds) => handleListeningTick(seconds, "global")}
+        onListeningTick={(seconds, forceFlush, exactTime) => handleListeningTick(seconds, "global", forceFlush, exactTime)}
         onMediaEnded={(track) => {
           if (activeLesson && activeLesson.id === track.id) {
             handleMediaEnded(activeLesson);

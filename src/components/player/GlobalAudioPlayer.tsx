@@ -14,6 +14,9 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
   const isYtReadyRef = useRef<boolean>(false);
   const ytTrackingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isFirstPlayTickRef = useRef<boolean>(true);
+  const lastAudioPosRef = useRef<number>(0);
+  const lastTickTimeRef = useRef<number>(0);
   const lastYtVideoIdRef = useRef<string | null>(null);
 
   const {
@@ -130,6 +133,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           onStateChange: (event: any) => {
             const state = event.data;
             if (state === YT.PlayerState.PLAYING) {
+              sessionStartRef.current = Date.now();
               setIsPlaying(true);
             } else if (state === YT.PlayerState.PAUSED) {
               setIsPlaying(false);
@@ -150,7 +154,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [isYtApiLoaded]);
 
-  const lastGlobalPlayWallTimeRef = useRef<number>(0);
+  const sessionStartRef = useRef<number>(0);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     let cur = exactTime;
@@ -164,11 +168,11 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       }
     }
 
-    if (!isYouTubeTrack && lastGlobalPlayWallTimeRef.current > 0) {
+    if (sessionStartRef.current > 0) {
       const now = Date.now();
-      const elapsedSec = (now - lastGlobalPlayWallTimeRef.current) / 1000;
-      lastGlobalPlayWallTimeRef.current = 0;
-      if (elapsedSec > 0.05 && elapsedSec <= 30) {
+      const elapsedSec = Math.round((now - sessionStartRef.current) / 1000);
+      sessionStartRef.current = 0;
+      if (elapsedSec >= 3 && elapsedSec <= 7200) {
         const delta = elapsedSec * (playbackRate || 1);
         onListeningTick?.(delta, true, cur);
       } else if (cur !== undefined) {
@@ -227,25 +231,9 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
             }
           }
         }
-        if (typeof player.getPlayerState === 'function') {
-          const st = player.getPlayerState();
-          const isActuallyPlaying = st === (window as any).YT?.PlayerState?.PLAYING;
-          if (isActuallyPlaying && onListeningTick) {
-            const now = Date.now();
-            const delta = (now - lastTickTime) / 1000;
-            if (delta >= 5.0) {
-              if (delta > 0 && delta <= 15) {
-                onListeningTick(delta, false, cur);
-              }
-              lastTickTime = now;
-            }
-          } else {
-            lastTickTime = Date.now();
-          }
-        }
       } catch (_) {}
     }, 250);
-  }, [activeLesson, currentTrack, onListeningTick, setCurrentTime, setDuration, setLessonCurrentTime, setLessonDuration, setLessonIsPlaying]);
+  }, [activeLesson, currentTrack, setCurrentTime, setDuration, setLessonCurrentTime, setLessonDuration, setLessonIsPlaying]);
 
   const stopYtTracking = useCallback(() => {
     if (ytTrackingIntervalRef.current) {
@@ -499,36 +487,9 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       setLessonIsPlaying(!audio.paused);
     }
 
-    // Direct wall-clock active playback tracking for GlobalAudioPlayer
-    if (!audio.paused) {
-      const now = Date.now();
-      if (lastGlobalPlayWallTimeRef.current === 0) {
-        lastGlobalPlayWallTimeRef.current = now;
-        return;
-      }
-      const elapsed = (now - lastGlobalPlayWallTimeRef.current) / 1000;
-      if (elapsed >= 5.0) {
-        const delta = elapsed * (playbackRate || 1);
-        lastGlobalPlayWallTimeRef.current = now;
-        if (delta > 0 && delta <= 15) {
-          onListeningTick?.(delta, false, cur);
-        }
-      }
-    } else {
-      lastGlobalPlayWallTimeRef.current = 0;
-    }
+
   }, [activeLesson, currentTrack, isYouTubeTrack, playbackRate, setCurrentTime, setLessonCurrentTime, setLessonIsPlaying, onListeningTick]);
 
-  // High-Frequency Time Engine: continuously reads audio.currentTime every 250ms to drive smooth UI updates and delta tracking for streaming audio
-  useEffect(() => {
-    if (!isPlaying || isYouTubeTrack) return;
-    const interval = setInterval(() => {
-      const audio = audioRef.current;
-      if (!audio || audio.paused) return;
-      handleTimeUpdate();
-    }, 250);
-    return () => clearInterval(interval);
-  }, [isPlaying, isYouTubeTrack, handleTimeUpdate]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (isYouTubeTrack) return;
@@ -666,6 +627,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onPlay={() => {
           if (!isYouTubeTrack) {
             setIsPlaying(true);
+            sessionStartRef.current = Date.now();
             if (audioRef.current) {
               const cur = audioRef.current.currentTime;
               lastAudioPosRef.current = cur;
@@ -680,7 +642,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         }}
         onPlaying={() => {
           if (!isYouTubeTrack) {
-            lastGlobalPlayWallTimeRef.current = Date.now();
+            sessionStartRef.current = Date.now();
             setIsPlaying(true);
             if (audioRef.current) {
               const cur = audioRef.current.currentTime;
@@ -695,6 +657,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         onPause={() => {
           if (!isYouTubeTrack) {
             setIsPlaying(false);
+            flushPendingListeningTime();
             if (audioRef.current) {
               flushPendingListeningTime(audioRef.current.currentTime);
             }
@@ -705,7 +668,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
             const cur = audioRef.current.currentTime;
             flushPendingListeningTime(cur);
             if (!audioRef.current.paused) {
-              lastGlobalPlayWallTimeRef.current = Date.now();
+              sessionStartRef.current = Date.now();
             }
             setCurrentTime(cur);
           }

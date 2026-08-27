@@ -258,37 +258,6 @@ export default function YoutubePlayerWindow({
           } catch (e) {}
         }
 
-        // Track listening time
-        let isPlaying = false;
-        try {
-          if (playerRef.current && typeof playerRef.current.getPlayerState === "function") {
-            const st = playerRef.current.getPlayerState();
-            isPlaying = (st === 1); // 1 is YT.PlayerState.PLAYING
-          }
-        } catch (_) {}
-
-        if (isPlaying) {
-          if (lastTickTimeRef.current) {
-            const now = Date.now();
-            const delta = (now - lastTickTimeRef.current) / 1000;
-            if (delta >= 5.0) {
-              if (delta > 0 && delta <= 15 && onListeningTick) {
-                let exactTime = 0;
-                try {
-                  if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
-                    exactTime = playerRef.current.getCurrentTime();
-                  }
-                } catch (e) {}
-                onListeningTick(delta, false, exactTime);
-              }
-              lastTickTimeRef.current = now;
-            }
-          } else {
-            lastTickTimeRef.current = Date.now();
-          }
-        } else {
-          lastTickTimeRef.current = null;
-        }
       }, 500);
     };
 
@@ -296,6 +265,10 @@ export default function YoutubePlayerWindow({
       if (trackingIntervalRef.current) {
         clearInterval(trackingIntervalRef.current);
         trackingIntervalRef.current = null;
+      }
+      let elapsed = 0;
+      if (lastTickTimeRef.current) {
+        elapsed = Math.round((Date.now() - lastTickTimeRef.current) / 1000);
       }
       lastTickTimeRef.current = null;
       if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
@@ -305,7 +278,11 @@ export default function YoutubePlayerWindow({
           if (time !== undefined) {
             saveProgressNow(time);
             if (onListeningTick) {
-              onListeningTick(0, true, time);
+              if (elapsed >= 3 && elapsed <= 7200) {
+                onListeningTick(elapsed, true, time);
+              } else {
+                onListeningTick(0, true, time);
+              }
             }
           }
         } catch (e) {}
