@@ -177,6 +177,17 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [setCurrentTime]);
 
+  const saveProgress = useCallback((time: number) => {
+    const lessonId = currentTrack?.id;
+    if (!lessonId) return;
+    fetch(`/api/lessons/${lessonId}/progress`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audioProgress: Math.floor(time) }),
+      keepalive: true
+    }).catch(e => console.error("Failed to save audio progress:", e));
+  }, [currentTrack?.id]);
+
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     let cur = exactTime;
     if (cur === undefined) {
@@ -187,6 +198,10 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
       } else {
         cur = usePlaylistStore.getState().currentTime || 0;
       }
+    }
+
+    if (cur !== undefined && cur > 0) {
+      saveProgress(cur);
     }
 
     if (sessionStartRef.current > 0) {
@@ -205,16 +220,21 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     if (cur !== undefined) {
       window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "global" } }));
     }
-  }, [isYouTubeTrack, playbackRate, onListeningTick]);
+  }, [isYouTubeTrack, playbackRate, onListeningTick, saveProgress]);
 
   const flushPendingListeningTimeRef = useRef(flushPendingListeningTime);
   useEffect(() => {
     flushPendingListeningTimeRef.current = flushPendingListeningTime;
   }, [flushPendingListeningTime]);
 
-  // Unmount cleanup: immediately flush pending seconds
+  // Unmount cleanup & beforeunload: immediately flush pending seconds and save progress
   useEffect(() => {
+    const handleBeforeUnload = () => {
+      flushPendingListeningTimeRef.current();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       flushPendingListeningTimeRef.current();
     };
   }, []);

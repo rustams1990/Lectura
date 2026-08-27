@@ -2169,6 +2169,32 @@ const updateLessonHandler = (req: Request, res: Response) => {
 router.patch("/lessons/:id", updateLessonHandler);
 router.put("/lessons/:id", updateLessonHandler);
 
+router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { id } = req.params;
+  const { audioProgress } = req.body;
+  if (!id) return res.status(400).json({ error: "Missing lesson ID" });
+  if (audioProgress === undefined) return res.status(400).json({ error: "Missing audioProgress" });
+
+  try {
+    const db = getDbConnection(userId);
+    db.prepare('UPDATE lessons SET audioProgress = ? WHERE id = ? AND user_id = ?').run(audioProgress, id, userId);
+    res.json({ success: true, audioProgress });
+  } catch (err: any) {
+    console.error("[PATCH /api/lessons/:id/progress] Error:", err);
+    res.status(500).json({ error: "Failed to update audio progress" });
+  }
+});
+
 // ============================================================
 // Chrome Extension & External REST Endpoints
 // ============================================================

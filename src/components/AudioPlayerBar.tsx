@@ -235,8 +235,23 @@ export default function AudioPlayerBar({
     }
   }, [setCurrentTime]);
 
+  const saveProgress = useCallback((time: number) => {
+    const lessonId = activeLesson?.id;
+    if (!lessonId) return;
+    fetch(`/api/lessons/${lessonId}/progress`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audioProgress: Math.floor(time) }),
+      keepalive: true
+    }).catch(e => console.error("Failed to save audio progress:", e));
+  }, [activeLesson?.id]);
+
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
+
+    if (cur !== undefined && cur > 0) {
+      saveProgress(cur);
+    }
 
     if (sessionStartRef.current > 0) {
       const elapsedSec = Math.round((Date.now() - sessionStartRef.current) / 1000);
@@ -250,17 +265,24 @@ export default function AudioPlayerBar({
     } else if (cur !== undefined) {
       onListeningTick?.(0, true, cur);
     }
-    window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "local" } }));
-  }, [currentTime, effectivePlaybackRate, onListeningTick]);
+    
+    if (cur !== undefined) {
+      window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "bar" } }));
+    }
+  }, [currentTime, effectivePlaybackRate, onListeningTick, saveProgress]);
 
   const flushPendingListeningTimeRef = useRef(flushPendingListeningTime);
   useEffect(() => {
     flushPendingListeningTimeRef.current = flushPendingListeningTime;
   }, [flushPendingListeningTime]);
 
-  // Unmount cleanup: immediately flush pending seconds
   useEffect(() => {
+    const handleBeforeUnload = () => {
+      flushPendingListeningTimeRef.current();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       flushPendingListeningTimeRef.current();
     };
   }, []);
