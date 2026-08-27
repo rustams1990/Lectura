@@ -1395,8 +1395,8 @@ export default function App() {
     };
   }, []);
 
-  const loadDataFromLocalServer = async () => {
-    if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 30000) {
+  const loadDataFromLocalServer = async (force: boolean = false) => {
+    if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 5000) {
       return;
     }
     // Only block on error if we already successfully loaded once — first-time login should always retry
@@ -1464,7 +1464,7 @@ export default function App() {
         });
         lastSyncSuccessTime.current = Date.now();
         const body = await safeJsonParse(res);
-        if (storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 30000) {
+        if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 5000) {
           setIsSyncing(false);
           setSyncProgress({
             isSyncing: false,
@@ -1481,6 +1481,7 @@ export default function App() {
           const normalizedCloudWordLinks = normalizeWordLinksRecord(d.wordLinks);
           if (d.lessons && Array.isArray(d.lessons)) {
             setLessons(d.lessons);
+            lessonsRef.current = d.lessons;
             lessonsStore.setItem("lessons", d.lessons).catch(() => {});
           }
           if (d.playlists && Array.isArray(d.playlists)) {
@@ -2008,7 +2009,7 @@ export default function App() {
 
     const handleFocusOrVisible = () => {
       if (document.visibilityState === "visible") {
-        loadDataFromLocalServer();
+        loadDataFromLocalServer(true);
       }
     };
 
@@ -3172,6 +3173,29 @@ export default function App() {
       return;
     }
 
+    if (currentPos !== undefined && currentPos >= 0 && itemToLog && itemToLog.id) {
+      const targetId = itemToLog.id;
+      const targetGuid = (itemToLog as any).guid;
+      const progressSec = Math.floor(currentPos);
+      setLessons((prev) => {
+        let changed = false;
+        const next = prev.map((l) => {
+          if (l.id === targetId || (targetGuid && (l.id === targetGuid || (l as any).podcastGuid === targetGuid))) {
+            if (l.audioProgress !== progressSec) {
+              changed = true;
+              return { ...l, audioProgress: progressSec };
+            }
+          }
+          return l;
+        });
+        if (changed) {
+          lessonsRef.current = next;
+          lessonsStore.setItem("lessons", next).catch(() => {});
+        }
+        return changed ? next : prev;
+      });
+    }
+
     if (effectiveSeconds > 0 || (forceFlush && currentPos !== undefined && currentPos > 0)) {
       const deltaToRecord = effectiveSeconds;
       const pos = currentPos;
@@ -3199,6 +3223,21 @@ export default function App() {
   const handleMediaEnded = (targetLesson: Lesson) => {
     if (!targetLesson || !targetLesson.id) return;
     safeLocalStorageSetItem(`vocab_progress_${targetLesson.id}`, "100");
+    setLessons((prev) => {
+      let changed = false;
+      const next = prev.map((l) => {
+        if (l.id === targetLesson.id) {
+          changed = true;
+          return { ...l, audioProgress: 0 };
+        }
+        return l;
+      });
+      if (changed) {
+        lessonsRef.current = next;
+        lessonsStore.setItem("lessons", next).catch(() => {});
+      }
+      return changed ? next : prev;
+    });
     recordHistoryActivity(targetLesson, "complete");
   };
 

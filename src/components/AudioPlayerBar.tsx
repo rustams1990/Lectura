@@ -173,7 +173,51 @@ export default function AudioPlayerBar({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState<boolean>(false);
 
+  const isValidUrl = (url: any): boolean => {
+    if (!url || typeof url !== "string") return false;
+    const trimmed = url.trim();
+    if (
+      trimmed === "" ||
+      trimmed === "null" ||
+      trimmed === "undefined" ||
+      trimmed === "empty" ||
+      trimmed.startsWith("null") ||
+      trimmed.startsWith("undefined")
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const hasAudio = Boolean(
+    activeLesson &&
+    (isValidUrl(activeLesson.audioUrl) || isValidUrl(activeLesson.audioBase64))
+  );
+  const rawAudioSrc = activeLesson
+    ? (isValidUrl(activeLesson.audioUrl)
+        ? activeLesson.audioUrl!.trim()
+        : (isValidUrl(activeLesson.audioBase64) 
+            ? (activeLesson.audioBase64!.trim().startsWith("data:") ? activeLesson.audioBase64!.trim() : `data:audio/mp3;base64,${activeLesson.audioBase64!.trim()}`)
+            : ""))
+    : "";
+
+  // Transform /api/audio-files/name.mp3 to /api/audio-stream/name to bypass download manager extensions
+  const audioSrc = useMemo(() => {
+    if (!rawAudioSrc) return "";
+    if (rawAudioSrc.startsWith("/api/audio-files/")) {
+      return rawAudioSrc
+        .replace("/api/audio-files/", "/api/audio-stream/")
+        .replace(/\.(mp3|m4a|aac|ogg|wav|webm)$/i, "");
+    }
+    return rawAudioSrc;
+  }, [rawAudioSrc]);
+
   const sessionStartRef = useRef<number>(0);
+  const hasRestoredInitialPositionRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    hasRestoredInitialPositionRef.current = false;
+  }, [activeLesson?.id, audioSrc]);
 
   const flushPendingListeningTime = useCallback((exactTime?: number) => {
     const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
@@ -245,6 +289,10 @@ export default function AudioPlayerBar({
 
   useEffect(() => {
     if (seekToTime !== null && seekToTime !== undefined) {
+      hasRestoredInitialPositionRef.current = true;
+      if (activeLesson) {
+        activeLesson.audioProgress = seekToTime;
+      }
       if (isGlobalPlayingThisLesson) {
         playlistSeek(seekToTime);
       } else if (audioRef.current) {
@@ -258,7 +306,7 @@ export default function AudioPlayerBar({
       }
       setSeekToTime(null);
     }
-  }, [seekToTime, isGlobalPlayingThisLesson, playlistSeek, setCurrentTime, setSeekToTime, flushPendingListeningTime, onListeningTick]);
+  }, [seekToTime, activeLesson, isGlobalPlayingThisLesson, playlistSeek, setCurrentTime, setSeekToTime, flushPendingListeningTime, onListeningTick]);
 
   useEffect(() => {
     if (!isGlobalPlayingThisLesson && audioRef.current) {
@@ -274,45 +322,6 @@ export default function AudioPlayerBar({
       }
     };
   }, [isPlaying, isGlobalPlayingThisLesson]);
-
-  const isValidUrl = (url: any): boolean => {
-    if (!url || typeof url !== "string") return false;
-    const trimmed = url.trim();
-    if (
-      trimmed === "" ||
-      trimmed === "null" ||
-      trimmed === "undefined" ||
-      trimmed === "empty" ||
-      trimmed.startsWith("null") ||
-      trimmed.startsWith("undefined")
-    ) {
-      return false;
-    }
-    return true;
-  };
-
-  const hasAudio = Boolean(
-    activeLesson &&
-    (isValidUrl(activeLesson.audioUrl) || isValidUrl(activeLesson.audioBase64))
-  );
-  const rawAudioSrc = activeLesson
-    ? (isValidUrl(activeLesson.audioUrl)
-        ? activeLesson.audioUrl!.trim()
-        : (isValidUrl(activeLesson.audioBase64) 
-            ? (activeLesson.audioBase64!.trim().startsWith("data:") ? activeLesson.audioBase64!.trim() : `data:audio/mp3;base64,${activeLesson.audioBase64!.trim()}`)
-            : ""))
-    : "";
-
-  // Transform /api/audio-files/name.mp3 to /api/audio-stream/name to bypass download manager extensions
-  const audioSrc = useMemo(() => {
-    if (!rawAudioSrc) return "";
-    if (rawAudioSrc.startsWith("/api/audio-files/")) {
-      return rawAudioSrc
-        .replace("/api/audio-files/", "/api/audio-stream/")
-        .replace(/\.(mp3|m4a|aac|ogg|wav|webm)$/i, "");
-    }
-    return rawAudioSrc;
-  }, [rawAudioSrc]);
 
   // Add volume sync effect
   useEffect(() => {
@@ -347,12 +356,6 @@ export default function AudioPlayerBar({
         usePlaylistStore.getState().setIsPlaying(false);
       }
       const audio = audioRef.current;
-      const savedTime = currentTime || 0;
-      if (savedTime > 0 && Math.abs(audio.currentTime - savedTime) > 0.5) {
-        try {
-          audio.currentTime = savedTime;
-        } catch (_) {}
-      }
       const cur = audio.currentTime;
       sessionStartRef.current = Date.now();
       setCurrentTime(cur);
@@ -393,17 +396,23 @@ export default function AudioPlayerBar({
           activeLesson.audioDuration = durSec;
         }
       }
-      const savedTime = currentTime || 0;
-      if (savedTime > 0 && Math.abs(audioRef.current.currentTime - savedTime) > 0.5) {
+      const initialTime = activeLesson?.audioProgress || 0;
+      if (!hasRestoredInitialPositionRef.current && initialTime > 0) {
         try {
-          audioRef.current.currentTime = savedTime;
+          audioRef.current.currentTime = initialTime;
+          setCurrentTime(initialTime);
         } catch (_) {}
+        hasRestoredInitialPositionRef.current = true;
       }
     }
   };
 
   const handleAudioSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
+    hasRestoredInitialPositionRef.current = true;
+    if (activeLesson) {
+      activeLesson.audioProgress = val;
+    }
     if (isGlobalPlayingThisLesson) {
       playlistSeek(val);
       return;
@@ -418,6 +427,7 @@ export default function AudioPlayerBar({
   };
 
   const handleSkipSeconds = useCallback((delta: number) => {
+    hasRestoredInitialPositionRef.current = true;
     if (isGlobalPlayingThisLesson) {
       playlistSeekDelta(delta);
       return;
@@ -425,12 +435,15 @@ export default function AudioPlayerBar({
     if (!audioRef.current) return;
     const cur = audioRef.current.currentTime;
     const target = Math.max(0, Math.min(duration || Infinity, cur + delta));
+    if (activeLesson) {
+      activeLesson.audioProgress = target;
+    }
     audioRef.current.currentTime = target;
     lastAudioPosRef.current = target;
     setCurrentTime(target);
     flushPendingListeningTime(target);
     onListeningTick?.(0, true, target);
-  }, [isGlobalPlayingThisLesson, playlistSeekDelta, duration, setCurrentTime, flushPendingListeningTime, onListeningTick]);
+  }, [activeLesson, isGlobalPlayingThisLesson, playlistSeekDelta, duration, setCurrentTime, flushPendingListeningTime, onListeningTick]);
 
   const handlePrevSentence = useCallback(() => {
     const cur = isGlobalPlayingThisLesson ? playlistCurrentTime : (audioRef.current?.currentTime ?? currentTime);
@@ -510,24 +523,12 @@ export default function AudioPlayerBar({
           onPlay={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
-              const saved = currentTime || 0;
-              if (saved > 0 && Math.abs(audioRef.current.currentTime - saved) > 0.5) {
-                try {
-                  audioRef.current.currentTime = saved;
-                } catch (_) {}
-              }
               setCurrentTime(audioRef.current.currentTime);
             }
           }}
           onPlaying={() => {
             sessionStartRef.current = Date.now();
             if (audioRef.current) {
-              const saved = currentTime || 0;
-              if (saved > 0 && Math.abs(audioRef.current.currentTime - saved) > 0.5) {
-                try {
-                  audioRef.current.currentTime = saved;
-                } catch (_) {}
-              }
               setCurrentTime(audioRef.current.currentTime);
             }
           }}

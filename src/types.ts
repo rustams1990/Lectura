@@ -67,6 +67,7 @@ export interface Lesson {
   author?: string | null;
   playlistId?: string | null;
   images?: Record<string, string>;
+  audioProgress?: number;
 }
 
 export interface PlaylistItem {

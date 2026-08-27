@@ -32,10 +32,12 @@ export function LessonProvider({ children }: { children: ReactNode }) {
   // Reset playback state when active lesson changes
   useEffect(() => {
     setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    setSeekToTime(null);
+    const initialTime = activeLesson?.audioProgress || (activeLesson as any)?.lastPlaybackPosition || 0;
+    setCurrentTime(initialTime);
+    setDuration(activeLesson?.audioDuration || 0);
+    setSeekToTime(initialTime > 0 ? initialTime : null);
   }, [activeLesson?.id]);
+
 
   return (
     <LessonContext.Provider
