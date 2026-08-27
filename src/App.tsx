@@ -2014,6 +2014,7 @@ export default function App() {
     };
 
     window.addEventListener("visibilitychange", handleFocusOrVisible);
+    document.addEventListener("visibilitychange", handleFocusOrVisible);
     window.addEventListener("focus", handleFocusOrVisible);
 
     const interval = setInterval(() => {
@@ -2024,6 +2025,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener("visibilitychange", handleFocusOrVisible);
+      document.removeEventListener("visibilitychange", handleFocusOrVisible);
       window.removeEventListener("focus", handleFocusOrVisible);
       clearInterval(interval);
     };

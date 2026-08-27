@@ -387,6 +387,20 @@ export default function AudioPlayerBar({
     }
   }, [isGlobalPlayingThisLesson, isSentenceLoop, allTimestamps, playlistCurrentTime, playlistDuration, duration, playlistSeek]);
 
+  // Smoothly sync playback position when activeLesson audioProgress updates from server while paused
+  useEffect(() => {
+    if (!isPlaying && !isGlobalPlayingThisLesson && activeLesson?.audioProgress !== undefined && audioRef.current) {
+      const serverTime = activeLesson.audioProgress;
+      if (serverTime !== undefined && audioRef.current) {
+        if (Math.abs(audioRef.current.currentTime - serverTime) > 2) {
+          audioRef.current.currentTime = serverTime;
+          lastAudioPosRef.current = serverTime;
+          setCurrentTime(serverTime);
+        }
+      }
+    }
+  }, [activeLesson?.audioProgress, isPlaying, isGlobalPlayingThisLesson, setCurrentTime]);
+
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       if (audioRef.current.duration) {

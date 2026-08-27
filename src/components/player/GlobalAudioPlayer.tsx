@@ -521,6 +521,20 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [activeLesson, currentTrack, isYouTubeTrack, setDuration, setLessonDuration, setCurrentTime]);
 
+  // Smoothly sync playback position when track audioProgress updates from server while paused
+  useEffect(() => {
+    if (!isPlaying && activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid)) {
+      const serverTime = activeLesson.audioProgress;
+      if (serverTime !== undefined && audioRef.current) {
+        if (Math.abs(audioRef.current.currentTime - serverTime) > 2) {
+          audioRef.current.currentTime = serverTime;
+          lastAudioPosRef.current = serverTime;
+          setCurrentTime(serverTime);
+        }
+      }
+    }
+  }, [activeLesson?.audioProgress, isPlaying, currentTrack, setCurrentTime]);
+
   // ---------------------------------------------------------------------------
   // 9. Media Session API Integration
   // ---------------------------------------------------------------------------
