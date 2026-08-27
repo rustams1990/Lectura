@@ -235,6 +235,21 @@ export default function AudioPlayerBar({
     }
   }, [setCurrentTime]);
 
+  // Reactive synchronization with active lesson audioProgress when paused
+  useEffect(() => {
+    if (!isPlaying && activeLesson?.audioProgress !== undefined) {
+      const incomingProgress = Number(activeLesson.audioProgress) || 0;
+      if (Math.abs(currentTime - incomingProgress) > 1) {
+        setCurrentTime(incomingProgress);
+        if (audioRef.current) {
+          try {
+            audioRef.current.currentTime = incomingProgress;
+          } catch (_) {}
+        }
+      }
+    }
+  }, [activeLesson?.audioProgress, isPlaying, currentTime, setCurrentTime]);
+
   const saveProgress = useCallback((time: number) => {
     const lessonId = activeLesson?.id;
     if (!lessonId) return;

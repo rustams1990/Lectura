@@ -177,6 +177,29 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
   }, [setCurrentTime]);
 
+  // Reactive synchronization with active lesson audioProgress when paused
+  useEffect(() => {
+    if (!isPlaying && activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid)) {
+      if (activeLesson.audioProgress !== undefined) {
+        const incomingProgress = Number(activeLesson.audioProgress) || 0;
+        const currentStoreTime = usePlaylistStore.getState().currentTime || 0;
+        if (Math.abs(currentStoreTime - incomingProgress) > 1) {
+          setCurrentTime(incomingProgress);
+          setLessonCurrentTime(incomingProgress);
+          if (isYouTubeTrack && ytPlayerRef.current && isYtReadyRef.current) {
+            try {
+              ytPlayerRef.current.seekTo(incomingProgress, false);
+            } catch (_) {}
+          } else if (audioRef.current) {
+            try {
+              audioRef.current.currentTime = incomingProgress;
+            } catch (_) {}
+          }
+        }
+      }
+    }
+  }, [activeLesson?.audioProgress, isPlaying, activeLesson, currentTrack, setCurrentTime, setLessonCurrentTime, isYouTubeTrack]);
+
   const saveProgress = useCallback((time: number) => {
     const lessonId = currentTrack?.id;
     if (!lessonId) return;

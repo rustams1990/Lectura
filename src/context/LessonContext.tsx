@@ -38,6 +38,16 @@ export function LessonProvider({ children }: { children: ReactNode }) {
     setSeekToTime(null);
   }, [activeLesson?.id]);
 
+  // Reactive synchronization of playback position when lesson data updates while paused
+  useEffect(() => {
+    if (!isPlaying && activeLesson?.audioProgress !== undefined) {
+      const incomingProgress = Number(activeLesson.audioProgress) || 0;
+      if (Math.abs(currentTime - incomingProgress) > 1) {
+        setCurrentTime(incomingProgress);
+      }
+    }
+  }, [activeLesson?.audioProgress, isPlaying]);
+
 
   return (
     <LessonContext.Provider
