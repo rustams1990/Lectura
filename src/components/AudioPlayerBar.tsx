@@ -255,7 +255,7 @@ export default function AudioPlayerBar({
     fetch(`/api/lessons/${lessonId}/progress`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ progress: timeToSave, audioProgress: timeToSave, updatedAt: Date.now() }),
+      body: JSON.stringify({ progress: timeToSave, audioProgress: timeToSave, clientUpdatedAt: Date.now(), updatedAt: Date.now() }),
       keepalive: true
     }).catch(() => {});
   }, [activeLesson?.id, currentTime]);
@@ -664,6 +664,9 @@ export default function AudioPlayerBar({
               flushPendingListeningTime(audioRef.current.currentTime);
             }
             setIsPlaying(false);
+            if (activeLesson?.id) {
+              saveCurrentProgress(0);
+            }
             if (onAudioEnded) onAudioEnded();
           }}
           onError={() => {

@@ -201,7 +201,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     fetch(`/api/lessons/${lessonId}/progress`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ progress: timeToSave, audioProgress: timeToSave, updatedAt: Date.now() }),
+      body: JSON.stringify({ progress: timeToSave, audioProgress: timeToSave, clientUpdatedAt: Date.now(), updatedAt: Date.now() }),
       keepalive: true
     }).catch(() => {});
   }, [currentTrack?.id, isYouTubeTrack, currentTime]);
@@ -511,7 +511,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
         ? ytPlayerRef.current.getCurrentTime()
         : (audioRef.current ? audioRef.current.currentTime : 0);
       flushPendingListeningTime(currentNativeTime);
-      
+      saveCurrentProgress(0);
       onMediaEnded?.(finishedTrack);
     }
 
