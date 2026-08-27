@@ -172,6 +172,35 @@ export default function AudioPlayerBar({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState<boolean>(false);
 
+  const lastPlayWallTimeRef = useRef<number>(0);
+
+  const flushPendingListeningTime = useCallback((exactTime?: number) => {
+    if (isGlobalPlayingThisLesson || usePlaylistStore.getState().isPlaying) return;
+    const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
+
+    if (lastPlayWallTimeRef.current > 0) {
+      const now = Date.now();
+      const elapsedSec = (now - lastPlayWallTimeRef.current) / 1000;
+      lastPlayWallTimeRef.current = 0;
+      if (elapsedSec > 0.05 && elapsedSec <= 30) {
+        const delta = elapsedSec * (effectivePlaybackRate || 1);
+        onListeningTick?.(delta, true, cur);
+      } else if (cur !== undefined) {
+        onListeningTick?.(0, true, cur);
+      }
+    } else if (cur !== undefined) {
+      onListeningTick?.(0, true, cur);
+    }
+    window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "local" } }));
+  }, [isGlobalPlayingThisLesson, currentTime, effectivePlaybackRate, onListeningTick]);
+
+  // Unmount cleanup: immediately flush pending seconds
+  useEffect(() => {
+    return () => {
+      flushPendingListeningTime();
+    };
+  }, [flushPendingListeningTime]);
+
   // Extract all timestamp markers from lesson text for smart sentence navigation & loop
   const allTimestamps = useMemo(() => {
     if (!activeLesson?.text) return [];
@@ -185,6 +214,47 @@ export default function AudioPlayerBar({
     }
     return matches.sort((a, b) => a - b);
   }, [activeLesson?.text]);
+
+  const handleTimeUpdate = () => {
+    if (!audioRef.current) return;
+    const cur = audioRef.current.currentTime;
+    setCurrentTime(cur);
+
+    // Direct wall-clock continuous playback tracking
+    if (!isGlobalPlayingThisLesson && !usePlaylistStore.getState().isPlaying && !audioRef.current.paused) {
+      const now = Date.now();
+      if (lastPlayWallTimeRef.current === 0) {
+        lastPlayWallTimeRef.current = now;
+        return;
+      }
+      const elapsed = (now - lastPlayWallTimeRef.current) / 1000;
+      if (elapsed >= 1.0) {
+        const delta = elapsed * (effectivePlaybackRate || 1);
+        lastPlayWallTimeRef.current = now;
+        if (delta > 0 && delta <= 15) {
+          onListeningTick?.(delta, false, cur);
+        }
+      }
+    } else {
+      lastPlayWallTimeRef.current = 0;
+    }
+
+    // Sentence loop mode: when audio crosses into next sentence, jump back to current sentence start
+    if (isSentenceLoop && allTimestamps.length > 0) {
+      let segStart = 0;
+      let segEnd = duration || Infinity;
+      for (let i = 0; i < allTimestamps.length; i++) {
+        if (allTimestamps[i] <= cur + 0.1) {
+          segStart = allTimestamps[i];
+          segEnd = i + 1 < allTimestamps.length ? allTimestamps[i + 1] : (duration || Infinity);
+        }
+      }
+      if (segEnd < Infinity && cur >= segEnd - 0.2 && segEnd > segStart) {
+        audioRef.current.currentTime = segStart;
+        setCurrentTime(segStart);
+      }
+    }
+  };
 
   useEffect(() => {
     if (seekToTime !== null && seekToTime !== undefined) {
@@ -296,76 +366,6 @@ export default function AudioPlayerBar({
         console.error("Playback error:", err?.message || err);
       });
       setIsPlaying(true);
-    }
-  };
-
-  const lastPlayWallTimeRef = useRef<number>(0);
-
-  const flushPendingListeningTime = useCallback((exactTime?: number) => {
-    if (isGlobalPlayingThisLesson || usePlaylistStore.getState().isPlaying) return;
-    const cur = exactTime !== undefined ? exactTime : (audioRef.current?.currentTime ?? currentTime);
-
-    if (lastPlayWallTimeRef.current > 0) {
-      const now = Date.now();
-      const elapsedSec = (now - lastPlayWallTimeRef.current) / 1000;
-      lastPlayWallTimeRef.current = 0;
-      if (elapsedSec > 0.05 && elapsedSec <= 30) {
-        const delta = elapsedSec * (effectivePlaybackRate || 1);
-        onListeningTick?.(delta, true, cur);
-      } else if (cur !== undefined) {
-        onListeningTick?.(0, true, cur);
-      }
-    } else if (cur !== undefined) {
-      onListeningTick?.(0, true, cur);
-    }
-    window.dispatchEvent(new CustomEvent("force-history-flush", { detail: { exactTime: cur, source: "local" } }));
-  }, [isGlobalPlayingThisLesson, currentTime, effectivePlaybackRate, onListeningTick]);
-
-  // Unmount cleanup: immediately flush pending seconds
-  useEffect(() => {
-    return () => {
-      flushPendingListeningTime();
-    };
-  }, [flushPendingListeningTime]);
-
-  const handleTimeUpdate = () => {
-    if (!audioRef.current) return;
-    const cur = audioRef.current.currentTime;
-    setCurrentTime(cur);
-
-    // Direct wall-clock continuous playback tracking
-    if (!isGlobalPlayingThisLesson && !usePlaylistStore.getState().isPlaying && !audioRef.current.paused) {
-      const now = Date.now();
-      if (lastPlayWallTimeRef.current === 0) {
-        lastPlayWallTimeRef.current = now;
-        return;
-      }
-      const elapsed = (now - lastPlayWallTimeRef.current) / 1000;
-      if (elapsed >= 1.0) {
-        const delta = elapsed * (effectivePlaybackRate || 1);
-        lastPlayWallTimeRef.current = now;
-        if (delta > 0 && delta <= 15) {
-          onListeningTick?.(delta, false, cur);
-        }
-      }
-    } else {
-      lastPlayWallTimeRef.current = 0;
-    }
-
-    // Sentence loop mode: when audio crosses into next sentence, jump back to current sentence start
-    if (isSentenceLoop && allTimestamps.length > 0) {
-      let segStart = 0;
-      let segEnd = duration || Infinity;
-      for (let i = 0; i < allTimestamps.length; i++) {
-        if (allTimestamps[i] <= cur + 0.1) {
-          segStart = allTimestamps[i];
-          segEnd = i + 1 < allTimestamps.length ? allTimestamps[i + 1] : (duration || Infinity);
-        }
-      }
-      if (segEnd < Infinity && cur >= segEnd - 0.2 && segEnd > segStart) {
-        audioRef.current.currentTime = segStart;
-        setCurrentTime(segStart);
-      }
     }
   };
 
