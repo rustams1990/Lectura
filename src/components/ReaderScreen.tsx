@@ -440,7 +440,7 @@ export default function ReaderScreen({
                   onAudioUpload={handleAudioUploaded}
                   onListeningTick={handleListeningTick}
                   onAudioEnded={() => handleMediaEnded(activeLesson)}
-                  readerTheme={isBookLesson && isBookFocus ? readerSettings.readerTheme : "default"}
+                  readerTheme={readerSettings.readerTheme || "default"}
                   showSentenceTranslations={readerSettings.showSentenceTranslations}
                   onToggleSentenceTranslations={() =>
                     setReaderSettings((prev) => ({

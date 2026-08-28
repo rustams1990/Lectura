@@ -53,40 +53,40 @@ interface AudioPlayerThemeStyles {
 
 const audioThemeMap: Record<string, AudioPlayerThemeStyles> = {
   default: {
-    stickyWrapper: "bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md",
+    stickyWrapper: "bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-stone-200/70 dark:border-zinc-800/80 shadow-xs",
     container: "text-zinc-800 dark:text-zinc-100",
     badge: "bg-transparent text-teal-600 dark:text-teal-400 border-0",
     badgeText: "text-teal-600 dark:text-teal-400",
     titleText: "text-zinc-800 dark:text-zinc-200",
     subText: "text-zinc-500 dark:text-zinc-400",
-    buttonBg: "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200/50 dark:border-zinc-700/50",
+    buttonBg: "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700/60",
     sliderTrack: "bg-zinc-200 dark:bg-zinc-700",
-    divider: "border-b border-zinc-200/80 dark:border-zinc-800/80",
+    divider: "border-stone-200/80 dark:border-zinc-800/80",
   },
   cream: {
-    stickyWrapper: "bg-[#fcf8f2]/95 dark:bg-zinc-900/95 backdrop-blur-md",
+    stickyWrapper: "bg-[#fcf8f2] dark:bg-zinc-900 border border-[#f3e9d8] dark:border-zinc-800/80 shadow-xs",
     container: "text-[#3b2b1a] dark:text-zinc-200",
     badge: "bg-transparent text-teal-700 dark:text-teal-400 border-0",
     badgeText: "text-[#523d26] dark:text-teal-400",
     titleText: "text-[#3b2b1a] dark:text-zinc-200",
     subText: "text-[#6b553e] dark:text-zinc-400",
-    buttonBg: "hover:bg-black/5 dark:hover:bg-white/10 text-[#3b2b1a] dark:text-zinc-200 border border-black/5 dark:border-white/10",
+    buttonBg: "hover:bg-black/5 dark:hover:bg-white/10 text-[#3b2b1a] dark:text-zinc-200 border border-[#e8d7bb] dark:border-white/10",
     sliderTrack: "bg-[#e8d8be] dark:bg-zinc-700",
-    divider: "border-b border-[#eddcb9]/80 dark:border-zinc-800",
+    divider: "border-[#eddcb9]/80 dark:border-zinc-800",
   },
   sepia: {
-    stickyWrapper: "bg-[#f7f4eb]/95 dark:bg-zinc-900/95 backdrop-blur-md",
+    stickyWrapper: "bg-[#f7f4eb] dark:bg-zinc-900 border border-[#e5dec9] dark:border-zinc-800/80 shadow-xs",
     container: "text-[#2c2a29] dark:text-zinc-200",
     badge: "bg-transparent text-teal-800 dark:text-teal-400 border-0",
     badgeText: "text-[#5a544e] dark:text-teal-400",
     titleText: "text-[#2c2a29] dark:text-zinc-200",
     subText: "text-[#5a544e] dark:text-zinc-400",
-    buttonBg: "hover:bg-black/5 dark:hover:bg-white/10 text-[#2c2a29] dark:text-zinc-200 border border-black/5 dark:border-white/10",
+    buttonBg: "hover:bg-black/5 dark:hover:bg-white/10 text-[#2c2a29] dark:text-zinc-200 border border-[#e5dec9] dark:border-white/10",
     sliderTrack: "bg-[#e5dec9] dark:bg-zinc-700",
-    divider: "border-b border-[#e5dec9]/80 dark:border-zinc-800",
+    divider: "border-[#e5dec9]/80 dark:border-zinc-800",
   },
   slate: {
-    stickyWrapper: "bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md",
+    stickyWrapper: "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs",
     container: "text-slate-800 dark:text-slate-100",
     badge: "bg-transparent text-teal-600 dark:text-teal-400 border-0",
     badgeText: "text-slate-700 dark:text-teal-400",
@@ -94,7 +94,7 @@ const audioThemeMap: Record<string, AudioPlayerThemeStyles> = {
     subText: "text-slate-600 dark:text-slate-400",
     buttonBg: "hover:bg-slate-200/70 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700",
     sliderTrack: "bg-slate-200 dark:bg-slate-700",
-    divider: "border-b border-slate-200 dark:border-slate-800",
+    divider: "border-slate-200 dark:border-slate-800",
   },
 };
 
@@ -609,7 +609,7 @@ export default function AudioPlayerBar({
   }
 
   return (
-    <div className={`sticky top-0 z-20 ${themeStyles.stickyWrapper} ${themeStyles.divider} py-2 sm:py-2.5 px-3 sm:px-4 rounded-xl sm:rounded-2xl shadow-sm transition-all w-full`}>
+    <div className={`sticky top-0 z-20 ${themeStyles.stickyWrapper} py-2.5 sm:py-3 px-3.5 sm:px-5 rounded-2xl transition-colors w-full mb-3`}>
       <div className={`${themeStyles.container} transition-colors py-0.5 px-0.5 font-sans`}>
       {!isGlobalPlayingThisLesson && hasAudio && (
         <audio
