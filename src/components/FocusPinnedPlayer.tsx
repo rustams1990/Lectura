@@ -6,6 +6,8 @@ import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useUIStore } from "../store/uiStore";
+import { useSettingsStore } from "../store/settingsStore";
+import TextSettingsControls from "./TextSettingsControls";
 
 type SizePreset = "small" | "medium" | "large";
 
@@ -39,6 +41,8 @@ export default function FocusPinnedPlayer({
   const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
   const isWordPopupOpen = useUIStore((s) => s.isWordPopupOpen);
+  const settings = useSettingsStore((s) => s.settings);
+  const setSettings = useSettingsStore((s) => s.setSettings);
 
   const [size, setSize] = useState<SizePreset>(() =>
     typeof window !== "undefined" && window.innerWidth < 1024 ? "large" : "medium"
@@ -507,6 +511,14 @@ export default function FocusPinnedPlayer({
               ))}
             </div>
           )}
+
+          {/* Text Settings (AA) */}
+          <TextSettingsControls
+            settings={settings}
+            onUpdateSettings={setSettings}
+            compact={false}
+            lessonType={lesson.lessonType}
+          />
 
           {/* Refresh */}
           <button

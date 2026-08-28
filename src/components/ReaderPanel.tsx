@@ -1129,6 +1129,14 @@ function ReaderPanel({
                   <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               )}
+
+              {/* 7. Text Settings (AA) */}
+              <TextSettingsControls
+                settings={activeSettings}
+                onUpdateSettings={onUpdateSettings || (() => {})}
+                compact={false}
+                lessonType={lesson.lessonType}
+              />
             </div>
 
             {/* Status Switcher (In Progress / Completed) */}

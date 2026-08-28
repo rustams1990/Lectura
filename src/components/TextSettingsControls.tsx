@@ -163,7 +163,7 @@ export default function TextSettingsControls({
         className={
           compact
             ? "p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-xs active:scale-95 bg-white hover:bg-slate-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-200 dark:border-zinc-800"
-            : "w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer active:scale-95"
+            : "w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg sm:rounded-xl text-xs font-bold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer active:scale-95"
         }
         title={t('reader.text_settings_title', 'Text Settings')}
       >
