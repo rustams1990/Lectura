@@ -518,6 +518,9 @@
     "no_books_desc": "No books found matching search query.",
     "reset_search": "Reset search",
     "import_book": "Import book",
+    "welcome_title": "Welcome to your Library!",
+    "welcome_desc": "Start by importing a YouTube video, adding a podcast, or creating your first reading lesson.",
+    "import_content": "Import Content",
     "change_tip": "Change tip"
   },
   "match_pairs": {

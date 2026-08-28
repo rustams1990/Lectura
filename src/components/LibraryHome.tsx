@@ -983,6 +983,14 @@ function LibraryHome({
     return archivedLessons + archivedPlaylists;
   }, [lessons, playlists, selectedLanguage]);
 
+  const totalActiveBooksCount = useMemo(() => {
+    return lessons.filter((l) => !l.isArchived).length + (playlists || []).filter((p) => !p.isArchived).length;
+  }, [lessons, playlists]);
+
+  const totalArchivedBooksCount = useMemo(() => {
+    return lessons.filter((l) => l.isArchived).length + (playlists || []).filter((p) => p.isArchived).length;
+  }, [lessons, playlists]);
+
   const preview = getUIPreviewCache();
   const isDataAvailable = lessons.length > 0 || (playlists && playlists.length > 0) || Object.keys(vocab || {}).length > 0;
 
@@ -1436,33 +1444,111 @@ function LibraryHome({
             </div>
           )}
         </>
+      ) : showArchived ? (
+        totalArchivedBooksCount === 0 ? (
+          /* Styled empty archive state */
+          <div className="bg-white/70 dark:bg-zinc-900/70 border border-zinc-200/60 dark:border-zinc-800 p-8 sm:p-12 text-center rounded-2xl space-y-4 max-w-xl mx-auto shadow-sm animate-in fade-in duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mx-auto">
+              <Archive className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">
+                {t("library.empty_archive", "Archive is empty")}
+              </h3>
+              <p className="text-xs text-zinc-500 leading-normal max-w-md mx-auto">
+                {t("library.empty_archive_desc", "You have no archived books.")}
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* Styled empty search in archive state */
+          <div className="bg-white/70 dark:bg-zinc-900/70 border border-zinc-200/60 dark:border-zinc-800 p-8 sm:p-12 text-center rounded-2xl space-y-4 max-w-xl mx-auto shadow-sm animate-in fade-in duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mx-auto">
+              <Search className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">
+                {t("library.no_books_found", "No books found")}
+              </h3>
+              <p className="text-xs text-zinc-500 leading-normal max-w-md mx-auto">
+                {t("library.no_books_desc", "No books found matching search query.")}
+              </p>
+            </div>
+            <div className="flex gap-2.5 items-center justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  onSelectTargetLanguage?.("All");
+                  setFilterType("all");
+                  setSelectedLessonType("All");
+                }}
+                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+              >
+                {t("library.reset_search", "Reset search")}
+              </button>
+            </div>
+          </div>
+        )
+      ) : totalActiveBooksCount === 0 ? (
+        /* Scenario 1: Library is completely empty (new user) */
+        <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center bg-white/70 dark:bg-zinc-900/70 rounded-2xl border border-zinc-200/60 dark:border-zinc-800 shadow-sm max-w-xl mx-auto space-y-4 animate-in fade-in duration-200">
+          <div className="w-16 h-16 rounded-2xl bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center text-teal-600 dark:text-teal-400 shadow-inner">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">
+              {t("library.welcome_title", "Welcome to your Library!")}
+            </h3>
+            <p className="text-xs sm:text-sm text-zinc-500 max-w-md mx-auto leading-normal">
+              {t("library.welcome_desc", "Start by importing a YouTube video, adding a podcast, or creating your first reading lesson.")}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onOpenImportForm}
+              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-97 text-white font-medium rounded-xl text-xs sm:text-sm transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t("library.import_content", "Import Content")}</span>
+            </button>
+          </div>
+        </div>
       ) : (
-        /* Styled empty search state */
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-12 text-center rounded-2xl space-y-4 max-w-xl mx-auto shadow-sm">
-          <BookOpen className="w-12 h-12 text-zinc-300 mx-auto" aria-hidden="true" />
-          <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">
-            {showArchived ? t("library.empty_archive", "Archive is empty") : t("library.no_books_found", "No books found")}
-          </h3>
-          <p className="text-xs text-zinc-500 leading-normal max-w-md mx-auto">
-            {showArchived 
-              ? t("library.empty_archive_desc", "You have no archived books.")
-              : t("library.no_books_desc", "No books found matching search query.")}
-          </p>
+        /* Scenario 2: Nothing found matching active search / filter */
+        <div className="bg-white/70 dark:bg-zinc-900/70 border border-zinc-200/60 dark:border-zinc-800 p-8 sm:p-12 text-center rounded-2xl space-y-4 max-w-xl mx-auto shadow-sm animate-in fade-in duration-200">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 mx-auto">
+            <Search className="w-7 h-7" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">
+              {t("library.no_books_found", "No books found")}
+            </h3>
+            <p className="text-xs text-zinc-500 leading-normal max-w-md mx-auto">
+              {t("library.no_books_desc", "No lessons match your active search query or filter.")}
+            </p>
+          </div>
           <div className="flex gap-2.5 items-center justify-center pt-2">
             <button
+              type="button"
               onClick={() => {
                 setSearchQuery("");
                 onSelectTargetLanguage?.("All");
                 setFilterType("all");
+                setSelectedLessonType("All");
               }}
-              className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl text-zinc-700 dark:text-zinc-300 transition-colors"
-            >{t("library.reset_search", "Reset search")}</button>
-            {!showArchived && (
-              <button
-                onClick={onOpenImportForm}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
-              >{t("library.import_book", "Import book")}</button>
-            )}
+              className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+            >
+              {t("library.reset_search", "Reset search")}
+            </button>
+            <button
+              type="button"
+              onClick={onOpenImportForm}
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              {t("library.import_book", "Import book")}
+            </button>
           </div>
         </div>
       )}
