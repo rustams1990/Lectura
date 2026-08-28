@@ -1209,7 +1209,7 @@ export default function App() {
         if (fm !== null) setIsFocusMode(fm === 'true' || fm === true);
 
         const lw = await settingsStore.getItem('vocab_clone_layout_width');
-        if (lw) setLayoutWidthMode((lw === 'standard' ? 'full' : lw) as any);
+        if (lw) setLayoutWidthMode(lw as any);
 
         const rs = await settingsStore.getItem('vocab_clone_reader_settings');
         if (rs) {
@@ -3220,13 +3220,13 @@ export default function App() {
   }, []);
 
   // Global application layout container class (for Library, History, Podcasts, Statistics, Practice, Header)
-  const activeInterfaceMaxWidth = interfaceMaxWidth || layoutWidthMode || "standard";
+  const activeInterfaceMaxWidth = interfaceMaxWidth || layoutWidthMode || "full";
   const globalLayoutClass =
     activeInterfaceMaxWidth === "wide"
       ? "max-w-[1560px]"
-      : activeInterfaceMaxWidth === "full"
-      ? "max-w-full lg:px-12 md:px-8"
-      : "max-w-7xl";
+      : activeInterfaceMaxWidth === "standard"
+      ? "max-w-7xl"
+      : "max-w-[1920px] w-full px-4 sm:px-6 lg:px-8";
   const layoutContainerClass = globalLayoutClass;
 
   const handleExitFocusMode = useCallback(() => {

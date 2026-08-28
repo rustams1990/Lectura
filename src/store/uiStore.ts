@@ -78,7 +78,7 @@ export const useUIStore = create<UIState>((set) => ({
   })(),
   showOnlyUnknown: false,
   zoomScale: 100,
-  layoutWidthMode: 'standard',
+  layoutWidthMode: 'full',
   interfaceMaxWidth: (() => {
     try {
       const saved = localStorage.getItem("vocab_clone_layout_width");
@@ -86,7 +86,7 @@ export const useUIStore = create<UIState>((set) => ({
         return saved as LayoutWidthType;
       }
     } catch (_) {}
-    return "standard";
+    return "full";
   })(),
   readerTextWidth: (() => {
     try {
