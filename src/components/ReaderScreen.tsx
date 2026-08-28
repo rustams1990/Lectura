@@ -636,14 +636,22 @@ export default function ReaderScreen({
             />
           )}
 
-          {/* 3. Docked Bottom Sheet (Preserves existing bottom sheet positioning) */}
+          {/* 3. Docked Bottom Sheet: full-width on mobile (< sm), centered max-w-xl / max-w-2xl on tablets and PC */}
           {wordCardView === "sheet" && (
             <div
-              className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
-              onClick={() => setSelectedWord(null)}
+              className="fixed inset-0 z-[70] flex flex-col justify-end items-center bg-black/40 animate-in fade-in duration-200 pointer-events-none"
             >
               <div
-                className={`font-sans max-h-[80vh] w-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} rounded-t-3xl border-t ${currentReaderTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300`}
+                className="fixed inset-0 pointer-events-auto"
+                onClick={() => setSelectedWord(null)}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedWord(null);
+                }}
+              />
+              <div
+                className={`relative pointer-events-auto font-sans max-h-[75vh] sm:max-h-[80vh] w-full max-w-xl md:max-w-2xl mx-auto ${currentReaderTheme.cardBg} ${currentReaderTheme.text} rounded-t-2xl sm:rounded-t-3xl border-t border-x ${currentReaderTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300 z-10`}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
@@ -651,7 +659,7 @@ export default function ReaderScreen({
                 <div className="flex justify-center py-2 shrink-0">
                   <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full animate-pulse" />
                 </div>
-                <div className="overflow-y-auto max-h-[calc(80vh-32px)] px-3 pb-6">
+                <div className="overflow-y-auto max-h-[calc(75vh-32px)] sm:max-h-[calc(80vh-32px)] px-3 pb-6">
                   <WordDetailContainer
                     word={selectedWord}
                     sentence={selectedContext}
