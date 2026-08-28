@@ -53,6 +53,7 @@ const defaultSettings: ReaderSettings = {
   bookWordCardMode: 'calm-sheet',
   showTimestamps: true,
   cjkWordSpacing: false,
+  showDetailedVocabularyStats: false,
   toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
 };
 
