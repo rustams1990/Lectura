@@ -35,7 +35,7 @@ import { useReaderHistory } from "../hooks/useReaderHistory";
 import { TooltipPortal } from "./TooltipPortal";
 import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 import TextSettingsControls from "./TextSettingsControls";
-import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry } from "../types";
+import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry, DEFAULT_TOOLBAR_VISIBILITY } from "../types";
 import { segmentSentenceTokens, cleanWordForLookup, isNumericOrRoman } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
 import { useTranslation } from "react-i18next";
@@ -1013,7 +1013,7 @@ function ReaderPanel({
             {/* 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
             <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
               {/* 1. Translation Toggle */}
-              {activeSettings.toolbarVisibility?.showTranslation !== false && (
+              {Boolean(activeSettings.toolbarVisibility?.showTranslation ?? DEFAULT_TOOLBAR_VISIBILITY.showTranslation) && (
                 <button
                   type="button"
                   onClick={onToggleTranslations}
@@ -1050,7 +1050,7 @@ function ReaderPanel({
               )}
 
               {/* 3. Play: Match Pairs */}
-              {activeSettings.toolbarVisibility?.showPlayPairs !== false && (
+              {Boolean(activeSettings.toolbarVisibility?.showPlayPairs ?? DEFAULT_TOOLBAR_VISIBILITY.showPlayPairs) && (
                 <button
                   type="button"
                   onClick={() => setShowMatchPairsModal(true)}

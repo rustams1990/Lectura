@@ -693,7 +693,7 @@ export default function TextSettingsControls({
                   <label className="relative inline-flex items-center cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      checked={toolbarVisibility.showTranslation !== false}
+                      checked={Boolean(toolbarVisibility.showTranslation)}
                       onChange={(e) => updateToolbarVisibility("showTranslation", e.target.checked)}
                       className="sr-only peer"
                     />
@@ -725,7 +725,7 @@ export default function TextSettingsControls({
                   <label className="relative inline-flex items-center cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      checked={toolbarVisibility.showPlayPairs !== false}
+                      checked={Boolean(toolbarVisibility.showPlayPairs)}
                       onChange={(e) => updateToolbarVisibility("showPlayPairs", e.target.checked)}
                       className="sr-only peer"
                     />

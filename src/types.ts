@@ -141,9 +141,9 @@ export interface IgnoreCategorySettings {
 
 export interface ReaderToolbarVisibility {
   showAiHub: boolean;        // default: false
-  showTranslation: boolean;  // default: true
+  showTranslation: boolean;  // default: false
   showFocusMode: boolean;    // default: true
-  showPlayPairs: boolean;    // default: true
+  showPlayPairs: boolean;    // default: false
   showUnknownOnly: boolean;  // default: true
   showVideoToggle: boolean;  // default: true
   showDisplayMode: boolean;  // default: true (Badges / Book)
@@ -153,9 +153,9 @@ export interface ReaderToolbarVisibility {
 
 export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
   showAiHub: false,
-  showTranslation: true,
+  showTranslation: false,
   showFocusMode: true,
-  showPlayPairs: true,
+  showPlayPairs: false,
   showUnknownOnly: true,
   showVideoToggle: true,
   showDisplayMode: true,

@@ -95,7 +95,7 @@ export const useUIStore = create<UIState>((set) => ({
         return saved as ReaderTextWidthType;
       }
     } catch (_) {}
-    return "standard";
+    return "full";
   })(),
 
   setIsSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),

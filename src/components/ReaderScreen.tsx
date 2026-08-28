@@ -162,12 +162,12 @@ export default function ReaderScreen({
         standard: "w-full lg:max-w-4xl mx-auto px-0",
         wide: "w-full lg:max-w-6xl mx-auto px-0",
         full: "w-full px-0 lg:px-6",
-      }[readerTextWidth || "standard"])
+      }[readerTextWidth || "full"])
     : ({
         standard: "w-full lg:max-w-7xl mx-auto px-0",
         wide: "w-full lg:max-w-[1560px] mx-auto px-0",
         full: "w-full px-0 lg:px-6",
-      }[readerTextWidth || "standard"]);
+      }[readerTextWidth || "full"]);
 
   return (
     <>
@@ -224,7 +224,7 @@ export default function ReaderScreen({
                     )}
 
                     {/* 3. Translation */}
-                    {toolbarVisibility.showTranslation !== false && (
+                    {Boolean(toolbarVisibility.showTranslation) && (
                       <button
                         onClick={() =>
                           setReaderSettings((prev) => ({
@@ -265,7 +265,7 @@ export default function ReaderScreen({
                     )}
 
                     {/* 5. Play: Pairs */}
-                    {toolbarVisibility.showPlayPairs !== false && (
+                    {Boolean(toolbarVisibility.showPlayPairs) && (
                       <button
                         onClick={() => setShowMatchPairsModal(true)}
                         className="px-3.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
@@ -387,7 +387,7 @@ export default function ReaderScreen({
                           type="button"
                           onClick={() => setReaderTextWidth('standard')}
                           className={`transition-colors cursor-pointer ${
-                            (readerTextWidth || 'standard') === 'standard'
+                            (readerTextWidth || 'full') === 'standard'
                               ? 'text-teal-600 dark:text-teal-400 font-bold'
                               : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 font-medium'
                           }`}
@@ -398,7 +398,7 @@ export default function ReaderScreen({
                           type="button"
                           onClick={() => setReaderTextWidth('wide')}
                           className={`transition-colors cursor-pointer ${
-                            readerTextWidth === 'wide'
+                            (readerTextWidth || 'full') === 'wide'
                               ? 'text-teal-600 dark:text-teal-400 font-bold'
                               : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 font-medium'
                           }`}
@@ -409,7 +409,7 @@ export default function ReaderScreen({
                           type="button"
                           onClick={() => setReaderTextWidth('full')}
                           className={`transition-colors cursor-pointer ${
-                            readerTextWidth === 'full'
+                            (readerTextWidth || 'full') === 'full'
                               ? 'text-teal-600 dark:text-teal-400 font-bold'
                               : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 font-medium'
                           }`}
