@@ -102,12 +102,9 @@ export default function ReaderScreen({
 
   // Context-aware word card mode:
   // For books in Book Focus mode: defaults to "floating" (calm popup)
-  // For books in Study mode: defaults to "inspector" (sidebar or center modal)
-  // For regular lessons: defaults to user chosen mode
+  // Context-aware word card mode respecting user selection across all modes
   const rawWordCardMode = isBookLesson
-    ? (isBookFocus
-        ? (readerSettings.bookWordCardMode || "floating")
-        : (readerSettings.wordCardMode || "inspector"))
+    ? (readerSettings.bookWordCardMode || readerSettings.wordCardMode || storeCardMode || "floating")
     : (readerSettings.wordCardMode || storeCardMode || "floating");
   const wordCardView: WordCardViewType = normalizeWordCardView(rawWordCardMode);
 
@@ -243,7 +240,6 @@ export default function ReaderScreen({
                           setBookReaderView("focus");
                           setReaderSettings((prev) => ({
                             ...prev,
-                            bookWordCardMode: "calm-sheet",
                             bookReaderViewStyle: "text",
                             bookFontFamily: "serif",
                           }));

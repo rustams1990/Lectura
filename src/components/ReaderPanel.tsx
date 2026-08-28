@@ -317,11 +317,9 @@ function ReaderPanel({
   const storeCardMode = useSettingsStore((s) => s.wordCardMode);
   
   const wordCardMode = isBookLesson
-    ? (isBookFocus
-        ? (settings?.bookWordCardMode || "calm-sheet")
-        : (settings?.wordCardMode || storeCardMode || "full-inspector"))
-    : (settings?.wordCardMode || storeCardMode || "full-inspector");
-  const isCalmSheet = wordCardMode === "calm-sheet";
+    ? (settings?.bookWordCardMode || settings?.wordCardMode || storeCardMode || "floating")
+    : (settings?.wordCardMode || storeCardMode || "floating");
+  const isCalmSheet = wordCardMode === "calm-sheet" || wordCardMode === "floating";
   const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);
 
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
@@ -969,13 +967,11 @@ function ReaderPanel({
                   if (nextView === "study") {
                     onUpdateSettings({
                       ...settings,
-                      wordCardMode: "full-inspector",
                       readerViewStyle: "badges",
                     });
                   } else {
                     onUpdateSettings({
                       ...settings,
-                      bookWordCardMode: "calm-sheet",
                       bookReaderViewStyle: "text",
                       bookFontFamily: "serif",
                     });

@@ -42,7 +42,7 @@ export default function TextSettingsControls({
     : (settings.readerViewStyle || "badges");
 
   const rawWordCardMode = isBookMode
-    ? (settings.bookWordCardMode || "floating")
+    ? (settings.bookWordCardMode || settings.wordCardMode || "floating")
     : (settings.wordCardMode || "floating");
   const activeWordCardView: WordCardViewType = normalizeWordCardView(rawWordCardMode);
 
@@ -117,17 +117,15 @@ export default function TextSettingsControls({
   const handleWordCardModeChange = (mode: string) => {
     startTransition(() => {
       useSettingsStore.getState().setWordCardMode(mode as any);
-      if (isBookMode) {
-        onUpdateSettings({ ...settings, bookWordCardMode: mode as any });
-        try {
-          localStorage.setItem("lectura_book_word_card_mode", mode);
-        } catch (_) {}
-      } else {
-        onUpdateSettings({ ...settings, wordCardMode: mode as any });
-        try {
-          localStorage.setItem("lectura_word_card_mode", mode);
-        } catch (_) {}
-      }
+      onUpdateSettings({
+        ...settings,
+        wordCardMode: mode as any,
+        bookWordCardMode: mode as any,
+      });
+      try {
+        localStorage.setItem("lectura_word_card_mode", mode);
+        localStorage.setItem("lectura_book_word_card_mode", mode);
+      } catch (_) {}
     });
   };
 
@@ -233,51 +231,6 @@ export default function TextSettingsControls({
               </div>
             </div>
 
-            {/* Reading Interface (Book Focus vs Study Mode) for Books */}
-            {isBookMode && (
-              <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
-                <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
-                  {t('reader.mode_label', 'Reading Interface')}
-                </span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      startTransition(() => {
-                        setBookReaderView("focus");
-                      });
-                      handleWordCardModeChange("calm-sheet");
-                      handleDisplayModeChange("text");
-                      handleFontFamilyChange("serif");
-                    }}
-                    className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      bookReaderView === "focus" || bookDisplayMode === "book"
-                        ? "bg-teal-600 border-teal-600 text-white shadow-xs"
-                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
-                    }`}
-                  >
-                    <span>📖 {t('reader.mode_book_focus', 'Book Focus')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      startTransition(() => {
-                        setBookReaderView("study");
-                      });
-                      handleWordCardModeChange("full-inspector");
-                      handleDisplayModeChange("badges");
-                    }}
-                    className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      bookReaderView === "study"
-                        ? "bg-teal-600 border-teal-600 text-white shadow-xs"
-                        : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
-                    }`}
-                  >
-                    <span>🎓 {t('reader.mode_study', 'Study Mode')}</span>
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Font Family choosing */}
             <div className="space-y-1.5">
