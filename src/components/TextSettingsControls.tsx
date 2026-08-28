@@ -9,6 +9,7 @@ import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY } f
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUIStore } from "../store/uiStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 interface TextSettingsControlsProps {
   settings: ReaderSettings;
@@ -114,6 +115,7 @@ export default function TextSettingsControls({
 
   const handleWordCardModeChange = (mode: string) => {
     startTransition(() => {
+      useSettingsStore.getState().setWordCardMode(mode as any);
       if (isBookMode) {
         onUpdateSettings({ ...settings, bookWordCardMode: mode as any });
         try {

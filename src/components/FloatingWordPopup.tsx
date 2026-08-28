@@ -6,9 +6,11 @@
 import React, { useRef, useEffect, useState, useLayoutEffect } from "react";
 import ReactDOM from "react-dom";
 import CalmLightReaderPopup from "./reader/CalmLightReaderPopup";
+import WordExplainer from "./WordExplainer";
 import { VocabItem, ReaderSettings, Lesson } from "../types";
 import { usePopoverPosition, PopoverPosition } from "../hooks/usePopoverPosition";
 import { useUIStore } from "../store/uiStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 export interface FloatingWordPopupProps {
   word: string | null;
@@ -38,8 +40,20 @@ export interface FloatingWordPopupProps {
 
 export default function FloatingWordPopup(props: FloatingWordPopupProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
-  const position: PopoverPosition | null = usePopoverPosition(props.targetEl || null, props.targetRect || null, 430, 360);
-  const [actualHeight, setActualHeight] = useState<number>(360);
+  const storeWordCardMode = useSettingsStore((s) => s.wordCardMode);
+  const isBookMode = props.lessons?.find(l => l.id === props.currentLessonId)?.lessonType === "book";
+  const activeWordCardMode = isBookMode
+    ? (props.settings?.bookWordCardMode || "calm-sheet")
+    : (props.settings?.wordCardMode || storeWordCardMode || "full-inspector");
+
+  const isFullInspector = activeWordCardMode === "full-inspector";
+  const position: PopoverPosition | null = usePopoverPosition(
+    props.targetEl || null, 
+    props.targetRect || null, 
+    isFullInspector ? 480 : 430, 
+    isFullInspector ? 480 : 360
+  );
+  const [actualHeight, setActualHeight] = useState<number>(isFullInspector ? 480 : 360);
 
   // Sync isWordPopupOpen with 350ms ghost-click shield
   useEffect(() => {
@@ -143,14 +157,21 @@ export default function FloatingWordPopup(props: FloatingWordPopupProps) {
       style={{
         top: `${finalTop}px`,
         left: `${finalLeft}px`,
-        width: "430px",
+        width: isFullInspector ? "480px" : "430px",
+        maxWidth: "calc(100vw - 24px)",
         background: "transparent",
       }}
       onClick={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onTouchEnd={(e) => e.stopPropagation()}
     >
-      <CalmLightReaderPopup {...props} />
+      {isFullInspector ? (
+        <div className="word-popup-card w-full max-h-[80vh] overflow-y-auto rounded-3xl shadow-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2 sm:p-4">
+          <WordExplainer {...props} />
+        </div>
+      ) : (
+        <CalmLightReaderPopup {...props} />
+      )}
     </div>,
     document.body
   );
