@@ -2,7 +2,7 @@ import React from "react";
 import { useLesson } from "../context/LessonContext";
 import { useVocab } from "../context/VocabContext";
 import ReaderPanel from "./ReaderPanel";
-import { HistoryEntry, ReaderSettings } from "../types";
+import { HistoryEntry, ReaderSettings, isVideoLesson } from "../types";
 import { useUIStore } from "../store/uiStore";
 
 interface ReaderViewProps {
@@ -33,32 +33,22 @@ export default function ReaderView({
   const { activeLesson, currentTime, setSeekToTime } = useLesson();
   const { vocab, selectedWord, setSelectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
 
-  // Auto-activate Focus Mode or default video mode for video lessons on mobile & tablet devices (< 1024px)
+  // Auto-activate Focus Mode for video lessons on mobile & tablet devices (< 1024px)
   React.useEffect(() => {
     if (!activeLesson) return;
     const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
-    const isVideoLesson = !!activeLesson.youtubeId || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "video" || !!activeLesson.localVideoUrl;
-    const videoMode = settings?.defaultVideoViewMode ?? "focus";
+    const isVideo = isVideoLesson(activeLesson);
 
-    if (isMobileOrTablet && isVideoLesson) {
-      let isDismissed = false;
-      try {
-        isDismissed = sessionStorage.getItem(`dismissed_focus_${activeLesson.id}`) === "true";
-      } catch (_) {}
+    if (isMobileOrTablet && isVideo) {
+      const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const isExplicitNonFocus = urlParams?.get("focus") === "false" || urlParams?.get("mode") === "text";
 
-      if (!isDismissed) {
-        if (videoMode === "focus") {
-          useUIStore.getState().setIsFocusMode(true);
-        } else if (videoMode === "floating") {
-          useUIStore.getState().setIsFocusMode(false);
-          useUIStore.getState().setShowYoutubePlayer(true);
-        } else if (videoMode === "off") {
-          useUIStore.getState().setIsFocusMode(false);
-          useUIStore.getState().setShowYoutubePlayer(false);
-        }
+      if (!isExplicitNonFocus) {
+        useUIStore.getState().setIsFocusMode(true);
+        useUIStore.getState().setShowYoutubePlayer(true);
       }
     }
-  }, [activeLesson?.id, settings?.defaultVideoViewMode]);
+  }, [activeLesson?.id]);
 
   if (!activeLesson) return null;
 

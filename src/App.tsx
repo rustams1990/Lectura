@@ -9,7 +9,7 @@ import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
-import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist, DEFAULT_TOOLBAR_VISIBILITY, DEFAULT_READER_SETTINGS } from "./types";
+import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist, DEFAULT_TOOLBAR_VISIBILITY, DEFAULT_READER_SETTINGS, isVideoLesson } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import AppSidebar from "./components/layout/AppSidebar";
 import AppHeader from "./components/layout/AppHeader";
@@ -2107,6 +2107,23 @@ export default function App() {
   useEffect(() => {
     setActiveLesson(activeLesson || null);
   }, [activeLesson, setActiveLesson]);
+
+  // Auto-activate Focus Mode for video lessons on mobile & tablet devices (< 1024px)
+  useEffect(() => {
+    if (!activeLesson || activeTab !== "read") return;
+    const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
+    const isVideo = isVideoLesson(activeLesson);
+
+    if (isMobileOrTablet && isVideo) {
+      const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const isExplicitNonFocus = urlParams?.get("focus") === "false" || urlParams?.get("mode") === "text";
+
+      if (!isExplicitNonFocus) {
+        setIsFocusMode(true);
+        setShowYoutubePlayer(true);
+      }
+    }
+  }, [activeLesson?.id, activeTab, setIsFocusMode, setShowYoutubePlayer]);
 
   useEffect(() => {
     try {

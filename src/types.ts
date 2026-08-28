@@ -392,3 +392,20 @@ export interface PodcastTimelineEpisode extends PodcastEpisode {
   podcastLanguage?: string;
   feedUrl: string;
 }
+
+export function isVideoLesson(lesson?: Lesson | null): boolean {
+  if (!lesson) return false;
+  const l = lesson as any;
+  if (l.lessonType === "book" || l.sourceType === "book" || l.sourceType === "article" || l.lessonType === "article") {
+    return false;
+  }
+  return Boolean(
+    l.sourceType === "video" ||
+    l.sourceType === "youtube" ||
+    l.lessonType === "video" ||
+    l.lessonType === "youtube" ||
+    l.youtubeId ||
+    l.videoUrl ||
+    l.localVideoUrl
+  );
+}

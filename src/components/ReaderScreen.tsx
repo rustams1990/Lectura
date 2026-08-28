@@ -8,7 +8,7 @@ import WordDetailContainer from "./WordDetailContainer";
 import WordExplainer from "./WordExplainer";
 import FloatingWordPopup from "./FloatingWordPopup";
 import AiHubModal from "./AiHubModal";
-import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBILITY, ReaderToolbarVisibility, WordCardViewType, normalizeWordCardView } from "../types";
+import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBILITY, ReaderToolbarVisibility, WordCardViewType, normalizeWordCardView, isVideoLesson } from "../types";
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
 import { useSettingsStore } from "../store/settingsStore";
@@ -119,6 +119,23 @@ export default function ReaderScreen({
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Auto-activate Focus Mode for video lessons on mobile & tablet devices (< 1024px)
+  useEffect(() => {
+    if (!activeLesson) return;
+    const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
+    const isVideo = isVideoLesson(activeLesson);
+
+    if (isMobileOrTablet && isVideo) {
+      const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const isExplicitNonFocus = urlParams?.get("focus") === "false" || urlParams?.get("mode") === "text";
+
+      if (!isExplicitNonFocus) {
+        setIsFocusMode(true);
+        setShowYoutubePlayer(true);
+      }
+    }
+  }, [activeLesson?.id, setIsFocusMode, setShowYoutubePlayer]);
 
   // Desktop right sidebar is visible on PC (lg+) only in normal study mode with inspector
   const showRightSidebar = isDesktop && !isFocusMode && !isBookFocus && wordCardView === "inspector";
