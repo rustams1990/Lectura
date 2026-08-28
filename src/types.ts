@@ -140,7 +140,7 @@ export interface IgnoreCategorySettings {
 }
 
 export interface ReaderToolbarVisibility {
-  showAiHub: boolean;        // default: true
+  showAiHub: boolean;        // default: false
   showTranslation: boolean;  // default: true
   showFocusMode: boolean;    // default: true
   showPlayPairs: boolean;    // default: true
@@ -152,7 +152,7 @@ export interface ReaderToolbarVisibility {
 }
 
 export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
-  showAiHub: true,
+  showAiHub: false,
   showTranslation: true,
   showFocusMode: true,
   showPlayPairs: true,

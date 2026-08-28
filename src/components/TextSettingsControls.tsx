@@ -677,7 +677,7 @@ export default function TextSettingsControls({
                   <label className="relative inline-flex items-center cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      checked={toolbarVisibility.showAiHub !== false}
+                      checked={Boolean(toolbarVisibility.showAiHub)}
                       onChange={(e) => updateToolbarVisibility("showAiHub", e.target.checked)}
                       className="sr-only peer"
                     />

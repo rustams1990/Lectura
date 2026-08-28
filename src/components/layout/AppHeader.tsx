@@ -9,7 +9,7 @@ import AccountSwitcherDropdown from '../AccountSwitcherDropdown';
 import WhisperNotificationDropdown from '../WhisperNotificationDropdown';
 import TextSettingsControls from '../TextSettingsControls';
 import { useUIStore } from '../../store/uiStore';
-import { ReaderSettings } from '../../types';
+import { ReaderSettings, DEFAULT_TOOLBAR_VISIBILITY } from '../../types';
 
 interface AppHeaderProps {
   isFocusMode: boolean;
@@ -157,14 +157,16 @@ export default function AppHeader({
           {activeTab === 'read' && (
             <div className="flex md:hidden items-center gap-1">
               {/* AI Hub Launcher */}
-              <button
-                type="button"
-                onClick={() => setShowAiHubModal(true)}
-                className="p-2 sm:p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
-                title={t('reader.ai_hub_title', 'AI Hub')}
-              >
-                <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-              </button>
+              {Boolean(readerSettings?.toolbarVisibility?.showAiHub ?? DEFAULT_TOOLBAR_VISIBILITY.showAiHub) && (
+                <button
+                  type="button"
+                  onClick={() => setShowAiHubModal(true)}
+                  className="p-2 sm:p-2.5 bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 transition-all active:scale-95 cursor-pointer flex items-center justify-center shadow-3xs"
+                  title={t('reader.ai_hub_title', 'AI Hub')}
+                >
+                  <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                </button>
+              )}
 
               {/* Text Settings (AA) */}
               {readerSettings && onUpdateReaderSettings && (

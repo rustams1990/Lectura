@@ -246,6 +246,29 @@ export default function ImportLessonForm({
     safeLocalStorageSetItem("vocab_default_translation_language", translationLanguage);
     setSavedTranslationLang(translationLanguage);
   };
+
+  const hasGeminiKey = useMemo(() => {
+    const rawProfiles = (settings?.aiProfiles || (settings as any)?.aiProviders || []) as any[];
+    if (rawProfiles && rawProfiles.length > 0) {
+      const activeGeminiProfile = rawProfiles.find(
+        (p) =>
+          (p.provider === "gemini" || p.provider === "google") &&
+          (p.isEnabled !== false && p.enabled !== false) &&
+          Boolean(p.apiKey?.trim())
+      );
+      if (activeGeminiProfile) return true;
+
+      const anyGeminiProfile = rawProfiles.some(
+        (p) => p.provider === "gemini" || p.provider === "google"
+      );
+      if (anyGeminiProfile) {
+        return false;
+      }
+    }
+
+    const legacyKey = settings?.geminiApiKey?.trim() || localStorage.getItem("vocab_clone_gemini_key")?.trim();
+    return Boolean(legacyKey);
+  }, [settings?.geminiApiKey, settings?.aiProfiles, (settings as any)?.aiProviders]);
   
   // Website URL import states
   const [webUrlInput, setWebUrlInput] = useState(initialWebUrl || "");
@@ -1853,26 +1876,28 @@ export default function ImportLessonForm({
                 )}
               </button>
 
-              <button
-                type="button"
-                id="btn-youtube-ai-fetch"
-                disabled={isYtLoading || isYtPlaylistLoading}
-                onClick={(e) => handleYtFetch(e, "force_ai")}
-                className="flex-1 py-2.5 px-3 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
-                title={t('import.yt_ai_tooltip', 'Directly transcribe video speech into timestamped sentences using Gemini AI Speech-to-Text')}
-              >
-                {isYtLoading && ytLoadingMode === "force_ai" ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600 dark:text-purple-400" />
-                    {t('import.ai_transcribing', 'Gemini AI Transcribing...')} <span className="font-mono font-bold">{Math.round(ytProgress)}%</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-                    {t('import.yt_ai_btn', 'Import with AI (Gemini STT)')}
-                  </>
-                )}
-              </button>
+              {hasGeminiKey && (
+                <button
+                  type="button"
+                  id="btn-youtube-ai-fetch"
+                  disabled={isYtLoading || isYtPlaylistLoading}
+                  onClick={(e) => handleYtFetch(e, "force_ai")}
+                  className="flex-1 py-2.5 px-3 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                  title={t('import.yt_ai_tooltip', 'Directly transcribe video speech into timestamped sentences using Gemini AI Speech-to-Text')}
+                >
+                  {isYtLoading && ytLoadingMode === "force_ai" ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600 dark:text-purple-400" />
+                      {t('import.ai_transcribing', 'Gemini AI Transcribing...')} <span className="font-mono font-bold">{Math.round(ytProgress)}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                      {t('import.yt_ai_btn', 'Import with AI (Gemini STT)')}
+                    </>
+                  )}
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2005,26 +2030,28 @@ export default function ImportLessonForm({
             />
             
             <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                id="btn-podcast-ai-import"
-                disabled={isWebLoading}
-                onClick={handleWebImport}
-                className="flex-1 py-2.5 px-3 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
-                title={t('import.podcast_ai_tooltip', 'Import and transcribe audio with Gemini AI Speech-to-Text')}
-              >
-                {isWebLoading ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600 dark:text-purple-400" />
-                    {t('import.importing', 'Importing...')}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-                    {t('import.podcast_ai_btn', 'Import with AI (Gemini STT)')}
-                  </>
-                )}
-              </button>
+              {hasGeminiKey && (
+                <button
+                  type="button"
+                  id="btn-podcast-ai-import"
+                  disabled={isWebLoading}
+                  onClick={handleWebImport}
+                  className="flex-1 py-2.5 px-3 bg-purple-50/80 hover:bg-purple-100/90 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-xl border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer shadow-2xs"
+                  title={t('import.podcast_ai_tooltip', 'Import and transcribe audio with Gemini AI Speech-to-Text')}
+                >
+                  {isWebLoading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600 dark:text-purple-400" />
+                      {t('import.importing', 'Importing...')}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                      {t('import.podcast_ai_btn', 'Import with AI (Gemini STT)')}
+                    </>
+                  )}
+                </button>
+              )}
 
               <button
                 type="button"
