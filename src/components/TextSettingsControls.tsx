@@ -5,7 +5,7 @@
 
 import React, { useState, startTransition } from "react";
 import { createPortal } from "react-dom";
-import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY } from "../types";
+import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY, WordCardViewType, normalizeWordCardView } from "../types";
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUIStore } from "../store/uiStore";
@@ -41,9 +41,10 @@ export default function TextSettingsControls({
     ? (settings.bookReaderViewStyle || "text")
     : (settings.readerViewStyle || "badges");
 
-  const activeWordCardMode = isBookMode
-    ? (settings.bookWordCardMode || "calm-sheet")
-    : (settings.wordCardMode || "full-inspector");
+  const rawWordCardMode = isBookMode
+    ? (settings.bookWordCardMode || "floating")
+    : (settings.wordCardMode || "floating");
+  const activeWordCardView: WordCardViewType = normalizeWordCardView(rawWordCardMode);
 
   const fontSizes: ReaderSettings["fontSize"][] = ["sm", "base", "lg", "xl", "2xl", "3xl", "4xl"];
   const fonts: { id: ReaderSettings["fontFamily"]; name: string }[] = [
@@ -329,37 +330,50 @@ export default function TextSettingsControls({
               </div>
             </div>
 
-            {/* Word Card Mode: Full Inspector vs Calm Sheet */}
+            {/* Word Card Mode: Inspector (Center) vs Floating (Popup) vs Sheet (Bottom) */}
             <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
               <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
                 {t('reader.word_card_mode_label', 'Word Card View')}
               </span>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => handleWordCardModeChange("full-inspector")}
-                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
-                    activeWordCardMode === "full-inspector"
+                  onClick={() => handleWordCardModeChange("inspector")}
+                  className={`px-1.5 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
+                    activeWordCardView === "inspector"
                       ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                       : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                   }`}
-                  title={t('reader.card_full_inspector_title', 'Full inspector with all tags and translation providers')}
+                  title={t('reader.card_inspector_title', 'Centered modal inspector with full dictionary and grammar details')}
                 >
-                  <span className="font-extrabold">{t('reader.card_full_inspector', 'Inspector')}</span>
-                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_full_inspector_sub', 'Full Inspector')}</span>
+                  <span className="font-extrabold">{t('reader.card_inspector', 'Inspector')}</span>
+                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_inspector_sub', 'Center')}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleWordCardModeChange("calm-sheet")}
-                  className={`px-2 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
-                    activeWordCardMode === "calm-sheet"
+                  onClick={() => handleWordCardModeChange("floating")}
+                  className={`px-1.5 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
+                    activeWordCardView === "floating"
                       ? "bg-teal-600 border-teal-600 text-white shadow-xs"
                       : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
                   }`}
-                  title={t('reader.card_calm_sheet_title', 'Minimalist light card with tabs and status')}
+                  title={t('reader.card_floating_title', 'Compact popup near the clicked word')}
                 >
-                  <span className="font-extrabold">{t('reader.card_calm_sheet', 'Calm Sheet')}</span>
-                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_calm_sheet_sub', 'Minimalist')}</span>
+                  <span className="font-extrabold">{t('reader.card_floating', 'Floating')}</span>
+                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_floating_sub', 'Calm Pop')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleWordCardModeChange("sheet")}
+                  className={`px-1.5 py-2 text-[11px] rounded-xl border font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${
+                    activeWordCardView === "sheet"
+                      ? "bg-teal-600 border-teal-600 text-white shadow-xs"
+                      : "bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-950 dark:hover:bg-zinc-800 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                  }`}
+                  title={t('reader.card_sheet_title', 'Docked bottom sheet')}
+                >
+                  <span className="font-extrabold">{t('reader.card_sheet', 'Sheet')}</span>
+                  <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_sheet_sub', 'Bottom')}</span>
                 </button>
               </div>
             </div>

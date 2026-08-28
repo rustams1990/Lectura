@@ -19,11 +19,11 @@ interface SettingsState {
 const getInitialWordCardMode = (): WordCardMode => {
   if (typeof window !== 'undefined' && window.localStorage) {
     const saved = localStorage.getItem('lectura_word_card_mode');
-    if (saved === 'full-inspector' || saved === 'calm-sheet') {
+    if (saved && (saved === 'inspector' || saved === 'full-inspector' || saved === 'floating' || saved === 'calm-sheet' || saved === 'sheet' || saved === 'bottom-sheet')) {
       return saved as WordCardMode;
     }
   }
-  return 'full-inspector';
+  return 'floating';
 };
 
 const initialMode = getInitialWordCardMode();

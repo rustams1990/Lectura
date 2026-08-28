@@ -257,7 +257,16 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
 };
 
-export type WordCardMode = 'full-inspector' | 'calm-sheet';
+export type WordCardViewType = 'inspector' | 'floating' | 'sheet';
+export type WordCardMode = 'full-inspector' | 'calm-sheet' | 'inspector' | 'floating' | 'sheet' | 'bottom-sheet';
+
+export function normalizeWordCardView(mode?: string | null): WordCardViewType {
+  if (!mode) return 'floating';
+  if (mode === 'inspector' || mode === 'full-inspector') return 'inspector';
+  if (mode === 'sheet' || mode === 'bottom-sheet') return 'sheet';
+  return 'floating';
+}
+
 export type DateFormatOption = 'auto' | 'DD/MM/YYYY' | 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 export type TimeFormatOption = 'auto' | '12h' | '24h';
 export type FirstDayOfWeekOption = 'auto' | 'monday' | 'sunday';

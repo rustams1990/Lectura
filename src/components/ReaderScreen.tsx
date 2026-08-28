@@ -5,9 +5,10 @@ import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
 import ReaderView from "./ReaderView";
 import WordDetailContainer from "./WordDetailContainer";
+import WordExplainer from "./WordExplainer";
 import FloatingWordPopup from "./FloatingWordPopup";
 import AiHubModal from "./AiHubModal";
-import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBILITY, ReaderToolbarVisibility } from "../types";
+import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBILITY, ReaderToolbarVisibility, WordCardViewType, normalizeWordCardView } from "../types";
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
 import { useSettingsStore } from "../store/settingsStore";
@@ -98,18 +99,20 @@ export default function ReaderScreen({
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const isBookLesson = activeLesson?.lessonType === "book";
   const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
+
   // Context-aware word card mode:
-  // For books in Book Focus mode: defaults to "calm-sheet" (floating popup)
-  // For books in Study mode: defaults to "full-inspector" (right desktop sidebar)
-  // For videos / audio / regular lessons: defaults to "full-inspector"
-  const effectiveWordCardMode = isBookLesson
+  // For books in Book Focus mode: defaults to "floating" (calm popup)
+  // For books in Study mode: defaults to "inspector" (sidebar or center modal)
+  // For regular lessons: defaults to user chosen mode
+  const rawWordCardMode = isBookLesson
     ? (isBookFocus
-        ? (readerSettings.bookWordCardMode || "calm-sheet")
-        : (readerSettings.wordCardMode || "full-inspector"))
-    : (readerSettings.wordCardMode || storeCardMode || "full-inspector");
-  const isCalmSheet = effectiveWordCardMode === "calm-sheet";
-  // In Focus mode or when Calm Sheet is active, use floating popup. When in Inspector mode, ALWAYS use right Inspector sidebar!
-  const effectiveCalmSheet = isBookLesson ? isCalmSheet : (isCalmSheet || isFocusMode);
+        ? (readerSettings.bookWordCardMode || "floating")
+        : (readerSettings.wordCardMode || "inspector"))
+    : (readerSettings.wordCardMode || storeCardMode || "floating");
+  const wordCardView: WordCardViewType = normalizeWordCardView(rawWordCardMode);
+
+  // Desktop right sidebar is visible only in normal 3-column study mode with inspector
+  const showRightSidebar = !isFocusMode && !isBookFocus && wordCardView === "inspector";
   const [selectedText, setSelectedText] = useState("");
   const toolbarVisibility: ReaderToolbarVisibility = {
     ...DEFAULT_TOOLBAR_VISIBILITY,
@@ -148,6 +151,18 @@ export default function ReaderScreen({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setReaderSettings, isFocusMode, setIsFocusMode, selectedWord, setSelectedWord]);
 
+  // Sync isWordPopupOpen with 350ms ghost-click shield for all word card modes
+  useEffect(() => {
+    if (selectedWord) {
+      useUIStore.getState().setIsWordPopupOpen(true);
+    } else {
+      const timer = setTimeout(() => {
+        useUIStore.getState().setIsWordPopupOpen(false);
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedWord]);
+
   // Isolated layout width classes strictly applied inside Reader
   const readerWidthClasses = isBookFocus
     ? ({
@@ -155,7 +170,7 @@ export default function ReaderScreen({
         medium: "w-full max-w-none lg:max-w-xl mx-auto py-0 lg:py-10 px-0 lg:px-6",
         wide: "w-full max-w-none lg:max-w-3xl mx-auto py-0 lg:py-10 px-0 lg:px-6",
       }[readerSettings.maxWidth || "medium"])
-    : effectiveCalmSheet
+    : !showRightSidebar
     ? ({
         standard: "w-full lg:max-w-4xl mx-auto px-0",
         wide: "w-full lg:max-w-6xl mx-auto px-0",
@@ -170,9 +185,9 @@ export default function ReaderScreen({
   return (
     <>
       <div className={`reader-layout-container reader-page-wrapper w-full transition-all duration-200 ${readerWidthClasses}`}>
-        <div className={`grid grid-cols-1 ${effectiveCalmSheet ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-6 items-start`}>
+        <div className={`grid grid-cols-1 ${showRightSidebar ? 'lg:grid-cols-3' : 'grid-cols-1'} gap-6 items-start`}>
           {/* ЛЕВАЯ КОЛОНКА / ОСНОВНОЙ КОНТЕНТ: Текст урока */}
-          <div className={`${effectiveCalmSheet ? 'col-span-1 w-full' : 'lg:col-span-2'} min-w-0 space-y-2.5 sm:space-y-4`}>
+          <div className={`${showRightSidebar ? 'lg:col-span-2' : 'col-span-1 w-full'} min-w-0 space-y-2.5 sm:space-y-4`}>
           {activeLesson ? (
             <>
               {/* Reader inline toolbar (visible only on PC / Desktop >= lg and when not in Book Focus Mode) */}
@@ -494,8 +509,8 @@ export default function ReaderScreen({
           )}
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА: Inspector sidebar — только в режиме Inspector, скрывается в Calm Sheet и Immersive Book */}
-        {!effectiveCalmSheet && (
+        {/* ПРАВАЯ КОЛОНКА: Inspector sidebar — только в режиме Inspector на десктопе, скрывается в Focus / Calm / Sheet */}
+        {showRightSidebar && (
           <aside className="hidden lg:block lg:col-span-1 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-20">
             <div className="h-full w-full">
               {activeLesson ? (
@@ -542,77 +557,129 @@ export default function ReaderScreen({
       </div>
       </div>
 
-      {/* Calm Sheet mode (desktop lg+): floating popup near the clicked word */}
-      {effectiveCalmSheet && selectedWord && activeLesson && (
-        <FloatingWordPopup
-          word={selectedWord}
-          sentence={selectedContext}
-          targetLanguage={activeLesson.targetLanguage}
-          translationLanguage={activeLesson.translationLanguage}
-          existingVocab={activeVocabItem}
-          wordLinks={wordLinks}
-          vocab={vocab}
-          onSaveVocab={handleSaveVocabItem}
-          onDeleteVocab={handleDeleteVocabItem}
-          onSaveWordLink={handleSaveWordLink}
-          onDeleteWordLink={handleDeleteWordLink}
-          onClose={() => setSelectedWord(null)}
-          settings={readerSettings}
-          onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
-          onWordClick={handleWordClick}
-          lessonText={activeLesson?.text}
-          lessons={lessons}
-          detectedPhrases={activeLesson.detectedPhrases}
-          textLemmas={activeLesson?.text_lemmas}
-          currentLessonId={activeLesson?.id}
-          onOpenLesson={handleOpenLesson}
-          targetEl={selectedElement}
-          targetRect={selectedWordRect}
-        />
-      )}
-
-      {/* Mobile/tablet (< lg): bottom sheet ONLY when in classic Inspector mode (Calm Sheet uses FloatingWordPopup) */}
-      {!effectiveCalmSheet && selectedWord && activeLesson && (
-        <div
-          className="fixed inset-0 z-[70] lg:hidden flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
-          onClick={() => setSelectedWord(null)}
-        >
-          <div
-            className={`font-sans max-h-[80vh] w-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} rounded-t-3xl border-t ${currentReaderTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300`}
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center py-2 shrink-0">
-              <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full animate-pulse" />
-            </div>
-            <div className="overflow-y-auto max-h-[calc(80vh-32px)] px-3 pb-6">
-              <WordDetailContainer
-                word={selectedWord}
-                sentence={selectedContext}
-                targetLanguage={activeLesson.targetLanguage}
-                translationLanguage={activeLesson.translationLanguage}
-                existingVocab={activeVocabItem}
-                wordLinks={wordLinks}
-                vocab={vocab}
-                onSaveVocab={handleSaveVocabItem}
-                onDeleteVocab={handleDeleteVocabItem}
-                onSaveWordLink={handleSaveWordLink}
-                onDeleteWordLink={handleDeleteWordLink}
-                onClose={() => setSelectedWord(null)}
-                settings={readerSettings}
-                onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
-                onWordClick={handleWordClick}
-                lessonText={activeLesson?.text}
-                lessons={lessons}
-                detectedPhrases={activeLesson.detectedPhrases}
-                textLemmas={activeLesson?.text_lemmas}
-                currentLessonId={activeLesson?.id}
-                onOpenLesson={handleOpenLesson}
+      {/* ── Word Card Manager (Strict conditional render: Inspector | Floating | Sheet) ── */}
+      {selectedWord && activeLesson && (
+        <>
+          {/* 1. Center Inspector Modal: Fixed z-50 overlay, readable over video with bg-black/30 */}
+          {wordCardView === "inspector" && (!showRightSidebar || (typeof window !== "undefined" && window.innerWidth < 1024)) && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pointer-events-none">
+              {/* Semi-transparent backdrop to ensure readability over video in Focus Mode */}
+              <div
+                className="fixed inset-0 bg-black/30 dark:bg-black/50 pointer-events-auto backdrop-blur-[1px] animate-in fade-in duration-150"
+                onClick={() => setSelectedWord(null)}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedWord(null);
+                }}
               />
+
+              {/* Centered card */}
+              <div
+                className="relative pointer-events-auto bg-white dark:bg-zinc-900 shadow-xl rounded-2xl sm:rounded-3xl border border-zinc-200/80 dark:border-zinc-800 max-w-md w-full max-h-[80vh] overflow-y-auto p-3 sm:p-4 z-10 animate-in zoom-in-95 duration-150"
+                onClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
+                <WordExplainer
+                  word={selectedWord}
+                  sentence={selectedContext}
+                  targetLanguage={activeLesson.targetLanguage}
+                  translationLanguage={activeLesson.translationLanguage}
+                  existingVocab={activeVocabItem}
+                  wordLinks={wordLinks}
+                  vocab={vocab}
+                  onSaveVocab={handleSaveVocabItem}
+                  onDeleteVocab={handleDeleteVocabItem}
+                  onSaveWordLink={handleSaveWordLink}
+                  onDeleteWordLink={handleDeleteWordLink}
+                  onClose={() => setSelectedWord(null)}
+                  settings={readerSettings}
+                  onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
+                  onWordClick={handleWordClick}
+                  lessonText={activeLesson?.text}
+                  lessons={lessons}
+                  detectedPhrases={activeLesson.detectedPhrases}
+                  textLemmas={activeLesson?.text_lemmas}
+                  currentLessonId={activeLesson?.id}
+                  onOpenLesson={handleOpenLesson}
+                />
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          {/* 2. Floating Calm Sheet Popup (Preserves existing positioning near clicked word) */}
+          {wordCardView === "floating" && (
+            <FloatingWordPopup
+              word={selectedWord}
+              sentence={selectedContext}
+              targetLanguage={activeLesson.targetLanguage}
+              translationLanguage={activeLesson.translationLanguage}
+              existingVocab={activeVocabItem}
+              wordLinks={wordLinks}
+              vocab={vocab}
+              onSaveVocab={handleSaveVocabItem}
+              onDeleteVocab={handleDeleteVocabItem}
+              onSaveWordLink={handleSaveWordLink}
+              onDeleteWordLink={handleDeleteWordLink}
+              onClose={() => setSelectedWord(null)}
+              settings={readerSettings}
+              onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
+              onWordClick={handleWordClick}
+              lessonText={activeLesson?.text}
+              lessons={lessons}
+              detectedPhrases={activeLesson.detectedPhrases}
+              textLemmas={activeLesson?.text_lemmas}
+              currentLessonId={activeLesson?.id}
+              onOpenLesson={handleOpenLesson}
+              targetEl={selectedElement}
+              targetRect={selectedWordRect}
+            />
+          )}
+
+          {/* 3. Docked Bottom Sheet (Preserves existing bottom sheet positioning) */}
+          {wordCardView === "sheet" && (
+            <div
+              className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/40 animate-in fade-in duration-200"
+              onClick={() => setSelectedWord(null)}
+            >
+              <div
+                className={`font-sans max-h-[80vh] w-full ${currentReaderTheme.cardBg} ${currentReaderTheme.text} rounded-t-3xl border-t ${currentReaderTheme.border} p-1 overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300`}
+                onClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+              >
+                <div className="flex justify-center py-2 shrink-0">
+                  <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full animate-pulse" />
+                </div>
+                <div className="overflow-y-auto max-h-[calc(80vh-32px)] px-3 pb-6">
+                  <WordDetailContainer
+                    word={selectedWord}
+                    sentence={selectedContext}
+                    targetLanguage={activeLesson.targetLanguage}
+                    translationLanguage={activeLesson.translationLanguage}
+                    existingVocab={activeVocabItem}
+                    wordLinks={wordLinks}
+                    vocab={vocab}
+                    onSaveVocab={handleSaveVocabItem}
+                    onDeleteVocab={handleDeleteVocabItem}
+                    onSaveWordLink={handleSaveWordLink}
+                    onDeleteWordLink={handleDeleteWordLink}
+                    onClose={() => setSelectedWord(null)}
+                    settings={readerSettings}
+                    onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
+                    onWordClick={handleWordClick}
+                    lessonText={activeLesson?.text}
+                    lessons={lessons}
+                    detectedPhrases={activeLesson.detectedPhrases}
+                    textLemmas={activeLesson?.text_lemmas}
+                    currentLessonId={activeLesson?.id}
+                    onOpenLesson={handleOpenLesson}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* AI Hub Modal */}

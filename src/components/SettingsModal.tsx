@@ -1436,50 +1436,73 @@ export default function SettingsModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <button
                     type="button"
                     onClick={() => {
-                      onSettingsChange?.({ wordCardMode: "full-inspector", bookWordCardMode: "full-inspector" });
+                      onSettingsChange?.({ wordCardMode: "inspector", bookWordCardMode: "inspector" });
                       try {
-                        localStorage.setItem("lectura_word_card_mode", "full-inspector");
-                        localStorage.setItem("lectura_book_word_card_mode", "full-inspector");
+                        localStorage.setItem("lectura_word_card_mode", "inspector");
+                        localStorage.setItem("lectura_book_word_card_mode", "inspector");
                       } catch (_) {}
                     }}
                     className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      (settings?.wordCardMode || "full-inspector") === "full-inspector"
+                      settings?.wordCardMode === "inspector" || settings?.wordCardMode === "full-inspector"
                         ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
                         : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      🔬 {t("settings.card_mode_full", "Расширенный инспектор")}
+                      🔬 {t("settings.card_mode_full", "Инспектор")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_full_desc", "Полная панель со всеми тегами и провайдерами перевода")}
+                      {t("settings.card_mode_full_desc", "Модальное окно по центру экрана с полной информацией")}
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
-                      onSettingsChange?.({ wordCardMode: "calm-sheet", bookWordCardMode: "calm-sheet" });
+                      onSettingsChange?.({ wordCardMode: "floating", bookWordCardMode: "floating" });
                       try {
-                        localStorage.setItem("lectura_word_card_mode", "calm-sheet");
-                        localStorage.setItem("lectura_book_word_card_mode", "calm-sheet");
+                        localStorage.setItem("lectura_word_card_mode", "floating");
+                        localStorage.setItem("lectura_book_word_card_mode", "floating");
                       } catch (_) {}
                     }}
                     className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      settings?.wordCardMode === "calm-sheet"
+                      settings?.wordCardMode === "floating" || settings?.wordCardMode === "calm-sheet"
                         ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
                         : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      🍃 {t("settings.card_mode_calm", "Calm Sheet (Минималистичный)")}
+                      🍃 {t("settings.card_mode_calm", "Плавающий (Floating)")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_calm_desc", "Светлая спокойная карточка с табами, прямым переводом и статус-баром 1–5")}
+                      {t("settings.card_mode_calm_desc", "Компактный попап около слова со спокойными табами")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSettingsChange?.({ wordCardMode: "sheet", bookWordCardMode: "sheet" });
+                      try {
+                        localStorage.setItem("lectura_word_card_mode", "sheet");
+                        localStorage.setItem("lectura_book_word_card_mode", "sheet");
+                      } catch (_) {}
+                    }}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.wordCardMode === "sheet" || settings?.wordCardMode === "bottom-sheet"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      📱 {t("settings.card_mode_sheet", "Шторка (Bottom Sheet)")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.card_mode_sheet_desc", "Прижатая к низу шторка для комфортного чтения")}
                     </span>
                   </button>
                 </div>
