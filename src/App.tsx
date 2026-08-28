@@ -3409,25 +3409,16 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                {activeLesson.youtubeId && (
-                  <button
-                    onClick={() => setShowYoutubePlayer(true)}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 h-8 border rounded-xl font-bold text-xs transition-all active:scale-97 cursor-pointer shadow-3xs bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
-                    title={t("reader.video_btn_title", "Показать видео")}
-                  >
-                    <Tv className="w-3.5 h-3.5" />
-                    <span>{t("reader.video_btn", "Видео")}</span>
-                  </button>
-                )}
-
-                <TextSettingsControls
-                  settings={readerSettings}
-                  onUpdateSettings={setReaderSettings}
-                  compact={false}
-                  lessonType={activeLesson.lessonType}
-                />
-              </div>
+              {activeLesson.youtubeId && (
+                <button
+                  onClick={() => setShowYoutubePlayer(true)}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 h-8 border rounded-xl font-bold text-xs transition-all active:scale-97 cursor-pointer shadow-3xs bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900/50"
+                  title={t("reader.video_btn_title", "Показать видео")}
+                >
+                  <Tv className="w-3.5 h-3.5" />
+                  <span>{t("reader.video_btn", "Видео")}</span>
+                </button>
+              )}
             </div>
           )}
         </>

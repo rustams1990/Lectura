@@ -512,14 +512,6 @@ export default function FocusPinnedPlayer({
             </div>
           )}
 
-          {/* Text Settings (AA) */}
-          <TextSettingsControls
-            settings={settings}
-            onUpdateSettings={setSettings}
-            compact={false}
-            lessonType={lesson.lessonType}
-          />
-
           {/* Refresh */}
           <button
             onClick={() => {
