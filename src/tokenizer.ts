@@ -120,14 +120,33 @@ export function isRomanNumeral(text: string, isEnglish: boolean = false): boolea
   if (!text) return false;
   const clean = text.replace(/^[“"'(«\[]+|[.,;:!?”"')»\]]+$/g, '').trim();
   if (!clean) return false;
-  // If single 'I' in English without Roman dot (e.g. not "I."), treat as the English pronoun "I"
-  if (isEnglish && clean.toUpperCase() === "I" && !/[IVXLCDM]+\./i.test(text)) {
+
+  // Roman numerals MUST be strictly in uppercase in text (e.g. "IV", "VIII", "XXI", "IV.")
+  // Lowercase words like "mi", "di", "vi", "ci", "id", "cl", "mix" are standard language words!
+  if (clean !== clean.toUpperCase()) {
     return false;
   }
+
+  // If single 'I' in English without Roman dot (e.g. not "I."), treat as the English pronoun "I"
+  if (isEnglish && clean === "I" && !/[IVXLCDM]+\./i.test(text)) {
+    return false;
+  }
+
+  // Single characters like "C", "D", "M", "V", "X", "L" without dot are letters/words, not Roman numerals
+  if (clean.length === 1 && !/[IVXLCDM]\./i.test(text)) {
+    return false;
+  }
+
+  // Common acronyms or short uppercase words that should not be Roman numerals unless followed by a dot
+  const commonWords = new Set(["MI", "ME", "DI", "CI", "VI", "ID", "IN", "CD", "DC", "MD", "TV", "DJ", "OK", "AI"]);
+  if (commonWords.has(clean) && !/[IVXLCDM]+\./i.test(text)) {
+    return false;
+  }
+
   return (
-    /^[IVXLCDM]+$/i.test(clean) &&
+    /^[IVXLCDM]+$/.test(clean) &&
     clean.length > 0 &&
-    /^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/i.test(clean)
+    /^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/.test(clean)
   );
 }
 
