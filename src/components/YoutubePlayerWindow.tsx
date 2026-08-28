@@ -6,6 +6,7 @@ import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useUIStore } from "../store/uiStore";
+import { useVocab } from "../context/VocabContext";
 
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
@@ -23,7 +24,9 @@ export default function YoutubePlayerWindow({
   const { t } = useTranslation();
   const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
+  const { selectedWord } = useVocab();
   const isWordPopupOpen = useUIStore((s) => s.isWordPopupOpen);
+  const isWordModalOpen = Boolean(selectedWord) || isWordPopupOpen;
   const lastTickTimeRef = useRef<number | null>(null);
   if (!youtubeId) return null;
 
@@ -876,7 +879,7 @@ export default function YoutubePlayerWindow({
         style={{
           height: isMinimized ? "0px" : `${size.height - 44}px`,
           opacity: isMinimized ? 0 : 1,
-          pointerEvents: isMinimized || isWordPopupOpen ? "none" : "auto"
+          pointerEvents: isMinimized || isWordModalOpen ? "none" : "auto"
         }} 
         className="w-full bg-black relative flex-1 transition-all duration-150 overflow-hidden"
       >
@@ -1030,8 +1033,26 @@ export default function YoutubePlayerWindow({
           <>
             <div 
               ref={containerRef}
-              className={`w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0 ${isWordPopupOpen ? "pointer-events-none" : ""}`}
+              className={`w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0 ${isWordModalOpen ? "pointer-events-none" : ""}`}
             />
+
+            {/* Shield overlay: active while word modal is open or immediately following close */}
+            {isWordModalOpen && (
+              <div
+                className="absolute inset-0 bg-transparent z-40"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                }}
+              />
+            )}
 
             {/* Guard overlay: active when dragging/resizing so mouse track events never fail on top of the iframe */}
             {(isDragging || isResizing) && (
