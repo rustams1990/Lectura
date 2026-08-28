@@ -205,9 +205,7 @@ const getWordStatusClass = (
   }
 
   // ── Badges / Tiles Mode (Compact, neat LingQ style) ────
-  const baseRounding = isPhrase
-    ? "rounded-[3px] px-1 py-0.5 leading-tight"
-    : "rounded-[3px] px-1 py-0.5 leading-tight";
+  const baseRounding = "rounded-[3px] py-0.5 leading-tight";
 
   if (status === "ignored" || status === "known") {
     return `hover:bg-zinc-100/60 dark:hover:bg-zinc-800/50 text-inherit cursor-pointer ${baseRounding} transition-colors font-normal`;
@@ -1868,9 +1866,13 @@ function ReaderPanel({
 
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
+              const paddingClass = isTextMode
+                ? ""
+                : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
+
               elements.push(
                 <span key={tIdx} className={`${isTextMode ? "inline" : "inline-flex items-baseline my-0.5 mx-[0.5px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
-                  {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
+                  {prefix && <span className="select-none pointer-events-none opacity-90 inline mr-0">{prefix}</span>}
                   <span
                     role="button"
                     tabIndex={0}
@@ -1926,13 +1928,13 @@ function ReaderPanel({
                       setHoveredWordId(null);
                       setHoveredWordObj(null);
                     }}
-                    className={`${styleClass} ${isTextMode ? "inline" : "inline-flex items-center"} cursor-pointer select-text text-[length:inherit] transition-all`}
+                    className={`${styleClass} ${paddingClass} ${isTextMode ? "inline" : "inline-flex items-center"} cursor-pointer select-text text-[length:inherit] transition-all`}
                     style={{ outline: "none" }}
                     spellCheck={false}
                   >
                     {wordContent}
                   </span>
-                  {suffix && <span className="select-none pointer-events-none opacity-90">{suffix}</span>}
+                  {suffix && <span className="select-none pointer-events-none opacity-90 inline ml-0">{suffix}</span>}
                 </span>
               );
 

@@ -179,14 +179,14 @@ export default function ReaderScreen({
             <>
               {/* Reader inline toolbar (visible only on PC / Desktop >= lg and when not in Immersive Book Mode) */}
               {!isImmersiveBook && (
-                <div className="hidden lg:flex items-center gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
+                <div className="hidden lg:flex items-center gap-1.5 sm:gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
                     {/* 1. Library (Always visible) */}
                     <button
                       onClick={() => {
                         setActiveTab("library");
                         setSelectedWord(null);
                       }}
-                      className="px-3.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                      className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
                       <span>{t('reader.library_btn', 'Library')}</span>
@@ -215,7 +215,7 @@ export default function ReaderScreen({
                     {Boolean(toolbarVisibility.showAiHub) && (
                       <button
                         onClick={() => setShowAiHubModal(true)}
-                        className="px-3.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                        className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
                         title={t('reader.ai_hub_title', 'Open AI Hub (Phrases, slang and word analysis)')}
                       >
                         <Sparkles className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
@@ -232,7 +232,7 @@ export default function ReaderScreen({
                             showSentenceTranslations: !prev.showSentenceTranslations,
                           }))
                         }
-                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
                           readerSettings.showSentenceTranslations
                             ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
                             : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
@@ -252,7 +252,7 @@ export default function ReaderScreen({
                     {toolbarVisibility.showFocusMode !== false && (
                       <button
                         onClick={() => setIsFocusMode(!isFocusMode)}
-                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
                           isFocusMode
                             ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
                             : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
@@ -268,7 +268,7 @@ export default function ReaderScreen({
                     {Boolean(toolbarVisibility.showPlayPairs) && (
                       <button
                         onClick={() => setShowMatchPairsModal(true)}
-                        className="px-3.5 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                        className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
                         title={t('reader.pairs_btn_title', 'Game: word and translation matching')}
                       >
                         <Trophy className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
@@ -280,7 +280,7 @@ export default function ReaderScreen({
                     {toolbarVisibility.showUnknownOnly !== false && (
                       <button
                         onClick={() => setShowOnlyUnknown(!showOnlyUnknown)}
-                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
                           showOnlyUnknown
                             ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-800"
                             : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
@@ -308,7 +308,7 @@ export default function ReaderScreen({
                             setShowYoutubePlayer(!showYoutubePlayer);
                           }
                         }}
-                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
                           (showYoutubePlayer && !isFocusMode) || (isFocusMode && showYoutubePlayer)
                             ? "bg-teal-50/60 dark:bg-teal-950/40 border-teal-300 dark:border-teal-800 text-teal-600 dark:text-teal-400"
                             : "bg-teal-50/60 dark:bg-teal-950/30 border-teal-300/80 dark:border-teal-800/80 text-teal-600 dark:text-teal-400 hover:bg-teal-100/50"
@@ -332,7 +332,7 @@ export default function ReaderScreen({
                             };
                           })
                         }
-                        className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
                           (readerSettings.showTimestamps === undefined ? true : (readerSettings.showTimestamps === "false" ? false : Boolean(readerSettings.showTimestamps)))
                             ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
                             : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
