@@ -313,7 +313,6 @@ function ReaderPanel({
   } = useUIStore();
   const isBookLesson = lesson.lessonType === "book";
   const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
-  const isImmersiveBook = isBookLesson && isBookFocus;
   const storeFontSize = useSettingsStore((s) => s.fontSize);
   const storeCardMode = useSettingsStore((s) => s.wordCardMode);
   
@@ -934,8 +933,8 @@ function ReaderPanel({
         </div>
       )}
 
-      {/* Static Header for Immersive Book Mode (Only when in Book Focus mode) */}
-      {lesson.lessonType === "book" && isImmersiveBook && (
+      {/* Static Header for Book Focus Mode */}
+      {lesson.lessonType === "book" && isBookFocus && (
         <header className="flex items-center justify-between py-2 mb-4 border-b border-stone-200/60 dark:border-zinc-800/60 select-none text-xs text-stone-500 dark:text-zinc-400">
           <button
             type="button"

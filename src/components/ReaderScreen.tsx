@@ -110,8 +110,6 @@ export default function ReaderScreen({
   const isCalmSheet = effectiveWordCardMode === "calm-sheet";
   // In Focus mode or when Calm Sheet is active, use floating popup. When in Inspector mode, ALWAYS use right Inspector sidebar!
   const effectiveCalmSheet = isBookLesson ? isCalmSheet : (isCalmSheet || isFocusMode);
-  // Immersive book mode: centered column without top toolbar when using Book Focus mode
-  const isImmersiveBook = isBookLesson && isBookFocus;
   const [selectedText, setSelectedText] = useState("");
   const toolbarVisibility: ReaderToolbarVisibility = {
     ...DEFAULT_TOOLBAR_VISIBILITY,
@@ -151,7 +149,7 @@ export default function ReaderScreen({
   }, [setReaderSettings, isFocusMode, setIsFocusMode, selectedWord, setSelectedWord]);
 
   // Isolated layout width classes strictly applied inside Reader
-  const readerWidthClasses = isImmersiveBook
+  const readerWidthClasses = isBookFocus
     ? ({
         narrow: "w-full max-w-none lg:max-w-lg mx-auto py-0 lg:py-10 px-0 lg:px-6",
         medium: "w-full max-w-none lg:max-w-xl mx-auto py-0 lg:py-10 px-0 lg:px-6",
@@ -172,13 +170,13 @@ export default function ReaderScreen({
   return (
     <>
       <div className={`reader-layout-container reader-page-wrapper w-full transition-all duration-200 ${readerWidthClasses}`}>
-        <div className={`w-full ${effectiveCalmSheet ? 'block' : 'lg:flex lg:gap-6 lg:items-start'}`}>
+        <div className={`grid grid-cols-1 ${effectiveCalmSheet ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-6 items-start`}>
           {/* ЛЕВАЯ КОЛОНКА / ОСНОВНОЙ КОНТЕНТ: Текст урока */}
-          <div className={`min-w-0 space-y-2.5 sm:space-y-4 ${effectiveCalmSheet ? 'w-full' : 'flex-1 max-w-4xl'}`}>
+          <div className={`${effectiveCalmSheet ? 'col-span-1 w-full' : 'lg:col-span-2'} min-w-0 space-y-2.5 sm:space-y-4`}>
           {activeLesson ? (
             <>
-              {/* Reader inline toolbar (visible only on PC / Desktop >= lg and when not in Immersive Book Mode) */}
-              {!isImmersiveBook && (
+              {/* Reader inline toolbar (visible only on PC / Desktop >= lg and when not in Book Focus Mode) */}
+              {!isBookFocus && (
                 <div className="hidden lg:flex items-center justify-between gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
                   {/* Left items group */}
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -479,7 +477,7 @@ export default function ReaderScreen({
                 showOnlyUnknown={showOnlyUnknown}
                 history={history}
                 onUpdateHistory={handleUpdateHistory}
-                hideMeta={isImmersiveBook}
+                hideMeta={isBookFocus}
                 onToggleTranslations={() =>
                   setReaderSettings((prev) => ({
                     ...prev,
@@ -498,7 +496,7 @@ export default function ReaderScreen({
 
         {/* ПРАВАЯ КОЛОНКА: Inspector sidebar — только в режиме Inspector, скрывается в Calm Sheet и Immersive Book */}
         {!effectiveCalmSheet && (
-          <aside className="hidden lg:block w-[380px] xl:w-[400px] shrink-0 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-20">
+          <aside className="hidden lg:block lg:col-span-1 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-20">
             <div className="h-full w-full">
               {activeLesson ? (
                 <WordDetailContainer
