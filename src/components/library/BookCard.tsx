@@ -100,6 +100,8 @@ export const BookCard: React.FC<BookCardProps> = memo(({
 
   const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
   const hasAudio = !!(lesson.audioUrl || lesson.audioBase64);
+  const isMedia = isYoutube || hasAudio || lesson.lessonType === "podcast" || lesson.lessonType === "audio" || lesson.lessonType === "video";
+  const isBook = (lesson.lessonType === "book" || (!lesson.lessonType && !isMedia)) && !isMedia;
   const lType = lesson.lessonType || (hasAudio ? "podcast" : "book");
   const typeInfo = lessonTypes.find((t) => t.id === lType);
   const catLabel = getCategoryDisplayName(typeInfo?.id || lType, typeInfo?.name, t);
@@ -118,8 +120,10 @@ export const BookCard: React.FC<BookCardProps> = memo(({
           : "border-zinc-200 dark:border-zinc-800"
       } hover:border-teal-200 dark:hover:border-teal-950 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden`}
     >
-      {/* Book spine decorative border */}
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-black/20 via-transparent to-black/20 z-10" />
+      {/* Book spine decorative border (only for books) */}
+      {isBook && (
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-black/20 via-transparent to-black/20 z-10 pointer-events-none" />
+      )}
 
       {/* Delete Confirmation Overlay */}
       {isDeleting && (
@@ -211,8 +215,10 @@ export const BookCard: React.FC<BookCardProps> = memo(({
           <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/65 via-black/25 to-transparent z-[1] pointer-events-none" />
         )}
 
-        {/* Spine inner shade overlay */}
-        <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent z-[2] pointer-events-none" />
+        {/* Spine inner shade overlay (only for books) */}
+        {isBook && (
+          <div className="absolute left-1.5 top-0 bottom-0 w-3 bg-gradient-to-r from-black/25 via-black/10 to-transparent z-[2] pointer-events-none" />
+        )}
         
         {/* Decorative background monogram text (when no image) */}
         {!imgSrc && (
