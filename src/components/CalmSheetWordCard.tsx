@@ -459,19 +459,23 @@ export default function CalmSheetWordCard({
         {onClose && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
+            onPointerDown={(e) => {
               e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               onClose();
             }}
             onTouchEnd={(e) => {
-              e.stopPropagation();
               e.preventDefault();
-              onClose();
+              e.stopPropagation();
             }}
-            className="relative z-50 w-7 h-7 flex items-center justify-center rounded-full bg-slate-100/80 dark:bg-zinc-800 border border-slate-200/80 dark:border-zinc-700/80 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 ml-1 cursor-pointer"
+            className="relative z-50 p-2.5 touch-none w-7 h-7 flex items-center justify-center rounded-full bg-slate-100/80 dark:bg-zinc-800 border border-slate-200/80 dark:border-zinc-700/80 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 ml-1 cursor-pointer"
             title="Close (Esc)"
-            aria-label="Close word popup"
+            aria-label="Close"
           >
             <X className="w-3.5 h-3.5" />
           </button>

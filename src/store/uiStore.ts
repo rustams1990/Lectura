@@ -22,6 +22,7 @@ interface UIState {
   layoutWidthMode: LayoutWidthType;
   interfaceMaxWidth: LayoutWidthType;
   readerTextWidth: ReaderTextWidthType;
+  isWordPopupOpen: boolean;
 
   // Actions
   setIsSidebarOpen: (isOpen: boolean) => void;
@@ -39,10 +40,12 @@ interface UIState {
   setLayoutWidthMode: (mode: LayoutWidthType) => void;
   setInterfaceMaxWidth: (mode: LayoutWidthType) => void;
   setReaderTextWidth: (mode: ReaderTextWidthType) => void;
+  setIsWordPopupOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   isSidebarOpen: false,
+  isWordPopupOpen: false,
   activeTab: (() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash;
@@ -135,4 +138,5 @@ export const useUIStore = create<UIState>((set) => ({
     try { localStorage.setItem("lectura_reader_text_width", mode); } catch (_) {}
     set({ readerTextWidth: mode });
   },
+  setIsWordPopupOpen: (open) => set({ isWordPopupOpen: open }),
 }));

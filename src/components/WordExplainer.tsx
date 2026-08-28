@@ -2139,19 +2139,23 @@ function WordExplainer({
         {onClose && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
+            onPointerDown={(e) => {
               e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               onClose();
             }}
             onTouchEnd={(e) => {
-              e.stopPropagation();
               e.preventDefault();
-              onClose();
+              e.stopPropagation();
             }}
             title={t('explainer.close_panel_title', 'Close panel')}
-            aria-label="Close word panel"
-            className="relative z-50 w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0"
+            aria-label="Close"
+            className="relative z-50 p-2.5 touch-none w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0"
           >
             <X className="w-3.5 h-3.5" />
           </button>

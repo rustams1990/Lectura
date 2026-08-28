@@ -8,6 +8,7 @@ import ReactDOM from "react-dom";
 import CalmLightReaderPopup from "./reader/CalmLightReaderPopup";
 import { VocabItem, ReaderSettings, Lesson } from "../types";
 import { usePopoverPosition, PopoverPosition } from "../hooks/usePopoverPosition";
+import { useUIStore } from "../store/uiStore";
 
 export interface FloatingWordPopupProps {
   word: string | null;
@@ -39,6 +40,19 @@ export default function FloatingWordPopup(props: FloatingWordPopupProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const position: PopoverPosition | null = usePopoverPosition(props.targetEl || null, props.targetRect || null, 430, 360);
   const [actualHeight, setActualHeight] = useState<number>(360);
+
+  // Sync isWordPopupOpen with 350ms ghost-click shield
+  useEffect(() => {
+    if (props.word) {
+      useUIStore.getState().setIsWordPopupOpen(true);
+    }
+    return () => {
+      const timer = setTimeout(() => {
+        useUIStore.getState().setIsWordPopupOpen(false);
+      }, 350);
+      return () => clearTimeout(timer);
+    };
+  }, [props.word]);
 
   // Measure actual height of popover element in DOM to accurately snap above word
   useLayoutEffect(() => {

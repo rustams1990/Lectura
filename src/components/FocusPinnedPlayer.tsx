@@ -5,6 +5,7 @@ import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
+import { useUIStore } from "../store/uiStore";
 
 type SizePreset = "small" | "medium" | "large";
 
@@ -37,6 +38,7 @@ export default function FocusPinnedPlayer({
   const { t } = useTranslation();
   const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
+  const isWordPopupOpen = useUIStore((s) => s.isWordPopupOpen);
 
   const [size, setSize] = useState<SizePreset>(() =>
     typeof window !== "undefined" && window.innerWidth < 1024 ? "large" : "medium"
@@ -542,7 +544,7 @@ export default function FocusPinnedPlayer({
       <div
         className={`w-full bg-zinc-950 flex justify-center transition-all duration-200 ${
           collapsed ? "h-0 min-h-0 max-h-0 opacity-0 overflow-hidden pointer-events-none" : "h-auto opacity-100"
-        }`}
+        } ${isWordPopupOpen ? "pointer-events-none select-none" : "pointer-events-auto"}`}
       >
         <div style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }} className="bg-black relative max-h-[35vh] sm:max-h-[40vh]">
           {useLocalMedia && localMediaUrl ? (
@@ -684,7 +686,7 @@ export default function FocusPinnedPlayer({
               )}
             </div>
           ) : (
-            <div ref={containerRef} className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0" />
+            <div ref={containerRef} className={`w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0 ${isWordPopupOpen ? "pointer-events-none" : ""}`} />
           )}
         </div>
       </div>
