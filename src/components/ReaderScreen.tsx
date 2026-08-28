@@ -111,8 +111,23 @@ export default function ReaderScreen({
     : (readerSettings.wordCardMode || storeCardMode || "floating");
   const wordCardView: WordCardViewType = normalizeWordCardView(rawWordCardMode);
 
-  // Desktop right sidebar is visible only in normal 3-column study mode with inspector
-  const showRightSidebar = !isFocusMode && !isBookFocus && wordCardView === "inspector";
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Desktop right sidebar is visible on PC (lg+) only in normal study mode with inspector
+  const showRightSidebar = isDesktop && !isFocusMode && !isBookFocus && wordCardView === "inspector";
+
+  // Center Modal is rendered for inspector on tablets/mobiles (< lg), and in Focus Mode (any device)
+  const showCenterModalInspector = wordCardView === "inspector" && (!isDesktop || isFocusMode || isBookFocus);
   const [selectedText, setSelectedText] = useState("");
   const toolbarVisibility: ReaderToolbarVisibility = {
     ...DEFAULT_TOOLBAR_VISIBILITY,
@@ -560,15 +575,14 @@ export default function ReaderScreen({
       {/* ── Word Card Manager (Strict conditional render: Inspector | Floating | Sheet) ── */}
       {selectedWord && activeLesson && (
         <>
-          {/* 1. Center Inspector Modal: Fixed z-50 overlay, readable over video with bg-black/30 */}
-          {wordCardView === "inspector" && (!showRightSidebar || (typeof window !== "undefined" && window.innerWidth < 1024)) && (
+          {/* 1. Center Inspector Modal: Rendered on mobile/tablets (< lg) and in Focus Mode */}
+          {showCenterModalInspector && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pointer-events-none">
               {/* Semi-transparent backdrop to ensure readability over video in Focus Mode */}
               <div
                 className="fixed inset-0 bg-black/30 dark:bg-black/50 pointer-events-auto backdrop-blur-[1px] animate-in fade-in duration-150"
                 onClick={() => setSelectedWord(null)}
-                onTouchStart={(e) => {
-                  e.preventDefault();
+                onTouchEnd={(e) => {
                   e.stopPropagation();
                   setSelectedWord(null);
                 }}
@@ -644,8 +658,7 @@ export default function ReaderScreen({
               <div
                 className="fixed inset-0 pointer-events-auto"
                 onClick={() => setSelectedWord(null)}
-                onTouchStart={(e) => {
-                  e.preventDefault();
+                onTouchEnd={(e) => {
                   e.stopPropagation();
                   setSelectedWord(null);
                 }}
