@@ -695,7 +695,7 @@ function LibraryHome({
 
   const [booksPerRow, setBooksPerRow] = useState<number>(() => {
     const saved = localStorage.getItem("vocab_books_per_row");
-    return saved ? parseInt(saved, 10) : 4;
+    return saved ? parseInt(saved, 10) : 5;
   });
   const [isGridDropdownOpen, setIsGridDropdownOpen] = useState(false);
   const gridDropdownRef = useRef<HTMLDivElement>(null);
@@ -730,11 +730,11 @@ function LibraryHome({
       case 4:
         return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4";
       case 5:
-        return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5";
+        return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
       case 6:
         return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6";
       default:
-        return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4";
+        return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
     }
   }, [booksPerRow]);
 
