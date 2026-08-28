@@ -391,7 +391,11 @@ export default function CalmSheetWordCard({
   }
 
   return (
-    <div className="word-popup-card w-full bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-[20px] p-4 shadow-2xl text-slate-900 dark:text-slate-100 font-sans select-text overflow-hidden">
+    <div 
+      className="word-popup-card w-full bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-[20px] p-4 shadow-2xl text-slate-900 dark:text-slate-100 font-sans select-text overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    >
       {/* 1. Header Tab Bar (5 compact tabs) */}
       <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-zinc-800 pb-2 mb-3 gap-1.5 w-full">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0">
@@ -455,9 +459,19 @@ export default function CalmSheetWordCard({
         {onClose && (
           <button
             type="button"
-            onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-100/80 dark:bg-zinc-800 border border-slate-200/80 dark:border-zinc-700/80 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 ml-1 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onClose();
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onClose();
+            }}
+            className="relative z-50 w-7 h-7 flex items-center justify-center rounded-full bg-slate-100/80 dark:bg-zinc-800 border border-slate-200/80 dark:border-zinc-700/80 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 ml-1 cursor-pointer"
             title="Close (Esc)"
+            aria-label="Close word popup"
           >
             <X className="w-3.5 h-3.5" />
           </button>

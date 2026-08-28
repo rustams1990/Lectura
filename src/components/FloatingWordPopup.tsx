@@ -133,6 +133,8 @@ export default function FloatingWordPopup(props: FloatingWordPopupProps) {
         background: "transparent",
       }}
       onClick={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
     >
       <CalmLightReaderPopup {...props} />
     </div>,
