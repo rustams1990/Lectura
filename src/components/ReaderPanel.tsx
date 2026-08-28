@@ -1013,7 +1013,7 @@ function ReaderPanel({
             {/* 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
             <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
               {/* 1. Translation Toggle */}
-              {Boolean(activeSettings.toolbarVisibility?.showTranslation ?? DEFAULT_TOOLBAR_VISIBILITY.showTranslation) && (
+              {activeSettings.toolbarVisibility?.showTranslation === true && (
                 <button
                   type="button"
                   onClick={onToggleTranslations}
@@ -1050,7 +1050,7 @@ function ReaderPanel({
               )}
 
               {/* 3. Play: Match Pairs */}
-              {Boolean(activeSettings.toolbarVisibility?.showPlayPairs ?? DEFAULT_TOOLBAR_VISIBILITY.showPlayPairs) && (
+              {activeSettings.toolbarVisibility?.showPlayPairs === true && (
                 <button
                   type="button"
                   onClick={() => setShowMatchPairsModal(true)}

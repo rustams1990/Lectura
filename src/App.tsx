@@ -9,7 +9,7 @@ import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
-import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist, DEFAULT_TOOLBAR_VISIBILITY } from "./types";
+import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist, DEFAULT_TOOLBAR_VISIBILITY, DEFAULT_READER_SETTINGS } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import AppSidebar from "./components/layout/AppSidebar";
 import AppHeader from "./components/layout/AppHeader";
@@ -827,36 +827,14 @@ export default function App() {
 
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
     const defaults: ReaderSettings = {
-      fontSize: "xl",
-      lineHeight: "loose",
-      readerTheme: "default",
-      maxWidth: "medium",
-      pageSize: "auto",
-      sentenceSpacing: "normal",
-      segmentSpacing: "normal",
-      ttsEngine: "google",
-      ttsLocale: "en-US",
-      aiProvider: "gemini",
+      ...DEFAULT_READER_SETTINGS,
       geminiApiKey: localStorage.getItem("vocab_clone_gemini_key") || "",
-      localAiUrl: "http://localhost:11434/api/generate",
-      localAiModel: "phi3.5",
-      showDetailedVocabularyStats: false,
-      mainStatsMetric: "comprehension",
-      showProgressBar: true,
-      dimBookCovers: false,
-      cardTitlePosition: "below_cover",
-      onlyPatterns: true,
-      vocabularyCountingMode: "parents_only",
-      dateFormat: "auto",
-      timeFormat: "auto",
-      firstDayOfWeek: "auto",
-      defaultVideoViewMode: "focus",
-      readerViewStyle: (localStorage.getItem("lectura_reader_view_style") as any) || "badges",
-      bookReaderViewStyle: (localStorage.getItem("lectura_book_reader_view_style") as any) || "text",
-      fontFamily: (localStorage.getItem("lectura_font_family") as any) || "sans",
-      bookFontFamily: (localStorage.getItem("lectura_book_font_family") as any) || "serif",
-      wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || "full-inspector",
-      bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || "calm-sheet",
+      readerViewStyle: (localStorage.getItem("lectura_reader_view_style") as any) || DEFAULT_READER_SETTINGS.readerViewStyle,
+      bookReaderViewStyle: (localStorage.getItem("lectura_book_reader_view_style") as any) || DEFAULT_READER_SETTINGS.bookReaderViewStyle,
+      fontFamily: (localStorage.getItem("lectura_font_family") as any) || DEFAULT_READER_SETTINGS.fontFamily,
+      bookFontFamily: (localStorage.getItem("lectura_book_font_family") as any) || DEFAULT_READER_SETTINGS.bookFontFamily,
+      wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || DEFAULT_READER_SETTINGS.wordCardMode,
+      bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || DEFAULT_READER_SETTINGS.bookWordCardMode,
       showTimestamps: localStorage.getItem("lectura_show_timestamps") !== "false",
       toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
     };
@@ -878,7 +856,14 @@ export default function App() {
           };
           parsed.toolbarVisibility_v3 = true;
         }
-        return { ...defaults, ...parsed };
+        return {
+          ...defaults,
+          ...parsed,
+          toolbarVisibility: {
+            ...DEFAULT_TOOLBAR_VISIBILITY,
+            ...(parsed.toolbarVisibility || {}),
+          },
+        };
       }
     } catch (e) {
       console.error("Failed to parse saved reader settings:", e);
@@ -1226,7 +1211,15 @@ export default function App() {
           try {
              const parsed = typeof rs === 'string' ? JSON.parse(rs) : rs;
              setReaderSettings(prev => {
-               const updated = { ...prev, ...parsed };
+               const updated: ReaderSettings = {
+                 ...DEFAULT_READER_SETTINGS,
+                 ...prev,
+                 ...parsed,
+                 toolbarVisibility: {
+                   ...DEFAULT_TOOLBAR_VISIBILITY,
+                   ...(parsed.toolbarVisibility || {}),
+                 },
+               };
                safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(updated));
                return updated;
              });
@@ -1398,6 +1391,13 @@ export default function App() {
       setListeningSeconds(0);
       setHistory([]);
       setLanguageFlags({});
+      const cleanDefaults: ReaderSettings = {
+        ...DEFAULT_READER_SETTINGS,
+        toolbarVisibility: { ...DEFAULT_TOOLBAR_VISIBILITY },
+      };
+      setReaderSettings(cleanDefaults);
+      safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults));
+      settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults)).catch(() => {});
     };
     window.addEventListener("lectura:user_logout", handleLogout);
     return () => {
@@ -1509,9 +1509,25 @@ export default function App() {
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
           if (d.readerSettings && typeof d.readerSettings === "object") {
-            setReaderSettings(prev => ({ ...prev, ...d.readerSettings }));
-            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(d.readerSettings));
-            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(d.readerSettings)).catch(() => {});
+            const nextSettings: ReaderSettings = {
+              ...DEFAULT_READER_SETTINGS,
+              ...d.readerSettings,
+              toolbarVisibility: {
+                ...DEFAULT_TOOLBAR_VISIBILITY,
+                ...(d.readerSettings.toolbarVisibility || {}),
+              },
+            };
+            setReaderSettings(nextSettings);
+            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(nextSettings));
+            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(nextSettings)).catch(() => {});
+          } else {
+            const cleanDefaults: ReaderSettings = {
+              ...DEFAULT_READER_SETTINGS,
+              toolbarVisibility: { ...DEFAULT_TOOLBAR_VISIBILITY },
+            };
+            setReaderSettings(cleanDefaults);
+            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults));
+            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults)).catch(() => {});
           }
           if (d.pinnedLanguages && Array.isArray(d.pinnedLanguages)) {
             setPinnedLanguages(d.pinnedLanguages);

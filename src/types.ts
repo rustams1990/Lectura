@@ -216,6 +216,47 @@ export interface ReaderSettings {
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
 }
 
+export const DEFAULT_READER_SETTINGS: ReaderSettings = {
+  fontSize: "base",
+  lineHeight: "relaxed",
+  fontFamily: "sans",
+  bookFontFamily: "serif",
+  readerTheme: "default",
+  maxWidth: "wide",
+  pageSize: "auto",
+  sentenceSpacing: "normal",
+  segmentSpacing: "normal",
+  ttsEngine: "google",
+  ttsLocale: "en-US",
+  autoPunctuationSplit: true,
+  wordHighlight: true,
+  idiomHighlightStyle: "underline",
+  aiProvider: "gemini",
+  geminiApiKey: "",
+  localAiUrl: "http://localhost:11434/api/generate",
+  localAiModel: "phi3.5",
+  showDetailedVocabularyStats: false,
+  mainStatsMetric: "comprehension",
+  showProgressBar: true,
+  showSentenceTranslations: false,
+  dimBookCovers: false,
+  cardTitlePosition: "below_cover",
+  onlyPatterns: true,
+  vocabularyCountingMode: "parents_only",
+  dailyGoalMinutes: 15,
+  dateFormat: "auto",
+  timeFormat: "auto",
+  firstDayOfWeek: "auto",
+  defaultVideoViewMode: "focus",
+  readerViewStyle: "badges",
+  bookReaderViewStyle: "text",
+  wordCardMode: "full-inspector",
+  bookWordCardMode: "calm-sheet",
+  showTimestamps: true,
+  cjkWordSpacing: false,
+  toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
+};
+
 export type WordCardMode = 'full-inspector' | 'calm-sheet';
 export type DateFormatOption = 'auto' | 'DD/MM/YYYY' | 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 export type TimeFormatOption = 'auto' | '12h' | '24h';

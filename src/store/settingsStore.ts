@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ReaderSettings, DateFormatOption, TimeFormatOption, FirstDayOfWeekOption, WordCardMode, DEFAULT_TOOLBAR_VISIBILITY } from '../types';
+import { ReaderSettings, DateFormatOption, TimeFormatOption, FirstDayOfWeekOption, WordCardMode, DEFAULT_TOOLBAR_VISIBILITY, DEFAULT_READER_SETTINGS } from '../types';
 
 export type { WordCardMode };
 
@@ -29,32 +29,8 @@ const getInitialWordCardMode = (): WordCardMode => {
 const initialMode = getInitialWordCardMode();
 
 const defaultSettings: ReaderSettings = {
-  fontSize: 'base',
-  lineHeight: 'relaxed',
-  fontFamily: 'sans',
-  bookFontFamily: 'serif',
-  readerTheme: 'default',
-  maxWidth: 'wide',
-  pageSize: 'auto',
-  sentenceSpacing: 'normal',
-  segmentSpacing: 'normal',
-  ttsEngine: 'google',
-  autoPunctuationSplit: true,
-  wordHighlight: true,
-  idiomHighlightStyle: 'underline',
-  aiProvider: 'gemini',
-  dailyGoalMinutes: 15,
-  dateFormat: 'auto',
-  timeFormat: 'auto',
-  firstDayOfWeek: 'auto',
-  readerViewStyle: 'badges',
-  bookReaderViewStyle: 'text',
+  ...DEFAULT_READER_SETTINGS,
   wordCardMode: initialMode,
-  bookWordCardMode: 'calm-sheet',
-  showTimestamps: true,
-  cjkWordSpacing: false,
-  showDetailedVocabularyStats: false,
-  toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

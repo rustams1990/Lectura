@@ -157,7 +157,7 @@ export default function AppHeader({
           {activeTab === 'read' && (
             <div className="flex md:hidden items-center gap-1">
               {/* AI Hub Launcher */}
-              {Boolean(readerSettings?.toolbarVisibility?.showAiHub ?? DEFAULT_TOOLBAR_VISIBILITY.showAiHub) && (
+              {readerSettings?.toolbarVisibility?.showAiHub === true && (
                 <button
                   type="button"
                   onClick={() => setShowAiHubModal(true)}

@@ -214,7 +214,7 @@ export default function ReaderScreen({
                     )}
 
                     {/* 2. AI Hub */}
-                    {Boolean(toolbarVisibility.showAiHub) && (
+                    {toolbarVisibility.showAiHub === true && (
                       <button
                         onClick={() => setShowAiHubModal(true)}
                         className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
@@ -226,7 +226,7 @@ export default function ReaderScreen({
                     )}
 
                     {/* 3. Translation */}
-                    {Boolean(toolbarVisibility.showTranslation) && (
+                    {toolbarVisibility.showTranslation === true && (
                       <button
                         onClick={() =>
                           setReaderSettings((prev) => ({
@@ -267,7 +267,7 @@ export default function ReaderScreen({
                     )}
 
                     {/* 5. Play: Pairs */}
-                    {Boolean(toolbarVisibility.showPlayPairs) && (
+                    {toolbarVisibility.showPlayPairs === true && (
                       <button
                         onClick={() => setShowMatchPairsModal(true)}
                         className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
