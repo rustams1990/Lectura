@@ -313,6 +313,7 @@ function ReaderPanel({
   } = useUIStore();
   const isBookLesson = lesson.lessonType === "book";
   const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
+  const isImmersiveBook = isBookLesson && isBookFocus;
   const storeFontSize = useSettingsStore((s) => s.fontSize);
   const storeCardMode = useSettingsStore((s) => s.wordCardMode);
   
