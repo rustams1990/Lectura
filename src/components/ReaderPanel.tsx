@@ -2183,8 +2183,8 @@ function ReaderPanel({
             )}
 
             {lesson.lessonType === "book" ? (
-              /* Immersive Book Mode Static Footer Paginator */
-              <div className="pt-4 pb-1 flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 font-sans select-none mt-auto">
+              /* Book Footer Paginator (Book Mode & Study Mode) */
+              <div className="pt-4 pb-1 border-t border-stone-200/60 dark:border-zinc-800/60 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 font-sans select-none mt-auto">
                 <button
                   type="button"
                   disabled={clampedPageIdx === 0}

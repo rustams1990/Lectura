@@ -194,25 +194,6 @@ export default function ReaderScreen({
                       <span>{t('reader.library_btn', 'Library')}</span>
                     </button>
 
-                    {/* Book Focus Mode Toggle (For books in Study mode) */}
-                    {isBookLesson && (
-                      <button
-                        onClick={() => {
-                          setBookReaderView("focus");
-                          setReaderSettings((prev) => ({
-                            ...prev,
-                            bookWordCardMode: "calm-sheet",
-                            bookReaderViewStyle: "text",
-                            bookFontFamily: "serif",
-                          }));
-                        }}
-                        className="px-3.5 py-1.5 bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 rounded-xl text-xs font-semibold text-teal-700 dark:text-teal-300 shadow-xs hover:bg-teal-100/80 dark:hover:bg-teal-900/70 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
-                        title={t('reader.switch_to_book', 'Switch to Book Focus Mode')}
-                      >
-                        <span>📖 {t('reader.mode_book_focus', 'Book Focus')}</span>
-                      </button>
-                    )}
-
                     {/* Chapters / Table of Contents (For books in Study mode) */}
                     {isBookLesson && (
                       <button
@@ -225,6 +206,41 @@ export default function ReaderScreen({
                       >
                         <span>📑 {t('reader.chapters', 'Chapters')}</span>
                       </button>
+                    )}
+
+                    {/* Book Mode Switcher (For books: returns to Book Mode) */}
+                    {isBookLesson ? (
+                      <button
+                        onClick={() => {
+                          setBookReaderView("focus");
+                          setReaderSettings((prev) => ({
+                            ...prev,
+                            bookWordCardMode: "calm-sheet",
+                            bookReaderViewStyle: "text",
+                            bookFontFamily: "serif",
+                          }));
+                        }}
+                        className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                        title={t('reader.switch_to_book', 'Switch to Book Mode')}
+                      >
+                        <span>📖 {t('reader.book_mode_short', 'Book')}</span>
+                      </button>
+                    ) : (
+                      /* Focus Mode for non-book lessons */
+                      toolbarVisibility.showFocusMode !== false && (
+                        <button
+                          onClick={() => setIsFocusMode(!isFocusMode)}
+                          className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                            isFocusMode
+                              ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
+                              : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                          }`}
+                          title={isFocusMode ? t('app.focus_exit', 'Exit Focus (Esc)') : t('reader.focus_btn', 'Focus Mode')}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>{isFocusMode ? t('app.focus_exit', 'Exit Focus') : t('reader.focus_btn', 'Focus Mode')}</span>
+                        </button>
+                      )
                     )}
 
                     {/* 2. AI Hub */}
@@ -264,23 +280,7 @@ export default function ReaderScreen({
                       </button>
                     )}
 
-                    {/* 4. Focus Mode */}
-                    {toolbarVisibility.showFocusMode !== false && (
-                      <button
-                        onClick={() => setIsFocusMode(!isFocusMode)}
-                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                          isFocusMode
-                            ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
-                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
-                        }`}
-                        title={isFocusMode ? t('app.focus_exit', 'Exit Focus (Esc)') : t('reader.focus_btn', 'Focus Mode')}
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>{isFocusMode ? t('app.focus_exit', 'Exit Focus') : t('reader.focus_btn', 'Focus Mode')}</span>
-                      </button>
-                    )}
-
-                    {/* 5. Play: Pairs */}
+                    {/* 4. Play: Pairs */}
                     {toolbarVisibility.showPlayPairs === true && (
                       <button
                         onClick={() => setShowMatchPairsModal(true)}
