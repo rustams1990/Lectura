@@ -172,9 +172,9 @@ export default function ReaderScreen({
   return (
     <>
       <div className={`reader-layout-container reader-page-wrapper w-full transition-all duration-200 ${readerWidthClasses}`}>
-        <div className={`grid grid-cols-1 ${effectiveCalmSheet ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-6 items-start`}>
+        <div className={`w-full ${effectiveCalmSheet ? 'block' : 'lg:flex lg:gap-6 lg:items-start'}`}>
           {/* ЛЕВАЯ КОЛОНКА / ОСНОВНОЙ КОНТЕНТ: Текст урока */}
-          <div className={`${effectiveCalmSheet ? 'col-span-1 w-full' : 'lg:col-span-2'} min-w-0 space-y-2.5 sm:space-y-4`}>
+          <div className={`min-w-0 space-y-2.5 sm:space-y-4 ${effectiveCalmSheet ? 'w-full' : 'flex-1 max-w-4xl'}`}>
           {activeLesson ? (
             <>
               {/* Reader inline toolbar (visible only on PC / Desktop >= lg and when not in Immersive Book Mode) */}
@@ -210,6 +210,20 @@ export default function ReaderScreen({
                         title={t('reader.switch_to_book', 'Switch to Book Focus Mode')}
                       >
                         <span>📖 {t('reader.mode_book_focus', 'Book Focus')}</span>
+                      </button>
+                    )}
+
+                    {/* Chapters / Table of Contents (For books in Study mode) */}
+                    {isBookLesson && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent("toggle-book-toc"));
+                        }}
+                        className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 shrink-0 transition-all active:scale-97 cursor-pointer"
+                        title={t('reader.toc', 'Table of Contents')}
+                      >
+                        <span>📑 {t('reader.chapters', 'Chapters')}</span>
                       </button>
                     )}
 
@@ -295,7 +309,7 @@ export default function ReaderScreen({
                     )}
 
                     {/* 7. Video */}
-                    {toolbarVisibility.showVideoToggle !== false && activeLesson?.youtubeId && (
+                    {toolbarVisibility.showVideoToggle !== false && !isBookLesson && activeLesson?.sourceType !== 'book' && activeLesson?.sourceType !== 'article' && activeLesson?.lessonType !== 'article' && Boolean(activeLesson?.youtubeId || (activeLesson as any)?.localVideoUrl) && (
                       <button
                         onClick={() => {
                           const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
@@ -323,7 +337,7 @@ export default function ReaderScreen({
                     )}
 
                     {/* 8. Timestamps */}
-                    {toolbarVisibility.showTimestampsToggle !== false && !!(activeLesson && (activeLesson.youtubeId || activeLesson.audioUrl || activeLesson.audioBase64 || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "podcast" || activeLesson.lessonType === "audio" || /\b(\d{1,2}:)?\d{1,2}:\d{2}\b/.test(activeLesson.text))) && (
+                    {toolbarVisibility.showTimestampsToggle !== false && !isBookLesson && activeLesson?.sourceType !== 'book' && activeLesson?.sourceType !== 'article' && activeLesson?.lessonType !== 'article' && Boolean(activeLesson && (activeLesson.youtubeId || activeLesson.audioUrl || activeLesson.audioBase64 || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "podcast" || activeLesson.lessonType === "audio" || /\b(\d{1,2}:)?\d{1,2}:\d{2}\b/.test(activeLesson.text))) && (
                       <button
                         onClick={() =>
                           setReaderSettings((prev) => {
@@ -484,7 +498,7 @@ export default function ReaderScreen({
 
         {/* ПРАВАЯ КОЛОНКА: Inspector sidebar — только в режиме Inspector, скрывается в Calm Sheet и Immersive Book */}
         {!effectiveCalmSheet && (
-          <aside className="hidden lg:block lg:col-span-1 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-20">
+          <aside className="hidden lg:block w-[380px] xl:w-[400px] shrink-0 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto pr-1 z-20">
             <div className="h-full w-full">
               {activeLesson ? (
                 <WordDetailContainer

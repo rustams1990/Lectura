@@ -933,8 +933,8 @@ function ReaderPanel({
         </div>
       )}
 
-      {/* Static Header for Immersive Book Mode */}
-      {lesson.lessonType === "book" && (
+      {/* Static Header for Immersive Book Mode (Only when in Book Focus mode) */}
+      {lesson.lessonType === "book" && isImmersiveBook && (
         <header className="flex items-center justify-between py-2 mb-4 border-b border-stone-200/60 dark:border-zinc-800/60 select-none text-xs text-stone-500 dark:text-zinc-400">
           <button
             type="button"
@@ -1078,7 +1078,7 @@ function ReaderPanel({
               )}
 
               {/* 5. Video */}
-              {activeSettings.toolbarVisibility?.showVideoToggle !== false && lesson.youtubeId && (
+              {activeSettings.toolbarVisibility?.showVideoToggle !== false && !isBookLesson && lesson.sourceType !== 'book' && lesson.sourceType !== 'article' && Boolean(lesson.youtubeId || (lesson as any).localVideoUrl) && (
                 <button
                   type="button"
                   onClick={() => {
