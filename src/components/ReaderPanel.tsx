@@ -598,12 +598,12 @@ function ReaderPanel({
           .replace(/([,.:;!?])(["“«])/g, "$1 $2")
           .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
           .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2")
-          .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
-          .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
-          .replace(/([\p{L}\p{N}])[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*([\p{L}\p{N}])/gu, "$1$2$3")
-          .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
-          .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1")
-          .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1")
+          .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/gu, "$1")
+          .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
+          .replace(/([\p{L}\p{N}])[\s\u00A0\u200B\u202F\uFEFF]+(['’])[\s\u00A0\u200B\u202F\uFEFF]*([\p{L}\p{N}])/gu, "$1$2$3")
+          .replace(/([“"«])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
+          .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([”"»])/gu, "$1")
+          .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;’”"»\)\]\}…])/gu, "$1")
           .replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
       });
 
@@ -1243,12 +1243,12 @@ function ReaderPanel({
               .replace(/([,.:;!?])(["“«])/g, "$1 $2")
               .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
               .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2")
-              .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
-              .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
-              .replace(/([\p{L}\p{N}])[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*([\p{L}\p{N}])/gu, "$1$2$3")
-              .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
-              .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1")
-              .replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1")
+              .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/gu, "$1")
+              .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
+              .replace(/([\p{L}\p{N}])[\s\u00A0\u200B\u202F\uFEFF]+(['’])[\s\u00A0\u200B\u202F\uFEFF]*([\p{L}\p{N}])/gu, "$1$2$3")
+              .replace(/([“"«])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
+              .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([”"»])/gu, "$1")
+              .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;’”"»\)\]\}…])/gu, "$1")
               .replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
           });
 
@@ -1578,10 +1578,11 @@ function ReaderPanel({
                 }
 
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
+                const phrasePaddingClass = isTextMode ? "" : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
 
                 elements.push(
-                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-flex items-baseline my-0.5 mx-[0.5px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
-                    {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
+                  <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
+                    {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-95 mr-0">{prefix}</span>}
                     <span
                       role="button"
                       tabIndex={0}
@@ -1603,13 +1604,13 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text text-[length:inherit]`}
+                      className={`${styleClass} ${phrasePaddingClass} ${isTextMode ? "inline" : "inline-block my-0.5"} cursor-pointer select-text text-[length:inherit]`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
                       {phraseDisplay}
                     </span>
-                    {suffix && <span className="select-none pointer-events-none opacity-90">{suffix}</span>}
+                    {suffix && <span className="inline text-inherit select-none pointer-events-none opacity-95 ml-0">{suffix}</span>}
                   </span>
                 );
 
@@ -1726,8 +1727,8 @@ function ReaderPanel({
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-flex items-baseline my-0.5 mx-[0.5px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
-                    {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
+                  <span key={tIdx} className="inline relative" spellCheck={false}>
+                    {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-90 mr-0">{prefix}</span>}
                     <span
                       role="button"
                       tabIndex={0}
@@ -1792,7 +1793,7 @@ function ReaderPanel({
                         </span>
                       )}
                     </span>
-                    {suffix && <span className="select-none pointer-events-none opacity-90">{suffix}</span>}
+                    {suffix && <span className="inline text-inherit select-none pointer-events-none opacity-95 ml-0">{suffix}</span>}
                   </span>
                 );
 
@@ -1885,8 +1886,8 @@ function ReaderPanel({
                 : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
 
               elements.push(
-                <span key={tIdx} className={`${isTextMode ? "inline" : "inline-flex items-baseline my-0.5 mx-[0.5px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
-                  {prefix && <span className="select-none pointer-events-none opacity-90 inline mr-0">{prefix}</span>}
+                <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
+                  {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-95 mr-0">{prefix}</span>}
                   <span
                     role="button"
                     tabIndex={0}
@@ -1942,13 +1943,13 @@ function ReaderPanel({
                       setHoveredWordId(null);
                       setHoveredWordObj(null);
                     }}
-                    className={`${styleClass} ${paddingClass} ${isTextMode ? "inline" : "inline-flex items-center"} cursor-pointer select-text text-[length:inherit] transition-all`}
+                    className={`${styleClass} ${paddingClass} ${isTextMode ? "inline" : "inline-block my-0.5"} cursor-pointer select-text text-[length:inherit] transition-all`}
                     style={{ outline: "none" }}
                     spellCheck={false}
                   >
                     {wordContent}
                   </span>
-                  {suffix && <span className="select-none pointer-events-none opacity-90 inline ml-0">{suffix}</span>}
+                  {suffix && <span className="inline text-inherit select-none pointer-events-none opacity-95 ml-0">{suffix}</span>}
                 </span>
               );
 
