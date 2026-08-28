@@ -2184,6 +2184,13 @@ router.get("/lessons/:id", (req: Request, res: Response) => {
     const db = getDbConnection(userId);
     const lesson = db.prepare("SELECT * FROM lessons WHERE id = ? AND (user_id = ? OR user_id = 'default')").get(id, userId) as any;
     if (!lesson) {
+      const meta = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = ?").get(userId, `audio_progress_${id}`) as { value: string } | undefined;
+      if (meta?.value) {
+        try {
+          const parsed = JSON.parse(meta.value);
+          return res.json({ id, audio_progress: parsed.progress ?? parsed.audioProgress, audioProgress: parsed.progress ?? parsed.audioProgress, ...parsed });
+        } catch (_) {}
+      }
       return res.status(404).json({ error: "Lesson not found" });
     }
     return res.json(lesson);

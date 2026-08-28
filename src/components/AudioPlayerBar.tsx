@@ -262,13 +262,18 @@ export default function AudioPlayerBar({
 
   // Focus & Visibility Re-sync: Sync playback position from remote server when tab gains focus
   useEffect(() => {
+    const missingLessonsCache = (window as any).__missingLessonsCache || ((window as any).__missingLessonsCache = new Set<string>());
     const handleFocusSync = async () => {
       const lessonId = activeLesson?.id;
-      // If audio is currently playing or unmounted - DO NOT touch position
-      if (isPlaying || !lessonId || !audioRef.current) return;
+      // If audio is currently playing, unmounted or known 404 - DO NOT touch position
+      if (isPlaying || !lessonId || !audioRef.current || missingLessonsCache.has(lessonId)) return;
 
       try {
         const res = await fetch(`/api/lessons/${lessonId}`);
+        if (res.status === 404) {
+          missingLessonsCache.add(lessonId);
+          return;
+        }
         if (!res.ok) return;
         const data = await res.json();
         const remoteTime = Number(data?.audio_progress ?? data?.audioProgress);
