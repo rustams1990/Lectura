@@ -575,12 +575,12 @@ export default function ReaderScreen({
       {/* ── Word Card Manager (Strict conditional render: Inspector | Floating | Sheet) ── */}
       {selectedWord && activeLesson && (
         <>
-          {/* 1. Center Inspector Modal: Rendered on mobile/tablets (< lg) and in Focus Mode */}
+          {/* 1. Center Inspector Modal: Rendered on mobile/tablets (< lg) and in Focus Mode without dark overlay or blur */}
           {showCenterModalInspector && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pointer-events-none">
-              {/* Semi-transparent backdrop to ensure readability over video in Focus Mode */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pointer-events-none bg-transparent">
+              {/* Fully transparent invisible backdrop for clicking outside without darkening or blur */}
               <div
-                className="fixed inset-0 bg-black/30 dark:bg-black/50 pointer-events-auto backdrop-blur-[1px] animate-in fade-in duration-150"
+                className="fixed inset-0 bg-transparent pointer-events-auto"
                 onClick={() => setSelectedWord(null)}
                 onTouchEnd={(e) => {
                   e.stopPropagation();
@@ -590,7 +590,7 @@ export default function ReaderScreen({
 
               {/* Centered card */}
               <div
-                className="relative pointer-events-auto bg-white dark:bg-zinc-900 shadow-xl rounded-2xl sm:rounded-3xl border border-zinc-200/80 dark:border-zinc-800 max-w-md w-full max-h-[80vh] overflow-y-auto p-3 sm:p-4 z-10 animate-in zoom-in-95 duration-150"
+                className="relative pointer-events-auto bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full max-h-[85vh] overflow-y-auto p-3 sm:p-4 z-10 animate-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >
@@ -653,10 +653,10 @@ export default function ReaderScreen({
           {/* 3. Docked Bottom Sheet: full-width on mobile (< sm), centered max-w-xl / max-w-2xl on tablets and PC */}
           {wordCardView === "sheet" && (
             <div
-              className="fixed inset-0 z-[70] flex flex-col justify-end items-center bg-black/40 animate-in fade-in duration-200 pointer-events-none"
+              className="fixed inset-0 z-[70] flex flex-col justify-end items-center bg-transparent pointer-events-none"
             >
               <div
-                className="fixed inset-0 pointer-events-auto"
+                className="fixed inset-0 bg-transparent pointer-events-auto"
                 onClick={() => setSelectedWord(null)}
                 onTouchEnd={(e) => {
                   e.stopPropagation();
