@@ -175,6 +175,13 @@ export default function ReaderScreen({
     }
   }, [selectedWord]);
 
+  const handleCloseWord = () => {
+    if (typeof window !== "undefined") {
+      (window as any).__lecturaLastModalClosedAt = Date.now();
+    }
+    setSelectedWord(null);
+  };
+
   // Isolated layout width classes strictly applied inside Reader
   const readerWidthClasses = isBookFocus
     ? ({
@@ -577,10 +584,10 @@ export default function ReaderScreen({
               {/* Fully transparent invisible backdrop for clicking outside without darkening or blur */}
               <div
                 className="fixed inset-0 bg-transparent pointer-events-auto"
-                onClick={() => setSelectedWord(null)}
+                onClick={handleCloseWord}
                 onTouchEnd={(e) => {
                   e.stopPropagation();
-                  setSelectedWord(null);
+                  handleCloseWord();
                 }}
               />
 
@@ -602,7 +609,7 @@ export default function ReaderScreen({
                   onDeleteVocab={handleDeleteVocabItem}
                   onSaveWordLink={handleSaveWordLink}
                   onDeleteWordLink={handleDeleteWordLink}
-                  onClose={() => setSelectedWord(null)}
+                  onClose={handleCloseWord}
                   settings={readerSettings}
                   onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
                   onWordClick={handleWordClick}
@@ -631,7 +638,7 @@ export default function ReaderScreen({
               onDeleteVocab={handleDeleteVocabItem}
               onSaveWordLink={handleSaveWordLink}
               onDeleteWordLink={handleDeleteWordLink}
-              onClose={() => setSelectedWord(null)}
+              onClose={handleCloseWord}
               settings={readerSettings}
               onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
               onWordClick={handleWordClick}
@@ -653,10 +660,10 @@ export default function ReaderScreen({
             >
               <div
                 className="fixed inset-0 bg-transparent pointer-events-auto"
-                onClick={() => setSelectedWord(null)}
+                onClick={handleCloseWord}
                 onTouchEnd={(e) => {
                   e.stopPropagation();
-                  setSelectedWord(null);
+                  handleCloseWord();
                 }}
               />
               <div
@@ -681,7 +688,7 @@ export default function ReaderScreen({
                     onDeleteVocab={handleDeleteVocabItem}
                     onSaveWordLink={handleSaveWordLink}
                     onDeleteWordLink={handleDeleteWordLink}
-                    onClose={() => setSelectedWord(null)}
+                    onClose={handleCloseWord}
                     settings={readerSettings}
                     onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
                     onWordClick={handleWordClick}

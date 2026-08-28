@@ -2140,24 +2140,25 @@ function WordExplainer({
           <button
             type="button"
             onPointerDown={(e) => {
-              e.preventDefault();
               e.stopPropagation();
+              e.preventDefault();
+              if (typeof window !== "undefined") {
+                (window as any).__lecturaLastModalClosedAt = Date.now();
+              }
               onClose();
             }}
             onClick={(e) => {
-              e.preventDefault();
               e.stopPropagation();
-              onClose();
+              e.preventDefault();
             }}
             onTouchEnd={(e) => {
-              e.preventDefault();
               e.stopPropagation();
             }}
             title={t('explainer.close_panel_title', 'Close panel')}
             aria-label="Close"
-            className="relative z-50 p-2.5 touch-none w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0"
+            className="relative z-50 p-1.5 touch-none w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>
