@@ -204,29 +204,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginLocalServer = useCallback(async (username: string, password = ""): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch(resolveServerUrl("/api/auth/login"), {
+      const targetUrl = resolveServerUrl("/api/auth/login");
+      const res = await fetch(targetUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: username, username, password }),
       });
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch (_) {
-        return { success: false, error: `Ошибка сервера (код статуса ${res.status})` };
+
+      let data: any = (res as any).data;
+      if (typeof data === "string") {
+        try { data = JSON.parse(data); } catch (_) {}
       }
-      if (!res.ok || !data.token) {
-        return { success: false, error: data.error || `Ошибка входа (код статуса ${res.status})` };
+      if (!data || typeof data !== "object") {
+        try {
+          const text = await res.text();
+          try {
+            data = JSON.parse(text);
+          } catch (_) {
+            if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+              return {
+                success: false,
+                error: "Сервер вернул HTML вместо ответа API. Проверьте правильность адреса сервера (IP и порт)."
+              };
+            }
+            data = { error: text || `Ошибка сервера (код статуса ${res.status})` };
+          }
+        } catch (_) {
+          try {
+            data = await res.json();
+          } catch (_) {
+            data = {};
+          }
+        }
       }
-      await clearLocalUserDataCache();
-      window.dispatchEvent(new CustomEvent("lectura:user_logout"));
-      setServerToken(data.token);
-      setLocalUser(data.user);
-      upsertSavedAccount(data.token, data.user);
-      safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(data.user));
-      safeLocalStorageSetItem("vocab_clone_server_token", data.token);
-      setStorageMode("server");
-      return { success: true };
+
+      const token = data?.token || data?.accessToken;
+      const user = data?.user || (token ? { id: data?.userId || username, email: username, username } : null);
+
+      if (res.ok && (token || data?.success || data?.user)) {
+        await clearLocalUserDataCache();
+        window.dispatchEvent(new CustomEvent("lectura:user_logout"));
+        if (token) setServerToken(token);
+        if (user) setLocalUser(user);
+        if (token && user) upsertSavedAccount(token, user);
+        if (user) safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(user));
+        if (token) safeLocalStorageSetItem("vocab_clone_server_token", token);
+        setStorageMode("server");
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        error: data?.error || data?.message || `Ошибка входа (код статуса ${res.status})`
+      };
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось подключиться к серверу" };
     }
@@ -234,29 +264,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerLocalServer = useCallback(async (username: string, password = "", passwordHint = "", avatarUrl = ""): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch(resolveServerUrl("/api/auth/register"), {
+      const targetUrl = resolveServerUrl("/api/auth/register");
+      const res = await fetch(targetUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: username, username, password, passwordHint: passwordHint || undefined, avatarUrl: avatarUrl || undefined }),
       });
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch (_) {
-        return { success: false, error: `Ошибка сервера (код статуса ${res.status})` };
+
+      let data: any = (res as any).data;
+      if (typeof data === "string") {
+        try { data = JSON.parse(data); } catch (_) {}
       }
-      if (!res.ok || !data.token) {
-        return { success: false, error: data.error || `Ошибка регистрации (код статуса ${res.status})` };
+      if (!data || typeof data !== "object") {
+        try {
+          const text = await res.text();
+          try {
+            data = JSON.parse(text);
+          } catch (_) {
+            if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+              return {
+                success: false,
+                error: "Сервер вернул HTML вместо ответа API. Проверьте правильность адреса сервера (IP и порт)."
+              };
+            }
+            data = { error: text || `Ошибка сервера (код статуса ${res.status})` };
+          }
+        } catch (_) {
+          try {
+            data = await res.json();
+          } catch (_) {
+            data = {};
+          }
+        }
       }
-      await clearLocalUserDataCache();
-      window.dispatchEvent(new CustomEvent("lectura:user_logout"));
-      setServerToken(data.token);
-      setLocalUser(data.user);
-      upsertSavedAccount(data.token, data.user);
-      safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(data.user));
-      safeLocalStorageSetItem("vocab_clone_server_token", data.token);
-      setStorageMode("server");
-      return { success: true };
+
+      const token = data?.token || data?.accessToken;
+      const user = data?.user || (token ? { id: data?.userId || username, email: username, username } : null);
+
+      if (res.ok && (token || data?.success || data?.user)) {
+        await clearLocalUserDataCache();
+        window.dispatchEvent(new CustomEvent("lectura:user_logout"));
+        if (token) setServerToken(token);
+        if (user) setLocalUser(user);
+        if (token && user) upsertSavedAccount(token, user);
+        if (user) safeLocalStorageSetItem("vocab_clone_local_user", JSON.stringify(user));
+        if (token) safeLocalStorageSetItem("vocab_clone_server_token", token);
+        setStorageMode("server");
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        error: data?.error || data?.message || `Ошибка регистрации (код статуса ${res.status})`
+      };
     } catch (e: any) {
       return { success: false, error: e.message || "Не удалось подключиться к серверу" };
     }

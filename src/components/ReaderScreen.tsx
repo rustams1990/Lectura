@@ -597,10 +597,10 @@ export default function ReaderScreen({
         <>
           {/* 1. Center Inspector Modal: Rendered on mobile/tablets (< lg) and in Focus Mode without dark overlay or blur */}
           {showCenterModalInspector && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pointer-events-none bg-transparent">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pointer-events-none bg-transparent border-0 outline-none shadow-none">
               {/* Fully transparent invisible backdrop for clicking outside without darkening or blur */}
               <div
-                className="fixed inset-0 bg-transparent pointer-events-auto"
+                className="fixed inset-0 bg-transparent pointer-events-auto border-0 outline-none shadow-none"
                 onClick={handleCloseWord}
                 onTouchEnd={(e) => {
                   e.stopPropagation();
@@ -610,7 +610,7 @@ export default function ReaderScreen({
 
               {/* Centered card */}
               <div
-                className="relative pointer-events-auto bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full max-h-[85vh] overflow-y-auto p-3 sm:p-4 z-10 animate-in zoom-in-95 duration-150"
+                className="relative pointer-events-auto bg-white dark:bg-neutral-900 shadow-xl rounded-2xl border border-neutral-200 dark:border-neutral-800 max-w-md w-full max-h-[85vh] overflow-y-auto p-3 sm:p-4 z-10 animate-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >

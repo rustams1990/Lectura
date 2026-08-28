@@ -140,6 +140,11 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
       return t("auth.error_session_expired", "Session expired. Please sign in again.");
     }
 
+    const codeMatch = str.match(/код статуса (\d+)/i) || str.match(/status code (\d+)/i) || str.match(/HTTP (\d+)/i);
+    if (codeMatch) {
+      return t("auth.serverErrorCode", { code: codeMatch[1], defaultValue: `Server error (status code ${codeMatch[1]})` });
+    }
+
     return str;
   };
 
@@ -322,7 +327,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
 
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed">
-                <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
+                <p className="font-bold mb-1">⚠️ {t('auth.errorTitle', t('auth.error', 'Error'))}:</p>
                 <p>{getLocalizedErrorMessage(authError)}</p>
               </div>
             )}
@@ -409,10 +414,10 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                 🔑
               </div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight">
-                {isRegister ? t('auth.title_register', 'Создать профиль') : t('auth.title', 'Вход в профиль')}
+                {isRegister ? t('auth.title_register', 'Создать профиль') : t('auth.signInTitle', t('auth.title', 'Sign In'))}
               </h3>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal px-2">
-                {t('auth.local_description', 'Войдите или создайте аккаунт, чтобы сохранять материалы и синхронизировать прогресс чтения между устройствами.')}
+                {t('auth.signInSubtitle', t('auth.local_description', 'Sign in or create an account to safely save your library and sync reading progress across devices.'))}
               </p>
             </div>
 
@@ -422,14 +427,14 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300 font-bold text-[11px]">
                     <Server className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                    <span>{t('auth.serverSettings.title', 'Lectura Server (LAN / IP):')}</span>
+                    <span>{t('auth.serverLabel', t('auth.serverSettings.title', 'Lectura Server (LAN / IP)'))}:</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowServerConfig(!showServerConfig)}
                     className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 font-bold cursor-pointer"
                   >
-                    {showServerConfig ? t('auth.serverSettings.hide', 'Hide') : t('auth.serverSettings.change', 'Change')}
+                    {showServerConfig ? t('auth.hide', t('auth.serverSettings.hide', 'Hide')) : t('auth.show', t('auth.serverSettings.change', 'Change'))}
                   </button>
                 </div>
 
@@ -440,7 +445,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                         type="text"
                         value={serverUrl}
                         onChange={(e) => handleServerUrlChange(e.target.value)}
-                        placeholder={t('auth.serverSettings.autoDetect', 'Auto-detect (Current Host)')}
+                        placeholder={t('auth.autoDetect', t('auth.serverSettings.autoDetect', 'Auto-detect (Current Host)'))}
                         className="flex-1 text-xs px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 dark:text-zinc-100 font-mono"
                       />
                       <button
@@ -450,7 +455,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                         className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
                       >
                         {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                        <span>{t('auth.serverSettings.test', 'Test')}</span>
+                        <span>{t('auth.test', t('auth.serverSettings.test', 'Test'))}</span>
                       </button>
                     </div>
 
@@ -460,7 +465,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                         onClick={() => handleServerUrlChange('')}
                         className="text-[10px] px-2 py-0.5 rounded-lg bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-sans font-bold hover:bg-teal-100 dark:hover:bg-teal-950 transition cursor-pointer"
                       >
-                        ⚡ {t('auth.serverSettings.autoDetect', 'Auto-detect')}
+                        ⚡ {t('auth.autoDetect', t('auth.serverSettings.autoDetect', 'Auto-detect'))}
                       </button>
                       {typeof window !== 'undefined' && window.location.origin && (
                         <button
@@ -483,7 +488,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                       className="text-[10px] text-teal-600 dark:text-teal-400 font-sans font-bold hover:underline cursor-pointer flex items-center gap-1 shrink-0 ml-2"
                     >
                       {isTestingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                      <span>{t('auth.serverSettings.check', 'Check')}</span>
+                      <span>{t('auth.test', t('auth.serverSettings.check', 'Check'))}</span>
                     </button>
                   </div>
                 )}
@@ -495,7 +500,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                       : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50"
                   }`}>
                     {serverStatus.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                    <span>{serverStatus.message} {serverStatus.version ? `(${serverStatus.version})` : ''}</span>
+                    <span>{serverStatus.ok ? t('auth.connectedSuccess', 'Connected successfully') : serverStatus.message} {serverStatus.version ? `(${serverStatus.version})` : ''}</span>
                   </div>
                 )}
               </div>
@@ -503,7 +508,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
 
             {authError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl text-[11px] text-red-650 dark:text-red-400 leading-relaxed max-h-36 overflow-y-auto">
-                <p className="font-bold mb-1">{t('auth.error', '⚠️ Ошибка:')}</p>
+                <p className="font-bold mb-1">⚠️ {t('auth.errorTitle', t('auth.error', 'Error'))}:</p>
                 <p>{getLocalizedErrorMessage(authError)}</p>
               </div>
             )}
@@ -512,7 +517,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
               <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3 text-left">
                 <div className="flex justify-between items-center">
                   <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                    {isRegister ? t('auth.new_account', 'Новый аккаунт:') : t('auth.account', 'Аккаунт:')}
+                    {isRegister ? t('auth.new_account', 'Новый аккаунт:') : `${t('auth.account', 'ACCOUNT')}:`}
                   </label>
                   <button
                     type="button"
@@ -524,7 +529,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                     }}
                     className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline transition cursor-pointer"
                   >
-                    {isRegister ? t('auth.login', 'Уже есть аккаунт? Войти') : t('auth.register', 'Регистрация')}
+                    {isRegister ? t('auth.signInTitle', t('auth.login', 'Sign In')) : t('auth.register', 'Register')}
                   </button>
                 </div>
 
@@ -614,7 +619,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                     <span>{t('common.processing', 'Обработка...')}</span>
                   </>
                 ) : (
-                  <span>{isRegister ? t('auth.btn_register', 'Создать профиль') : t('auth.btn_login', 'Войти')}</span>
+                  <span>{isRegister ? t('auth.btn_register', 'Create Account') : t('auth.signInButton', t('auth.btn_login', 'Sign In'))}</span>
                 )}
               </button>
             </form>

@@ -43,7 +43,20 @@ export default function FocusPinnedPlayer({
   const { youtubeId } = lesson;
   const { selectedWord } = useVocab();
   const isWordPopupOpen = useUIStore((s) => s.isWordPopupOpen);
-  const isWordModalOpen = Boolean(selectedWord) || isWordPopupOpen;
+  const [isClickBlocked, setIsClickBlocked] = useState(false);
+
+  useEffect(() => {
+    if (selectedWord) {
+      setIsClickBlocked(true);
+    } else {
+      const timer = setTimeout(() => {
+        setIsClickBlocked(false);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedWord]);
+
+  const isWordModalOpen = Boolean(selectedWord) || isClickBlocked || isWordPopupOpen;
   const settings = useSettingsStore((s) => s.settings);
   const setSettings = useSettingsStore((s) => s.setSettings);
 

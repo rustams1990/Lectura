@@ -26,7 +26,20 @@ export default function YoutubePlayerWindow({
   const { youtubeId } = lesson;
   const { selectedWord } = useVocab();
   const isWordPopupOpen = useUIStore((s) => s.isWordPopupOpen);
-  const isWordModalOpen = Boolean(selectedWord) || isWordPopupOpen;
+  const [isClickBlocked, setIsClickBlocked] = useState(false);
+
+  useEffect(() => {
+    if (selectedWord) {
+      setIsClickBlocked(true);
+    } else {
+      const timer = setTimeout(() => {
+        setIsClickBlocked(false);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedWord]);
+
+  const isWordModalOpen = Boolean(selectedWord) || isClickBlocked || isWordPopupOpen;
   const lastTickTimeRef = useRef<number | null>(null);
   if (!youtubeId) return null;
 

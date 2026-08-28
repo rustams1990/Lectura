@@ -20,11 +20,9 @@ export function getServerBaseUrl(): string {
 export async function initMobileServerUrl(): Promise<string> {
   try {
     const { value } = await Preferences.get({ key: PREF_SERVER_URL_KEY });
-    if (value && value.trim().length > 0 && !value.includes('localhost') && !value.includes('192.168.0.83')) {
+    if (value && value.trim().length > 0) {
       const sanitized = sanitizeServerUrl(value.trim());
       setCustomApiUrl(sanitized);
-    } else {
-      await Preferences.remove({ key: PREF_SERVER_URL_KEY }).catch(() => {});
     }
   } catch (err) {
     console.warn('[MobileServerBridge] Failed to load server url from Preferences:', err);

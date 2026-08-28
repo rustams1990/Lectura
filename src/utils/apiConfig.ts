@@ -12,20 +12,9 @@ export const getApiBaseUrl = (): string => {
   // 1. Проверяем пользовательскую настройку из localStorage / SettingsStore (если указан кастомный сервер)
   if (typeof localStorage !== 'undefined') {
     try {
-      // Игнорируем и очищаем устаревший захардкоженный дефолтный IP 192.168.0.83, если он остался в кэше
-      const legacy = localStorage.getItem(LEGACY_MOBILE_SERVER_KEY);
-      if (legacy && (legacy.includes('192.168.0.83') || legacy === 'http://192.168.0.83:8586')) {
-        localStorage.removeItem(LEGACY_MOBILE_SERVER_KEY);
-      }
-
-      const customServerUrl = localStorage.getItem(CUSTOM_SERVER_STORAGE_KEY);
+      const customServerUrl = localStorage.getItem(CUSTOM_SERVER_STORAGE_KEY) || localStorage.getItem(LEGACY_MOBILE_SERVER_KEY);
       if (customServerUrl && customServerUrl.trim() !== '') {
-        const clean = customServerUrl.trim().replace(/\/+$/, '');
-        if (!clean.includes('192.168.0.83')) {
-          return clean;
-        } else {
-          localStorage.removeItem(CUSTOM_SERVER_STORAGE_KEY);
-        }
+        return customServerUrl.trim().replace(/\/+$/, '');
       }
     } catch (_) {}
   }

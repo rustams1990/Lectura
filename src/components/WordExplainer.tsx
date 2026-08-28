@@ -2139,6 +2139,7 @@ function WordExplainer({
         {onClose && (
           <button
             type="button"
+            tabIndex={-1}
             onPointerDown={(e) => {
               e.stopPropagation();
               e.preventDefault();
@@ -2159,7 +2160,7 @@ function WordExplainer({
             }}
             title={t('explainer.close_panel_title', 'Close panel')}
             aria-label="Close modal"
-            className="p-2 touch-none z-50 cursor-pointer relative w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all shrink-0"
+            className="p-2 touch-none z-50 cursor-pointer outline-none focus:outline-none relative w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
