@@ -204,35 +204,37 @@ const getWordStatusClass = (
     return "text-sky-600 dark:text-sky-400 hover:underline underline-offset-2 font-medium cursor-pointer transition-colors";
   }
 
-  // ── Badges / Tiles Mode (Original with colored background pills) ────
-  const baseRounding = isPhrase ? "rounded px-1" : "rounded-md px-1 py-[1.5px]";
+  // ── Badges / Tiles Mode (Compact, neat LingQ style) ────
+  const baseRounding = isPhrase
+    ? "rounded-[3px] px-1 py-0.5 leading-tight"
+    : "rounded-[3px] px-1 py-0.5 leading-tight";
 
   if (status === "ignored" || status === "known") {
-    return `hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 text-inherit cursor-pointer ${baseRounding} transition-colors font-normal`;
+    return `hover:bg-zinc-100/60 dark:hover:bg-zinc-800/50 text-inherit cursor-pointer ${baseRounding} transition-colors font-normal`;
   }
 
   if (status === "1") {
-    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#f3a4b0] dark:border-rose-500/80";
+    const borderClass = hasIdiomUnderline ? "" : "border-b border-[#f3a4b0] dark:border-rose-500/80";
     return `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "2") {
-    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#f0d46d] dark:border-amber-400/80";
+    const borderClass = hasIdiomUnderline ? "" : "border-b border-[#f0d46d] dark:border-amber-400/80";
     return `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "3" || (status as any) === "learning") {
-    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#a6d896] dark:border-emerald-400/80";
+    const borderClass = hasIdiomUnderline ? "" : "border-b border-[#a6d896] dark:border-emerald-400/80";
     return `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 ${baseRounding} font-medium ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "4") {
-    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#204bf4] dark:border-blue-400/80";
+    const borderClass = hasIdiomUnderline ? "" : "border-b border-[#204bf4] dark:border-blue-400/80";
     return `bg-[#99bce8] dark:bg-blue-950/60 hover:bg-[#86b0e3] dark:hover:bg-blue-900/60 text-blue-950 dark:text-blue-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
   if (status === "5") {
-    const borderClass = hasIdiomUnderline ? "" : "border-b-2 border-[#a882dd] dark:border-purple-400/80";
+    const borderClass = hasIdiomUnderline ? "" : "border-b border-[#a882dd] dark:border-purple-400/80";
     return `bg-[#c5aee2] dark:bg-purple-950/60 hover:bg-[#b096d2] dark:hover:bg-purple-900/60 text-purple-950 dark:text-purple-300 ${baseRounding} font-semibold ${borderClass} cursor-pointer transition-colors`;
   }
 
@@ -1543,30 +1545,30 @@ function ReaderPanel({
                   }
                 } else {
                   if (status === "0" || (status as any) === "new") {
-                    styleClass = `bg-[#f8b4be]/45 dark:bg-rose-950/60 hover:bg-[#f8b4be]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#f8b4be]/45 dark:bg-rose-950/60 hover:bg-[#f8b4be]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded-[3px] px-1 py-0.5 leading-tight font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "1") {
-                    styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded-[3px] px-1 py-0.5 leading-tight font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "2") {
-                    styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-950 dark:text-amber-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#f0d46d]/45 dark:bg-amber-950/60 hover:bg-[#f0d46d]/70 dark:hover:bg-amber-900/60 text-amber-950 dark:text-amber-300 rounded-[3px] px-1 py-0.5 leading-tight font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "3" || (status as any) === "learning") {
-                    styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 rounded px-1.5 font-medium ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#a6d896]/45 dark:bg-emerald-950/60 hover:bg-[#a6d896]/70 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 rounded-[3px] px-1 py-0.5 leading-tight font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "4") {
-                    styleClass = `bg-[#99bce8] dark:bg-blue-950/60 hover:bg-[#86b0e3] dark:hover:bg-blue-900/60 text-blue-950 dark:text-blue-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#99bce8] dark:bg-blue-950/60 hover:bg-[#86b0e3] dark:hover:bg-blue-900/60 text-blue-950 dark:text-blue-300 rounded-[3px] px-1 py-0.5 leading-tight font-semibold ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "5") {
-                    styleClass = `bg-[#c5aee2] dark:bg-purple-950/60 hover:bg-[#b096d2] dark:hover:bg-purple-900/60 text-purple-950 dark:text-purple-300 rounded px-1.5 font-semibold ${borderClass} cursor-pointer transition-colors`;
+                    styleClass = `bg-[#c5aee2] dark:bg-purple-950/60 hover:bg-[#b096d2] dark:hover:bg-purple-900/60 text-purple-950 dark:text-purple-300 rounded-[3px] px-1 py-0.5 leading-tight font-semibold ${borderClass} cursor-pointer transition-colors`;
                   }
 
                   if (isPhraseActive) {
-                    styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold scale-103 shadow-md duration-150`;
+                    styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold shadow-sm`;
                   } else if (isPhraseSelected) {
-                    styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 scale-102 duration-150`;
+                    styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 shadow-sm`;
                   }
                 }
 
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
+                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-flex items-baseline my-0.5 mx-[0.5px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
                     {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                     <span
                       role="button"
@@ -1682,7 +1684,7 @@ function ReaderPanel({
                 let isIconStyle = false;
 
                 if (idiomStyle === "badge") {
-                  styleClass = "bg-purple-100/70 border border-purple-200 dark:bg-purple-950/40 dark:border-purple-800 text-purple-950 dark:text-purple-300 font-semibold hover:bg-purple-200/80 dark:hover:bg-purple-900/50 cursor-pointer rounded-lg px-1.5 py-0.5 mx-0.5 transition-all";
+                  styleClass = "bg-purple-100/70 border border-purple-200 dark:bg-purple-950/40 dark:border-purple-800 text-purple-950 dark:text-purple-300 font-semibold hover:bg-purple-200/80 dark:hover:bg-purple-900/50 cursor-pointer rounded-[3px] px-1 py-0.5 mx-[0.5px] transition-all";
                 } else if (idiomStyle === "underline") {
                   styleClass = "border-b-2 border-dotted border-purple-500 dark:border-purple-400 pb-[3px] cursor-pointer rounded px-0.5 transition-all";
                 } else if (idiomStyle === "icon") {
@@ -1704,15 +1706,15 @@ function ReaderPanel({
                 }
 
                 if (isPhraseActive) {
-                  styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold scale-103 shadow-md duration-150`;
+                  styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold shadow-sm`;
                 } else if (isPhraseSelected) {
-                  styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 scale-102 duration-150`;
+                  styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 shadow-sm`;
                 }
 
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
+                  <span key={tIdx} className={`${isTextMode ? "inline" : "inline-flex items-baseline my-0.5 mx-[0.5px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
                     {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                     <span
                       role="button"
@@ -1852,9 +1854,9 @@ function ReaderPanel({
                 }
               } else {
                 if (isWordActive) {
-                  styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold scale-105 shadow-md duration-150`;
+                  styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold shadow-sm`;
                 } else if (isActive) {
-                  styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-zinc-950 scale-103 duration-150`;
+                  styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 shadow-sm`;
                 }
               }
 
@@ -1867,7 +1869,7 @@ function ReaderPanel({
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
               elements.push(
-                <span key={tIdx} className={`${isTextMode ? "inline" : "inline-block my-[3px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
+                <span key={tIdx} className={`${isTextMode ? "inline" : "inline-flex items-baseline my-0.5 mx-[0.5px]"} relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
                   {prefix && <span className="select-none pointer-events-none opacity-90">{prefix}</span>}
                   <span
                     role="button"
@@ -1924,7 +1926,7 @@ function ReaderPanel({
                       setHoveredWordId(null);
                       setHoveredWordObj(null);
                     }}
-                    className={`${styleClass} ${isTextMode ? "inline" : "inline-block"} cursor-pointer select-text text-[length:inherit] transition-opacity`}
+                    className={`${styleClass} ${isTextMode ? "inline" : "inline-flex items-center"} cursor-pointer select-text text-[length:inherit] transition-all`}
                     style={{ outline: "none" }}
                     spellCheck={false}
                   >
