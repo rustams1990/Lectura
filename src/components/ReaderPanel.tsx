@@ -1453,7 +1453,7 @@ function ReaderPanel({
                   elements.push(
                     <span 
                       key={`punct-${tIdx}`} 
-                      className={`text-inherit select-none pointer-events-none opacity-95 inline ml-0 ${hasSpaceAfter ? "" : "mr-1"}`}
+                      className={`text-inherit select-none pointer-events-none opacity-95 inline whitespace-nowrap ml-0 ${hasSpaceAfter ? "" : "mr-1.5"}`}
                     >
                       {tok.raw.trim()}
                     </span>
@@ -1581,7 +1581,7 @@ function ReaderPanel({
                 const phrasePaddingClass = isTextMode ? "" : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
+                  <span key={tIdx} className={`inline whitespace-nowrap relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
                     {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-95 mr-0">{prefix}</span>}
                     <span
                       role="button"
@@ -1727,7 +1727,7 @@ function ReaderPanel({
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className="inline relative" spellCheck={false}>
+                  <span key={tIdx} className="inline whitespace-nowrap relative" spellCheck={false}>
                     {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-90 mr-0">{prefix}</span>}
                     <span
                       role="button"
@@ -1886,7 +1886,7 @@ function ReaderPanel({
                 : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
 
               elements.push(
-                <span key={tIdx} className={`inline relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
+                <span key={tIdx} className={`inline whitespace-nowrap relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
                   {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-95 mr-0">{prefix}</span>}
                   <span
                     role="button"

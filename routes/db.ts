@@ -2205,7 +2205,7 @@ router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
   }
 
   const { id } = req.params;
-  const { progress, audioProgress, clientUpdatedAt, updatedAt } = req.body || {};
+  const { progress, audioProgress, progressPercent, lastSentenceIndex, status, clientUpdatedAt, updatedAt } = req.body || {};
   const incomingProgress = Number(progress !== undefined ? progress : audioProgress) || 0;
   const incomingTime = Number(clientUpdatedAt || updatedAt) || Date.now();
 
@@ -2213,23 +2213,43 @@ router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
 
   try {
     const db = getDbConnection(userId);
-    const current = db.prepare('SELECT audio_progress_updated_at FROM lessons WHERE id = ? AND (user_id = ? OR user_id = "default")').get(id, userId) as { audio_progress_updated_at?: number } | undefined;
+    const current = db.prepare("SELECT audio_progress_updated_at FROM lessons WHERE id = ? AND (user_id = ? OR user_id = 'default')").get(id, userId) as { audio_progress_updated_at?: number } | undefined;
 
-    // Если в базе уже есть более свежая запись — ОТКЛОНЯЕМ старые данные
+    // Если в базе уже есть более свежая запись — отклоняем устаревшие данные
     if (current?.audio_progress_updated_at && current.audio_progress_updated_at > incomingTime) {
       return res.json({ success: false, reason: 'Stale update ignored' });
     }
 
-    db.prepare(`
-      UPDATE lessons 
-      SET audio_progress = ?, audioProgress = ?, audio_progress_updated_at = ? 
-      WHERE id = ? AND (user_id = ? OR user_id = "default")
-    `).run(incomingProgress, incomingProgress, incomingTime, id, userId);
+    try {
+      db.prepare(`
+        UPDATE lessons 
+        SET audio_progress = ?, audio_progress_updated_at = ? 
+        WHERE id = ? AND (user_id = ? OR user_id = 'default')
+      `).run(incomingProgress, incomingTime, id, userId);
+    } catch (_) {
+      // Fallback if lessons table column update encounters an issue
+    }
 
-    return res.json({ success: true, audio_progress: incomingProgress, audioProgress: incomingProgress, audio_progress_updated_at: incomingTime });
+    // Всегда сохраняем прогресс в таблицу metadata (UPSERT)
+    const metaPayload = JSON.stringify({
+      progress: incomingProgress,
+      audioProgress: incomingProgress,
+      progressPercent: typeof progressPercent === "number" ? progressPercent : undefined,
+      lastSentenceIndex: typeof lastSentenceIndex === "number" ? lastSentenceIndex : undefined,
+      status: typeof status === "string" ? status : undefined,
+      updatedAt: incomingTime,
+    });
+    db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, ?)").run(userId, `audio_progress_${id}`, metaPayload);
+
+    return res.json({
+      success: true,
+      audio_progress: incomingProgress,
+      audioProgress: incomingProgress,
+      audio_progress_updated_at: incomingTime
+    });
   } catch (err: any) {
     console.error("[PATCH /api/lessons/:id/progress] Error:", err);
-    return res.status(500).json({ error: "Failed to update audio progress" });
+    return res.status(500).json({ error: "Failed to update audio progress: " + (err.message || String(err)) });
   }
 });
 

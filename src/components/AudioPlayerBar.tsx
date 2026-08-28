@@ -681,12 +681,12 @@ export default function AudioPlayerBar({
       )}
 
       {/* ── Mobile Layout (Ultra-compact < 65px total height) ── */}
-      <div className="flex flex-col lg:hidden space-y-1.5">
+      <div className="flex flex-col lg:hidden space-y-1.5 min-w-0">
         {/* Top line: Truncated Title + Reader Actions + Sentence Loop + Speed Badge */}
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
             <Headphones className={`w-3.5 h-3.5 shrink-0 ${effectiveIsPlaying ? "text-teal-600 dark:text-teal-400 animate-pulse" : "text-zinc-400"}`} />
-            <p className={`text-xs font-medium truncate ${themeStyles.titleText}`} title={activeLesson.title}>
+            <p className={`text-xs font-medium truncate max-w-[180px] sm:max-w-xs md:max-w-md ${themeStyles.titleText}`} title={activeLesson.title}>
               {activeLesson.title || t("reader.audio_player", "Audio Player")}
             </p>
           </div>
@@ -696,7 +696,7 @@ export default function AudioPlayerBar({
             <button
               type="button"
               onClick={() => setIsSentenceLoop(!isSentenceLoop)}
-              className={`p-1 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+              className={`p-1 shrink-0 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
                 isSentenceLoop
                   ? "bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-300 border-teal-300 dark:border-teal-700 shadow-3xs"
                   : "text-zinc-500 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60 hover:bg-black/5 dark:hover:bg-white/5"
@@ -710,7 +710,7 @@ export default function AudioPlayerBar({
             <button
               type="button"
               onClick={handleSpeedToggle}
-              className="px-1.5 py-0.5 text-[10px] font-mono font-bold border border-zinc-200/80 dark:border-zinc-700/80 rounded-md hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-zinc-700 dark:text-zinc-300 transition-colors"
+              className="px-1.5 py-0.5 shrink-0 text-[10px] font-mono font-bold border border-zinc-200/80 dark:border-zinc-700/80 rounded-md hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-zinc-700 dark:text-zinc-300 transition-colors"
               title={t("reader.playback_speed", "Playback speed")}
             >
               {effectivePlaybackRate}x
@@ -777,7 +777,7 @@ export default function AudioPlayerBar({
           <div className={`w-7 h-7 ${themeStyles.badge} flex items-center justify-center shrink-0 ${effectiveIsPlaying ? "animate-pulse" : ""}`}>
             <Headphones className="w-4.5 h-4.5" />
           </div>
-          <div className="min-w-0 max-w-[200px] xl:max-w-[260px]">
+          <div className="min-w-0 max-w-[180px] xl:max-w-[260px] overflow-hidden">
             <p className={`text-xs font-bold truncate ${themeStyles.titleText}`} title={activeLesson.title}>
               {activeLesson.title || t("reader.audio_player", "Audio Player")}
             </p>
