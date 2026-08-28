@@ -1446,13 +1446,27 @@ function ReaderPanel({
                   tIdx++;
                   continue;
                 }
-                const isPunct = /^[.,!?:;…»\)'"”\u2019\u201d\u2026\[\]\(\)\{\}«“]+$/.test(tok.raw.trim());
+                const isPunct = /^[.,!?:;…»\)'"”\u2019\u201d\u2026\[\]\(\)\{\}«“、。！？]+$/.test(tok.raw.trim());
+                if (isPunct) {
+                  const nextTok = tIdx + 1 < tokens.length ? tokens[tIdx + 1] : null;
+                  const hasSpaceAfter = nextTok && /^\s+$/.test(nextTok.raw);
+                  elements.push(
+                    <span 
+                      key={`punct-${tIdx}`} 
+                      className={`text-inherit select-none pointer-events-none opacity-95 inline ml-0 ${hasSpaceAfter ? "" : "mr-1"}`}
+                    >
+                      {tok.raw.trim()}
+                    </span>
+                  );
+                  tIdx++;
+                  continue;
+                }
                 const isEnglish = lesson.targetLanguage.toLowerCase().startsWith("en") || lesson.targetLanguage.toLowerCase() === "english" || lesson.targetLanguage.toLowerCase() === "английский";
                 const isNum = isNumericOrRoman(tok.raw, isEnglish);
                 elements.push(
                   <span 
                     key={`nonword-${tIdx}`} 
-                    className={isPunct || isNum ? "select-none text-inherit pointer-events-none opacity-95 inline" : "select-none opacity-95 inline"}
+                    className={isNum ? "select-none text-inherit pointer-events-none opacity-95 inline" : "select-none opacity-95 inline"}
                   >
                     {tok.raw}
                   </span>

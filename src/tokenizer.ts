@@ -222,13 +222,13 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
 
     // 2. Normalize whitespace around punctuation and preserve contractions
     normalizedText = normalizedText
-      .replace(/[\s\u00A0\u200B]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/g, "$1")
-      .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B]+/g, "$1")
-      .replace(/([\p{L}\p{N}])[\s\u00A0\u200B]+(['’])[\s\u00A0\u200B]*([\p{L}\p{N}])/gu, "$1$2$3")
-      .replace(/([“"«])[\s\u00A0\u200B]+/g, "$1")
-      .replace(/[\s\u00A0\u200B]+([”"»])/g, "$1");
+      .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/gu, "$1")
+      .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
+      .replace(/([\p{L}\p{N}])[\s\u00A0\u200B\u202F\uFEFF]+(['’])[\s\u00A0\u200B\u202F\uFEFF]*([\p{L}\p{N}])/gu, "$1$2$3")
+      .replace(/([“"«])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
+      .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([”"»])/gu, "$1");
 
-    normalizedText = normalizedText.replace(/\s+([.,!?:;’”"»\)\]\}])/g, "$1");
+    normalizedText = normalizedText.replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;’”"»\)\]\}…])/gu, "$1");
     normalizedText = normalizedText.replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
 
     const parts = normalizedText.split(/(\s+)/);

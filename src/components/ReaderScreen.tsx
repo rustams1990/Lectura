@@ -179,7 +179,9 @@ export default function ReaderScreen({
             <>
               {/* Reader inline toolbar (visible only on PC / Desktop >= lg and when not in Immersive Book Mode) */}
               {!isImmersiveBook && (
-                <div className="hidden lg:flex items-center gap-1.5 sm:gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
+                <div className="hidden lg:flex items-center justify-between gap-2 flex-wrap py-2 border-b border-zinc-200/40 dark:border-zinc-800/40 animate-in fade-in duration-200 w-full relative z-30">
+                  {/* Left items group */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {/* 1. Library (Always visible) */}
                     <button
                       onClick={() => {
@@ -347,7 +349,10 @@ export default function ReaderScreen({
                         <span>{t('reader.timestamps_btn', 'Timestamps')}</span>
                       </button>
                     )}
+                  </div>
 
+                  {/* Right items group (Display Mode, Width, Text Settings AA) */}
+                  <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                     {/* 9. Переключатель Badges / Book */}
                     {toolbarVisibility.showDisplayMode !== false && (
                       <div className="flex items-center gap-0.5 bg-stone-100/50 dark:bg-zinc-900/55 p-0.5 h-8 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60 font-sans shrink-0">
@@ -380,7 +385,7 @@ export default function ReaderScreen({
                       </div>
                     )}
 
-                    {/* 9. Переключатель STANDARD / WIDE / FULL */}
+                    {/* 10. Переключатель STANDARD / WIDE / FULL */}
                     {toolbarVisibility.showWidthToggle !== false && (
                       <div className="flex items-center gap-2.5 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-[11px] font-bold shadow-xs shrink-0">
                         <button
@@ -419,14 +424,15 @@ export default function ReaderScreen({
                       </div>
                     )}
 
-                    {/* 10. Text Settings (AA) (Always visible) */}
+                    {/* 11. Text Settings (AA) (Always visible) */}
                     <TextSettingsControls
                       settings={readerSettings}
                       onUpdateSettings={setReaderSettings}
                       lessonType={activeLesson?.lessonType}
                     />
                   </div>
-                )}
+                </div>
+              )}
 
               {/* Interactive Audio Player */}
               {(activeLesson.audioUrl || activeLesson.audioBase64) && (

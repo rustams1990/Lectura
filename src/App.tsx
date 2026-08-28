@@ -868,6 +868,16 @@ export default function App() {
           parsed.ttsEngine = "google";
           parsed.ttsEngine_v2 = true;
         }
+        if (!parsed.toolbarVisibility_v3) {
+          parsed.toolbarVisibility = {
+            ...DEFAULT_TOOLBAR_VISIBILITY,
+            ...(parsed.toolbarVisibility || {}),
+            showTranslation: false,
+            showPlayPairs: false,
+            showAiHub: false,
+          };
+          parsed.toolbarVisibility_v3 = true;
+        }
         return { ...defaults, ...parsed };
       }
     } catch (e) {
