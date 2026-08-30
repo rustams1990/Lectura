@@ -526,6 +526,7 @@ interface WordExplainerProps {
   textLemmas?: Record<string, string>;
   currentLessonId?: string;
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
+  className?: string;
 }
 
 const normalizeTranslationSemicolons = (text: string): string => {
@@ -559,6 +560,7 @@ function WordExplainer({
   textLemmas,
   currentLessonId,
   onOpenLesson,
+  className,
 }: WordExplainerProps) {
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
@@ -1951,7 +1953,7 @@ function WordExplainer({
 
 
   return (
-    <div className={`${themeClasses} rounded-2xl border shadow-md p-3.5 space-y-2.5 flex flex-col h-full transition-all duration-200 max-w-full overflow-hidden select-none`}>
+    <div className={`${themeClasses} rounded-2xl border shadow-xl p-3.5 space-y-2.5 flex flex-col h-auto max-h-[85vh] lg:max-h-none transition-all duration-200 max-w-full overflow-hidden select-none ${className || ""}`}>
       
       {/* Top Header Row with Word, close and speech synthesis */}
       <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-zinc-100 dark:border-zinc-800 shrink-0">

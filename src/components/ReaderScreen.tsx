@@ -611,7 +611,7 @@ export default function ReaderScreen({
 
               {/* Centered card */}
               <div
-                className="relative pointer-events-auto bg-white dark:bg-neutral-900 shadow-xl rounded-2xl border border-neutral-200 dark:border-neutral-800 max-w-md w-full max-h-[85vh] overflow-y-auto p-3 sm:p-4 z-10 animate-in zoom-in-95 duration-150"
+                className="relative pointer-events-auto max-w-md w-full z-10 animate-in zoom-in-95 duration-150 flex flex-col"
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >
