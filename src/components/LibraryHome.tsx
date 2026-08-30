@@ -1357,7 +1357,8 @@ function LibraryHome({
               const readTime = getReadingTime(lesson.text || "");
               const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
               const youtubeDurationVal = isYoutube ? (lesson.youtubeDuration || getYoutubeDurationFromText(lesson.text || "")) : null;
-              const effectiveAudioDuration = lesson.audioDuration || getMaxTimestampInText(lesson.text);
+              const hasAudio = Boolean(lesson.audioUrl || lesson.audioBase64 || lesson.lessonType === "audio" || lesson.lessonType === "podcast");
+              const effectiveAudioDuration = lesson.audioDuration || (hasAudio ? getMaxTimestampInText(lesson.text) : null);
               const bookStats = computedStatsMap.get(lesson.id) || getCachedBookStats(lesson, vocab, wordLinks);
 
               return (

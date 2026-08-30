@@ -100,15 +100,48 @@ export const BookCard: React.FC<BookCardProps> = memo(({
 
   const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
   const hasAudio = !!(lesson.audioUrl || lesson.audioBase64);
-  const isMedia = isYoutube || hasAudio || lesson.lessonType === "podcast" || lesson.lessonType === "audio" || lesson.lessonType === "video";
-  const isBook = (lesson.lessonType === "book" || (!lesson.lessonType && !isMedia)) && !isMedia;
-  const lType = lesson.lessonType || (hasAudio ? "podcast" : "book");
+  const isVideo = isYoutube || lesson.lessonType === "video" || (lesson as any).sourceType === "video" || (lesson as any).sourceType === "youtube";
+  const isAudioMedia = !isVideo && (hasAudio || lesson.lessonType === "podcast" || lesson.lessonType === "audio" || (lesson as any).sourceType === "podcast" || (lesson as any).sourceType === "audio");
+  const isMedia = isVideo || isAudioMedia;
+  const isBook = !isMedia && (lesson.lessonType === "book" || !lesson.lessonType);
+  const lType = lesson.lessonType || (isVideo ? "youtube" : hasAudio ? "podcast" : "book");
   const typeInfo = lessonTypes.find((t) => t.id === lType);
   const catLabel = getCategoryDisplayName(typeInfo?.id || lType, typeInfo?.name, t);
-  const IconComponent = getCategoryIcon(typeInfo?.icon || (hasAudio ? "podcast" : "book"), catLabel);
+  const IconComponent = getCategoryIcon(typeInfo?.icon || (isVideo ? "youtube" : hasAudio ? "podcast" : "book"), catLabel);
 
   const isTitleBelowCover = (settings?.cardTitlePosition || "below_cover") === "below_cover";
-  const displayDurationSec = youtubeDurationVal || effectiveAudioDuration || null;
+
+  // Media durations
+  const videoDuration = isVideo ? (youtubeDurationVal || (lesson as any).duration || (lesson as any).youtubeDuration || null) : null;
+  const audioDuration = isAudioMedia ? (effectiveAudioDuration || (lesson as any).audioDuration || null) : null;
+
+  // Video progress (playback percentage)
+  const videoProgress = (() => {
+    if (!isVideo) return 0;
+    if (typeof (lesson as any).videoProgress === "number" && (lesson as any).videoProgress > 0) {
+      return (lesson as any).videoProgress;
+    }
+    if (typeof (lesson as any).videoProgress === "string" && parseFloat((lesson as any).videoProgress) > 0) {
+      return parseFloat((lesson as any).videoProgress);
+    }
+    const stored = typeof localStorage !== "undefined" ? localStorage.getItem(`youtube_progress_${lesson.id}`) : null;
+    if (stored) {
+      const val = parseFloat(stored);
+      return isNaN(val) ? 0 : val;
+    }
+    return 0;
+  })();
+
+  const formatEstimatedReadTime = (words: number): string => {
+    if (!words || words <= 0) return "";
+    const totalMinutes = Math.max(1, Math.round(words / 160));
+    const isRu = i18n.language?.startsWith("ru");
+    if (totalMinutes < 60) {
+      return `~${totalMinutes} ${isRu ? "мин" : "min"}`;
+    }
+    const hours = (totalMinutes / 60).toFixed(1).replace(/\.0$/, "");
+    return `~${hours} ${isRu ? "ч" : "h"}`;
+  };
 
   return (
     <div
@@ -297,9 +330,18 @@ export const BookCard: React.FC<BookCardProps> = memo(({
         {/* Bottom Banner Area: Duration Badge (below_cover mode) or Title (on_cover mode) */}
         {isTitleBelowCover ? (
           <div className="z-10 mt-auto flex items-center justify-end">
-            {displayDurationSec ? (
-              <span className="px-2 py-0.5 bg-black/80 backdrop-blur-xs text-white text-[10px] font-mono font-bold rounded-md shadow-xs border border-white/10">
-                {formatDuration(displayDurationSec)}
+            {isVideo && videoDuration ? (
+              <span className="px-1.5 py-0.5 bg-black/80 backdrop-blur-xs text-white text-[10px] font-mono font-bold rounded-md shadow-xs border border-white/10">
+                {formatDuration(videoDuration)}
+              </span>
+            ) : isAudioMedia && audioDuration ? (
+              <span className="px-1.5 py-0.5 bg-black/80 backdrop-blur-xs text-white text-[10px] font-mono font-bold rounded-md shadow-xs border border-white/10">
+                🎧 {formatDuration(audioDuration)}
+              </span>
+            ) : isBook && wordCount > 0 ? (
+              <span className="px-1.5 py-0.5 bg-black/80 backdrop-blur-xs text-zinc-200 text-[10px] font-medium rounded-md shadow-xs border border-white/10 flex items-center gap-1">
+                <span>⏱️</span>
+                <span>{formatEstimatedReadTime(wordCount)}</span>
               </span>
             ) : null}
           </div>
@@ -309,6 +351,16 @@ export const BookCard: React.FC<BookCardProps> = memo(({
             <h3 className="text-sm font-black line-clamp-3 tracking-tight leading-snug drop-shadow-md group-hover:text-teal-300 transition-colors">
               {lesson.title}
             </h3>
+          </div>
+        )}
+
+        {/* YouTube / Video Red Progress Bar (only for video materials) */}
+        {isVideo && videoDuration && videoDuration > 0 && videoProgress > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700/80 z-10 overflow-hidden pointer-events-none">
+            <div 
+              className="h-full bg-red-600 transition-all" 
+              style={{ width: `${Math.min(100, (videoProgress / videoDuration) * 100)}%` }} 
+            />
           </div>
         )}
       </div>
@@ -470,17 +522,17 @@ export const BookCard: React.FC<BookCardProps> = memo(({
             <span className="flex items-center gap-1">
               📚 {wordCount} {t("library.words", "words")}
             </span>
-            {isYoutube && youtubeDurationVal ? (
+            {isVideo && videoDuration ? (
               <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.yt_duration", "YouTube Video Duration")}>
-                ⏱️ {formatDuration(youtubeDurationVal)}
+                ⏱️ {formatDuration(videoDuration)}
               </span>
-            ) : effectiveAudioDuration ? (
+            ) : isAudioMedia && audioDuration ? (
               <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.audio_duration", "Audio Duration")}>
-                ⏱️ {formatDuration(effectiveAudioDuration)}
+                🎧 {formatDuration(audioDuration)}
               </span>
             ) : (
               <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400" title={t("library.read_time", "Estimated Read Time")}>
-                ⏱️ ~{readTime} {t("library.min", "min")}
+                ⏱️ {formatEstimatedReadTime(wordCount)}
               </span>
             )}
           </div>
