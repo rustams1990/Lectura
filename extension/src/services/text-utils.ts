@@ -32,8 +32,8 @@ export function cleanWordForLookup(raw: string): string {
   let clean = raw.trim();
   // Strip leading and trailing punctuation, quotes, brackets, dashes, symbols
   clean = clean.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, '');
-  // Strip leading or trailing apostrophes/quotes
-  clean = clean.replace(/^['’"`“«»]+|['’"`”«»]+$/gu, '');
+  // Strip leading or trailing apostrophes/quotes: " ' “ ” ‘ ’ « » „ ‟ ‹ ›
+  clean = clean.replace(/^['’"`“«»„‟‹›]+|['’"`”«»„‟‹›]+$/gu, '');
   return clean.toLowerCase();
 }
 

@@ -30285,7 +30285,7 @@
     if (!raw) return "";
     let clean2 = raw.trim();
     clean2 = clean2.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "");
-    clean2 = clean2.replace(/^['’"`“«»]+|['’"`”«»]+$/gu, "");
+    clean2 = clean2.replace(/^['’"`“«»„‟‹›]+|['’"`”«»„‟‹›]+$/gu, "");
     return clean2.toLowerCase();
   }
   function isNumericOrSymbolToken(str) {
@@ -33605,10 +33605,6 @@
       }
       return filtered.slice(0, 4);
     }
-    /**
-     * Tokenizes subtitle text with natural punctuation formatting and Lectura status highlights.
-     * Renders into .lectura-sub-box with .lectura-sub-line lines and .lectura-word-token tokens.
-     */
     renderSubtitleTokens(text) {
       if (!this.subtitleBox) return;
       const cleanedText = removeInternalRepeats(text);
@@ -33622,8 +33618,19 @@
       const boxEl = document.createElement("div");
       boxEl.className = "lectura-sub-box";
       let tokenIndexCounter = 0;
-      const renderWordToken = (token, parentEl, isLastInLine) => {
-        const match2 = token.match(/^([\p{P}\s¿¡«"'(]*)([\p{L}\p{N}'-]+)([\p{P}\s?!.,:;"»')]*)$/u) || token.match(/^([^a-zA-ZÀ-ÿ0-9_'-]*)([a-zA-ZÀ-ÿ0-9_'-]+)([^a-zA-ZÀ-ÿ0-9_'-]*)$/);
+      const renderSingleSubWordToken = (tokPart, parentEl) => {
+        const isPurePunct = /^[^\p{L}\p{N}\s]+$/u.test(tokPart);
+        if (isPurePunct) {
+          if (parentEl.lastChild && parentEl.lastChild.nodeType === Node.TEXT_NODE && parentEl.lastChild.textContent === " ") {
+            parentEl.removeChild(parentEl.lastChild);
+          }
+          const punctSpan = document.createElement("span");
+          punctSpan.className = "punct";
+          punctSpan.textContent = tokPart;
+          parentEl.appendChild(punctSpan);
+          return;
+        }
+        const match2 = tokPart.match(/^([\p{P}\s¿¡«"'(]*)([\p{L}\p{N}'-]+)([\p{P}\s?!.,:;"»')]*)$/u) || tokPart.match(/^([^a-zA-ZÀ-ÿ0-9_'-]*)([a-zA-ZÀ-ÿ0-9_'-]+)([^a-zA-ZÀ-ÿ0-9_'-]*)$/);
         if (match2) {
           const leadingPunct = match2[1];
           const coreWord = match2[2];
@@ -33702,18 +33709,13 @@
             parentEl.appendChild(trailSpan);
           }
         } else {
-          const isPurePunct = /^[^a-zA-ZÀ-ÿ0-9_'-]+$/.test(token);
-          if (isPurePunct) {
-            if (parentEl.lastChild && parentEl.lastChild.nodeType === Node.TEXT_NODE && parentEl.lastChild.textContent === " ") {
-              parentEl.removeChild(parentEl.lastChild);
-            }
-            const punctSpan = document.createElement("span");
-            punctSpan.className = "punct";
-            punctSpan.textContent = token;
-            parentEl.appendChild(punctSpan);
-          } else {
-            parentEl.appendChild(document.createTextNode(token));
-          }
+          parentEl.appendChild(document.createTextNode(tokPart));
+        }
+      };
+      const renderWordToken = (token, parentEl, isLastInLine) => {
+        const subTokens = token.match(/([\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\p{L}\p{N}\s]+)/gu) || [token];
+        for (const sub of subTokens) {
+          renderSingleSubWordToken(sub, parentEl);
         }
         if (!isLastInLine) {
           parentEl.appendChild(document.createTextNode(" "));

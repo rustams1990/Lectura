@@ -162,10 +162,12 @@ export function cleanWordForLookup(raw: string): string {
   let clean = raw.trim();
   // Strip leading and trailing punctuation, quotes, brackets, dashes
   clean = clean.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "");
-  // Strip leading or trailing apostrophes/quotes
-  clean = clean.replace(/^['’"`“«»]+|['’"`”«»]+$/gu, "");
+  // Strip leading or trailing apostrophes/quotes: " ' “ ” ‘ ’ « » „ ‟ ‹ ›
+  clean = clean.replace(/^['’"`“«»„‟‹›]+|['’"`”«»„‟‹›]+$/gu, "");
   return clean.toLowerCase();
 }
+
+export const TOKEN_REGEX = /([\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\p{L}\p{N}\s]+|\s+)/gu;
 
 export function segmentSentenceTokens(sentText: string, langName: string = ""): Token[] {
   const isCjk = isCjkLanguage(langName) || isCjkText(sentText);
@@ -214,26 +216,12 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
   } else {
     const isEnglish = langName.toLowerCase().startsWith("en") || langName.toLowerCase() === "english" || langName.toLowerCase() === "английский";
 
-    // 1. Separate fused punctuation and quotes/words without space (e.g. wrong,“both -> wrong, “both)
-    let normalizedText = sentText
-      .replace(/([,.:;!?])(["“«])/g, "$1 $2")
-      .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
-      .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2");
-
-    // 2. Normalize whitespace around punctuation and preserve contractions
-    normalizedText = normalizedText
-      .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/gu, "$1")
-      .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
-      .replace(/([\p{L}\p{N}])[\s\u00A0\u200B\u202F\uFEFF]+(['’])[\s\u00A0\u200B\u202F\uFEFF]*([\p{L}\p{N}])/gu, "$1$2$3")
-      .replace(/([“"«])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
-      .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([”"»])/gu, "$1");
-
-    normalizedText = normalizedText.replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;’”"»\)\]\}…])/gu, "$1");
-    normalizedText = normalizedText.replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
-
-    const parts = normalizedText.split(/(\s+)/);
+    const parts = sentText.match(TOKEN_REGEX) || [];
     return parts.map((part) => {
       if (/^\s+$/.test(part)) {
+        return { raw: part, clean: "", isWord: false };
+      }
+      if (/^[^\p{L}\p{N}\s]+$/u.test(part)) {
         return { raw: part, clean: "", isWord: false };
       }
       const clean = cleanWordForLookup(part);

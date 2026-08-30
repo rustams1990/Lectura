@@ -30109,7 +30109,7 @@
     if (!raw) return "";
     let clean2 = raw.trim();
     clean2 = clean2.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "");
-    clean2 = clean2.replace(/^['’"`“«»]+|['’"`”«»]+$/gu, "");
+    clean2 = clean2.replace(/^['’"`“«»„‟‹›]+|['’"`”«»„‟‹›]+$/gu, "");
     return clean2.toLowerCase();
   }
   function isNumericOrSymbolToken(str) {

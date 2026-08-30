@@ -586,24 +586,9 @@ function ReaderPanel({
     let globalIdx = 0;
 
     activeSegmentsForPage.forEach((seg, segIdx) => {
-      const rawSentences = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
+      const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
         ? splitIntoSentences(seg.text, isCjk)
         : [seg.text];
-
-      const sentenceStrings = rawSentences.map((str) => {
-        if (isCjk) return str;
-        return str
-          .replace(/([,.:;!?])(["“«])/g, "$1 $2")
-          .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
-          .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2")
-          .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/gu, "$1")
-          .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
-          .replace(/([\p{L}\p{N}])[\s\u00A0\u200B\u202F\uFEFF]+(['’])[\s\u00A0\u200B\u202F\uFEFF]*([\p{L}\p{N}])/gu, "$1$2$3")
-          .replace(/([“"«])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
-          .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([”"»])/gu, "$1")
-          .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;’”"»\)\]\}…])/gu, "$1")
-          .replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
-      });
 
       sentenceStrings.forEach((sentText, sIdx) => {
         const tokens = segmentSentenceTokens(sentText, lesson.targetLanguage);
@@ -1237,24 +1222,9 @@ function ReaderPanel({
           const isSegmentActive = globalSegmentIdx === activeSegmentIndex && activeSegmentIndex >= 0;
 
           // Check if we should split by sentence with synchronous normalization
-          const rawSentences = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
+          const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
             ? splitIntoSentences(seg.text, isCjk)
             : [seg.text];
-
-          const sentenceStrings = rawSentences.map((str) => {
-            if (isCjk) return str;
-            return str
-              .replace(/([,.:;!?])(["“«])/g, "$1 $2")
-              .replace(/([”"»])([\p{L}\p{N}«“])/gu, "$1 $2")
-              .replace(/([.,!?:;…»”\)])([\p{L}\p{N}«“])/gu, "$1 $2")
-              .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+)/gu, "$1")
-              .replace(/([«\(\[\{“\u2018\u201c])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
-              .replace(/([\p{L}\p{N}])[\s\u00A0\u200B\u202F\uFEFF]+(['’])[\s\u00A0\u200B\u202F\uFEFF]*([\p{L}\p{N}])/gu, "$1$2$3")
-              .replace(/([“"«])[\s\u00A0\u200B\u202F\uFEFF]+/gu, "$1")
-              .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([”"»])/gu, "$1")
-              .replace(/[\s\u00A0\u200B\u202F\uFEFF]+([.,!?:;’”"»\)\]\}…])/gu, "$1")
-              .replace(/([.,!?:;…])(?=[\p{L}\p{N}«“])/gu, "$1 ");
-          });
 
           // Precalculate total words in this segment for word-by-word highlight
           const segmentWordCount = (() => {
@@ -1445,19 +1415,24 @@ function ReaderPanel({
               const tok = tokens[tIdx];
 
               if (!tok.isWord) {
-                // If this token is whitespace and next token is punctuation, skip whitespace so punctuation glues to previous word
-                if (/^\s+$/.test(tok.raw) && tIdx + 1 < tokens.length && !tokens[tIdx + 1].isWord && /^[.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+$/.test(tokens[tIdx + 1].raw.trim())) {
-                  tIdx++;
-                  continue;
+                // If this token is whitespace and next token is closing punctuation, skip whitespace so punctuation glues to previous word
+                if (/^\s+$/.test(tok.raw) && tIdx + 1 < tokens.length && !tokens[tIdx + 1].isWord) {
+                  const nextRaw = tokens[tIdx + 1].raw.trim();
+                  const isClosingPunct = /^[.,!?:;…»\)'"”\u2019\u201d\u2026\]\}]+$/.test(nextRaw) && !/^[“«„‘(\[{<]+$/.test(nextRaw);
+                  if (isClosingPunct) {
+                    tIdx++;
+                    continue;
+                  }
                 }
-                const isPunct = /^[.,!?:;…»\)'"”\u2019\u201d\u2026\[\]\(\)\{\}«“、。！？]+$/.test(tok.raw.trim());
+                const isPunct = /^[^\p{L}\p{N}\s]+$/u.test(tok.raw.trim());
                 if (isPunct) {
                   const nextTok = tIdx + 1 < tokens.length ? tokens[tIdx + 1] : null;
                   const hasSpaceAfter = nextTok && /^\s+$/.test(nextTok.raw);
+                  const isOpeningQuoteOrBracket = /[“«„‘(\[{<"']$/.test(tok.raw.trim());
                   elements.push(
                     <span 
                       key={`punct-${tIdx}`} 
-                      className={`text-inherit select-none pointer-events-none opacity-95 inline whitespace-nowrap ml-0 ${hasSpaceAfter ? "" : "mr-1.5"}`}
+                      className={`text-inherit select-none pointer-events-none opacity-95 inline whitespace-nowrap ml-0 ${hasSpaceAfter || isOpeningQuoteOrBracket ? "" : "mr-1.5"}`}
                     >
                       {tok.raw.trim()}
                     </span>

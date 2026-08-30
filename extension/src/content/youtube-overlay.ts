@@ -3358,22 +3358,18 @@ class YouTubeLecturaOverlay {
     const cachedLinks = this.cachedWordLinksByLang[langCode] || {};
     const suggestions: string[] = [];
 
-    // 1. Check existing word links
     if (cachedLinks[lower]) {
       suggestions.push(cachedLinks[lower]);
     }
 
-    // 2. English morphological dictionary
     if (langCode === 'en' && YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]) {
       suggestions.push(YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]);
     }
 
-    // 3. Spanish morphological dictionary
     if (langCode === 'es' && YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower]) {
       suggestions.push(YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower]);
     }
 
-    // Filter unique and NOT identical to word itself
     const seen = new Set<string>();
     const filtered: string[] = [];
     for (const s of suggestions) {
@@ -3386,10 +3382,6 @@ class YouTubeLecturaOverlay {
     return filtered.slice(0, 4);
   }
 
-  /**
-   * Tokenizes subtitle text with natural punctuation formatting and Lectura status highlights.
-   * Renders into .lectura-sub-box with .lectura-sub-line lines and .lectura-word-token tokens.
-   */
   private renderSubtitleTokens(text: string) {
     if (!this.subtitleBox) return;
 
@@ -3408,10 +3400,21 @@ class YouTubeLecturaOverlay {
 
     let tokenIndexCounter = 0;
 
-    const renderWordToken = (token: string, parentEl: HTMLElement, isLastInLine: boolean) => {
-      // Extract core word and attached leading/trailing punctuation (strictly preserving all unicode diacritics and letters)
-      const match = token.match(/^([\p{P}\s¿¡«"'(]*)([\p{L}\p{N}'-]+)([\p{P}\s?!.,:;"»')]*)$/u) ||
-        token.match(/^([^a-zA-ZÀ-ÿ0-9_'-]*)([a-zA-ZÀ-ÿ0-9_'-]+)([^a-zA-ZÀ-ÿ0-9_'-]*)$/);
+    const renderSingleSubWordToken = (tokPart: string, parentEl: HTMLElement) => {
+      const isPurePunct = /^[^\p{L}\p{N}\s]+$/u.test(tokPart);
+      if (isPurePunct) {
+        if (parentEl.lastChild && parentEl.lastChild.nodeType === Node.TEXT_NODE && parentEl.lastChild.textContent === ' ') {
+          parentEl.removeChild(parentEl.lastChild);
+        }
+        const punctSpan = document.createElement('span');
+        punctSpan.className = 'punct';
+        punctSpan.textContent = tokPart;
+        parentEl.appendChild(punctSpan);
+        return;
+      }
+
+      const match = tokPart.match(/^([\p{P}\s¿¡«"'(]*)([\p{L}\p{N}'-]+)([\p{P}\s?!.,:;"»')]*)$/u) ||
+        tokPart.match(/^([^a-zA-ZÀ-ÿ0-9_'-]*)([a-zA-ZÀ-ÿ0-9_'-]+)([^a-zA-ZÀ-ÿ0-9_'-]*)$/);
 
       if (match) {
         const leadingPunct = match[1];
@@ -3427,7 +3430,6 @@ class YouTubeLecturaOverlay {
 
         const isEnglish = this.getEffectiveLang().toLowerCase().startsWith('en');
         if (!isWordToken(coreWord, isEnglish)) {
-          // Render numbers, currencies, timestamps, etc. as neutral static text without status highlight or hover tooltip
           const staticSpan = document.createElement('span');
           staticSpan.className = 'lectura-sub-static';
           staticSpan.textContent = coreWord;
@@ -3448,11 +3450,9 @@ class YouTubeLecturaOverlay {
         span.dataset.word = coreWord.toLowerCase();
         span.dataset.tokenIndex = String(tokenIndexCounter++);
 
-        // Apply Lectura vocabulary status highlight
         const wordInfo = this.lookupWordInfo(coreWord);
         span.classList.add(`status-${wordInfo.status}`);
 
-        // Hover & click listeners: instant hover response
         span.addEventListener('mouseenter', () => {
           this.showHoverTooltip(span, coreWord);
         });
@@ -3461,7 +3461,6 @@ class YouTubeLecturaOverlay {
           this.hideHoverTooltip();
         });
 
-        // Click listener: supports single word and Shift+Click phrase selection
         span.addEventListener('click', (e) => {
           if (this.hoverTimeoutId) {
             window.clearTimeout(this.hoverTimeoutId);
@@ -3477,7 +3476,6 @@ class YouTubeLecturaOverlay {
           const clickedIdx = parseInt(span.dataset.tokenIndex || '0', 10);
 
           if ((e.shiftKey || this.isShiftDown) && this.startTokenIndex !== null && allTokens.length > 0) {
-            // Multi-word phrase selection range
             const minIdx = Math.min(this.startTokenIndex, clickedIdx);
             const maxIdx = Math.max(this.startTokenIndex, clickedIdx);
 
@@ -3493,7 +3491,6 @@ class YouTubeLecturaOverlay {
             this.isPhraseSelecting = true;
             this.showWordCard(phraseText, text, this.selectedTokens[0]);
           } else {
-            // Single word selection
             allTokens.forEach((t) => t.classList.remove('lectura-token--selected'));
             span.classList.add('lectura-token--selected');
             this.selectedTokens = [span];
@@ -3512,19 +3509,15 @@ class YouTubeLecturaOverlay {
           parentEl.appendChild(trailSpan);
         }
       } else {
-        // Pure punctuation token (e.g. "?", "!", "...", ",")
-        const isPurePunct = /^[^a-zA-ZÀ-ÿ0-9_'-]+$/.test(token);
-        if (isPurePunct) {
-          if (parentEl.lastChild && parentEl.lastChild.nodeType === Node.TEXT_NODE && parentEl.lastChild.textContent === ' ') {
-            parentEl.removeChild(parentEl.lastChild);
-          }
-          const punctSpan = document.createElement('span');
-          punctSpan.className = 'punct';
-          punctSpan.textContent = token;
-          parentEl.appendChild(punctSpan);
-        } else {
-          parentEl.appendChild(document.createTextNode(token));
-        }
+        parentEl.appendChild(document.createTextNode(tokPart));
+      }
+    };
+
+    const renderWordToken = (token: string, parentEl: HTMLElement, isLastInLine: boolean) => {
+      // Split fused words and punctuation without spaces (e.g. Decir,"No, dije,“Momento, correctamente.”Y)
+      const subTokens = token.match(/([\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\p{L}\p{N}\s]+)/gu) || [token];
+      for (const sub of subTokens) {
+        renderSingleSubWordToken(sub, parentEl);
       }
 
       // Single space between words
