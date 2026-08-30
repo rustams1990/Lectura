@@ -28,7 +28,6 @@ import ImportLessonForm from "./components/ImportLessonForm";
 import PlaylistDetailView from "./components/playlist/PlaylistDetailView";
 import VocabularyPractice from "./components/practice/VocabularyPractice";
 import MatchPairsModal from "./components/MatchPairsModal";
-import TextSettingsControls from "./components/TextSettingsControls";
 import LibraryHome from "./components/LibraryHome";
 import StatisticsPage from "./components/StatisticsPage";
 import HistoryPage from "./components/HistoryPage";

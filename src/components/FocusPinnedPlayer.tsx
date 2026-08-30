@@ -7,7 +7,6 @@ import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
-import TextSettingsControls from "./TextSettingsControls";
 import { useVocab } from "../context/VocabContext";
 
 type SizePreset = "small" | "medium" | "large";

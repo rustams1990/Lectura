@@ -16,6 +16,7 @@ interface TextSettingsControlsProps {
   onUpdateSettings: (settings: ReaderSettings) => void;
   compact?: boolean;
   lessonType?: string;
+  buttonClassName?: string;
 }
 
 export default function TextSettingsControls({
@@ -23,6 +24,7 @@ export default function TextSettingsControls({
   onUpdateSettings,
   compact = false,
   lessonType,
+  buttonClassName,
 }: TextSettingsControlsProps) {
   const { t } = useTranslation();
   const bookDisplayMode = useUIStore((s) => s.bookDisplayMode);
@@ -162,11 +164,14 @@ export default function TextSettingsControls({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={
-          compact
-            ? "p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-xs active:scale-95 bg-white hover:bg-slate-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-200 dark:border-zinc-800"
-            : "w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg sm:rounded-xl text-xs font-bold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer active:scale-95"
+          buttonClassName || (
+            compact
+              ? "p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shadow-xs active:scale-95 bg-white hover:bg-slate-50 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-200 dark:border-zinc-800"
+              : "w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center justify-center shrink-0 cursor-pointer active:scale-95"
+          )
         }
-        title={t('reader.text_settings_title', 'Text Settings')}
+        title={t('reader.text_appearance', 'Text Appearance')}
+        aria-label={t('reader.text_settings_title', 'Text Settings')}
       >
         {compact ? (
           <>
@@ -174,7 +179,9 @@ export default function TextSettingsControls({
             <span className="hidden sm:inline text-xs font-black">AA</span>
           </>
         ) : (
-          "AA"
+          <span className="font-semibold text-xs tracking-tight leading-none select-none">
+            AA
+          </span>
         )}
       </button>
 
