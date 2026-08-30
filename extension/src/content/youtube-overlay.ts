@@ -3,7 +3,9 @@ import { StorageService } from '../services/storage';
 import { ExtensionSettings, SubtitleCue, WordMap, WordMapItem, YouTubeActivityPayload } from '../types/index';
 import { getSuggestedLemmas } from '../services/morphology';
 import { t } from '../services/i18n';
-import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken } from '../services/text-utils';
+import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken, generateUUID } from '../services/text-utils';
+
+export { generateUUID };
 
 /**
  * Instantly initializes subtitle appearance CSS variables on DOM / Shadow host

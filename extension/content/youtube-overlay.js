@@ -30313,6 +30313,16 @@
     if (isRomanNumeral(token, isEnglish) || isRomanNumeral(clean2, isEnglish)) return false;
     return true;
   }
+  function generateUUID() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c2) => {
+      const r2 = Math.random() * 16 | 0;
+      const v2 = c2 === "x" ? r2 : r2 & 3 | 8;
+      return v2.toString(16);
+    });
+  }
 
   // extension/src/content/youtube-overlay.ts
   function initSubtitleAppearance() {

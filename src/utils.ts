@@ -6,6 +6,21 @@ import { HistoryEntry } from "./types";
  */
 
 /**
+ * Safe UUID v4 generator with fallback for non-secure HTTP contexts.
+ * In non-secure contexts (e.g. http://192.168.0.x), crypto.randomUUID is undefined.
+ */
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Hard Trap for History ID Generation.
  * Physically prevents generating an ID if durationSeconds <= 0.
  */
@@ -21,10 +36,7 @@ export function generateHistoryId(options?: {
     return null;
   }
 
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `hist_${crypto.randomUUID()}`;
-  }
-  return `hist_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  return `hist_${generateUUID()}`;
 }
 
 /**

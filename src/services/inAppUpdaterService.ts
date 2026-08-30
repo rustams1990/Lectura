@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core';
 import { APP_VERSION } from '../version';
 
 interface LecturaUpdaterPluginInterface {
@@ -27,17 +27,41 @@ const LAST_DISMISSED_TAG_KEY = 'lectura_dismissed_update_tag';
  */
 export async function checkForGitHubUpdate(manualCheck = false): Promise<GitHubReleaseInfo | null> {
   try {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-      },
-    });
+    let data: any = null;
 
-    if (!res.ok) {
-      return null;
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const nativeRes = await CapacitorHttp.get({
+          url: `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+          },
+        });
+        if (nativeRes.status < 200 || nativeRes.status >= 300) {
+          // Если релизов пока нет (404), тихо выходим без вывода ошибки в консоль
+          return null;
+        }
+        data = nativeRes.data;
+      } catch {
+        return null;
+      }
+    } else {
+      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+        },
+      });
+
+      if (!res.ok) {
+        // Если релизов пока нет (404), тихо выходим без вывода ошибки в консоль
+        return null;
+      }
+
+      data = await res.json();
     }
 
-    const data = await res.json();
+    if (!data) return null;
+
     const latestTag = (data.tag_name || '').trim();
     if (!latestTag) return null;
 
