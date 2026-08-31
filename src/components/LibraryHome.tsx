@@ -908,11 +908,27 @@ function LibraryHome({
         const sB = getCachedBookStats(b, vocab, wordLinks);
         return sA.knownPct - sB.knownPct;
       }
-      if (sortBy === "length_short") {
-        return getWordCount(a.text || "") - getWordCount(b.text || "");
+      if (sortBy === "length_short" || sortBy === "short") {
+        const durA = Number(a.duration) || Number((a as any).audioDuration) || 0;
+        const durB = Number(b.duration) || Number((b as any).audioDuration) || 0;
+        // If both items have duration (media content), strictly sort by seconds
+        if (durA > 0 && durB > 0) {
+          return durA - durB;
+        }
+        // Otherwise sort by word count
+        const wcA = a.wordCount || getWordCount(a.text || "");
+        const wcB = b.wordCount || getWordCount(b.text || "");
+        return wcA - wcB;
       }
-      if (sortBy === "length_long") {
-        return getWordCount(b.text || "") - getWordCount(a.text || "");
+      if (sortBy === "length_long" || sortBy === "long") {
+        const durA = Number(a.duration) || Number((a as any).audioDuration) || 0;
+        const durB = Number(b.duration) || Number((b as any).audioDuration) || 0;
+        if (durA > 0 && durB > 0) {
+          return durB - durA;
+        }
+        const wcA = a.wordCount || getWordCount(a.text || "");
+        const wcB = b.wordCount || getWordCount(b.text || "");
+        return wcB - wcA;
       }
       if (sortBy === "oldest") {
         // Oldest first = lower timestamp first
@@ -1259,8 +1275,16 @@ function LibraryHome({
               <option value="title_desc">{t('library.sort_title_desc', '🔤 Title Z-A')}</option>
               <option value="comprehension_high">{t('library.sort_comp_high', '📊 Comp: High')}</option>
               <option value="comprehension_low">{t('library.sort_comp_low', '📊 Comp: Low')}</option>
-              <option value="length_short">{t('library.sort_short', '📖 Short')}</option>
-              <option value="length_long">{t('library.sort_long', '📖 Long')}</option>
+              <option value="length_short">
+                {selectedLessonType === "youtube" || selectedLessonType === "podcast"
+                  ? t('library.sort_short_media', '⏱️ Short')
+                  : t('library.sort_short', '📖 Short')}
+              </option>
+              <option value="length_long">
+                {selectedLessonType === "youtube" || selectedLessonType === "podcast"
+                  ? t('library.sort_long_media', '⏱️ Long')
+                  : t('library.sort_long', '📖 Long')}
+              </option>
             </select>
             <ChevronDown className={`pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${sortBy !== "pinned" ? "text-white" : "text-zinc-400"}`} />
           </div>
