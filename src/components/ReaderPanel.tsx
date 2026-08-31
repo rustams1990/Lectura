@@ -1250,15 +1250,28 @@ function ReaderPanel({
             const src = trimmedSegText.startsWith('__LECTURA_IMG__:')
               ? trimmedSegText.replace('__LECTURA_IMG__:', '').trim()
               : trimmedSegText.slice(5, -1).trim();
+
+            // Проверяем, есть ли подпись сразу за картинкой
+            let nextCaptionText = '';
+            const nextSeg = activeSegmentsForPage[pIdx + 1];
+            if (nextSeg && nextSeg.text) {
+              const nextTrimmed = nextSeg.text.trim();
+              if (nextTrimmed.startsWith('[CAPTION:') && nextTrimmed.endsWith(']')) {
+                nextCaptionText = nextTrimmed.slice(9, -1).trim();
+              } else if (nextTrimmed.startsWith('__LECTURA_CAP__:')) {
+                nextCaptionText = nextTrimmed.replace('__LECTURA_CAP__:', '').trim();
+              }
+            }
+
             return (
-              <div key={pIdx} className="my-6 flex justify-center w-full clear-both">
+              <figure key={pIdx} className="my-6 mx-auto max-w-xl flex flex-col items-start clear-both w-full">
                 <img
                   src={src}
                   alt={t('reader.illustration', 'Illustration')}
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   id={`pdf-epub-img-${pIdx}`}
-                  className="max-w-full md:max-w-xl h-auto rounded-2xl shadow-lg border border-neutral-200 dark:border-neutral-800 object-contain bg-neutral-900"
+                  className="w-full h-auto rounded-xl shadow-md border border-neutral-200 dark:border-neutral-800 object-contain bg-neutral-900"
                   onError={(e) => {
                     const el = e.currentTarget;
                     el.style.display = "none";
@@ -1266,23 +1279,35 @@ function ReaderPanel({
                     if (parent) parent.style.display = "none";
                   }}
                 />
-              </div>
+                {nextCaptionText && (
+                  <figcaption className="mt-2 text-left text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed select-none">
+                    {nextCaptionText}
+                  </figcaption>
+                )}
+              </figure>
             );
           }
 
           // 2. Проверка на подпись к картинке
           if ((trimmedSegText.startsWith('[CAPTION:') && trimmedSegText.endsWith(']')) || trimmedSegText.startsWith('__LECTURA_CAP__:')) {
+            // Если предыдущий сегмент уже был картинкой, подпись уже отрендерена внутри <figure>!
+            const prevSeg = activeSegmentsForPage[pIdx - 1];
+            if (prevSeg && prevSeg.text) {
+              const prevTrimmed = prevSeg.text.trim();
+              if (prevTrimmed.startsWith('[IMG:') || prevTrimmed.startsWith('__LECTURA_IMG__:')) {
+                return null;
+              }
+            }
+
             const caption = trimmedSegText.startsWith('__LECTURA_CAP__:')
               ? trimmedSegText.replace('__LECTURA_CAP__:', '').trim()
               : trimmedSegText.slice(9, -1).trim();
             return (
-              <p 
-                key={pIdx} 
-                id={`segment-row-${globalSegmentIdx}`}
-                className="italic text-xs text-neutral-400 text-center select-none -mt-4 mb-6"
-              >
-                {caption}
-              </p>
+              <figure key={pIdx} id={`segment-row-${globalSegmentIdx}`} className="my-2 mx-auto max-w-xl flex flex-col items-start clear-both w-full">
+                <figcaption className="text-left text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed select-none">
+                  {caption}
+                </figcaption>
+              </figure>
             );
           }
 
@@ -2178,14 +2203,16 @@ function ReaderPanel({
             if (captionMatch) {
               const captionText = captionMatch[1].replace(/\]$/, "").trim();
               return (
-                <p 
+                <figure 
                   key={pIdx}
                   id={`segment-row-${globalSegmentIdx}`}
-                  className="-mt-4 mb-6 text-center text-xs text-neutral-500 dark:text-neutral-400 italic select-none"
+                  className="my-2 mx-auto max-w-xl flex flex-col items-start clear-both w-full"
                   style={{ textIndent: 0 }}
                 >
-                  {captionText}
-                </p>
+                  <figcaption className="text-left text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed select-none">
+                    {captionText}
+                  </figcaption>
+                </figure>
               );
             }
 
