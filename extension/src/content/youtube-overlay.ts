@@ -4,8 +4,12 @@ import { ExtensionSettings, SubtitleCue, WordMap, WordMapItem, YouTubeActivityPa
 import { getSuggestedLemmas } from '../services/morphology';
 import { t } from '../services/i18n';
 import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken, generateUUID } from '../services/text-utils';
+import { initYouTubeTracker } from './youtube-tracker';
 
 export { generateUUID };
+
+// 0) Initialize dedicated YouTube Lifecycle & Watch Time Tracker
+initYouTubeTracker();
 
 /**
  * Instantly initializes subtitle appearance CSS variables on DOM / Shadow host
@@ -950,116 +954,17 @@ class YouTubeLecturaOverlay {
   }
 
   /**
-   * Tracks active watch time of HTML5 YouTube video player
+   * Activity tracking is handled by the dedicated YouTubeTracker lifecycle module
    */
   private setupActivityTracking() {
-    if (!this.videoElement) return;
-
-    if (!this.hasActivityListeners) {
-      this.hasActivityListeners = true;
-
-      // Flush when video pauses or finishes
-      this.videoElement.addEventListener('pause', () => {
-        this.flushActivityToLectura();
-      });
-
-      this.videoElement.addEventListener('ended', () => {
-        this.flushActivityToLectura();
-      });
-
-      // Flush before unloading page or switching tab visibility
-      window.addEventListener('beforeunload', () => {
-        this.flushActivityToLectura();
-      });
-
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          this.flushActivityToLectura();
-        }
-      });
-    }
-
-    if (this.watchTimer) {
-      clearInterval(this.watchTimer);
-      this.watchTimer = null;
-    }
-
-    // Heartbeat ticker every 5 seconds
-    this.watchTimer = window.setInterval(() => {
-      const video = this.videoElement || (document.querySelector('video.html5-main-video, #movie_player video') as HTMLVideoElement);
-      if (!video) return;
-
-      // Only accumulate if video is currently playing and tracking is enabled
-      if (this.settings && this.settings.trackListeningActivity === false) {
-        return;
-      }
-      if (!video.paused && !video.ended && video.readyState >= 2) {
-        this.activeWatchSeconds += 5;
-
-        // Send batch activity log every 30 seconds of accumulated watch time
-        if (this.activeWatchSeconds >= 30) {
-          this.flushActivityToLectura();
-        }
-      }
-    }, 5000);
+    // Managed comprehensively by youtube-tracker.ts
   }
 
   /**
-   * Flushes accumulated watch seconds to Lectura server
+   * Flushes accumulated watch seconds to Lectura server (delegated to youtube-tracker)
    */
   private async flushActivityToLectura() {
-    if (this.activeWatchSeconds <= 0) return;
-
-    const secondsToFlush = this.activeWatchSeconds;
-    this.activeWatchSeconds = 0; // Reset accumulated watch buffer immediately
-
-    const videoId = this.currentVideoId || this.extractVideoId(window.location.href);
-    if (!videoId) return;
-
-    const video = this.videoElement || (document.querySelector('video.html5-main-video, #movie_player video') as HTMLVideoElement);
-
-    // Extract rich metadata from YouTube DOM
-    const titleEl = document.querySelector('h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer');
-    const title = titleEl?.textContent?.trim() || document.title.replace(/ - YouTube$/, '').trim() || `YouTube Video (${videoId})`;
-
-    const channelEl = document.querySelector('#channel-name #text a, ytd-channel-name #text a, #upload-info #channel-name a');
-    const channelName = channelEl?.textContent?.trim() || 'YouTube';
-    const channelUrl = (channelEl as HTMLAnchorElement)?.href || null;
-
-    const avatarEl = document.querySelector('#channel-header-container img, #avatar img, ytd-video-owner-renderer img#img') as HTMLImageElement;
-    const channelAvatarUrl = avatarEl?.src || null;
-
-    const thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-    const studyLang = this.getEffectiveLang() || this.settings?.targetLanguage || 'en';
-
-    const payload: YouTubeActivityPayload = {
-      videoId,
-      videoTitle: title,
-      channelName,
-      channelAvatarUrl,
-      channelUrl,
-      thumbnailUrl: thumbnail,
-      durationSeconds: Math.floor(video?.duration || 0),
-      watchedSeconds: secondsToFlush,
-      language: studyLang,
-      timestamp: Date.now(),
-    };
-
-    console.log('[Lectura YT Tracker] Logging watching activity:', {
-      videoId,
-      title,
-      watchedSeconds: secondsToFlush,
-      language: studyLang,
-    });
-
-    try {
-      chrome.runtime.sendMessage({
-        type: 'LOG_YOUTUBE_ACTIVITY',
-        payload,
-      });
-    } catch (err) {
-      console.warn('[Lectura YT Tracker] Failed to send activity log to background:', err);
-    }
+    // Delegated to youtube-tracker.ts
   }
 
   /**

@@ -615,7 +615,7 @@
         });
       }
       const settings = await this.getActiveSettings();
-      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/log");
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/track-activity");
       try {
         const response = await fetch(url, {
           method: "POST",
@@ -30339,7 +30339,255 @@
     });
   }
 
+  // extension/src/content/youtube-tracker.ts
+  var currentSession = null;
+  var lastVideoCurrentTime = 0;
+  var pendingSecondsBuffer = 0;
+  var activeVideoElement = null;
+  var isObserverInitialized = false;
+  function getStudyLanguage(settings) {
+    const customLang = window.__LECTURA_ACTIVE_LANG__ || window.__LECTURA_YT_TRACK_LANG__;
+    if (customLang) return String(customLang).toLowerCase();
+    if (settings?.targetLanguage) return settings.targetLanguage.toLowerCase();
+    return "es";
+  }
+  function extractVideoId(url = window.location.href) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.pathname === "/watch") {
+        return parsed.searchParams.get("v");
+      }
+      if (parsed.pathname.startsWith("/embed/")) {
+        return parsed.pathname.split("/")[2] || null;
+      }
+      if (parsed.pathname.startsWith("/shorts/")) {
+        return parsed.pathname.split("/")[2] || null;
+      }
+    } catch (_2) {
+    }
+    return null;
+  }
+  function initYouTubeTracker() {
+    if (isObserverInitialized) return;
+    isObserverInitialized = true;
+    console.log("\u{1F3AC} [Lectura Tracker] Initializing YouTube Lifecycle Tracker...");
+    window.addEventListener("yt-navigate-finish", handleVideoNavigation);
+    window.addEventListener("spfdone", handleVideoNavigation);
+    window.addEventListener("popstate", handleVideoNavigation);
+    let lastObservedUrl = window.location.href;
+    setInterval(() => {
+      if (window.location.href !== lastObservedUrl) {
+        lastObservedUrl = window.location.href;
+        handleVideoNavigation();
+      }
+    }, 1e3);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        flushTime(true);
+      }
+    });
+    window.addEventListener("pagehide", () => flushTime(true));
+    window.addEventListener("beforeunload", () => flushTime(true));
+    handleVideoNavigation();
+  }
+  function handleVideoNavigation() {
+    const videoId = extractVideoId();
+    if (currentSession && currentSession.videoId !== videoId) {
+      flushTime(true);
+      currentSession = null;
+      detachVideoListeners();
+    }
+    if (!videoId) return;
+    waitForVideoElement((video) => {
+      startTrackingVideo(video, videoId);
+    });
+  }
+  function waitForVideoElement(callback, retries = 0) {
+    if (retries > 60) return;
+    const video = document.querySelector("video.html5-main-video, #movie_player video");
+    if (video && !isNaN(video.duration) && video.duration > 0) {
+      callback(video);
+    } else {
+      setTimeout(() => waitForVideoElement(callback, retries + 1), 300);
+    }
+  }
+  async function startTrackingVideo(video, videoId) {
+    if (currentSession && currentSession.videoId === videoId && activeVideoElement === video) {
+      return;
+    }
+    detachVideoListeners();
+    activeVideoElement = video;
+    const settings = await StorageService.getSettings();
+    if (settings.isEnabled === false || settings.trackListeningActivity === false) {
+      return;
+    }
+    const titleEl = document.querySelector(
+      "h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer"
+    );
+    const title = titleEl?.textContent?.trim() || document.title.replace(/ - YouTube$/, "").trim() || `YouTube Video (${videoId})`;
+    const channelEl = document.querySelector(
+      "ytd-channel-name a, #channel-name a, #upload-info #channel-name a"
+    );
+    const channelName = channelEl?.textContent?.trim() || "YouTube";
+    const channelUrl = channelEl?.href || `https://www.youtube.com/watch?v=${videoId}`;
+    const studyLanguage = getStudyLanguage(settings);
+    currentSession = {
+      videoId,
+      title,
+      channelName,
+      channelUrl,
+      duration: Math.round(video.duration || 0),
+      studyLanguage
+    };
+    lastVideoCurrentTime = video.currentTime;
+    pendingSecondsBuffer = 0;
+    console.log("\u{1F3AF} [Lectura Tracker] Tracking YouTube session:", currentSession);
+    syncOpenSession(currentSession);
+    const onPlay = () => {
+      lastVideoCurrentTime = video.currentTime;
+    };
+    const onTimeUpdate = () => {
+      if (video.paused || video.seeking) {
+        lastVideoCurrentTime = video.currentTime;
+        return;
+      }
+      const delta = video.currentTime - lastVideoCurrentTime;
+      if (delta > 0 && delta < 2.5) {
+        pendingSecondsBuffer += delta;
+      }
+      lastVideoCurrentTime = video.currentTime;
+      if (pendingSecondsBuffer >= 10) {
+        flushTime(false);
+      }
+    };
+    const onEnded = () => {
+      flushTime(true, true);
+    };
+    const onPause = () => {
+      flushTime(false);
+    };
+    video.addEventListener("play", onPlay);
+    video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("ended", onEnded);
+    video.addEventListener("pause", onPause);
+    video.__lectura_cleanup = () => {
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("ended", onEnded);
+      video.removeEventListener("pause", onPause);
+    };
+  }
+  function detachVideoListeners() {
+    if (activeVideoElement && activeVideoElement.__lectura_cleanup) {
+      activeVideoElement.__lectura_cleanup();
+      delete activeVideoElement.__lectura_cleanup;
+    }
+    activeVideoElement = null;
+  }
+  async function syncOpenSession(session) {
+    try {
+      const settings = await StorageService.getSettings();
+      if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
+      sendPayload(
+        settings,
+        {
+          videoId: session.videoId,
+          title: session.title,
+          channelName: session.channelName,
+          channelUrl: session.channelUrl,
+          duration: session.duration,
+          studyLanguage: session.studyLanguage,
+          addedSeconds: 0,
+          isCompleted: false,
+          timestamp: Date.now()
+        },
+        false
+      );
+    } catch (err) {
+      console.warn("[Lectura Tracker] syncOpenSession error:", err);
+    }
+  }
+  async function flushTime(isFinal = false, isCompleted = false) {
+    if (!currentSession) return;
+    if (pendingSecondsBuffer < 1 && !isFinal && !isCompleted) return;
+    const secondsToSend = Math.round(pendingSecondsBuffer);
+    pendingSecondsBuffer = 0;
+    if (secondsToSend <= 0 && !isFinal && !isCompleted) return;
+    try {
+      const settings = await StorageService.getSettings();
+      if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
+      const payload = {
+        videoId: currentSession.videoId,
+        title: currentSession.title,
+        channelName: currentSession.channelName,
+        channelUrl: currentSession.channelUrl,
+        duration: currentSession.duration,
+        studyLanguage: currentSession.studyLanguage,
+        addedSeconds: secondsToSend,
+        isCompleted,
+        timestamp: Date.now()
+      };
+      console.log(`\u23F1\uFE0F [Lectura Tracker] Flushing ${secondsToSend}s (final=${isFinal}, completed=${isCompleted})`);
+      sendPayload(settings, payload, isFinal);
+    } catch (err) {
+      console.warn("[Lectura Tracker] flushTime error:", err);
+    }
+  }
+  function sendPayload(settings, payload, isFinal) {
+    const serverUrl = (settings.serverUrl || "http://localhost:3000").replace(/\/+$/, "");
+    const endpoint = `${serverUrl}/api/history/track-activity`;
+    payload.userId = settings.selectedUserId || "default";
+    payload.syncUser = settings.selectedUserId || "default";
+    payload.syncKey = settings.syncKey || "";
+    payload.authToken = settings.authToken || "";
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (settings.authToken) {
+      const clean2 = settings.authToken.trim();
+      headers["Authorization"] = clean2.startsWith("Bearer ") ? clean2 : `Bearer ${clean2}`;
+    }
+    if (settings.syncKey) {
+      headers["x-local-sync-key"] = settings.syncKey.trim();
+    }
+    if (settings.selectedUserId) {
+      headers["x-local-sync-user"] = settings.selectedUserId.trim();
+    }
+    const jsonStr = JSON.stringify(payload);
+    try {
+      fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: jsonStr,
+        keepalive: true
+      }).catch((err) => {
+        console.warn("[Lectura Tracker] fetch error:", err);
+      });
+    } catch (err) {
+      console.warn("[Lectura Tracker] fetch exception:", err);
+    }
+    if (isFinal && typeof navigator !== "undefined" && navigator.sendBeacon) {
+      try {
+        const beaconUrl = `${endpoint}?sync_user=${encodeURIComponent(
+          settings.selectedUserId || "default"
+        )}&sync_key=${encodeURIComponent(settings.syncKey || "")}`;
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        navigator.sendBeacon(beaconUrl, blob);
+      } catch (_2) {
+      }
+    }
+    try {
+      chrome.runtime.sendMessage({
+        type: "LOG_YOUTUBE_ACTIVITY",
+        payload
+      }).catch(() => {
+      });
+    } catch (_2) {
+    }
+  }
+
   // extension/src/content/youtube-overlay.ts
+  initYouTubeTracker();
   function initSubtitleAppearance() {
     chrome.storage.local.get(["subtitleFontSize", "subtitleBgColor"], (res) => {
       if (res.subtitleFontSize) {
@@ -31063,90 +31311,14 @@
       }
     }
     /**
-     * Tracks active watch time of HTML5 YouTube video player
+     * Activity tracking is handled by the dedicated YouTubeTracker lifecycle module
      */
     setupActivityTracking() {
-      if (!this.videoElement) return;
-      if (!this.hasActivityListeners) {
-        this.hasActivityListeners = true;
-        this.videoElement.addEventListener("pause", () => {
-          this.flushActivityToLectura();
-        });
-        this.videoElement.addEventListener("ended", () => {
-          this.flushActivityToLectura();
-        });
-        window.addEventListener("beforeunload", () => {
-          this.flushActivityToLectura();
-        });
-        document.addEventListener("visibilitychange", () => {
-          if (document.visibilityState === "hidden") {
-            this.flushActivityToLectura();
-          }
-        });
-      }
-      if (this.watchTimer) {
-        clearInterval(this.watchTimer);
-        this.watchTimer = null;
-      }
-      this.watchTimer = window.setInterval(() => {
-        const video = this.videoElement || document.querySelector("video.html5-main-video, #movie_player video");
-        if (!video) return;
-        if (this.settings && this.settings.trackListeningActivity === false) {
-          return;
-        }
-        if (!video.paused && !video.ended && video.readyState >= 2) {
-          this.activeWatchSeconds += 5;
-          if (this.activeWatchSeconds >= 30) {
-            this.flushActivityToLectura();
-          }
-        }
-      }, 5e3);
     }
     /**
-     * Flushes accumulated watch seconds to Lectura server
+     * Flushes accumulated watch seconds to Lectura server (delegated to youtube-tracker)
      */
     async flushActivityToLectura() {
-      if (this.activeWatchSeconds <= 0) return;
-      const secondsToFlush = this.activeWatchSeconds;
-      this.activeWatchSeconds = 0;
-      const videoId = this.currentVideoId || this.extractVideoId(window.location.href);
-      if (!videoId) return;
-      const video = this.videoElement || document.querySelector("video.html5-main-video, #movie_player video");
-      const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer");
-      const title = titleEl?.textContent?.trim() || document.title.replace(/ - YouTube$/, "").trim() || `YouTube Video (${videoId})`;
-      const channelEl = document.querySelector("#channel-name #text a, ytd-channel-name #text a, #upload-info #channel-name a");
-      const channelName = channelEl?.textContent?.trim() || "YouTube";
-      const channelUrl = channelEl?.href || null;
-      const avatarEl = document.querySelector("#channel-header-container img, #avatar img, ytd-video-owner-renderer img#img");
-      const channelAvatarUrl = avatarEl?.src || null;
-      const thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-      const studyLang = this.getEffectiveLang() || this.settings?.targetLanguage || "en";
-      const payload = {
-        videoId,
-        videoTitle: title,
-        channelName,
-        channelAvatarUrl,
-        channelUrl,
-        thumbnailUrl: thumbnail,
-        durationSeconds: Math.floor(video?.duration || 0),
-        watchedSeconds: secondsToFlush,
-        language: studyLang,
-        timestamp: Date.now()
-      };
-      console.log("[Lectura YT Tracker] Logging watching activity:", {
-        videoId,
-        title,
-        watchedSeconds: secondsToFlush,
-        language: studyLang
-      });
-      try {
-        chrome.runtime.sendMessage({
-          type: "LOG_YOUTUBE_ACTIVITY",
-          payload
-        });
-      } catch (err) {
-        console.warn("[Lectura YT Tracker] Failed to send activity log to background:", err);
-      }
     }
     /**
      * Constructs isolated Shadow DOM overlay above player

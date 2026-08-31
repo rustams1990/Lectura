@@ -339,6 +339,35 @@ function setupSchema(db: Database.Database) {
   if (!lessonsCols.includes("audio_progress_updated_at")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN audio_progress_updated_at INTEGER DEFAULT 0;`); } catch (_) {}
   }
+  if (!lessonsCols.includes("duration")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN duration INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("timeSpentSeconds")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN timeSpentSeconds INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("status")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN status TEXT DEFAULT 'IN_PROGRESS';`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("updatedAt")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN updatedAt TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("sourceType")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN sourceType TEXT;`); } catch (_) {}
+  }
+
+  // study_activity_logs table for daily study analytics and streaks
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS study_activity_logs (
+        userId TEXT NOT NULL,
+        lessonId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        secondsSpent INTEGER DEFAULT 0,
+        updatedAt TEXT NOT NULL,
+        PRIMARY KEY(userId, lessonId, date)
+      );
+    `);
+  } catch (_) {}
 
   // playlists: user_id & isArchived columns
   const playlistsCols = (db.prepare("PRAGMA table_info(playlists)").all() as any[]).map(c => c.name);

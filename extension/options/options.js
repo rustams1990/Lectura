@@ -615,7 +615,7 @@
         });
       }
       const settings = await this.getActiveSettings();
-      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/log");
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/history/track-activity");
       try {
         const response = await fetch(url, {
           method: "POST",

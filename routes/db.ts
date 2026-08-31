@@ -6,6 +6,7 @@ import Database from "better-sqlite3";
 import { getDbConnection, SQLITE_DB_PATH } from "./dbConnection.ts";
 import { resolveUserId, requireLocalSyncKey, requireAuth } from "./auth.ts";
 import { analyzeTextComplexity } from "../server/frequency/frequencyService.ts";
+import { handleTrackActivity } from "./history.ts";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
@@ -1762,138 +1763,10 @@ router.post("/history/assign-channel", (req: Request, res: Response) => {
   }
 });
 
-// 15b. Log Media Watch Activity & Listening History (POST /api/history/log & POST /api/activity/log)
-const logActivityHandler = (req: Request, res: Response) => {
-  let userId: string;
-  try {
-    userId = resolveUserId(req);
-  } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
-  }
-
-  const {
-    videoId,
-    videoTitle,
-    channelName,
-    channelAvatarUrl,
-    channelUrl,
-    thumbnailUrl,
-    durationSeconds,
-    watchedSeconds,
-    language,
-    timestamp,
-  } = req.body || {};
-
-  const seconds = Math.round(Number(watchedSeconds) || 0);
-  if (!seconds || seconds <= 0 || seconds > 3600) {
-    return res.json({ success: true, loggedSeconds: 0, message: "Ignored (0 seconds)" });
-  }
-
-  try {
-    const db = getDbConnection(userId);
-    const cleanVideoId = String(videoId || "").trim();
-    const cleanTitle = String(videoTitle || cleanVideoId || "YouTube Video").trim();
-    const cleanChannel = channelName ? String(channelName).trim() : "YouTube";
-    const cleanCover = thumbnailUrl || (cleanVideoId ? `https://img.youtube.com/vi/${cleanVideoId}/hqdefault.jpg` : null);
-    const targetLang = language ? String(language).toLowerCase().trim() : "en";
-    const nowIso = timestamp ? new Date(timestamp).toISOString() : new Date().toISOString();
-    const todayDatePrefix = nowIso.slice(0, 10); // e.g. "2026-08-24"
-
-    const lessonId = cleanVideoId ? `youtube_${cleanVideoId}` : `custom_activity_${Date.now().toString(36)}`;
-
-    // Check if a history record for this video on the SAME day already exists for this user
-    let existingEntry: any = null;
-    if (cleanVideoId) {
-      existingEntry = db.prepare(`
-        SELECT * FROM reading_history
-        WHERE user_id = ? 
-          AND (lessonId = ? OR (coverUrl LIKE ? AND lessonType = 'youtube'))
-          AND timestamp LIKE ?
-        ORDER BY timestamp DESC LIMIT 1
-      `).get(userId, lessonId, `%${cleanVideoId}%`, `${todayDatePrefix}%`);
-    }
-
-    if (existingEntry) {
-      // Accumulate watchedSeconds into the existing daily entry
-      const updatedDuration = (existingEntry.durationSeconds || 0) + seconds;
-      db.prepare(`
-        UPDATE reading_history SET
-          durationSeconds = ?,
-          timestamp = ?,
-          lessonTitle = COALESCE(?, lessonTitle),
-          channelName = COALESCE(?, channelName),
-          channelAvatarUrl = COALESCE(?, channelAvatarUrl),
-          channelUrl = COALESCE(?, channelUrl),
-          coverUrl = COALESCE(?, coverUrl)
-        WHERE user_id = ? AND id = ?
-      `).run(
-        updatedDuration,
-        nowIso,
-        cleanTitle,
-        cleanChannel,
-        channelAvatarUrl || null,
-        channelUrl || null,
-        cleanCover,
-        userId,
-        existingEntry.id
-      );
-    } else {
-      // Create new history entry
-      const historyId = "hist_yt_" + (cleanVideoId || Date.now().toString(36)) + "_" + Date.now().toString(36);
-      db.prepare(`
-        INSERT INTO reading_history (
-          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        historyId,
-        userId,
-        lessonId,
-        cleanTitle,
-        "youtube",
-        cleanCover,
-        targetLang,
-        nowIso,
-        "listen",
-        "in_progress",
-        seconds,
-        cleanChannel,
-        channelAvatarUrl || null,
-        channelUrl || null,
-        "video",
-        cleanTitle,
-        "custom",
-        JSON.stringify(["youtube", "extension"])
-      );
-    }
-
-    // Update listeningSeconds in metadata table
-    const currentListeningRow = db.prepare(
-      "SELECT value FROM metadata WHERE user_id = ? AND key = 'listeningSeconds'"
-    ).get(userId) as { value: string } | undefined;
-    const currentTotal = currentListeningRow ? (parseFloat(currentListeningRow.value) || 0) : 0;
-    const newTotal = Math.round(currentTotal + seconds);
-
-    db.prepare(
-      "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'listeningSeconds', ?)"
-    ).run(userId, String(newTotal));
-
-    return res.json({
-      success: true,
-      loggedSeconds: seconds,
-      totalListeningSeconds: newTotal,
-      videoId: cleanVideoId,
-    });
-  } catch (err: any) {
-    console.error("[POST /api/history/log] Error:", err);
-    return res.status(500).json({ error: "Failed to log listening activity: " + err.message });
-  }
-};
-
-router.post("/history/log", logActivityHandler);
-router.post("/activity/log", logActivityHandler);
+// 15b. Log Media Watch Activity & Listening History (POST /api/history/track-activity, /api/history/log, /api/activity/log)
+router.post("/history/track-activity", handleTrackActivity);
+router.post("/history/log", handleTrackActivity);
+router.post("/activity/log", handleTrackActivity);
 
 // 15c. Get Reading / Listening Activity History (GET /api/history & GET /api/activity)
 const getActivityHistoryHandler = (req: Request, res: Response) => {

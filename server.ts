@@ -16,6 +16,7 @@ import { frequencyRouter } from "./routes/frequency.ts";
 import backupRouter from "./routes/backup.ts";
 import podcastsRouter from "./routes/podcasts.ts";
 import translateRouter from "./routes/translate.ts";
+import historyRouter from "./routes/history.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { APP_VERSION } from "./src/version.ts";
 
@@ -184,6 +185,7 @@ async function startServer() {
   app.use("/api", backupRouter);
   app.use("/api/podcasts", podcastsRouter);
   app.use("/api", translateRouter);
+  app.use("/api", historyRouter);
 
   // Start background automated backup scheduler
   startBackupScheduler();
