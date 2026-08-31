@@ -30,11 +30,11 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     settings_auto_sync: "Settings auto-sync with active tabs",
 
     // Sections
-    section_connection: "1. Connection & Authentication",
+    section_connection: "Connection & Authentication",
     section_connection_desc: "Specify your local or remote Lectura server URL and access credentials.",
-    section_subtitles: "2. YouTube Interactive Subtitles Overlay",
+    section_subtitles: "YouTube Interactive Subtitles Overlay",
     section_subtitles_desc: "Interactive tokenized captions with hotkeys, hover dictionary, and pause controls on YouTube videos.",
-    section_reader: "3. Web Page Word Lookup & Selection",
+    section_reader: "Web Page Word Lookup & Selection",
     section_reader_desc: "Instant word translation and SRS vocabulary saving across arbitrary websites.",
 
     // Form fields
@@ -106,7 +106,7 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     highlight_learned_desc: "Color-codes words on web pages based on your Lectura learning progress (1-5, Known).",
 
     // Domain Rules Section
-    section_domain_rules: "4. Website Filtering & Exclusions",
+    section_domain_rules: "Website Filtering & Exclusions",
     section_domain_rules_desc: "Control which websites Lectura operates on or automatically ignores.",
     filter_mode: "Filter Mode",
     mode_blacklist: "Blacklist (Disable on listed sites)",
@@ -187,11 +187,11 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     settings_auto_sync: "Настройки синхронизируются с активными вкладками",
 
     // Sections
-    section_connection: "1. Подключение и Авторизация",
+    section_connection: "Подключение и Авторизация",
     section_connection_desc: "Укажите адрес локального или удаленного сервера Lectura и данные доступа.",
-    section_subtitles: "2. Интерактивные субтитры YouTube",
+    section_subtitles: "Интерактивные субтитры YouTube",
     section_subtitles_desc: "Кликабельные слова субтитров с быстрыми клавишами, всплывающим словарем и автопаузой.",
-    section_reader: "3. Выделение слов на веб-страницах",
+    section_reader: "Выделение слов на веб-страницах",
     section_reader_desc: "Мгновенный перевод и сохранение слов в карточки SRS на любых сайтах.",
 
     // Form fields
@@ -263,7 +263,7 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     highlight_learned_desc: "Окрашивает слова на веб-страницах в соответствии с вашим прогрессом (1-5, Изучено).",
 
     // Domain Rules Section
-    section_domain_rules: "4. Черный список и исключения сайтов",
+    section_domain_rules: "Черный список и исключения сайтов",
     section_domain_rules_desc: "Укажите сайты, на которых расширение должно работать или автоматически отключаться.",
     filter_mode: "Режим фильтра",
     mode_blacklist: "Черный список (Отключить на указанных сайтах)",
@@ -344,12 +344,12 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     settings_auto_sync: "Los ajustes se sincronizan automáticamente con las pestañas",
 
     // Sections
-    section_connection: "1. Conexión y Autenticación",
+    section_connection: "Conexión y Autenticación",
     section_connection_desc: "Especifica la URL del servidor Lectura y las credenciales de acceso.",
-    section_subtitles: "2. Subtítulos interactivos de YouTube",
+    section_subtitles: "Subtítulos interactivos de YouTube",
     section_subtitles_desc: "Subtítulos interactivos con atajos, diccionario emergente y controles de pausa en YouTube.",
-    section_reader: "3. Búsqueda y selección en páginas web",
-    section_reader_desc: "Traducción instantánea y guardado de vocabulario SRS en cualquier sitio web.",
+    section_reader: "Búsqueda y selección de palabras",
+    section_reader_desc: "Traducción instantánea y guardado de vocabulario SRS en cualquier página web.",
 
     // Form fields
     server_url: "URL del servidor",
@@ -420,7 +420,7 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     highlight_learned_desc: "Colorea las palabras en la web según tu progreso en Lectura (1-5, Aprendida).",
 
     // Domain Rules Section
-    section_domain_rules: "4. Filtrado de sitios web y exclusiones",
+    section_domain_rules: "Filtrado de sitios web y exclusiones",
     section_domain_rules_desc: "Controla en qué sitios web opera Lectura o en cuáles se desactiva automáticamente.",
     filter_mode: "Modo de filtro",
     mode_blacklist: "Lista negra (Desactivar en sitios indicados)",

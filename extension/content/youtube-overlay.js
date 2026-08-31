@@ -29860,11 +29860,11 @@
       tab_filters: "Site Filters",
       settings_auto_sync: "Settings auto-sync with active tabs",
       // Sections
-      section_connection: "1. Connection & Authentication",
+      section_connection: "Connection & Authentication",
       section_connection_desc: "Specify your local or remote Lectura server URL and access credentials.",
-      section_subtitles: "2. YouTube Interactive Subtitles Overlay",
+      section_subtitles: "YouTube Interactive Subtitles Overlay",
       section_subtitles_desc: "Interactive tokenized captions with hotkeys, hover dictionary, and pause controls on YouTube videos.",
-      section_reader: "3. Web Page Word Lookup & Selection",
+      section_reader: "Web Page Word Lookup & Selection",
       section_reader_desc: "Instant word translation and SRS vocabulary saving across arbitrary websites.",
       // Form fields
       server_url: "Server URL",
@@ -29931,7 +29931,7 @@
       highlight_learned: "Highlight Learned Vocabulary Words",
       highlight_learned_desc: "Color-codes words on web pages based on your Lectura learning progress (1-5, Known).",
       // Domain Rules Section
-      section_domain_rules: "4. Website Filtering & Exclusions",
+      section_domain_rules: "Website Filtering & Exclusions",
       section_domain_rules_desc: "Control which websites Lectura operates on or automatically ignores.",
       filter_mode: "Filter Mode",
       mode_blacklist: "Blacklist (Disable on listed sites)",
@@ -30007,11 +30007,11 @@
       tab_filters: "\u0424\u0438\u043B\u044C\u0442\u0440\u044B \u0441\u0430\u0439\u0442\u043E\u0432",
       settings_auto_sync: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u043C\u0438 \u0432\u043A\u043B\u0430\u0434\u043A\u0430\u043C\u0438",
       // Sections
-      section_connection: "1. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F",
+      section_connection: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F",
       section_connection_desc: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043D\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0435\u0440\u0430 Lectura \u0438 \u0434\u0430\u043D\u043D\u044B\u0435 \u0434\u043E\u0441\u0442\u0443\u043F\u0430.",
-      section_subtitles: "2. \u0418\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B YouTube",
+      section_subtitles: "\u0418\u043D\u0442\u0435\u0440\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B YouTube",
       section_subtitles_desc: "\u041A\u043B\u0438\u043A\u0430\u0431\u0435\u043B\u044C\u043D\u044B\u0435 \u0441\u043B\u043E\u0432\u0430 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u043E\u0432 \u0441 \u0431\u044B\u0441\u0442\u0440\u044B\u043C\u0438 \u043A\u043B\u0430\u0432\u0438\u0448\u0430\u043C\u0438, \u0432\u0441\u043F\u043B\u044B\u0432\u0430\u044E\u0449\u0438\u043C \u0441\u043B\u043E\u0432\u0430\u0440\u0435\u043C \u0438 \u0430\u0432\u0442\u043E\u043F\u0430\u0443\u0437\u043E\u0439.",
-      section_reader: "3. \u0412\u044B\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u0441\u043B\u043E\u0432 \u043D\u0430 \u0432\u0435\u0431-\u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445",
+      section_reader: "\u0412\u044B\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u0441\u043B\u043E\u0432 \u043D\u0430 \u0432\u0435\u0431-\u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445",
       section_reader_desc: "\u041C\u0433\u043D\u043E\u0432\u0435\u043D\u043D\u044B\u0439 \u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0441\u043B\u043E\u0432 \u0432 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 SRS \u043D\u0430 \u043B\u044E\u0431\u044B\u0445 \u0441\u0430\u0439\u0442\u0430\u0445.",
       // Form fields
       server_url: "\u0410\u0434\u0440\u0435\u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u0430",
@@ -30078,7 +30078,7 @@
       highlight_learned: "\u041F\u043E\u0434\u0441\u0432\u0435\u0442\u043A\u0430 \u0438\u0437\u0443\u0447\u0435\u043D\u043D\u044B\u0445 \u0441\u043B\u043E\u0432 \u043D\u0430 \u0441\u0430\u0439\u0442\u0430\u0445",
       highlight_learned_desc: "\u041E\u043A\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u0442 \u0441\u043B\u043E\u0432\u0430 \u043D\u0430 \u0432\u0435\u0431-\u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445 \u0432 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0438 \u0441 \u0432\u0430\u0448\u0438\u043C \u043F\u0440\u043E\u0433\u0440\u0435\u0441\u0441\u043E\u043C (1-5, \u0418\u0437\u0443\u0447\u0435\u043D\u043E).",
       // Domain Rules Section
-      section_domain_rules: "4. \u0427\u0435\u0440\u043D\u044B\u0439 \u0441\u043F\u0438\u0441\u043E\u043A \u0438 \u0438\u0441\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u0441\u0430\u0439\u0442\u043E\u0432",
+      section_domain_rules: "\u0427\u0435\u0440\u043D\u044B\u0439 \u0441\u043F\u0438\u0441\u043E\u043A \u0438 \u0438\u0441\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u0441\u0430\u0439\u0442\u043E\u0432",
       section_domain_rules_desc: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0441\u0430\u0439\u0442\u044B, \u043D\u0430 \u043A\u043E\u0442\u043E\u0440\u044B\u0445 \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043D\u0438\u0435 \u0434\u043E\u043B\u0436\u043D\u043E \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0438\u043B\u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043E\u0442\u043A\u043B\u044E\u0447\u0430\u0442\u044C\u0441\u044F.",
       filter_mode: "\u0420\u0435\u0436\u0438\u043C \u0444\u0438\u043B\u044C\u0442\u0440\u0430",
       mode_blacklist: "\u0427\u0435\u0440\u043D\u044B\u0439 \u0441\u043F\u0438\u0441\u043E\u043A (\u041E\u0442\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043D\u0430 \u0443\u043A\u0430\u0437\u0430\u043D\u043D\u044B\u0445 \u0441\u0430\u0439\u0442\u0430\u0445)",
@@ -30154,12 +30154,12 @@
       tab_filters: "Filtros de sitios",
       settings_auto_sync: "Los ajustes se sincronizan autom\xE1ticamente con las pesta\xF1as",
       // Sections
-      section_connection: "1. Conexi\xF3n y Autenticaci\xF3n",
+      section_connection: "Conexi\xF3n y Autenticaci\xF3n",
       section_connection_desc: "Especifica la URL del servidor Lectura y las credenciales de acceso.",
-      section_subtitles: "2. Subt\xEDtulos interactivos de YouTube",
+      section_subtitles: "Subt\xEDtulos interactivos de YouTube",
       section_subtitles_desc: "Subt\xEDtulos interactivos con atajos, diccionario emergente y controles de pausa en YouTube.",
-      section_reader: "3. B\xFAsqueda y selecci\xF3n en p\xE1ginas web",
-      section_reader_desc: "Traducci\xF3n instant\xE1nea y guardado de vocabulario SRS en cualquier sitio web.",
+      section_reader: "B\xFAsqueda y selecci\xF3n de palabras",
+      section_reader_desc: "Traducci\xF3n instant\xE1nea y guardado de vocabulario SRS en cualquier p\xE1gina web.",
       // Form fields
       server_url: "URL del servidor",
       server_url_hint: "Incluye protocolo y puerto (p. ej. http://localhost:3000 o https://lectura.tudominio.com).",
@@ -30225,7 +30225,7 @@
       highlight_learned: "Resaltar vocabulario aprendido",
       highlight_learned_desc: "Colorea las palabras en la web seg\xFAn tu progreso en Lectura (1-5, Aprendida).",
       // Domain Rules Section
-      section_domain_rules: "4. Filtrado de sitios web y exclusiones",
+      section_domain_rules: "Filtrado de sitios web y exclusiones",
       section_domain_rules_desc: "Controla en qu\xE9 sitios web opera Lectura o en cu\xE1les se desactiva autom\xE1ticamente.",
       filter_mode: "Modo de filtro",
       mode_blacklist: "Lista negra (Desactivar en sitios indicados)",
