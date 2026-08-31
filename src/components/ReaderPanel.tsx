@@ -378,19 +378,6 @@ function ReaderPanel({
     detectedPhraseType?: string;
   } | null>(null);
 
-  const [isPageSelectOpen, setIsPageSelectOpen] = useState(false);
-  const pageSelectRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (pageSelectRef.current && !pageSelectRef.current.contains(e.target as Node)) {
-        setIsPageSelectOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // Check if text is mostly East Asian (at least 30% CJK characters)
   const isCjk = useMemo(() => {
     if (!textForSearch) return false;
@@ -2124,7 +2111,7 @@ function ReaderPanel({
                         className={`font-mono text-xs px-1.5 py-0.5 rounded transition-colors select-none tracking-tight inline-block cursor-pointer ${
                           isSegmentActive
                             ? "text-amber-800 dark:text-amber-300 bg-amber-200/60 dark:bg-amber-900/40 font-semibold"
-                            : "text-amber-600/75 dark:text-amber-400/75 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 font-normal"
+                            : "text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/40 font-normal"
                         }`}
                         title={t('reader.click_to_seek', 'Click to seek video to this timestamp')}
                       >
@@ -2297,161 +2284,64 @@ function ReaderPanel({
         })}
 
 
-        {/* Beautiful Pagination HUD bar custom control */}
+        {/* Нижняя чистая панель навигации по страницам */}
         {pages.length > 1 && !(showOnlyUnknown && unknownViewMode === "list") && (
-          <div className={lesson.lessonType === "book" ? "mt-auto w-full" : `border-t ${currentTheme.divider} pt-5 mt-6 space-y-4`}>
-            {/* Quick jump timeline slider row (non-book or when many pages) */}
-            {lesson.lessonType !== "book" && (
-              <div className={`flex items-center justify-between gap-3 ${currentTheme.barBg} p-2.5 rounded-xl`}>
-                <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.subText} shrink-0`}>
-                  {t('reader.fast_jump', 'Fast Jump:')}
-                </span>
-                <div className="flex-grow flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
-                  {pages.map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => {
-                        navigateToPage(i);
-                      }}
-                      className={`min-w-[28px] h-7 px-1.5 text-[10px] font-black font-mono rounded-lg transition-all cursor-pointer ${
-                        i === clampedPageIdx
-                          ? "bg-teal-600 text-white shadow-sm ring-1 ring-teal-400 scale-105"
-                          : `${currentTheme.pillBg} hover:opacity-80`
-                      }`}
-                    >
-                      {i + 1}
-                    </button>
+          <div className={lesson.lessonType === "book" ? "mt-auto w-full select-none" : "mt-6 select-none"}>
+            <div className="flex items-center justify-between pt-6 border-t border-neutral-200/60 dark:border-neutral-800/60 select-none">
+              <button
+                type="button"
+                id="reader-prev-page-btn"
+                onClick={() => {
+                  navigateToPage(Math.max(0, clampedPageIdx - 1));
+                  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+                }}
+                disabled={clampedPageIdx === 0}
+                className="px-4 py-2 text-xs font-medium rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                ← {t('reader.prev_page', 'Previous')}
+              </button>
+
+              {/* Компактный дропдаун/индикатор текущей страницы */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60 text-xs text-neutral-600 dark:text-neutral-300 font-sans">
+                <span>{t('reader.page', 'Page')}</span>
+                <select
+                  value={clampedPageIdx + 1}
+                  onChange={(e) => {
+                    navigateToPage(Number(e.target.value) - 1);
+                    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+                  }}
+                  className="bg-transparent font-semibold text-emerald-600 dark:text-emerald-400 cursor-pointer focus:outline-none"
+                >
+                  {Array.from({ length: pages.length }, (_, i) => i + 1).map((page) => (
+                    <option key={page} value={page} className="dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200">
+                      {page}
+                    </option>
                   ))}
-                </div>
+                </select>
+                <span>{t('reader.of', 'of')} {pages.length}</span>
               </div>
-            )}
 
-            {lesson.lessonType === "book" ? (
-              /* Book Footer Paginator (Book Mode & Study Mode) */
-              <div className="pt-4 pb-1 border-t border-stone-200/60 dark:border-zinc-800/60 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 font-sans select-none mt-auto">
-                <button
-                  type="button"
-                  disabled={clampedPageIdx === 0}
-                  onClick={() => {
-                    navigateToPage(Math.max(0, clampedPageIdx - 1));
-                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                  }}
-                  className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer font-medium"
-                >
-                  ‹ {t('reader.prev_page', 'Previous')}
-                </button>
-
-                <div className="flex items-center gap-1.5 font-medium text-stone-600 dark:text-stone-400">
-                  <span>{t('reader.page', 'Page')}</span>
-                  <select
-                    value={clampedPageIdx + 1}
-                    onChange={(e) => {
-                      navigateToPage(Number(e.target.value) - 1);
-                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                    }}
-                    className="bg-transparent font-bold text-stone-800 dark:text-stone-200 cursor-pointer focus:outline-none"
-                  >
-                    {Array.from({ length: pages.length }, (_, i) => i + 1).map((p) => (
-                      <option key={p} value={p} className="bg-stone-50 dark:bg-zinc-900 text-stone-800 dark:text-stone-200">
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                  <span>{t('reader.of', 'of')} {pages.length}</span>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={clampedPageIdx >= pages.length - 1}
-                  onClick={() => {
-                    navigateToPage(Math.min(pages.length - 1, clampedPageIdx + 1));
-                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                  }}
-                  className="px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 hover:text-stone-700 dark:hover:text-stone-200 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer font-medium"
-                >
-                  {t('reader.next_page', 'Next')} ›
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <button
-                  type="button"
-                  id="reader-prev-page-btn"
-                  disabled={clampedPageIdx === 0}
-                  onClick={() => {
-                    navigateToPage(Math.max(0, clampedPageIdx - 1));
-                  }}
-                  className={`w-full sm:w-auto px-4 py-2 bg-transparent border ${currentTheme.divider} ${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5`}
-                >
-                  ← {t('reader.prev_page', 'Prev')}
-                </button>
-
-                <div className={`flex items-center gap-1.5 bg-transparent px-3 py-1.5 rounded-xl border ${currentTheme.divider}`}>
-                  <span className={`text-xs font-mono font-bold tracking-tight ${currentTheme.subText}`}>
-                    {t('reader.page', 'Page')}
-                  </span>
-                  <div className="relative" ref={pageSelectRef}>
-                    <button
-                      type="button"
-                      id="page-jump-select-btn"
-                      onClick={() => setIsPageSelectOpen(!isPageSelectOpen)}
-                      className="flex items-center gap-0.5 text-xs font-mono font-bold text-teal-600 dark:text-teal-400 bg-transparent px-1 py-0.5 rounded cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus:outline-none"
-                    >
-                      <span>{clampedPageIdx + 1}</span>
-                      <ChevronDown className={`w-3 h-3 text-teal-600 dark:text-teal-400 transition-transform ${isPageSelectOpen ? "rotate-180" : ""}`} />
-                    </button>
-
-                    {isPageSelectOpen && (
-                      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-20 max-h-48 overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-[9999] py-1 text-center font-mono text-xs">
-                        {pages.map((_, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => {
-                              navigateToPage(i);
-                              setIsPageSelectOpen(false);
-                            }}
-                            className={`w-full px-2 py-1 text-center transition-colors cursor-pointer ${
-                              i === clampedPageIdx
-                                ? "bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 font-bold"
-                                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                            }`}
-                          >
-                            {i + 1}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <span className={`text-xs font-mono font-bold tracking-tight ${currentTheme.subText} opacity-80`}>
-                    {t('reader.of', 'of')} {pages.length}
-                  </span>
-                  <button
-                    type="button"
-                    title={t('reader.reset_p1', 'Reset to Page 1')}
-                    onClick={() => {
-                      navigateToPage(0); safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, "0");
-                    }}
-                    className={`p-1 hover:bg-black/10 dark:hover:bg-white/10 ${currentTheme.subText} opacity-70 hover:opacity-100 rounded-md transition cursor-pointer ml-1`}
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  id="reader-next-page-btn"
-                  disabled={clampedPageIdx === pages.length - 1}
-                  onClick={() => {
-                    navigateToPage(Math.min(pages.length - 1, clampedPageIdx + 1));
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-black transition-all active:scale-98 flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  {t('reader.next_page', 'Next')} →
-                </button>
-              </div>
-            )}
+              <button
+                type="button"
+                id="reader-next-page-btn"
+                onClick={() => {
+                  if (clampedPageIdx >= pages.length - 1) {
+                    handleToggleStatus("completed");
+                  } else {
+                    navigateToPage(clampedPageIdx + 1);
+                    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+                  }
+                }}
+                disabled={clampedPageIdx === pages.length - 1 && currentStatus === "completed"}
+                className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors border cursor-pointer ${
+                  clampedPageIdx === pages.length - 1
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850"
+                }`}
+              >
+                {clampedPageIdx >= pages.length - 1 ? t('reader.complete_btn', 'Complete ✓') : `${t('reader.next_page', 'Next')} →`}
+              </button>
+            </div>
           </div>
         )}
 

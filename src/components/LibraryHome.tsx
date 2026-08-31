@@ -13,6 +13,7 @@ import { ignoreListManager } from "../services/ignoreListService";
 import PlaylistCard from "./playlist/PlaylistCard";
 import AddToPlaylistModal from "./playlist/AddToPlaylistModal";
 import { BookCard, BookStats, CoverPreset } from "./library/BookCard";
+import SortDropdown from "./SortDropdown";
 
 export function getDifficultyBadgeStyles(_level?: string) {
   // Clean, unified, high-contrast style matching the language pill
@@ -1256,38 +1257,11 @@ function LibraryHome({
           </div>
 
           {/* Sort dropdown */}
-          <div className="relative flex items-center font-sans">
-            <select
-              id="library-sort-select"
-              value={sortBy}
-              onChange={(e) => handleSortChange(e.target.value)}
-              title={t("library.sort_title_attr", "Sort books")}
-              className={`pl-2.5 pr-6 py-1.5 text-xs font-bold rounded-xl transition-all appearance-none cursor-pointer focus:outline-none ${
-                sortBy !== "pinned"
-                  ? "bg-teal-600 text-white border-teal-700 shadow-3xs"
-                  : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              }`}
-            >
-              <option value="pinned">{t('library.sort_pinned', '📌 Pinned')}</option>
-              <option value="newest">{t('library.sort_newest', '🕐 Newest first')}</option>
-              <option value="oldest">{t('library.sort_oldest', '📅 Oldest first')}</option>
-              <option value="title">{t('library.sort_title', '🔤 Title A-Z')}</option>
-              <option value="title_desc">{t('library.sort_title_desc', '🔤 Title Z-A')}</option>
-              <option value="comprehension_high">{t('library.sort_comp_high', '📊 Comp: High')}</option>
-              <option value="comprehension_low">{t('library.sort_comp_low', '📊 Comp: Low')}</option>
-              <option value="length_short">
-                {selectedLessonType === "youtube" || selectedLessonType === "podcast"
-                  ? t('library.sort_short_media', '⏱️ Short')
-                  : t('library.sort_short', '📖 Short')}
-              </option>
-              <option value="length_long">
-                {selectedLessonType === "youtube" || selectedLessonType === "podcast"
-                  ? t('library.sort_long_media', '⏱️ Long')
-                  : t('library.sort_long', '📖 Long')}
-              </option>
-            </select>
-            <ChevronDown className={`pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${sortBy !== "pinned" ? "text-white" : "text-zinc-400"}`} />
-          </div>
+          <SortDropdown
+            currentSort={sortBy}
+            onSelectSort={handleSortChange}
+            selectedLessonType={selectedLessonType}
+          />
 
           {/* Compact Grid Columns dropdown (Desktop only: hidden on mobile) */}
           <div className="hidden sm:block relative font-sans" ref={gridDropdownRef}>
