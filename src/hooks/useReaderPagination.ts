@@ -94,7 +94,25 @@ export function useReaderPagination({
 
     const hasAnyTimestamp = result.some((r) => r.timestamp !== null);
     if (!hasAnyTimestamp) {
-      const normalizedText = lesson.text
+      let cleanInputText = lesson.text;
+      if (/<[a-z][\s\S]*>/i.test(cleanInputText)) {
+        cleanInputText = cleanInputText
+          .replace(/<\/(?:p|div|section|article|header|footer)>/gi, "\n\n")
+          .replace(/<br\s*[\/]?>/gi, "\n")
+          .replace(/<h[1-2][^>]*>(.*?)<\/h[1-2]>/gi, "\n\n## $1 ##\n\n")
+          .replace(/<h[3-6][^>]*>(.*?)<\/h[3-6]>/gi, "\n\n# $1 #\n\n")
+          .replace(/<li[^>]*>(.*?)<\/li>/gi, "\n• $1\n")
+          .replace(/<figcaption[^>]*>(.*?)<\/figcaption>/gi, "\n[CAPTION:$1]\n")
+          .replace(/<[^>]+>/g, "")
+          .replace(/&nbsp;/gi, " ")
+          .replace(/&amp;/gi, "&")
+          .replace(/&lt;/gi, "<")
+          .replace(/&gt;/gi, ">")
+          .replace(/&quot;/gi, '"')
+          .replace(/&#39;/gi, "'");
+      }
+
+      const normalizedText = cleanInputText
         .replace(/(\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\])/gi, "\n\n$1\n\n")
         .replace(/(\[CAPTION:[^\]]+\])/gi, "\n\n$1\n\n")
         .replace(/\n{3,}/g, "\n\n");

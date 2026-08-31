@@ -64,6 +64,18 @@ export interface SaveWordPayload {
   imageUrl?: string;
 }
 
+export interface ExtractedArticle {
+  title: string;
+  content: string;
+  rawText: string;
+  sourceUrl: string;
+  leadImageUrl?: string;
+  author?: string;
+  language?: string;
+  audioUrl?: string | null;
+  audio_url?: string | null;
+}
+
 export interface SaveLessonPayload {
   id?: string;
   title: string;
@@ -75,6 +87,8 @@ export interface SaveLessonPayload {
   translationLanguage?: string;
   lessonType?: string;
   author?: string;
+  audioUrl?: string | null;
+  audio_url?: string | null;
 }
 
 export interface SubtitleCue {

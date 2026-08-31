@@ -1,15 +1,37 @@
-/**
- * High-quality Article and Content Extractor with strict HTML sanitization
- */
+import { ExtractedArticle } from '../types/index';
 
-export interface ExtractedArticle {
-  title: string;
-  content: string;
-  rawText: string;
-  sourceUrl: string;
-  leadImageUrl?: string;
-  author?: string;
-  language?: string;
+export function isMediaUrl(url: string): boolean {
+  if (!url) return false;
+  return (
+    /youtube\.com|youtu\.be/i.test(url) ||
+    /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(url)
+  );
+}
+
+export function stripHtmlPreservingStructure(html: string): string {
+  if (!html) return "";
+  if (!/<[a-z][\s\S]*>/i.test(html)) return html.trim();
+
+  // Replace block tags with double newlines and headings with Markdown markers
+  let text = html
+    .replace(/<\/(?:p|div|section|article|header|footer)>/gi, "\n\n")
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<h[1-2][^>]*>(.*?)<\/h[1-2]>/gi, "\n\n## $1 ##\n\n")
+    .replace(/<h[3-6][^>]*>(.*?)<\/h[3-6]>/gi, "\n\n# $1 #\n\n")
+    .replace(/<li[^>]*>(.*?)<\/li>/gi, "\n• $1\n")
+    .replace(/<figcaption[^>]*>(.*?)<\/figcaption>/gi, "\n[CAPTION:$1]\n");
+
+  try {
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    text = doc.body.textContent || "";
+  } catch (_) {
+    text = text.replace(/<[^>]+>/g, "");
+  }
+
+  return text
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export class ArticleExtractor {
@@ -35,14 +57,19 @@ export class ArticleExtractor {
     // 3. Sanitize HTML & extract clean formatted text
     const { cleanHtml, plainText } = this.sanitizeAndFormat(articleRoot);
 
+    const isMedia = isMediaUrl(url);
+    const cleanContent = stripHtmlPreservingStructure(plainText || cleanHtml);
+
     return {
       title,
-      content: cleanHtml || plainText,
-      rawText: plainText,
+      content: cleanContent,
+      rawText: cleanContent,
       sourceUrl: url,
       leadImageUrl,
       author,
       language,
+      audioUrl: isMedia ? url : null,
+      audio_url: isMedia ? url : null,
     };
   }
 

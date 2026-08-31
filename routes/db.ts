@@ -2264,6 +2264,32 @@ router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
 // Chrome Extension & External REST Endpoints
 // ============================================================
 
+function stripHtmlTagsPreservingStructure(html: string): string {
+  if (!html) return "";
+  if (!/<[a-z][\s\S]*>/i.test(html)) return html.trim();
+
+  let text = html
+    .replace(/<\/(?:p|div|section|article|header|footer)>/gi, "\n\n")
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<h[1-2][^>]*>(.*?)<\/h[1-2]>/gi, "\n\n## $1 ##\n\n")
+    .replace(/<h[3-6][^>]*>(.*?)<\/h[3-6]>/gi, "\n\n# $1 #\n\n")
+    .replace(/<li[^>]*>(.*?)<\/li>/gi, "\n• $1\n")
+    .replace(/<figcaption[^>]*>(.*?)<\/figcaption>/gi, "\n[CAPTION:$1]\n");
+
+  // Strip all remaining HTML tags
+  text = text.replace(/<[^>]+>/g, "");
+  // Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+
+  return text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 // 1. Create/Import Lesson (One-Click Article / Content Importer)
 router.post("/lessons", (req: Request, res: Response) => {
   let userId: string;
@@ -2291,11 +2317,22 @@ router.post("/lessons", (req: Request, res: Response) => {
     channelTitle
   } = req.body;
 
-  const cleanText = (text || content || "").trim();
-  const cleanTitle = (title || "Imported Article").trim();
+  const rawText = (text || content || "").trim();
+  // Strip raw HTML tags if any were passed, while preserving paragraph structure
+  const cleanText = stripHtmlTagsPreservingStructure(rawText);
+  const cleanTitle = stripHtmlTagsPreservingStructure(title || "Imported Article").trim();
   const targetLang = (targetLanguage || language || "es").trim();
   const transLang = (translationLanguage || "ru").trim();
-  const type = lessonType || "article";
+  const rawAudio = (req.body.audioUrl || req.body.audio_url || "").trim();
+  const isMedia = rawAudio && (
+    /youtube\.com|youtu\.be/i.test(rawAudio) ||
+    /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(rawAudio) ||
+    rawAudio.startsWith('/api/') ||
+    rawAudio.startsWith('blob:') ||
+    rawAudio.startsWith('data:audio')
+  );
+  const resolvedAudioUrl = isMedia ? rawAudio : null;
+  const type = lessonType || (resolvedAudioUrl ? "video" : "article");
   const lessonId = id || ("ext_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 7));
 
   if (!cleanText) {
@@ -2316,6 +2353,7 @@ router.post("/lessons", (req: Request, res: Response) => {
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
           text = excluded.text,
+          audioUrl = excluded.audioUrl,
           targetLanguage = excluded.targetLanguage,
           translationLanguage = excluded.translationLanguage,
           coverUrl = COALESCE(excluded.coverUrl, lessons.coverUrl),
@@ -2326,7 +2364,7 @@ router.post("/lessons", (req: Request, res: Response) => {
         userId,
         cleanTitle,
         cleanText,
-        sourceUrl || null,
+        resolvedAudioUrl,
         targetLang,
         transLang,
         coverUrl || null,
