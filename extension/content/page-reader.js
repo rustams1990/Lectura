@@ -798,12 +798,22 @@
         ".share-buttons",
         ".comments",
         ".disqus",
-        "#comments",
         ".related-articles",
-        ".sidebar"
+        ".sidebar",
+        '[data-component="byline-block"]',
+        '[data-testid="byline"]',
+        '[data-testid="timestamp"]',
+        ".article__byline",
+        ".byline",
+        "time",
+        'header [data-component="headline-block"] ~ div:not([data-component="text-block"])'
       ];
-      const elements = root.querySelectorAll(junkSelectors.join(","));
-      elements.forEach((el) => el.remove());
+      junkSelectors.forEach((sel) => {
+        try {
+          root.querySelectorAll(sel).forEach((el) => el.remove());
+        } catch (_2) {
+        }
+      });
     }
     static findMainContentElement(doc) {
       const candidates = [
@@ -849,7 +859,8 @@
             if (last) src = last;
           }
         }
-        const captionText = (figcaption?.textContent || "").trim().replace(/\s+/g, " ");
+        const rawCaption = (figcaption?.textContent || "").trim().replace(/\s+/g, " ");
+        const captionText = rawCaption.replace(/^image caption[:,]?\s*/i, "").trim();
         let markerText = "";
         if (src && !src.startsWith("data:") && !src.includes("placeholder") && !src.includes("grey-")) {
           markerText += `

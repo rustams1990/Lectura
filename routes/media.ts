@@ -896,9 +896,9 @@ function processFigureElement(figure: Element, baseUrl: string): string {
 
   let result = `\n\n[IMG:${fullImageUrl}]\n\n`;
 
-  // 2. Ищем подпись/автора (figcaption или credit)
   const figcaption = figure.querySelector('figcaption');
-  let captionText = figcaption ? (figcaption.textContent || '').trim().replace(/\s+/g, ' ') : '';
+  let rawCap = figcaption ? (figcaption.textContent || '').trim().replace(/\s+/g, ' ') : '';
+  let captionText = rawCap.replace(/^image caption[:,]?\s*/i, '').trim();
 
   // Также извлекаем кредиты автора/агентства внутри figure (если не внутри figcaption)
   const creditEl = figure.querySelector('[class*="credit" i], [class*="copyright" i], [data-testid*="credit" i], [class*="author" i]');
@@ -944,9 +944,13 @@ function convertArticleHtmlToText(contentHtml: string, baseUrl: string): string 
   const JUNK_SELECTORS = [
     "time",                           // publication dates
     "button",                         // share/save buttons
+    "[data-component='byline-block']",
     "[data-testid='byline']",
     "[data-testid='header-search']",
     "[data-testid='timestamp']",
+    ".article__byline",
+    ".byline",
+    "header [data-component='headline-block'] ~ div:not([data-component='text-block'])",
     "[class*='byline']",
     "[class*='Byline']",
     "[class*='share']",
@@ -1017,7 +1021,8 @@ function convertArticleHtmlToText(contentHtml: string, baseUrl: string): string 
     }
 
     if (tag === "figcaption") {
-      const capText = (el.textContent || "").trim().replace(/\s+/g, " ");
+      const rawText = (el.textContent || "").trim().replace(/\s+/g, " ");
+      const capText = rawText.replace(/^image caption[:,]?\s*/i, "").trim();
       if (capText.length > 0) {
         lines.push(`[CAPTION:${capText}]`);
       }

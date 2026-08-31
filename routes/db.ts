@@ -2277,6 +2277,20 @@ function htmlToPlainText(html: string): string {
 
     // Remove non-content elements
     doc.querySelectorAll("script, style, noscript, svg, button, nav, header, footer, aside, form, input, select, canvas").forEach((el) => el.remove());
+    const metaSelectors = [
+      '[data-component="byline-block"]',
+      '[data-testid="byline"]',
+      '[data-testid="timestamp"]',
+      '.article__byline',
+      '.byline',
+      'time',
+      'header [data-component="headline-block"] ~ div:not([data-component="text-block"])'
+    ];
+    metaSelectors.forEach(sel => {
+      try {
+        doc.querySelectorAll(sel).forEach(el => el.remove());
+      } catch (_) {}
+    });
 
     // Replace <figure> elements
     doc.querySelectorAll("figure").forEach((fig) => {
@@ -2291,7 +2305,8 @@ function htmlToPlainText(html: string): string {
           if (last) src = last;
         }
       }
-      const cap = (figcaption?.textContent || "").trim().replace(/\s+/g, " ");
+      const rawCap = (figcaption?.textContent || "").trim().replace(/\s+/g, " ");
+      const cap = rawCap.replace(/^image caption[:,]?\s*/i, "").trim();
       let markerText = "";
       if (src && !src.startsWith("data:") && !src.includes("placeholder") && !src.includes("grey-")) {
         markerText += `[IMG:${src}]`;

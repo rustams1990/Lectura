@@ -1280,8 +1280,8 @@ function ReaderPanel({
                   }}
                 />
                 {nextCaptionText && (
-                  <figcaption className="mt-2 text-left text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed select-none">
-                    {nextCaptionText}
+                  <figcaption className="text-xs text-neutral-500 dark:text-neutral-400 italic mt-1.5 text-center select-none w-full">
+                    {nextCaptionText.replace(/^image caption[:,]?\s*/i, '').trim()}
                   </figcaption>
                 )}
               </figure>
@@ -1299,12 +1299,13 @@ function ReaderPanel({
               }
             }
 
-            const caption = trimmedSegText.startsWith('__LECTURA_CAP__:')
+            const rawCaption = trimmedSegText.startsWith('__LECTURA_CAP__:')
               ? trimmedSegText.replace('__LECTURA_CAP__:', '').trim()
               : trimmedSegText.slice(9, -1).trim();
+            const caption = rawCaption.replace(/^image caption[:,]?\s*/i, '').trim();
             return (
-              <figure key={pIdx} id={`segment-row-${globalSegmentIdx}`} className="my-2 mx-auto max-w-xl flex flex-col items-start clear-both w-full">
-                <figcaption className="text-left text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed select-none">
+              <figure key={pIdx} id={`segment-row-${globalSegmentIdx}`} className="my-2 mx-auto max-w-xl flex flex-col items-center clear-both w-full">
+                <figcaption className="text-xs text-neutral-500 dark:text-neutral-400 italic mt-1.5 text-center select-none w-full">
                   {caption}
                 </figcaption>
               </figure>
@@ -2201,15 +2202,18 @@ function ReaderPanel({
             // [CAPTION:Some caption text] or [caption] Some caption text
             const captionMatch = trimmedText.match(/^\[(?:CAPTION:?|caption\])\s*(.+?)(?:\])?$/i);
             if (captionMatch) {
-              const captionText = captionMatch[1].replace(/\]$/, "").trim();
+              const captionText = captionMatch[1]
+                .replace(/\]$/, "")
+                .replace(/^image caption[:,]?\s*/i, "")
+                .trim();
               return (
                 <figure 
                   key={pIdx}
                   id={`segment-row-${globalSegmentIdx}`}
-                  className="my-2 mx-auto max-w-xl flex flex-col items-start clear-both w-full"
+                  className="my-2 mx-auto max-w-xl flex flex-col items-center clear-both w-full"
                   style={{ textIndent: 0 }}
                 >
-                  <figcaption className="text-left text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed select-none">
+                  <figcaption className="text-xs text-neutral-500 dark:text-neutral-400 italic mt-1.5 text-center select-none w-full">
                     {captionText}
                   </figcaption>
                 </figure>
