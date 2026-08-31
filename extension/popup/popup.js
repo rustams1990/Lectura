@@ -720,9 +720,9 @@
       // Tabs
       tab_settings: "\u2699\uFE0F Settings",
       tab_activity: "\u{1F4CA} Activity",
-      tab_connection: "Connection & Sync",
-      tab_youtube: "YouTube Overlay",
-      tab_webreader: "Web Page Tooltip",
+      tab_connection: "Connection",
+      tab_youtube: "YouTube",
+      tab_webreader: "Web Reader",
       tab_filters: "Site Filters",
       settings_auto_sync: "Settings auto-sync with active tabs",
       // Sections
@@ -867,10 +867,10 @@
       // Tabs
       tab_settings: "\u2699\uFE0F \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
       tab_activity: "\u{1F4CA} \u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C",
-      tab_connection: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F",
-      tab_youtube: "YouTube \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
-      tab_webreader: "\u041F\u043E\u0434\u0441\u043A\u0430\u0437\u043A\u0438 \u043D\u0430 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445",
-      tab_filters: "\u0424\u0438\u043B\u044C\u0442\u0440\u044B \u0441\u0430\u0439\u0442\u043E\u0432",
+      tab_connection: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435",
+      tab_youtube: "YouTube",
+      tab_webreader: "\u0412\u0435\u0431-\u0440\u0438\u0434\u0435\u0440",
+      tab_filters: "\u0424\u0438\u043B\u044C\u0442\u0440\u044B",
       settings_auto_sync: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u043C\u0438 \u0432\u043A\u043B\u0430\u0434\u043A\u0430\u043C\u0438",
       // Sections
       section_connection: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F",
@@ -1014,10 +1014,10 @@
       // Tabs
       tab_settings: "\u2699\uFE0F Ajustes",
       tab_activity: "\u{1F4CA} Actividad",
-      tab_connection: "Conexi\xF3n y sincronizaci\xF3n",
-      tab_youtube: "Subt\xEDtulos de YouTube",
-      tab_webreader: "Lector de p\xE1ginas web",
-      tab_filters: "Filtros de sitios",
+      tab_connection: "Conexi\xF3n",
+      tab_youtube: "YouTube",
+      tab_webreader: "Lector web",
+      tab_filters: "Filtros",
       settings_auto_sync: "Los ajustes se sincronizan autom\xE1ticamente con las pesta\xF1as",
       // Sections
       section_connection: "Conexi\xF3n y Autenticaci\xF3n",

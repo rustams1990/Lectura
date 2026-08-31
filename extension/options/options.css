@@ -139,37 +139,35 @@ body {
   color: var(--error-text);
 }
 
-/* Таб-бар навигации */
+/* Таб-бар навигации (адаптивная 4-колоночная сетка по 25% ширины) */
 .options-nav-tabs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px 8px 0;
   background: var(--bg-subtle);
   border-bottom: 1px solid var(--border-color);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.options-nav-tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .nav-tab-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 4px;
   background: transparent;
   border: none;
   border-bottom: 3px solid transparent;
   border-radius: 10px 10px 0 0;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  min-width: 0;
+  width: 100%;
+  text-align: center;
 }
 
 .nav-tab-btn:hover {
@@ -191,7 +189,15 @@ body {
 }
 
 .tab-icon {
-  font-size: 16px;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.tab-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 /* Основная область контента */
