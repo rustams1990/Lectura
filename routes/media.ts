@@ -589,17 +589,39 @@ router.post("/import-file", async (req: Request, res: Response) => {
 });
 
 // ============================================================
-// Browser-like Headers for web article fetching
+// Browser-like Headers & Fetch for web article fetching
 // ============================================================
 const BROWSER_HEADERS: Record<string, string> = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
-  "Cache-Control": "no-cache",
-  "Sec-Fetch-Dest": "document",
-  "Sec-Fetch-Mode": "navigate",
-  "Sec-Fetch-Site": "none",
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8,es;q=0.7',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+  'Sec-Ch-Ua': '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1',
 };
+
+export async function fetchWebPage(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(url, { headers: BROWSER_HEADERS, signal: controller.signal, redirect: 'follow' });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch webpage. HTTP status: ${res.status}`);
+    }
+    return await res.text();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // ============================================================
 // Mozilla Readability article parser
@@ -613,41 +635,45 @@ interface ReadabilityResult {
 }
 
 /**
- * Извлекает реальный URL картинки BBC из блока <figure>/<picture>/[data-component="image-block"],
- * парсит srcset (в <source> и <img>) и игнорирует серые заглушки (grey-placeholder).
+ * Универсальный экстрактор изображений (IGN, BBC, Guardian, Al Jazeera, WP и др.)
+ * Проверяет noscript, source, srcset, data-original, data-src, data-lazy-src, data-image-src.
  */
-function extractBbcImageUrl(element: Element, baseUrl: string): string | null {
-  // 1. Ищем все возможные srcset (в <source> и <img>)
-  const sources = Array.from(element.querySelectorAll('source, img'));
-  
+function extractUniversalImageUrl(el: Element, baseUrl: string): string | null {
+  // 1. Проверяем <noscript> тег (многие сайты прячут настоящий <img> там)
+  const noscript = el.querySelector('noscript');
+  if (noscript) {
+    const match = noscript.innerHTML.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (match && match[1] && !match[1].includes('placeholder')) {
+      try { return new URL(match[1], baseUrl).href; } catch {}
+    }
+  }
+
+  // 2. Проверяем source / srcset (IGN, BBC, Guardian)
+  const sources = Array.from(el.querySelectorAll('source, img'));
+  if (el.tagName.toLowerCase() === 'img' || el.tagName.toLowerCase() === 'source') {
+    sources.unshift(el);
+  }
+
   for (const node of sources) {
     const srcset = node.getAttribute('srcset') || node.getAttribute('data-srcset');
     if (srcset) {
-      // Пример srcset: "https://ichef.bbci.co.uk/.../480.jpg 480w, https://ichef.bbci.co.uk/.../800.jpg 800w"
-      const entries = srcset.split(',').map(entry => {
-        const trimmed = entry.trim();
-        const parts = trimmed.split(/\s+/);
-        return parts[0]; // URL
-      }).filter(url => url && !url.includes('grey-placeholder') && !url.startsWith('data:'));
-
-      if (entries.length > 0) {
-        const bestUrl = entries[entries.length - 1]; // Берем последнее (самое качественное)
-        try {
-          return new URL(bestUrl, baseUrl).href;
-        } catch {
-          return bestUrl.startsWith('http') ? bestUrl : null;
-        }
+      const candidates = srcset.split(',').map(s => s.trim().split(/\s+/)[0]);
+      const valid = candidates.filter(u => u && !u.includes('placeholder') && !u.startsWith('data:'));
+      if (valid.length > 0) {
+        try { return new URL(valid[valid.length - 1], baseUrl).href; } catch {}
       }
     }
+    
+    // 3. Проверяем всевозможные lazy-load атрибуты
+    const candidateSrc = 
+      node.getAttribute('data-original') ||
+      node.getAttribute('data-src') ||
+      node.getAttribute('data-lazy-src') ||
+      node.getAttribute('data-image-src') ||
+      node.getAttribute('src');
 
-    // Проверяем обычные атрибуты (data-src, src)
-    const directSrc = node.getAttribute('data-src') || node.getAttribute('src');
-    if (directSrc && !directSrc.includes('grey-placeholder') && !directSrc.startsWith('data:')) {
-      try {
-        return new URL(directSrc, baseUrl).href;
-      } catch {
-        return directSrc.startsWith('http') ? directSrc : null;
-      }
+    if (candidateSrc && !candidateSrc.includes('placeholder') && !candidateSrc.startsWith('data:') && !candidateSrc.includes('1x1')) {
+      try { return new URL(candidateSrc, baseUrl).href; } catch {}
     }
   }
 
@@ -688,74 +714,54 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
                     doc.querySelector('#content') || 
                     doc.body) as HTMLElement;
 
-  // 2. Обработка всех картинок в корневом контейнере ДО Readability
-  mainRoot.querySelectorAll('figure, picture, [data-component="image-block"]').forEach((fig) => {
-    let bestUrl: string | null = null;
+  // 1. Главная обложка в OpenGraph (og:image) или twitter:image:
+  const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
+                  doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
 
-    // 1. Проверяем source / img srcset
-    const sources = Array.from(fig.querySelectorAll('source, img'));
-    for (const el of sources) {
-      const srcset = el.getAttribute('srcset') || el.getAttribute('data-srcset');
-      if (srcset) {
-        const parts = srcset.split(',').map(s => s.trim().split(/\s+/)[0]);
-        const valid = parts.filter(u => u && !u.includes('grey-placeholder') && !u.startsWith('data:'));
-        if (valid.length > 0) {
-          bestUrl = valid[valid.length - 1];
-          break;
-        }
-      }
-      const src = el.getAttribute('data-src') || el.getAttribute('src');
-      if (src && !src.includes('grey-placeholder') && !src.startsWith('data:')) {
-        bestUrl = src;
-        break;
+  // 2. Заменяем все фигурные блоки и контейнеры картинок на маркеры ДО Readability:
+  const imageContainers = doc.querySelectorAll('figure, picture, [data-component="image-block"], .article__image, .lead-image, .image-container, [class*="image-block"], [class*="figure"]');
+  imageContainers.forEach((container) => {
+    const imgUrl = extractUniversalImageUrl(container, baseUrl);
+    const rawCap = container.querySelector('figcaption, .caption, .credit, [class*="caption"], [class*="credit"]')?.textContent || '';
+    const caption = rawCap.trim().replace(/\s+/g, ' ').replace(/^image caption[:,]?\s*/i, '').trim();
+
+    if (imgUrl) {
+      const p = doc.createElement('p');
+      p.textContent = `[IMG:${imgUrl}]`;
+      container.parentNode?.insertBefore(p, container);
+
+      if (caption) {
+        const capP = doc.createElement('p');
+        capP.textContent = `[CAPTION:${caption}]`;
+        container.parentNode?.insertBefore(capP, container);
       }
     }
-
-    if (bestUrl) {
-      try {
-        const fullUrl = new URL(bestUrl, baseUrl).href;
-        const rawCap = fig.querySelector('figcaption')?.textContent?.replace(/\s+/g, ' ').trim() || '';
-        const caption = rawCap.replace(/^image caption[:,]?\s*/i, '').trim();
-
-        const marker = doc.createElement('p');
-        marker.textContent = `[IMG:${fullUrl}]`;
-        fig.parentNode?.insertBefore(marker, fig);
-
-        if (caption) {
-          const capP = doc.createElement('p');
-          capP.textContent = `[CAPTION:${caption}]`;
-          fig.parentNode?.insertBefore(capP, fig);
-        }
-      } catch (e) {}
-    }
-    fig.remove();
+    container.remove();
   });
 
-  // Также standalone <img> в mainRoot
-  mainRoot.querySelectorAll('img').forEach((img) => {
-    let bestUrl: string | null = null;
-    const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
-    if (srcset) {
-      const parts = srcset.split(',').map(s => s.trim().split(/\s+/)[0]);
-      const valid = parts.filter(u => u && !u.includes('grey-placeholder') && !u.startsWith('data:'));
-      if (valid.length > 0) bestUrl = valid[valid.length - 1];
-    }
-    if (!bestUrl) {
-      const src = img.getAttribute('data-src') || img.getAttribute('src');
-      if (src && !src.includes('grey-placeholder') && !src.startsWith('data:')) {
-        bestUrl = src;
-      }
-    }
-    if (bestUrl) {
-      try {
-        const fullUrl = new URL(bestUrl, baseUrl).href;
-        const marker = doc.createElement('p');
-        marker.textContent = `[IMG:${fullUrl}]`;
-        img.parentNode?.insertBefore(marker, img);
-      } catch (e) {}
+  // Также обрабатываем любые оставшиеся standalone <img> в mainRoot
+  mainRoot.querySelectorAll('article img, main img, .article-body img, .article__body img, .post-content img, img').forEach((img) => {
+    const imgUrl = extractUniversalImageUrl(img, baseUrl);
+    if (imgUrl) {
+      const p = doc.createElement('p');
+      p.textContent = `[IMG:${imgUrl}]`;
+      img.parentNode?.insertBefore(p, img);
     }
     img.remove();
   });
+
+  // Если картинок вообще не найдено в теле, но есть ogImage в шапке статьи:
+  if (ogImage && !doc.body.innerHTML.includes('[IMG:')) {
+    try {
+      const fullOg = new URL(ogImage, baseUrl).href;
+      const firstP = doc.querySelector('article p, main p, p');
+      if (firstP) {
+        const leadImg = doc.createElement('p');
+        leadImg.textContent = `[IMG:${fullOg}]`;
+        firstP.parentNode?.insertBefore(leadImg, firstP);
+      }
+    } catch (e) {}
+  }
 
   // 3. Запускаем Mozilla Readability
   let parsed: any = null;
@@ -1246,16 +1252,7 @@ router.post("/import-url", async (req: Request, res: Response) => {
   }
 
   try {
-    const fetchRes = await fetch(url, {
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
-    });
-
-    if (!fetchRes.ok) {
-      throw new Error(`Failed to fetch webpage. HTTP status: ${fetchRes.status}`);
-    }
-
-    const html = await fetchRes.text();
+    const html = await fetchWebPage(url);
 
     // ── Extract og:image / twitter:image for cover ──────────
     let extractedCoverUrl = "";
