@@ -720,6 +720,11 @@
       // Tabs
       tab_settings: "\u2699\uFE0F Settings",
       tab_activity: "\u{1F4CA} Activity",
+      tab_connection: "Connection & Sync",
+      tab_youtube: "YouTube Overlay",
+      tab_webreader: "Web Page Tooltip",
+      tab_filters: "Site Filters",
+      settings_auto_sync: "Settings auto-sync with active tabs",
       // Sections
       section_connection: "1. Connection & Authentication",
       section_connection_desc: "Specify your local or remote Lectura server URL and access credentials.",
@@ -862,6 +867,11 @@
       // Tabs
       tab_settings: "\u2699\uFE0F \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
       tab_activity: "\u{1F4CA} \u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C",
+      tab_connection: "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F",
+      tab_youtube: "YouTube \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
+      tab_webreader: "\u041F\u043E\u0434\u0441\u043A\u0430\u0437\u043A\u0438 \u043D\u0430 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430\u0445",
+      tab_filters: "\u0424\u0438\u043B\u044C\u0442\u0440\u044B \u0441\u0430\u0439\u0442\u043E\u0432",
+      settings_auto_sync: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u043C\u0438 \u0432\u043A\u043B\u0430\u0434\u043A\u0430\u043C\u0438",
       // Sections
       section_connection: "1. \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0438 \u0410\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F",
       section_connection_desc: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043D\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0435\u0440\u0430 Lectura \u0438 \u0434\u0430\u043D\u043D\u044B\u0435 \u0434\u043E\u0441\u0442\u0443\u043F\u0430.",
@@ -1004,6 +1014,11 @@
       // Tabs
       tab_settings: "\u2699\uFE0F Ajustes",
       tab_activity: "\u{1F4CA} Actividad",
+      tab_connection: "Conexi\xF3n y sincronizaci\xF3n",
+      tab_youtube: "Subt\xEDtulos de YouTube",
+      tab_webreader: "Lector de p\xE1ginas web",
+      tab_filters: "Filtros de sitios",
+      settings_auto_sync: "Los ajustes se sincronizan autom\xE1ticamente con las pesta\xF1as",
       // Sections
       section_connection: "1. Conexi\xF3n y Autenticaci\xF3n",
       section_connection_desc: "Especifica la URL del servidor Lectura y las credenciales de acceso.",
@@ -1169,6 +1184,7 @@
   var OptionsController = class {
     constructor() {
       this.currentSubtitleBgColor = "rgba(15, 23, 42, 0.90)";
+      this.activeTab = "youtube";
       this.apiClient = new LecturaApiClient();
       document.addEventListener("DOMContentLoaded", () => this.init());
     }
@@ -1204,10 +1220,43 @@
       this.saveNotification = document.getElementById("saveNotification");
       this.btnTest = document.getElementById("btnTest");
       this.btnSave = document.getElementById("btnSave");
+      this.setupTabs();
       this.bindEvents();
       await this.loadSettings();
       await this.loadProfiles();
       await this.testConnection();
+    }
+    setupTabs() {
+      const savedTab = localStorage.getItem("lectura_options_tab");
+      if (savedTab && ["connection", "youtube", "webreader", "filters"].includes(savedTab)) {
+        this.activeTab = savedTab;
+      }
+      this.switchTab(this.activeTab);
+      document.querySelectorAll(".nav-tab-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const tab = e.currentTarget.dataset.tab;
+          if (tab) {
+            this.switchTab(tab);
+          }
+        });
+      });
+    }
+    switchTab(tab) {
+      this.activeTab = tab;
+      try {
+        localStorage.setItem("lectura_options_tab", tab);
+      } catch (_) {
+      }
+      document.querySelectorAll(".nav-tab-btn").forEach((btn) => {
+        const isTarget = btn.dataset.tab === tab;
+        btn.classList.toggle("active", isTarget);
+        btn.setAttribute("aria-selected", isTarget ? "true" : "false");
+      });
+      document.querySelectorAll(".tab-panel").forEach((panel) => {
+        const isTarget = panel.dataset.tabPanel === tab;
+        panel.classList.toggle("active", isTarget);
+        panel.style.display = isTarget ? "flex" : "none";
+      });
     }
     applyBgColor(color) {
       this.currentSubtitleBgColor = color;

@@ -38,6 +38,8 @@ class OptionsController {
   private btnTest!: HTMLButtonElement;
   private btnSave!: HTMLButtonElement;
 
+  private activeTab: 'connection' | 'youtube' | 'webreader' | 'filters' = 'youtube';
+
   private apiClient: LecturaApiClient = new LecturaApiClient();
 
   constructor() {
@@ -78,10 +80,49 @@ class OptionsController {
     this.btnTest = document.getElementById('btnTest') as HTMLButtonElement;
     this.btnSave = document.getElementById('btnSave') as HTMLButtonElement;
 
+    this.setupTabs();
     this.bindEvents();
     await this.loadSettings();
     await this.loadProfiles();
     await this.testConnection();
+  }
+
+  private setupTabs() {
+    const savedTab = localStorage.getItem('lectura_options_tab') as any;
+    if (savedTab && ['connection', 'youtube', 'webreader', 'filters'].includes(savedTab)) {
+      this.activeTab = savedTab;
+    }
+    this.switchTab(this.activeTab);
+
+    document.querySelectorAll('.nav-tab-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const tab = (e.currentTarget as HTMLElement).dataset.tab as any;
+        if (tab) {
+          this.switchTab(tab);
+        }
+      });
+    });
+  }
+
+  private switchTab(tab: 'connection' | 'youtube' | 'webreader' | 'filters') {
+    this.activeTab = tab;
+    try {
+      localStorage.setItem('lectura_options_tab', tab);
+    } catch (_) {}
+
+    // Update tab buttons
+    document.querySelectorAll('.nav-tab-btn').forEach((btn) => {
+      const isTarget = (btn as HTMLElement).dataset.tab === tab;
+      btn.classList.toggle('active', isTarget);
+      btn.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+    });
+
+    // Update tab panels
+    document.querySelectorAll('.tab-panel').forEach((panel) => {
+      const isTarget = (panel as HTMLElement).dataset.tabPanel === tab;
+      panel.classList.toggle('active', isTarget);
+      (panel as HTMLElement).style.display = isTarget ? 'flex' : 'none';
+    });
   }
 
   private applyBgColor(color: string) {

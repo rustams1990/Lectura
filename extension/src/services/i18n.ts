@@ -23,6 +23,11 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     // Tabs
     tab_settings: "⚙️ Settings",
     tab_activity: "📊 Activity",
+    tab_connection: "Connection & Sync",
+    tab_youtube: "YouTube Overlay",
+    tab_webreader: "Web Page Tooltip",
+    tab_filters: "Site Filters",
+    settings_auto_sync: "Settings auto-sync with active tabs",
 
     // Sections
     section_connection: "1. Connection & Authentication",
@@ -175,6 +180,11 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     // Tabs
     tab_settings: "⚙️ Настройки",
     tab_activity: "📊 Активность",
+    tab_connection: "Подключение и синхронизация",
+    tab_youtube: "YouTube субтитры",
+    tab_webreader: "Подсказки на страницах",
+    tab_filters: "Фильтры сайтов",
+    settings_auto_sync: "Настройки синхронизируются с активными вкладками",
 
     // Sections
     section_connection: "1. Подключение и Авторизация",
@@ -327,6 +337,11 @@ export const EXTENSION_TRANSLATIONS: Record<SupportedUiLang, Record<string, stri
     // Tabs
     tab_settings: "⚙️ Ajustes",
     tab_activity: "📊 Actividad",
+    tab_connection: "Conexión y sincronización",
+    tab_youtube: "Subtítulos de YouTube",
+    tab_webreader: "Lector de páginas web",
+    tab_filters: "Filtros de sitios",
+    settings_auto_sync: "Los ajustes se sincronizan automáticamente con las pestañas",
 
     // Sections
     section_connection: "1. Conexión y Autenticación",
