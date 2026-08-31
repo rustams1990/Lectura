@@ -2427,7 +2427,11 @@
               coverUrl: article.leadImageUrl,
               author: article.author,
               targetLanguage: article.language !== "auto" ? article.language : settings.targetLanguage,
-              lessonType: "article"
+              lessonType: "article",
+              sourceType: "article",
+              audioUrl: null,
+              audioFile: null,
+              youtubeId: null
             });
             this.showAlert(`Lesson "${article.title}" saved to Lectura!`, "success");
             this.btnImportPage.innerHTML = `<span class="btn-icon">\u2705</span> ${t("imported", this.currentUiLang)}`;

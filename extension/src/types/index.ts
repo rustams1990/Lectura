@@ -74,7 +74,11 @@ export interface SaveLessonPayload {
   targetLanguage: string;
   translationLanguage?: string;
   lessonType?: string;
+  sourceType?: string;
   author?: string;
+  audioUrl?: string | null;
+  audioFile?: string | null;
+  youtubeId?: string | null;
 }
 
 export interface SubtitleCue {

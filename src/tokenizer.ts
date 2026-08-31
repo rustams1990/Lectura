@@ -230,6 +230,9 @@ export function segmentSentenceTokens(sentText: string, langName: string = ""): 
       if (/^[^\p{L}\p{N}\s]+$/u.test(part)) {
         return { raw: part, clean: "", isWord: false };
       }
+      if (/^<[\s\/]*[a-zA-Z0-9]+[^>]*>$/i.test(part) || /^&[a-zA-Z0-9#]+;$/.test(part)) {
+        return { raw: part, clean: "", isWord: false };
+      }
       const clean = cleanWordForLookup(part);
       const isNumericOrTimestamp = (str: string): boolean => {
         if (!str) return false;

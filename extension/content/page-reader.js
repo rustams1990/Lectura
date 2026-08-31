@@ -716,15 +716,21 @@
       const clone = doc.cloneNode(true);
       this.removeJunkElements(clone);
       const articleRoot = this.findMainContentElement(clone);
-      const { cleanHtml, plainText } = this.sanitizeAndFormat(articleRoot);
+      this.extractImagesAndCaptions(articleRoot, doc);
+      const plainText = this.htmlToCleanText(articleRoot);
       return {
         title,
-        content: cleanHtml || plainText,
+        content: plainText,
         rawText: plainText,
         sourceUrl: url,
         leadImageUrl,
         author,
-        language
+        language,
+        audioUrl: null,
+        audioFile: null,
+        youtubeId: null,
+        sourceType: "article",
+        lessonType: "article"
       };
     }
     static extractTitle(doc) {
@@ -819,113 +825,156 @@
       return doc.body || doc.documentElement;
     }
     /**
-     * Sanitizes all HTML elements, strips inline scripts/handlers, keeps only basic typography
+     * Finds all article images and figcaptions, converting them into [IMG:url] and [CAPTION:text] placeholders
      */
-    static sanitizeAndFormat(root) {
-      const allowedTags = /* @__PURE__ */ new Set([
-        "P",
-        "H1",
-        "H2",
-        "H3",
-        "H4",
-        "H5",
-        "H6",
-        "BLOCKQUOTE",
-        "UL",
-        "OL",
-        "LI",
-        "STRONG",
-        "EM",
-        "B",
-        "I",
-        "BR",
-        "HR"
-      ]);
-      const resultBlocks = [];
-      const plainLines = [];
-      const walkNode = (node) => {
+    static extractImagesAndCaptions(root, liveDoc) {
+      root.querySelectorAll("figure").forEach((fig) => {
+        const img = fig.querySelector("img");
+        const figcaption = fig.querySelector("figcaption");
+        let src = "";
+        if (img) {
+          src = img.currentSrc || img.getAttribute("data-src") || img.getAttribute("src") || img.src || "";
+          if (liveDoc && (!src || src.startsWith("data:") || src.includes("placeholder") || src.includes("grey-"))) {
+            const originalSrc = img.getAttribute("src");
+            if (originalSrc) {
+              const liveImg = liveDoc.querySelector(`img[src="${originalSrc}"]`);
+              if (liveImg && liveImg.currentSrc) {
+                src = liveImg.currentSrc;
+              }
+            }
+          }
+          if (!src && img.getAttribute("srcset")) {
+            const parts = img.getAttribute("srcset").split(",");
+            const last = parts[parts.length - 1].trim().split(/\s+/)[0];
+            if (last) src = last;
+          }
+        }
+        const captionText = (figcaption?.textContent || "").trim().replace(/\s+/g, " ");
+        let markerText = "";
+        if (src && !src.startsWith("data:") && !src.includes("placeholder") && !src.includes("grey-")) {
+          markerText += `
+
+[IMG:${src}]
+
+`;
+        }
+        if (captionText) {
+          markerText += `
+
+[CAPTION:${captionText}]
+
+`;
+        }
+        if (markerText) {
+          const textNode = root.ownerDocument.createTextNode(markerText);
+          fig.replaceWith(textNode);
+        } else {
+          fig.remove();
+        }
+      });
+      root.querySelectorAll("img").forEach((img) => {
+        let src = img.currentSrc || img.getAttribute("data-src") || img.getAttribute("src") || img.src || "";
+        if (liveDoc && (!src || src.startsWith("data:") || src.includes("placeholder") || src.includes("grey-"))) {
+          const originalSrc = img.getAttribute("src");
+          if (originalSrc) {
+            const liveImg = liveDoc.querySelector(`img[src="${originalSrc}"]`);
+            if (liveImg && liveImg.currentSrc) {
+              src = liveImg.currentSrc;
+            }
+          }
+        }
+        if (!src && img.getAttribute("srcset")) {
+          const parts = img.getAttribute("srcset").split(",");
+          const last = parts[parts.length - 1].trim().split(/\s+/)[0];
+          if (last) src = last;
+        }
+        if (src && !src.startsWith("data:") && !src.includes("placeholder") && !src.includes("grey-")) {
+          const textNode = root.ownerDocument.createTextNode(`
+
+[IMG:${src}]
+
+`);
+          img.replaceWith(textNode);
+        } else {
+          img.remove();
+        }
+      });
+    }
+    /**
+     * Converts DOM element tree to pure plain text with paragraph breaks and markdown headings,
+     * without ANY raw HTML tags (e.g. <p>, <ul>, <b>, </div>).
+     */
+    static htmlToCleanText(root) {
+      const blocks = [];
+      const walk = (node) => {
         if (node.nodeType === Node.TEXT_NODE) {
-          const text = node.textContent?.replace(/\s+/g, " ") || "";
-          return text;
+          return node.textContent?.replace(/[ \t]+/g, " ") || "";
         }
         if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node;
-          const tagName = el.tagName.toUpperCase();
-          let innerText = "";
-          el.childNodes.forEach((child) => {
-            innerText += walkNode(child);
-          });
-          innerText = innerText.trim();
-          if (!innerText) return "";
-          if (tagName === "P") {
-            resultBlocks.push(`<p>${innerText}</p>`);
-            plainLines.push(innerText);
+          const tag = el.tagName.toLowerCase();
+          if (["script", "style", "noscript", "svg", "button", "nav", "header", "footer", "aside", "form", "input", "select", "canvas"].includes(tag)) {
             return "";
-          } else if (tagName.startsWith("H") && tagName.length === 2) {
-            resultBlocks.push(`<${tagName.toLowerCase()}>${innerText}</${tagName.toLowerCase()}>`);
-            plainLines.push(`
-### ${innerText}
-`);
-            return "";
-          } else if (tagName === "BLOCKQUOTE") {
-            resultBlocks.push(`<blockquote>${innerText}</blockquote>`);
-            plainLines.push(`> ${innerText}`);
-            return "";
-          } else if (tagName === "LI") {
-            return `<li>${innerText}</li>`;
-          } else if (tagName === "UL" || tagName === "OL") {
-            resultBlocks.push(`<${tagName.toLowerCase()}>${innerText}</${tagName.toLowerCase()}>`);
-            plainLines.push(innerText);
-            return "";
-          } else if (["STRONG", "B"].includes(tagName)) {
-            return `<strong>${innerText}</strong>`;
-          } else if (["EM", "I"].includes(tagName)) {
-            return `<em>${innerText}</em>`;
-          } else if (tagName === "BR") {
-            return "<br/>";
           }
-          return innerText;
+          if (tag === "h1" || tag === "h2") {
+            const t3 = (el.textContent || "").trim().replace(/\s+/g, " ");
+            if (t3) blocks.push(`## ${t3} ##`);
+            return "";
+          }
+          if (tag === "h3" || tag === "h4" || tag === "h5" || tag === "h6") {
+            const t3 = (el.textContent || "").trim().replace(/\s+/g, " ");
+            if (t3) blocks.push(`# ${t3} #`);
+            return "";
+          }
+          if (tag === "li") {
+            const t3 = (el.textContent || "").trim().replace(/\s+/g, " ");
+            if (t3) blocks.push(`\u2022 ${t3}`);
+            return "";
+          }
+          if (["p", "div", "blockquote", "section", "article", "main"].includes(tag)) {
+            const raw = (el.textContent || "").trim();
+            if (/^\[IMG:[^\]]+\]$/i.test(raw) || /^\[CAPTION:[^\]]+\]$/i.test(raw)) {
+              blocks.push(raw);
+              return "";
+            }
+            let inner2 = "";
+            el.childNodes.forEach((child) => {
+              inner2 += walk(child);
+            });
+            const clean2 = inner2.replace(/[ \t]+/g, " ").trim();
+            if (clean2) {
+              const parts = clean2.split(/\n\s*\n/).map((p5) => p5.trim()).filter(Boolean);
+              for (const p5 of parts) {
+                blocks.push(p5);
+              }
+            }
+            return "";
+          }
+          if (tag === "br") {
+            return "\n";
+          }
+          let inner = "";
+          el.childNodes.forEach((child) => {
+            inner += walk(child);
+          });
+          return inner;
         }
         return "";
       };
-      const topElements = root.querySelectorAll("p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol");
-      if (topElements.length > 0) {
-        topElements.forEach((el) => {
-          const tag = el.tagName.toUpperCase();
-          if (!allowedTags.has(tag)) return;
-          let inner = el.innerHTML || "";
-          inner = inner.replace(/<([a-z0-9]+)[^>]*>/gi, (_match, tag2) => {
-            const upper = tag2.toUpperCase();
-            if (["STRONG", "B", "EM", "I", "BR"].includes(upper)) {
-              return `<${tag2.toLowerCase()}>`;
-            }
-            return "";
-          });
-          inner = inner.replace(/<\/[^>]+>/gi, (match2) => {
-            const upper = match2.replace(/[<>/]/g, "").toUpperCase();
-            if (["STRONG", "B", "EM", "I"].includes(upper)) {
-              return match2.toLowerCase();
-            }
-            return "";
-          });
-          inner = inner.trim();
-          if (inner.length > 0) {
-            resultBlocks.push(`<${tag.toLowerCase()}>${inner}</${tag.toLowerCase()}>`);
-            plainLines.push(el.textContent?.trim() || "");
+      root.childNodes.forEach((child) => {
+        const rest = walk(child).trim();
+        if (rest) {
+          const parts = rest.split(/\n\s*\n/).map((p5) => p5.trim()).filter(Boolean);
+          for (const p5 of parts) {
+            blocks.push(p5);
           }
-        });
-      } else {
-        const text = root.innerText || root.textContent || "";
-        const paragraphs = text.split(/\n\s*\n/).map((p5) => p5.trim()).filter((p5) => p5.length > 0);
-        paragraphs.forEach((p5) => {
-          resultBlocks.push(`<p>${p5}</p>`);
-          plainLines.push(p5);
-        });
+        }
+      });
+      if (blocks.length === 0) {
+        const raw = (root.textContent || "").trim();
+        return raw.split(/\n\s*\n/).map((p5) => p5.trim()).filter(Boolean).join("\n\n");
       }
-      return {
-        cleanHtml: resultBlocks.join("\n\n"),
-        plainText: plainLines.join("\n\n")
-      };
+      return blocks.map((b) => b.trim()).filter(Boolean).join("\n\n");
     }
   };
 

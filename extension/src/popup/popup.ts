@@ -1357,6 +1357,10 @@ class PopupController {
             author: article.author,
             targetLanguage: article.language !== 'auto' ? article.language : settings.targetLanguage,
             lessonType: 'article',
+            sourceType: 'article',
+            audioUrl: null,
+            audioFile: null,
+            youtubeId: null,
           });
 
           this.showAlert(`Lesson "${article.title}" saved to Lectura!`, 'success');

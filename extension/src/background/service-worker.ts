@@ -133,6 +133,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           author: article.author,
           targetLanguage: article.language !== 'auto' ? article.language : settings.targetLanguage,
           lessonType: 'article',
+          sourceType: 'article',
+          audioUrl: null,
+          audioFile: null,
+          youtubeId: null,
         });
 
         showBadge('OK', '#10b981');

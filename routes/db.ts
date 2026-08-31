@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import { JSDOM } from "jsdom";
 import Database from "better-sqlite3";
 import { getDbConnection, SQLITE_DB_PATH } from "./dbConnection.ts";
 import { resolveUserId, requireLocalSyncKey, requireAuth } from "./auth.ts";
@@ -2264,6 +2265,111 @@ router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
 // Chrome Extension & External REST Endpoints
 // ============================================================
 
+function htmlToPlainText(html: string): string {
+  if (!html) return "";
+  if (!/<[a-z][\s\S]*>/i.test(html)) {
+    return html.trim();
+  }
+
+  try {
+    const dom = new JSDOM(`<body>${html}</body>`);
+    const doc = dom.window.document;
+
+    // Remove non-content elements
+    doc.querySelectorAll("script, style, noscript, svg, button, nav, header, footer, aside, form, input, select, canvas").forEach((el) => el.remove());
+
+    // Replace <figure> elements
+    doc.querySelectorAll("figure").forEach((fig) => {
+      const img = fig.querySelector("img");
+      const figcaption = fig.querySelector("figcaption");
+      let src = "";
+      if (img) {
+        src = img.getAttribute("data-src") || img.getAttribute("src") || "";
+        if (!src && img.getAttribute("srcset")) {
+          const parts = img.getAttribute("srcset")!.split(",");
+          const last = parts[parts.length - 1].trim().split(/\s+/)[0];
+          if (last) src = last;
+        }
+      }
+      const cap = (figcaption?.textContent || "").trim().replace(/\s+/g, " ");
+      let markerText = "";
+      if (src && !src.startsWith("data:") && !src.includes("placeholder") && !src.includes("grey-")) {
+        markerText += `[IMG:${src}]`;
+      }
+      if (cap) {
+        markerText += (markerText ? "\n" : "") + `[CAPTION:${cap}]`;
+      }
+      if (markerText) {
+        const p = doc.createElement("p");
+        p.textContent = markerText;
+        fig.replaceWith(p);
+      } else {
+        fig.remove();
+      }
+    });
+
+    // Replace any remaining images with placeholders
+    doc.querySelectorAll("img").forEach((img) => {
+      let src = img.getAttribute("data-src") || img.getAttribute("src") || "";
+      if (!src && img.getAttribute("srcset")) {
+        const parts = img.getAttribute("srcset")!.split(",");
+        const last = parts[parts.length - 1].trim().split(/\s+/)[0];
+        if (last) src = last;
+      }
+      if (src && !src.startsWith("data:") && !src.includes("placeholder") && !src.includes("grey-")) {
+        const p = doc.createElement("p");
+        p.textContent = `[IMG:${src}]`;
+        img.replaceWith(p);
+      } else {
+        img.remove();
+      }
+    });
+
+    // Convert headings
+    doc.querySelectorAll("h1, h2").forEach((h) => {
+      const txt = (h.textContent || "").trim().replace(/\s+/g, " ");
+      if (txt) {
+        const p = doc.createElement("p");
+        p.textContent = `## ${txt} ##`;
+        h.replaceWith(p);
+      } else {
+        h.remove();
+      }
+    });
+    doc.querySelectorAll("h3, h4, h5, h6").forEach((h) => {
+      const txt = (h.textContent || "").trim().replace(/\s+/g, " ");
+      if (txt) {
+        const p = doc.createElement("p");
+        p.textContent = `# ${txt} #`;
+        h.replaceWith(p);
+      } else {
+        h.remove();
+      }
+    });
+
+    // Convert list items
+    doc.querySelectorAll("li").forEach((li) => {
+      const txt = (li.textContent || "").trim().replace(/\s+/g, " ");
+      if (txt) {
+        const p = doc.createElement("p");
+        p.textContent = `• ${txt}`;
+        li.replaceWith(p);
+      } else {
+        li.remove();
+      }
+    });
+
+    // Extract pure text from body children without <p>, <b>, <ul>
+    return Array.from(doc.body.childNodes)
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean)
+      .join("\n\n");
+  } catch (err) {
+    console.warn("[htmlToPlainText] Parsing failed, fallback:", err);
+    return html.replace(/<[^>]+>/g, "").trim();
+  }
+}
+
 // 1. Create/Import Lesson (One-Click Article / Content Importer)
 router.post("/lessons", (req: Request, res: Response) => {
   let userId: string;
@@ -2291,11 +2397,23 @@ router.post("/lessons", (req: Request, res: Response) => {
     channelTitle
   } = req.body;
 
-  const cleanText = (text || content || "").trim();
-  const cleanTitle = (title || "Imported Article").trim();
+  const rawText = (text || content || "").trim();
+  const cleanText = htmlToPlainText(rawText);
+  const cleanTitle = (title || "Imported Article").replace(/<[^>]+>/g, "").trim();
   const targetLang = (targetLanguage || language || "es").trim();
   const transLang = (translationLanguage || "ru").trim();
-  const type = lessonType || "article";
+
+  // For text/article lessons: audioUrl, audioFile, youtubeId must be strictly null!
+  const isVideoOrAudio = lessonType === 'video' || lessonType === 'podcast' || lessonType === 'youtube';
+  const incomingAudio = (req.body.audioUrl || req.body.audio_url || "").trim();
+  const isMediaStream = incomingAudio && (
+    /youtube\.com|youtu\.be/i.test(incomingAudio) ||
+    /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(incomingAudio) ||
+    incomingAudio.startsWith('/api/audio-files/')
+  );
+
+  const resolvedAudioUrl = (isVideoOrAudio && isMediaStream) ? incomingAudio : null;
+  const type = (resolvedAudioUrl || isVideoOrAudio) ? (lessonType || 'video') : 'article';
   const lessonId = id || ("ext_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 7));
 
   if (!cleanText) {
@@ -2316,6 +2434,7 @@ router.post("/lessons", (req: Request, res: Response) => {
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
           text = excluded.text,
+          audioUrl = excluded.audioUrl,
           targetLanguage = excluded.targetLanguage,
           translationLanguage = excluded.translationLanguage,
           coverUrl = COALESCE(excluded.coverUrl, lessons.coverUrl),
@@ -2326,7 +2445,7 @@ router.post("/lessons", (req: Request, res: Response) => {
         userId,
         cleanTitle,
         cleanText,
-        sourceUrl || null,
+        resolvedAudioUrl,
         targetLang,
         transLang,
         coverUrl || null,
@@ -2367,7 +2486,11 @@ router.post("/lessons", (req: Request, res: Response) => {
         targetLanguage: targetLang,
         translationLanguage: transLang,
         lessonType: type,
+        sourceType: type,
         sourceUrl: sourceUrl || null,
+        audioUrl: resolvedAudioUrl,
+        audioFile: null,
+        youtubeId: null,
         createdAt: now
       }
     });

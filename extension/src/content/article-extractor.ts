@@ -32,17 +32,25 @@ export class ArticleExtractor {
     // 2. Locate main content root
     const articleRoot = this.findMainContentElement(clone);
 
-    // 3. Sanitize HTML & extract clean formatted text
-    const { cleanHtml, plainText } = this.sanitizeAndFormat(articleRoot);
+    // 3. Extract article images and captions as [IMG:...] and [CAPTION:...] placeholders
+    this.extractImagesAndCaptions(articleRoot, doc);
+
+    // 4. Convert DOM elements into clean plain text without any HTML tags
+    const plainText = this.htmlToCleanText(articleRoot);
 
     return {
       title,
-      content: cleanHtml || plainText,
+      content: plainText,
       rawText: plainText,
       sourceUrl: url,
       leadImageUrl,
       author,
       language,
+      audioUrl: null,
+      audioFile: null,
+      youtubeId: null,
+      sourceType: 'article',
+      lessonType: 'article',
     };
   }
 
@@ -160,133 +168,172 @@ export class ArticleExtractor {
   }
 
   /**
-   * Sanitizes all HTML elements, strips inline scripts/handlers, keeps only basic typography
+   * Finds all article images and figcaptions, converting them into [IMG:url] and [CAPTION:text] placeholders
    */
-  private static sanitizeAndFormat(root: HTMLElement): { cleanHtml: string; plainText: string } {
-    const allowedTags = new Set([
-      'P',
-      'H1',
-      'H2',
-      'H3',
-      'H4',
-      'H5',
-      'H6',
-      'BLOCKQUOTE',
-      'UL',
-      'OL',
-      'LI',
-      'STRONG',
-      'EM',
-      'B',
-      'I',
-      'BR',
-      'HR',
-    ]);
+  private static extractImagesAndCaptions(root: HTMLElement, liveDoc?: Document): void {
+    // 1. Process figures with figcaption
+    root.querySelectorAll('figure').forEach((fig) => {
+      const img = fig.querySelector('img');
+      const figcaption = fig.querySelector('figcaption');
+      let src = '';
+      if (img) {
+        src = (img as any).currentSrc || img.getAttribute('data-src') || img.getAttribute('src') || img.src || '';
+        // If it's a relative placeholder or empty, try finding matching image in liveDoc
+        if (liveDoc && (!src || src.startsWith('data:') || src.includes('placeholder') || src.includes('grey-'))) {
+          const originalSrc = img.getAttribute('src');
+          if (originalSrc) {
+            const liveImg = liveDoc.querySelector(`img[src="${originalSrc}"]`) as HTMLImageElement;
+            if (liveImg && liveImg.currentSrc) {
+              src = liveImg.currentSrc;
+            }
+          }
+        }
+        if (!src && img.getAttribute('srcset')) {
+          const parts = img.getAttribute('srcset')!.split(',');
+          const last = parts[parts.length - 1].trim().split(/\s+/)[0];
+          if (last) src = last;
+        }
+      }
 
-    const resultBlocks: string[] = [];
-    const plainLines: string[] = [];
+      const captionText = (figcaption?.textContent || '').trim().replace(/\s+/g, ' ');
+      let markerText = '';
+      if (src && !src.startsWith('data:') && !src.includes('placeholder') && !src.includes('grey-')) {
+        markerText += `\n\n[IMG:${src}]\n\n`;
+      }
+      if (captionText) {
+        markerText += `\n\n[CAPTION:${captionText}]\n\n`;
+      }
 
-    // Helper to recursively process content nodes
-    const walkNode = (node: Node) => {
+      if (markerText) {
+        const textNode = root.ownerDocument.createTextNode(markerText);
+        fig.replaceWith(textNode);
+      } else {
+        fig.remove();
+      }
+    });
+
+    // 2. Process any remaining <img> elements inside the article
+    root.querySelectorAll('img').forEach((img) => {
+      let src = (img as any).currentSrc || img.getAttribute('data-src') || img.getAttribute('src') || img.src || '';
+      if (liveDoc && (!src || src.startsWith('data:') || src.includes('placeholder') || src.includes('grey-'))) {
+        const originalSrc = img.getAttribute('src');
+        if (originalSrc) {
+          const liveImg = liveDoc.querySelector(`img[src="${originalSrc}"]`) as HTMLImageElement;
+          if (liveImg && liveImg.currentSrc) {
+            src = liveImg.currentSrc;
+          }
+        }
+      }
+      if (!src && img.getAttribute('srcset')) {
+        const parts = img.getAttribute('srcset')!.split(',');
+        const last = parts[parts.length - 1].trim().split(/\s+/)[0];
+        if (last) src = last;
+      }
+
+      if (src && !src.startsWith('data:') && !src.includes('placeholder') && !src.includes('grey-')) {
+        const textNode = root.ownerDocument.createTextNode(`\n\n[IMG:${src}]\n\n`);
+        img.replaceWith(textNode);
+      } else {
+        img.remove();
+      }
+    });
+  }
+
+  /**
+   * Converts DOM element tree to pure plain text with paragraph breaks and markdown headings,
+   * without ANY raw HTML tags (e.g. <p>, <ul>, <b>, </div>).
+   */
+  private static htmlToCleanText(root: HTMLElement): string {
+    const blocks: string[] = [];
+
+    const walk = (node: Node): string => {
       if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent?.replace(/\s+/g, ' ') || '';
-        return text;
+        return node.textContent?.replace(/[ \t]+/g, ' ') || '';
       }
 
       if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
-        const tagName = el.tagName.toUpperCase();
+        const tag = el.tagName.toLowerCase();
 
-        // Recursively clean children
-        let innerText = '';
-        el.childNodes.forEach((child) => {
-          innerText += walkNode(child);
-        });
-
-        innerText = innerText.trim();
-        if (!innerText) return '';
-
-        if (tagName === 'P') {
-          resultBlocks.push(`<p>${innerText}</p>`);
-          plainLines.push(innerText);
+        // Skip non-content tags
+        if (['script', 'style', 'noscript', 'svg', 'button', 'nav', 'header', 'footer', 'aside', 'form', 'input', 'select', 'canvas'].includes(tag)) {
           return '';
-        } else if (tagName.startsWith('H') && tagName.length === 2) {
-          resultBlocks.push(`<${tagName.toLowerCase()}>${innerText}</${tagName.toLowerCase()}>`);
-          plainLines.push(`\n### ${innerText}\n`);
-          return '';
-        } else if (tagName === 'BLOCKQUOTE') {
-          resultBlocks.push(`<blockquote>${innerText}</blockquote>`);
-          plainLines.push(`> ${innerText}`);
-          return '';
-        } else if (tagName === 'LI') {
-          return `<li>${innerText}</li>`;
-        } else if (tagName === 'UL' || tagName === 'OL') {
-          resultBlocks.push(`<${tagName.toLowerCase()}>${innerText}</${tagName.toLowerCase()}>`);
-          plainLines.push(innerText);
-          return '';
-        } else if (['STRONG', 'B'].includes(tagName)) {
-          return `<strong>${innerText}</strong>`;
-        } else if (['EM', 'I'].includes(tagName)) {
-          return `<em>${innerText}</em>`;
-        } else if (tagName === 'BR') {
-          return '<br/>';
         }
 
-        // Default container
-        return innerText;
+        // Headings
+        if (tag === 'h1' || tag === 'h2') {
+          const t = (el.textContent || '').trim().replace(/\s+/g, ' ');
+          if (t) blocks.push(`## ${t} ##`);
+          return '';
+        }
+        if (tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+          const t = (el.textContent || '').trim().replace(/\s+/g, ' ');
+          if (t) blocks.push(`# ${t} #`);
+          return '';
+        }
+
+        // List items
+        if (tag === 'li') {
+          const t = (el.textContent || '').trim().replace(/\s+/g, ' ');
+          if (t) blocks.push(`• ${t}`);
+          return '';
+        }
+
+        // Paragraphs, divs, blockquotes, sections
+        if (['p', 'div', 'blockquote', 'section', 'article', 'main'].includes(tag)) {
+          const raw = (el.textContent || '').trim();
+          if (/^\[IMG:[^\]]+\]$/i.test(raw) || /^\[CAPTION:[^\]]+\]$/i.test(raw)) {
+            blocks.push(raw);
+            return '';
+          }
+
+          let inner = '';
+          el.childNodes.forEach((child) => {
+            inner += walk(child);
+          });
+          const clean = inner.replace(/[ \t]+/g, ' ').trim();
+          if (clean) {
+            const parts = clean.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+            for (const p of parts) {
+              blocks.push(p);
+            }
+          }
+          return '';
+        }
+
+        if (tag === 'br') {
+          return '\n';
+        }
+
+        // Inline elements (b, i, strong, em, span, a, etc.) -> collect text without tags!
+        let inner = '';
+        el.childNodes.forEach((child) => {
+          inner += walk(child);
+        });
+        return inner;
       }
 
       return '';
     };
 
-    // Process top-level block elements inside article root
-    const topElements = root.querySelectorAll('p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol');
-    if (topElements.length > 0) {
-      topElements.forEach((el) => {
-        const tag = el.tagName.toUpperCase();
-        if (!allowedTags.has(tag)) return;
-
-        // Clean text and safe inner markup
-        let inner = el.innerHTML || '';
-        // Strip all attributes and inline handlers
-        inner = inner.replace(/<([a-z0-9]+)[^>]*>/gi, (_match, tag) => {
-          const upper = tag.toUpperCase();
-          if (['STRONG', 'B', 'EM', 'I', 'BR'].includes(upper)) {
-            return `<${tag.toLowerCase()}>`;
-          }
-          return '';
-        });
-        inner = inner.replace(/<\/[^>]+>/gi, (match) => {
-          const upper = match.replace(/[<>/]/g, '').toUpperCase();
-          if (['STRONG', 'B', 'EM', 'I'].includes(upper)) {
-            return match.toLowerCase();
-          }
-          return '';
-        });
-        inner = inner.trim();
-
-        if (inner.length > 0) {
-          resultBlocks.push(`<${tag.toLowerCase()}>${inner}</${tag.toLowerCase()}>`);
-          plainLines.push(el.textContent?.trim() || '');
+    root.childNodes.forEach((child) => {
+      const rest = walk(child).trim();
+      if (rest) {
+        const parts = rest.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+        for (const p of parts) {
+          blocks.push(p);
         }
-      });
-    } else {
-      // Fallback to text parsing
-      const text = root.innerText || root.textContent || '';
-      const paragraphs = text
-        .split(/\n\s*\n/)
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
+      }
+    });
 
-      paragraphs.forEach((p) => {
-        resultBlocks.push(`<p>${p}</p>`);
-        plainLines.push(p);
-      });
+    if (blocks.length === 0) {
+      const raw = (root.textContent || '').trim();
+      return raw.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).join('\n\n');
     }
 
-    return {
-      cleanHtml: resultBlocks.join('\n\n'),
-      plainText: plainLines.join('\n\n'),
-    };
+    return blocks
+      .map((b) => b.trim())
+      .filter(Boolean)
+      .join('\n\n');
   }
 }
