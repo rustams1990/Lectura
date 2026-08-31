@@ -634,62 +634,67 @@ interface ReadabilityResult {
   excerpt: string | null;
 }
 
-/**
- * Универсальный экстрактор изображений (IGN, BBC, Guardian, Al Jazeera, WP и др.)
- * Проверяет noscript, source, srcset, data-original, data-src, data-lazy-src, data-image-src.
- */
-function extractUniversalImageUrl(el: Element, baseUrl: string): string | null {
-  // 1. Проверяем <noscript> тег (многие сайты прячут настоящий <img> там)
-  const noscript = el.querySelector('noscript');
-  if (noscript) {
-    const match = noscript.innerHTML.match(/<img[^>]+src=["']([^"']+)["']/i);
-    if (match && match[1] && !match[1].includes('placeholder')) {
-      try { return new URL(match[1], baseUrl).href; } catch {}
-    }
+function sanitizeImageUrl(rawUrl: string | null | undefined, baseUrl: string): string | null {
+  if (!rawUrl) return null;
+  let url = rawUrl.trim();
+  if (url.startsWith('//')) url = 'https:' + url;
+  if (
+    url.startsWith('data:image') ||
+    url.includes('placeholder') ||
+    url.includes('grey-') ||
+    url.includes('1x1') ||
+    url.includes('avatar')
+  ) {
+    return null;
   }
-
-  // 2. Проверяем source / srcset (IGN, BBC, Guardian)
-  const sources = Array.from(el.querySelectorAll('source, img'));
-  if (el.tagName.toLowerCase() === 'img' || el.tagName.toLowerCase() === 'source') {
-    sources.unshift(el);
+  try {
+    return new URL(url, baseUrl).href;
+  } catch {
+    return url.startsWith('http') ? url : null;
   }
-
-  for (const node of sources) {
-    const srcset = node.getAttribute('srcset') || node.getAttribute('data-srcset');
-    if (srcset) {
-      const candidates = srcset.split(',').map(s => s.trim().split(/\s+/)[0]);
-      const valid = candidates.filter(u => u && !u.includes('placeholder') && !u.startsWith('data:'));
-      if (valid.length > 0) {
-        try { return new URL(valid[valid.length - 1], baseUrl).href; } catch {}
-      }
-    }
-    
-    // 3. Проверяем всевозможные lazy-load атрибуты
-    const candidateSrc = 
-      node.getAttribute('data-original') ||
-      node.getAttribute('data-src') ||
-      node.getAttribute('data-lazy-src') ||
-      node.getAttribute('data-image-src') ||
-      node.getAttribute('src');
-
-    if (candidateSrc && !candidateSrc.includes('placeholder') && !candidateSrc.startsWith('data:') && !candidateSrc.includes('1x1')) {
-      try { return new URL(candidateSrc, baseUrl).href; } catch {}
-    }
-  }
-
-  return null;
 }
 
 export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
   const dom = new JSDOM(rawHtml, { url: baseUrl });
   const doc = dom.window.document;
 
-  // 1. ЖЕСТКО удаляем навигацию, формы поиска, заголовки шапки и футеры
+  // 1. Извлекаем резервные изображения (Lead Image) из Meta-тегов и JSON-LD ДО очистки DOM
+  const metaImages: string[] = [];
+
+  // OpenGraph & Twitter
+  const ogImg = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
+                doc.querySelector('meta[property="og:image:secure_url"]')?.getAttribute('content') ||
+                doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+  const cleanOg = sanitizeImageUrl(ogImg, baseUrl);
+  if (cleanOg) metaImages.push(cleanOg);
+
+  // JSON-LD
+  doc.querySelectorAll('script[type="application/ld+json"]').forEach(script => {
+    try {
+      const data = JSON.parse(script.textContent || '{}');
+      const scanObj = (obj: any) => {
+        if (!obj) return;
+        if (typeof obj === 'string' && (obj.endsWith('.jpg') || obj.endsWith('.jpeg') || obj.endsWith('.png') || obj.endsWith('.webp') || obj.includes('/images/'))) {
+          const u = sanitizeImageUrl(obj, baseUrl);
+          if (u && !metaImages.includes(u)) metaImages.push(u);
+        } else if (Array.isArray(obj)) {
+          obj.forEach(scanObj);
+        } else if (typeof obj === 'object') {
+          if (obj.image) scanObj(obj.image);
+          if (obj.thumbnailUrl) scanObj(obj.thumbnailUrl);
+          if (obj.url && obj['@type'] === 'ImageObject') scanObj(obj.url);
+        }
+      };
+      scanObj(data);
+    } catch {}
+  });
+
+  // 2. Очищаем навигационный мусор
   const removeSelectors = [
     'header', 'nav', 'footer', 'form', 'aside',
     '[data-testid="header-search"]', '[data-testid="byline"]',
     '[data-testid="timestamp"]',
-    '#search', '.search-box', 'button', 'input',
+    '#search', '.search-box', 'button', 'input', 'style', 'noscript',
     'time', '.byline', '.article__metadata',
     '[class*="header-search"]', '[class*="search-bar"]', '[class*="site-search"]',
     '[role="navigation"]', '[role="banner"]',
@@ -714,56 +719,61 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
                     doc.querySelector('#content') || 
                     doc.body) as HTMLElement;
 
-  // 1. Главная обложка в OpenGraph (og:image) или twitter:image:
-  const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
-                  doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+  // 3. Заменяем встроенные картинки на параграфы маркеров прямо в DOM статьи
+  const imageContainers = doc.querySelectorAll('figure, picture, [data-component="image-block"], .article__image, .lead-image, .image-container, [class*="image-block"], [class*="figure"], img');
+  
+  imageContainers.forEach(container => {
+    if (container.tagName === 'IMG' && container.closest('figure, picture')) return;
 
-  // 2. Заменяем все фигурные блоки и контейнеры картинок на маркеры ДО Readability:
-  const imageContainers = doc.querySelectorAll('figure, picture, [data-component="image-block"], .article__image, .lead-image, .image-container, [class*="image-block"], [class*="figure"]');
-  imageContainers.forEach((container) => {
-    const imgUrl = extractUniversalImageUrl(container, baseUrl);
-    const rawCap = container.querySelector('figcaption, .caption, .credit, [class*="caption"], [class*="credit"]')?.textContent || '';
-    const caption = rawCap.trim().replace(/\s+/g, ' ').replace(/^image caption[:,]?\s*/i, '').trim();
+    let bestUrl: string | null = null;
 
-    if (imgUrl) {
-      const p = doc.createElement('p');
-      p.textContent = `[IMG:${imgUrl}]`;
-      container.parentNode?.insertBefore(p, container);
+    // source srcset
+    const sources = Array.from(container.querySelectorAll('source'));
+    for (const src of sources) {
+      const srcset = src.getAttribute('srcset') || src.getAttribute('data-srcset');
+      if (srcset) {
+        const parts = srcset.split(',').map(s => s.trim().split(/\s+/)[0]);
+        const valid = parts.map(p => sanitizeImageUrl(p, baseUrl)).filter(Boolean) as string[];
+        if (valid.length > 0) {
+          bestUrl = valid[valid.length - 1];
+          break;
+        }
+      }
+    }
 
+    // img attributes
+    if (!bestUrl) {
+      const imgNode = container.tagName === 'IMG' ? (container as HTMLImageElement) : container.querySelector('img');
+      if (imgNode) {
+        const raw = imgNode.getAttribute('data-src') ||
+                    imgNode.getAttribute('data-original') ||
+                    imgNode.getAttribute('data-lazy-src') ||
+                    imgNode.getAttribute('srcset') ||
+                    imgNode.getAttribute('src');
+        if (raw) {
+          const parts = raw.split(',').map(s => s.trim().split(/\s+/)[0]);
+          const valid = parts.map(p => sanitizeImageUrl(p, baseUrl)).filter(Boolean) as string[];
+          if (valid.length > 0) bestUrl = valid[valid.length - 1];
+        }
+      }
+    }
+
+    if (bestUrl) {
+      const pImg = doc.createElement('p');
+      pImg.textContent = `[IMG:${bestUrl}]`;
+      container.parentNode?.insertBefore(pImg, container);
+
+      const caption = container.querySelector('figcaption, .caption, .credit')?.textContent?.replace(/^image caption[:,]?\s*/i, '').trim();
       if (caption) {
-        const capP = doc.createElement('p');
-        capP.textContent = `[CAPTION:${caption}]`;
-        container.parentNode?.insertBefore(capP, container);
+        const pCap = doc.createElement('p');
+        pCap.textContent = `[CAPTION:${caption}]`;
+        container.parentNode?.insertBefore(pCap, container);
       }
     }
     container.remove();
   });
 
-  // Также обрабатываем любые оставшиеся standalone <img> в mainRoot
-  mainRoot.querySelectorAll('article img, main img, .article-body img, .article__body img, .post-content img, img').forEach((img) => {
-    const imgUrl = extractUniversalImageUrl(img, baseUrl);
-    if (imgUrl) {
-      const p = doc.createElement('p');
-      p.textContent = `[IMG:${imgUrl}]`;
-      img.parentNode?.insertBefore(p, img);
-    }
-    img.remove();
-  });
-
-  // Если картинок вообще не найдено в теле, но есть ogImage в шапке статьи:
-  if (ogImage && !doc.body.innerHTML.includes('[IMG:')) {
-    try {
-      const fullOg = new URL(ogImage, baseUrl).href;
-      const firstP = doc.querySelector('article p, main p, p');
-      if (firstP) {
-        const leadImg = doc.createElement('p');
-        leadImg.textContent = `[IMG:${fullOg}]`;
-        firstP.parentNode?.insertBefore(leadImg, firstP);
-      }
-    } catch (e) {}
-  }
-
-  // 3. Запускаем Mozilla Readability
+  // 4. Запуск Mozilla Readability
   let parsed: any = null;
   try {
     const reader = new Readability(doc, { keepClasses: false });
@@ -775,47 +785,22 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
   const wordCount = (parsed?.textContent || '').trim().split(/\s+/).filter(Boolean).length;
   let finalText = '';
 
+  // 5. Конвертируем контент в чистые абзацы
   if (parsed && parsed.content && wordCount > 250) {
-    // Конвертируем HTML от Readability в текст
     const contentDoc = new JSDOM(`<body>${parsed.content}</body>`).window.document;
     const blocks: string[] = [];
 
-    // Query all block-level elements in document order so each <p> is an isolated block!
-    const blockElements = Array.from(contentDoc.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote'));
-    
-    blockElements.forEach(el => {
-      // If element is nested inside another selected element (e.g. p inside blockquote or li), avoid duplicating
-      if (el.parentElement && ['p', 'li', 'blockquote'].includes(el.parentElement.tagName.toLowerCase())) {
-        return;
-      }
-
-      const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    contentDoc.body.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li').forEach(el => {
+      const text = el.textContent?.trim();
       if (!text || /^Site search$/i.test(text)) return;
 
-      if (text.includes('[IMG:')) {
-        const match = text.match(/\[IMG:(https?:\/\/[^\]]+)\]/);
-        if (match) {
-          blocks.push(match[0]);
-          const capMatch = text.match(/\[CAPTION:(.+?)\]/);
-          if (capMatch) blocks.push(capMatch[0]);
-          return;
-        }
-      }
-
-      if (text.includes('[CAPTION:')) {
-        const capMatch = text.match(/\[CAPTION:(.+?)\]/);
-        if (capMatch) {
-          blocks.push(capMatch[0]);
-          return;
-        }
-      }
-
-      const tag = el.tagName.toLowerCase();
-      if (tag === 'h1' || tag === 'h2') {
+      if (text.startsWith('[IMG:') || text.startsWith('[CAPTION:')) {
+        blocks.push(text);
+      } else if (el.tagName === 'H1' || el.tagName === 'H2') {
         blocks.push(`## ${text} ##`);
-      } else if (tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+      } else if (el.tagName === 'H3' || el.tagName === 'H4' || el.tagName === 'H5' || el.tagName === 'H6') {
         blocks.push(`# ${text} #`);
-      } else if (tag === 'li') {
+      } else if (el.tagName === 'LI') {
         blocks.push(`• ${text}`);
       } else {
         blocks.push(text);
@@ -836,7 +821,9 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
       if (!t || /^Site search$/i.test(t)) return;
 
       const tag = el.tagName.toUpperCase();
-      if (tag === 'H1' || tag === 'H2') {
+      if (t.startsWith('[IMG:') || t.startsWith('[CAPTION:')) {
+        blocks.push(t);
+      } else if (tag === 'H1' || tag === 'H2') {
         blocks.push(`## ${t} ##`);
       } else if (tag === 'H3' || tag === 'H4' || tag === 'H5' || tag === 'H6') {
         blocks.push(`# ${t} #`);
@@ -849,7 +836,15 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
     finalText = blocks.join('\n\n');
   }
 
+  // 6. Гарантированный Fallback: если картинок в теле статьи не оказалось, вставляем Lead Image из метатегов
+  if (!finalText.includes('[IMG:') && metaImages.length > 0) {
+    finalText = `[IMG:${metaImages[0]}]\n\n` + finalText;
+  }
+
   finalText = finalText.replace(/\n{3,}/g, '\n\n').trim();
+
+  const foundImgs = finalText.match(/\[IMG:[^\]]+\]/g);
+  console.log('🖼️ Found Images in imported text:', foundImgs);
 
   const title = (parsed?.title && parsed.title.trim()) ||
     doc.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim() ||
@@ -858,8 +853,6 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
     doc.querySelector('h1')?.textContent?.trim() ||
     doc.title?.trim() ||
     "Web Article";
-
-  console.log('[DEBUG IMPORT] Final text preview (first 400 chars):\n', finalText.slice(0, 400));
 
   return {
     title,
