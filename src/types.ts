@@ -20,6 +20,7 @@ export interface VocabItem {
   status: WordStatus;
   examples: ExampleSentence[];
   createdAt: number;
+  updatedAt?: number;
   tags?: string[];
   imageUrl?: string | null;
   spellingCorrectCount?: number;

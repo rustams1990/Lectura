@@ -33,6 +33,12 @@ const defaultSettings: ReaderSettings = {
   wordCardMode: initialMode,
 };
 
+export let lastSettingsLocalMutationTime = 0;
+
+export function markSettingsLocallyMutated() {
+  lastSettingsLocalMutationTime = Date.now();
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: defaultSettings,
   wordCardMode: initialMode,
@@ -41,6 +47,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   firstDayOfWeek: 'auto',
 
   setWordCardMode: (mode: WordCardMode) => {
+    markSettingsLocallyMutated();
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.setItem('lectura_word_card_mode', mode);
     }
@@ -51,6 +58,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setSettings: (newSettings: Partial<ReaderSettings>) => {
+    markSettingsLocallyMutated();
     set((state) => {
       const merged = { ...state.settings, ...newSettings };
       const mode = (newSettings.wordCardMode || merged.wordCardMode || state.wordCardMode) as WordCardMode;

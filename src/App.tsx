@@ -21,7 +21,8 @@ import ReaderView from "./components/ReaderView";
 import { APP_VERSION } from "./version";
 import { useLesson } from "./context/LessonContext";
 import { useAuth } from "./context/AuthContext";
-import { useVocab } from "./context/VocabContext";
+import { useVocab, mergeCloudVocabWithLocal, localWordMutations, markWordLocallyMutated } from "./context/VocabContext";
+import { useSettingsStore, lastSettingsLocalMutationTime, markSettingsLocallyMutated } from "./store/settingsStore";
 import { useToast } from "./context/ToastContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
@@ -427,7 +428,7 @@ export default function App() {
         undefined,
         playlistsRef.current
       ).catch(() => {});
-    }, 3000);
+    }, 15000);
   };
 
   const handleUpdateHistory = (newHistory: HistoryEntry[], deletedIds?: string[]) => {
@@ -874,9 +875,18 @@ export default function App() {
     readerSettingsRef.current = readerSettings;
   }, [readerSettings]);
 
+  const lastSettingsLocalChangeTimeRef = useRef<number>(0);
+
   const updateSettingsAndSync = (newSettingsOrFn: React.SetStateAction<ReaderSettings>) => {
+    const now = Date.now();
+    lastSettingsLocalChangeTimeRef.current = now;
+    lastLocalChangeTime.current = now;
+    markSettingsLocallyMutated();
+
     setReaderSettings((prev) => {
       const next = typeof newSettingsOrFn === "function" ? newSettingsOrFn(prev) : newSettingsOrFn;
+      readerSettingsRef.current = next;
+      useSettingsStore.getState().setSettings(next);
       safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(next));
       settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
       try {
@@ -1410,12 +1420,15 @@ export default function App() {
     }
     // Only block on error if we already successfully loaded once — first-time login should always retry
     if (localSyncError && serverInitialLoadComplete.current) return;
-    // Prevent parallel simultaneous fetches (e.g. two useEffects firing at once on startup)
-    if (isServerLoadInProgress.current) return;
-    // Only skip the isAuthLoading wait if a token is already saved in localStorage
-    // (meaning the user was previously logged in and the token is likely still valid).
-    // For fresh logins or missing tokens, wait for auth to complete to avoid
-    // sending a 401 request that would set localSyncError=true and break sync.
+    if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 15000) {
+      return;
+    }
+    if (storageMode !== "server") return;
+    if (localSyncError) return;
+    if (isServerLoadInProgress.current) {
+      return;
+    }
+
     const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
     const savedUserStr = localStorage.getItem("vocab_clone_local_user");
     const hasSavedSession = !!(savedToken && savedUserStr);
@@ -1473,7 +1486,7 @@ export default function App() {
         });
         lastSyncSuccessTime.current = Date.now();
         const body = await safeJsonParse(res);
-        if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 5000) {
+        if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 15000) {
           setIsSyncing(false);
           setSyncProgress({
             isSyncing: false,
@@ -1500,33 +1513,58 @@ export default function App() {
             });
           }
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
-          setVocab(normalizedCloudVocab);
+
+          // Smart merge: NEVER overwrite recent local word mutations with stale server data
+          setVocab((prevVocab) => {
+            const merged = mergeCloudVocabWithLocal(normalizedCloudVocab, prevVocab);
+            vocabRef.current = merged;
+            return merged;
+          });
           setWordLinks(normalizedCloudWordLinks);
+          wordLinksRef.current = normalizedCloudWordLinks;
+
           if (d.listeningSeconds !== undefined) {
             setListeningSeconds(prev => Math.max(prev, d.listeningSeconds));
           }
           if (d.languageFlags) setLanguageFlags(d.languageFlags);
 
+          // Smart settings merge: NEVER overwrite recent local tone / theme / font changes with stale server data
           if (d.readerSettings && typeof d.readerSettings === "object") {
-            const nextSettings: ReaderSettings = {
-              ...DEFAULT_READER_SETTINGS,
-              ...d.readerSettings,
-              toolbarVisibility: {
-                ...DEFAULT_TOOLBAR_VISIBILITY,
-                ...(d.readerSettings.toolbarVisibility || {}),
-              },
-            };
-            setReaderSettings(nextSettings);
-            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(nextSettings));
-            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(nextSettings)).catch(() => {});
+            const settingsRecentlyChanged =
+              Date.now() - lastSettingsLocalChangeTimeRef.current < 60000 ||
+              Date.now() - lastSettingsLocalMutationTime < 60000;
+            if (!settingsRecentlyChanged) {
+              const nextSettings: ReaderSettings = {
+                ...DEFAULT_READER_SETTINGS,
+                ...d.readerSettings,
+                toolbarVisibility: {
+                  ...DEFAULT_TOOLBAR_VISIBILITY,
+                  ...(d.readerSettings.toolbarVisibility || {}),
+                },
+              };
+              setReaderSettings(nextSettings);
+              readerSettingsRef.current = nextSettings;
+              useSettingsStore.getState().setSettings(nextSettings);
+              safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(nextSettings));
+              settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(nextSettings)).catch(() => {});
+            } else {
+              console.log("[Load] Preserving recent local readerSettings (tone/theme/font changed < 60s ago)");
+            }
           } else {
-            const cleanDefaults: ReaderSettings = {
-              ...DEFAULT_READER_SETTINGS,
-              toolbarVisibility: { ...DEFAULT_TOOLBAR_VISIBILITY },
-            };
-            setReaderSettings(cleanDefaults);
-            safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults));
-            settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults)).catch(() => {});
+            const settingsRecentlyChanged =
+              Date.now() - lastSettingsLocalChangeTimeRef.current < 60000 ||
+              Date.now() - lastSettingsLocalMutationTime < 60000;
+            if (!settingsRecentlyChanged) {
+              const cleanDefaults: ReaderSettings = {
+                ...DEFAULT_READER_SETTINGS,
+                toolbarVisibility: { ...DEFAULT_TOOLBAR_VISIBILITY },
+              };
+              setReaderSettings(cleanDefaults);
+              readerSettingsRef.current = cleanDefaults;
+              useSettingsStore.getState().setSettings(cleanDefaults);
+              safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults));
+              settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults)).catch(() => {});
+            }
           }
           if (d.pinnedLanguages && Array.isArray(d.pinnedLanguages)) {
             setPinnedLanguages(d.pinnedLanguages);
@@ -1833,12 +1871,12 @@ export default function App() {
             lessons: currentLessons,
             playlists: currentPlaylists,
             lessonTypes: currentTypes,
-            vocab: currentVocab,
-            wordLinks: currentLinks,
-            listeningSeconds: currentListening,
-            languageFlags: currentFlags,
+            vocab: vocabRef.current || currentVocab,
+            wordLinks: wordLinksRef.current || currentLinks,
+            listeningSeconds: listeningSecondsRef.current || currentListening,
+            languageFlags: languageFlagsRef.current || currentFlags,
             history: safeHistory,
-            readerSettings: currentSettings,
+            readerSettings: readerSettingsRef.current || currentSettings,
             pinnedLanguages: currentPinned,
             hiddenLanguages: currentHidden,
             selectedTargetLanguage: currentSelectedLang,
@@ -2413,14 +2451,18 @@ export default function App() {
 
       const nextVocab = { ...prev };
 
+      const now = Date.now();
       familyWords.forEach((linkedWord) => {
-        const k = `${activeLang}_${linkedWord}`;
+        const k = `${activeLang}_${linkedWord}`.toLowerCase();
+        markWordLocallyMutated(k);
+        markWordLocallyMutated(linkedWord);
         const existing = prev[k] || prev[linkedWord];
         if (existing) {
           nextVocab[k] = {
             ...existing,
             status: existing.status && existing.status !== "new" ? existing.status : targetStatus,
             definition: targetDefinition || existing.definition || undefined,
+            updatedAt: now,
           };
         } else {
           nextVocab[k] = {
@@ -2432,12 +2474,15 @@ export default function App() {
             grammar: "",
             contextRelation: "",
             examples: [],
-            createdAt: Date.now(),
+            createdAt: now,
+            updatedAt: now,
             tags: [],
             imageUrl: null,
           };
         }
       });
+
+      vocabRef.current = nextVocab;
 
       if (storageMode === "server") {
         syncDataToLocalServer(lessons, lessonTypes, nextVocab, nextWordLinks).catch((err) => console.error(err));
@@ -2498,7 +2543,9 @@ export default function App() {
       }
 
       linkedWords.forEach((linkedWord) => {
-        const targetLangKey = `${activeLang}_${linkedWord}`;
+        const targetLangKey = `${activeLang}_${linkedWord}`.toLowerCase();
+        markWordLocallyMutated(targetLangKey);
+        markWordLocallyMutated(linkedWord);
         const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
 
         const updatedVocabItem: VocabItem = buildVocabItem(effectiveItem, linkedWord, existing);
@@ -2513,6 +2560,8 @@ export default function App() {
 
         nextVocab[targetLangKey] = updatedVocabItem;
       });
+
+      vocabRef.current = nextVocab;
 
       if (storageMode === "server") {
         syncDataToLocalServer(lessons, lessonTypes, nextVocab, wordLinks).catch((err) =>
@@ -2577,6 +2626,7 @@ export default function App() {
             }
           });
 
+          markWordLocallyMutated(targetLangKey);
           nextVocab[targetLangKey] = updatedVocabItem;
 
           // Update lookup map with the new key so subsequent checks in the same batch are accurate
@@ -2590,6 +2640,8 @@ export default function App() {
           }
         });
       });
+
+      vocabRef.current = nextVocab;
 
       if (storageMode === "server") {
         syncDataToLocalServer(lessons, lessonTypes, nextVocab, wordLinks).catch((err) =>
@@ -2630,8 +2682,11 @@ export default function App() {
       const uniqueCleanKeys = Array.from(new Set(cleanKeys));
 
       uniqueCleanKeys.forEach((k) => {
+        markWordLocallyMutated(k);
         delete copy[k];
       });
+
+      vocabRef.current = copy;
 
       if (uniqueCleanKeys.length > 0 && storageMode === "server") {
         syncDataToLocalServer(lessons, lessonTypes, copy, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettings, pinnedLanguages, hiddenLanguages, selectedTargetLanguage, uniqueCleanKeys).catch((err) => console.error(err));
@@ -2699,9 +2754,13 @@ export default function App() {
         contextRelation: newVocabItem.contextRelation || "",
         examples: newVocabItem.examples || [],
         createdAt: newVocabItem.createdAt || Date.now(),
+        updatedAt: Date.now(),
         tags: newVocabItem.tags || [],
       };
+      markWordLocallyMutated(targetLangKeyNew);
+      uniqueDropKeys.forEach((k) => markWordLocallyMutated(k));
       copy[targetLangKeyNew] = updatedVocabItem;
+      vocabRef.current = copy;
 
       // In server mode, sync the resulting local state to local_server_db
       if (uniqueDropKeys.length > 0 && storageMode === "server") {

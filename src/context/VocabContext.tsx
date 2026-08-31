@@ -2,6 +2,47 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { VocabItem, WordStatus } from "../types";
 import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
 import { vocabStore } from "../db";
+/**
+ * In-memory registry of locally mutated words with timestamps.
+ * Prevents stale server fetch / full sync from reverting recent optimistic changes.
+ */
+export const localWordMutations = new Map<string, number>();
+
+export function markWordLocallyMutated(wordKey: string) {
+  localWordMutations.set(wordKey.toLowerCase(), Date.now());
+}
+
+/**
+ * Merges incoming cloud vocabulary with local in-memory vocabulary.
+ * Guarantees that any word mutated locally within the last 60 seconds (or with a newer local updatedAt)
+ * will NEVER be overwritten by stale server data.
+ */
+export function mergeCloudVocabWithLocal(
+  cloudVocab: Record<string, VocabItem>,
+  localVocab: Record<string, VocabItem>
+): Record<string, VocabItem> {
+  if (!cloudVocab || typeof cloudVocab !== "object") return localVocab || {};
+  if (!localVocab || typeof localVocab !== "object") return cloudVocab || {};
+
+  const merged: Record<string, VocabItem> = { ...cloudVocab };
+  const now = Date.now();
+
+  for (const [key, localItem] of Object.entries(localVocab)) {
+    if (!localItem) continue;
+    const lowerKey = key.toLowerCase();
+    const localTime = localItem.updatedAt || localWordMutations.get(lowerKey) || 0;
+    const cloudItem = cloudVocab[key];
+    const cloudTime = cloudItem?.updatedAt || 0;
+
+    // If local word was mutated within 60s OR local timestamp is newer, preserve local
+    if (localTime > 0 && (localTime > cloudTime || (now - localTime < 60000))) {
+      merged[key] = localItem;
+    }
+  }
+
+  return merged;
+}
+
 interface VocabContextType {
   vocab: Record<string, VocabItem>;
   setVocab: React.Dispatch<React.SetStateAction<Record<string, VocabItem>>>;
@@ -152,13 +193,17 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     const activeLang = lang.toLowerCase();
     const cleanWord = word.toLowerCase().replace(/^[a-zA-Z]+_/, "");
     const linkedWords = getLinkedWordsFor(cleanWord, activeLang);
+    const now = Date.now();
 
     setVocab((prev) => {
       const nextVocab = { ...prev };
       const keysToDelete: string[] = [];
 
       linkedWords.forEach((linkedWord) => {
-        const targetLangKey = `${activeLang}_${linkedWord}`;
+        const targetLangKey = `${activeLang}_${linkedWord}`.toLowerCase();
+        markWordLocallyMutated(targetLangKey);
+        markWordLocallyMutated(linkedWord);
+
         const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
 
         const isPlaceholder = (s?: string) => !s || s.trim() === "" || s === "Pending translation" || (s.trim().startsWith("[") && s.trim().endsWith("]"));
@@ -173,7 +218,8 @@ export function VocabProvider({ children }: { children: ReactNode }) {
           grammar: existing ? existing.grammar : "",
           contextRelation: existing ? existing.contextRelation : "",
           examples: existing ? existing.examples : [],
-          createdAt: existing ? (existing.createdAt || Date.now()) : Date.now(),
+          createdAt: existing ? (existing.createdAt || now) : now,
+          updatedAt: now,
           tags: existing ? existing.tags : [],
           imageUrl: existing ? (existing.imageUrl || null) : null,
           spellingCorrectCount: existing ? (existing.spellingCorrectCount || 0) : 0,
@@ -206,6 +252,7 @@ export function VocabProvider({ children }: { children: ReactNode }) {
   const handleDeleteMultipleVocabItems = (words: string[], lang = "spanish") => {
     if (!words || words.length === 0) return;
     const activeLang = lang.toLowerCase();
+    const now = Date.now();
 
     setVocab((prev) => {
       const copy = { ...prev };
@@ -225,7 +272,10 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         const cleanWord = word.trim().toLowerCase().replace(/^[a-zA-Z]+_/, "");
         if (!cleanWord) return;
 
-        const targetLangKey = `${activeLang}_${cleanWord}`;
+        const targetLangKey = `${activeLang}_${cleanWord}`.toLowerCase();
+        markWordLocallyMutated(targetLangKey);
+        markWordLocallyMutated(cleanWord);
+
         allKeysToDrop.add(targetLangKey);
         allKeysToDrop.add(cleanWord);
 
@@ -256,17 +306,19 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     if (!words || words.length === 0) return 0;
     const activeLang = lang.toLowerCase();
     let importedCount = 0;
+    const now = Date.now();
 
     setVocab((prev) => {
       const nextVocab = { ...prev };
-      const now = Date.now();
 
       words.forEach((rawWord) => {
         if (!rawWord || !rawWord.trim()) return;
         const cleanWord = rawWord.trim().toLowerCase().replace(/^[a-zA-Z]+_/, "");
         if (!cleanWord) return;
 
-        const targetLangKey = `${activeLang}_${cleanWord}`;
+        const targetLangKey = `${activeLang}_${cleanWord}`.toLowerCase();
+        markWordLocallyMutated(targetLangKey);
+        markWordLocallyMutated(cleanWord);
         const existing = nextVocab[targetLangKey];
 
         // Only add or update to ignored
@@ -280,6 +332,7 @@ export function VocabProvider({ children }: { children: ReactNode }) {
           contextRelation: existing?.contextRelation || "",
           examples: existing?.examples || [],
           createdAt: existing?.createdAt || now,
+          updatedAt: now,
           tags: Array.from(new Set([...(existing?.tags || []), "imported-ignored"])),
           imageUrl: existing?.imageUrl || null,
           spellingCorrectCount: existing?.spellingCorrectCount || 0,

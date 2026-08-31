@@ -663,6 +663,7 @@ export function normalizeVocabRecord(record: Record<string, any> | any[] | undef
       contextRelation: typeof value.contextRelation === "string" ? value.contextRelation : "",
       status: cleanStatus,
       createdAt: typeof value.createdAt === "number" && !isNaN(value.createdAt) ? value.createdAt : Date.now(),
+      updatedAt: typeof value.updatedAt === "number" && !isNaN(value.updatedAt) ? value.updatedAt : undefined,
       tags: Array.isArray(value.tags) ? value.tags.filter((t: any) => typeof t === "string") : [],
       examples: Array.isArray(value.examples) ? value.examples : [],
       imageUrl: typeof value.imageUrl === "string" ? value.imageUrl : null,
@@ -886,6 +887,7 @@ export function buildVocabItem(
     contextRelation:           pickString(newItem.contextRelation,           existing?.contextRelation,           ""),
     examples:                  pickArray(newItem.examples,                  existing?.examples,                  []),
     createdAt:                 pick(newItem.createdAt,                 existing?.createdAt,                 Date.now()),
+    updatedAt:                 Date.now(),
     tags:                      pickArray(newItem.tags,                      existing?.tags,                      []),
     imageUrl:                  newItem.imageUrl !== undefined
                                  ? newItem.imageUrl
