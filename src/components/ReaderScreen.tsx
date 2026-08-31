@@ -497,23 +497,8 @@ export default function ReaderScreen({
                 </div>
               )}
 
-              {/* Interactive Audio Player - render ONLY when audio is genuinely present and valid */}
-              {Boolean(
-                (activeLesson.audioBase64 && activeLesson.audioBase64.trim() !== '') ||
-                (activeLesson.audioUrl && 
-                 activeLesson.audioUrl.trim() !== '' && 
-                 (
-                   activeLesson.lessonType === 'video' ||
-                   activeLesson.lessonType === 'podcast' ||
-                   activeLesson.lessonType === 'youtube' ||
-                   /youtube\.com|youtu\.be/i.test(activeLesson.audioUrl) ||
-                   /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(activeLesson.audioUrl) ||
-                   activeLesson.audioUrl.startsWith('/api/') ||
-                   activeLesson.audioUrl.startsWith('blob:') ||
-                   activeLesson.audioUrl.startsWith('data:audio')
-                 )
-                )
-              ) && (
+              {/* Interactive Audio Player */}
+              {(activeLesson.audioUrl || activeLesson.audioBase64) && (
                 <AudioPlayerBar
                   onAudioUpload={handleAudioUploaded}
                   onListeningTick={handleListeningTick}

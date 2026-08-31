@@ -29929,7 +29929,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }
         const article = response.article;
         const settings = await StorageService.getSettings();
-        const isMedia = /youtube\.com|youtu\.be/i.test(article.sourceUrl || tab.url || "") || /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(article.sourceUrl || tab.url || "");
         await apiClient.saveLesson({
           title: article.title,
           content: article.content,
@@ -29937,9 +29936,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           coverUrl: article.leadImageUrl,
           author: article.author,
           targetLanguage: article.language !== "auto" ? article.language : settings.targetLanguage,
-          lessonType: isMedia ? "video" : "article",
-          audioUrl: isMedia ? article.sourceUrl || null : null,
-          audio_url: isMedia ? article.sourceUrl || null : null
+          lessonType: "article"
         });
         showBadge("OK", "#10b981");
       });

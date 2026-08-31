@@ -1345,9 +1345,10 @@ class PopupController {
           return;
         }
 
+        this.btnImportPage.innerHTML = `<span class="btn-icon">📤</span> ${t('saving_to_lectura', this.currentUiLang)}`;
+
         try {
           const settings = await StorageService.getSettings();
-          const isMedia = /youtube\.com|youtu\.be/i.test(tab.url || '') || /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(tab.url || '');
           const saveRes = await this.apiClient.saveLesson({
             title: article.title,
             content: article.content,
@@ -1355,9 +1356,7 @@ class PopupController {
             coverUrl: article.leadImageUrl,
             author: article.author,
             targetLanguage: article.language !== 'auto' ? article.language : settings.targetLanguage,
-            lessonType: isMedia ? 'video' : 'article',
-            audioUrl: isMedia ? (tab.url || null) : null,
-            audio_url: isMedia ? (tab.url || null) : null,
+            lessonType: 'article',
           });
 
           this.showAlert(`Lesson "${article.title}" saved to Lectura!`, 'success');

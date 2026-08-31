@@ -703,22 +703,6 @@
   };
 
   // extension/src/content/article-extractor.ts
-  function isMediaUrl(url) {
-    if (!url) return false;
-    return /youtube\.com|youtu\.be/i.test(url) || /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(url);
-  }
-  function stripHtmlPreservingStructure(html2) {
-    if (!html2) return "";
-    if (!/<[a-z][\s\S]*>/i.test(html2)) return html2.trim();
-    let text = html2.replace(/<\/(?:p|div|section|article|header|footer)>/gi, "\n\n").replace(/<br\s*[\/]?>/gi, "\n").replace(/<h[1-2][^>]*>(.*?)<\/h[1-2]>/gi, "\n\n## $1 ##\n\n").replace(/<h[3-6][^>]*>(.*?)<\/h[3-6]>/gi, "\n\n# $1 #\n\n").replace(/<li[^>]*>(.*?)<\/li>/gi, "\n\u2022 $1\n").replace(/<figcaption[^>]*>(.*?)<\/figcaption>/gi, "\n[CAPTION:$1]\n");
-    try {
-      const doc = new DOMParser().parseFromString(text, "text/html");
-      text = doc.body.textContent || "";
-    } catch (_2) {
-      text = text.replace(/<[^>]+>/g, "");
-    }
-    return text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-  }
   var ArticleExtractor = class {
     /**
      * Extracts clean structured article from current document
@@ -733,18 +717,14 @@
       this.removeJunkElements(clone);
       const articleRoot = this.findMainContentElement(clone);
       const { cleanHtml, plainText } = this.sanitizeAndFormat(articleRoot);
-      const isMedia = isMediaUrl(url);
-      const cleanContent = stripHtmlPreservingStructure(plainText || cleanHtml);
       return {
         title,
-        content: cleanContent,
-        rawText: cleanContent,
+        content: cleanHtml || plainText,
+        rawText: plainText,
         sourceUrl: url,
         leadImageUrl,
         author,
-        language,
-        audioUrl: isMedia ? url : null,
-        audio_url: isMedia ? url : null
+        language
       };
     }
     static extractTitle(doc) {
