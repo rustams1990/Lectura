@@ -94,14 +94,24 @@ export function useReaderPagination({
 
     const hasAnyTimestamp = result.some((r) => r.timestamp !== null);
     if (!hasAnyTimestamp) {
-      const paras = lesson.text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+      const normalizedText = lesson.text
+        .replace(/(\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\])/gi, "\n\n$1\n\n")
+        .replace(/(\[CAPTION:[^\]]+\])/gi, "\n\n$1\n\n")
+        .replace(/\n{3,}/g, "\n\n");
+      const paras = normalizedText.split(/\n+/).filter((p) => p.trim().length > 0);
       const rawParas = paras.map((p) => ({ text: p.trim(), timestamp: null }));
       
       // For books, preserve intact paragraph blocks (each <p> / paragraph is a single block)
       if (autoPunctuationSplit && lesson.lessonType !== "book") {
         const sentenceSegments: TextSegment[] = [];
         paras.forEach((p) => {
-          const sentences = splitIntoSentences(p.trim(), isCjk);
+          const pTrim = p.trim();
+          // Never split images, captions, or headings into sentences
+          if (/^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(pTrim) || /^##?\s+/i.test(pTrim) || /^\[(?:CAPTION:?|caption)/i.test(pTrim)) {
+            sentenceSegments.push({ text: pTrim, timestamp: null });
+            return;
+          }
+          const sentences = splitIntoSentences(pTrim, isCjk);
           sentences.forEach((s) => {
             const clean = s.trim();
             if (clean) {
@@ -162,7 +172,7 @@ export function useReaderPagination({
       }
 
       const totalWords = segsList.reduce((acc, s) => {
-        if (/^\[IMG(?:_REF)?:/.test(s.text.trim())) return acc;
+        if (/^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(s.text.trim()) || /^\[(?:CAPTION:?|caption)/i.test(s.text.trim())) return acc;
         return acc + s.text.split(/\s+/).filter(Boolean).length;
       }, 0);
 
@@ -176,8 +186,8 @@ export function useReaderPagination({
       let currentWords = 0;
 
       for (const seg of segsList) {
-        const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
-        const wordsInSeg = isImgSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
+        const isNonWordSeg = /^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(seg.text.trim()) || /^\[(?:CAPTION:?|caption)/i.test(seg.text.trim());
+        const wordsInSeg = isNonWordSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
 
         // If a large paragraph exceeds limit, flush current chunk
         if (currentWords > 0 && (currentWords + wordsInSeg > wordLimit + 30)) {
@@ -381,7 +391,7 @@ export function useReaderPagination({
       let currentWords = 0;
       
       for (const seg of segments) {
-        const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
+        const isImgSeg = /^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(seg.text.trim());
         const wordsInSeg = isImgSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
         if (currentWords > 0 && currentWords + wordsInSeg > limit + 40) {
           result.push(currentChunk);
@@ -401,7 +411,8 @@ export function useReaderPagination({
       let currentSentences = 0;
 
       for (const seg of segments) {
-        const sentsInSeg = splitIntoSentences(seg.text, isCjk).length;
+        const isImgSeg = /^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(seg.text.trim());
+        const sentsInSeg = isImgSeg ? 0 : splitIntoSentences(seg.text, isCjk).length;
         if (currentSentences > 0 && currentSentences + sentsInSeg > limit) {
           result.push(currentChunk);
           currentChunk = [seg];
@@ -420,7 +431,7 @@ export function useReaderPagination({
       let currentChars = 0;
 
       for (const seg of segments) {
-        const isImgSeg = /^\[IMG(?:_REF)?:/.test(seg.text) && seg.text.endsWith("]");
+        const isImgSeg = /^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(seg.text.trim());
         const charsInSeg = isImgSeg ? 0 : seg.text.length;
         if (currentChars > 0 && currentChars + charsInSeg > limit) {
           result.push(currentChunk);

@@ -446,17 +446,36 @@ export default function ImportLessonForm({
       const targetType = data.lessonType || (data.audioUrl || data.audioBase64 || url.toLowerCase().includes("podcast") ? "podcast" : "article");
       setSelectedType(targetType);
 
-      // Cover image assignment
+      // Cover image assignment: server og:image → first [IMG:...] in article text → screenshot API
       if (data.coverUrl) {
         setCoverUrl(data.coverUrl);
+      } else if (data.text) {
+        // Extract first inline image from Readability-parsed article text as fallback cover
+        const firstImgMatch = data.text.match(/\[(?:\[LECTURA_)?IMG:(https?:\/\/[^\]]+)\]/i);
+        if (firstImgMatch) {
+          setCoverUrl(firstImgMatch[1]);
+        } else if (webScreenshotAsCover) {
+          setCoverUrl(`https://api.microlink.io/?url=${encodeURIComponent(url.trim())}&screenshot=true&embed=screenshot.url`);
+        } else {
+          setCoverUrl("");
+        }
       } else if (webScreenshotAsCover) {
         setCoverUrl(`https://api.microlink.io/?url=${encodeURIComponent(url.trim())}&screenshot=true&embed=screenshot.url`);
       } else {
         setCoverUrl("");
       }
-      
-      const wordCount = data.text ? data.text.split(/\s+/).filter(Boolean).length : 0;
-      setWebSuccess(t('import.web_success', '✓ Successfully imported! {{audioNote}}Extracted {{count}} words. Check details below.', { audioNote: data.audioUrl ? t('import.audio_attached_note', 'Audio attached. ') : '', count: wordCount }));
+
+      // Word count — exclude [IMG:...], [CAPTION:...], and [caption] placeholders
+      const cleanText = (data.text || "")
+        .replace(/\[(?:\[LECTURA_)?IMG:[^\]]+\]/gi, "")
+        .replace(/\[CAPTION:[^\]]+\]/gi, "")
+        .replace(/\[caption\][^\n]*/gi, "");
+      const wordCount = cleanText.split(/\s+/).filter(Boolean).length;
+      const bylineNote = data.byline ? ` — ${data.byline}` : "";
+      setWebSuccess(t('import.web_success', '✓ Successfully imported! {{audioNote}}Extracted {{count}} words. Check details below.', {
+        audioNote: data.audioUrl ? t('import.audio_attached_note', 'Audio attached. ') : '',
+        count: wordCount,
+      }) + bylineNote);
     } catch (err: any) {
       console.error("DEBUG [ImportLessonForm]: web import error:", err);
       setWebError(err.message || t('import.web_error_default', 'Connection or parsing error. Make sure URL is accessible.'));
@@ -464,6 +483,7 @@ export default function ImportLessonForm({
       setIsWebLoading(false);
     }
   };
+
 
   const handleWebImport = async (e: React.MouseEvent) => {
     e.preventDefault();

@@ -120,7 +120,7 @@ export function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabIt
   const zero: BookStats = { knownPct: 0, unknownPct: 100, knownCount: 0, unknownCount: 0, ignoredCount: 0, uniqueKnownCount: 0, uniqueUnknownCount: 0, uniqueIgnoredCount: 0, uniqueTotal: 0, total: 0, eligibleTokens: 0, eligibleLemmas: 0, knownVocabularyPct: 0, unknownVocabularyPct: 100 };
   if (typeof lesson.text !== "string") return zero;
 
-  const cleanText = lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ");
+  const cleanText = lesson.text.replace(/\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]/gi, " ");
   const lang = (lesson.targetLanguage || "spanish").toLowerCase();
   const tokens = getCachedTokens(lesson.id || cleanText.slice(0, 30), cleanText, lesson.targetLanguage || "spanish");
   const processedWords = tokens.filter(t => t.isWord && t.clean).map(t => t.clean);

@@ -170,6 +170,12 @@ export function cleanWordForLookup(raw: string): string {
 export const TOKEN_REGEX = /([\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\p{L}\p{N}\s]+|\s+)/gu;
 
 export function segmentSentenceTokens(sentText: string, langName: string = ""): Token[] {
+  // If the sentence is an image placeholder or caption, NEVER tokenize it into words!
+  if (/^\s*\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(sentText) || /^\s*\[(?:CAPTION:?|caption)/i.test(sentText)) {
+    return [{ raw: sentText, clean: "", isWord: false }];
+  }
+
+
   const isCjk = isCjkLanguage(langName) || isCjkText(sentText);
 
   if (isCjk) {

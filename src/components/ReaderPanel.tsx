@@ -344,9 +344,14 @@ function ReaderPanel({
   } = useReaderHistory({ lesson, history, onUpdateHistory });
 
   const textForSearch = useMemo(
-    () => lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " "),
+    () => lesson.text
+      .replace(/\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]/gi, " ")
+      .replace(/^##\s+(.+?)\s+##\s*$/gm, "$1")
+      .replace(/^#\s+(.+?)\s+#\s*$/gm, "$1")
+      .replace(/^\[(?:CAPTION:?|caption\]?)\s*[^\]\n]*(?:\])?/gim, ""),
     [lesson.text]
   );
+
   // Tooltip/popup states for hover over patterns/timestamps
   const [hoveredWordId, setHoveredWordId] = useState<string | null>(null);
 
@@ -586,6 +591,13 @@ function ReaderPanel({
     let globalIdx = 0;
 
     activeSegmentsForPage.forEach((seg, segIdx) => {
+      const trimmed = seg.text.trim();
+      // Never tokenize image placeholders or captions as page words!
+      if (/^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(trimmed) || /^\[(?:CAPTION:?|caption)/i.test(trimmed)) {
+        return;
+      }
+
+
       const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
         ? splitIntoSentences(seg.text, isCjk)
         : [seg.text];
@@ -782,7 +794,11 @@ function ReaderPanel({
   };
 
   const allUnknownWords = useMemo(() => {
-    const cleanText = lesson.text.replace(/\[IMG(?:_REF)?:[^\]]+\]/gi, " ");
+    const cleanText = lesson.text
+      .replace(/\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]/gi, " ")
+      .replace(/^##\s+(.+?)\s+##\s*$/gm, "$1")
+      .replace(/^#\s+(.+?)\s+#\s*$/gm, "$1")
+      .replace(/^\[(?:CAPTION:?|caption\]?)\s*[^\]\n]*(?:\])?/gim, "");
     
     const tokens = segmentSentenceTokens(cleanText, lesson.targetLanguage);
     const candidates = tokens.filter((t) => t.isWord && t.clean).map((t) => t.clean) as string[];
@@ -1226,6 +1242,50 @@ function ReaderPanel({
             ? splitIntoSentences(seg.text, isCjk)
             : [seg.text];
 
+          // Check if this segment represents an inline image placeholder or caption
+          const trimmedSegText = seg.text.trim();
+
+          // 1. Проверка на картинку
+          if ((trimmedSegText.startsWith('[IMG:') && trimmedSegText.endsWith(']')) || trimmedSegText.startsWith('__LECTURA_IMG__:')) {
+            const src = trimmedSegText.startsWith('__LECTURA_IMG__:')
+              ? trimmedSegText.replace('__LECTURA_IMG__:', '').trim()
+              : trimmedSegText.slice(5, -1).trim();
+            return (
+              <div key={pIdx} className="my-6 flex justify-center w-full clear-both">
+                <img
+                  src={src}
+                  alt={t('reader.illustration', 'Illustration')}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  id={`pdf-epub-img-${pIdx}`}
+                  className="max-w-full md:max-w-xl h-auto rounded-2xl shadow-lg border border-neutral-200 dark:border-neutral-800 object-contain bg-neutral-900"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    el.style.display = "none";
+                    const parent = el.parentElement;
+                    if (parent) parent.style.display = "none";
+                  }}
+                />
+              </div>
+            );
+          }
+
+          // 2. Проверка на подпись к картинке
+          if ((trimmedSegText.startsWith('[CAPTION:') && trimmedSegText.endsWith(']')) || trimmedSegText.startsWith('__LECTURA_CAP__:')) {
+            const caption = trimmedSegText.startsWith('__LECTURA_CAP__:')
+              ? trimmedSegText.replace('__LECTURA_CAP__:', '').trim()
+              : trimmedSegText.slice(9, -1).trim();
+            return (
+              <p 
+                key={pIdx} 
+                id={`segment-row-${globalSegmentIdx}`}
+                className="italic text-xs text-neutral-400 text-center select-none -mt-4 mb-6"
+              >
+                {caption}
+              </p>
+            );
+          }
+
           // Precalculate total words in this segment for word-by-word highlight
           const segmentWordCount = (() => {
             if (!activeSettings.wordHighlight || !isSegmentActive) return 0;
@@ -1238,10 +1298,11 @@ function ReaderPanel({
           })();
           let wordRenderCount = 0;
 
-          // Check if this segment represents an inline image placeholder
-          const trimmedSegText = seg.text.trim();
-          const isImage = /^\[IMG(?:_REF)?:/.test(trimmedSegText) && trimmedSegText.endsWith("]");
-          if (isImage) {
+
+
+          // Legacy strict check for EPUB/PDF [IMG_REF:...]
+          const isLegacyImage = /^\[IMG(?:_REF)?:/.test(trimmedSegText) && trimmedSegText.endsWith("]");
+          if (isLegacyImage) {
             try {
               const payload = trimmedSegText.startsWith("[IMG_REF:")
                 ? trimmedSegText.substring(9, trimmedSegText.length - 1)
@@ -1283,16 +1344,24 @@ function ReaderPanel({
               }
 
               return (
-                <div 
-                  key={pIdx} 
-                  className="my-4 max-w-full flex justify-center flex-col items-center select-none reader-image-container"
+                <div
+                  key={pIdx}
+                  className="my-6 flex flex-col items-center justify-center w-full reader-image-container"
                 >
-                  <img 
-                    src={dataUrl} 
-                    className="rounded-xl shadow-md max-w-full max-h-72 object-contain mb-6 mx-auto block" 
-                    alt={t('reader.illustration', 'Illustration')} 
+                  <img
+                    src={dataUrl}
+                    alt={t('reader.illustration', 'Illustration')}
+                    loading="lazy"
                     referrerPolicy="no-referrer"
                     id={`pdf-epub-img-${pIdx}`}
+                    className="w-full max-w-2xl h-auto max-h-[500px] object-contain rounded-xl shadow-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900"
+                    onError={(e) => {
+                      // Hide broken images cleanly instead of showing white rectangle
+                      const el = e.currentTarget;
+                      el.style.display = "none";
+                      const parent = el.parentElement;
+                      if (parent) parent.style.display = "none";
+                    }}
                   />
                 </div>
               );
@@ -1301,6 +1370,7 @@ function ReaderPanel({
               return null;
             }
           }
+
 
 
 
@@ -2054,8 +2124,74 @@ function ReaderPanel({
             const isBook = lesson.lessonType === "book";
             const trimmedText = seg.text.trim();
 
+            // ── Article headings (from Readability web import) ─────────────────────
+            // ## Heading text ##  →  h2-style (major section)
+            // # Heading text #    →  h3-style (sub-section)
+            const h2Match = trimmedText.match(/^##\s+(.+?)\s+##$/);
+            const h3Match = !h2Match && trimmedText.match(/^#\s+(.+?)\s+#$/);
+
+            if (h2Match || h3Match) {
+              const headingInnerText = (h2Match ? h2Match[1] : h3Match![1]).trim();
+              const isH2 = Boolean(h2Match);
+
+              // Tokenize the heading text directly so words are clickable
+              const headingTokens = segmentSentenceTokens(headingInnerText, lesson.targetLanguage);
+              const headingWordNodes = headingTokens.map((tok, tIdx) => {
+                if (!tok.isWord) {
+                  return <span key={tIdx} className="select-none opacity-90 inline">{tok.raw}</span>;
+                }
+                const wordKey = `${lesson.targetLanguage.toLowerCase()}_${tok.clean}`;
+                const vocabItem = tok.clean ? (vocab[wordKey] || vocab[tok.clean]) : undefined;
+                const status = vocabItem?.status;
+                // known → muted; 1-5 (learning stages) → amber; new/ignored → default
+                const knownClass = status === "known" ? "opacity-60" : (status && ["1","2","3","4","5"].includes(status)) ? "text-amber-600 dark:text-amber-400" : "";
+                return (
+                  <span
+                    key={tIdx}
+                    className={`cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/40 rounded px-0.5 transition-colors duration-75 select-text inline ${knownClass}`}
+                    onClick={() => tok.clean && onWordClick(tok.clean, tok.raw)}
+                  >
+                    {tok.raw}
+                  </span>
+                );
+              });
+
+              const HeadingTag = isH2 ? "h2" : "h3";
+              const headingClass = isH2
+                ? "text-xl font-bold mt-8 mb-2 leading-snug tracking-tight text-zinc-900 dark:text-zinc-100 antialiased article-heading-h2"
+                : "text-lg font-semibold mt-6 mb-1.5 leading-snug tracking-tight text-zinc-800 dark:text-zinc-200 antialiased article-heading-h3";
+              return (
+                <HeadingTag
+                  key={pIdx}
+                  id={`segment-row-${globalSegmentIdx}`}
+                  className={headingClass}
+                  style={{ textIndent: 0 }}
+                >
+                  {headingWordNodes}
+                </HeadingTag>
+              );
+            }
+
+            // ── Figure captions from web articles ──────────────────────────────────
+            // [CAPTION:Some caption text] or [caption] Some caption text
+            const captionMatch = trimmedText.match(/^\[(?:CAPTION:?|caption\])\s*(.+?)(?:\])?$/i);
+            if (captionMatch) {
+              const captionText = captionMatch[1].replace(/\]$/, "").trim();
+              return (
+                <p 
+                  key={pIdx}
+                  id={`segment-row-${globalSegmentIdx}`}
+                  className="-mt-4 mb-6 text-center text-xs text-neutral-500 dark:text-neutral-400 italic select-none"
+                  style={{ textIndent: 0 }}
+                >
+                  {captionText}
+                </p>
+              );
+            }
+
             const isIntroductionHeading = isBook && /^(?:INTRODUCTION|PREFACE|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ВВЕДЕНИЕ|ЭПИЛОГ|DEDICATION|ПОСВЯЩЕНИЕ)$/i.test(trimmedText);
             const bookTitle = (lesson.title || "").trim();
+
             let strippedHeadingText = trimmedText;
             if (bookTitle && strippedHeadingText.toLowerCase().startsWith(bookTitle.toLowerCase())) {
               strippedHeadingText = strippedHeadingText.substring(bookTitle.length).trim().replace(/^[-:—.\s]+/, "");

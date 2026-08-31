@@ -11,6 +11,8 @@ import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
 import { formatGeminiTranscript } from "./youtube.ts";
 import ytdlp from "yt-dlp-exec";
 import { getDbConnection } from "./dbConnection.ts";
+import { JSDOM } from "jsdom";
+import { Readability } from "@mozilla/readability";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
@@ -586,7 +588,570 @@ router.post("/import-file", async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================
+// Browser-like Headers for web article fetching
+// ============================================================
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+  "Cache-Control": "no-cache",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+};
+
+// ============================================================
+// Mozilla Readability article parser
+// ============================================================
+interface ReadabilityResult {
+  title: string;
+  byline: string | null;
+  contentHtml: string;
+  textContent: string;
+  excerpt: string | null;
+}
+
+/**
+ * Извлекает реальный URL картинки BBC из блока <figure>/<picture>/[data-component="image-block"],
+ * парсит srcset (в <source> и <img>) и игнорирует серые заглушки (grey-placeholder).
+ */
+function extractBbcImageUrl(element: Element, baseUrl: string): string | null {
+  // 1. Ищем все возможные srcset (в <source> и <img>)
+  const sources = Array.from(element.querySelectorAll('source, img'));
+  
+  for (const node of sources) {
+    const srcset = node.getAttribute('srcset') || node.getAttribute('data-srcset');
+    if (srcset) {
+      // Пример srcset: "https://ichef.bbci.co.uk/.../480.jpg 480w, https://ichef.bbci.co.uk/.../800.jpg 800w"
+      const entries = srcset.split(',').map(entry => {
+        const trimmed = entry.trim();
+        const parts = trimmed.split(/\s+/);
+        return parts[0]; // URL
+      }).filter(url => url && !url.includes('grey-placeholder') && !url.startsWith('data:'));
+
+      if (entries.length > 0) {
+        const bestUrl = entries[entries.length - 1]; // Берем последнее (самое качественное)
+        try {
+          return new URL(bestUrl, baseUrl).href;
+        } catch {
+          return bestUrl.startsWith('http') ? bestUrl : null;
+        }
+      }
+    }
+
+    // Проверяем обычные атрибуты (data-src, src)
+    const directSrc = node.getAttribute('data-src') || node.getAttribute('src');
+    if (directSrc && !directSrc.includes('grey-placeholder') && !directSrc.startsWith('data:')) {
+      try {
+        return new URL(directSrc, baseUrl).href;
+      } catch {
+        return directSrc.startsWith('http') ? directSrc : null;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
+  const dom = new JSDOM(rawHtml, { url: baseUrl });
+  const doc = dom.window.document;
+
+  // 1. ЖЕСТКО удаляем навигацию, формы поиска, заголовки шапки и футеры
+  const removeSelectors = [
+    'header', 'nav', 'footer', 'form', 'aside',
+    '[data-testid="header-search"]', '[data-testid="byline"]',
+    '[data-testid="timestamp"]',
+    '#search', '.search-box', 'button', 'input',
+    'time', '.byline', '.article__metadata',
+    '[class*="header-search"]', '[class*="search-bar"]', '[class*="site-search"]',
+    '[role="navigation"]', '[role="banner"]',
+    '[aria-label*="search" i]', '[aria-label*="navigation" i]'
+  ];
+  removeSelectors.forEach(sel => {
+    try {
+      doc.querySelectorAll(sel).forEach(el => el.remove());
+    } catch (_) {}
+  });
+
+  // 2. Обработка перед Readability:
+  // Пройдись по всем figure, picture и контейнерам [data-component="image-block"]
+  doc.querySelectorAll('figure, picture, [data-component="image-block"]').forEach((block) => {
+    const imageUrl = extractBbcImageUrl(block, baseUrl);
+    const caption = block.querySelector('figcaption')?.textContent?.trim() || '';
+
+    if (imageUrl) {
+      const replacement = doc.createElement('p');
+      replacement.textContent = `[IMG:${imageUrl}]`;
+      block.parentNode?.insertBefore(replacement, block);
+
+      if (caption) {
+        const capP = doc.createElement('p');
+        capP.textContent = `[CAPTION:${caption}]`;
+        block.parentNode?.insertBefore(capP, block);
+      }
+    }
+    block.remove();
+  });
+
+  // Также обрабатываем любые оставшиеся standalone <img>
+  doc.querySelectorAll('article img, main img, .article__body img, img').forEach(img => {
+    const imageUrl = extractBbcImageUrl(img, baseUrl);
+    if (imageUrl) {
+      const replacement = doc.createElement('p');
+      replacement.textContent = `[IMG:${imageUrl}]`;
+      img.parentNode?.insertBefore(replacement, img);
+    }
+    img.remove();
+  });
+
+  // 3. Запускаем Mozilla Readability
+  const reader = new Readability(doc, { keepClasses: false });
+  const article = reader.parse();
+  if (!article || !article.content) {
+    throw new Error('Readability failed to extract article');
+  }
+
+  // 4. Преобразуем HTML статьи в текст с правильными отступами \n\n
+  const contentDoc = new JSDOM(`<body>${article.content}</body>`).window.document;
+  const blocks: string[] = [];
+
+  // Query all block-level elements in document order so each <p> is an isolated block!
+  const blockElements = Array.from(contentDoc.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote'));
+  
+  blockElements.forEach(el => {
+    // If element is nested inside another selected element (e.g. p inside blockquote or li), avoid duplicating
+    if (el.parentElement && ['p', 'li', 'blockquote'].includes(el.parentElement.tagName.toLowerCase())) {
+      return;
+    }
+
+    const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    if (!text) return;
+
+    if (text.includes('[IMG:')) {
+      const match = text.match(/\[IMG:(https?:\/\/[^\]]+)\]/);
+      if (match) {
+        blocks.push(match[0]);
+        const capMatch = text.match(/\[CAPTION:(.+?)\]/);
+        if (capMatch) blocks.push(capMatch[0]);
+        return;
+      }
+    }
+
+    if (text.includes('[CAPTION:')) {
+      const capMatch = text.match(/\[CAPTION:(.+?)\]/);
+      if (capMatch) {
+        blocks.push(capMatch[0]);
+        return;
+      }
+    }
+
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'h1' || tag === 'h2') {
+      blocks.push(`## ${text} ##`);
+    } else if (tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+      blocks.push(`# ${text} #`);
+    } else if (tag === 'li') {
+      blocks.push(`• ${text}`);
+    } else {
+      if (/^Site search$/i.test(text)) return;
+      blocks.push(text);
+    }
+  });
+
+  // Fallback: if blockElements was empty, extract paragraphs from article.textContent
+  if (blocks.length === 0) {
+    const rawParas = (article.textContent || '').split(/\n\s*\n/).filter(Boolean);
+    for (const p of rawParas) {
+      blocks.push(p.trim());
+    }
+  }
+
+  let finalText = blocks.join('\n\n');
+  finalText = finalText.replace(/\n{3,}/g, '\n\n').trim();
+
+  console.log('[DEBUG IMPORT] Final text preview (first 400 chars):\n', finalText.slice(0, 400));
+
+  return {
+    title: article.title || "Web Article",
+    text: finalText,
+    byline: article.byline || null,
+    excerpt: article.excerpt || null,
+  };
+}
+
+/**
+ * Resolve an img src to an absolute URL.
+ * Handles relative paths, srcset, and lazy-load data-src.
+ */
+function resolveImgSrc(el: Element, baseUrl: string): string | null {
+  // ── 1. Collect all candidate URL attributes in priority order ──────────────
+  // data-src / data-original / data-lazy-src come BEFORE src because sites like BBC
+  // put a transparent base64 placeholder in src= and the real URL in data-src=
+  const rawCandidates: string[] = [];
+
+  // Lazy-load attributes (highest priority)
+  for (const attr of ["data-src", "data-original", "data-lazy-src", "data-lazy", "data-url", "data-image-src"]) {
+    const v = el.getAttribute(attr);
+    if (v) rawCandidates.push(v);
+  }
+
+  // ── 2. srcset / data-srcset: pick entry with the largest width descriptor ──
+  // BBC uses srcset="url1 240w, url2 480w, url3 960w" — we want the last (largest)
+  for (const attr of ["data-srcset", "srcset"]) {
+    const srcset = el.getAttribute(attr);
+    if (!srcset) continue;
+    // Parse "url 240w, url 480w" or "url 1x, url 2x"
+    const entries = srcset
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => {
+        const parts = s.split(/\s+/);
+        const url = parts[0];
+        // Parse width descriptor (e.g. "960w") or density (e.g. "2x")
+        const desc = parts[1] || "";
+        const wMatch = desc.match(/^(\d+)w$/i);
+        const xMatch = desc.match(/^([\d.]+)x$/i);
+        const weight = wMatch ? parseInt(wMatch[1], 10) : xMatch ? parseFloat(xMatch[1]) * 1000 : 0;
+        return { url, weight };
+      })
+      .filter((e) => !!e.url);
+    if (entries.length === 0) continue;
+    // Pick highest-weight (largest) entry
+    entries.sort((a, b) => b.weight - a.weight);
+    rawCandidates.push(entries[0].url);
+  }
+
+  // ── 3. Also check <picture><source> siblings for srcset ───────────────────
+  const picture = el.parentElement;
+  if (picture && picture.tagName.toLowerCase() === "picture") {
+    const sources = Array.from(picture.querySelectorAll("source"));
+    for (const source of sources) {
+      const srcset = source.getAttribute("srcset") || source.getAttribute("data-srcset");
+      if (srcset) {
+        const entries = srcset
+          .split(",")
+          .map((s) => s.trim().split(/\s+/)[0])
+          .filter(Boolean);
+        if (entries.length > 0) rawCandidates.push(entries[entries.length - 1]);
+      }
+    }
+  }
+
+  // ── 4. Plain src last (lowest priority — often a placeholder on lazy sites) ─
+  const plainSrc = el.getAttribute("src");
+  if (plainSrc) rawCandidates.push(plainSrc);
+
+  // ── 5. Resolve and validate each candidate ────────────────────────────────
+  const JUNK_RE = /^data:|1x1|tracking|pixel|spinner|spacer|blank\.gif|placeholder|transparent|\.svg(\?|$)/i;
+  for (const raw of rawCandidates) {
+    if (!raw || raw.trim().length < 6) continue;
+    if (JUNK_RE.test(raw.trim())) continue;
+    try {
+      const resolved = new URL(raw.trim(), baseUrl).href;
+      // Must be a proper http(s) URL pointing to something image-like OR a CDN path
+      if (/^https?:\/\//i.test(resolved)) return resolved;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Обработка блока с картинкой и подписью (<figure>):
+ * Извлекает URL картинки и подпись/автора, формируя:
+ * \n\n[IMG:url]\n\n[CAPTION:text]\n\n
+ */
+function processFigureElement(figure: Element, baseUrl: string): string {
+  // 1. Ищем URL картинки
+  const img = figure.querySelector('img');
+  const source = figure.querySelector('source');
+  
+  let rawSrc = img?.getAttribute('data-src') || 
+               img?.getAttribute('src') || 
+               source?.getAttribute('srcset') || 
+               img?.getAttribute('srcset');
+
+  if (rawSrc) {
+    const parts = rawSrc.split(',').map(s => s.trim().split(' ')[0]);
+    rawSrc = parts[parts.length - 1];
+  }
+
+  let fullImageUrl: string | null = null;
+  if (img) {
+    fullImageUrl = resolveImgSrc(img, baseUrl);
+  }
+  if (!fullImageUrl && rawSrc && !rawSrc.startsWith('data:image')) {
+    try {
+      fullImageUrl = new URL(rawSrc, baseUrl).href;
+    } catch {}
+  }
+
+  if (!fullImageUrl) {
+    return '';
+  }
+
+  let result = `\n\n[IMG:${fullImageUrl}]\n\n`;
+
+  // 2. Ищем подпись/автора (figcaption или credit)
+  const figcaption = figure.querySelector('figcaption');
+  let captionText = figcaption ? (figcaption.textContent || '').trim().replace(/\s+/g, ' ') : '';
+
+  // Также извлекаем кредиты автора/агентства внутри figure (если не внутри figcaption)
+  const creditEl = figure.querySelector('[class*="credit" i], [class*="copyright" i], [data-testid*="credit" i], [class*="author" i]');
+  if (creditEl && figcaption && !figcaption.contains(creditEl)) {
+    const cred = (creditEl.textContent || '').trim().replace(/\s+/g, ' ');
+    if (cred && !captionText.includes(cred)) {
+      captionText = captionText ? `${captionText} (${cred})` : cred;
+    }
+  } else if (!captionText && creditEl) {
+    captionText = (creditEl.textContent || '').trim().replace(/\s+/g, ' ');
+  }
+
+  if (captionText && captionText.length < 300) {
+    result += `[CAPTION:${captionText}]\n\n`;
+  }
+
+  return result;
+}
+
+/**
+ * Convert Readability contentHtml into the Lectura internal text format:
+ *  - Headings → ## Heading text ## (h1/h2), # Heading text # (h3/h4/h5/h6)
+ *  - Paragraphs → plain text + double newline
+ *  - Images → [IMG:https://absolute-url]
+ *  - List items → • item text
+ *  - Figure captions → [CAPTION:text]
+ *  - Blockquotes → quoted paragraph text
+ */
+function convertArticleHtmlToText(contentHtml: string, baseUrl: string): string {
+  if (!contentHtml) return "";
+
+  let dom: JSDOM;
+  try {
+    dom = new JSDOM(`<body>${contentHtml}</body>`, { url: baseUrl });
+  } catch {
+    return "";
+  }
+
+  const body = dom.window.document.body;
+
+  // ── Pre-walk DOM cleanup: strip known navigation/metadata noise ────────────
+  // Readability sometimes leaves in time tags, bylines, share buttons, etc.
+  const JUNK_SELECTORS = [
+    "time",                           // publication dates
+    "button",                         // share/save buttons
+    "[data-testid='byline']",
+    "[data-testid='header-search']",
+    "[data-testid='timestamp']",
+    "[class*='byline']",
+    "[class*='Byline']",
+    "[class*='share']",
+    "[class*='Share']",
+    "[class*='social']",
+    "[class*='Social']",
+    "[class*='navigation']",
+    "[class*='cookie']",
+    "[class*='consent']",
+    "[class*='subscribe']",
+    "[class*='newsletter']",
+    "[class*='advertisement']",
+    "[class*='ad-']",
+    "[class*='-ad']",
+    "[role='navigation']",
+    "[role='banner']",
+    "[role='complementary']",
+    "[aria-label*='search' i]",
+    "[aria-label*='navigation' i]",
+    "[aria-label*='share' i]",
+    "[aria-label*='subscribe' i]",
+  ];
+  for (const sel of JUNK_SELECTORS) {
+    try {
+      body.querySelectorAll(sel).forEach((el) => el.remove());
+    } catch { /* ignore invalid selectors */ }
+  }
+
+  const lines: string[] = [];
+
+  /** Recursively walk an element's children and emit text blocks. */
+  function walk(el: Element) {
+    const tag = el.tagName.toLowerCase();
+
+    // Skip elements that rarely contain article text
+    if (["script", "style", "noscript", "form", "button", "nav", "aside", "header", "footer", "time", "address", "svg", "figure > figcaption > span"].includes(tag)) return;
+
+
+    // ── Headings ──────────────────────────────────────────────
+    if (tag === "h1" || tag === "h2") {
+      const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text) lines.push(`\n## ${text} ##\n`);
+      return;
+    }
+    if (tag === "h3" || tag === "h4" || tag === "h5" || tag === "h6") {
+      const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text) lines.push(`\n# ${text} #\n`);
+      return;
+    }
+
+    const pushImage = (src: string | null) => {
+      if (!src) return;
+      const marker = `[IMG:${src}]`;
+      if (lines[lines.length - 1] === marker) return;
+      lines.push(marker);
+    };
+
+    // ── Figures / images ──────────────────────────────────────
+    if (tag === "figure") {
+      const figBlock = processFigureElement(el, baseUrl);
+      if (figBlock) {
+        const parts = figBlock.trim().split(/\n\s*\n/).filter(Boolean);
+        for (const p of parts) {
+          lines.push(p.trim());
+        }
+      }
+      return;
+    }
+
+    if (tag === "figcaption") {
+      const capText = (el.textContent || "").trim().replace(/\s+/g, " ");
+      if (capText.length > 0) {
+        lines.push(`[CAPTION:${capText}]`);
+      }
+      return;
+    }
+
+    if (tag === "picture") {
+      const img = el.querySelector("img");
+      if (img) {
+        pushImage(resolveImgSrc(img, baseUrl));
+      }
+      return;
+    }
+
+    if (tag === "img") {
+      pushImage(resolveImgSrc(el, baseUrl));
+      return;
+    }
+
+    // ── Lists ─────────────────────────────────────────────────
+    if (tag === "li") {
+      const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text) lines.push(`• ${text}`);
+      return;
+    }
+
+    // ── Blockquotes ───────────────────────────────────────────
+    if (tag === "blockquote") {
+      const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text) lines.push(`"${text}"`);
+      return;
+    }
+
+    // ── Div container ─────────────────────────────────────────
+    if (tag === "div") {
+      // If div has element children, recurse into them
+      if (el.children.length > 0) {
+        for (const child of Array.from(el.children)) {
+          walk(child as Element);
+        }
+        return;
+      }
+      const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text.length > 0) lines.push(text);
+      return;
+    }
+
+    // ── Paragraphs ────────────────────────────────────────────
+    if (tag === "p") {
+      // Extract any images directly inside or nested in this paragraph
+      const imgs = Array.from(el.querySelectorAll("img"));
+      for (const img of imgs) {
+        pushImage(resolveImgSrc(img, baseUrl));
+      }
+
+      // If p has block-level children, recurse into them
+      const hasBlockChildren = Array.from(el.children).some((c) =>
+        ["div", "p", "figure", "picture", "ul", "ol", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6"].includes(c.tagName.toLowerCase())
+      );
+      if (hasBlockChildren) {
+        for (const child of Array.from(el.children)) {
+          walk(child as Element);
+        }
+        return;
+      }
+
+      const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text.length > 0) lines.push(text);
+      return;
+    }
+
+    // ── Generic container — recurse ───────────────────────────
+    for (const child of Array.from(el.children)) {
+      walk(child as Element);
+    }
+  }
+
+  // Walk all direct children of body
+  for (const child of Array.from(body.children)) {
+    walk(child as Element);
+  }
+
+  // ── Post-process: clean up / merge stray image credits (e.g. "BBC / Emmanuel Lafont") ─
+  const CREDIT_RE = /^(?:(?:credit|photo|image|source|фото|источник|автор|illustration)\s*[:：]|(?:BBC|Reuters|AFP|Getty|AP|Shutterstock|Alamy)\s*[\/|]|^\(?\s*(?:©|credit:))/i;
+  const AGENCY_SLASH_RE = /^[A-Z][\w\s]{1,25}\s*[\/|]\s*[\w\s]{1,30}$/;
+
+  const cleanedLines: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const isCredit = line.length < 100 && (CREDIT_RE.test(line) || AGENCY_SLASH_RE.test(line));
+    const prev = cleanedLines[cleanedLines.length - 1] || "";
+
+    if (isCredit) {
+      if (prev.startsWith("[IMG:")) {
+        // Next line might be a caption
+        const next = (lines[i + 1] || "").trim();
+        if (next.startsWith("[CAPTION:")) {
+          const nextCap = next.replace(/^\[CAPTION:\s*/i, "").replace(/\]$/, "").trim();
+          lines[i + 1] = `[CAPTION:${nextCap} (${line})]`;
+          continue; // absorbed into upcoming caption
+        } else {
+          // No upcoming caption: make this credit the caption!
+          cleanedLines.push(`[CAPTION:${line}]`);
+          continue;
+        }
+      } else if (prev.startsWith("[CAPTION:")) {
+        // Merge into previous caption if not already present
+        const prevCap = prev.replace(/^\[CAPTION:\s*/i, "").replace(/\]$/, "").trim();
+        if (!prevCap.toLowerCase().includes(line.toLowerCase())) {
+          cleanedLines[cleanedLines.length - 1] = `[CAPTION:${prevCap} (${line})]`;
+        }
+        continue;
+      }
+    }
+
+    cleanedLines.push(line);
+  }
+
+  // Post-process: join lines, collapse excessive blanks
+  const result = cleanedLines
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return result;
+}
+
+// ============================================================
 // 4. Web Article Importer (URL)
+// ============================================================
 router.post("/import-url", async (req: Request, res: Response) => {
   const { url, aiProvider, localAiUrl, localAiModel } = req.body;
   if (!url) {
@@ -595,11 +1160,8 @@ router.post("/import-url", async (req: Request, res: Response) => {
 
   try {
     const fetchRes = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
-      }
+      headers: BROWSER_HEADERS,
+      redirect: "follow",
     });
 
     if (!fetchRes.ok) {
@@ -608,34 +1170,37 @@ router.post("/import-url", async (req: Request, res: Response) => {
 
     const html = await fetchRes.text();
 
+    // ── Extract og:image / twitter:image for cover ──────────
     let extractedCoverUrl = "";
-    const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
-                         html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i) ||
-                         html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i) ||
-                         html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i);
+    const ogImageMatch =
+      html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
+      html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i) ||
+      html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i) ||
+      html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i);
     if (ogImageMatch) {
-      const rawImgUrl = ogImageMatch[1];
       try {
-        extractedCoverUrl = new URL(rawImgUrl, url).href;
-      } catch (e) {
-        extractedCoverUrl = rawImgUrl;
+        extractedCoverUrl = new URL(ogImageMatch[1], url).href;
+      } catch {
+        extractedCoverUrl = ogImageMatch[1];
       }
     }
 
-    // Special handler for Apple Podcasts & Podcast URLs with audio enclosure / stream
-    const isPodcastUrl = url.toLowerCase().includes("podcasts.apple.com") ||
-                         url.toLowerCase().includes("podcast") ||
-                         html.includes("schema:episode") ||
-                         html.includes('"assetUrl"');
+    // ── Podcast detection (unchanged) ────────────────────────
+    const isPodcastUrl =
+      url.toLowerCase().includes("podcasts.apple.com") ||
+      url.toLowerCase().includes("podcast") ||
+      html.includes("schema:episode") ||
+      html.includes('"assetUrl"');
 
     if (isPodcastUrl) {
       console.log(`[Import URL] Podcast URL detected: ${url}`);
 
       // 1. Extract Title
       let podcastTitle = "Podcast Episode";
-      const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
-                            html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i) ||
-                            html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const ogTitleMatch =
+        html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+        html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i) ||
+        html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
       if (ogTitleMatch) {
         podcastTitle = ogTitleMatch[1].replace(/<[^>]+>/g, "").replace(/\s*-\s*Apple Podcasts.*$/i, "").trim();
       }
@@ -662,16 +1227,13 @@ router.post("/import-url", async (req: Request, res: Response) => {
         try {
           console.log(`[Import URL] Downloading audio stream from ${directAudioUrl}...`);
           const audioFetch = await fetch(directAudioUrl, {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-            }
+            headers: { "User-Agent": BROWSER_HEADERS["User-Agent"] },
           });
 
           if (audioFetch.ok) {
             const arrayBuf = await audioFetch.arrayBuffer();
             const buf = Buffer.from(arrayBuf);
 
-            // Save audio file directly to static disk storage (/app/data/audio_files/...)
             const DATA_DIR = process.env.DATA_DIR || process.cwd();
             const audioStorageDir = path.join(DATA_DIR, "audio_files");
             if (!fs.existsSync(audioStorageDir)) {
@@ -683,9 +1245,8 @@ router.post("/import-url", async (req: Request, res: Response) => {
             fs.writeFileSync(diskPath, buf);
 
             audioUrl = `/api/audio-files/${audioFileName}`;
-            audioBase64 = null; // KEEP PAYLOAD LIGHTWEIGHT (0 MB BASE64)
+            audioBase64 = null;
 
-            // Auto transcribe with Gemini AI Speech-to-Text
             const userApiKey = (req.headers["x-gemini-key"] as string) || req.body.geminiApiKey;
             const ai = getGeminiClient(userApiKey);
             if (ai && buf.length > 0) {
@@ -695,7 +1256,7 @@ router.post("/import-url", async (req: Request, res: Response) => {
               try {
                 uploadedFile = await (ai.files as any).upload({
                   file: diskPath,
-                  mimeType: "audio/mp3"
+                  mimeType: "audio/mp3",
                 });
 
                 const prompt = `Listen carefully to this entire audio recording titled "${podcastTitle}".
@@ -709,11 +1270,9 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
                   model: "gemini-2.5-flash",
                   contents: [
                     { fileData: { fileUri: uploadedFile.uri, mimeType: uploadedFile.mimeType || "audio/mp3" } },
-                    prompt
+                    prompt,
                   ],
-                  config: {
-                    maxOutputTokens: 8192
-                  }
+                  config: { maxOutputTokens: 8192 },
                 });
 
                 if (aiRes.text) {
@@ -722,7 +1281,9 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
               } catch (tErr) {
                 console.error("[Import URL] Podcast Gemini transcription error:", tErr);
               } finally {
-                if (uploadedFile?.name) { try { await ai.files.delete({ name: uploadedFile.name }); } catch (e) {} }
+                if (uploadedFile?.name) {
+                  try { await ai.files.delete({ name: uploadedFile.name }); } catch (_) {}
+                }
               }
             }
           }
@@ -731,11 +1292,13 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
         }
       }
 
-      // Fallback description if transcript is empty
       if (!transcriptText.trim()) {
-        const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
-                          html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
-        transcriptText = descMatch ? descMatch[1].trim() : "Подкаст импортирован. Нажмите 'Создать субтитры' для автоматического распознавания текста речи.";
+        const descMatch =
+          html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+        transcriptText = descMatch
+          ? descMatch[1].trim()
+          : "Подкаст импортирован. Нажмите 'Создать субтитры' для автоматического распознавания текста речи.";
       }
 
       return res.json({
@@ -744,10 +1307,63 @@ IMPORTANT: Output ONLY the line-by-line timestamped transcript entries. Do not p
         lessonType: "podcast",
         coverUrl: extractedCoverUrl || null,
         audioUrl: audioUrl || directAudioUrl || null,
-        audioBase64: null
+        audioBase64: null,
       });
     }
 
+    // ── PRIMARY: cleanAndFormatArticle with Mozilla Readability ────────────
+    let articleData: { title: string; text: string; byline?: string | null; excerpt?: string | null } | null = null;
+    try {
+      articleData = cleanAndFormatArticle(html, url);
+    } catch (parseErr) {
+      console.warn("[Import URL] cleanAndFormatArticle error:", parseErr);
+    }
+
+    if (articleData && articleData.text) {
+      let text = articleData.text;
+
+      // Normalize any image markers to standard [IMG:url] with guaranteed double newlines
+      text = text.replace(/\[(?:\[LECTURA_)?IMG:(https?:\/\/[^\]]+)\]/gi, "\n\n[IMG:$1]\n\n");
+      // Normalize any legacy caption markers to [CAPTION:text]
+      text = text.replace(/^\[caption\]\s*(.+)$/gim, "[CAPTION:$1]");
+      // Clean up multiple newlines that might have been created
+      text = text.replace(/\n{3,}/g, "\n\n").trim();
+
+      const wordCount = text
+        .replace(/\[(?:\[LECTURA_)?IMG:[^\]]+\]/gi, "")
+        .replace(/\[CAPTION:[^\]]+\]/gi, "")
+        .replace(/\[caption\][^\n]*/gi, "")
+        .split(/\s+/)
+        .filter(Boolean).length;
+
+      if (wordCount >= 30) {
+        console.log(`[Import URL] Clean & Format OK — ${wordCount} words extracted from ${url}`);
+        const imageMatches = text.match(/\[IMG:[^\]]+\]/g);
+        console.log('🖼️ Found Images in imported text:', imageMatches);
+        console.log('Saved Article Text Preview:', text.slice(0, 500));
+
+        // Resolve cover: og:image → first inline image in text
+        let coverUrl = extractedCoverUrl;
+        if (!coverUrl) {
+          const firstImg = text.match(/\[IMG:(https?:\/\/[^\]]+)\]/);
+          if (firstImg) coverUrl = firstImg[1];
+        }
+
+        return res.json({
+          title: articleData.title || "Web Article",
+          text,
+          coverUrl: coverUrl || null,
+          byline: articleData.byline || null,
+          excerpt: articleData.excerpt || null,
+        });
+      }
+
+      console.warn(`[Import URL] Extracted only ${wordCount} words — trying AI fallback`);
+    } else {
+      console.warn(`[Import URL] cleanAndFormatArticle returned empty — trying AI fallback`);
+    }
+
+    // ── FALLBACK 1: Local AI ─────────────────────────────────
     if (aiProvider === "local") {
       try {
         const prompt = `You are an automated article extraction and helper assistant.
@@ -770,13 +1386,14 @@ IMPORTANT: Do not wrap your response in markdown formatting or add any pre/post 
         return res.json({
           title: data.title || "Статья с сайта",
           text: data.text || "",
-          coverUrl: extractedCoverUrl || null
+          coverUrl: extractedCoverUrl || null,
         });
       } catch (localErr: any) {
-        console.warn("Local AI article parsing failed (falling back to offline regex parser):", localErr.message || localErr);
+        console.warn("Local AI article parsing failed (falling back to Gemini):", localErr.message || localErr);
       }
     }
 
+    // ── FALLBACK 2: Gemini AI ────────────────────────────────
     const ai = getGeminiClient();
     if (ai) {
       try {
@@ -794,7 +1411,7 @@ ${html.substring(0, 60000)}
 Output your result as a JSON object matching this schema:
 {
   "title": "extracted article title",
-  "text": "cleaned paragraph 1\n\ncleaned paragraph 2\n\n..."
+  "text": "cleaned paragraph 1\\n\\ncleaned paragraph 2\\n\\n..."
 }`;
 
         const response = await ai.models.generateContent({
@@ -806,26 +1423,29 @@ Output your result as a JSON object matching this schema:
               type: Type.OBJECT,
               properties: {
                 title: { type: Type.STRING },
-                text: { type: Type.STRING }
+                text: { type: Type.STRING },
               },
-              required: ["title", "text"]
-            }
-          }
+              required: ["title", "text"],
+            },
+          },
         });
 
         const parsed = JSON.parse(response.text || "{}");
         return res.json({
           title: parsed.title || "Статья с сайта",
           text: parsed.text || "",
-          coverUrl: extractedCoverUrl || null
+          coverUrl: extractedCoverUrl || null,
         });
       } catch (geminiErr: any) {
         console.warn("Gemini AI article parsing failed (falling back to offline regex parser):", geminiErr.message || geminiErr);
       }
     }
 
+    // ── FALLBACK 3: Offline regex parser ─────────────────────
     let title = "Статья с сайта";
-    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const titleMatch =
+      html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) ||
+      html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
     if (titleMatch) {
       title = titleMatch[1].replace(/<[^>]+>/g, "").trim();
     }
@@ -834,13 +1454,6 @@ Output your result as a JSON object matching this schema:
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
       .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, "")
-      .replace(/<div[^>]*id="mw-navigation"[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi, "")
-      .replace(/<div[^>]*id="mw-panel"[^>]*>[\s\S]*?<\/div>/gi, "")
-      .replace(/<div[^>]*id="mw-head"[^>]*>[\s\S]*?<\/div>/gi, "")
-      .replace(/<div[^>]*class="[^"]*vector-sidebar-container[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
-      .replace(/<div[^>]*class="[^"]*vector-header-container[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
-      .replace(/<table[^>]*class="[^"]*infobox[^"]*"[^>]*>[\s\S]*?<\/table>/gi, "")
-      .replace(/<div[^>]*class="[^"]*toc[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
       .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
       .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
       .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
@@ -860,9 +1473,9 @@ Output your result as a JSON object matching this schema:
       .trim();
 
     return res.json({
-      title: title,
+      title,
       text: text.substring(0, 500000),
-      coverUrl: extractedCoverUrl || null
+      coverUrl: extractedCoverUrl || null,
     });
   } catch (err: any) {
     console.error("Web article parser error:", err);
