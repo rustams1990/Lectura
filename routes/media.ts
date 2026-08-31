@@ -667,7 +667,10 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
     'time', '.byline', '.article__metadata',
     '[class*="header-search"]', '[class*="search-bar"]', '[class*="site-search"]',
     '[role="navigation"]', '[role="banner"]',
-    '[aria-label*="search" i]', '[aria-label*="navigation" i]'
+    '[aria-label*="search" i]', '[aria-label*="navigation" i]',
+    '[data-component="byline-block"]',
+    '.article__byline',
+    'header [data-component="headline-block"] ~ div:not([data-component="text-block"])'
   ];
   removeSelectors.forEach(sel => {
     try {
@@ -675,109 +678,188 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
     } catch (_) {}
   });
 
-  // 2. Обработка перед Readability:
-  // Пройдись по всем figure, picture и контейнерам [data-component="image-block"]
-  doc.querySelectorAll('figure, picture, [data-component="image-block"]').forEach((block) => {
-    const imageUrl = extractBbcImageUrl(block, baseUrl);
-    const caption = block.querySelector('figcaption')?.textContent?.trim() || '';
+  // 1. Предварительный выбор корневого контейнера статьи (Target Main Content)
+  const mainRoot = (doc.querySelector('article') || 
+                    doc.querySelector('main') || 
+                    doc.querySelector('[role="main"]') || 
+                    doc.querySelector('.article-body') || 
+                    doc.querySelector('.article__body') || 
+                    doc.querySelector('.post-content') || 
+                    doc.querySelector('#content') || 
+                    doc.body) as HTMLElement;
 
-    if (imageUrl) {
-      const replacement = doc.createElement('p');
-      replacement.textContent = `[IMG:${imageUrl}]`;
-      block.parentNode?.insertBefore(replacement, block);
+  // 2. Обработка всех картинок в корневом контейнере ДО Readability
+  mainRoot.querySelectorAll('figure, picture, [data-component="image-block"]').forEach((fig) => {
+    let bestUrl: string | null = null;
 
-      if (caption) {
-        const capP = doc.createElement('p');
-        capP.textContent = `[CAPTION:${caption}]`;
-        block.parentNode?.insertBefore(capP, block);
+    // 1. Проверяем source / img srcset
+    const sources = Array.from(fig.querySelectorAll('source, img'));
+    for (const el of sources) {
+      const srcset = el.getAttribute('srcset') || el.getAttribute('data-srcset');
+      if (srcset) {
+        const parts = srcset.split(',').map(s => s.trim().split(/\s+/)[0]);
+        const valid = parts.filter(u => u && !u.includes('grey-placeholder') && !u.startsWith('data:'));
+        if (valid.length > 0) {
+          bestUrl = valid[valid.length - 1];
+          break;
+        }
+      }
+      const src = el.getAttribute('data-src') || el.getAttribute('src');
+      if (src && !src.includes('grey-placeholder') && !src.startsWith('data:')) {
+        bestUrl = src;
+        break;
       }
     }
-    block.remove();
+
+    if (bestUrl) {
+      try {
+        const fullUrl = new URL(bestUrl, baseUrl).href;
+        const rawCap = fig.querySelector('figcaption')?.textContent?.replace(/\s+/g, ' ').trim() || '';
+        const caption = rawCap.replace(/^image caption[:,]?\s*/i, '').trim();
+
+        const marker = doc.createElement('p');
+        marker.textContent = `[IMG:${fullUrl}]`;
+        fig.parentNode?.insertBefore(marker, fig);
+
+        if (caption) {
+          const capP = doc.createElement('p');
+          capP.textContent = `[CAPTION:${caption}]`;
+          fig.parentNode?.insertBefore(capP, fig);
+        }
+      } catch (e) {}
+    }
+    fig.remove();
   });
 
-  // Также обрабатываем любые оставшиеся standalone <img>
-  doc.querySelectorAll('article img, main img, .article__body img, img').forEach(img => {
-    const imageUrl = extractBbcImageUrl(img, baseUrl);
-    if (imageUrl) {
-      const replacement = doc.createElement('p');
-      replacement.textContent = `[IMG:${imageUrl}]`;
-      img.parentNode?.insertBefore(replacement, img);
+  // Также standalone <img> в mainRoot
+  mainRoot.querySelectorAll('img').forEach((img) => {
+    let bestUrl: string | null = null;
+    const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+    if (srcset) {
+      const parts = srcset.split(',').map(s => s.trim().split(/\s+/)[0]);
+      const valid = parts.filter(u => u && !u.includes('grey-placeholder') && !u.startsWith('data:'));
+      if (valid.length > 0) bestUrl = valid[valid.length - 1];
+    }
+    if (!bestUrl) {
+      const src = img.getAttribute('data-src') || img.getAttribute('src');
+      if (src && !src.includes('grey-placeholder') && !src.startsWith('data:')) {
+        bestUrl = src;
+      }
+    }
+    if (bestUrl) {
+      try {
+        const fullUrl = new URL(bestUrl, baseUrl).href;
+        const marker = doc.createElement('p');
+        marker.textContent = `[IMG:${fullUrl}]`;
+        img.parentNode?.insertBefore(marker, img);
+      } catch (e) {}
     }
     img.remove();
   });
 
   // 3. Запускаем Mozilla Readability
-  const reader = new Readability(doc, { keepClasses: false });
-  const article = reader.parse();
-  if (!article || !article.content) {
-    throw new Error('Readability failed to extract article');
+  let parsed: any = null;
+  try {
+    const reader = new Readability(doc, { keepClasses: false });
+    parsed = reader.parse();
+  } catch (e) {
+    console.warn('[cleanAndFormatArticle] Readability parse error:', e);
   }
 
-  // 4. Преобразуем HTML статьи в текст с правильными отступами \n\n
-  const contentDoc = new JSDOM(`<body>${article.content}</body>`).window.document;
-  const blocks: string[] = [];
+  const wordCount = (parsed?.textContent || '').trim().split(/\s+/).filter(Boolean).length;
+  let finalText = '';
 
-  // Query all block-level elements in document order so each <p> is an isolated block!
-  const blockElements = Array.from(contentDoc.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote'));
-  
-  blockElements.forEach(el => {
-    // If element is nested inside another selected element (e.g. p inside blockquote or li), avoid duplicating
-    if (el.parentElement && ['p', 'li', 'blockquote'].includes(el.parentElement.tagName.toLowerCase())) {
-      return;
-    }
+  if (parsed && parsed.content && wordCount > 250) {
+    // Конвертируем HTML от Readability в текст
+    const contentDoc = new JSDOM(`<body>${parsed.content}</body>`).window.document;
+    const blocks: string[] = [];
 
-    const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
-    if (!text) return;
+    // Query all block-level elements in document order so each <p> is an isolated block!
+    const blockElements = Array.from(contentDoc.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote'));
+    
+    blockElements.forEach(el => {
+      // If element is nested inside another selected element (e.g. p inside blockquote or li), avoid duplicating
+      if (el.parentElement && ['p', 'li', 'blockquote'].includes(el.parentElement.tagName.toLowerCase())) {
+        return;
+      }
 
-    if (text.includes('[IMG:')) {
-      const match = text.match(/\[IMG:(https?:\/\/[^\]]+)\]/);
-      if (match) {
-        blocks.push(match[0]);
+      const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      if (!text || /^Site search$/i.test(text)) return;
+
+      if (text.includes('[IMG:')) {
+        const match = text.match(/\[IMG:(https?:\/\/[^\]]+)\]/);
+        if (match) {
+          blocks.push(match[0]);
+          const capMatch = text.match(/\[CAPTION:(.+?)\]/);
+          if (capMatch) blocks.push(capMatch[0]);
+          return;
+        }
+      }
+
+      if (text.includes('[CAPTION:')) {
         const capMatch = text.match(/\[CAPTION:(.+?)\]/);
-        if (capMatch) blocks.push(capMatch[0]);
+        if (capMatch) {
+          blocks.push(capMatch[0]);
+          return;
+        }
+      }
+
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'h1' || tag === 'h2') {
+        blocks.push(`## ${text} ##`);
+      } else if (tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+        blocks.push(`# ${text} #`);
+      } else if (tag === 'li') {
+        blocks.push(`• ${text}`);
+      } else {
+        blocks.push(text);
+      }
+    });
+
+    finalText = blocks.join('\n\n');
+  } else {
+    // Fallback: собираем все заголовки, параграфы и наши плейсхолдеры [IMG:...] напрямую из mainRoot
+    console.log(`[cleanAndFormatArticle] Fallback triggered! Readability wordCount=${wordCount}`);
+    const blocks: string[] = [];
+    mainRoot.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, blockquote').forEach(el => {
+      if (el.parentElement && ['p', 'li', 'blockquote'].includes(el.parentElement.tagName.toLowerCase())) {
         return;
       }
-    }
 
-    if (text.includes('[CAPTION:')) {
-      const capMatch = text.match(/\[CAPTION:(.+?)\]/);
-      if (capMatch) {
-        blocks.push(capMatch[0]);
-        return;
+      const t = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      if (!t || /^Site search$/i.test(t)) return;
+
+      const tag = el.tagName.toUpperCase();
+      if (tag === 'H1' || tag === 'H2') {
+        blocks.push(`## ${t} ##`);
+      } else if (tag === 'H3' || tag === 'H4' || tag === 'H5' || tag === 'H6') {
+        blocks.push(`# ${t} #`);
+      } else if (tag === 'LI') {
+        blocks.push(`• ${t}`);
+      } else {
+        blocks.push(t);
       }
-    }
-
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'h1' || tag === 'h2') {
-      blocks.push(`## ${text} ##`);
-    } else if (tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
-      blocks.push(`# ${text} #`);
-    } else if (tag === 'li') {
-      blocks.push(`• ${text}`);
-    } else {
-      if (/^Site search$/i.test(text)) return;
-      blocks.push(text);
-    }
-  });
-
-  // Fallback: if blockElements was empty, extract paragraphs from article.textContent
-  if (blocks.length === 0) {
-    const rawParas = (article.textContent || '').split(/\n\s*\n/).filter(Boolean);
-    for (const p of rawParas) {
-      blocks.push(p.trim());
-    }
+    });
+    finalText = blocks.join('\n\n');
   }
 
-  let finalText = blocks.join('\n\n');
   finalText = finalText.replace(/\n{3,}/g, '\n\n').trim();
+
+  const title = (parsed?.title && parsed.title.trim()) ||
+    doc.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim() ||
+    doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content')?.trim() ||
+    mainRoot.querySelector('h1')?.textContent?.trim() ||
+    doc.querySelector('h1')?.textContent?.trim() ||
+    doc.title?.trim() ||
+    "Web Article";
 
   console.log('[DEBUG IMPORT] Final text preview (first 400 chars):\n', finalText.slice(0, 400));
 
   return {
-    title: article.title || "Web Article",
+    title,
     text: finalText,
-    byline: article.byline || null,
-    excerpt: article.excerpt || null,
+    byline: parsed?.byline || null,
+    excerpt: parsed?.excerpt || null,
   };
 }
 
