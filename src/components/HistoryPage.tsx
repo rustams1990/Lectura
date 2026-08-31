@@ -792,11 +792,23 @@ function HistoryPage({
       const bestPodcastTitle = latest.podcastTitle || sortedSessions.find((s) => s.podcastTitle)?.podcastTitle || null;
       const bestGuid = latest.guid || sortedSessions.find((s) => s.guid)?.guid || null;
 
+      const bestDuration =
+        Number(latest.duration) ||
+        Number(sortedSessions.find((s) => Number(s.duration) > 0)?.duration) ||
+        Number(lesson?.duration) ||
+        Number((lesson as any)?.audioDuration) ||
+        0;
+
+      const effectiveDurationSeconds = (isLessonDone && bestDuration > 0)
+        ? bestDuration
+        : Math.max(totalDurationSeconds, bestLastPosition || 0);
+
       aggregated.push({
         ...latest,
         id: latest.id,
         timestamp: latest.timestamp, // Most recent activity timestamp of that day
-        durationSeconds: totalDurationSeconds, // Sum of duration of all sessions for that day
+        durationSeconds: effectiveDurationSeconds, // Full duration if completed, else accumulated/last position
+        duration: bestDuration,
         actionType: latest.actionType || (isAudioOrVideoLesson ? "listen" : "read"),
         status: isLessonDone ? "completed" : (latest.status || "in_progress"),
         notes: bestNotes,
@@ -1975,6 +1987,16 @@ function HistoryPage({
                   const isCompleted = item.status === "completed" || item.actionType === "complete";
                   const displayTitle = item.customTitle || item.lessonTitle;
 
+                  const totalMediaDuration =
+                    Number(item.duration) ||
+                    Number(matchedLesson?.duration) ||
+                    Number((matchedLesson as any)?.audioDuration) ||
+                    0;
+
+                  const displayDuration = (isCompleted && totalMediaDuration > 0)
+                    ? totalMediaDuration
+                    : (item.durationSeconds || item.lastPosition || 0);
+
                   // Universal Badge mapping based on actionType & category
                   const badge = (() => {
                     const actionType = (item.actionType || "").toLowerCase();
@@ -2059,7 +2081,7 @@ function HistoryPage({
                       {/* Left side: Cover + Title + Details */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         {/* Thumbnail Cover / Category Icon */}
-                        <div className="w-14 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
+                        <div className="w-14 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs relative">
                           {item.coverUrl ? (
                             <img
                               src={item.coverUrl}
@@ -2093,6 +2115,19 @@ function HistoryPage({
                           ) : (
                             <div className="w-full h-full bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center">
                               <BookOpen className="w-4 h-4 text-blue-500" />
+                            </div>
+                          )}
+
+                          {totalMediaDuration > 0 && (
+                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
+                              <div
+                                className={`h-full ${isCompleted ? "w-full bg-emerald-500" : "bg-amber-500"}`}
+                                style={{
+                                  width: isCompleted
+                                    ? "100%"
+                                    : `${Math.min(100, Math.max(8, Math.round((displayDuration / totalMediaDuration) * 100)))}%`
+                                }}
+                              />
                             </div>
                           )}
                         </div>
@@ -2176,13 +2211,31 @@ function HistoryPage({
                             {displayTitle}
                           </h4>
 
-                          {/* Duration & Notes */}
-                          <div className="flex items-center gap-3 text-[10px] text-zinc-500">
-                            {(item.durationSeconds || item.lastPosition) ? (
-                              <span className="flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
-                                <Clock className="w-2.5 h-2.5" />
-                                {formatDuration(item.durationSeconds || 0)}
-                              </span>
+                          {/* Duration, Progress Bar & Notes */}
+                          <div className="flex items-center gap-3 text-[10px] text-zinc-500 flex-wrap">
+                            {(displayDuration > 0 || totalMediaDuration > 0) ? (
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center gap-1 font-semibold text-teal-600 dark:text-teal-400">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {formatDuration(displayDuration)}
+                                </span>
+                                {totalMediaDuration > 0 && (
+                                  <div className="w-20 sm:w-28 h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden shrink-0 flex items-center">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${
+                                        isCompleted
+                                          ? "w-full bg-emerald-500 dark:bg-emerald-400"
+                                          : "bg-amber-500"
+                                      }`}
+                                      style={{
+                                        width: isCompleted
+                                          ? "100%"
+                                          : `${Math.min(100, Math.max(8, Math.round((displayDuration / totalMediaDuration) * 100)))}%`
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             ) : null}
 
                             {item.notes ? (

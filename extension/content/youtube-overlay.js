@@ -30341,8 +30341,9 @@
 
   // extension/src/content/youtube-tracker.ts
   var currentSession = null;
-  var lastVideoCurrentTime = 0;
-  var pendingSecondsBuffer = 0;
+  var maxWatchedPosition = 0;
+  var lastReportedPosition = 0;
+  var periodicTrackerInterval = null;
   var activeVideoElement = null;
   var isObserverInitialized = false;
   function getStudyLanguage(settings) {
@@ -30383,17 +30384,17 @@
     }, 1e3);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
-        flushTime(true);
+        flushProgress(true, false);
       }
     });
-    window.addEventListener("pagehide", () => flushTime(true));
-    window.addEventListener("beforeunload", () => flushTime(true));
+    window.addEventListener("pagehide", () => flushProgress(true, false));
+    window.addEventListener("beforeunload", () => flushProgress(true, false));
     handleVideoNavigation();
   }
   function handleVideoNavigation() {
     const videoId = extractVideoId();
     if (currentSession && currentSession.videoId !== videoId) {
-      flushTime(true);
+      flushProgress(true, false);
       currentSession = null;
       detachVideoListeners();
     }
@@ -30439,45 +30440,47 @@
       duration: Math.round(video.duration || 0),
       studyLanguage
     };
-    lastVideoCurrentTime = video.currentTime;
-    pendingSecondsBuffer = 0;
-    console.log("\u{1F3AF} [Lectura Tracker] Tracking YouTube session:", currentSession);
+    maxWatchedPosition = Math.round(video.currentTime || 0);
+    lastReportedPosition = 0;
+    console.log("\u{1F3AF} [Lectura Tracker] Tracking YouTube session with video.currentTime:", currentSession);
     syncOpenSession(currentSession);
-    const onPlay = () => {
-      lastVideoCurrentTime = video.currentTime;
-    };
     const onTimeUpdate = () => {
-      if (video.paused || video.seeking) {
-        lastVideoCurrentTime = video.currentTime;
-        return;
-      }
-      const delta = video.currentTime - lastVideoCurrentTime;
-      if (delta > 0 && delta < 2.5) {
-        pendingSecondsBuffer += delta;
-      }
-      lastVideoCurrentTime = video.currentTime;
-      if (pendingSecondsBuffer >= 10) {
-        flushTime(false);
+      if (video.paused) return;
+      const current = Math.round(video.currentTime);
+      if (current > maxWatchedPosition) {
+        maxWatchedPosition = current;
       }
     };
     const onEnded = () => {
-      flushTime(true, true);
+      const total = Math.round(video.duration || maxWatchedPosition);
+      maxWatchedPosition = total;
+      flushProgress(true, true);
     };
     const onPause = () => {
-      flushTime(false);
+      flushProgress(false, false);
     };
-    video.addEventListener("play", onPlay);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("ended", onEnded);
     video.addEventListener("pause", onPause);
+    if (periodicTrackerInterval) clearInterval(periodicTrackerInterval);
+    periodicTrackerInterval = setInterval(() => {
+      if (activeVideoElement && !activeVideoElement.paused && maxWatchedPosition > lastReportedPosition) {
+        const total = Math.round(activeVideoElement.duration || 0);
+        const isCompleted = activeVideoElement.ended || total > 0 && maxWatchedPosition >= total - 5;
+        flushProgress(false, isCompleted);
+      }
+    }, 1e4);
     video.__lectura_cleanup = () => {
-      video.removeEventListener("play", onPlay);
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("ended", onEnded);
       video.removeEventListener("pause", onPause);
     };
   }
   function detachVideoListeners() {
+    if (periodicTrackerInterval) {
+      clearInterval(periodicTrackerInterval);
+      periodicTrackerInterval = null;
+    }
     if (activeVideoElement && activeVideoElement.__lectura_cleanup) {
       activeVideoElement.__lectura_cleanup();
       delete activeVideoElement.__lectura_cleanup;
@@ -30492,10 +30495,13 @@
         settings,
         {
           videoId: session.videoId,
+          lessonId: `lesson-yt_${session.videoId}`,
           title: session.title,
           channelName: session.channelName,
           channelUrl: session.channelUrl,
           duration: session.duration,
+          durationSeconds: session.duration,
+          timeSpentSeconds: 0,
           studyLanguage: session.studyLanguage,
           addedSeconds: 0,
           isCompleted: false,
@@ -30507,30 +30513,42 @@
       console.warn("[Lectura Tracker] syncOpenSession error:", err);
     }
   }
-  async function flushTime(isFinal = false, isCompleted = false) {
+  async function flushProgress(isFinal = false, isCompleted = false) {
     if (!currentSession) return;
-    if (pendingSecondsBuffer < 1 && !isFinal && !isCompleted) return;
-    const secondsToSend = Math.round(pendingSecondsBuffer);
-    pendingSecondsBuffer = 0;
-    if (secondsToSend <= 0 && !isFinal && !isCompleted) return;
+    const currentDuration = Math.round(
+      activeVideoElement?.duration || currentSession.duration || 0
+    );
+    const completed = isCompleted || (activeVideoElement ? activeVideoElement.ended : false) || currentDuration > 0 && maxWatchedPosition >= currentDuration - 5;
+    const effectiveTimeSpent = completed && currentDuration > 0 ? currentDuration : maxWatchedPosition;
+    if (effectiveTimeSpent <= lastReportedPosition && !completed && !isFinal) {
+      return;
+    }
+    const added = Math.max(0, effectiveTimeSpent - lastReportedPosition);
+    lastReportedPosition = effectiveTimeSpent;
     try {
       const settings = await StorageService.getSettings();
       if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
       const payload = {
         videoId: currentSession.videoId,
+        lessonId: `lesson-yt_${currentSession.videoId}`,
         title: currentSession.title,
         channelName: currentSession.channelName,
         channelUrl: currentSession.channelUrl,
-        duration: currentSession.duration,
+        duration: currentDuration,
+        durationSeconds: currentDuration,
+        timeSpentSeconds: effectiveTimeSpent,
+        addedSeconds: added,
+        watchedSeconds: effectiveTimeSpent,
         studyLanguage: currentSession.studyLanguage,
-        addedSeconds: secondsToSend,
-        isCompleted,
+        isCompleted: completed,
         timestamp: Date.now()
       };
-      console.log(`\u23F1\uFE0F [Lectura Tracker] Flushing ${secondsToSend}s (final=${isFinal}, completed=${isCompleted})`);
+      console.log(
+        `\u23F1\uFE0F [Lectura Tracker] Progress: ${effectiveTimeSpent}s / ${currentDuration}s (completed=${completed}, final=${isFinal})`
+      );
       sendPayload(settings, payload, isFinal);
     } catch (err) {
-      console.warn("[Lectura Tracker] flushTime error:", err);
+      console.warn("[Lectura Tracker] flushProgress error:", err);
     }
   }
   function sendPayload(settings, payload, isFinal) {

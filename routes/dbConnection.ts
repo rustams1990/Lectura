@@ -511,6 +511,9 @@ function setupSchema(db: Database.Database) {
   if (!historyCols.includes("podcastTitle")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN podcastTitle TEXT;`); } catch (_) {}
   }
+  if (!historyCols.includes("duration")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN duration REAL DEFAULT 0;`); } catch (_) {}
+  }
 
   // Ensure activity_history view exists if any external service/query expects it
   try {

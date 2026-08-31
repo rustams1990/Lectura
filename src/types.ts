@@ -304,6 +304,7 @@ export interface HistoryEntry {
   actionType: "read" | "listen" | "complete" | "study" | "speak";
   status?: "in_progress" | "completed";
   durationSeconds?: number;
+  duration?: number;
   notes?: string;
   tags?: string[];
   channelName?: string | null;

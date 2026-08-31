@@ -11,8 +11,9 @@ interface VideoSession {
 }
 
 let currentSession: VideoSession | null = null;
-let lastVideoCurrentTime = 0;
-let pendingSecondsBuffer = 0;
+let maxWatchedPosition = 0;
+let lastReportedPosition = 0;
+let periodicTrackerInterval: ReturnType<typeof setInterval> | null = null;
 let activeVideoElement: HTMLVideoElement | null = null;
 let isObserverInitialized = false;
 
@@ -66,11 +67,11 @@ export function initYouTubeTracker() {
   // 2. Reliable flush on tab hidden / closed
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      flushTime(true);
+      flushProgress(true, false);
     }
   });
-  window.addEventListener('pagehide', () => flushTime(true));
-  window.addEventListener('beforeunload', () => flushTime(true));
+  window.addEventListener('pagehide', () => flushProgress(true, false));
+  window.addEventListener('beforeunload', () => flushProgress(true, false));
 
   // 3. Initial check on page load
   handleVideoNavigation();
@@ -81,7 +82,7 @@ function handleVideoNavigation() {
 
   // If navigated away from previous video, flush pending buffer immediately
   if (currentSession && currentSession.videoId !== videoId) {
-    flushTime(true);
+    flushProgress(true, false);
     currentSession = null;
     detachVideoListeners();
   }
@@ -144,53 +145,49 @@ async function startTrackingVideo(video: HTMLVideoElement, videoId: string) {
     studyLanguage,
   };
 
-  lastVideoCurrentTime = video.currentTime;
-  pendingSecondsBuffer = 0;
+  maxWatchedPosition = Math.round(video.currentTime || 0);
+  lastReportedPosition = 0;
 
-  console.log('🎯 [Lectura Tracker] Tracking YouTube session:', currentSession);
+  console.log('🎯 [Lectura Tracker] Tracking YouTube session with video.currentTime:', currentSession);
 
   // 1. Immediately register the video open event in history (with 0s) so it instantly appears in TODAY
   syncOpenSession(currentSession);
 
-  // 2. Attach robust timeupdate listeners (unaffected by Chrome background throttling)
-  const onPlay = () => {
-    lastVideoCurrentTime = video.currentTime;
-  };
-
+  // 2. video.currentTime as the single source of truth (immune to interval throttling or freeze gaps)
   const onTimeUpdate = () => {
-    if (video.paused || video.seeking) {
-      lastVideoCurrentTime = video.currentTime;
-      return;
-    }
+    if (video.paused) return;
 
-    const delta = video.currentTime - lastVideoCurrentTime;
-    // Count normal forward playback (0 to 2.5s per timeupdate tick, ignore rewinds & scrubs)
-    if (delta > 0 && delta < 2.5) {
-      pendingSecondsBuffer += delta;
-    }
-    lastVideoCurrentTime = video.currentTime;
-
-    // Flush accumulated watch time every 10 seconds
-    if (pendingSecondsBuffer >= 10) {
-      flushTime(false);
+    const current = Math.round(video.currentTime);
+    if (current > maxWatchedPosition) {
+      maxWatchedPosition = current;
     }
   };
 
   const onEnded = () => {
-    flushTime(true, true);
+    const total = Math.round(video.duration || maxWatchedPosition);
+    maxWatchedPosition = total;
+    flushProgress(true, true);
   };
 
   const onPause = () => {
-    flushTime(false);
+    flushProgress(false, false);
   };
 
-  video.addEventListener('play', onPlay);
   video.addEventListener('timeupdate', onTimeUpdate);
   video.addEventListener('ended', onEnded);
   video.addEventListener('pause', onPause);
 
+  // 3. Periodic progress flush every 10 seconds
+  if (periodicTrackerInterval) clearInterval(periodicTrackerInterval);
+  periodicTrackerInterval = setInterval(() => {
+    if (activeVideoElement && !activeVideoElement.paused && maxWatchedPosition > lastReportedPosition) {
+      const total = Math.round(activeVideoElement.duration || 0);
+      const isCompleted = activeVideoElement.ended || (total > 0 && maxWatchedPosition >= total - 5);
+      flushProgress(false, isCompleted);
+    }
+  }, 10000);
+
   (video as any).__lectura_cleanup = () => {
-    video.removeEventListener('play', onPlay);
     video.removeEventListener('timeupdate', onTimeUpdate);
     video.removeEventListener('ended', onEnded);
     video.removeEventListener('pause', onPause);
@@ -198,6 +195,10 @@ async function startTrackingVideo(video: HTMLVideoElement, videoId: string) {
 }
 
 function detachVideoListeners() {
+  if (periodicTrackerInterval) {
+    clearInterval(periodicTrackerInterval);
+    periodicTrackerInterval = null;
+  }
   if (activeVideoElement && (activeVideoElement as any).__lectura_cleanup) {
     (activeVideoElement as any).__lectura_cleanup();
     delete (activeVideoElement as any).__lectura_cleanup;
@@ -214,10 +215,13 @@ async function syncOpenSession(session: VideoSession) {
       settings,
       {
         videoId: session.videoId,
+        lessonId: `lesson-yt_${session.videoId}`,
         title: session.title,
         channelName: session.channelName,
         channelUrl: session.channelUrl,
         duration: session.duration,
+        durationSeconds: session.duration,
+        timeSpentSeconds: 0,
         studyLanguage: session.studyLanguage,
         addedSeconds: 0,
         isCompleted: false,
@@ -230,14 +234,28 @@ async function syncOpenSession(session: VideoSession) {
   }
 }
 
-async function flushTime(isFinal: boolean = false, isCompleted: boolean = false) {
+async function flushProgress(isFinal: boolean = false, isCompleted: boolean = false) {
   if (!currentSession) return;
-  if (pendingSecondsBuffer < 1 && !isFinal && !isCompleted) return;
 
-  const secondsToSend = Math.round(pendingSecondsBuffer);
-  pendingSecondsBuffer = 0;
+  const currentDuration = Math.round(
+    activeVideoElement?.duration || currentSession.duration || 0
+  );
+  const completed =
+    isCompleted ||
+    (activeVideoElement ? activeVideoElement.ended : false) ||
+    (currentDuration > 0 && maxWatchedPosition >= currentDuration - 5);
 
-  if (secondsToSend <= 0 && !isFinal && !isCompleted) return;
+  const effectiveTimeSpent = completed && currentDuration > 0
+    ? currentDuration
+    : maxWatchedPosition;
+
+  // If already reported this progress and not finishing, skip
+  if (effectiveTimeSpent <= lastReportedPosition && !completed && !isFinal) {
+    return;
+  }
+
+  const added = Math.max(0, effectiveTimeSpent - lastReportedPosition);
+  lastReportedPosition = effectiveTimeSpent;
 
   try {
     const settings = await StorageService.getSettings();
@@ -245,20 +263,26 @@ async function flushTime(isFinal: boolean = false, isCompleted: boolean = false)
 
     const payload = {
       videoId: currentSession.videoId,
+      lessonId: `lesson-yt_${currentSession.videoId}`,
       title: currentSession.title,
       channelName: currentSession.channelName,
       channelUrl: currentSession.channelUrl,
-      duration: currentSession.duration,
+      duration: currentDuration,
+      durationSeconds: currentDuration,
+      timeSpentSeconds: effectiveTimeSpent,
+      addedSeconds: added,
+      watchedSeconds: effectiveTimeSpent,
       studyLanguage: currentSession.studyLanguage,
-      addedSeconds: secondsToSend,
-      isCompleted,
+      isCompleted: completed,
       timestamp: Date.now(),
     };
 
-    console.log(`⏱️ [Lectura Tracker] Flushing ${secondsToSend}s (final=${isFinal}, completed=${isCompleted})`);
+    console.log(
+      `⏱️ [Lectura Tracker] Progress: ${effectiveTimeSpent}s / ${currentDuration}s (completed=${completed}, final=${isFinal})`
+    );
     sendPayload(settings, payload, isFinal);
   } catch (err) {
-    console.warn('[Lectura Tracker] flushTime error:', err);
+    console.warn('[Lectura Tracker] flushProgress error:', err);
   }
 }
 

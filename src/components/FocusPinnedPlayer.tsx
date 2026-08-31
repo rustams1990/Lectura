@@ -337,6 +337,10 @@ export default function FocusPinnedPlayer({
                 }
                 if (state === 0 || (YTStates && state === YTStates.ENDED)) {
                   try {
+                    const dur = Math.round(playerRef.current?.getDuration?.() || lesson.duration || 0);
+                    if (onListeningTick && dur > 0) {
+                      onListeningTick(0, true, dur);
+                    }
                     localStorage.removeItem(`youtube_progress_${lesson.id}`);
                     settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
                     window.dispatchEvent(
@@ -599,6 +603,10 @@ export default function FocusPinnedPlayer({
               }}
               onEnded={() => {
                 try {
+                  const total = Math.round(videoElRef.current?.duration || lesson.duration || 0);
+                  if (onListeningTick && total > 0) {
+                    onListeningTick(0, true, total);
+                  }
                   localStorage.removeItem(`youtube_progress_${lesson.id}`);
                   settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
                   window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));

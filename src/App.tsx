@@ -596,7 +596,11 @@ export default function App() {
             ? targetLesson.id
             : (item.lessonId || targetLesson.id);
 
-          const newDuration = Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10;
+          const targetTotalDuration = Number(targetLesson.duration) || Number((targetLesson as any).audioDuration) || 0;
+          const calculatedDuration = Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10;
+          const finalDuration = (nextStatus === "completed" && targetTotalDuration > 0)
+            ? targetTotalDuration
+            : Math.max(calculatedDuration, lastPosition || 0);
 
           return {
             ...item,
@@ -605,7 +609,8 @@ export default function App() {
             timestamp: now,
             actionType: nextActionType,
             status: nextStatus,
-            durationSeconds: newDuration,
+            durationSeconds: finalDuration,
+            duration: targetTotalDuration > 0 ? targetTotalDuration : item.duration,
             lastPosition: lastPosition !== undefined ? lastPosition : item.lastPosition,
             youtubeId: item.youtubeId || (targetLesson as any).youtubeId || null,
             audioUrl: (targetLesson.audioUrl && targetLesson.audioUrl.startsWith("/api/")) ? targetLesson.audioUrl : (item.audioUrl || targetLesson.audioUrl || null),
@@ -616,7 +621,10 @@ export default function App() {
           };
         });
       } else {
-        const initialDuration = Math.round((durationSeconds || 0) * 10) / 10;
+        const targetTotalDuration = Number(targetLesson.duration) || Number((targetLesson as any).audioDuration) || 0;
+        const initialDuration = (actionType === "complete" && targetTotalDuration > 0)
+          ? targetTotalDuration
+          : Math.round((durationSeconds || 0) * 10) / 10;
 
         const generatedId = generateHistoryId({
           durationSeconds: initialDuration,
@@ -640,6 +648,7 @@ export default function App() {
           actionType: isAudioOrVideo ? "listen" : (actionType === "complete" ? "read" : actionType),
           status: actionType === "complete" ? "completed" : "in_progress",
           durationSeconds: initialDuration,
+          duration: targetTotalDuration > 0 ? targetTotalDuration : undefined,
           lastPosition: lastPosition !== undefined ? lastPosition : undefined,
           youtubeId: (targetLesson as any).youtubeId || null,
           audioUrl: targetLesson.audioUrl || null,

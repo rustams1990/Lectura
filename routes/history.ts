@@ -61,7 +61,8 @@ export function handleTrackActivity(req: Request, res: Response) {
   ).trim();
   const cleanCover = thumbnailUrl || (cleanVideoId ? `https://img.youtube.com/vi/${cleanVideoId}/hqdefault.jpg` : null);
   const targetLang = String(studyLanguage || language || "es").toLowerCase().trim();
-  const totalDuration = Math.round(Number(duration || durationSeconds) || 0);
+  const totalDuration = Math.max(0, Math.round(Number(duration || durationSeconds) || 0));
+  const explicitTimeSpent = req.body?.timeSpentSeconds !== undefined ? Math.max(0, Math.round(Number(req.body.timeSpentSeconds) || 0)) : undefined;
   const addedSec = Math.max(0, Math.round(Number(addedSeconds ?? watchedSeconds) || 0));
   const completed = Boolean(isCompleted);
   const statusStr = completed ? "COMPLETED" : "IN_PROGRESS";
@@ -82,7 +83,16 @@ export function handleTrackActivity(req: Request, res: Response) {
         `).get(cleanVideoId, lessonId, `youtube_${cleanVideoId}`, userId) as any)
       : null;
 
+    let incrementalSec = 0;
+
     if (!lesson) {
+      const initialTimeSpent = completed && totalDuration > 0
+        ? totalDuration
+        : explicitTimeSpent !== undefined
+          ? explicitTimeSpent
+          : addedSec;
+      incrementalSec = initialTimeSpent;
+
       db.prepare(`
         INSERT INTO lessons (
           id, user_id, title, text, youtubeId, channelName, channelUrl, channelAvatarUrl,
@@ -99,19 +109,26 @@ export function handleTrackActivity(req: Request, res: Response) {
         channelAvatarUrl || null,
         totalDuration,
         targetLang,
-        addedSec,
+        initialTimeSpent,
         statusStr,
         Date.now(),
         now
       );
-      lesson = { id: lessonId, timeSpentSeconds: addedSec, status: statusStr };
+      lesson = { id: lessonId, timeSpentSeconds: initialTimeSpent, status: statusStr };
     } else {
-      const newTimeSpent = (lesson.timeSpentSeconds || 0) + addedSec;
+      const prevTimeSpent = lesson.timeSpentSeconds || 0;
+      const newTimeSpent = completed && totalDuration > 0
+        ? totalDuration
+        : explicitTimeSpent !== undefined
+          ? Math.max(prevTimeSpent, explicitTimeSpent)
+          : prevTimeSpent + addedSec;
+      incrementalSec = Math.max(0, newTimeSpent - prevTimeSpent);
+
       const newStatus = completed ? "COMPLETED" : (lesson.status || "IN_PROGRESS");
       db.prepare(`
         UPDATE lessons 
         SET timeSpentSeconds = ?, status = ?, updatedAt = ?,
-            duration = CASE WHEN COALESCE(duration, 0) > 0 THEN duration ELSE ? END,
+            duration = CASE WHEN ? > 0 THEN ? WHEN COALESCE(duration, 0) > 0 THEN duration ELSE 0 END,
             channelName = COALESCE(?, channelName),
             channelUrl = COALESCE(?, channelUrl)
         WHERE id = ? AND user_id = ?
@@ -120,21 +137,23 @@ export function handleTrackActivity(req: Request, res: Response) {
         newStatus,
         now,
         totalDuration,
+        totalDuration,
         cleanChannel,
         cleanChannelUrl,
         lesson.id,
         userId
       );
+      lesson.timeSpentSeconds = newTimeSpent;
     }
 
     // 2. study_activity_logs: Daily activity log (for analytics, streaks, and graphs)
-    if (addedSec > 0) {
+    if (incrementalSec > 0) {
       db.prepare(`
         INSERT INTO study_activity_logs (userId, lessonId, date, secondsSpent, updatedAt)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(userId, lessonId, date) 
         DO UPDATE SET secondsSpent = secondsSpent + ?, updatedAt = ?
-      `).run(userId, lesson.id, todayDate, addedSec, now, addedSec, now);
+      `).run(userId, lesson.id, todayDate, incrementalSec, now, incrementalSec, now);
     }
 
     // 3. reading_history: strictly required for Lectura's /history page
@@ -150,7 +169,13 @@ export function handleTrackActivity(req: Request, res: Response) {
     }
 
     if (existingHistory) {
-      const updatedDuration = (existingHistory.durationSeconds || 0) + addedSec;
+      const prevDuration = existingHistory.durationSeconds || 0;
+      const updatedDuration = completed && totalDuration > 0
+        ? totalDuration
+        : explicitTimeSpent !== undefined
+          ? Math.max(prevDuration, explicitTimeSpent)
+          : prevDuration + addedSec;
+
       db.prepare(`
         UPDATE reading_history SET
           durationSeconds = ?,
@@ -160,7 +185,9 @@ export function handleTrackActivity(req: Request, res: Response) {
           channelName = COALESCE(?, channelName),
           channelAvatarUrl = COALESCE(?, channelAvatarUrl),
           channelUrl = COALESCE(?, channelUrl),
-          coverUrl = COALESCE(?, coverUrl)
+          coverUrl = COALESCE(?, coverUrl),
+          lastPosition = ?,
+          duration = CASE WHEN ? > 0 THEN ? WHEN COALESCE(duration, 0) > 0 THEN duration ELSE 0 END
         WHERE user_id = ? AND id = ?
       `).run(
         updatedDuration,
@@ -171,18 +198,27 @@ export function handleTrackActivity(req: Request, res: Response) {
         channelAvatarUrl || null,
         cleanChannelUrl || null,
         cleanCover,
+        updatedDuration,
+        totalDuration,
+        totalDuration,
         userId,
         existingHistory.id
       );
     } else {
       // Create new history entry (even with 0 seconds on initial video open, so it immediately shows up in TODAY)
+      const initialDuration = completed && totalDuration > 0
+        ? totalDuration
+        : explicitTimeSpent !== undefined
+          ? explicitTimeSpent
+          : addedSec;
+
       const historyId = "hist_yt_" + (cleanVideoId || Date.now().toString(36)) + "_" + Date.now().toString(36);
       db.prepare(`
         INSERT INTO reading_history (
           id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage,
           timestamp, actionType, status, durationSeconds, channelName, channelAvatarUrl,
-          channelUrl, category, customTitle, mode, tags
-        ) VALUES (?, ?, ?, ?, 'youtube', ?, ?, ?, 'listen', ?, ?, ?, ?, ?, 'video', ?, 'custom', ?)
+          channelUrl, category, customTitle, mode, tags, lastPosition, duration
+        ) VALUES (?, ?, ?, ?, 'youtube', ?, ?, ?, 'listen', ?, ?, ?, ?, ?, 'video', ?, 'custom', ?, ?, ?)
       `).run(
         historyId,
         userId,
@@ -192,22 +228,24 @@ export function handleTrackActivity(req: Request, res: Response) {
         targetLang,
         now,
         completed ? "completed" : "in_progress",
-        addedSec,
+        initialDuration,
         cleanChannel,
         channelAvatarUrl || null,
         cleanChannelUrl || null,
         cleanTitle,
-        JSON.stringify(["youtube", "extension"])
+        JSON.stringify(["youtube", "extension"]),
+        initialDuration,
+        totalDuration
       );
     }
 
     // 4. Update metadata aggregate listeningSeconds
-    if (addedSec > 0) {
+    if (incrementalSec > 0) {
       const currentListeningRow = db.prepare(
         "SELECT value FROM metadata WHERE user_id = ? AND key = 'listeningSeconds'"
       ).get(userId) as { value: string } | undefined;
       const currentTotal = currentListeningRow ? (parseFloat(currentListeningRow.value) || 0) : 0;
-      const newTotal = Math.round(currentTotal + addedSec);
+      const newTotal = Math.round(currentTotal + incrementalSec);
 
       db.prepare(
         "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'listeningSeconds', ?)"
