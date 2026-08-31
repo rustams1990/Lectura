@@ -5,8 +5,6 @@ import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
-import { useUIStore } from "../store/uiStore";
-import { useVocab } from "../context/VocabContext";
 
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
@@ -24,22 +22,6 @@ export default function YoutubePlayerWindow({
   const { t } = useTranslation();
   const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
-  const { selectedWord } = useVocab();
-  const isWordPopupOpen = useUIStore((s) => s.isWordPopupOpen);
-  const [isClickBlocked, setIsClickBlocked] = useState(false);
-
-  useEffect(() => {
-    if (selectedWord) {
-      setIsClickBlocked(true);
-    } else {
-      const timer = setTimeout(() => {
-        setIsClickBlocked(false);
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedWord]);
-
-  const isWordModalOpen = Boolean(selectedWord) || isClickBlocked || isWordPopupOpen;
   const lastTickTimeRef = useRef<number | null>(null);
   if (!youtubeId) return null;
 
@@ -612,6 +594,8 @@ export default function YoutubePlayerWindow({
       setIsDragging(false);
       document.removeEventListener("mousemove", handleDragMove);
       document.removeEventListener("mouseup", handleDragEnd);
+      window.removeEventListener("mouseup", handleDragEnd);
+      window.removeEventListener("blur", handleDragEnd);
       document.removeEventListener("touchmove", handleDragMove as any);
       document.removeEventListener("touchend", handleDragEnd);
       document.removeEventListener("touchcancel", handleDragEnd);
@@ -619,6 +603,8 @@ export default function YoutubePlayerWindow({
 
     document.addEventListener("mousemove", handleDragMove);
     document.addEventListener("mouseup", handleDragEnd);
+    window.addEventListener("mouseup", handleDragEnd);
+    window.addEventListener("blur", handleDragEnd);
     document.addEventListener("touchmove", handleDragMove, { passive: false });
     document.addEventListener("touchend", handleDragEnd);
     document.addEventListener("touchcancel", handleDragEnd);
@@ -721,6 +707,8 @@ export default function YoutubePlayerWindow({
       setIsResizing(false);
       document.removeEventListener("mousemove", handleResizeMove);
       document.removeEventListener("mouseup", handleResizeEnd);
+      window.removeEventListener("mouseup", handleResizeEnd);
+      window.removeEventListener("blur", handleResizeEnd);
       document.removeEventListener("touchmove", handleResizeMove as any);
       document.removeEventListener("touchend", handleResizeEnd);
       document.removeEventListener("touchcancel", handleResizeEnd);
@@ -728,6 +716,8 @@ export default function YoutubePlayerWindow({
 
     document.addEventListener("mousemove", handleResizeMove);
     document.addEventListener("mouseup", handleResizeEnd);
+    window.addEventListener("mouseup", handleResizeEnd);
+    window.addEventListener("blur", handleResizeEnd);
     document.addEventListener("touchmove", handleResizeMove, { passive: false });
     document.addEventListener("touchend", handleResizeEnd);
     document.addEventListener("touchcancel", handleResizeEnd);
@@ -892,7 +882,7 @@ export default function YoutubePlayerWindow({
         style={{
           height: isMinimized ? "0px" : `${size.height - 44}px`,
           opacity: isMinimized ? 0 : 1,
-          pointerEvents: isMinimized || isWordModalOpen ? "none" : "auto"
+          pointerEvents: isMinimized ? "none" : "auto"
         }} 
         className="w-full bg-black relative flex-1 transition-all duration-150 overflow-hidden"
       >
@@ -1042,89 +1032,83 @@ export default function YoutubePlayerWindow({
             )}
           </div>
         ) : (
-          /* Case 3: Standard YouTube Player Iframe */
-          <>
+          /* Case 3: Standard YouTube Player Iframe — ALWAYS clickable */
+          <div className="relative w-full h-full">
             <div 
               ref={containerRef}
-              className={`w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0 ${isWordModalOpen ? "pointer-events-none" : ""}`}
+              className={`w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0 ${
+                isDragging || isResizing ? "pointer-events-none" : "pointer-events-auto"
+              }`}
             />
 
-            {/* Shield overlay: active while word modal is open or immediately following close */}
-            {isWordModalOpen && (
-              <div
-                className="absolute inset-0 bg-transparent z-40"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+            {/* Guard overlay: active ONLY during active drag or resize so mouse doesn't stick inside iframe */}
+            {(isDragging || isResizing) && (
+              <div 
+                className="absolute inset-0 bg-transparent z-40 cursor-grabbing pointer-events-auto" 
+                onMouseUp={() => {
+                  setIsDragging(false);
+                  setIsResizing(false);
                 }}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onTouchStart={(e) => {
-                  e.stopPropagation();
+                onTouchEnd={() => {
+                  setIsDragging(false);
+                  setIsResizing(false);
                 }}
               />
             )}
-
-            {/* Guard overlay: active when dragging/resizing so mouse track events never fail on top of the iframe */}
-            {(isDragging || isResizing) && (
-              <div className="absolute inset-0 bg-transparent z-40 cursor-grabbing" />
-            )}
-          </>
+          </div>
         )}
       </div>
 
-      {/* ── Multi-Directional Resize Handles (Opera-style PiP — completely invisible, changing only cursor) ── */}
+      {/* ── Multi-Directional Resize Handles (Opera-style PiP — non-overlapping perimeter handles) ── */}
       {!isMinimized && (
         <>
           {/* Top Edge */}
           <div
             onMouseDown={handleResizeStart("n")}
             onTouchStart={handleResizeStart("n")}
-            className="absolute top-0 inset-x-3 h-2 cursor-ns-resize z-50 bg-transparent touch-none"
+            className="absolute top-0 inset-x-3 h-2 cursor-ns-resize z-30 bg-transparent touch-none"
           />
-          {/* Bottom Edge */}
+          {/* Bottom Edge — positioned on outer bottom border (-bottom-1) so it DOES NOT overlap YouTube controls */}
           <div
             onMouseDown={handleResizeStart("s")}
             onTouchStart={handleResizeStart("s")}
-            className="absolute bottom-0 inset-x-3 h-2.5 cursor-ns-resize z-50 bg-transparent touch-none"
+            className="absolute -bottom-1 inset-x-4 h-2 cursor-ns-resize z-30 bg-transparent touch-none"
           />
           {/* Left Edge */}
           <div
             onMouseDown={handleResizeStart("w")}
             onTouchStart={handleResizeStart("w")}
-            className="absolute left-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent touch-none"
+            className="absolute left-0 inset-y-4 w-2 cursor-ew-resize z-30 bg-transparent touch-none"
           />
           {/* Right Edge */}
           <div
             onMouseDown={handleResizeStart("e")}
             onTouchStart={handleResizeStart("e")}
-            className="absolute right-0 inset-y-3 w-2.5 cursor-ew-resize z-50 bg-transparent touch-none"
+            className="absolute right-0 inset-y-4 w-2 cursor-ew-resize z-30 bg-transparent touch-none"
           />
           {/* Top-Left Corner */}
           <div
             onMouseDown={handleResizeStart("nw")}
             onTouchStart={handleResizeStart("nw")}
-            className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-50 bg-transparent touch-none"
+            className="absolute top-0 left-0 w-3 h-3 cursor-nwse-resize z-30 bg-transparent touch-none"
           />
           {/* Top-Right Corner */}
           <div
             onMouseDown={handleResizeStart("ne")}
             onTouchStart={handleResizeStart("ne")}
-            className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent touch-none"
+            className="absolute top-0 right-0 w-3 h-3 cursor-nesw-resize z-30 bg-transparent touch-none"
           />
           {/* Bottom-Left Corner */}
           <div
             onMouseDown={handleResizeStart("sw")}
             onTouchStart={handleResizeStart("sw")}
-            className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize z-50 bg-transparent touch-none"
+            className="absolute -bottom-1 -left-1 w-3 h-3 cursor-nesw-resize z-30 bg-transparent touch-none"
           />
           {/* Bottom-Right Corner & Visual Grip */}
           <div
             onMouseDown={handleResizeStart("se")}
             onTouchStart={handleResizeStart("se")}
-            className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none touch-none"
+            className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-30 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none touch-none"
             title={t('explainer.yt_resize', 'Потяните для изменения размера (сохраняет 16:9)')}
           >
             <svg

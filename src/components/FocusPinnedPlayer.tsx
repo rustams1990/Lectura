@@ -5,9 +5,7 @@ import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
-import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
-import { useVocab } from "../context/VocabContext";
 
 type SizePreset = "small" | "medium" | "large";
 
@@ -40,22 +38,6 @@ export default function FocusPinnedPlayer({
   const { t } = useTranslation();
   const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
-  const { selectedWord } = useVocab();
-  const isWordPopupOpen = useUIStore((s) => s.isWordPopupOpen);
-  const [isClickBlocked, setIsClickBlocked] = useState(false);
-
-  useEffect(() => {
-    if (selectedWord) {
-      setIsClickBlocked(true);
-    } else {
-      const timer = setTimeout(() => {
-        setIsClickBlocked(false);
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedWord]);
-
-  const isWordModalOpen = Boolean(selectedWord) || isClickBlocked || isWordPopupOpen;
   const settings = useSettingsStore((s) => s.settings);
   const setSettings = useSettingsStore((s) => s.setSettings);
 
@@ -563,9 +545,9 @@ export default function FocusPinnedPlayer({
       <div
         className={`w-full bg-zinc-950 flex justify-center transition-all duration-200 ${
           collapsed ? "h-0 min-h-0 max-h-0 opacity-0 overflow-hidden pointer-events-none" : "h-auto opacity-100"
-        } ${isWordModalOpen ? "pointer-events-none select-none" : "pointer-events-auto"}`}
+        } pointer-events-auto`}
       >
-        <div style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }} className={`bg-black relative max-h-[35vh] sm:max-h-[40vh] ${isWordModalOpen ? "pointer-events-none" : "pointer-events-auto"}`}>
+        <div style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }} className="bg-black relative max-h-[35vh] sm:max-h-[40vh] pointer-events-auto">
           {useLocalMedia && localMediaUrl ? (
             <video
               ref={videoElRef}
@@ -705,25 +687,7 @@ export default function FocusPinnedPlayer({
               )}
             </div>
           ) : (
-            <div ref={containerRef} className={`w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0 ${isWordModalOpen ? "pointer-events-none" : ""}`} />
-          )}
-
-          {/* Shield covering the player while word modal is open or during delayed click window */}
-          {isWordModalOpen && (
-            <div
-              className="absolute inset-0 z-50 bg-transparent pointer-events-auto"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onTouchStart={(e) => {
-                e.stopPropagation();
-              }}
-            />
+            <div ref={containerRef} className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0 pointer-events-auto" />
           )}
         </div>
       </div>
