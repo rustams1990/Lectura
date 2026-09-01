@@ -836,6 +836,40 @@ function LibraryHome({
     return maxSec > 0 ? maxSec : null;
   };
 
+  const parseDurationToSeconds = (duration: string | number | undefined | null): number => {
+    if (!duration) return 0;
+    if (typeof duration === "number") return isNaN(duration) ? 0 : Math.round(duration);
+    const clean = String(duration).trim();
+    if (!clean) return 0;
+    if (/^\d+(\.\d+)?$/.test(clean)) {
+      return Math.round(parseFloat(clean));
+    }
+    const parts = clean.split(":").map(Number);
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return parts[0] * 60 + parts[1];
+    }
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return 0;
+  };
+
+  const getLessonEffectiveDuration = (l: Lesson): number => {
+    const direct = parseDurationToSeconds(
+      l.duration || (l as any).durationSeconds || l.youtubeDuration || l.audioDuration
+    );
+    if (direct > 0) return direct;
+
+    // Fallback: extract from text timestamps if available
+    const fromText = getYoutubeDurationFromText(l.text || "");
+    if (fromText && fromText > 0) return fromText;
+
+    const fromMax = getMaxTimestampInText(l.text || "");
+    if (fromMax && fromMax > 0) return fromMax;
+
+    return 0;
+  };
+
   // Filter lessons based on search, type, and archive state
   const filteredLessons = useMemo(() => {
     const list = lessons.filter((lesson) => {
@@ -910,20 +944,23 @@ function LibraryHome({
         return sA.knownPct - sB.knownPct;
       }
       if (sortBy === "length_short" || sortBy === "short") {
-        const durA = Number(a.duration) || Number((a as any).audioDuration) || 0;
-        const durB = Number(b.duration) || Number((b as any).audioDuration) || 0;
-        // If both items have duration (media content), strictly sort by seconds
+        const durA = getLessonEffectiveDuration(a);
+        const durB = getLessonEffectiveDuration(b);
+
+        // 1. Если у обоих есть длительность видео/аудио — сортируем строго по секундам
         if (durA > 0 && durB > 0) {
           return durA - durB;
         }
-        // Otherwise sort by word count
+
+        // 2. Если это чисто текстовые книги/статьи без видео — по количеству слов
         const wcA = a.wordCount || getWordCount(a.text || "");
         const wcB = b.wordCount || getWordCount(b.text || "");
         return wcA - wcB;
       }
       if (sortBy === "length_long" || sortBy === "long") {
-        const durA = Number(a.duration) || Number((a as any).audioDuration) || 0;
-        const durB = Number(b.duration) || Number((b as any).audioDuration) || 0;
+        const durA = getLessonEffectiveDuration(a);
+        const durB = getLessonEffectiveDuration(b);
+
         if (durA > 0 && durB > 0) {
           return durB - durA;
         }
@@ -1354,9 +1391,9 @@ function LibraryHome({
               const wordCount = getWordCount(lesson.text || "");
               const readTime = getReadingTime(lesson.text || "");
               const isYoutube = !!lesson.youtubeId || lesson.lessonType === "youtube";
-              const youtubeDurationVal = isYoutube ? (lesson.youtubeDuration || getYoutubeDurationFromText(lesson.text || "")) : null;
+              const youtubeDurationVal = isYoutube ? (getLessonEffectiveDuration(lesson) || null) : null;
               const hasAudio = Boolean(lesson.audioUrl || lesson.audioBase64 || lesson.lessonType === "audio" || lesson.lessonType === "podcast");
-              const effectiveAudioDuration = lesson.audioDuration || (hasAudio ? getMaxTimestampInText(lesson.text) : null);
+              const effectiveAudioDuration = hasAudio ? (getLessonEffectiveDuration(lesson) || null) : null;
               const bookStats = computedStatsMap.get(lesson.id) || getCachedBookStats(lesson, vocab, wordLinks);
 
               return (

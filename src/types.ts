@@ -51,6 +51,10 @@ export interface Lesson {
   localVideoUrl?: string | null;
   youtubeDuration?: number | null;
   audioDuration?: number | null;
+  duration?: number | string | null;
+  durationSeconds?: number | null;
+  wordCount?: number | null;
+  sourceType?: string | null;
   lessonType?: string; // e.g. "youtube" | "book" | "article" or custom string
   pinned?: boolean;
   translationText?: string | null;

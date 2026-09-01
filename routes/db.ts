@@ -378,6 +378,12 @@ export function getLocalServerDb(userId: string = "default") {
         playlistId: l.playlistId || null,
         images: l.images ? (typeof l.images === "string" ? JSON.parse(l.images) : l.images) : undefined,
         audioProgress: l.audioProgress || 0,
+        duration: l.duration ?? l.durationSeconds ?? (l.youtubeDuration || null),
+        durationSeconds: l.durationSeconds ?? l.duration ?? null,
+        youtubeDuration: l.youtubeDuration ?? l.duration ?? null,
+        audioDuration: l.audioDuration ?? null,
+        sourceType: l.sourceType ?? (l.lessonType === "youtube" ? "youtube" : l.lessonType === "podcast" ? "podcast" : "book"),
+        wordCount: l.wordCount ?? null,
       };
     });
 
