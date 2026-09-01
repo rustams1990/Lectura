@@ -46,6 +46,8 @@ import { BookTocDrawer } from "./BookTocDrawer";
 import { useWordStore, SelectedWordData, extractSelectedWordText, sanitizePhraseText } from "../store/useWordStore";
 import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
+import WordToken from "./WordToken";
+import { useAppearanceStore, FONT_SIZE_CSS, LINE_HEIGHT_CSS, BADGE_LINE_HEIGHT_CSS, FONT_FAMILY_CSS } from "../store/useAppearanceStore";
 
 const getLangCode = (lang?: string): string => {
   if (!lang) return "EN";
@@ -397,14 +399,20 @@ function ReaderPanel({
     return totalChars > 0 && (cjkChars / totalChars) > 0.3;
   }, [textForSearch]);
 
+  const appearance = useAppearanceStore();
+
+  useEffect(() => {
+    useAppearanceStore.getState().initFromSettings(settings, lesson.lessonType === "book");
+  }, [settings, lesson.lessonType]);
+
   const activeSettings = useMemo(() => {
     const isBook = lesson.lessonType === "book";
     return {
-      fontSize: storeFontSize || settings?.fontSize || "lg",
-      lineHeight: settings?.lineHeight || "loose",
-      fontFamily: isBook ? (settings?.bookFontFamily || "serif") : (settings?.fontFamily || "sans"),
-      readerTheme: settings?.readerTheme || "default",
-      maxWidth: settings?.maxWidth || "wide",
+      fontSize: appearance.fontSize,
+      lineHeight: appearance.lineHeight,
+      fontFamily: appearance.fontFamily,
+      readerTheme: appearance.readerTheme,
+      maxWidth: appearance.maxWidth,
       pageSize: settings?.pageSize || "auto",
       sentenceSpacing: settings?.sentenceSpacing || "normal",
       segmentSpacing: settings?.segmentSpacing || "normal",
@@ -420,14 +428,14 @@ function ReaderPanel({
       showSentenceTranslations: !!settings?.showSentenceTranslations,
       showTimestamps: settings?.showTimestamps === undefined ? true : (settings?.showTimestamps === "false" ? false : Boolean(settings?.showTimestamps)),
       cjkWordSpacing: !!settings?.cjkWordSpacing,
-      readerViewStyle: isBook ? (settings?.bookReaderViewStyle || "text") : (settings?.readerViewStyle || "badges"),
+      readerViewStyle: appearance.readerViewStyle,
       wordCardMode: isBook ? (settings?.bookWordCardMode || "calm-sheet") : (settings?.wordCardMode || "full-inspector"),
       bookWordCardMode: settings?.bookWordCardMode || "calm-sheet",
-      bookReaderViewStyle: settings?.bookReaderViewStyle || "text",
-      bookFontFamily: settings?.bookFontFamily || "serif",
+      bookReaderViewStyle: appearance.readerViewStyle,
+      bookFontFamily: appearance.fontFamily,
       toolbarVisibility: settings?.toolbarVisibility,
     };
-  }, [settings, lesson.lessonType, storeFontSize]);
+  }, [settings, lesson.lessonType, appearance]);
 
   const {
     segments,
@@ -1270,11 +1278,16 @@ function ReaderPanel({
         onMouseUp={handleTextSelection}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`prose max-w-none antialiased tracking-normal flex-1 w-full ${
+        className={`reader-text-container prose max-w-none antialiased tracking-normal flex-1 w-full mode-${appearance.readerViewStyle} font-${appearance.fontFamily} theme-${appearance.readerTheme} ${
           isDedicationOrTitlePage
             ? "flex flex-col items-center justify-center text-center my-auto min-h-[60vh] py-8 space-y-4"
             : "space-y-5 text-left"
-        } ${fontFamilyMap[activeSettings.fontFamily]} ${fontSizeMap[activeSettings.fontSize]} ${(isTextMode ? lineHeightMap : badgeLineHeightMap)[activeSettings.lineHeight]} ${widthMap[activeSettings.maxWidth]}`}
+        } ${fontFamilyMap[appearance.fontFamily]} ${fontSizeMap[appearance.fontSize]} ${(isTextMode ? lineHeightMap : badgeLineHeightMap)[appearance.lineHeight]} ${widthMap[appearance.maxWidth]}`}
+        style={{
+          "--reader-font-size": FONT_SIZE_CSS[appearance.fontSize] || "1.125rem",
+          "--reader-line-height": (isTextMode ? LINE_HEIGHT_CSS : BADGE_LINE_HEIGHT_CSS)[appearance.lineHeight] || "1.95",
+          "--reader-font-family": FONT_FAMILY_CSS[appearance.fontFamily] || "inherit",
+        } as React.CSSProperties}
       >
         {showOnlyUnknown && unknownViewMode === "list" && (
           <ReaderUnknownWordsList
@@ -2104,72 +2117,78 @@ function ReaderPanel({
                 : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
 
               elements.push(
-                <span key={tIdx} className={`inline whitespace-nowrap relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(tIdx)}`} spellCheck={false}>
-                  {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-95 mr-0">{prefix}</span>}
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    id={`word-${cleanWord}-${tIdx}`}
-                    data-token={cleanWord}
-                    onClick={(e) => handleWordSelect(e, rawString, cleanWord, sentText)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleWordSelect(e as any, rawString, cleanWord, sentText);
-                      }
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isFloatingModalOpen) return;
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoveredWordId(wordId);
+                <WordToken
+                  key={tIdx}
+                  wordId={wordId}
+                  cleanWord={cleanWord}
+                  rawString={rawString}
+                  wordContent={wordContent}
+                  prefix={prefix}
+                  suffix={suffix}
+                  status={status || "0"}
+                  isActive={isActive}
+                  isInSelectedPhrase={isInSelectedPhrase}
+                  isFirstInPhrase={isFirstInPhrase}
+                  isLastInPhrase={isLastInPhrase}
+                  isWordActive={isWordActive}
+                  hasWordLink={hasWordLink}
+                  isHovered={hoveredWordId === wordId}
+                  isTextMode={isTextMode}
+                  showOnlyUnknown={showOnlyUnknown}
+                  unknownViewMode={unknownViewMode}
+                  cjkSpacingClass={getCjkSpacingClass(tIdx)}
+                  readerTheme={appearance.readerTheme}
+                  onSelect={(e, r, c) => handleWordSelect(e, r, c, sentText)}
+                  onKeyDown={(e, r, c) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleWordSelect(e as any, r, c, sentText);
+                    }
+                  }}
+                  onMouseEnter={(e, wid, cWord) => {
+                    if (isFloatingModalOpen) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setHoveredWordId(wid);
 
-                      const cleanWordLower = cleanWord.toLowerCase();
-                      const lang = lesson.targetLanguage.toLowerCase();
-                      const exactVocab = vocab[`${lang}_${cleanWordLower}`] || vocab[cleanWordLower];
-                      const key = resolveWord(cleanWord);
-                      const langKey = `${lang}_${key}`;
-                      const parentVocab = vocab[langKey] || vocab[key];
-                      const lq = exactVocab || parentVocab;
+                    const cleanWordLower = cWord.toLowerCase();
+                    const lang = lesson.targetLanguage.toLowerCase();
+                    const exactVocab = vocab[`${lang}_${cleanWordLower}`] || vocab[cleanWordLower];
+                    const key = resolveWord(cWord);
+                    const langKey = `${lang}_${key}`;
+                    const parentVocab = vocab[langKey] || vocab[key];
+                    const lq = exactVocab || parentVocab;
+                    
+                    const showBelow = rect.bottom < window.innerHeight - 280;
+                    const posY = showBelow ? rect.bottom + 6 : rect.top - 6;
+
+                    if (lq) {
+                      const rawBaseWord = wordLinks[`${lang}_${cleanWordLower}`] || (wordLinks[cleanWordLower] ? wordLinks[cleanWordLower] : "");
+                      const baseWord = rawBaseWord ? rawBaseWord.replace(/^[a-zA-Z]+_/, "") : "";
+
+                      const resolvedDefinition: string =
+                        exactVocab?.definition ||
+                        (parentVocab && parentVocab !== exactVocab ? parentVocab.definition : undefined) ||
+                        "";
                       
-                      const showBelow = rect.bottom < window.innerHeight - 280;
-                      const posY = showBelow ? rect.bottom + 6 : rect.top - 6;
-
-                      if (lq) {
-                        const rawBaseWord = wordLinks[`${lang}_${cleanWordLower}`] || (wordLinks[cleanWordLower] ? wordLinks[cleanWordLower] : "");
-                        const baseWord = rawBaseWord ? rawBaseWord.replace(/^[a-zA-Z]+_/, "") : "";
-
-                        // Resolve definition: own entry first, then parent entry
-                        const resolvedDefinition: string =
-                          exactVocab?.definition ||
-                          (parentVocab && parentVocab !== exactVocab ? parentVocab.definition : undefined) ||
-                          "";
-                        
-                        setHoveredWordObj({
-                          word: cleanWord,
-                          parentWord: (baseWord && baseWord.toLowerCase() !== cleanWordLower) ? baseWord : undefined,
-                          translation: lq.translation,
-                          definition: resolvedDefinition || undefined,
-                          tags: lq.tags,
-                          grammar: lq.grammar,
-                          imageUrl: lq.imageUrl || undefined,
-                          x: rect.left + rect.width / 2,
-                          y: posY,
-                          position: showBelow ? "below" : "above",
-                        });
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      setHoveredWordId(null);
-                      setHoveredWordObj(null);
-                    }}
-                    className={`reader-word-token ${styleClass} ${paddingClass} ${isTextMode ? "inline" : "inline-block my-0.5"} cursor-pointer select-text text-[length:inherit] transition-all`}
-                    style={{ outline: "none" }}
-                    spellCheck={false}
-                  >
-                    {wordContent}
-                  </span>
-                  {suffix && <span className="inline text-inherit select-none pointer-events-none opacity-95 ml-0">{suffix}</span>}
-                </span>
+                      setHoveredWordObj({
+                        word: cWord,
+                        parentWord: (baseWord && baseWord.toLowerCase() !== cleanWordLower) ? baseWord : undefined,
+                        translation: lq.translation,
+                        definition: resolvedDefinition || undefined,
+                        tags: lq.tags,
+                        grammar: lq.grammar,
+                        imageUrl: lq.imageUrl || undefined,
+                        x: rect.left + rect.width / 2,
+                        y: posY,
+                        position: showBelow ? "below" : "above",
+                      });
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredWordId(null);
+                    setHoveredWordObj(null);
+                  }}
+                />
               );
 
               tIdx++;

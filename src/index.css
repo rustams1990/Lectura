@@ -240,5 +240,109 @@ img + .book-paragraph,
   border-top: 1px dashed rgba(0, 0, 0, 0.05);
 }
 
+/* ============================================
+   ZERO-RE-RENDER READER CONTAINER & DISPLAY MODES
+   ============================================ */
+.reader-text-container {
+  font-size: var(--reader-font-size, 1.125rem);
+  line-height: var(--reader-line-height, 1.95);
+  font-family: var(--reader-font-family, inherit);
+}
 
+/* Badges Mode */
+.mode-badges .reader-word-token {
+  display: inline-block;
+  margin-top: 0.125rem;
+  margin-bottom: 0.125rem;
+}
 
+/* Book / Clean Text Mode */
+.mode-text .reader-word-token,
+.mode-book .reader-word-token {
+  display: inline !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-bottom-width: 0 !important;
+  box-shadow: none !important;
+}
+
+.mode-text .reader-word-token:not(.in-selected-phrase),
+.mode-book .reader-word-token:not(.in-selected-phrase) {
+  background-color: transparent !important;
+}
+
+/* Status colors in Text / Book Mode */
+.mode-text .reader-word-token.status-0:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-0:not(.in-selected-phrase) {
+  color: #0284c7 !important; /* sky-600 */
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-0:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-0:not(.in-selected-phrase) {
+  color: #38bdf8 !important; /* sky-400 */
+}
+
+.mode-text .reader-word-token.status-1:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-1:not(.in-selected-phrase) {
+  color: #e11d48 !important; /* rose-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-1:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-1:not(.in-selected-phrase) {
+  color: #fb7185 !important; /* rose-400 */
+}
+
+.mode-text .reader-word-token.status-2:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-2:not(.in-selected-phrase) {
+  color: #d97706 !important; /* amber-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-2:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-2:not(.in-selected-phrase) {
+  color: #fbbf24 !important; /* amber-400 */
+}
+
+.mode-text .reader-word-token.status-3:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-3:not(.in-selected-phrase),
+.mode-text .reader-word-token.status-learning:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-learning:not(.in-selected-phrase) {
+  color: #059669 !important; /* emerald-600 */
+  font-weight: 500;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-3:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-3:not(.in-selected-phrase) {
+  color: #34d399 !important; /* emerald-400 */
+}
+
+.mode-text .reader-word-token.status-4:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-4:not(.in-selected-phrase) {
+  color: #2563eb !important; /* blue-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-4:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-4:not(.in-selected-phrase) {
+  color: #60a5fa !important; /* blue-400 */
+}
+
+.mode-text .reader-word-token.status-5:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-5:not(.in-selected-phrase) {
+  color: #9333ea !important; /* purple-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-5:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-5:not(.in-selected-phrase) {
+  color: #c084fc !important; /* purple-400 */
+}
+
+.mode-text .reader-word-token.status-known:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-known:not(.in-selected-phrase),
+.mode-text .reader-word-token.status-ignored:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-ignored:not(.in-selected-phrase) {
+  color: inherit !important;
+  font-weight: 400;
+}
+
+.mode-text .reader-word-token:hover:not(.in-selected-phrase),
+.mode-book .reader-word-token:hover:not(.in-selected-phrase) {
+  text-decoration-line: underline !important;
+  text-underline-offset: 2px !important;
+}

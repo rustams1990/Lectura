@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, startTransition } from "react";
+import React, { useState, useEffect, startTransition } from "react";
 import { createPortal } from "react-dom";
 import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY, WordCardViewType, normalizeWordCardView } from "../types";
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
+import { useAppearanceStore, debounceAppearanceSync, registerAppearanceSyncCallback } from "../store/useAppearanceStore";
 
 interface TextSettingsControlsProps {
   settings: ReaderSettings;
@@ -35,13 +36,26 @@ export default function TextSettingsControls({
 
   const isBookMode = lessonType === "book";
 
+  const appearance = useAppearanceStore();
+
+  useEffect(() => {
+    registerAppearanceSyncCallback((patch) => {
+      onUpdateSettings({ ...settings, ...patch });
+    });
+  }, [settings, onUpdateSettings]);
+
   const activeFontFamily = isBookMode
-    ? (settings.bookFontFamily || "serif")
-    : (settings.fontFamily || "sans");
+    ? (appearance.fontFamily || settings.bookFontFamily || "serif")
+    : (appearance.fontFamily || settings.fontFamily || "sans");
 
   const activeDisplayMode = isBookMode
-    ? (settings.bookReaderViewStyle || "text")
-    : (settings.readerViewStyle || "badges");
+    ? (appearance.readerViewStyle || settings.bookReaderViewStyle || "text")
+    : (appearance.readerViewStyle || settings.readerViewStyle || "badges");
+
+  const activeFontSize = appearance.fontSize || settings.fontSize || "lg";
+  const activeLineHeight = appearance.lineHeight || settings.lineHeight || "loose";
+  const activeTheme = appearance.readerTheme || settings.readerTheme || "default";
+  const activeMaxWidth = appearance.maxWidth || settings.maxWidth || "wide";
 
   const rawWordCardMode = isBookMode
     ? (settings.bookWordCardMode || settings.wordCardMode || "floating")
@@ -76,44 +90,32 @@ export default function TextSettingsControls({
   ];
 
   const updateKey = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
-    startTransition(() => {
-      onUpdateSettings({
-        ...settings,
-        [key]: value,
-      });
-    });
+    debounceAppearanceSync({ [key]: value });
   };
 
   const handleFontFamilyChange = (font: ReaderSettings["fontFamily"]) => {
-    startTransition(() => {
-      if (isBookMode) {
-        onUpdateSettings({ ...settings, bookFontFamily: font });
-        try {
-          localStorage.setItem("lectura_book_font_family", font || "serif");
-        } catch (_) {}
-      } else {
-        onUpdateSettings({ ...settings, fontFamily: font });
-        try {
-          localStorage.setItem("lectura_font_family", font || "sans");
-        } catch (_) {}
-      }
-    });
+    useAppearanceStore.getState().setFontFamily(font);
+    debounceAppearanceSync({ [isBookMode ? "bookFontFamily" : "fontFamily"]: font });
   };
 
   const handleDisplayModeChange = (mode: "badges" | "text") => {
-    startTransition(() => {
-      if (isBookMode) {
-        onUpdateSettings({ ...settings, bookReaderViewStyle: mode });
-        try {
-          localStorage.setItem("lectura_book_reader_view_style", mode);
-        } catch (_) {}
-      } else {
-        onUpdateSettings({ ...settings, readerViewStyle: mode });
-        try {
-          localStorage.setItem("lectura_reader_view_style", mode);
-        } catch (_) {}
-      }
-    });
+    useAppearanceStore.getState().setReaderViewStyle(mode);
+    debounceAppearanceSync({ [isBookMode ? "bookReaderViewStyle" : "readerViewStyle"]: mode });
+  };
+
+  const handleThemeChange = (theme: ReaderSettings["readerTheme"]) => {
+    useAppearanceStore.getState().setReaderTheme(theme);
+    debounceAppearanceSync({ readerTheme: theme });
+  };
+
+  const handleLineHeightChange = (lh: ReaderSettings["lineHeight"]) => {
+    useAppearanceStore.getState().setLineHeight(lh);
+    debounceAppearanceSync({ lineHeight: lh });
+  };
+
+  const handleMaxWidthChange = (w: ReaderSettings["maxWidth"]) => {
+    useAppearanceStore.getState().setMaxWidth(w);
+    debounceAppearanceSync({ maxWidth: w });
   };
 
   const handleWordCardModeChange = (mode: string) => {
@@ -132,16 +134,20 @@ export default function TextSettingsControls({
   };
 
   const handleDecreaseFont = () => {
-    const idx = fontSizes.indexOf(settings.fontSize);
+    const idx = fontSizes.indexOf(activeFontSize);
     if (idx > 0) {
-      updateKey("fontSize", fontSizes[idx - 1]);
+      const next = fontSizes[idx - 1];
+      useAppearanceStore.getState().setFontSize(next);
+      debounceAppearanceSync({ fontSize: next });
     }
   };
 
   const handleIncreaseFont = () => {
-    const idx = fontSizes.indexOf(settings.fontSize);
+    const idx = fontSizes.indexOf(activeFontSize);
     if (idx < fontSizes.length - 1) {
-      updateKey("fontSize", fontSizes[idx + 1]);
+      const next = fontSizes[idx + 1];
+      useAppearanceStore.getState().setFontSize(next);
+      debounceAppearanceSync({ fontSize: next });
     }
   };
 
@@ -217,19 +223,19 @@ export default function TextSettingsControls({
                 <button
                   type="button"
                   onClick={handleDecreaseFont}
-                  disabled={settings.fontSize === fontSizes[0]}
+                  disabled={activeFontSize === fontSizes[0]}
                   className="p-1 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-300 disabled:opacity-40"
                   title="Smaller text size"
                 >
                   <Minus className="w-3 h-3" />
                 </button>
                 <span className="text-xs font-mono font-bold uppercase text-zinc-600 dark:text-zinc-400 select-none">
-                  {(activeFontFamily === "serif" ? "Serif" : (activeFontFamily === "mono" ? "Mono" : "Sans"))} {settings.fontSize.toUpperCase()}
+                  {(activeFontFamily === "serif" ? "Serif" : (activeFontFamily === "mono" ? "Mono" : "Sans"))} {activeFontSize.toUpperCase()}
                 </span>
                 <button
                   type="button"
                   onClick={handleIncreaseFont}
-                  disabled={settings.fontSize === fontSizes[fontSizes.length - 1]}
+                  disabled={activeFontSize === fontSizes[fontSizes.length - 1]}
                   className="p-1 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-300 disabled:opacity-40"
                   title="Larger text size"
                 >
@@ -345,13 +351,13 @@ export default function TextSettingsControls({
                 {themes.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => updateKey("readerTheme", t.id)}
+                    onClick={() => handleThemeChange(t.id)}
                     className={`h-9 w-full rounded-xl border flex items-center justify-center transition-all ${t.bg} ${t.border} ${
-                      settings.readerTheme === t.id ? "ring-2 ring-teal-500 scale-105" : "hover:brightness-95 hover:scale-102"
+                      activeTheme === t.id ? "ring-2 ring-teal-500 scale-105" : "hover:brightness-95 hover:scale-102"
                     }`}
                     title={t.name}
                   >
-                    {settings.readerTheme === t.id && (
+                    {activeTheme === t.id && (
                       <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                     )}
                   </button>
@@ -365,8 +371,8 @@ export default function TextSettingsControls({
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Line Spacing</span>
                 <select
-                  value={settings.lineHeight}
-                  onChange={(e) => updateKey("lineHeight", e.target.value as any)}
+                  value={activeLineHeight}
+                  onChange={(e) => handleLineHeightChange(e.target.value as any)}
                   className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
                   {lineHeights.map((lh) => (
@@ -381,8 +387,8 @@ export default function TextSettingsControls({
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Text Width</span>
                 <select
-                  value={settings.maxWidth}
-                  onChange={(e) => updateKey("maxWidth", e.target.value as any)}
+                  value={activeMaxWidth}
+                  onChange={(e) => handleMaxWidthChange(e.target.value as any)}
                   className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-1.5 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
                   {maxWidths.map((mw) => (
