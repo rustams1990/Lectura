@@ -1600,6 +1600,46 @@ function ReaderPanel({
                 }
                 const isEnglish = lesson.targetLanguage.toLowerCase().startsWith("en") || lesson.targetLanguage.toLowerCase() === "english" || lesson.targetLanguage.toLowerCase() === "английский";
                 const isNum = isNumericOrRoman(tok.raw, isEnglish);
+                const isWhitespace = /^\s+$/.test(tok.raw);
+
+                if (isWhitespace) {
+                  // Check if this space is between words in the actively selected multi-word phrase
+                  const isSpaceInActivePhrase = (() => {
+                    if (!currentActiveWord || !currentActiveWord.includes(" ")) return false;
+                    if (tIdx === 0 || tIdx + 1 >= tokens.length) return false;
+                    const prevTok = tokens[tIdx - 1];
+                    const nextTok = tokens[tIdx + 1];
+                    if (!prevTok || !nextTok) return false;
+                    const activeClean = currentActiveWord.toLowerCase().trim();
+                    const prevClean = (prevTok.clean || prevTok.raw).toLowerCase().trim();
+                    const nextClean = (nextTok.clean || nextTok.raw).toLowerCase().trim();
+                    return Boolean(prevClean && nextClean && activeClean.includes(prevClean) && activeClean.includes(nextClean));
+                  })();
+
+                  if (isSpaceInActivePhrase) {
+                    elements.push(
+                      <span 
+                        key={`space-active-${tIdx}`} 
+                        className="inline-flex items-center justify-center px-0.5 select-none align-middle h-full max-h-[1.25rem] my-auto"
+                      >
+                        <span className="w-[2px] h-3.5 bg-emerald-400/80 dark:bg-emerald-400/90 rounded-full" />
+                      </span>
+                    );
+                  } else {
+                    elements.push(
+                      <span 
+                        key={`space-${tIdx}`} 
+                        className="inline-flex items-center justify-center px-0.5 align-middle h-full max-h-[1.25rem] my-auto select-text selection:bg-teal-200 dark:selection:bg-teal-800 leading-none"
+                      >
+                        <span className="w-[2px] h-3.5 bg-transparent rounded-full inline-block" />
+                        <span className="sr-only">{" "}</span>
+                      </span>
+                    );
+                  }
+                  tIdx++;
+                  continue;
+                }
+
                 elements.push(
                   <span 
                     key={`nonword-${tIdx}`} 
@@ -1898,6 +1938,16 @@ function ReaderPanel({
                       ) : (
                         phraseTokens.map((tok, tokIdx) => {
                           if (!tok.isWord) {
+                            if (/^\s+$/.test(tok.raw)) {
+                              return (
+                                <span 
+                                  key={tokIdx} 
+                                  className="inline-flex items-center justify-center px-0.5 select-none align-middle h-full max-h-[1.25rem] my-auto"
+                                >
+                                  <span className={`w-[2px] h-3.5 ${isPhraseSelected ? "bg-emerald-400/80 dark:bg-emerald-400/90" : "bg-transparent"} rounded-full`} />
+                                </span>
+                              );
+                            }
                             return <span key={tokIdx} className="opacity-95">{tok.raw}</span>;
                           }
                           const wordStatus = getWordInfo(tok.clean);
@@ -2229,6 +2279,17 @@ function ReaderPanel({
               const headingTokens = segmentSentenceTokens(headingInnerText, lesson.targetLanguage);
               const headingWordNodes = headingTokens.map((tok, tIdx) => {
                 if (!tok.isWord) {
+                  if (/^\s+$/.test(tok.raw)) {
+                    return (
+                      <span 
+                        key={tIdx} 
+                        className="inline-flex items-center justify-center px-0.5 align-middle h-full max-h-[1.25rem] my-auto select-text selection:bg-teal-200 dark:selection:bg-teal-800 leading-none"
+                      >
+                        <span className="w-[2px] h-3.5 bg-transparent rounded-full inline-block" />
+                        <span className="sr-only">{" "}</span>
+                      </span>
+                    );
+                  }
                   return <span key={tIdx} className="opacity-90 inline">{tok.raw}</span>;
                 }
                 const wordKey = `${lesson.targetLanguage.toLowerCase()}_${tok.clean}`;
