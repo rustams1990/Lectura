@@ -12,7 +12,7 @@ import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBI
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
 import { useSettingsStore } from "../store/settingsStore";
-import { useWordStore } from "../store/useWordStore";
+import { useWordStore, extractSelectedWordText } from "../store/useWordStore";
 
 interface ReaderScreenProps {
   activeLesson: Lesson | null;
@@ -81,15 +81,16 @@ export default function ReaderScreen({
     setActiveTab,
     isFocusMode,
     setIsFocusMode,
-    setShowMatchPairsModal,
-    showOnlyUnknown,
-    setShowOnlyUnknown,
     showYoutubePlayer,
     setShowYoutubePlayer,
-    readerTextWidth,
-    setReaderTextWidth,
+    showMatchPairsModal,
+    setShowMatchPairsModal,
     showAiHubModal,
     setShowAiHubModal,
+    showOnlyUnknown,
+    setShowOnlyUnknown,
+    readerTextWidth,
+    setReaderTextWidth,
     bookDisplayMode,
     setBookDisplayMode,
     bookReaderView,
@@ -99,8 +100,9 @@ export default function ReaderScreen({
   const { selectedElement, selectedWordRect } = useVocab();
   const { wordCardMode: storeCardMode } = useSettingsStore();
   const storeSelectedWord = useWordStore((state) => state.selectedWord);
-  const effectiveSelectedWord = storeSelectedWord?.cleanText || storeSelectedWord?.text || selectedWord;
-  const effectiveContext = storeSelectedWord?.contextSentence || selectedContext;
+  const storeWord = extractSelectedWordText(storeSelectedWord);
+  const effectiveSelectedWord = storeWord || selectedWord || null;
+  const effectiveContext = storeSelectedWord?.contextSentence || selectedContext || null;
   const isBookLesson = activeLesson?.lessonType === "book";
   const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
 
@@ -551,6 +553,9 @@ export default function ReaderScreen({
                 history={history}
                 onUpdateHistory={handleUpdateHistory}
                 hideMeta={isBookFocus}
+                onWordClick={handleWordClick}
+                onClearSelection={handleCloseWord}
+                selectedWord={effectiveSelectedWord}
                 onToggleTranslations={() =>
                   setReaderSettings((prev) => ({
                     ...prev,

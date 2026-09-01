@@ -4,6 +4,7 @@ import { useVocab } from "../context/VocabContext";
 import ReaderPanel from "./ReaderPanel";
 import { HistoryEntry, ReaderSettings, isVideoLesson } from "../types";
 import { useUIStore } from "../store/uiStore";
+import { useWordStore, extractSelectedWordText, sanitizePhraseText } from "../store/useWordStore";
 
 interface ReaderViewProps {
   key?: string;
@@ -17,6 +18,9 @@ interface ReaderViewProps {
   /** Hides the title/badges/status header block (for Focus Mode) */
   hideMeta?: boolean;
   onToggleTranslations?: () => void;
+  onWordClick?: (word: string, context: string, targetEl?: HTMLElement | null) => void;
+  onClearSelection?: () => void;
+  selectedWord?: string | null;
 }
 
 export default function ReaderView({
@@ -29,9 +33,17 @@ export default function ReaderView({
   onUpdateHistory,
   hideMeta = false,
   onToggleTranslations,
+  onWordClick: propOnWordClick,
+  onClearSelection: propOnClearSelection,
+  selectedWord: propSelectedWord,
 }: ReaderViewProps) {
   const { activeLesson, currentTime, setSeekToTime } = useLesson();
-  const { vocab, selectedWord, setSelectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
+  const { vocab, selectedWord: vocabSelectedWord, setSelectedWord, wordLinks, handleWordClick, handleUpdateStatusDirect } = useVocab();
+  const storeSelectedWord = useWordStore((state) => state.selectedWord);
+
+  const effectiveActiveWord = propSelectedWord !== undefined
+    ? propSelectedWord
+    : (extractSelectedWordText(storeSelectedWord) || vocabSelectedWord);
 
   // Auto-activate Focus Mode for video lessons on mobile & tablet devices (< 1024px)
   React.useEffect(() => {
@@ -50,6 +62,28 @@ export default function ReaderView({
     }
   }, [activeLesson?.id]);
 
+  const handleWordSelect = (word: string, context: string, targetEl?: HTMLElement | null) => {
+    const cleanWord = sanitizePhraseText(word) || word.trim();
+    useWordStore.getState().setSelectedWord({
+      text: word.trim(),
+      cleanText: cleanWord,
+      contextSentence: context,
+    });
+    if (propOnWordClick) {
+      propOnWordClick(cleanWord, context, targetEl);
+    } else {
+      handleWordClick(cleanWord, context, targetEl);
+    }
+  };
+
+  const handleClearSelection = () => {
+    useWordStore.getState().setSelectedWord(null);
+    setSelectedWord(null);
+    if (propOnClearSelection) {
+      propOnClearSelection();
+    }
+  };
+
   if (!activeLesson) return null;
 
   return (
@@ -58,13 +92,13 @@ export default function ReaderView({
       lesson={activeLesson}
       lessonImagesMap={lessonImagesMap}
       vocab={vocab}
-      activeWord={selectedWord}
+      activeWord={effectiveActiveWord}
       wordLinks={wordLinks}
-      onWordClick={handleWordClick}
+      onWordClick={handleWordSelect}
       onMarkKnown={(w) => handleUpdateStatusDirect(w, "known", activeLesson.targetLanguage)}
       settings={settings}
       onUpdateSettings={onUpdateSettings}
-      onClearSelection={() => setSelectedWord(null)}
+      onClearSelection={handleClearSelection}
       onEditClick={onEditClick}
       currentYoutubeTime={currentTime}
       onTimestampClick={(seconds) => setSeekToTime(seconds)}

@@ -43,7 +43,7 @@ import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { loadLessonTranslationsFromDb, fetchMissingSentenceTranslations } from "../services/sentenceTranslationService";
 import { BookTocDrawer } from "./BookTocDrawer";
-import { useWordStore, SelectedWordData } from "../store/useWordStore";
+import { useWordStore, SelectedWordData, extractSelectedWordText, sanitizePhraseText } from "../store/useWordStore";
 import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
 
@@ -284,10 +284,17 @@ function ReaderPanel({
   const { t } = useTranslation();
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
+    // If text was selected by the user, NEVER clear the selection!
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return;
+    }
+
     const target = e.target as HTMLElement;
     if (
       target.closest('[data-token]') || 
       target.closest('.reader-word-token') || 
+      target.closest('[role="button"]') ||
       target.closest('.word-explainer') || 
       target.closest('.modal-content') ||
       target.closest('button') || 
@@ -295,6 +302,7 @@ function ReaderPanel({
     ) {
       return;
     }
+    useWordStore.getState().setSelectedWord(null);
     onClearSelection?.();
   };
 
@@ -322,7 +330,7 @@ function ReaderPanel({
     : (settings?.wordCardMode || storeCardMode || "floating");
   const isCalmSheet = wordCardMode === "calm-sheet" || wordCardMode === "floating";
   const storeSelectedWord = useWordStore((state) => state.selectedWord);
-  const currentActiveWord = storeSelectedWord?.cleanText || storeSelectedWord?.text || activeWord;
+  const currentActiveWord = extractSelectedWordText(storeSelectedWord) || activeWord;
   const isFloatingModalOpen = isCalmSheet && Boolean(currentActiveWord);
 
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
@@ -677,23 +685,34 @@ function ReaderPanel({
     return { allPageTokens, pagePhraseMatches, pageDetectedMatches, sentenceTokenRanges };
   }, [activeSegmentsForPage, vocab, lesson, isCjk, activeSettings.sentenceSpacing]);
 
-  // Handle multi-word text drag selection (phrases & idioms)
-  const handleTextSelection = (e: React.MouseEvent) => {
+  // Handle text drag selection (words, phrases & idioms)
+  const handleTextSelection = (e?: React.MouseEvent | Event) => {
     const selection = window.getSelection();
-    if (!selection) return;
-    const selectedText = selection.toString().replace(/\s+/g, " ").trim();
-    
-    // Validate bounds
-    if (!selectedText) return;
-    if (selectedText.length <= 1 && !isCjk) return;
-    if (selectedText.length > 1000) return;
-    
-    // For spaced languages, single-word selections are handled directly by token click.
-    // If it's a multi-word drag, let's catch it!
-    const wordCount = selectedText.split(/\s+/).filter(Boolean).length;
-    if (!isCjk && wordCount <= 1) {
-      return; 
+    if (!selection || selection.isCollapsed) return;
+    let rawSelected = selection.toString().replace(/\s+/g, " ").trim();
+    if (!rawSelected || rawSelected.length > 1000) return;
+
+    // If selection covers multiple [data-token] spans, reconstruct with explicit spaces
+    if (selection.rangeCount > 0) {
+      try {
+        const range = selection.getRangeAt(0);
+        const container = document.createElement("div");
+        container.appendChild(range.cloneContents());
+        const tokens = container.querySelectorAll("[data-token]");
+        if (tokens.length > 1) {
+          const tokenWords = Array.from(tokens).map((t) => t.textContent?.trim()).filter(Boolean);
+          if (tokenWords.length > 1) {
+            rawSelected = tokenWords.join(" ");
+          }
+        }
+      } catch (err) {
+        // Fallback to rawSelected from selection.toString()
+      }
     }
+
+    // Strip leading and trailing punctuation/quotes/brackets while preserving spaces
+    const cleanPhrase = sanitizePhraseText(rawSelected) || rawSelected;
+    if (!cleanPhrase) return;
 
     // Attempt to locate containing sentence paragraph for rich context relationship
     let associatedSentence = "";
@@ -711,12 +730,47 @@ function ReaderPanel({
       if (currentEl) {
         const fullPara = currentEl.textContent || "";
         const sentences = splitIntoSentences(fullPara, isCjk);
-        associatedSentence = sentences.find((s) => s.includes(selectedText)) || fullPara;
+        associatedSentence = sentences.find((s) => s.includes(cleanPhrase) || s.includes(rawSelected)) || fullPara;
       }
     }
 
-    onWordClick(selectedText, associatedSentence.trim() || selectedText);
+    const context = (associatedSentence.trim() || cleanPhrase).replace(/\s+/g, " ");
+
+    const wordPayload: SelectedWordData = {
+      text: rawSelected,
+      cleanText: cleanPhrase,
+      contextSentence: context,
+      status: getWordInfo(cleanPhrase),
+    };
+
+    useWordStore.getState().setSelectedWord(wordPayload);
+    onWordClick(cleanPhrase, context, null);
   };
+
+  // Global document mouseup listener to catch text selection anywhere inside reader
+  useEffect(() => {
+    const handleDocMouseUp = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return;
+      const text = selection.toString().trim();
+      if (!text) return;
+
+      const readerRoot = document.getElementById("reader-top");
+      if (!readerRoot) return;
+
+      const anchor = selection.anchorNode;
+      const focus = selection.focusNode;
+      if (
+        (anchor && readerRoot.contains(anchor)) ||
+        (focus && readerRoot.contains(focus))
+      ) {
+        handleTextSelection();
+      }
+    };
+
+    document.addEventListener("mouseup", handleDocMouseUp);
+    return () => document.removeEventListener("mouseup", handleDocMouseUp);
+  }, [lesson.targetLanguage, isCjk]);
 
   // Resolve lemma or alias base words, e.g. zorros -> zorro
   const resolveWord = (w: string) => {
@@ -858,7 +912,16 @@ function ReaderPanel({
       e.stopPropagation();
       e.preventDefault();
     }
-    const resolvedClean = cleanWordForLookup(cleanWord) || cleanWord;
+    // If the user just completed a text drag selection, do not override the phrase with the clicked token
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 1) {
+      return;
+    }
+
+    const isMultiWord = cleanWord.trim().includes(" ");
+    const resolvedClean = isMultiWord
+      ? (sanitizePhraseText(cleanWord) || cleanWord.trim())
+      : (cleanWordForLookup(cleanWord) || cleanWord);
     const key = resolveWord(resolvedClean);
     const sentences = splitIntoSentences(fullPara, isCjk);
     const associatedSentence = sentences.find((s) => s.includes(rawToken)) || fullPara;
@@ -1527,7 +1590,7 @@ function ReaderPanel({
                   elements.push(
                     <span 
                       key={`punct-${tIdx}`} 
-                      className={`text-inherit select-none pointer-events-none opacity-95 inline whitespace-nowrap ml-0 ${hasSpaceAfter || isOpeningQuoteOrBracket ? "" : "mr-1.5"}`}
+                      className={`text-inherit opacity-95 inline whitespace-nowrap ml-0 ${hasSpaceAfter || isOpeningQuoteOrBracket ? "" : "mr-1.5"}`}
                     >
                       {tok.raw.trim()}
                     </span>
@@ -1540,7 +1603,7 @@ function ReaderPanel({
                 elements.push(
                   <span 
                     key={`nonword-${tIdx}`} 
-                    className={isNum ? "select-none text-inherit pointer-events-none opacity-95 inline" : "select-none opacity-95 inline"}
+                    className={isNum ? "text-inherit opacity-95 inline" : "opacity-95 inline"}
                   >
                     {tok.raw}
                   </span>
@@ -1661,6 +1724,7 @@ function ReaderPanel({
                       role="button"
                       tabIndex={0}
                       id={`word-phrase-${matchedPhrase.phrase}-${tIdx}`}
+                      data-token={matchedPhrase.phrase}
                       onClick={(e) => handleWordSelect(e, matchedPhrase.phrase, matchedPhrase.phrase, sentText)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -1678,7 +1742,7 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} ${phrasePaddingClass} ${isTextMode ? "inline" : "inline-block my-0.5"} cursor-pointer select-text text-[length:inherit]`}
+                      className={`reader-word-token ${styleClass} ${phrasePaddingClass} ${isTextMode ? "inline" : "inline-block my-0.5"} cursor-pointer select-text text-[length:inherit]`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
@@ -1807,6 +1871,7 @@ function ReaderPanel({
                       role="button"
                       tabIndex={0}
                       id={`word-detected-${matchedDetected.phrase}-${tIdx}`}
+                      data-token={matchedDetected.phrase}
                       onClick={(e) => handleWordSelect(e, matchedDetected.phrase, matchedDetected.phrase, sentText)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -1824,7 +1889,7 @@ function ReaderPanel({
                         setHoveredWordId(null);
                         setHoveredWordObj(null);
                       }}
-                      className={`${styleClass} inline-flex items-center cursor-pointer select-text text-[length:inherit]`}
+                      className={`reader-word-token ${styleClass} inline-flex items-center cursor-pointer select-text text-[length:inherit]`}
                       style={{ outline: "none" }}
                       spellCheck={false}
                     >
@@ -1966,6 +2031,7 @@ function ReaderPanel({
                     role="button"
                     tabIndex={0}
                     id={`word-${cleanWord}-${tIdx}`}
+                    data-token={cleanWord}
                     onClick={(e) => handleWordSelect(e, rawString, cleanWord, sentText)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -2017,7 +2083,7 @@ function ReaderPanel({
                       setHoveredWordId(null);
                       setHoveredWordObj(null);
                     }}
-                    className={`${styleClass} ${paddingClass} ${isTextMode ? "inline" : "inline-block my-0.5"} cursor-pointer select-text text-[length:inherit] transition-all`}
+                    className={`reader-word-token ${styleClass} ${paddingClass} ${isTextMode ? "inline" : "inline-block my-0.5"} cursor-pointer select-text text-[length:inherit] transition-all`}
                     style={{ outline: "none" }}
                     spellCheck={false}
                   >
@@ -2163,7 +2229,7 @@ function ReaderPanel({
               const headingTokens = segmentSentenceTokens(headingInnerText, lesson.targetLanguage);
               const headingWordNodes = headingTokens.map((tok, tIdx) => {
                 if (!tok.isWord) {
-                  return <span key={tIdx} className="select-none opacity-90 inline">{tok.raw}</span>;
+                  return <span key={tIdx} className="opacity-90 inline">{tok.raw}</span>;
                 }
                 const wordKey = `${lesson.targetLanguage.toLowerCase()}_${tok.clean}`;
                 const vocabItem = tok.clean ? (vocab[wordKey] || vocab[tok.clean]) : undefined;

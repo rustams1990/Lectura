@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { VocabItem, WordStatus } from "../types";
 import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
 import { vocabStore } from "../db";
-import { useWordStore } from "../store/useWordStore";
+import { useWordStore, sanitizePhraseText } from "../store/useWordStore";
 /**
  * In-memory registry of locally mutated words with timestamps.
  * Prevents stale server fetch / full sync from reverting recent optimistic changes.
@@ -362,7 +362,7 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     if (wordClickDebounceRef.current) {
       clearTimeout(wordClickDebounceRef.current);
     }
-    const normalizedWord = word.replace(/\s+/g, " ").trim();
+    const normalizedWord = sanitizePhraseText(word) || word.replace(/\s+/g, " ").trim();
     const normalizedContext = context.replace(/\s+/g, " ").trim();
 
     let element: HTMLElement | null = null;

@@ -6,7 +6,7 @@
 import React from "react";
 import { VocabItem, ReaderSettings, Lesson } from "../types";
 import { useSettingsStore } from "../store/settingsStore";
-import { useWordStore } from "../store/useWordStore";
+import { useWordStore, extractSelectedWordText } from "../store/useWordStore";
 import WordExplainer from "./WordExplainer";
 import CalmSheetWordCard from "./CalmSheetWordCard";
 
@@ -40,7 +40,8 @@ export default function WordDetailContainer(props: WordDetailContainerProps) {
   const { wordCardMode: storeMode } = useSettingsStore();
   const selectedWordData = useWordStore((state) => state.selectedWord);
 
-  const effectiveWord = props.word || selectedWordData?.cleanText || selectedWordData?.text || null;
+  const storeWord = extractSelectedWordText(selectedWordData);
+  const effectiveWord = props.word || storeWord || null;
   const effectiveSentence = props.sentence || selectedWordData?.contextSentence || null;
 
   const resolvedProps: WordDetailContainerProps = {
