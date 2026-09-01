@@ -1569,6 +1569,44 @@ function ReaderPanel({
               return "mr-[0.2em]";
             };
 
+            // Identify if the active multi-word phrase is present in this sentence
+            const activePhraseTokenRange: { start: number; end: number } | null = (() => {
+              if (!currentActiveWord || !currentActiveWord.trim().includes(" ")) return null;
+              const targetWords = currentActiveWord.toLowerCase().trim().split(/\s+/).filter(Boolean);
+              if (targetWords.length <= 1) return null;
+
+              for (let i = 0; i < tokens.length; i++) {
+                // Phrase MUST start strictly on a word token matching targetWords[0]
+                if (!tokens[i].isWord) continue;
+                const firstWordClean = (tokens[i].clean || tokens[i].raw).toLowerCase();
+                if (firstWordClean !== targetWords[0]) continue;
+
+                let match = true;
+                let wordCount = 1;
+                let j = i + 1;
+                let lastWordIdx = i;
+
+                while (j < tokens.length && wordCount < targetWords.length) {
+                  const t = tokens[j];
+                  if (t.isWord) {
+                    const tokClean = (t.clean || t.raw).toLowerCase();
+                    if (tokClean !== targetWords[wordCount]) {
+                      match = false;
+                      break;
+                    }
+                    wordCount++;
+                    lastWordIdx = j;
+                  }
+                  j++;
+                }
+
+                if (match && wordCount === targetWords.length) {
+                  return { start: i, end: lastWordIdx };
+                }
+              }
+              return null;
+            })();
+
             while (tIdx < tokens.length) {
               const tok = tokens[tIdx];
 
@@ -1603,39 +1641,22 @@ function ReaderPanel({
                 const isWhitespace = /^\s+$/.test(tok.raw);
 
                 if (isWhitespace) {
-                  // Check if this space is between words in the actively selected multi-word phrase
-                  const isSpaceInActivePhrase = (() => {
-                    if (!currentActiveWord || !currentActiveWord.includes(" ")) return false;
-                    if (tIdx === 0 || tIdx + 1 >= tokens.length) return false;
-                    const prevTok = tokens[tIdx - 1];
-                    const nextTok = tokens[tIdx + 1];
-                    if (!prevTok || !nextTok) return false;
-                    const activeClean = currentActiveWord.toLowerCase().trim();
-                    const prevClean = (prevTok.clean || prevTok.raw).toLowerCase().trim();
-                    const nextClean = (nextTok.clean || nextTok.raw).toLowerCase().trim();
-                    return Boolean(prevClean && nextClean && activeClean.includes(prevClean) && activeClean.includes(nextClean));
-                  })();
+                  const isInActivePhrase = activePhraseTokenRange !== null && 
+                    tIdx > activePhraseTokenRange.start && 
+                    tIdx < activePhraseTokenRange.end;
 
-                  if (isSpaceInActivePhrase) {
-                    elements.push(
-                      <span 
-                        key={`space-active-${tIdx}`} 
-                        className="inline-flex items-center justify-center px-0.5 select-none align-middle h-full max-h-[1.25rem] my-auto"
-                      >
-                        <span className="w-[2px] h-3.5 bg-emerald-400/80 dark:bg-emerald-400/90 rounded-full" />
-                      </span>
-                    );
-                  } else {
-                    elements.push(
-                      <span 
-                        key={`space-${tIdx}`} 
-                        className="inline-flex items-center justify-center px-0.5 align-middle h-full max-h-[1.25rem] my-auto select-text selection:bg-teal-200 dark:selection:bg-teal-800 leading-none"
-                      >
-                        <span className="w-[2px] h-3.5 bg-transparent rounded-full inline-block" />
-                        <span className="sr-only">{" "}</span>
-                      </span>
-                    );
-                  }
+                  elements.push(
+                    <span 
+                      key={`space-${tIdx}`} 
+                      className={`select-text transition-colors ${
+                        isInActivePhrase 
+                          ? `bg-emerald-300/80 dark:bg-emerald-500/40 text-neutral-900 dark:text-neutral-100 ${isTextMode ? "inline" : "inline-block my-0.5 py-0.5 align-middle leading-tight"}` 
+                          : "opacity-95 inline"
+                      }`}
+                    >
+                      {tok.raw}
+                    </span>
+                  );
                   tIdx++;
                   continue;
                 }
@@ -1938,17 +1959,7 @@ function ReaderPanel({
                       ) : (
                         phraseTokens.map((tok, tokIdx) => {
                           if (!tok.isWord) {
-                            if (/^\s+$/.test(tok.raw)) {
-                              return (
-                                <span 
-                                  key={tokIdx} 
-                                  className="inline-flex items-center justify-center px-0.5 select-none align-middle h-full max-h-[1.25rem] my-auto"
-                                >
-                                  <span className={`w-[2px] h-3.5 ${isPhraseSelected ? "bg-emerald-400/80 dark:bg-emerald-400/90" : "bg-transparent"} rounded-full`} />
-                                </span>
-                              );
-                            }
-                            return <span key={tokIdx} className="opacity-95">{tok.raw}</span>;
+                            return <span key={tokIdx} className="opacity-95 select-text inline">{tok.raw}</span>;
                           }
                           const wordStatus = getWordInfo(tok.clean);
                           const resolvedCleanWord = resolveWord(tok.clean);
@@ -2014,7 +2025,9 @@ function ReaderPanel({
 
               const status = getWordInfo(cleanWord);
               const resolvedCleanWord = resolveWord(cleanWord);
-              const isActive = currentActiveWord?.toLowerCase() === cleanWord.toLowerCase() || currentActiveWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
+              const isSingleActive = currentActiveWord?.toLowerCase() === cleanWord.toLowerCase() || currentActiveWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
+              const isInSelectedPhrase = activePhraseTokenRange !== null && tIdx >= activePhraseTokenRange.start && tIdx <= activePhraseTokenRange.end;
+              const isActive = isSingleActive || isInSelectedPhrase;
 
               let isWordActive = false;
               if (
@@ -2048,7 +2061,21 @@ function ReaderPanel({
                 styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
               }
 
-              if (isTextMode) {
+              const isFirstInPhrase = activePhraseTokenRange !== null && tIdx === activePhraseTokenRange.start;
+              const isLastInPhrase = activePhraseTokenRange !== null && tIdx === activePhraseTokenRange.end;
+
+              if (isInSelectedPhrase) {
+                const phraseRounding = isFirstInPhrase && isLastInPhrase
+                  ? "rounded-md"
+                  : isFirstInPhrase
+                  ? "rounded-l-md rounded-r-none"
+                  : isLastInPhrase
+                  ? "rounded-r-md rounded-l-none"
+                  : "rounded-none";
+
+                // In Badges mode, completely replace any underlying status background & border so phrase is 100% unified
+                styleClass = `bg-emerald-300/80 dark:bg-emerald-500/40 text-neutral-900 dark:text-neutral-100 ${phraseRounding} py-0.5 leading-tight transition-colors border-0 border-transparent shadow-none`;
+              } else if (isTextMode) {
                 if (isWordActive) {
                   styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-amber-500 font-bold bg-amber-500/15 dark:bg-amber-500/25 rounded-xs px-0.5`;
                 } else if (isActive) {
@@ -2072,6 +2099,8 @@ function ReaderPanel({
 
               const paddingClass = isTextMode
                 ? ""
+                : isInSelectedPhrase
+                ? `${isFirstInPhrase ? "pl-1.5" : "pl-0.5"} ${isLastInPhrase ? "pr-1.5" : "pr-0.5"}`
                 : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
 
               elements.push(
@@ -2279,18 +2308,7 @@ function ReaderPanel({
               const headingTokens = segmentSentenceTokens(headingInnerText, lesson.targetLanguage);
               const headingWordNodes = headingTokens.map((tok, tIdx) => {
                 if (!tok.isWord) {
-                  if (/^\s+$/.test(tok.raw)) {
-                    return (
-                      <span 
-                        key={tIdx} 
-                        className="inline-flex items-center justify-center px-0.5 align-middle h-full max-h-[1.25rem] my-auto select-text selection:bg-teal-200 dark:selection:bg-teal-800 leading-none"
-                      >
-                        <span className="w-[2px] h-3.5 bg-transparent rounded-full inline-block" />
-                        <span className="sr-only">{" "}</span>
-                      </span>
-                    );
-                  }
-                  return <span key={tIdx} className="opacity-90 inline">{tok.raw}</span>;
+                  return <span key={tIdx} className="opacity-90 select-text inline">{tok.raw}</span>;
                 }
                 const wordKey = `${lesson.targetLanguage.toLowerCase()}_${tok.clean}`;
                 const vocabItem = tok.clean ? (vocab[wordKey] || vocab[tok.clean]) : undefined;
