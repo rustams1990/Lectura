@@ -28,7 +28,7 @@ router.get("/", (req: Request, res: Response) => {
 
   try {
     const db = getDbConnection(userId);
-    let query = "SELECT * FROM lessons WHERE user_id = ?";
+    let query = "SELECT * FROM lessons WHERE user_id = ? AND (length(trim(COALESCE(text, ''))) > 0 OR isBuiltIn = 1 OR (wordTimestamps IS NOT NULL AND length(wordTimestamps) > 2))";
     const params: any[] = [userId];
 
     const resolvedSource = (sourceType || type || lessonType) ? String(sourceType || type || lessonType).toLowerCase().trim() : null;

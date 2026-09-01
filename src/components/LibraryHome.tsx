@@ -872,9 +872,20 @@ function LibraryHome({
     return 0;
   };
 
+  const isLessonWithContent = (l: Lesson) => {
+    if (!l) return false;
+    if (typeof l.text === "string" && l.text.trim().length > 0) return true;
+    if (l.isBuiltIn) return true;
+    if (l.wordTimestamps && (l.wordTimestamps as any).length > 2) return true;
+    return false;
+  };
+
   // Filter lessons based on search, type, and archive state
   const filteredLessons = useMemo(() => {
     const list = lessons.filter((lesson) => {
+      // Exclude empty phantom lessons (created by external background tracking without text content)
+      if (!isLessonWithContent(lesson)) return false;
+
       // Check archive matching: if we click "active schema", show only non-archived books
       const isBookArchived = archivingIds.has(lesson.id) ? true : !!lesson.isArchived;
       const matchesArchive = showArchived ? isBookArchived : !isBookArchived;
@@ -1021,7 +1032,7 @@ function LibraryHome({
 
   const rawActiveCount = useMemo(() => {
     const activeLessons = lessons.filter(
-      (l) => !archivingIds.has(l.id) && !l.isArchived && matchesLanguageFilter(l.targetLanguage || (l as any).language)
+      (l) => isLessonWithContent(l) && !archivingIds.has(l.id) && !l.isArchived && matchesLanguageFilter(l.targetLanguage || (l as any).language)
     ).length;
     const activePlaylists = (playlists || []).filter(
       (p) => !p.isArchived && matchesLanguageFilter(p.language || (p as any).targetLanguage)
@@ -1031,7 +1042,7 @@ function LibraryHome({
 
   const rawArchivedCount = useMemo(() => {
     const archivedLessons = lessons.filter(
-      (l) => (archivingIds.has(l.id) || l.isArchived) && matchesLanguageFilter(l.targetLanguage || (l as any).language)
+      (l) => isLessonWithContent(l) && (archivingIds.has(l.id) || l.isArchived) && matchesLanguageFilter(l.targetLanguage || (l as any).language)
     ).length;
     const archivedPlaylists = (playlists || []).filter(
       (p) => p.isArchived && matchesLanguageFilter(p.language || (p as any).targetLanguage)
@@ -1040,11 +1051,11 @@ function LibraryHome({
   }, [lessons, playlists, selectedLanguage, archivingIds]);
 
   const totalActiveBooksCount = useMemo(() => {
-    return lessons.filter((l) => !archivingIds.has(l.id) && !l.isArchived).length + (playlists || []).filter((p) => !p.isArchived).length;
+    return lessons.filter((l) => isLessonWithContent(l) && !archivingIds.has(l.id) && !l.isArchived).length + (playlists || []).filter((p) => !p.isArchived).length;
   }, [lessons, playlists, archivingIds]);
 
   const totalArchivedBooksCount = useMemo(() => {
-    return lessons.filter((l) => archivingIds.has(l.id) || l.isArchived).length + (playlists || []).filter((p) => p.isArchived).length;
+    return lessons.filter((l) => isLessonWithContent(l) && (archivingIds.has(l.id) || l.isArchived)).length + (playlists || []).filter((p) => p.isArchived).length;
   }, [lessons, playlists, archivingIds]);
 
   const preview = getUIPreviewCache();

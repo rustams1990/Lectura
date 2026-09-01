@@ -30356,12 +30356,10 @@
   }
 
   // extension/src/content/youtube-tracker.ts
-  var currentSession = null;
-  var maxWatchedPosition = 0;
-  var lastReportedPosition = 0;
-  var periodicTrackerInterval = null;
-  var activeVideoElement = null;
+  var currentVideoSession = null;
+  var sessionInitTimeout = null;
   var isObserverInitialized = false;
+  var lastObservedUrl = "";
   function getStudyLanguage(settings) {
     const customLang = window.__LECTURA_ACTIVE_LANG__ || window.__LECTURA_YT_TRACK_LANG__;
     if (customLang) return String(customLang).toLowerCase();
@@ -30388,120 +30386,148 @@
     if (isObserverInitialized) return;
     isObserverInitialized = true;
     console.log("\u{1F3AC} [Lectura Tracker] Initializing YouTube Lifecycle Tracker...");
-    window.addEventListener("yt-navigate-finish", handleVideoNavigation);
-    window.addEventListener("spfdone", handleVideoNavigation);
-    window.addEventListener("popstate", handleVideoNavigation);
-    let lastObservedUrl = window.location.href;
+    window.addEventListener("yt-navigate-finish", handleYouTubePageChange);
+    window.addEventListener("spfdone", handleYouTubePageChange);
+    window.addEventListener("popstate", handleYouTubePageChange);
+    lastObservedUrl = window.location.href;
     setInterval(() => {
       if (window.location.href !== lastObservedUrl) {
         lastObservedUrl = window.location.href;
-        handleVideoNavigation();
+        handleYouTubePageChange();
       }
     }, 1e3);
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") {
-        flushProgress(true, false);
+      if (document.visibilityState === "hidden" && currentVideoSession) {
+        flushCurrentSession(currentVideoSession, true, false);
       }
     });
-    window.addEventListener("pagehide", () => flushProgress(true, false));
-    window.addEventListener("beforeunload", () => flushProgress(true, false));
-    handleVideoNavigation();
-  }
-  function handleVideoNavigation() {
-    const videoId = extractVideoId();
-    if (currentSession && currentSession.videoId !== videoId) {
-      flushProgress(true, false);
-      currentSession = null;
-      detachVideoListeners();
-    }
-    if (!videoId) return;
-    waitForVideoElement((video) => {
-      startTrackingVideo(video, videoId);
+    window.addEventListener("pagehide", () => {
+      if (currentVideoSession) flushCurrentSession(currentVideoSession, true, false);
     });
+    window.addEventListener("beforeunload", () => {
+      if (currentVideoSession) flushCurrentSession(currentVideoSession, true, false);
+    });
+    handleYouTubePageChange();
   }
-  function waitForVideoElement(callback, retries = 0) {
-    if (retries > 60) return;
-    const video = document.querySelector("video.html5-main-video, #movie_player video");
-    if (video && !isNaN(video.duration) && video.duration > 0) {
-      callback(video);
-    } else {
-      setTimeout(() => waitForVideoElement(callback, retries + 1), 300);
+  function handleYouTubePageChange() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const newVideoId = urlParams.get("v") || extractVideoId();
+    if (currentVideoSession && currentVideoSession.videoId !== newVideoId) {
+      console.log(`\u{1F3AC} [Lectura Tracker] Video change detected: terminating previous session for ${currentVideoSession.videoId}`);
+      flushCurrentSession(currentVideoSession, true, false);
+      if (currentVideoSession.intervalId) {
+        clearInterval(currentVideoSession.intervalId);
+        currentVideoSession.intervalId = null;
+      }
+      if (currentVideoSession.cleanup) {
+        currentVideoSession.cleanup();
+      }
+      currentVideoSession = null;
+    }
+    if (sessionInitTimeout) {
+      clearTimeout(sessionInitTimeout);
+      sessionInitTimeout = null;
+    }
+    if (newVideoId) {
+      if (currentVideoSession && currentVideoSession.videoId === newVideoId) {
+        return;
+      }
+      initNewVideoSession(newVideoId);
     }
   }
-  async function startTrackingVideo(video, videoId) {
-    if (currentSession && currentSession.videoId === videoId && activeVideoElement === video) {
+  async function initNewVideoSession(videoId, retryCount = 0) {
+    const currentUrlVideoId = extractVideoId();
+    if (currentUrlVideoId !== videoId) return;
+    const ytPlayer = document.getElementById("movie_player");
+    const videoElement = document.querySelector("video.html5-main-video, #movie_player video");
+    let isPlayerReady = false;
+    if (ytPlayer && typeof ytPlayer.getVideoData === "function") {
+      const data = ytPlayer.getVideoData();
+      if (data && data.video_id === videoId) {
+        isPlayerReady = true;
+      }
+    }
+    if (!isPlayerReady && retryCount < 40) {
+      sessionInitTimeout = setTimeout(() => initNewVideoSession(videoId, retryCount + 1), 250);
       return;
     }
-    detachVideoListeners();
-    activeVideoElement = video;
     const settings = await StorageService.getSettings();
     if (settings.isEnabled === false || settings.trackListeningActivity === false) {
       return;
     }
-    const titleEl = document.querySelector(
-      "h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer"
-    );
-    const title = titleEl?.textContent?.trim() || document.title.replace(/ - YouTube$/, "").trim() || `YouTube Video (${videoId})`;
-    const channelEl = document.querySelector(
-      "ytd-channel-name a, #channel-name a, #upload-info #channel-name a"
-    );
-    const channelName = channelEl?.textContent?.trim() || "YouTube";
-    const channelUrl = channelEl?.href || `https://www.youtube.com/watch?v=${videoId}`;
-    const studyLanguage = getStudyLanguage(settings);
-    currentSession = {
+    let title = "";
+    let channelName = "";
+    let duration = 0;
+    if (ytPlayer && typeof ytPlayer.getVideoData === "function") {
+      const data = ytPlayer.getVideoData();
+      if (data && data.video_id === videoId) {
+        title = data.title || "";
+        channelName = data.author || "";
+        duration = Math.round(ytPlayer.getDuration?.() || 0);
+      }
+    }
+    if (!title) {
+      const titleElement = document.querySelector(
+        "h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer"
+      );
+      title = titleElement?.textContent?.trim() || document.title.replace(/ - YouTube$/, "").trim() || `YouTube Video (${videoId})`;
+    }
+    if (!channelName) {
+      const channelElement = document.querySelector(
+        "ytd-channel-name a, #channel-name a, #upload-info #channel-name a"
+      );
+      channelName = channelElement?.textContent?.trim() || "YouTube";
+    }
+    if (!duration && videoElement && !isNaN(videoElement.duration)) {
+      duration = Math.round(videoElement.duration);
+    }
+    const session = {
       videoId,
       title,
       channelName,
-      channelUrl,
-      duration: Math.round(video.duration || 0),
-      studyLanguage
+      channelUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      duration,
+      studyLanguage: getStudyLanguage(settings),
+      maxWatchedPosition: 0,
+      lastReportedPosition: 0,
+      intervalId: null,
+      videoElement: videoElement || null
     };
-    maxWatchedPosition = Math.round(video.currentTime || 0);
-    lastReportedPosition = 0;
-    console.log("\u{1F3AF} [Lectura Tracker] Tracking YouTube session with video.currentTime:", currentSession);
-    syncOpenSession(currentSession);
-    const onTimeUpdate = () => {
-      if (video.paused) return;
-      const current = Math.round(video.currentTime);
-      if (current > maxWatchedPosition) {
-        maxWatchedPosition = current;
-      }
-    };
-    const onEnded = () => {
-      const total = Math.round(video.duration || maxWatchedPosition);
-      maxWatchedPosition = total;
-      flushProgress(true, true);
-    };
-    const onPause = () => {
-      flushProgress(false, false);
-    };
-    video.addEventListener("timeupdate", onTimeUpdate);
-    video.addEventListener("ended", onEnded);
-    video.addEventListener("pause", onPause);
-    if (periodicTrackerInterval) clearInterval(periodicTrackerInterval);
-    periodicTrackerInterval = setInterval(() => {
-      if (activeVideoElement && !activeVideoElement.paused && maxWatchedPosition > lastReportedPosition) {
-        const total = Math.round(activeVideoElement.duration || 0);
-        const isCompleted = activeVideoElement.ended || total > 0 && maxWatchedPosition >= total - 5;
-        flushProgress(false, isCompleted);
-      }
-    }, 1e4);
-    video.__lectura_cleanup = () => {
-      video.removeEventListener("timeupdate", onTimeUpdate);
-      video.removeEventListener("ended", onEnded);
-      video.removeEventListener("pause", onPause);
-    };
-  }
-  function detachVideoListeners() {
-    if (periodicTrackerInterval) {
-      clearInterval(periodicTrackerInterval);
-      periodicTrackerInterval = null;
+    currentVideoSession = session;
+    console.log(`\u{1F3AF} [Lectura Tracker] Starting fresh isolated session for "${title}" (${videoId}, ${duration}s)`);
+    syncOpenSession(session);
+    if (videoElement) {
+      const onTimeUpdate = () => {
+        if (!session.videoElement || session.videoElement.paused) return;
+        const cur = Math.round(session.videoElement.currentTime || 0);
+        if (cur > session.maxWatchedPosition) {
+          session.maxWatchedPosition = cur;
+        }
+      };
+      const onEnded = () => {
+        const total = Math.round(session.videoElement?.duration || session.duration || session.maxWatchedPosition);
+        session.maxWatchedPosition = total;
+        flushCurrentSession(session, true, true);
+      };
+      const onPause = () => {
+        flushCurrentSession(session, false, false);
+      };
+      videoElement.addEventListener("timeupdate", onTimeUpdate);
+      videoElement.addEventListener("ended", onEnded);
+      videoElement.addEventListener("pause", onPause);
+      session.cleanup = () => {
+        videoElement.removeEventListener("timeupdate", onTimeUpdate);
+        videoElement.removeEventListener("ended", onEnded);
+        videoElement.removeEventListener("pause", onPause);
+      };
+      session.intervalId = setInterval(() => {
+        if (session.videoElement && !session.videoElement.paused && session.maxWatchedPosition > session.lastReportedPosition) {
+          const total = Math.round(session.videoElement.duration || session.duration || 0);
+          const isCompleted = session.videoElement.ended || total > 0 && session.maxWatchedPosition >= total - 5;
+          flushCurrentSession(session, false, isCompleted);
+        }
+      }, 1e4);
     }
-    if (activeVideoElement && activeVideoElement.__lectura_cleanup) {
-      activeVideoElement.__lectura_cleanup();
-      delete activeVideoElement.__lectura_cleanup;
-    }
-    activeVideoElement = null;
   }
   async function syncOpenSession(session) {
     try {
@@ -30529,42 +30555,42 @@
       console.warn("[Lectura Tracker] syncOpenSession error:", err);
     }
   }
-  async function flushProgress(isFinal = false, isCompleted = false) {
-    if (!currentSession) return;
+  async function flushCurrentSession(session, isFinal = false, isCompleted = false) {
+    if (!session) return;
     const currentDuration = Math.round(
-      activeVideoElement?.duration || currentSession.duration || 0
+      session.videoElement?.duration || session.duration || 0
     );
-    const completed = isCompleted || (activeVideoElement ? activeVideoElement.ended : false) || currentDuration > 0 && maxWatchedPosition >= currentDuration - 5;
-    const effectiveTimeSpent = completed && currentDuration > 0 ? currentDuration : maxWatchedPosition;
-    if (effectiveTimeSpent <= lastReportedPosition && !completed && !isFinal) {
+    const completed = isCompleted || (session.videoElement ? session.videoElement.ended : false) || currentDuration > 0 && session.maxWatchedPosition >= currentDuration - 5;
+    const effectiveTimeSpent = completed && currentDuration > 0 ? currentDuration : session.maxWatchedPosition;
+    if (effectiveTimeSpent <= session.lastReportedPosition && !completed && !isFinal) {
       return;
     }
-    const added = Math.max(0, effectiveTimeSpent - lastReportedPosition);
-    lastReportedPosition = effectiveTimeSpent;
+    const added = Math.max(0, effectiveTimeSpent - session.lastReportedPosition);
+    session.lastReportedPosition = effectiveTimeSpent;
     try {
       const settings = await StorageService.getSettings();
       if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
       const payload = {
-        videoId: currentSession.videoId,
-        lessonId: `lesson-yt_${currentSession.videoId}`,
-        title: currentSession.title,
-        channelName: currentSession.channelName,
-        channelUrl: currentSession.channelUrl,
+        videoId: session.videoId,
+        lessonId: `lesson-yt_${session.videoId}`,
+        title: session.title,
+        channelName: session.channelName,
+        channelUrl: session.channelUrl,
         duration: currentDuration,
         durationSeconds: currentDuration,
         timeSpentSeconds: effectiveTimeSpent,
         addedSeconds: added,
         watchedSeconds: effectiveTimeSpent,
-        studyLanguage: currentSession.studyLanguage,
+        studyLanguage: session.studyLanguage,
         isCompleted: completed,
         timestamp: Date.now()
       };
       console.log(
-        `\u23F1\uFE0F [Lectura Tracker] Progress: ${effectiveTimeSpent}s / ${currentDuration}s (completed=${completed}, final=${isFinal})`
+        `\u23F1\uFE0F [Lectura Tracker] Progress (${session.videoId}): ${effectiveTimeSpent}s / ${currentDuration}s (+${added}s, completed=${completed}, final=${isFinal})`
       );
       sendPayload(settings, payload, isFinal);
     } catch (err) {
-      console.warn("[Lectura Tracker] flushProgress error:", err);
+      console.warn("[Lectura Tracker] flushCurrentSession error:", err);
     }
   }
   function sendPayload(settings, payload, isFinal) {
@@ -31720,12 +31746,9 @@
         border-bottom: none !important;
       }
       .sub-mode--color .lectura-token.status-new,
-      .sub-mode--color .lectura-token.status-0,
       .sub-mode--color .lectura-word-token.status-new,
-      .sub-mode--color .lectura-word-token.status-0,
-      .lectura-token.status-new,
-      .lectura-token.status-0 {
-        color: #38bdf8 !important; /* \u0413\u043E\u043B\u0443\u0431\u043E\u0439 / \u041D\u043E\u0432\u044B\u0439 (New 0) */
+      .lectura-token.status-new {
+        color: #38bdf8 !important; /* \u0413\u043E\u043B\u0443\u0431\u043E\u0439 / \u041D\u043E\u0432\u044B\u0439 (New) */
       }
       .sub-mode--color .lectura-token.status-1,
       .sub-mode--color .lectura-word-token.status-1,
@@ -31752,18 +31775,20 @@
       }
       .sub-mode--color .lectura-token.status-5,
       .sub-mode--color .lectura-word-token.status-5,
-      .lectura-token.status-5 {
-        color: #c084fc !important; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u044B\u0439 (Stage 5) */
-      }
+      .lectura-token.status-5,
       .sub-mode--color .lectura-token.status-known,
       .sub-mode--color .lectura-word-token.status-known,
-      .lectura-token.status-known {
-        color: #ffffff !important; /* \u0411\u0435\u043B\u044B\u0439 \u0434\u043B\u044F \u0432\u044B\u0443\u0447\u0435\u043D\u043D\u044B\u0445 */
-      }
+      .lectura-token.status-known,
       .sub-mode--color .lectura-token.status-ignored,
       .sub-mode--color .lectura-word-token.status-ignored,
-      .lectura-token.status-ignored {
-        color: #ffffff !important; /* \u0427\u0435\u0442\u043A\u0438\u0439 \u0431\u0435\u043B\u044B\u0439 \u0434\u043B\u044F \u0438\u0433\u043D\u043E\u0440\u0438\u0440\u0443\u0435\u043C\u044B\u0445 */
+      .lectura-token.status-ignored,
+      .sub-mode--color .lectura-token.status-0,
+      .sub-mode--color .lectura-word-token.status-0,
+      .lectura-token.status-0 {
+        color: #ffffff !important; /* \u0427\u0438\u0441\u0442\u044B\u0439 \u0431\u0435\u043B\u044B\u0439 \u0431\u0435\u0437 \u0440\u0430\u043C\u043E\u043A \u0438 \u043F\u043E\u0434\u0441\u0432\u0435\u0442\u043E\u043A */
+        background: transparent !important;
+        border: none !important;
+        text-decoration: none !important;
         opacity: 1 !important;
       }
 
@@ -31783,11 +31808,9 @@
         text-decoration-thickness: 2.5px !important;
       }
       .sub-mode--underline .lectura-token.status-new,
-      .sub-mode--underline .lectura-token.status-0,
-      .sub-mode--underline .lectura-word-token.status-new,
-      .sub-mode--underline .lectura-word-token.status-0 {
+      .sub-mode--underline .lectura-word-token.status-new {
         text-decoration: underline !important;
-        text-decoration-color: #38bdf8 !important; /* \u0413\u043E\u043B\u0443\u0431\u0430\u044F \u043B\u0438\u043D\u0438\u044F (0 / \u041D\u043E\u0432\u044B\u0439) */
+        text-decoration-color: #38bdf8 !important; /* \u0413\u043E\u043B\u0443\u0431\u0430\u044F \u043B\u0438\u043D\u0438\u044F (\u041D\u043E\u0432\u044B\u0439) */
       }
       .sub-mode--underline .lectura-token.status-1,
       .sub-mode--underline .lectura-word-token.status-1 {
@@ -31812,18 +31835,17 @@
         text-decoration-color: #60a5fa !important; /* \u0421\u0438\u043D\u044F\u044F \u043B\u0438\u043D\u0438\u044F (4) */
       }
       .sub-mode--underline .lectura-token.status-5,
-      .sub-mode--underline .lectura-word-token.status-5 {
-        text-decoration: underline !important;
-        text-decoration-color: #c084fc !important; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u0430\u044F \u043B\u0438\u043D\u0438\u044F (5) */
-      }
+      .sub-mode--underline .lectura-word-token.status-5,
       .sub-mode--underline .lectura-token.status-known,
-      .sub-mode--underline .lectura-word-token.status-known {
-        text-decoration: none !important; /* \u0411\u0435\u0437 \u043F\u043E\u0434\u0447\u0435\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u044F (Known) */
-      }
+      .sub-mode--underline .lectura-word-token.status-known,
       .sub-mode--underline .lectura-token.status-ignored,
-      .sub-mode--underline .lectura-word-token.status-ignored {
-        text-decoration: none !important; /* \u0411\u0435\u0437 \u043F\u043E\u0434\u0447\u0435\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u044F (Ignored) */
+      .sub-mode--underline .lectura-word-token.status-ignored,
+      .sub-mode--underline .lectura-token.status-0,
+      .sub-mode--underline .lectura-word-token.status-0 {
+        text-decoration: none !important; /* \u0411\u0435\u0437 \u043F\u043E\u0434\u0447\u0435\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u044F (Known & Ignored) */
         color: #ffffff !important;
+        background: transparent !important;
+        border: none !important;
         opacity: 1 !important;
       }
 
@@ -33781,10 +33803,11 @@
       const cachedWords = this.cachedWordsByLang[lang] || {};
       const cachedLinks = this.cachedWordLinksByLang[lang] || {};
       const normalizeStatusValue = (raw) => {
-        const s3 = (raw || "").toLowerCase().trim();
-        if (["known", "known_completely", "well_known"].includes(s3)) return "known";
-        if (["1", "2", "3", "4", "5"].includes(s3)) return s3;
+        if (raw === void 0 || raw === null) return "new";
+        const s3 = String(raw).toLowerCase().trim();
         if (["ignored", "ignore", "0"].includes(s3)) return "ignored";
+        if (["known", "known_completely", "well_known", "5"].includes(s3)) return "known";
+        if (["1", "2", "3", "4"].includes(s3)) return s3;
         if (s3 === "hard") return "2";
         if (s3 === "remembering") return "3";
         if (s3 === "almost_known") return "4";
@@ -33793,14 +33816,16 @@
       };
       if (cachedWords[lower]) {
         const item = cachedWords[lower];
-        const normalizedStatus = normalizeStatusValue(String(item.status || "new"));
+        const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
+        const normalizedStatus = normalizeStatusValue(rawStatus);
         return { ...item, status: normalizedStatus, lemma: lower };
       }
       const parentRoot = cachedLinks[lower];
       if (parentRoot && parentRoot !== lower) {
         if (cachedWords[parentRoot]) {
           const item = cachedWords[parentRoot];
-          const normalizedStatus = normalizeStatusValue(String(item.status || "new"));
+          const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
+          const normalizedStatus = normalizeStatusValue(rawStatus);
           return { status: normalizedStatus, lemma: parentRoot };
         }
         return { status: "new", lemma: parentRoot };
@@ -33815,7 +33840,8 @@
       if (parentLemma && parentLemma !== lower) {
         if (cachedWords[parentLemma]) {
           const item = cachedWords[parentLemma];
-          const normalizedStatus = normalizeStatusValue(String(item.status || "new"));
+          const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
+          const normalizedStatus = normalizeStatusValue(rawStatus);
           return { status: normalizedStatus, lemma: parentLemma };
         }
         return { status: "new", lemma: parentLemma };
@@ -33909,6 +33935,11 @@
           span.dataset.tokenIndex = String(tokenIndexCounter++);
           const wordInfo = this.lookupWordInfo(coreWord);
           span.classList.add(`status-${wordInfo.status}`);
+          if (wordInfo.status === "ignored" || wordInfo.status === "0") {
+            span.classList.add("status-ignored", "status-0");
+          } else if (wordInfo.status === "known" || wordInfo.status === "5") {
+            span.classList.add("status-known", "status-5");
+          }
           span.addEventListener("mouseenter", () => {
             this.showHoverTooltip(span, coreWord);
           });

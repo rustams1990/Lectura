@@ -1348,12 +1348,9 @@ class YouTubeLecturaOverlay {
         border-bottom: none !important;
       }
       .sub-mode--color .lectura-token.status-new,
-      .sub-mode--color .lectura-token.status-0,
       .sub-mode--color .lectura-word-token.status-new,
-      .sub-mode--color .lectura-word-token.status-0,
-      .lectura-token.status-new,
-      .lectura-token.status-0 {
-        color: #38bdf8 !important; /* Голубой / Новый (New 0) */
+      .lectura-token.status-new {
+        color: #38bdf8 !important; /* Голубой / Новый (New) */
       }
       .sub-mode--color .lectura-token.status-1,
       .sub-mode--color .lectura-word-token.status-1,
@@ -1380,18 +1377,20 @@ class YouTubeLecturaOverlay {
       }
       .sub-mode--color .lectura-token.status-5,
       .sub-mode--color .lectura-word-token.status-5,
-      .lectura-token.status-5 {
-        color: #c084fc !important; /* Фиолетовый (Stage 5) */
-      }
+      .lectura-token.status-5,
       .sub-mode--color .lectura-token.status-known,
       .sub-mode--color .lectura-word-token.status-known,
-      .lectura-token.status-known {
-        color: #ffffff !important; /* Белый для выученных */
-      }
+      .lectura-token.status-known,
       .sub-mode--color .lectura-token.status-ignored,
       .sub-mode--color .lectura-word-token.status-ignored,
-      .lectura-token.status-ignored {
-        color: #ffffff !important; /* Четкий белый для игнорируемых */
+      .lectura-token.status-ignored,
+      .sub-mode--color .lectura-token.status-0,
+      .sub-mode--color .lectura-word-token.status-0,
+      .lectura-token.status-0 {
+        color: #ffffff !important; /* Чистый белый без рамок и подсветок */
+        background: transparent !important;
+        border: none !important;
+        text-decoration: none !important;
         opacity: 1 !important;
       }
 
@@ -1411,11 +1410,9 @@ class YouTubeLecturaOverlay {
         text-decoration-thickness: 2.5px !important;
       }
       .sub-mode--underline .lectura-token.status-new,
-      .sub-mode--underline .lectura-token.status-0,
-      .sub-mode--underline .lectura-word-token.status-new,
-      .sub-mode--underline .lectura-word-token.status-0 {
+      .sub-mode--underline .lectura-word-token.status-new {
         text-decoration: underline !important;
-        text-decoration-color: #38bdf8 !important; /* Голубая линия (0 / Новый) */
+        text-decoration-color: #38bdf8 !important; /* Голубая линия (Новый) */
       }
       .sub-mode--underline .lectura-token.status-1,
       .sub-mode--underline .lectura-word-token.status-1 {
@@ -1440,18 +1437,17 @@ class YouTubeLecturaOverlay {
         text-decoration-color: #60a5fa !important; /* Синяя линия (4) */
       }
       .sub-mode--underline .lectura-token.status-5,
-      .sub-mode--underline .lectura-word-token.status-5 {
-        text-decoration: underline !important;
-        text-decoration-color: #c084fc !important; /* Фиолетовая линия (5) */
-      }
+      .sub-mode--underline .lectura-word-token.status-5,
       .sub-mode--underline .lectura-token.status-known,
-      .sub-mode--underline .lectura-word-token.status-known {
-        text-decoration: none !important; /* Без подчеркивания (Known) */
-      }
+      .sub-mode--underline .lectura-word-token.status-known,
       .sub-mode--underline .lectura-token.status-ignored,
-      .sub-mode--underline .lectura-word-token.status-ignored {
-        text-decoration: none !important; /* Без подчеркивания (Ignored) */
+      .sub-mode--underline .lectura-word-token.status-ignored,
+      .sub-mode--underline .lectura-token.status-0,
+      .sub-mode--underline .lectura-word-token.status-0 {
+        text-decoration: none !important; /* Без подчеркивания (Known & Ignored) */
         color: #ffffff !important;
+        background: transparent !important;
+        border: none !important;
         opacity: 1 !important;
       }
 
@@ -3212,11 +3208,12 @@ class YouTubeLecturaOverlay {
     const cachedWords = this.cachedWordsByLang[lang] || {};
     const cachedLinks = this.cachedWordLinksByLang[lang] || {};
 
-    const normalizeStatusValue = (raw: string): string => {
-      const s = (raw || '').toLowerCase().trim();
-      if (['known', 'known_completely', 'well_known'].includes(s)) return 'known';
-      if (['1', '2', '3', '4', '5'].includes(s)) return s;
+    const normalizeStatusValue = (raw: any): string => {
+      if (raw === undefined || raw === null) return 'new';
+      const s = String(raw).toLowerCase().trim();
       if (['ignored', 'ignore', '0'].includes(s)) return 'ignored';
+      if (['known', 'known_completely', 'well_known', '5'].includes(s)) return 'known';
+      if (['1', '2', '3', '4'].includes(s)) return s;
       if (s === 'hard') return '2';
       if (s === 'remembering') return '3';
       if (s === 'almost_known') return '4';
@@ -3227,7 +3224,8 @@ class YouTubeLecturaOverlay {
     // 1. Direct match in language dictionary
     if (cachedWords[lower]) {
       const item = cachedWords[lower];
-      const normalizedStatus = normalizeStatusValue(String(item.status || 'new'));
+      const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
+      const normalizedStatus = normalizeStatusValue(rawStatus);
       return { ...item, status: normalizedStatus, lemma: lower };
     }
 
@@ -3236,7 +3234,8 @@ class YouTubeLecturaOverlay {
     if (parentRoot && parentRoot !== lower) {
       if (cachedWords[parentRoot]) {
         const item = cachedWords[parentRoot];
-        const normalizedStatus = normalizeStatusValue(String(item.status || 'new'));
+        const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
+        const normalizedStatus = normalizeStatusValue(rawStatus);
         return { status: normalizedStatus, lemma: parentRoot };
       }
       return { status: 'new', lemma: parentRoot };
@@ -3254,7 +3253,8 @@ class YouTubeLecturaOverlay {
     if (parentLemma && parentLemma !== lower) {
       if (cachedWords[parentLemma]) {
         const item = cachedWords[parentLemma];
-        const normalizedStatus = normalizeStatusValue(String(item.status || 'new'));
+        const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
+        const normalizedStatus = normalizeStatusValue(rawStatus);
         return { status: normalizedStatus, lemma: parentLemma };
       }
       return { status: 'new', lemma: parentLemma };
@@ -3369,6 +3369,11 @@ class YouTubeLecturaOverlay {
 
         const wordInfo = this.lookupWordInfo(coreWord);
         span.classList.add(`status-${wordInfo.status}`);
+        if (wordInfo.status === 'ignored' || wordInfo.status === '0') {
+          span.classList.add('status-ignored', 'status-0');
+        } else if (wordInfo.status === 'known' || wordInfo.status === '5') {
+          span.classList.add('status-known', 'status-5');
+        }
 
         span.addEventListener('mouseenter', () => {
           this.showHoverTooltip(span, coreWord);

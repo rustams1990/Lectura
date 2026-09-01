@@ -1513,15 +1513,23 @@ export default function App() {
           const normalizedCloudWordLinks = normalizeWordLinksRecord(d.wordLinks);
           if (d.lessons && Array.isArray(d.lessons)) {
             const { archivingIds } = useLessonStore.getState();
-            const safeLessons = d.lessons.map((l: any) => {
-              if (archivingIds.has(l.id)) {
-                const currentLocal = lessonsRef.current.find((item) => item.id === l.id);
-                if (currentLocal) {
-                  return { ...l, isArchived: currentLocal.isArchived };
+            const safeLessons = d.lessons
+              .filter((l: any) => {
+                if (!l) return false;
+                if (typeof l.text === "string" && l.text.trim().length > 0) return true;
+                if (l.isBuiltIn) return true;
+                if (l.wordTimestamps && l.wordTimestamps.length > 2) return true;
+                return false;
+              })
+              .map((l: any) => {
+                if (archivingIds.has(l.id)) {
+                  const currentLocal = lessonsRef.current.find((item) => item.id === l.id);
+                  if (currentLocal) {
+                    return { ...l, isArchived: currentLocal.isArchived };
+                  }
                 }
-              }
-              return l;
-            });
+                return l;
+              });
             setLessons(safeLessons);
             lessonsRef.current = safeLessons;
             lessonsStore.setItem("lessons", safeLessons).catch(() => {});

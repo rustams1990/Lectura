@@ -378,6 +378,16 @@ function setupSchema(db: Database.Database) {
     try { db.exec(`ALTER TABLE playlists ADD COLUMN isArchived INTEGER DEFAULT 0;`); } catch (_) {}
   }
 
+  // Purge any empty phantom lessons created by background activity tracking
+  try {
+    db.prepare(`
+      DELETE FROM lessons 
+      WHERE (text IS NULL OR TRIM(text) = '') 
+        AND (isBuiltIn IS NULL OR isBuiltIn = 0) 
+        AND (wordTimestamps IS NULL OR length(wordTimestamps) <= 2)
+    `).run();
+  } catch (_) {}
+
   // Auto-enrich existing lessons missing channelName or title
   setTimeout(async () => {
     try {

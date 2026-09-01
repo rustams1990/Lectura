@@ -1,21 +1,24 @@
 import { StorageService } from '../services/storage';
 import { ExtensionSettings } from '../types/index';
 
-interface VideoSession {
+export interface VideoSession {
   videoId: string;
   title: string;
   channelName: string;
   channelUrl: string;
   duration: number;
   studyLanguage: string;
+  maxWatchedPosition: number;
+  lastReportedPosition: number;
+  intervalId: ReturnType<typeof setInterval> | null;
+  videoElement: HTMLVideoElement | null;
+  cleanup?: () => void;
 }
 
-let currentSession: VideoSession | null = null;
-let maxWatchedPosition = 0;
-let lastReportedPosition = 0;
-let periodicTrackerInterval: ReturnType<typeof setInterval> | null = null;
-let activeVideoElement: HTMLVideoElement | null = null;
+let currentVideoSession: VideoSession | null = null;
+let sessionInitTimeout: ReturnType<typeof setTimeout> | null = null;
 let isObserverInitialized = false;
+let lastObservedUrl = '';
 
 function getStudyLanguage(settings: ExtensionSettings | null): string {
   const customLang = (window as any).__LECTURA_ACTIVE_LANG__ || (window as any).__LECTURA_YT_TRACK_LANG__;
@@ -24,7 +27,7 @@ function getStudyLanguage(settings: ExtensionSettings | null): string {
   return 'es';
 }
 
-function extractVideoId(url: string = window.location.href): string | null {
+export function extractVideoId(url: string = window.location.href): string | null {
   try {
     const parsed = new URL(url);
     if (parsed.pathname === '/watch') {
@@ -42,7 +45,7 @@ function extractVideoId(url: string = window.location.href): string | null {
 
 /**
  * Initializes the YouTube Lifecycle and Watch Time Tracker.
- * Called on page load and hooks into YouTube SPA navigation and browser unload events.
+ * Hooks into YouTube SPA navigation, history state changes, and browser unload events.
  */
 export function initYouTubeTracker() {
   if (isObserverInitialized) return;
@@ -51,159 +54,192 @@ export function initYouTubeTracker() {
   console.log('🎬 [Lectura Tracker] Initializing YouTube Lifecycle Tracker...');
 
   // 1. Hook into YouTube SPA navigation events
-  window.addEventListener('yt-navigate-finish', handleVideoNavigation);
-  window.addEventListener('spfdone', handleVideoNavigation);
-  window.addEventListener('popstate', handleVideoNavigation);
+  window.addEventListener('yt-navigate-finish', handleYouTubePageChange);
+  window.addEventListener('spfdone', handleYouTubePageChange);
+  window.addEventListener('popstate', handleYouTubePageChange);
 
   // Fallback ticker in case YouTube mutates history without firing yt-navigate-finish
-  let lastObservedUrl = window.location.href;
+  lastObservedUrl = window.location.href;
   setInterval(() => {
     if (window.location.href !== lastObservedUrl) {
       lastObservedUrl = window.location.href;
-      handleVideoNavigation();
+      handleYouTubePageChange();
     }
   }, 1000);
 
   // 2. Reliable flush on tab hidden / closed
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      flushProgress(true, false);
+    if (document.visibilityState === 'hidden' && currentVideoSession) {
+      flushCurrentSession(currentVideoSession, true, false);
     }
   });
-  window.addEventListener('pagehide', () => flushProgress(true, false));
-  window.addEventListener('beforeunload', () => flushProgress(true, false));
+  window.addEventListener('pagehide', () => {
+    if (currentVideoSession) flushCurrentSession(currentVideoSession, true, false);
+  });
+  window.addEventListener('beforeunload', () => {
+    if (currentVideoSession) flushCurrentSession(currentVideoSession, true, false);
+  });
 
   // 3. Initial check on page load
-  handleVideoNavigation();
+  handleYouTubePageChange();
 }
 
-function handleVideoNavigation() {
-  const videoId = extractVideoId();
+function handleYouTubePageChange() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const newVideoId = urlParams.get('v') || extractVideoId();
 
-  // If navigated away from previous video, flush pending buffer immediately
-  if (currentSession && currentSession.videoId !== videoId) {
-    flushProgress(true, false);
-    currentSession = null;
-    detachVideoListeners();
+  // If video changed or navigated away from watch page:
+  if (currentVideoSession && currentVideoSession.videoId !== newVideoId) {
+    console.log(`🎬 [Lectura Tracker] Video change detected: terminating previous session for ${currentVideoSession.videoId}`);
+    // 1. Flush final progress of old video
+    flushCurrentSession(currentVideoSession, true, false);
+    // 2. Teardown timers and event listeners of old video
+    if (currentVideoSession.intervalId) {
+      clearInterval(currentVideoSession.intervalId);
+      currentVideoSession.intervalId = null;
+    }
+    if (currentVideoSession.cleanup) {
+      currentVideoSession.cleanup();
+    }
+    currentVideoSession = null;
   }
 
-  if (!videoId) return;
+  if (sessionInitTimeout) {
+    clearTimeout(sessionInitTimeout);
+    sessionInitTimeout = null;
+  }
 
-  waitForVideoElement((video) => {
-    startTrackingVideo(video, videoId);
-  });
-}
-
-function waitForVideoElement(callback: (v: HTMLVideoElement) => void, retries = 0) {
-  if (retries > 60) return; // Timeout after ~18s
-
-  const video = document.querySelector<HTMLVideoElement>('video.html5-main-video, #movie_player video');
-  if (video && !isNaN(video.duration) && video.duration > 0) {
-    callback(video);
-  } else {
-    setTimeout(() => waitForVideoElement(callback, retries + 1), 300);
+  if (newVideoId) {
+    // If already tracking this exact video, do not re-init
+    if (currentVideoSession && currentVideoSession.videoId === newVideoId) {
+      return;
+    }
+    // 3. Initialize fresh isolated session for the new video
+    initNewVideoSession(newVideoId);
   }
 }
 
-async function startTrackingVideo(video: HTMLVideoElement, videoId: string) {
-  // If already tracking this exact video, avoid duplicate listeners
-  if (currentSession && currentSession.videoId === videoId && activeVideoElement === video) {
+async function initNewVideoSession(videoId: string, retryCount = 0) {
+  // If navigated away while waiting, abort
+  const currentUrlVideoId = extractVideoId();
+  if (currentUrlVideoId !== videoId) return;
+
+  const ytPlayer = document.getElementById('movie_player') as any;
+  const videoElement = document.querySelector<HTMLVideoElement>('video.html5-main-video, #movie_player video');
+
+  // Verify that the YouTube player and DOM have switched to the new video
+  let isPlayerReady = false;
+  if (ytPlayer && typeof ytPlayer.getVideoData === 'function') {
+    const data = ytPlayer.getVideoData();
+    if (data && data.video_id === videoId) {
+      isPlayerReady = true;
+    }
+  }
+
+  // If player isn't updated yet, wait and retry
+  if (!isPlayerReady && retryCount < 40) {
+    sessionInitTimeout = setTimeout(() => initNewVideoSession(videoId, retryCount + 1), 250);
     return;
   }
-
-  detachVideoListeners();
-  activeVideoElement = video;
 
   const settings = await StorageService.getSettings();
   if (settings.isEnabled === false || settings.trackListeningActivity === false) {
     return;
   }
 
-  // Extract rich metadata from YouTube page
-  const titleEl = document.querySelector(
-    'h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer'
-  );
-  const title =
-    titleEl?.textContent?.trim() ||
-    document.title.replace(/ - YouTube$/, '').trim() ||
-    `YouTube Video (${videoId})`;
+  // Extract accurate metadata from player or DOM
+  let title = '';
+  let channelName = '';
+  let duration = 0;
 
-  const channelEl = document.querySelector(
-    'ytd-channel-name a, #channel-name a, #upload-info #channel-name a'
-  ) as HTMLAnchorElement;
-  const channelName = channelEl?.textContent?.trim() || 'YouTube';
-  const channelUrl = channelEl?.href || `https://www.youtube.com/watch?v=${videoId}`;
+  if (ytPlayer && typeof ytPlayer.getVideoData === 'function') {
+    const data = ytPlayer.getVideoData();
+    if (data && data.video_id === videoId) {
+      title = data.title || '';
+      channelName = data.author || '';
+      duration = Math.round(ytPlayer.getDuration?.() || 0);
+    }
+  }
 
-  const studyLanguage = getStudyLanguage(settings);
+  if (!title) {
+    const titleElement = document.querySelector(
+      'h1.ytd-watch-metadata yt-formatted-string, #title h1 yt-formatted-string, h1.title.ytd-video-primary-info-renderer'
+    );
+    title = titleElement?.textContent?.trim() || document.title.replace(/ - YouTube$/, '').trim() || `YouTube Video (${videoId})`;
+  }
 
-  currentSession = {
+  if (!channelName) {
+    const channelElement = document.querySelector(
+      'ytd-channel-name a, #channel-name a, #upload-info #channel-name a'
+    ) as HTMLAnchorElement;
+    channelName = channelElement?.textContent?.trim() || 'YouTube';
+  }
+
+  if (!duration && videoElement && !isNaN(videoElement.duration)) {
+    duration = Math.round(videoElement.duration);
+  }
+
+  const session: VideoSession = {
     videoId,
     title,
     channelName,
-    channelUrl,
-    duration: Math.round(video.duration || 0),
-    studyLanguage,
+    channelUrl: `https://www.youtube.com/watch?v=${videoId}`,
+    duration,
+    studyLanguage: getStudyLanguage(settings),
+    maxWatchedPosition: 0,
+    lastReportedPosition: 0,
+    intervalId: null,
+    videoElement: videoElement || null,
   };
 
-  maxWatchedPosition = Math.round(video.currentTime || 0);
-  lastReportedPosition = 0;
+  currentVideoSession = session;
+  console.log(`🎯 [Lectura Tracker] Starting fresh isolated session for "${title}" (${videoId}, ${duration}s)`);
 
-  console.log('🎯 [Lectura Tracker] Tracking YouTube session with video.currentTime:', currentSession);
+  // Register the video open event (0s) immediately so it shows in TODAY
+  syncOpenSession(session);
 
-  // 1. Immediately register the video open event in history (with 0s) so it instantly appears in TODAY
-  syncOpenSession(currentSession);
+  if (videoElement) {
+    const onTimeUpdate = () => {
+      if (!session.videoElement || session.videoElement.paused) return;
+      const cur = Math.round(session.videoElement.currentTime || 0);
+      if (cur > session.maxWatchedPosition) {
+        session.maxWatchedPosition = cur;
+      }
+    };
 
-  // 2. video.currentTime as the single source of truth (immune to interval throttling or freeze gaps)
-  const onTimeUpdate = () => {
-    if (video.paused) return;
+    const onEnded = () => {
+      const total = Math.round(session.videoElement?.duration || session.duration || session.maxWatchedPosition);
+      session.maxWatchedPosition = total;
+      flushCurrentSession(session, true, true);
+    };
 
-    const current = Math.round(video.currentTime);
-    if (current > maxWatchedPosition) {
-      maxWatchedPosition = current;
-    }
-  };
+    const onPause = () => {
+      flushCurrentSession(session, false, false);
+    };
 
-  const onEnded = () => {
-    const total = Math.round(video.duration || maxWatchedPosition);
-    maxWatchedPosition = total;
-    flushProgress(true, true);
-  };
+    videoElement.addEventListener('timeupdate', onTimeUpdate);
+    videoElement.addEventListener('ended', onEnded);
+    videoElement.addEventListener('pause', onPause);
 
-  const onPause = () => {
-    flushProgress(false, false);
-  };
+    session.cleanup = () => {
+      videoElement.removeEventListener('timeupdate', onTimeUpdate);
+      videoElement.removeEventListener('ended', onEnded);
+      videoElement.removeEventListener('pause', onPause);
+    };
 
-  video.addEventListener('timeupdate', onTimeUpdate);
-  video.addEventListener('ended', onEnded);
-  video.addEventListener('pause', onPause);
-
-  // 3. Periodic progress flush every 10 seconds
-  if (periodicTrackerInterval) clearInterval(periodicTrackerInterval);
-  periodicTrackerInterval = setInterval(() => {
-    if (activeVideoElement && !activeVideoElement.paused && maxWatchedPosition > lastReportedPosition) {
-      const total = Math.round(activeVideoElement.duration || 0);
-      const isCompleted = activeVideoElement.ended || (total > 0 && maxWatchedPosition >= total - 5);
-      flushProgress(false, isCompleted);
-    }
-  }, 10000);
-
-  (video as any).__lectura_cleanup = () => {
-    video.removeEventListener('timeupdate', onTimeUpdate);
-    video.removeEventListener('ended', onEnded);
-    video.removeEventListener('pause', onPause);
-  };
-}
-
-function detachVideoListeners() {
-  if (periodicTrackerInterval) {
-    clearInterval(periodicTrackerInterval);
-    periodicTrackerInterval = null;
+    // Periodic progress flush every 10 seconds
+    session.intervalId = setInterval(() => {
+      if (
+        session.videoElement &&
+        !session.videoElement.paused &&
+        session.maxWatchedPosition > session.lastReportedPosition
+      ) {
+        const total = Math.round(session.videoElement.duration || session.duration || 0);
+        const isCompleted = session.videoElement.ended || (total > 0 && session.maxWatchedPosition >= total - 5);
+        flushCurrentSession(session, false, isCompleted);
+      }
+    }, 10000);
   }
-  if (activeVideoElement && (activeVideoElement as any).__lectura_cleanup) {
-    (activeVideoElement as any).__lectura_cleanup();
-    delete (activeVideoElement as any).__lectura_cleanup;
-  }
-  activeVideoElement = null;
 }
 
 async function syncOpenSession(session: VideoSession) {
@@ -234,55 +270,54 @@ async function syncOpenSession(session: VideoSession) {
   }
 }
 
-async function flushProgress(isFinal: boolean = false, isCompleted: boolean = false) {
-  if (!currentSession) return;
+async function flushCurrentSession(session: VideoSession, isFinal: boolean = false, isCompleted: boolean = false) {
+  if (!session) return;
 
   const currentDuration = Math.round(
-    activeVideoElement?.duration || currentSession.duration || 0
+    session.videoElement?.duration || session.duration || 0
   );
   const completed =
     isCompleted ||
-    (activeVideoElement ? activeVideoElement.ended : false) ||
-    (currentDuration > 0 && maxWatchedPosition >= currentDuration - 5);
+    (session.videoElement ? session.videoElement.ended : false) ||
+    (currentDuration > 0 && session.maxWatchedPosition >= currentDuration - 5);
 
   const effectiveTimeSpent = completed && currentDuration > 0
     ? currentDuration
-    : maxWatchedPosition;
+    : session.maxWatchedPosition;
 
-  // If already reported this progress and not finishing, skip
-  if (effectiveTimeSpent <= lastReportedPosition && !completed && !isFinal) {
+  if (effectiveTimeSpent <= session.lastReportedPosition && !completed && !isFinal) {
     return;
   }
 
-  const added = Math.max(0, effectiveTimeSpent - lastReportedPosition);
-  lastReportedPosition = effectiveTimeSpent;
+  const added = Math.max(0, effectiveTimeSpent - session.lastReportedPosition);
+  session.lastReportedPosition = effectiveTimeSpent;
 
   try {
     const settings = await StorageService.getSettings();
     if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
 
     const payload = {
-      videoId: currentSession.videoId,
-      lessonId: `lesson-yt_${currentSession.videoId}`,
-      title: currentSession.title,
-      channelName: currentSession.channelName,
-      channelUrl: currentSession.channelUrl,
+      videoId: session.videoId,
+      lessonId: `lesson-yt_${session.videoId}`,
+      title: session.title,
+      channelName: session.channelName,
+      channelUrl: session.channelUrl,
       duration: currentDuration,
       durationSeconds: currentDuration,
       timeSpentSeconds: effectiveTimeSpent,
       addedSeconds: added,
       watchedSeconds: effectiveTimeSpent,
-      studyLanguage: currentSession.studyLanguage,
+      studyLanguage: session.studyLanguage,
       isCompleted: completed,
       timestamp: Date.now(),
     };
 
     console.log(
-      `⏱️ [Lectura Tracker] Progress: ${effectiveTimeSpent}s / ${currentDuration}s (completed=${completed}, final=${isFinal})`
+      `⏱️ [Lectura Tracker] Progress (${session.videoId}): ${effectiveTimeSpent}s / ${currentDuration}s (+${added}s, completed=${completed}, final=${isFinal})`
     );
     sendPayload(settings, payload, isFinal);
   } catch (err) {
-    console.warn('[Lectura Tracker] flushProgress error:', err);
+    console.warn('[Lectura Tracker] flushCurrentSession error:', err);
   }
 }
 

@@ -89,49 +89,34 @@ export function handleTrackActivity(req: Request, res: Response) {
   try {
     const db = getDbConnection(userId);
 
-    // 1. Lessons table: find or create lesson
-    const lessonId = cleanVideoId ? `lesson-yt_${cleanVideoId}` : `custom_activity_${Date.now().toString(36)}`;
+    // Auto-cleanup any previously created empty phantom lessons for this user
+    try {
+      db.prepare(`
+        DELETE FROM lessons 
+        WHERE user_id = ? 
+          AND (text IS NULL OR TRIM(text) = '') 
+          AND (isBuiltIn IS NULL OR isBuiltIn = 0) 
+          AND (wordTimestamps IS NULL OR length(wordTimestamps) <= 2)
+      `).run(userId);
+    } catch (_) {}
+
+    // 1. Lessons table: ONLY update if lesson already exists (user explicitly imported it into the Library)
+    // NEVER create empty phantom lessons in the library during background video tracking!
+    const effectiveLessonId = cleanVideoId
+      ? (cleanVideoId.startsWith("lesson-yt_") ? cleanVideoId : `lesson-yt_${cleanVideoId}`)
+      : `custom_activity_${Date.now().toString(36)}`;
+
     let lesson = cleanVideoId
       ? (db.prepare(`
           SELECT id, timeSpentSeconds, status, duration 
           FROM lessons 
           WHERE (youtubeId = ? OR id = ? OR id = ?) AND user_id = ?
-        `).get(cleanVideoId, lessonId, `youtube_${cleanVideoId}`, userId) as any)
+        `).get(cleanVideoId, effectiveLessonId, `youtube_${cleanVideoId}`, userId) as any)
       : null;
 
     let incrementalSec = 0;
 
-    if (!lesson) {
-      const initialTimeSpent = completed && totalDuration > 0
-        ? totalDuration
-        : explicitTimeSpent !== undefined
-          ? explicitTimeSpent
-          : addedSec;
-      incrementalSec = initialTimeSpent;
-
-      db.prepare(`
-        INSERT INTO lessons (
-          id, user_id, title, text, youtubeId, channelName, channelUrl, channelAvatarUrl,
-          duration, sourceType, targetLanguage, translationLanguage,
-          timeSpentSeconds, status, isArchived, createdAt, updatedAt
-        ) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'youtube', ?, 'ru', ?, ?, 0, ?, ?)
-      `).run(
-        lessonId,
-        userId,
-        cleanTitle,
-        cleanVideoId,
-        cleanChannel,
-        cleanChannelUrl,
-        channelAvatarUrl || null,
-        totalDuration,
-        targetLang,
-        initialTimeSpent,
-        statusStr,
-        Date.now(),
-        now
-      );
-      lesson = { id: lessonId, timeSpentSeconds: initialTimeSpent, status: statusStr };
-    } else {
+    if (lesson) {
       const prevTimeSpent = lesson.timeSpentSeconds || 0;
       const newTimeSpent = completed && totalDuration > 0
         ? totalDuration
@@ -160,7 +145,14 @@ export function handleTrackActivity(req: Request, res: Response) {
         userId
       );
       lesson.timeSpentSeconds = newTimeSpent;
+    } else {
+      // Activity from browser extension only: DO NOT create a lesson in the library!
+      incrementalSec = addedSec > 0
+        ? addedSec
+        : (explicitTimeSpent !== undefined ? explicitTimeSpent : (completed && totalDuration > 0 ? totalDuration : 0));
     }
+
+    const recordedLessonId = lesson ? lesson.id : effectiveLessonId;
 
     // 2. study_activity_logs: Daily activity log (for analytics, streaks, and graphs)
     if (incrementalSec > 0) {
@@ -169,7 +161,7 @@ export function handleTrackActivity(req: Request, res: Response) {
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(userId, lessonId, date) 
         DO UPDATE SET secondsSpent = secondsSpent + ?, updatedAt = ?
-      `).run(userId, lesson.id, todayDate, incrementalSec, now, incrementalSec, now);
+      `).run(userId, recordedLessonId, todayDate, incrementalSec, now, incrementalSec, now);
     }
 
     // 3. reading_history: strictly required for Lectura's /history page
@@ -181,7 +173,7 @@ export function handleTrackActivity(req: Request, res: Response) {
           AND (lessonId = ? OR lessonId = ? OR (coverUrl LIKE ? AND lessonType = 'youtube'))
           AND timestamp LIKE ?
         ORDER BY timestamp DESC LIMIT 1
-      `).get(userId, lesson.id, `youtube_${cleanVideoId}`, `%${cleanVideoId}%`, `${todayDate}%`);
+      `).get(userId, recordedLessonId, `youtube_${cleanVideoId}`, `%${cleanVideoId}%`, `${todayDate}%`);
     }
 
     if (existingHistory) {
@@ -238,7 +230,7 @@ export function handleTrackActivity(req: Request, res: Response) {
       `).run(
         historyId,
         userId,
-        lesson.id,
+        recordedLessonId,
         cleanTitle,
         cleanCover,
         targetLang,
@@ -270,7 +262,7 @@ export function handleTrackActivity(req: Request, res: Response) {
 
     return res.json({
       success: true,
-      lessonId: lesson.id,
+      lessonId: recordedLessonId,
       addedSeconds: addedSec,
       timestamp: now
     });
@@ -281,7 +273,9 @@ export function handleTrackActivity(req: Request, res: Response) {
 }
 
 router.post("/history/track-activity", handleTrackActivity);
+router.post("/history/track", handleTrackActivity);
 router.post("/history/log", handleTrackActivity);
+router.post("/activity/track", handleTrackActivity);
 router.post("/activity/log", handleTrackActivity);
 
 export default router;

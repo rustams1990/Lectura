@@ -307,7 +307,7 @@ export function getLocalServerDb(userId: string = "default") {
 
     // Lessons — strictly this user's, newest first (Whisper books appear at the top)
     const lessonsRows = db.prepare(
-      "SELECT *, rowid FROM lessons WHERE user_id = ? ORDER BY COALESCE(createdAt, rowid * 1000) DESC"
+      "SELECT *, rowid FROM lessons WHERE user_id = ? AND (length(trim(COALESCE(text, ''))) > 0 OR isBuiltIn = 1 OR (wordTimestamps IS NOT NULL AND length(wordTimestamps) > 2)) ORDER BY COALESCE(createdAt, rowid * 1000) DESC"
     ).all(userId) as any[];
     const updateAudioStmt = db.prepare("UPDATE lessons SET audioUrl = ?, audioBase64 = NULL WHERE id = ? AND user_id = ?");
 
@@ -2094,7 +2094,7 @@ router.get("/lessons", (req: Request, res: Response) => {
 
   try {
     const db = getDbConnection(userId);
-    let query = "SELECT * FROM lessons WHERE user_id = ?";
+    let query = "SELECT * FROM lessons WHERE user_id = ? AND (length(trim(COALESCE(text, ''))) > 0 OR isBuiltIn = 1 OR (wordTimestamps IS NOT NULL AND length(wordTimestamps) > 2))";
     const params: any[] = [userId];
 
     const resolvedSource = (sourceType || type || lessonType) ? String(sourceType || type || lessonType).toLowerCase().trim() : null;
