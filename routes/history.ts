@@ -17,19 +17,35 @@ export function handleTrackActivity(req: Request, res: Response) {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    // Beacon / keepalive fallback: check request body or query params for user identification
     const fallbackUser = String(
       req.body?.userId ||
       req.body?.syncUser ||
-      req.query?.sync_user ||
+      req.body?.userEmail ||
+      req.headers["x-user-id"] ||
+      req.headers["x-user-email"] ||
       req.headers["x-local-sync-user"] ||
+      req.query?.sync_user ||
+      req.query?.userId ||
+      req.query?.userEmail ||
       ""
     ).trim();
 
     if (fallbackUser && fallbackUser !== "default") {
-      userId = fallbackUser;
+      try {
+        const db = getDbConnection("default");
+        const userRow = db.prepare("SELECT id FROM server_users WHERE id = ? OR lower(email) = ? LIMIT 1").get(fallbackUser, fallbackUser.toLowerCase()) as { id: string } | undefined;
+        userId = userRow ? userRow.id : fallbackUser;
+      } catch (_) {
+        userId = fallbackUser;
+      }
     } else {
-      userId = "default";
+      try {
+        const db = getDbConnection("default");
+        const primaryUser = db.prepare("SELECT id FROM server_users WHERE lower(email) = 'rustamniy@gmail.com' LIMIT 1").get() as { id: string } | undefined;
+        userId = primaryUser ? primaryUser.id : "default";
+      } catch (_) {
+        userId = "default";
+      }
     }
   }
 

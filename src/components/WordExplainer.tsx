@@ -20,6 +20,7 @@ import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFail
 import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
+import { useWordStore } from "../store/useWordStore";
 
 const sanitizeGrammarTag = (tag: string) => {
   if (!tag) return "";
@@ -539,8 +540,8 @@ const normalizeTranslationSemicolons = (text: string): string => {
 };
 
 function WordExplainer({
-  word,
-  sentence,
+  word: propWord,
+  sentence: propSentence,
   targetLanguage,
   translationLanguage,
   existingVocab,
@@ -562,6 +563,10 @@ function WordExplainer({
   onOpenLesson,
   className,
 }: WordExplainerProps) {
+  const storeSelectedWord = useWordStore((state) => state.selectedWord);
+  const word = propWord || storeSelectedWord?.cleanText || storeSelectedWord?.text || null;
+  const sentence = propSentence || storeSelectedWord?.contextSentence || null;
+
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   const activeSettings = settings || { readerTheme: "default" };

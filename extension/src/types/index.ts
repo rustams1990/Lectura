@@ -9,6 +9,7 @@ export interface ExtensionSettings {
   authToken: string;
   syncKey: string;
   selectedUserId?: string;
+  selectedUserEmail?: string;
   targetLanguage: string;
   nativeLanguage: string;
   enableYoutubeOverlay: boolean;

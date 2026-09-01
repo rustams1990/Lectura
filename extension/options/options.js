@@ -5,6 +5,7 @@
     authToken: "",
     syncKey: "",
     selectedUserId: "",
+    selectedUserEmail: "",
     targetLanguage: "en",
     nativeLanguage: "ru",
     enableYoutubeOverlay: true,
@@ -92,8 +93,9 @@
       const langKey = normalizeLangKey(lang);
       return new Promise((resolve) => {
         const key = `cached_words_${langKey}`;
-        chrome.storage.local.get([key], (res) => {
-          resolve(res[key] || {});
+        const vocabCacheKey = `vocab_cache_${langKey}`;
+        chrome.storage.local.get([key, vocabCacheKey], (res) => {
+          resolve(res[key] || res[vocabCacheKey] || {});
         });
       });
     }
@@ -104,7 +106,8 @@
       const langKey = normalizeLangKey(lang);
       return new Promise((resolve) => {
         const key = `cached_words_${langKey}`;
-        chrome.storage.local.set({ [key]: words }, () => resolve());
+        const vocabCacheKey = `vocab_cache_${langKey}`;
+        chrome.storage.local.set({ [key]: words, [vocabCacheKey]: words }, () => resolve());
       });
     }
     /**
@@ -132,8 +135,20 @@
         "Content-Type": "application/json",
         Accept: "application/json"
       };
-      if (settings.selectedUserId && settings.selectedUserId.trim()) {
-        headers["x-local-sync-user"] = settings.selectedUserId.trim();
+      const userId = (settings.selectedUserId || "").trim();
+      const userEmail = (settings.selectedUserEmail || "").trim();
+      if (userId) {
+        headers["x-local-sync-user"] = userId;
+        headers["X-User-Id"] = userId;
+        if (userId.includes("@") && !userEmail) {
+          headers["X-User-Email"] = userId;
+        }
+      }
+      if (userEmail) {
+        headers["X-User-Email"] = userEmail;
+        if (!headers["x-local-sync-user"]) {
+          headers["x-local-sync-user"] = userEmail;
+        }
       }
       if (settings.authToken && settings.authToken.trim()) {
         const clean = settings.authToken.trim();
@@ -141,6 +156,7 @@
       }
       if (settings.syncKey && settings.syncKey.trim()) {
         headers["x-local-sync-key"] = settings.syncKey.trim();
+        headers["X-Local-Sync-Key"] = settings.syncKey.trim();
       }
       return headers;
     }
@@ -1447,6 +1463,7 @@
           for (const p of profiles) {
             const opt = document.createElement("option");
             opt.value = p.id;
+            opt.dataset.email = p.email || "";
             opt.textContent = `\u{1F464} ${p.displayName} (${p.email || p.id})`;
             if (p.id === savedUserId || p.email === savedUserId) {
               opt.selected = true;
@@ -1463,11 +1480,14 @@
     getFormSettings() {
       const sizePreset = this.subtitleSizePresetSelect?.value || "md";
       const rawDomains = (this.disabledDomainsTextarea?.value || "").split("\n").map((s) => s.trim()).filter(Boolean);
+      const selectedOption = this.userProfileSelect?.selectedOptions?.[0];
+      const selectedEmail = selectedOption?.dataset?.email || "";
       return {
         serverUrl: this.serverUrlInput.value.trim().replace(/\/+$/, ""),
         authToken: this.authTokenInput.value.trim(),
         syncKey: this.syncKeyInput.value.trim(),
         selectedUserId: this.userProfileSelect.value,
+        selectedUserEmail: selectedEmail,
         targetLanguage: this.targetLanguageSelect.value,
         nativeLanguage: this.nativeLanguageSelect.value,
         ttsDialect: this.ttsDialectSelect ? this.ttsDialectSelect.value : "en-US",
@@ -1491,6 +1511,30 @@
         highlightKnownWords: this.highlightKnownWordsCheck.checked
       };
     }
+    async refreshVocabularyCache(settings) {
+      try {
+        const client = new LecturaApiClient(settings);
+        const studyLang = settings.targetLanguage || "en";
+        const wordData = await client.getWords(studyLang);
+        if (wordData?.map) {
+          await StorageService.setCachedWords(studyLang, wordData.map);
+        }
+        if (typeof chrome !== "undefined" && chrome.tabs?.query) {
+          chrome.tabs.query({}, (tabs) => {
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, { type: "VOCABULARY_UPDATED", language: studyLang }).catch(() => {
+                });
+              }
+            }
+          });
+        }
+        return wordData;
+      } catch (err) {
+        console.warn("[OptionsController] refreshVocabularyCache failed:", err);
+        return null;
+      }
+    }
     async saveSettings() {
       this.btnSave.disabled = true;
       try {
@@ -1501,7 +1545,9 @@
           sub_size_preset: settings.subtitleSizePreset || "md",
           popup_theme: settings.popupTheme || "glass"
         });
-        this.showNotification("All settings saved successfully!", "success");
+        const wordData = await this.refreshVocabularyCache(settings);
+        const countMsg = wordData?.count ? ` (${wordData.count} words synced)` : "";
+        this.showNotification(`All settings saved successfully!${countMsg}`, "success");
         await this.testConnection();
       } catch (err) {
         this.showNotification(`Failed to save settings: ${err.message}`, "error");
@@ -1516,8 +1562,10 @@
         const settings = this.getFormSettings();
         const testClient = new LecturaApiClient(settings);
         const health = await testClient.checkHealth();
+        const wordData = await this.refreshVocabularyCache(settings);
         const version = health.version ? `v${health.version}` : "Online";
-        this.serverStatusBadge.textContent = `Connected (${version})`;
+        const wordCount = wordData?.count !== void 0 ? ` \u2022 ${wordData.count} words` : "";
+        this.serverStatusBadge.textContent = `Connected (${version}${wordCount})`;
         this.serverStatusBadge.className = "badge badge-success";
       } catch (err) {
         this.serverStatusBadge.textContent = "Server Unreachable";

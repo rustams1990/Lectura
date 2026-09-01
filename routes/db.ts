@@ -2049,6 +2049,27 @@ const updateLessonHandler = (req: Request, res: Response) => {
 router.patch("/lessons/:id", updateLessonHandler);
 router.put("/lessons/:id", updateLessonHandler);
 
+router.post("/lessons/:id/archive", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (_) {
+    userId = "default";
+  }
+
+  const { id } = req.params;
+  const isArchived = req.body.isArchived !== undefined ? (req.body.isArchived ? 1 : 0) : 1;
+
+  try {
+    const db = getDbConnection(userId);
+    const result = db.prepare("UPDATE lessons SET isArchived = ? WHERE id = ? AND user_id = ?").run(isArchived, id, userId);
+    return res.json({ status: "ok", id, isArchived: isArchived === 1, changes: result.changes });
+  } catch (err: any) {
+    console.error("[POST /api/lessons/:id/archive] Error:", err);
+    return res.status(500).json({ error: "Failed to archive lesson: " + err.message });
+  }
+});
+
 // 16.0 List Lessons with Filter & SQL Sorting (supports YouTube duration ASC/DESC)
 router.get("/lessons", (req: Request, res: Response) => {
   let userId: string;

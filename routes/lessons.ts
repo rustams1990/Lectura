@@ -1,4 +1,4 @@
-﻿import { Router, Request, Response } from "express";
+import { Router, Request, Response } from "express";
 import { resolveUserId } from "./auth.ts";
 import { getDbConnection } from "./dbConnection.ts";
 
@@ -89,6 +89,28 @@ router.get("/", (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("[GET /api/lessons] Error:", err);
     return res.status(500).json({ error: "Failed to fetch lessons: " + err.message });
+  }
+});
+
+// POST /api/lessons/:id/archive: Toggle or set archive status for a single lesson
+router.post("/:id/archive", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (_) {
+    userId = "default";
+  }
+
+  const { id } = req.params;
+  const isArchived = req.body.isArchived !== undefined ? (req.body.isArchived ? 1 : 0) : 1;
+
+  try {
+    const db = getDbConnection(userId);
+    const result = db.prepare("UPDATE lessons SET isArchived = ? WHERE id = ? AND user_id = ?").run(isArchived, id, userId);
+    return res.json({ status: "ok", id, isArchived: isArchived === 1, changes: result.changes });
+  } catch (err: any) {
+    console.error("[POST /api/lessons/:id/archive] Error:", err);
+    return res.status(500).json({ error: "Failed to archive lesson: " + err.message });
   }
 });
 

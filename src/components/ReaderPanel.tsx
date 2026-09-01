@@ -43,6 +43,7 @@ import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { loadLessonTranslationsFromDb, fetchMissingSentenceTranslations } from "../services/sentenceTranslationService";
 import { BookTocDrawer } from "./BookTocDrawer";
+import { useWordStore, SelectedWordData } from "../store/useWordStore";
 import { useUIStore } from "../store/uiStore";
 import { useSettingsStore } from "../store/settingsStore";
 
@@ -320,7 +321,9 @@ function ReaderPanel({
     ? (settings?.bookWordCardMode || settings?.wordCardMode || storeCardMode || "floating")
     : (settings?.wordCardMode || storeCardMode || "floating");
   const isCalmSheet = wordCardMode === "calm-sheet" || wordCardMode === "floating";
-  const isFloatingModalOpen = isCalmSheet && Boolean(activeWord);
+  const storeSelectedWord = useWordStore((state) => state.selectedWord);
+  const currentActiveWord = storeSelectedWord?.cleanText || storeSelectedWord?.text || activeWord;
+  const isFloatingModalOpen = isCalmSheet && Boolean(currentActiveWord);
 
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
   const [unknownSearchQuery, setUnknownSearchQuery] = useState("");
@@ -862,6 +865,15 @@ function ReaderPanel({
     setHoveredWordObj(null);
     setHoveredWordId(null, isCjk);
     const targetEl = (e?.currentTarget as HTMLElement) || null;
+
+    const wordPayload: SelectedWordData = {
+      text: rawToken,
+      cleanText: resolvedClean,
+      contextSentence: associatedSentence.trim() || rawToken,
+      status: getWordInfo(cleanWord),
+    };
+    useWordStore.getState().setSelectedWord(wordPayload);
+
     onWordClick(resolvedClean, associatedSentence.trim(), targetEl);
   };
 
@@ -1603,7 +1615,7 @@ function ReaderPanel({
                   return text;
                 }).join("");
 
-                const isPhraseSelected = activeWord?.toLowerCase() === matchedPhrase.phrase.toLowerCase();
+                const isPhraseSelected = currentActiveWord?.toLowerCase() === matchedPhrase.phrase.toLowerCase();
                 const status = matchedPhrase.vocabItem.status;
 
                 let styleClass = "";
@@ -1719,7 +1731,7 @@ function ReaderPanel({
                   }
                 });
 
-                const isPhraseSelected = activeWord?.toLowerCase() === matchedDetected.phrase.toLowerCase();
+                const isPhraseSelected = currentActiveWord?.toLowerCase() === matchedDetected.phrase.toLowerCase();
 
                 // Build clean phrase display
                 let prefix = "";
@@ -1825,7 +1837,7 @@ function ReaderPanel({
                           }
                           const wordStatus = getWordInfo(tok.clean);
                           const resolvedCleanWord = resolveWord(tok.clean);
-                          const isWordActive = activeWord?.toLowerCase() === tok.clean.toLowerCase() || activeWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
+                          const isWordActive = currentActiveWord?.toLowerCase() === tok.clean.toLowerCase() || currentActiveWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
                           
                           const hasIdiomUnderline = idiomStyle === "underline" || idiomStyle === "hover";
                           let tokenStyleClass = getWordStatusClass(wordStatus, activeSettings.readerTheme, false, true, hasIdiomUnderline);
@@ -1887,7 +1899,7 @@ function ReaderPanel({
 
               const status = getWordInfo(cleanWord);
               const resolvedCleanWord = resolveWord(cleanWord);
-              const isActive = activeWord?.toLowerCase() === cleanWord.toLowerCase() || activeWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
+              const isActive = currentActiveWord?.toLowerCase() === cleanWord.toLowerCase() || currentActiveWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
 
               let isWordActive = false;
               if (

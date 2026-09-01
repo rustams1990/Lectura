@@ -737,6 +737,17 @@ class YouTubeLecturaOverlay {
 
     // Listen for direct theme & language update messages from Popup and Options pages
     chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'VOCABULARY_UPDATED') {
+        StorageService.getSettings().then((freshSettings) => {
+          this.settings = freshSettings;
+          const studyLang = message.language || freshSettings.targetLanguage;
+          this.syncVocabulary(studyLang).then(() => {
+            if (this.currentSubtitleText) {
+              this.renderSubtitleTokens(this.currentSubtitleText);
+            }
+          });
+        });
+      }
       if (message.type === 'UPDATE_POPUP_THEME' && message.theme) {
         this.applyPopupTheme(message.theme);
       }
@@ -2975,8 +2986,9 @@ class YouTubeLecturaOverlay {
     if (!this.settings) return;
     const lang = normalizeLangCode(specificLang || this.getEffectiveLang());
     try {
-      if (!this.cachedWordsByLang[lang]) {
-        this.cachedWordsByLang[lang] = await StorageService.getCachedWords(lang);
+      const localCached = await StorageService.getCachedWords(lang);
+      if (localCached && Object.keys(localCached).length > 0) {
+        this.cachedWordsByLang[lang] = localCached;
       }
       const res = await this.apiClient.getWords(lang);
       if (res && res.map) {

@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   authToken: '',
   syncKey: '',
   selectedUserId: '',
+  selectedUserEmail: '',
   targetLanguage: 'en',
   nativeLanguage: 'ru',
   enableYoutubeOverlay: true,
@@ -97,8 +98,9 @@ export class StorageService {
     const langKey = normalizeLangKey(lang);
     return new Promise((resolve) => {
       const key = `cached_words_${langKey}`;
-      chrome.storage.local.get([key], (res) => {
-        resolve(res[key] || {});
+      const vocabCacheKey = `vocab_cache_${langKey}`;
+      chrome.storage.local.get([key, vocabCacheKey], (res) => {
+        resolve(res[key] || res[vocabCacheKey] || {});
       });
     });
   }
@@ -110,7 +112,8 @@ export class StorageService {
     const langKey = normalizeLangKey(lang);
     return new Promise((resolve) => {
       const key = `cached_words_${langKey}`;
-      chrome.storage.local.set({ [key]: words }, () => resolve());
+      const vocabCacheKey = `vocab_cache_${langKey}`;
+      chrome.storage.local.set({ [key]: words, [vocabCacheKey]: words }, () => resolve());
     });
   }
 

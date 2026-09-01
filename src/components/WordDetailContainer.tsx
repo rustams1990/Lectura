@@ -6,6 +6,7 @@
 import React from "react";
 import { VocabItem, ReaderSettings, Lesson } from "../types";
 import { useSettingsStore } from "../store/settingsStore";
+import { useWordStore } from "../store/useWordStore";
 import WordExplainer from "./WordExplainer";
 import CalmSheetWordCard from "./CalmSheetWordCard";
 
@@ -37,12 +38,27 @@ export interface WordDetailContainerProps {
 
 export default function WordDetailContainer(props: WordDetailContainerProps) {
   const { wordCardMode: storeMode } = useSettingsStore();
+  const selectedWordData = useWordStore((state) => state.selectedWord);
+
+  const effectiveWord = props.word || selectedWordData?.cleanText || selectedWordData?.text || null;
+  const effectiveSentence = props.sentence || selectedWordData?.contextSentence || null;
+
+  const resolvedProps: WordDetailContainerProps = {
+    ...props,
+    word: effectiveWord,
+    sentence: effectiveSentence,
+    onClose: () => {
+      useWordStore.getState().setSelectedWord(null);
+      if (props.onClose) props.onClose();
+    },
+  };
+
   const effectiveMode = props.settings?.wordCardMode || storeMode || "full-inspector";
 
   // Desktop sidebar always shows the full Inspector, never the compact Calm Sheet popup
   if (props.forceInspector || effectiveMode !== "calm-sheet") {
-    return <WordExplainer {...props} />;
+    return <WordExplainer {...resolvedProps} />;
   }
 
-  return <CalmSheetWordCard {...props} />;
+  return <CalmSheetWordCard {...resolvedProps} />;
 }

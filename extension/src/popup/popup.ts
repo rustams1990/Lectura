@@ -459,9 +459,13 @@ class PopupController {
 
     if (this.userProfileSelect) {
       this.userProfileSelect.addEventListener('change', async () => {
+        const selectedOption = this.userProfileSelect?.selectedOptions?.[0];
         const selectedUserId = this.userProfileSelect?.value;
+        const selectedUserEmail = selectedOption?.dataset?.email || '';
         if (selectedUserId) {
-          await StorageService.saveSettings({ selectedUserId });
+          await StorageService.saveSettings({ selectedUserId, selectedUserEmail });
+          await this.syncWords();
+          this.loadActivityHistory();
         }
       });
     }
@@ -1215,6 +1219,7 @@ class PopupController {
         for (const p of profiles) {
           const opt = document.createElement('option');
           opt.value = p.id;
+          opt.dataset.email = p.email || '';
           opt.textContent = `👤 ${p.displayName} (${p.email || p.id})`;
           if (p.id === savedUserId || p.email === savedUserId) {
             opt.selected = true;
@@ -1231,10 +1236,13 @@ class PopupController {
 
   private getFormSettings(): Partial<ExtensionSettings> {
     const sizePreset = (this.subSizeSelect?.value || 'md') as 'sm' | 'md' | 'lg';
+    const selectedOption = this.userProfileSelect?.selectedOptions?.[0];
+    const selectedEmail = selectedOption?.dataset?.email || undefined;
     return {
       serverUrl: this.serverUrlInput ? this.serverUrlInput.value.trim().replace(/\/+$/, '') : undefined,
       authToken: this.authTokenInput ? this.authTokenInput.value.trim() : undefined,
       selectedUserId: this.userProfileSelect ? this.userProfileSelect.value : undefined,
+      selectedUserEmail: selectedEmail,
       targetLanguage: this.targetLanguageSelect ? this.targetLanguageSelect.value : 'es',
       ttsDialect: this.ttsDialectSelect ? this.ttsDialectSelect.value : 'en-US',
       subtitleSizePreset: sizePreset,
@@ -1277,8 +1285,9 @@ class PopupController {
         serverUrl: formSettings.serverUrl || settings.serverUrl || 'http://localhost:3000',
         authToken: formSettings.authToken || settings.authToken || '',
         selectedUserId: formSettings.selectedUserId || settings.selectedUserId || '',
-        syncKey: '',
-        targetLanguage: formSettings.targetLanguage || settings.targetLanguage || 'es',
+        selectedUserEmail: formSettings.selectedUserEmail || settings.selectedUserEmail || '',
+        syncKey: settings.syncKey || '',
+        targetLanguage: formSettings.targetLanguage || settings.targetLanguage || 'en',
         nativeLanguage: 'ru',
         enableYoutubeOverlay: true,
         enableInSituSelection: true,
@@ -1290,8 +1299,23 @@ class PopupController {
       });
 
       const health = await testClient.checkHealth() as any;
+      const targetLang = formSettings.targetLanguage || settings.targetLanguage || 'en';
+      const wordData = await testClient.getWords(targetLang);
+      if (wordData?.map) {
+        await StorageService.setCachedWords(targetLang, wordData.map);
+      }
+      if (typeof chrome !== 'undefined' && chrome.tabs?.query) {
+        chrome.tabs.query({}, (tabs) => {
+          for (const tab of tabs) {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, { type: 'VOCABULARY_UPDATED', language: targetLang }).catch(() => {});
+            }
+          }
+        });
+      }
+      const count = wordData?.count || (wordData?.words ? wordData.words.length : Object.keys(wordData?.map || {}).length);
       const versionStr = health.version ? `v${health.version}` : 'Online';
-      const userStr = health.userId ? ` • User: ${health.userId}` : '';
+      const userStr = count ? ` • ${count} words` : '';
 
       if (this.connectionBadge) {
         this.connectionBadge.textContent = `Connected (${versionStr})`;
@@ -1394,7 +1418,20 @@ class PopupController {
     try {
       const settings = await StorageService.getSettings();
       const res = await this.apiClient.getWords(settings.targetLanguage);
-      this.showAlert(`Synced ${res.count || 0} vocabulary words for ${settings.targetLanguage}!`, 'success');
+      if (res?.map) {
+        await StorageService.setCachedWords(settings.targetLanguage, res.map);
+      }
+      if (typeof chrome !== 'undefined' && chrome.tabs?.query) {
+        chrome.tabs.query({}, (tabs) => {
+          for (const tab of tabs) {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, { type: 'VOCABULARY_UPDATED', language: settings.targetLanguage }).catch(() => {});
+            }
+          }
+        });
+      }
+      const count = res.count || (res.words ? res.words.length : Object.keys(res.map || {}).length);
+      this.showAlert(`Synced ${count} vocabulary words for ${settings.targetLanguage}!`, 'success');
     } catch (err: any) {
       this.showAlert(`Word sync failed: ${err.message}`, 'error');
     } finally {

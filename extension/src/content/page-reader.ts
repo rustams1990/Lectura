@@ -2663,6 +2663,13 @@ export class PageReader {
 
   private setupMessageListener() {
     chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse) => {
+      if (message.type === 'VOCABULARY_UPDATED') {
+        StorageService.getSettings().then((freshSettings) => {
+          this.settings = freshSettings;
+          const studyLang = (message as any).language || freshSettings.targetLanguage;
+          this.syncVocabulary(studyLang);
+        });
+      }
       if (message.type === 'UPDATE_POPUP_THEME' && (message as any).theme) {
         this.applyPopupTheme((message as any).theme);
       }

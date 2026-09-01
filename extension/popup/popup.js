@@ -5,6 +5,7 @@
     authToken: "",
     syncKey: "",
     selectedUserId: "",
+    selectedUserEmail: "",
     targetLanguage: "en",
     nativeLanguage: "ru",
     enableYoutubeOverlay: true,
@@ -92,8 +93,9 @@
       const langKey = normalizeLangKey(lang);
       return new Promise((resolve) => {
         const key = `cached_words_${langKey}`;
-        chrome.storage.local.get([key], (res) => {
-          resolve(res[key] || {});
+        const vocabCacheKey = `vocab_cache_${langKey}`;
+        chrome.storage.local.get([key, vocabCacheKey], (res) => {
+          resolve(res[key] || res[vocabCacheKey] || {});
         });
       });
     }
@@ -104,7 +106,8 @@
       const langKey = normalizeLangKey(lang);
       return new Promise((resolve) => {
         const key = `cached_words_${langKey}`;
-        chrome.storage.local.set({ [key]: words }, () => resolve());
+        const vocabCacheKey = `vocab_cache_${langKey}`;
+        chrome.storage.local.set({ [key]: words, [vocabCacheKey]: words }, () => resolve());
       });
     }
     /**
@@ -132,8 +135,20 @@
         "Content-Type": "application/json",
         Accept: "application/json"
       };
-      if (settings.selectedUserId && settings.selectedUserId.trim()) {
-        headers["x-local-sync-user"] = settings.selectedUserId.trim();
+      const userId = (settings.selectedUserId || "").trim();
+      const userEmail = (settings.selectedUserEmail || "").trim();
+      if (userId) {
+        headers["x-local-sync-user"] = userId;
+        headers["X-User-Id"] = userId;
+        if (userId.includes("@") && !userEmail) {
+          headers["X-User-Email"] = userId;
+        }
+      }
+      if (userEmail) {
+        headers["X-User-Email"] = userEmail;
+        if (!headers["x-local-sync-user"]) {
+          headers["x-local-sync-user"] = userEmail;
+        }
       }
       if (settings.authToken && settings.authToken.trim()) {
         const clean = settings.authToken.trim();
@@ -141,6 +156,7 @@
       }
       if (settings.syncKey && settings.syncKey.trim()) {
         headers["x-local-sync-key"] = settings.syncKey.trim();
+        headers["X-Local-Sync-Key"] = settings.syncKey.trim();
       }
       return headers;
     }
@@ -1625,9 +1641,13 @@
       }
       if (this.userProfileSelect) {
         this.userProfileSelect.addEventListener("change", async () => {
+          const selectedOption = this.userProfileSelect?.selectedOptions?.[0];
           const selectedUserId = this.userProfileSelect?.value;
+          const selectedUserEmail = selectedOption?.dataset?.email || "";
           if (selectedUserId) {
-            await StorageService.saveSettings({ selectedUserId });
+            await StorageService.saveSettings({ selectedUserId, selectedUserEmail });
+            await this.syncWords();
+            this.loadActivityHistory();
           }
         });
       }
@@ -2301,6 +2321,7 @@
           for (const p of profiles) {
             const opt = document.createElement("option");
             opt.value = p.id;
+            opt.dataset.email = p.email || "";
             opt.textContent = `\u{1F464} ${p.displayName} (${p.email || p.id})`;
             if (p.id === savedUserId || p.email === savedUserId) {
               opt.selected = true;
@@ -2316,10 +2337,13 @@
     }
     getFormSettings() {
       const sizePreset = this.subSizeSelect?.value || "md";
+      const selectedOption = this.userProfileSelect?.selectedOptions?.[0];
+      const selectedEmail = selectedOption?.dataset?.email || void 0;
       return {
         serverUrl: this.serverUrlInput ? this.serverUrlInput.value.trim().replace(/\/+$/, "") : void 0,
         authToken: this.authTokenInput ? this.authTokenInput.value.trim() : void 0,
         selectedUserId: this.userProfileSelect ? this.userProfileSelect.value : void 0,
+        selectedUserEmail: selectedEmail,
         targetLanguage: this.targetLanguageSelect ? this.targetLanguageSelect.value : "es",
         ttsDialect: this.ttsDialectSelect ? this.ttsDialectSelect.value : "en-US",
         subtitleSizePreset: sizePreset,
@@ -2359,8 +2383,9 @@
           serverUrl: formSettings.serverUrl || settings.serverUrl || "http://localhost:3000",
           authToken: formSettings.authToken || settings.authToken || "",
           selectedUserId: formSettings.selectedUserId || settings.selectedUserId || "",
-          syncKey: "",
-          targetLanguage: formSettings.targetLanguage || settings.targetLanguage || "es",
+          selectedUserEmail: formSettings.selectedUserEmail || settings.selectedUserEmail || "",
+          syncKey: settings.syncKey || "",
+          targetLanguage: formSettings.targetLanguage || settings.targetLanguage || "en",
           nativeLanguage: "ru",
           enableYoutubeOverlay: true,
           enableInSituSelection: true,
@@ -2371,8 +2396,24 @@
           subtitleHighlightMode: formSettings.subtitleHighlightMode || "underline"
         });
         const health = await testClient.checkHealth();
+        const targetLang = formSettings.targetLanguage || settings.targetLanguage || "en";
+        const wordData = await testClient.getWords(targetLang);
+        if (wordData?.map) {
+          await StorageService.setCachedWords(targetLang, wordData.map);
+        }
+        if (typeof chrome !== "undefined" && chrome.tabs?.query) {
+          chrome.tabs.query({}, (tabs) => {
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, { type: "VOCABULARY_UPDATED", language: targetLang }).catch(() => {
+                });
+              }
+            }
+          });
+        }
+        const count = wordData?.count || (wordData?.words ? wordData.words.length : Object.keys(wordData?.map || {}).length);
         const versionStr = health.version ? `v${health.version}` : "Online";
-        const userStr = health.userId ? ` \u2022 User: ${health.userId}` : "";
+        const userStr = count ? ` \u2022 ${count} words` : "";
         if (this.connectionBadge) {
           this.connectionBadge.textContent = `Connected (${versionStr})`;
           this.connectionBadge.className = "ext-status-badge badge-connected";
@@ -2460,7 +2501,21 @@
       try {
         const settings = await StorageService.getSettings();
         const res = await this.apiClient.getWords(settings.targetLanguage);
-        this.showAlert(`Synced ${res.count || 0} vocabulary words for ${settings.targetLanguage}!`, "success");
+        if (res?.map) {
+          await StorageService.setCachedWords(settings.targetLanguage, res.map);
+        }
+        if (typeof chrome !== "undefined" && chrome.tabs?.query) {
+          chrome.tabs.query({}, (tabs) => {
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, { type: "VOCABULARY_UPDATED", language: settings.targetLanguage }).catch(() => {
+                });
+              }
+            }
+          });
+        }
+        const count = res.count || (res.words ? res.words.length : Object.keys(res.map || {}).length);
+        this.showAlert(`Synced ${count} vocabulary words for ${settings.targetLanguage}!`, "success");
       } catch (err) {
         this.showAlert(`Word sync failed: ${err.message}`, "error");
       } finally {

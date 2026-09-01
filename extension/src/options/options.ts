@@ -321,6 +321,7 @@ class OptionsController {
         for (const p of profiles) {
           const opt = document.createElement('option');
           opt.value = p.id;
+          opt.dataset.email = p.email || '';
           opt.textContent = `👤 ${p.displayName} (${p.email || p.id})`;
           if (p.id === savedUserId || p.email === savedUserId) {
             opt.selected = true;
@@ -342,11 +343,15 @@ class OptionsController {
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const selectedOption = this.userProfileSelect?.selectedOptions?.[0];
+    const selectedEmail = selectedOption?.dataset?.email || '';
+
     return {
       serverUrl: this.serverUrlInput.value.trim().replace(/\/+$/, ''),
       authToken: this.authTokenInput.value.trim(),
       syncKey: this.syncKeyInput.value.trim(),
       selectedUserId: this.userProfileSelect.value,
+      selectedUserEmail: selectedEmail,
       targetLanguage: this.targetLanguageSelect.value,
       nativeLanguage: this.nativeLanguageSelect.value,
       ttsDialect: this.ttsDialectSelect ? this.ttsDialectSelect.value : 'en-US',
@@ -371,6 +376,30 @@ class OptionsController {
     };
   }
 
+  private async refreshVocabularyCache(settings: ExtensionSettings): Promise<{ count?: number } | null> {
+    try {
+      const client = new LecturaApiClient(settings);
+      const studyLang = settings.targetLanguage || 'en';
+      const wordData = await client.getWords(studyLang);
+      if (wordData?.map) {
+        await StorageService.setCachedWords(studyLang, wordData.map);
+      }
+      if (typeof chrome !== 'undefined' && chrome.tabs?.query) {
+        chrome.tabs.query({}, (tabs) => {
+          for (const tab of tabs) {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, { type: 'VOCABULARY_UPDATED', language: studyLang }).catch(() => {});
+            }
+          }
+        });
+      }
+      return wordData;
+    } catch (err) {
+      console.warn('[OptionsController] refreshVocabularyCache failed:', err);
+      return null;
+    }
+  }
+
   private async saveSettings() {
     this.btnSave.disabled = true;
     try {
@@ -384,7 +413,9 @@ class OptionsController {
         popup_theme: settings.popupTheme || 'glass',
       });
 
-      this.showNotification('All settings saved successfully!', 'success');
+      const wordData = await this.refreshVocabularyCache(settings);
+      const countMsg = wordData?.count ? ` (${wordData.count} words synced)` : '';
+      this.showNotification(`All settings saved successfully!${countMsg}`, 'success');
       await this.testConnection();
     } catch (err: any) {
       this.showNotification(`Failed to save settings: ${err.message}`, 'error');
@@ -401,9 +432,11 @@ class OptionsController {
       const settings = this.getFormSettings();
       const testClient = new LecturaApiClient(settings);
       const health = await testClient.checkHealth();
+      const wordData = await this.refreshVocabularyCache(settings);
 
       const version = health.version ? `v${health.version}` : 'Online';
-      this.serverStatusBadge.textContent = `Connected (${version})`;
+      const wordCount = wordData?.count !== undefined ? ` • ${wordData.count} words` : '';
+      this.serverStatusBadge.textContent = `Connected (${version}${wordCount})`;
       this.serverStatusBadge.className = 'badge badge-success';
     } catch (err: any) {
       this.serverStatusBadge.textContent = 'Server Unreachable';

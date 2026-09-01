@@ -26,8 +26,22 @@ export class LecturaApiClient {
       Accept: 'application/json',
     };
 
-    if (settings.selectedUserId && settings.selectedUserId.trim()) {
-      headers['x-local-sync-user'] = settings.selectedUserId.trim();
+    const userId = (settings.selectedUserId || '').trim();
+    const userEmail = (settings.selectedUserEmail || '').trim();
+
+    if (userId) {
+      headers['x-local-sync-user'] = userId;
+      headers['X-User-Id'] = userId;
+      if (userId.includes('@') && !userEmail) {
+        headers['X-User-Email'] = userId;
+      }
+    }
+
+    if (userEmail) {
+      headers['X-User-Email'] = userEmail;
+      if (!headers['x-local-sync-user']) {
+        headers['x-local-sync-user'] = userEmail;
+      }
     }
 
     if (settings.authToken && settings.authToken.trim()) {
@@ -37,6 +51,7 @@ export class LecturaApiClient {
 
     if (settings.syncKey && settings.syncKey.trim()) {
       headers['x-local-sync-key'] = settings.syncKey.trim();
+      headers['X-Local-Sync-Key'] = settings.syncKey.trim();
     }
 
     return headers;
@@ -666,4 +681,9 @@ export class LecturaApiClient {
     }
     return { success: false };
   }
+}
+
+export async function fetchUserVocabulary(studyLanguage: string): Promise<{ words: any[]; map: WordMap; count?: number }> {
+  const client = new LecturaApiClient();
+  return await client.getWords(studyLanguage);
 }

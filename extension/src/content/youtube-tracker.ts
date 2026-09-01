@@ -290,9 +290,13 @@ function sendPayload(settings: ExtensionSettings, payload: any, isFinal: boolean
   const serverUrl = (settings.serverUrl || 'http://localhost:3000').replace(/\/+$/, '');
   const endpoint = `${serverUrl}/api/history/track-activity`;
 
+  const userId = (settings.selectedUserId || '').trim();
+  const userEmail = (settings.selectedUserEmail || '').trim();
+
   // Attach credentials directly into payload for sendBeacon and server parsing
-  payload.userId = settings.selectedUserId || 'default';
-  payload.syncUser = settings.selectedUserId || 'default';
+  payload.userId = userId || userEmail || 'default';
+  payload.syncUser = userId || userEmail || 'default';
+  payload.userEmail = userEmail || (userId.includes('@') ? userId : '');
   payload.syncKey = settings.syncKey || '';
   payload.authToken = settings.authToken || '';
 
@@ -305,9 +309,20 @@ function sendPayload(settings: ExtensionSettings, payload: any, isFinal: boolean
   }
   if (settings.syncKey) {
     headers['x-local-sync-key'] = settings.syncKey.trim();
+    headers['X-Local-Sync-Key'] = settings.syncKey.trim();
   }
-  if (settings.selectedUserId) {
-    headers['x-local-sync-user'] = settings.selectedUserId.trim();
+  if (userId) {
+    headers['x-local-sync-user'] = userId;
+    headers['X-User-Id'] = userId;
+    if (userId.includes('@') && !userEmail) {
+      headers['X-User-Email'] = userId;
+    }
+  }
+  if (userEmail) {
+    headers['X-User-Email'] = userEmail;
+    if (!headers['x-local-sync-user']) {
+      headers['x-local-sync-user'] = userEmail;
+    }
   }
 
   const jsonStr = JSON.stringify(payload);
@@ -330,8 +345,8 @@ function sendPayload(settings: ExtensionSettings, payload: any, isFinal: boolean
   if (isFinal && typeof navigator !== 'undefined' && navigator.sendBeacon) {
     try {
       const beaconUrl = `${endpoint}?sync_user=${encodeURIComponent(
-        settings.selectedUserId || 'default'
-      )}&sync_key=${encodeURIComponent(settings.syncKey || '')}`;
+        userId || userEmail || 'default'
+      )}&userId=${encodeURIComponent(userId || '')}&userEmail=${encodeURIComponent(userEmail || '')}&sync_key=${encodeURIComponent(settings.syncKey || '')}`;
       const blob = new Blob([jsonStr], { type: 'application/json' });
       navigator.sendBeacon(beaconUrl, blob);
     } catch (_) {}

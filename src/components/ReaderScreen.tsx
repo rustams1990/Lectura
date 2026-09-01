@@ -12,6 +12,7 @@ import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBI
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
 import { useSettingsStore } from "../store/settingsStore";
+import { useWordStore } from "../store/useWordStore";
 
 interface ReaderScreenProps {
   activeLesson: Lesson | null;
@@ -97,6 +98,9 @@ export default function ReaderScreen({
   const { t } = useTranslation();
   const { selectedElement, selectedWordRect } = useVocab();
   const { wordCardMode: storeCardMode } = useSettingsStore();
+  const storeSelectedWord = useWordStore((state) => state.selectedWord);
+  const effectiveSelectedWord = storeSelectedWord?.cleanText || storeSelectedWord?.text || selectedWord;
+  const effectiveContext = storeSelectedWord?.contextSentence || selectedContext;
   const isBookLesson = activeLesson?.lessonType === "book";
   const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
 
@@ -196,6 +200,7 @@ export default function ReaderScreen({
     if (typeof window !== "undefined") {
       (window as any).__lecturaLastModalClosedAt = Date.now();
     }
+    useWordStore.getState().setSelectedWord(null);
     setSelectedWord(null);
   };
 
@@ -569,8 +574,8 @@ export default function ReaderScreen({
               {activeLesson ? (
                 <WordDetailContainer
                   forceInspector={true}
-                  word={selectedWord}
-                  sentence={selectedContext}
+                  word={effectiveSelectedWord}
+                  sentence={effectiveContext}
                   targetLanguage={activeLesson.targetLanguage}
                   translationLanguage={activeLesson.translationLanguage}
                   existingVocab={activeVocabItem}
@@ -580,7 +585,7 @@ export default function ReaderScreen({
                   onDeleteVocab={handleDeleteVocabItem}
                   onSaveWordLink={handleSaveWordLink}
                   onDeleteWordLink={handleDeleteWordLink}
-                  onClose={() => setSelectedWord(null)}
+                  onClose={handleCloseWord}
                   settings={readerSettings}
                   onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
                   onWordClick={handleWordClick}
@@ -611,7 +616,7 @@ export default function ReaderScreen({
       </div>
 
       {/* ── Word Card Manager (Strict conditional render: Inspector | Floating | Sheet) ── */}
-      {selectedWord && activeLesson && (
+      {effectiveSelectedWord && activeLesson && (
         <>
           {/* 1. Center Inspector Modal: Rendered on mobile/tablets (< lg) and in Focus Mode without dark overlay or blur */}
           {showCenterModalInspector && (
@@ -633,8 +638,8 @@ export default function ReaderScreen({
                 onTouchStart={(e) => e.stopPropagation()}
               >
                 <WordExplainer
-                  word={selectedWord}
-                  sentence={selectedContext}
+                  word={effectiveSelectedWord}
+                  sentence={effectiveContext}
                   targetLanguage={activeLesson.targetLanguage}
                   translationLanguage={activeLesson.translationLanguage}
                   existingVocab={activeVocabItem}
@@ -662,8 +667,8 @@ export default function ReaderScreen({
           {/* 2. Floating Calm Sheet Popup (Preserves existing positioning near clicked word) */}
           {wordCardView === "floating" && (
             <FloatingWordPopup
-              word={selectedWord}
-              sentence={selectedContext}
+              word={effectiveSelectedWord}
+              sentence={effectiveContext}
               targetLanguage={activeLesson.targetLanguage}
               translationLanguage={activeLesson.translationLanguage}
               existingVocab={activeVocabItem}
@@ -712,8 +717,8 @@ export default function ReaderScreen({
                 </div>
                 <div className="overflow-y-auto max-h-[calc(75vh-32px)] sm:max-h-[calc(80vh-32px)] px-3 pb-6">
                   <WordDetailContainer
-                    word={selectedWord}
-                    sentence={selectedContext}
+                    word={effectiveSelectedWord}
+                    sentence={effectiveContext}
                     targetLanguage={activeLesson.targetLanguage}
                     translationLanguage={activeLesson.translationLanguage}
                     existingVocab={activeVocabItem}

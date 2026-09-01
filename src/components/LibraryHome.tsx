@@ -14,6 +14,7 @@ import PlaylistCard from "./playlist/PlaylistCard";
 import AddToPlaylistModal from "./playlist/AddToPlaylistModal";
 import { BookCard, BookStats, CoverPreset } from "./library/BookCard";
 import SortDropdown from "./SortDropdown";
+import { useLessonStore } from "../store/useLessonStore";
 
 export function getDifficultyBadgeStyles(_level?: string) {
   // Clean, unified, high-contrast style matching the language pill
@@ -681,6 +682,7 @@ function LibraryHome({
   const [filterType, setFilterType] = useState<"all" | "builtin" | "custom">("all");
   const [selectedLessonType, setSelectedLessonType] = useState<string>("All");
   const [showArchived, setShowArchived] = useState<boolean>(false);
+  const archivingIds = useLessonStore((state) => state.archivingIds);
   const [deletingLessonId, setDeletingLessonId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [sortBy, setSortBy] = useState<string>(() => {
@@ -874,7 +876,7 @@ function LibraryHome({
   const filteredLessons = useMemo(() => {
     const list = lessons.filter((lesson) => {
       // Check archive matching: if we click "active schema", show only non-archived books
-      const isBookArchived = !!lesson.isArchived;
+      const isBookArchived = archivingIds.has(lesson.id) ? true : !!lesson.isArchived;
       const matchesArchive = showArchived ? isBookArchived : !isBookArchived;
 
       // Do not clutter the main shelf with child lessons of a playlist unless searching or filtered
@@ -975,7 +977,7 @@ function LibraryHome({
       // default "pinned" / "newest": Newest first = higher timestamp first
       return getEffectiveTimestamp(b) - getEffectiveTimestamp(a);
     });
-  }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived, sortBy, vocab, wordLinks]);
+  }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived, sortBy, vocab, wordLinks, archivingIds]);
 
   // Filter playlists
   const filteredPlaylists = useMemo(() => {
@@ -1019,31 +1021,31 @@ function LibraryHome({
 
   const rawActiveCount = useMemo(() => {
     const activeLessons = lessons.filter(
-      (l) => !l.isArchived && matchesLanguageFilter(l.targetLanguage || (l as any).language)
+      (l) => !archivingIds.has(l.id) && !l.isArchived && matchesLanguageFilter(l.targetLanguage || (l as any).language)
     ).length;
     const activePlaylists = (playlists || []).filter(
       (p) => !p.isArchived && matchesLanguageFilter(p.language || (p as any).targetLanguage)
     ).length;
     return activeLessons + activePlaylists;
-  }, [lessons, playlists, selectedLanguage]);
+  }, [lessons, playlists, selectedLanguage, archivingIds]);
 
   const rawArchivedCount = useMemo(() => {
     const archivedLessons = lessons.filter(
-      (l) => l.isArchived && matchesLanguageFilter(l.targetLanguage || (l as any).language)
+      (l) => (archivingIds.has(l.id) || l.isArchived) && matchesLanguageFilter(l.targetLanguage || (l as any).language)
     ).length;
     const archivedPlaylists = (playlists || []).filter(
       (p) => p.isArchived && matchesLanguageFilter(p.language || (p as any).targetLanguage)
     ).length;
     return archivedLessons + archivedPlaylists;
-  }, [lessons, playlists, selectedLanguage]);
+  }, [lessons, playlists, selectedLanguage, archivingIds]);
 
   const totalActiveBooksCount = useMemo(() => {
-    return lessons.filter((l) => !l.isArchived).length + (playlists || []).filter((p) => !p.isArchived).length;
-  }, [lessons, playlists]);
+    return lessons.filter((l) => !archivingIds.has(l.id) && !l.isArchived).length + (playlists || []).filter((p) => !p.isArchived).length;
+  }, [lessons, playlists, archivingIds]);
 
   const totalArchivedBooksCount = useMemo(() => {
-    return lessons.filter((l) => l.isArchived).length + (playlists || []).filter((p) => p.isArchived).length;
-  }, [lessons, playlists]);
+    return lessons.filter((l) => archivingIds.has(l.id) || l.isArchived).length + (playlists || []).filter((p) => p.isArchived).length;
+  }, [lessons, playlists, archivingIds]);
 
   const preview = getUIPreviewCache();
   const isDataAvailable = lessons.length > 0 || (playlists && playlists.length > 0) || Object.keys(vocab || {}).length > 0;

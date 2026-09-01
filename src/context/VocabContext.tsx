@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { VocabItem, WordStatus } from "../types";
 import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
 import { vocabStore } from "../db";
+import { useWordStore } from "../store/useWordStore";
 /**
  * In-memory registry of locally mutated words with timestamps.
  * Prevents stale server fetch / full sync from reverting recent optimistic changes.
@@ -358,12 +359,6 @@ export function VocabProvider({ children }: { children: ReactNode }) {
   const wordClickDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleWordClick = (word: string, context: string, target?: HTMLElement | DOMRect | null) => {
-    // Ghost click shield: drop any synthetic clicks that arrive within 450ms of closing a modal
-    const lastClosedAt = typeof window !== "undefined" ? (window as any).__lecturaLastModalClosedAt || 0 : 0;
-    if (Date.now() - lastClosedAt < 450) {
-      return;
-    }
-
     if (wordClickDebounceRef.current) {
       clearTimeout(wordClickDebounceRef.current);
     }
@@ -381,12 +376,15 @@ export function VocabProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    wordClickDebounceRef.current = setTimeout(() => {
-      setSelectedWord(normalizedWord);
-      setContextSentence(normalizedContext);
-      setSelectedElement(element);
-      setSelectedWordRect(rect);
-    }, 120);
+    useWordStore.getState().setSelectedWord({
+      text: normalizedWord,
+      cleanText: normalizedWord,
+      contextSentence: normalizedContext,
+    });
+    setSelectedWord(normalizedWord);
+    setContextSentence(normalizedContext);
+    setSelectedElement(element);
+    setSelectedWordRect(rect);
   };
 
   const isWordModalOpen = Boolean(selectedWord);
@@ -394,9 +392,7 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     handleWordClick(word, context, target);
   };
   const closeWordModal = () => {
-    if (typeof window !== "undefined") {
-      (window as any).__lecturaLastModalClosedAt = Date.now();
-    }
+    useWordStore.getState().setSelectedWord(null);
     setSelectedWord(null);
     setSelectedElement(null);
     setSelectedWordRect(null);

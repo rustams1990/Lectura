@@ -4,6 +4,7 @@ var DEFAULT_SETTINGS = {
   authToken: "",
   syncKey: "",
   selectedUserId: "",
+  selectedUserEmail: "",
   targetLanguage: "en",
   nativeLanguage: "ru",
   enableYoutubeOverlay: true,
@@ -91,8 +92,9 @@ var StorageService = class {
     const langKey = normalizeLangKey(lang);
     return new Promise((resolve) => {
       const key = `cached_words_${langKey}`;
-      chrome.storage.local.get([key], (res) => {
-        resolve(res[key] || {});
+      const vocabCacheKey = `vocab_cache_${langKey}`;
+      chrome.storage.local.get([key, vocabCacheKey], (res) => {
+        resolve(res[key] || res[vocabCacheKey] || {});
       });
     });
   }
@@ -103,7 +105,8 @@ var StorageService = class {
     const langKey = normalizeLangKey(lang);
     return new Promise((resolve) => {
       const key = `cached_words_${langKey}`;
-      chrome.storage.local.set({ [key]: words }, () => resolve());
+      const vocabCacheKey = `vocab_cache_${langKey}`;
+      chrome.storage.local.set({ [key]: words, [vocabCacheKey]: words }, () => resolve());
     });
   }
   /**
@@ -131,8 +134,20 @@ var LecturaApiClient = class {
       "Content-Type": "application/json",
       Accept: "application/json"
     };
-    if (settings.selectedUserId && settings.selectedUserId.trim()) {
-      headers["x-local-sync-user"] = settings.selectedUserId.trim();
+    const userId = (settings.selectedUserId || "").trim();
+    const userEmail = (settings.selectedUserEmail || "").trim();
+    if (userId) {
+      headers["x-local-sync-user"] = userId;
+      headers["X-User-Id"] = userId;
+      if (userId.includes("@") && !userEmail) {
+        headers["X-User-Email"] = userId;
+      }
+    }
+    if (userEmail) {
+      headers["X-User-Email"] = userEmail;
+      if (!headers["x-local-sync-user"]) {
+        headers["x-local-sync-user"] = userEmail;
+      }
     }
     if (settings.authToken && settings.authToken.trim()) {
       const clean2 = settings.authToken.trim();
@@ -140,6 +155,7 @@ var LecturaApiClient = class {
     }
     if (settings.syncKey && settings.syncKey.trim()) {
       headers["x-local-sync-key"] = settings.syncKey.trim();
+      headers["X-Local-Sync-Key"] = settings.syncKey.trim();
     }
     return headers;
   }

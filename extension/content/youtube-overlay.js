@@ -5,6 +5,7 @@
     authToken: "",
     syncKey: "",
     selectedUserId: "",
+    selectedUserEmail: "",
     targetLanguage: "en",
     nativeLanguage: "ru",
     enableYoutubeOverlay: true,
@@ -92,8 +93,9 @@
       const langKey = normalizeLangKey(lang);
       return new Promise((resolve) => {
         const key = `cached_words_${langKey}`;
-        chrome.storage.local.get([key], (res) => {
-          resolve(res[key] || {});
+        const vocabCacheKey = `vocab_cache_${langKey}`;
+        chrome.storage.local.get([key, vocabCacheKey], (res) => {
+          resolve(res[key] || res[vocabCacheKey] || {});
         });
       });
     }
@@ -104,7 +106,8 @@
       const langKey = normalizeLangKey(lang);
       return new Promise((resolve) => {
         const key = `cached_words_${langKey}`;
-        chrome.storage.local.set({ [key]: words }, () => resolve());
+        const vocabCacheKey = `vocab_cache_${langKey}`;
+        chrome.storage.local.set({ [key]: words, [vocabCacheKey]: words }, () => resolve());
       });
     }
     /**
@@ -132,8 +135,20 @@
         "Content-Type": "application/json",
         Accept: "application/json"
       };
-      if (settings.selectedUserId && settings.selectedUserId.trim()) {
-        headers["x-local-sync-user"] = settings.selectedUserId.trim();
+      const userId = (settings.selectedUserId || "").trim();
+      const userEmail = (settings.selectedUserEmail || "").trim();
+      if (userId) {
+        headers["x-local-sync-user"] = userId;
+        headers["X-User-Id"] = userId;
+        if (userId.includes("@") && !userEmail) {
+          headers["X-User-Email"] = userId;
+        }
+      }
+      if (userEmail) {
+        headers["X-User-Email"] = userEmail;
+        if (!headers["x-local-sync-user"]) {
+          headers["x-local-sync-user"] = userEmail;
+        }
       }
       if (settings.authToken && settings.authToken.trim()) {
         const clean2 = settings.authToken.trim();
@@ -141,6 +156,7 @@
       }
       if (settings.syncKey && settings.syncKey.trim()) {
         headers["x-local-sync-key"] = settings.syncKey.trim();
+        headers["X-Local-Sync-Key"] = settings.syncKey.trim();
       }
       return headers;
     }
@@ -30554,8 +30570,11 @@
   function sendPayload(settings, payload, isFinal) {
     const serverUrl = (settings.serverUrl || "http://localhost:3000").replace(/\/+$/, "");
     const endpoint = `${serverUrl}/api/history/track-activity`;
-    payload.userId = settings.selectedUserId || "default";
-    payload.syncUser = settings.selectedUserId || "default";
+    const userId = (settings.selectedUserId || "").trim();
+    const userEmail = (settings.selectedUserEmail || "").trim();
+    payload.userId = userId || userEmail || "default";
+    payload.syncUser = userId || userEmail || "default";
+    payload.userEmail = userEmail || (userId.includes("@") ? userId : "");
     payload.syncKey = settings.syncKey || "";
     payload.authToken = settings.authToken || "";
     const headers = {
@@ -30567,9 +30586,20 @@
     }
     if (settings.syncKey) {
       headers["x-local-sync-key"] = settings.syncKey.trim();
+      headers["X-Local-Sync-Key"] = settings.syncKey.trim();
     }
-    if (settings.selectedUserId) {
-      headers["x-local-sync-user"] = settings.selectedUserId.trim();
+    if (userId) {
+      headers["x-local-sync-user"] = userId;
+      headers["X-User-Id"] = userId;
+      if (userId.includes("@") && !userEmail) {
+        headers["X-User-Email"] = userId;
+      }
+    }
+    if (userEmail) {
+      headers["X-User-Email"] = userEmail;
+      if (!headers["x-local-sync-user"]) {
+        headers["x-local-sync-user"] = userEmail;
+      }
     }
     const jsonStr = JSON.stringify(payload);
     try {
@@ -30587,8 +30617,8 @@
     if (isFinal && typeof navigator !== "undefined" && navigator.sendBeacon) {
       try {
         const beaconUrl = `${endpoint}?sync_user=${encodeURIComponent(
-          settings.selectedUserId || "default"
-        )}&sync_key=${encodeURIComponent(settings.syncKey || "")}`;
+          userId || userEmail || "default"
+        )}&userId=${encodeURIComponent(userId || "")}&userEmail=${encodeURIComponent(userEmail || "")}&sync_key=${encodeURIComponent(settings.syncKey || "")}`;
         const blob = new Blob([jsonStr], { type: "application/json" });
         navigator.sendBeacon(beaconUrl, blob);
       } catch (_2) {
@@ -31133,6 +31163,17 @@
         }
       });
       chrome.runtime.onMessage.addListener((message) => {
+        if (message.type === "VOCABULARY_UPDATED") {
+          StorageService.getSettings().then((freshSettings) => {
+            this.settings = freshSettings;
+            const studyLang = message.language || freshSettings.targetLanguage;
+            this.syncVocabulary(studyLang).then(() => {
+              if (this.currentSubtitleText) {
+                this.renderSubtitleTokens(this.currentSubtitleText);
+              }
+            });
+          });
+        }
         if (message.type === "UPDATE_POPUP_THEME" && message.theme) {
           this.applyPopupTheme(message.theme);
         }
@@ -33301,8 +33342,9 @@
       if (!this.settings) return;
       const lang = normalizeLangCode(specificLang || this.getEffectiveLang());
       try {
-        if (!this.cachedWordsByLang[lang]) {
-          this.cachedWordsByLang[lang] = await StorageService.getCachedWords(lang);
+        const localCached = await StorageService.getCachedWords(lang);
+        if (localCached && Object.keys(localCached).length > 0) {
+          this.cachedWordsByLang[lang] = localCached;
         }
         const res = await this.apiClient.getWords(lang);
         if (res && res.map) {

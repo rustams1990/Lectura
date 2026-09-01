@@ -23,6 +23,7 @@ import { useLesson } from "./context/LessonContext";
 import { useAuth } from "./context/AuthContext";
 import { useVocab, mergeCloudVocabWithLocal, localWordMutations, markWordLocallyMutated } from "./context/VocabContext";
 import { useSettingsStore, lastSettingsLocalMutationTime, markSettingsLocallyMutated } from "./store/settingsStore";
+import { useLessonStore } from "./store/useLessonStore";
 import { useToast } from "./context/ToastContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
@@ -1511,9 +1512,19 @@ export default function App() {
           const normalizedCloudVocab = normalizeVocabRecord(d.vocab);
           const normalizedCloudWordLinks = normalizeWordLinksRecord(d.wordLinks);
           if (d.lessons && Array.isArray(d.lessons)) {
-            setLessons(d.lessons);
-            lessonsRef.current = d.lessons;
-            lessonsStore.setItem("lessons", d.lessons).catch(() => {});
+            const { archivingIds } = useLessonStore.getState();
+            const safeLessons = d.lessons.map((l: any) => {
+              if (archivingIds.has(l.id)) {
+                const currentLocal = lessonsRef.current.find((item) => item.id === l.id);
+                if (currentLocal) {
+                  return { ...l, isArchived: currentLocal.isArchived };
+                }
+              }
+              return l;
+            });
+            setLessons(safeLessons);
+            lessonsRef.current = safeLessons;
+            lessonsStore.setItem("lessons", safeLessons).catch(() => {});
           }
           if (d.playlists && Array.isArray(d.playlists)) {
             setPlaylists(d.playlists);
@@ -2045,8 +2056,12 @@ export default function App() {
     if (storageMode !== "server") return;
 
     const handleFocusOrVisible = () => {
+      // Respect recent local changes: do NOT poll if local changes happened within last 15s
+      if (Date.now() - lastLocalChangeTime.current < 15000) {
+        return;
+      }
       if (document.visibilityState === "visible") {
-        loadDataFromLocalServer(true);
+        loadDataFromLocalServer(false);
       }
     };
 
@@ -2055,10 +2070,10 @@ export default function App() {
     window.addEventListener("focus", handleFocusOrVisible);
 
     const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        loadDataFromLocalServer();
+      if (document.visibilityState === "visible" && Date.now() - lastLocalChangeTime.current >= 15000) {
+        loadDataFromLocalServer(false);
       }
-    }, 10000);
+    }, 15000);
 
     return () => {
       window.removeEventListener("visibilitychange", handleFocusOrVisible);
@@ -2978,19 +2993,24 @@ export default function App() {
   const handleToggleArchiveLesson = (idToToggle: string, e: React.MouseEvent) => {
     e.stopPropagation();
     lastLocalChangeTime.current = Date.now();
+    let nextIsArchived = false;
     let next: Lesson[] = [];
     setLessons((prev) => {
       next = prev.map((l) => {
         if (l.id === idToToggle) {
+          nextIsArchived = !l.isArchived;
           return {
             ...l,
-            isArchived: !l.isArchived,
+            isArchived: nextIsArchived,
           };
         }
         return l;
       });
       return next;
     });
+
+    // 1. Optimistically lock in useLessonStore & invoke server endpoint
+    useLessonStore.getState().archiveLesson(idToToggle, nextIsArchived).catch(() => {});
 
     lessonsRef.current = next;
     lessonsStore.setItem("lessons", next).catch(() => {});
