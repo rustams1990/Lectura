@@ -264,7 +264,9 @@
     "restore_success": "Veriler yedekten başarıyla geri yüklendi!",
     "err_fetch_backups": "Sunucudan yedekler alınamadı",
     "err_restore_backup": "Yedek geri yüklenemedi",
-    "err_delete_backup": "Yedek silinemedi"
+    "err_delete_backup": "Yedek silinemedi",
+    "card_mode_sheet": "Alt Sayfa (Bottom Sheet)",
+    "card_mode_sheet_desc": "Rahat okuma için alta sabitlenmiş sayfa"
   },
   "header": {
     "open_menu": "Kenar Çubuğu Menüsünü Aç",

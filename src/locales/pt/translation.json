@@ -264,7 +264,9 @@
     "restore_success": "Dados restaurados com sucesso do backup!",
     "err_fetch_backups": "Falha ao buscar backups do servidor",
     "err_restore_backup": "Falha ao restaurar backup",
-    "err_delete_backup": "Falha ao excluir backup"
+    "err_delete_backup": "Falha ao excluir backup",
+    "card_mode_sheet": "Painel inferior (Bottom Sheet)",
+    "card_mode_sheet_desc": "Painel fixado na parte inferior para leitura confortável"
   },
   "header": {
     "open_menu": "Abra o menu da barra lateral",

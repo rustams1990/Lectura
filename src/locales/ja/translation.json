@@ -264,7 +264,9 @@
     "restore_success": "バックアップからデータが正常に復元されました！",
     "err_fetch_backups": "サーバーからバックアップを取得できませんでした",
     "err_restore_backup": "バックアップの復元に失敗しました",
-    "err_delete_backup": "バックアップの削除に失敗しました"
+    "err_delete_backup": "バックアップの削除に失敗しました",
+    "card_mode_sheet": "ボトムシート (Bottom Sheet)",
+    "card_mode_sheet_desc": "快適な読書のための下部固定シート"
   },
   "header": {
     "open_menu": "サイドバーメニューを開く",

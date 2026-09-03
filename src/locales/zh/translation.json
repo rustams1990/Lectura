@@ -264,7 +264,9 @@
     "restore_success": "已成功从备份恢复数据！",
     "err_fetch_backups": "无法从服务器获取备份列表",
     "err_restore_backup": "无法恢复备份",
-    "err_delete_backup": "无法删除备份"
+    "err_delete_backup": "无法删除备份",
+    "card_mode_sheet": "底部抽屉 (Bottom Sheet)",
+    "card_mode_sheet_desc": "底部固定的抽屉式卡片，提供舒适的阅读体验"
   },
   "header": {
     "open_menu": "打开侧边栏菜单",

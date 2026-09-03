@@ -264,7 +264,9 @@
     "restore_success": "Dati ripristinati con successo dal backup!",
     "err_fetch_backups": "Impossibile recuperare i backup dal server",
     "err_restore_backup": "Impossibile ripristinare il backup",
-    "err_delete_backup": "Impossibile eliminare il backup"
+    "err_delete_backup": "Impossibile eliminare il backup",
+    "card_mode_sheet": "Scheda inferiore (Bottom Sheet)",
+    "card_mode_sheet_desc": "Scheda ancorata in basso per una lettura confortevole"
   },
   "header": {
     "open_menu": "Apri il menu della barra laterale",

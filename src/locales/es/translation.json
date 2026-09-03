@@ -264,7 +264,9 @@
     "restore_success": "Data restored successfully from backup!",
     "err_fetch_backups": "Failed to fetch backups from server",
     "err_restore_backup": "Failed to restore backup",
-    "err_delete_backup": "Failed to delete backup"
+    "err_delete_backup": "Failed to delete backup",
+    "card_mode_sheet": "Hoja inferior (Bottom Sheet)",
+    "card_mode_sheet_desc": "Panel anclado en la parte inferior para una lectura cómoda"
   },
   "header": {
     "open_menu": "Open Sidebar Menu",

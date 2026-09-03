@@ -264,7 +264,9 @@
     "restore_success": "Dane zostały pomyślnie przywrócone z kopii zapasowej!",
     "err_fetch_backups": "Nie udało się pobrać listy kopii zapasowych z serwera",
     "err_restore_backup": "Nie udało się przywrócić kopii zapasowej",
-    "err_delete_backup": "Nie udało się usunąć kopii zapasowej"
+    "err_delete_backup": "Nie udało się usunąć kopii zapasowej",
+    "card_mode_sheet": "Dolny arkusz (Bottom Sheet)",
+    "card_mode_sheet_desc": "Przypięty u dołu arkusz dla wygodnego czytania"
   },
   "header": {
     "open_menu": "Otwórz menu paska bocznego",

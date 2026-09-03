@@ -264,7 +264,9 @@
     "restore_success": "백업에서 데이터가 성공적으로 복원되었습니다!",
     "err_fetch_backups": "서버에서 백업 목록을 가져오지 못했습니다",
     "err_restore_backup": "백업 복원 실패",
-    "err_delete_backup": "백업 삭제 실패"
+    "err_delete_backup": "백업 삭제 실패",
+    "card_mode_sheet": "하단 시트 (Bottom Sheet)",
+    "card_mode_sheet_desc": "편안한 독서를 위해 하단에 고정된 시트"
   },
   "header": {
     "open_menu": "사이드바 메뉴 열기",

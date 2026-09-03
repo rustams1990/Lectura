@@ -857,7 +857,7 @@ export default function SettingsModal({
                 : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
             }`}
           >
-            🛡️ {t('settings.tab_ignore_lists', 'Игнор-листы')}
+            🛡️ {t('settings.tab_ignore_lists', 'Ignore Lists')}
           </button>
           <button
             onClick={() => {
@@ -1302,10 +1302,10 @@ export default function SettingsModal({
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between gap-4">
                 <div className="space-y-0.5">
                   <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                    {t("settings.dim_covers_label", "Затемнение обложек в библиотеке")}
+                    {t("settings.dim_covers_label", "Dim covers in library")}
                   </h4>
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    {t("settings.dim_covers_desc", "Накладывать затемняющий градиентный фильтр на обложки книг для контраста текста (по умолчанию выключено).")}
+                    {t("settings.dim_covers_desc", "Apply dimming gradient filter over book covers for text contrast (disabled by default).")}
                   </p>
                 </div>
 
@@ -1328,10 +1328,10 @@ export default function SettingsModal({
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between gap-4">
                 <div className="space-y-0.5">
                   <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                    {t("settings.card_title_position_label", "Расположение названий в карточках")}
+                    {t("settings.card_title_position_label", "Title and badges below cover (YouTube style)")}
                   </h4>
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    {t("settings.card_title_position_desc", "Показывать название и бейджи под обложкой (как на YouTube) для чистой картинки и 100% читаемости.")}
+                    {t("settings.card_title_position_desc", "Display titles and language tags below the cover image for clean visuals and 100% readability.")}
                   </p>
                 </div>
 
@@ -1358,10 +1358,10 @@ export default function SettingsModal({
                   </div>
                   <div className="flex-1">
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      {t("explainer.default_video_mode", "Режим видео по умолчанию (YouTube)")}
+                      {t("explainer.default_video_mode", "Default YouTube / Video View Mode")}
                     </h4>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                      {t("settings.default_video_mode_desc", "Выберите, как видео-уроки открываются на мобильных устройствах и планшетах.")}
+                      {t("settings.default_video_mode_desc", "Choose how YouTube and video lessons open on mobile devices and tablets.")}
                     </p>
                   </div>
                 </div>
@@ -1377,10 +1377,10 @@ export default function SettingsModal({
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      🎯 {t("explainer.video_mode_focus", "Режим фокуса")}
+                      🎯 {t("explainer.video_mode_focus", "Focus Mode (Default on mobile/tablet)")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.video_mode_focus_hint", "По умолчанию на планшетах и смартфонах")}
+                      {t("settings.video_mode_focus_hint", "Default on mobile & tablets")}
                     </span>
                   </button>
 
@@ -1394,10 +1394,10 @@ export default function SettingsModal({
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      🪟 {t("explainer.video_mode_floating", "Плавающее окно (PiP)")}
+                      🪟 {t("explainer.video_mode_floating", "Floating Window (PiP)")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.video_mode_floating_hint", "Компактное окно поверх текста")}
+                      {t("settings.video_mode_floating_hint", "Compact floating window over text")}
                     </span>
                   </button>
 
@@ -1411,10 +1411,10 @@ export default function SettingsModal({
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      ⏹️ {t("explainer.video_mode_off", "Закрыто")}
+                      ⏹️ {t("explainer.video_mode_off", "Closed by Default (open manually)")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.video_mode_off_hint", "Открывать только вручную")}
+                      {t("settings.video_mode_off_hint", "Open manually only")}
                     </span>
                   </button>
                 </div>
@@ -1428,10 +1428,10 @@ export default function SettingsModal({
                   </div>
                   <div className="flex-1">
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      {t("settings.word_card_mode", "Вид карточки слова")}
+                      {t("settings.word_card_mode", "Word Card View")}
                     </h4>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                      {t("settings.word_card_mode_desc", "Выберите режим всплывающего окна при клике на слово в тексте.")}
+                      {t("settings.word_card_mode_desc", "Choose the popup card style when clicking a word in text.")}
                     </p>
                   </div>
                 </div>
@@ -1453,10 +1453,10 @@ export default function SettingsModal({
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      🔬 {t("settings.card_mode_full", "Инспектор")}
+                      🔬 {t("settings.card_mode_full", "Full Inspector")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_full_desc", "Модальное окно по центру экрана с полной информацией")}
+                      {t("settings.card_mode_full_desc", "Full panel with all tags and translation providers")}
                     </span>
                   </button>
 
@@ -1476,10 +1476,10 @@ export default function SettingsModal({
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      🍃 {t("settings.card_mode_calm", "Плавающий (Floating)")}
+                      🍃 {t("settings.card_mode_calm", "Calm Sheet (Minimalist)")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_calm_desc", "Компактный попап около слова со спокойными табами")}
+                      {t("settings.card_mode_calm_desc", "Light calm card with tabs, direct translation, and 1–5 status bar")}
                     </span>
                   </button>
 
@@ -1499,10 +1499,10 @@ export default function SettingsModal({
                     }`}
                   >
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      📱 {t("settings.card_mode_sheet", "Шторка (Bottom Sheet)")}
+                      📱 {t("settings.card_mode_sheet", "Bottom Sheet")}
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_sheet_desc", "Прижатая к низу шторка для комфортного чтения")}
+                      {t("settings.card_mode_sheet_desc", "Docked sheet at the bottom for comfortable reading")}
                     </span>
                   </button>
                 </div>
@@ -1934,12 +1934,12 @@ export default function SettingsModal({
                   <div className="flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                     <h4 className="text-xs sm:text-sm font-black text-zinc-800 dark:text-white uppercase tracking-wider">
-                      {t('settings.profile_and_sync', 'Профиль и Синхронизация')}
+                      {t('settings.profile_and_sync', 'Profile & Sync')}
                     </h4>
                   </div>
                   <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/60">
                     <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-                    {t('settings.sync_active', 'Синхронизация активна')}
+                    {t('settings.sync_active', 'Sync Active')}
                   </span>
                 </div>
 
@@ -1954,10 +1954,10 @@ export default function SettingsModal({
                         />
                         <div>
                           <div className="text-xs font-black text-zinc-900 dark:text-white">
-                            {activeUser.displayName || activeUser.username || activeUser.email || "Пользователь"}
+                            {activeUser.displayName || activeUser.username || activeUser.email || "User"}
                           </div>
                           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                            {t('settings.profile_sync_desc', 'Все материалы, слова и прогресс автоматически сохраняются в вашей базе данных SQLite.')}
+                            {t('settings.profile_sync_desc', 'All materials, words, and progress are automatically saved to your SQLite database.')}
                           </p>
                         </div>
                       </div>
@@ -1969,7 +1969,7 @@ export default function SettingsModal({
                             onClick={onOpenAuthModal}
                             className="flex-1 sm:flex-initial px-3.5 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 rounded-xl font-bold text-xs transition cursor-pointer"
                           >
-                            {t('settings.switch_profile', 'Сменить профиль')}
+                            {t('settings.switch_profile', 'Switch Profile')}
                           </button>
                         )}
                         {onLogout && (
@@ -1978,7 +1978,7 @@ export default function SettingsModal({
                             onClick={onLogout}
                             className="px-3.5 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-xl font-bold text-xs transition cursor-pointer"
                           >
-                            {t('settings.logout', 'Выйти')}
+                            {t('settings.logout', 'Log out')}
                           </button>
                         )}
                       </div>
@@ -1989,11 +1989,11 @@ export default function SettingsModal({
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
                           <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                          <span>{t('auth.password_hint_label', 'Подсказка к паролю:')}</span>
+                          <span>{t('auth.password_hint_label', 'Password hint:')}</span>
                         </label>
                         {hintSavedSuccess && (
                           <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <Check className="w-3 h-3" /> {t('auth.password_hint_saved', 'Сохранено')}
+                            <Check className="w-3 h-3" /> {t('auth.password_hint_saved', 'Saved')}
                           </span>
                         )}
                       </div>
@@ -2005,7 +2005,7 @@ export default function SettingsModal({
                             setHintInput(e.target.value);
                             setHintSavedSuccess(false);
                           }}
-                          placeholder={t('auth.placeholder_password_hint', 'Подсказка к паролю (например: девичья фамилия матери)')}
+                          placeholder={t('auth.placeholder_password_hint', 'Password hint (e.g. mother maiden name)')}
                           className="flex-1 text-xs px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
                         />
                         <button
@@ -2018,20 +2018,20 @@ export default function SettingsModal({
                               const res = await updateProfile({ passwordHint: hintInput.trim() || null });
                               if (res.success) {
                                 setHintSavedSuccess(true);
-                                showToast(t('auth.password_hint_saved', 'Подсказка к паролю сохранена!'), 'success');
+                                showToast(t('auth.password_hint_saved', 'Password hint saved!'), 'success');
                                 setTimeout(() => setHintSavedSuccess(false), 3000);
                               } else {
-                                showToast(res.error || 'Ошибка при сохранении', 'error');
+                                showToast(res.error || 'Error saving hint', 'error');
                               }
                             } catch (e: any) {
-                              showToast(e.message || 'Ошибка', 'error');
+                              showToast(e.message || 'Error', 'error');
                             } finally {
                               setIsSavingHint(false);
                             }
                           }}
                           className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 shadow-sm shrink-0"
                         >
-                          {t('auth.password_hint_save_btn', 'Сохранить')}
+                          {t('auth.password_hint_save_btn', 'Save')}
                         </button>
                       </div>
                     </div>
@@ -2040,10 +2040,10 @@ export default function SettingsModal({
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800">
                     <div>
                       <div className="text-xs font-black text-zinc-900 dark:text-white">
-                        {t('settings.guest_profile', 'Гостевой режим')}
+                        {t('settings.guest_profile', 'Guest Mode')}
                       </div>
                       <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                        {t('settings.guest_desc', 'Войдите или создайте аккаунт, чтобы сохранять материалы и синхронизировать прогресс чтения между устройствами.')}
+                        {t('settings.guest_desc', 'Log in or create an account to save materials and sync reading progress across devices.')}
                       </p>
                     </div>
 
@@ -2053,7 +2053,7 @@ export default function SettingsModal({
                         onClick={onOpenAuthModal}
                         className="w-full sm:w-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs transition cursor-pointer shadow-sm shrink-0"
                       >
-                        {t('settings.login_or_register', 'Войти в профиль')}
+                        {t('settings.login_or_register', 'Log In')}
                       </button>
                     )}
                   </div>

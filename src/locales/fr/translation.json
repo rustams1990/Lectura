@@ -264,7 +264,9 @@
     "restore_success": "Données restaurées avec succès depuis la sauvegarde !",
     "err_fetch_backups": "Échec de la récupération des sauvegardes depuis le serveur",
     "err_restore_backup": "Échec de la restauration de la sauvegarde",
-    "err_delete_backup": "Échec de la suppression de la sauvegarde"
+    "err_delete_backup": "Échec de la suppression de la sauvegarde",
+    "card_mode_sheet": "Volet inférieur (Bottom Sheet)",
+    "card_mode_sheet_desc": "Volet ancré en bas pour une lecture confortable"
   },
   "header": {
     "open_menu": "Ouvrir le menu de la barre latérale",
