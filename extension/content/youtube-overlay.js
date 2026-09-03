@@ -31556,16 +31556,14 @@
       .lectura-subtitles-box,
       .lectura-subtitles-box p {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-        font-size: var(--lectura-sub-font-size, 22px) !important;
+        font-size: var(--lectura-sub-current-font-size, var(--lectura-sub-font-size, 22px)) !important;
         font-weight: 700 !important;
         line-height: 1.45 !important;
         color: #ffffff !important;           /* \u0421\u0422\u0420\u041E\u0413\u041E \u0411\u0415\u041B\u042B\u0419 \u0426\u0412\u0415\u0422 \u0414\u041B\u042F \u041F\u0423\u041D\u041A\u0422\u0423\u0410\u0426\u0418\u0418 \u0418 \u0422\u0415\u041A\u0421\u0422\u0410 */
         margin: 0 !important;
         padding: 0 !important;
         display: block !important;
-        white-space: normal !important; /* \u041C\u044F\u0433\u043A\u0438\u0439 \u043F\u0435\u0440\u0435\u043D\u043E\u0441 \u043F\u043E \u0441\u043B\u043E\u0432\u0430\u043C \u0434\u043B\u044F \u043F\u0440\u0435\u0434\u043E\u0442\u0432\u0440\u0430\u0449\u0435\u043D\u0438\u044F \u0432\u044B\u043B\u0435\u0442\u0430\u043D\u0438\u044F \u0437\u0430 \u044D\u043A\u0440\u0430\u043D */
-        overflow-wrap: break-word !important;
-        word-break: normal !important;
+        white-space: nowrap !important; /* \u0420\u043E\u0432\u043D\u043E 1 \u0438\u043B\u0438 2 \u0430\u043A\u043A\u0443\u0440\u0430\u0442\u043D\u044B\u0435 \u0441\u0442\u0440\u043E\u043A\u0438, \u0431\u0435\u0437 \u0441\u043F\u043E\u043B\u0437\u0430\u043D\u0438\u044F \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u0445 \u0441\u043B\u043E\u0432 */
         text-align: center !important;
       }
 
@@ -31616,7 +31614,7 @@
       .ytp-fullscreen .lectura-sub-line,
       .ytp-fullscreen .sub-line {
         /* \u0412 \u043F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u043E\u043C \u0440\u0435\u0436\u0438\u043C\u0435 \u0443\u0432\u0435\u043B\u0438\u0447\u0438\u0432\u0430\u0435\u043C \u0448\u0440\u0438\u0444\u0442 \u043F\u0440\u043E\u043F\u043E\u0440\u0446\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u043E\u043C\u0443 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044E */
-        font-size: calc(var(--lectura-sub-font-size, 22px) * 1.18) !important;
+        font-size: var(--lectura-sub-current-font-size, calc(var(--lectura-sub-font-size, 22px) * 1.18)) !important;
         line-height: 1.45 !important;
         white-space: nowrap !important;
       }
@@ -34005,46 +34003,53 @@
       const isFullscreen = document.fullscreenElement !== null || this.playerContainer?.classList.contains("ytp-fullscreen") || document.querySelector(".html5-video-player")?.classList.contains("ytp-fullscreen");
       const playerEl = document.querySelector("#movie_player, .html5-video-player") || this.playerContainer;
       const playerWidth = playerEl?.clientWidth || window.innerWidth;
-      const currentFontSize = this.settings?.subtitleFontSize || 22;
-      const effectiveFontSize = isFullscreen ? currentFontSize * 1.18 : currentFontSize;
-      const approxCharWidth = effectiveFontSize * 0.62;
-      const maxCharsPerLine = Math.max(38, Math.floor(playerWidth * 0.88 / approxCharWidth));
+      const baseFontSize = this.settings?.subtitleFontSize || 22;
+      const targetFontSize = isFullscreen ? baseFontSize * 1.18 : baseFontSize;
       const totalChars = words.reduce((acc, w) => acc + w.length, 0) + (words.length - 1);
-      let lines = [];
-      if (totalChars <= maxCharsPerLine) {
-        lines = [words];
+      let line1Words = [];
+      let line2Words = [];
+      if (words.length <= 4 || totalChars <= 38) {
+        line1Words = words;
       } else {
-        const targetLinesCount = totalChars > maxCharsPerLine * 1.8 ? 3 : 2;
-        const targetCharsPerLine = Math.ceil(totalChars / targetLinesCount);
-        let currentLine = [];
+        const targetHalf = totalChars / 2;
         let currentChars = 0;
-        for (let i3 = 0; i3 < words.length; i3++) {
-          const word = words[i3];
-          const wordLen = word.length + (currentLine.length > 0 ? 1 : 0);
-          const remainingWords = words.length - i3;
-          const remainingLines = targetLinesCount - lines.length;
-          if (currentLine.length > 0 && lines.length < targetLinesCount - 1 && (currentChars + wordLen > targetCharsPerLine || currentChars >= targetCharsPerLine * 0.85) && remainingWords >= remainingLines) {
-            lines.push(currentLine);
-            currentLine = [word];
-            currentChars = word.length;
-          } else {
-            currentLine.push(word);
-            currentChars += wordLen;
+        let bestSplitIndex = 1;
+        let minDiff = Infinity;
+        for (let i3 = 0; i3 < words.length - 1; i3++) {
+          currentChars += words[i3].length + (i3 > 0 ? 1 : 0);
+          const diff = Math.abs(currentChars - targetHalf);
+          if (diff < minDiff) {
+            minDiff = diff;
+            bestSplitIndex = i3 + 1;
           }
         }
-        if (currentLine.length > 0) {
-          lines.push(currentLine);
-        }
+        line1Words = words.slice(0, bestSplitIndex);
+        line2Words = words.slice(bestSplitIndex);
       }
-      for (let l2 = 0; l2 < lines.length; l2++) {
-        const lineWords = lines[l2];
-        if (lineWords.length === 0) continue;
-        const lineDiv = document.createElement("div");
-        lineDiv.className = "lectura-sub-line";
-        for (let i3 = 0; i3 < lineWords.length; i3++) {
-          renderWordToken(lineWords[i3], lineDiv, i3 === lineWords.length - 1);
+      const line1Chars = line1Words.reduce((acc, w) => acc + w.length, 0) + Math.max(0, line1Words.length - 1);
+      const line2Chars = line2Words.reduce((acc, w) => acc + w.length, 0) + Math.max(0, line2Words.length - 1);
+      const maxLineChars = Math.max(line1Chars, line2Chars);
+      const availableWidth = Math.max(280, playerWidth * (isFullscreen ? 0.9 : 0.92) - 36);
+      const neededWidth = maxLineChars * (targetFontSize * 0.56);
+      let effectiveFontSize = targetFontSize;
+      if (neededWidth > availableWidth && maxLineChars > 0) {
+        const scaledSize = Math.floor(availableWidth / (maxLineChars * 0.56));
+        effectiveFontSize = Math.max(14, Math.min(targetFontSize, scaledSize));
+      }
+      boxEl.style.setProperty("--lectura-sub-current-font-size", `${effectiveFontSize}px`);
+      const line1Div = document.createElement("div");
+      line1Div.className = "lectura-sub-line";
+      for (let i3 = 0; i3 < line1Words.length; i3++) {
+        renderWordToken(line1Words[i3], line1Div, i3 === line1Words.length - 1);
+      }
+      boxEl.appendChild(line1Div);
+      if (line2Words.length > 0) {
+        const line2Div = document.createElement("div");
+        line2Div.className = "lectura-sub-line";
+        for (let i3 = 0; i3 < line2Words.length; i3++) {
+          renderWordToken(line2Words[i3], line2Div, i3 === line2Words.length - 1);
         }
-        boxEl.appendChild(lineDiv);
+        boxEl.appendChild(line2Div);
       }
       const transDiv = document.createElement("div");
       transDiv.className = "lectura-sub-translation";
