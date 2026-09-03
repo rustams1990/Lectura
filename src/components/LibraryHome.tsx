@@ -1201,11 +1201,11 @@ function LibraryHome({
       </div>
 
       {/* Unified Search & Control Console */}
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-2.5 sm:p-3 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 p-2.5 sm:p-3 shadow-xs flex flex-col 2xl:flex-row items-stretch 2xl:items-center gap-2.5">
         
         {/* Left: Search input + Create Button Group */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="relative flex-1 min-w-[140px] lg:max-w-xs xl:max-w-sm">
+        <div className="flex items-center gap-2 flex-1 min-w-0 2xl:max-w-md">
+          <div className="relative flex-1 min-w-[140px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 w-3.5 h-3.5" />
             <input
               type="text"
@@ -1240,8 +1240,10 @@ function LibraryHome({
           )}
         </div>
 
-        {/* Center: Dynamic Category Filter chips (All, YouTube, Podcast, Book) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 flex-1 scroll-smooth">
+        {/* Filters & Actions Wrapper: Side-by-side on sm+, unified on 2xl */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 flex-1 min-w-0">
+          {/* Center: Dynamic Category Filter chips (All, YouTube, Podcast, Book) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 flex-1 scroll-smooth">
           <button
             type="button"
             onClick={() => setSelectedLessonType("All")}
@@ -1291,7 +1293,7 @@ function LibraryHome({
         </div>
 
         {/* Right: Actions, Sort, Grid Columns & Play All */}
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-1.5 shrink-0 sm:ml-auto flex-wrap sm:flex-nowrap">
           {/* Source Filter dropdown */}
           <div className="relative flex items-center font-sans">
             <select
@@ -1363,6 +1365,7 @@ function LibraryHome({
               <span className="hidden sm:inline">{t('player.play_all', 'Play All')}</span>
             </button>
           )}
+        </div>
         </div>
       </div>
 
