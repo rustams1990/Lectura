@@ -2919,13 +2919,13 @@ function WordExplainer({
                   <button
                     type="button"
                     onClick={handleTranslate}
-                    className="w-full py-1.5 bg-gradient-to-r from-teal-500 to-teal-600 text-white font-bold text-[10.5px] rounded-lg shadow-3xs hover:shadow-2xs hover:from-teal-600 hover:to-teal-700 transition-all text-center flex items-center justify-center gap-1 cursor-pointer mt-1"
+                    className="w-full py-2 px-3 bg-teal-50/70 hover:bg-teal-100/80 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 font-semibold text-xs rounded-xl border border-teal-200/70 dark:border-teal-800/50 shadow-xs hover:shadow-sm transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 active:scale-[0.99]"
                   >
-                    {translationSource === "ai" && <Sparkles className="w-3 h-3 animate-pulse" />}
-                    {translationSource === "google" && <Languages className="w-3 h-3" />}
-                    {translationSource === "free_dictionary" && <BookOpen className="w-3 h-3" />}
-                    {translationSource === "wiktionary" && <BookOpen className="w-3 h-3" />}
-                    {translationSource === "hybrid" && <Sparkles className="w-3 h-3" />}
+                    {translationSource === "ai" && <Sparkles className="w-3.5 h-3.5 animate-pulse text-teal-600 dark:text-teal-400" />}
+                    {translationSource === "google" && <Languages className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                    {translationSource === "free_dictionary" && <BookOpen className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                    {translationSource === "wiktionary" && <BookOpen className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                    {translationSource === "hybrid" && <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
                     <span>
                       {translationSource === "ai" && "AI Lookup translation ✨"}
                       {translationSource === "google" && t('explainer.source_google_no_ai', 'Google Translate 🌐')}
