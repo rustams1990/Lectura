@@ -2562,7 +2562,7 @@ function ReaderPanel({
                 </span>
               </div>
               {hoveredWordObj.phraseDefinition && (
-                <div className="text-[10px] italic text-zinc-500 dark:text-zinc-400 leading-snug break-words bg-teal-50/40 dark:bg-teal-950/20 px-2 py-1.5 rounded-lg border border-teal-100/40 dark:border-teal-900/30">
+                <div className="text-[10px] italic text-zinc-500 dark:text-zinc-400 leading-snug break-words whitespace-pre-wrap bg-teal-50/40 dark:bg-teal-950/20 px-2 py-1.5 rounded-lg border border-teal-100/40 dark:border-teal-900/30">
                   <span className="not-italic mr-1 opacity-60">📖</span>{hoveredWordObj.phraseDefinition}
                 </div>
               )}
@@ -2606,7 +2606,7 @@ function ReaderPanel({
                 </div>
               )}
               {hoveredWordObj.detectedPhraseExplanation && (
-                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal italic px-1">
+                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal italic px-1 break-words whitespace-pre-wrap">
                   {hoveredWordObj.detectedPhraseExplanation}
                 </div>
               )}
@@ -2659,7 +2659,7 @@ function ReaderPanel({
               )}
 
               {hoveredWordObj.definition && (
-                <div className="text-[10px] italic text-zinc-500 dark:text-zinc-400 leading-snug break-words bg-teal-50/40 dark:bg-teal-950/20 px-2 py-1.5 rounded-lg border border-teal-100/40 dark:border-teal-900/30">
+                <div className="text-[10px] italic text-zinc-500 dark:text-zinc-400 leading-snug break-words whitespace-pre-wrap bg-teal-50/40 dark:bg-teal-950/20 px-2 py-1.5 rounded-lg border border-teal-100/40 dark:border-teal-900/30">
                   <span className="not-italic mr-1 opacity-60">📖</span>{hoveredWordObj.definition}
                 </div>
               )}

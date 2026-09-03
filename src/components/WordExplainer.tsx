@@ -690,6 +690,7 @@ function WordExplainer({
   const lastWordRef = useRef<string | null>(null);
   const prevVocabRef = useRef<VocabItem | null>(null);
   const meaningTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const definitionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [translationSource, setTranslationSource] = useState<"ai" | "google" | "free_dictionary" | "wiktionary" | "hybrid">(HTML_SELECTOR_INITIAL_VALUE);
   
   function HTML_SELECTOR_INITIAL_VALUE(): "ai" | "google" | "free_dictionary" | "wiktionary" | "hybrid" {
@@ -756,6 +757,15 @@ function WordExplainer({
       tx.style.height = `${tx.scrollHeight}px`;
     }
   }, [translationValue, savedMeaningOpen]);
+
+  // Auto-adjust height of definition textarea
+  useEffect(() => {
+    const tx = definitionTextareaRef.current;
+    if (tx) {
+      tx.style.height = "auto";
+      tx.style.height = `${Math.max(52, tx.scrollHeight)}px`;
+    }
+  }, [definitionValue, savedMeaningTab]);
 
   // Load dictionaries when target Language or translation Language changes
   useEffect(() => {
@@ -2531,6 +2541,7 @@ function WordExplainer({
                   )}
                   <div className="flex items-start gap-1.5">
                     <textarea
+                      ref={definitionTextareaRef}
                       value={definitionValue}
                       onChange={(e) => setDefinitionValue(e.target.value)}
                       onFocus={() => { isDefinitionFocusedRef.current = true; }}
@@ -2548,7 +2559,7 @@ function WordExplainer({
                       }}
                       placeholder={t('explainer.definition_placeholder', 'Type definition for parent word...')}
                       rows={2}
-                      className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-teal-200/60 dark:border-teal-900/40 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[52px] overflow-hidden italic"
+                      className="flex-1 p-2 text-xs bg-white dark:bg-zinc-900/80 border border-teal-200/60 dark:border-teal-900/40 rounded-lg text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500/80 transition-all font-medium custom-scrollbar resize-none min-h-[52px] overflow-hidden italic whitespace-pre-wrap"
                     />
                     {definitionValue && (
                       <button
