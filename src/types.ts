@@ -176,7 +176,6 @@ export interface ReaderSettings {
   fontFamily: "sans" | "serif" | "mono";
   readerTheme: "default" | "cream" | "sepia" | "slate";
   maxWidth: "narrow" | "medium" | "wide";
-  readerViewStyle?: "badges" | "text"; // "badges" (pill tiles) or "text" (clean book typography)
   pageSize?: "auto" | "all" | "p1" | "p2" | "p3" | "p5" | "p10" | "p15" | "p20" | "w50" | "w100" | "w250" | "w500" | "w1000" | "s5" | "s10" | "s20" | "s30" | "c250" | "c500" | "c1000" | "c2000";
   sentenceSpacing?: "normal" | "spaced" | "wide" | "newline" | "double-newline";
   segmentSpacing?: "compact" | "normal" | "relaxed" | "loose";
