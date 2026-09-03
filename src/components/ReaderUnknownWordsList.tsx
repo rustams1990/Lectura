@@ -2,6 +2,8 @@ import React from "react";
 import { Volume2, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson, VocabItem, WordStatus } from "../types";
+import { splitIntoSentences } from "../hooks/useReaderPagination";
+import { useWordStore } from "../store/useWordStore";
 
 interface ReaderUnknownWordsListProps {
   lesson: Lesson;
@@ -35,6 +37,27 @@ export default function ReaderUnknownWordsList({
   speakWord,
 }: ReaderUnknownWordsListProps) {
   const { t } = useTranslation();
+
+  const getSentenceForWord = (w: string): string => {
+    if (!lesson.text) return w;
+    const isCjk = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/.test(lesson.text.slice(0, 500));
+    const sentences = splitIntoSentences(lesson.text, isCjk);
+    const wLower = w.toLowerCase();
+    const match = sentences.find((s) => s.toLowerCase().includes(wLower));
+    return match ? match.trim() : w;
+  };
+
+  const handleCardClick = (e: React.MouseEvent, word: string) => {
+    e.stopPropagation();
+    const sentence = getSentenceForWord(word);
+    useWordStore.getState().setSelectedWord({
+      text: word,
+      cleanText: word,
+      contextSentence: sentence,
+      status: getWordInfo(word),
+    });
+    onWordClick(word, sentence);
+  };
   return (
     <div className="animate-in fade-in duration-200 space-y-6 font-sans">
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-200/50 dark:border-zinc-800/60 shadow-xs">
@@ -101,8 +124,10 @@ export default function ReaderUnknownWordsList({
             return (
               <div
                 key={word}
-                onClick={() => onWordClick(word, lesson.text)}
-                className={`p-4 rounded-2xl bg-white dark:bg-zinc-950 border transition-all cursor-pointer flex flex-col justify-between gap-3 ${cardBorder}`}
+                role="button"
+                tabIndex={0}
+                onClick={(e) => handleCardClick(e, word)}
+                className={`unknown-word-card p-4 rounded-2xl bg-white dark:bg-zinc-950 border transition-all cursor-pointer flex flex-col justify-between gap-3 ${cardBorder}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">

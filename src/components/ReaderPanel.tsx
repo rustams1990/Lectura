@@ -296,6 +296,7 @@ function ReaderPanel({
     if (
       target.closest('[data-token]') || 
       target.closest('.reader-word-token') || 
+      target.closest('.unknown-word-card') || 
       target.closest('[role="button"]') ||
       target.closest('.word-explainer') || 
       target.closest('.modal-content') ||
