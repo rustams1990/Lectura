@@ -3,6 +3,7 @@ import { StorageService } from '../services/storage';
 import { ExtensionSettings } from '../types/index';
 import { applyI18nToDOM, t } from '../services/i18n';
 import { isDomainDisabled, normalizeDomain } from '../services/domain-filter';
+import { matchLanguage, getItemLocalDateStr } from '../services/activity';
 
 export interface LanguageMeta {
   code: string;
@@ -810,8 +811,7 @@ class PopupController {
     // Map activity minutes by day number for current month
     const dailySecondsMap: Record<number, number> = {};
     for (const item of this.activityHistoryCache) {
-      const itemCode = normalizeLanguageCode(item.targetLanguage || 'en');
-      if (this.selectedActivityLang !== 'all' && itemCode !== this.selectedActivityLang) {
+      if (!matchLanguage(item.targetLanguage, this.selectedActivityLang)) {
         continue;
       }
       if (!item.timestamp) continue;
@@ -900,15 +900,67 @@ class PopupController {
     }
 
     try {
-      const res = await this.apiClient.getDayActivity(dateStr, this.selectedActivityLang);
-      if (res.success && Array.isArray(res.logs) && res.logs.length > 0) {
+      // 1. Filter local activity history cache for this day & language
+      const cacheMatching = this.activityHistoryCache.filter((entry) => {
+        const rawTime = entry.timestamp || (entry as any).createdAt || (entry as any).date;
+        const entryDate = getItemLocalDateStr(rawTime);
+        const dateMatch = entryDate === dateStr || (rawTime && rawTime.startsWith(dateStr));
+        const langMatch = matchLanguage(entry.targetLanguage, this.selectedActivityLang);
+        return Boolean(dateMatch && langMatch);
+      });
+
+      // 2. Also fetch latest granular logs from server
+      let serverLogs: any[] = [];
+      try {
+        const res = await this.apiClient.getDayActivity(dateStr, this.selectedActivityLang);
+        if (res.success && Array.isArray(res.logs)) {
+          serverLogs = res.logs.filter((log) => matchLanguage(log.language, this.selectedActivityLang));
+        }
+      } catch (err) {
+        console.warn('[Popup] getDayActivity fetch error:', err);
+      }
+
+      // 3. Merge server logs and cache logs to ensure no missing sessions
+      const seenIds = new Set<string>();
+      const combinedLogs: any[] = [];
+
+      for (const log of serverLogs) {
+        seenIds.add(String(log.id));
+        combinedLogs.push(log);
+      }
+
+      for (const item of cacheMatching) {
+        if (!seenIds.has(String(item.id))) {
+          seenIds.add(String(item.id));
+          const durSec = Number(item.durationSeconds) || 0;
+          const langCode = normalizeLanguageCode(item.targetLanguage || 'en');
+          const minutes = Math.max(1, Math.round(durSec / 60));
+          const videoId = item.lessonId && item.lessonId.startsWith('youtube_') ? item.lessonId.replace('youtube_', '') : '';
+          const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : ((item as any).sourceUrl || '');
+
+          combinedLogs.push({
+            id: item.id,
+            title: item.lessonTitle || item.customTitle || 'Activity Record',
+            minutes,
+            durationSeconds: durSec,
+            language: langCode,
+            flag: this.userCustomFlagsCache[langCode] || DEFAULT_LANGUAGE_FLAGS[langCode] || '🌐',
+            channel: item.channelName || 'Lectura',
+            source: item.lessonType === 'article' ? 'Article' : (item.lessonType === 'podcast' ? 'Podcast' : 'YouTube'),
+            url,
+            timestamp: item.timestamp,
+          });
+        }
+      }
+
+      if (combinedLogs.length > 0) {
         let html = '';
-        for (const log of res.logs) {
+        for (const log of combinedLogs) {
           const normCode = normalizeLanguageCode(log.language);
           const name = LANGUAGE_NAMES[normCode] || LECTURA_LANGUAGES_MAP[normCode]?.name || normCode.toUpperCase();
           const flagUrl = getLanguageFlagUrl(log.language, this.userCustomFlagsCache);
-          const safeTitle = (log.title || 'YouTube Video').replace(/"/g, '&quot;');
-          const safeChannel = (log.channel || 'YouTube').replace(/"/g, '&quot;');
+          const safeTitle = (log.title || 'Activity Record').replace(/"/g, '&quot;');
+          const safeChannel = (log.channel || 'Lectura').replace(/"/g, '&quot;');
           const safeSource = (log.source || 'YouTube').replace(/"/g, '&quot;');
 
           html += `
@@ -970,9 +1022,7 @@ class PopupController {
 
   private renderSummaryStats() {
     const filtered = this.activityHistoryCache.filter((item) => {
-      if (this.selectedActivityLang === 'all') return true;
-      const code = normalizeLanguageCode(item.targetLanguage || 'en');
-      return code === this.selectedActivityLang;
+      return matchLanguage(item.targetLanguage, this.selectedActivityLang);
     });
 
     // Languages count: number of unique active languages in history

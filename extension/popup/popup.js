@@ -679,8 +679,9 @@
      */
     async getDayActivity(dateStr, language) {
       const settings = await this.getActiveSettings();
-      const langParam = language && language !== "all" ? `&language=${encodeURIComponent(language)}` : "";
-      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}`);
+      const langParam = language && language !== "all" && language !== "overall" ? `&language=${encodeURIComponent(language)}` : "";
+      const tzParam = `&tzOffset=${(/* @__PURE__ */ new Date()).getTimezoneOffset()}`;
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}${tzParam}`);
       try {
         const response = await fetch(url, {
           method: "GET",
@@ -1226,6 +1227,50 @@
       return !isMatched;
     }
     return isMatched;
+  }
+
+  // extension/src/services/activity.ts
+  function matchLanguage(entryLang, targetLang) {
+    if (!targetLang || targetLang === "all" || targetLang === "overall") return true;
+    if (!entryLang) return false;
+    const normalize = (l) => {
+      const s = l.toLowerCase().trim();
+      if (s.startsWith("es") || s === "spanish" || s === "\u0438\u0441\u043F\u0430\u043D\u0441\u043A\u0438\u0439" || s === "espa\xF1ol") return "es";
+      if (s.startsWith("en") || s === "english" || s === "\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439") return "en";
+      if (s.startsWith("ru") || s === "russian" || s === "\u0440\u0443\u0441\u0441\u043A\u0438\u0439") return "ru";
+      if (s.startsWith("de") || s === "german" || s === "deutsch" || s === "\u043D\u0435\u043C\u0435\u0446\u043A\u0438\u0439") return "de";
+      if (s.startsWith("fr") || s === "french" || s === "fran\xE7ais" || s === "\u0444\u0440\u0430\u043D\u0446\u0443\u0437\u0441\u043A\u0438\u0439") return "fr";
+      if (s.startsWith("it") || s === "italian" || s === "italiano" || s === "\u0438\u0442\u0430\u043B\u044C\u044F\u043D\u0441\u043A\u0438\u0439") return "it";
+      if (s.startsWith("pt") || s === "portuguese" || s === "portugu\xEAs" || s === "\u043F\u043E\u0440\u0442\u0443\u0433\u0430\u043B\u044C\u0441\u043A\u0438\u0439") return "pt";
+      if (s.startsWith("zh") || s === "chinese" || s === "\u043A\u0438\u0442\u0430\u0439\u0441\u043A\u0438\u0439") return "zh";
+      if (s.startsWith("ja") || s === "japanese" || s === "\u044F\u043F\u043E\u043D\u0441\u043A\u0438\u0439") return "ja";
+      if (s.startsWith("ko") || s === "korean" || s === "\u043A\u043E\u0440\u0435\u0439\u0441\u043A\u0438\u0439") return "ko";
+      if (s.startsWith("tr") || s === "turkish" || s === "\u0442\u0443\u0440\u0435\u0446\u043A\u0438\u0439") return "tr";
+      if (s.startsWith("uk") || s.startsWith("ua") || s === "ukrainian" || s === "\u0443\u043A\u0440\u0430\u0438\u043D\u0441\u043A\u0438\u0439") return "uk";
+      if (s.startsWith("pl") || s === "polish" || s === "\u043F\u043E\u043B\u044C\u0441\u043A\u0438\u0439") return "pl";
+      if (s.startsWith("ar") || s === "arabic" || s === "\u0430\u0440\u0430\u0431\u0441\u043A\u0438\u0439") return "ar";
+      if (s.startsWith("nl") || s === "dutch" || s === "\u0433\u043E\u043B\u043B\u0430\u043D\u0434\u0441\u043A\u0438\u0439") return "nl";
+      if (s.startsWith("sv") || s === "swedish" || s === "\u0448\u0432\u0435\u0434\u0441\u043A\u0438\u0439") return "sv";
+      if (s.startsWith("el") || s === "greek" || s === "\u0433\u0440\u0435\u0447\u0435\u0441\u043A\u0438\u0439") return "el";
+      if (s.startsWith("cs") || s === "czech" || s === "\u0447\u0435\u0448\u0441\u043A\u0438\u0439") return "cs";
+      if (s.startsWith("hi") || s === "hindi" || s === "\u0445\u0438\u043D\u0434\u0438") return "hi";
+      if (s.startsWith("vi") || s === "vietnamese" || s === "\u0432\u044C\u0435\u0442\u043D\u0430\u043C\u0441\u043A\u0438\u0439") return "vi";
+      if (s.startsWith("kk") || s === "kazakh" || s === "\u043A\u0430\u0437\u0430\u0445\u0441\u043A\u0438\u0439") return "kk";
+      if (s.startsWith("he") || s === "hebrew" || s === "\u0438\u0432\u0440\u0438\u0442") return "he";
+      if (s.startsWith("fa") || s === "persian" || s === "\u043F\u0435\u0440\u0441\u0438\u0434\u0441\u043A\u0438\u0439") return "fa";
+      const clean = s.replace(/[-_].*$/, "");
+      return clean.slice(0, 2);
+    };
+    return normalize(entryLang) === normalize(targetLang);
+  }
+  function getItemLocalDateStr(timestampStr) {
+    if (!timestampStr) return "";
+    const d = new Date(timestampStr);
+    if (isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
 
   // extension/src/popup/popup.ts
@@ -1961,8 +2006,7 @@
       const todayDate = today.getDate();
       const dailySecondsMap = {};
       for (const item of this.activityHistoryCache) {
-        const itemCode = normalizeLanguageCode(item.targetLanguage || "en");
-        if (this.selectedActivityLang !== "all" && itemCode !== this.selectedActivityLang) {
+        if (!matchLanguage(item.targetLanguage, this.selectedActivityLang)) {
           continue;
         }
         if (!item.timestamp) continue;
@@ -2037,15 +2081,58 @@
         }
       }
       try {
-        const res = await this.apiClient.getDayActivity(dateStr, this.selectedActivityLang);
-        if (res.success && Array.isArray(res.logs) && res.logs.length > 0) {
+        const cacheMatching = this.activityHistoryCache.filter((entry) => {
+          const rawTime = entry.timestamp || entry.createdAt || entry.date;
+          const entryDate = getItemLocalDateStr(rawTime);
+          const dateMatch = entryDate === dateStr || rawTime && rawTime.startsWith(dateStr);
+          const langMatch = matchLanguage(entry.targetLanguage, this.selectedActivityLang);
+          return Boolean(dateMatch && langMatch);
+        });
+        let serverLogs = [];
+        try {
+          const res = await this.apiClient.getDayActivity(dateStr, this.selectedActivityLang);
+          if (res.success && Array.isArray(res.logs)) {
+            serverLogs = res.logs.filter((log) => matchLanguage(log.language, this.selectedActivityLang));
+          }
+        } catch (err) {
+          console.warn("[Popup] getDayActivity fetch error:", err);
+        }
+        const seenIds = /* @__PURE__ */ new Set();
+        const combinedLogs = [];
+        for (const log of serverLogs) {
+          seenIds.add(String(log.id));
+          combinedLogs.push(log);
+        }
+        for (const item of cacheMatching) {
+          if (!seenIds.has(String(item.id))) {
+            seenIds.add(String(item.id));
+            const durSec = Number(item.durationSeconds) || 0;
+            const langCode = normalizeLanguageCode(item.targetLanguage || "en");
+            const minutes = Math.max(1, Math.round(durSec / 60));
+            const videoId = item.lessonId && item.lessonId.startsWith("youtube_") ? item.lessonId.replace("youtube_", "") : "";
+            const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : item.sourceUrl || "";
+            combinedLogs.push({
+              id: item.id,
+              title: item.lessonTitle || item.customTitle || "Activity Record",
+              minutes,
+              durationSeconds: durSec,
+              language: langCode,
+              flag: this.userCustomFlagsCache[langCode] || DEFAULT_LANGUAGE_FLAGS[langCode] || "\u{1F310}",
+              channel: item.channelName || "Lectura",
+              source: item.lessonType === "article" ? "Article" : item.lessonType === "podcast" ? "Podcast" : "YouTube",
+              url,
+              timestamp: item.timestamp
+            });
+          }
+        }
+        if (combinedLogs.length > 0) {
           let html = "";
-          for (const log of res.logs) {
+          for (const log of combinedLogs) {
             const normCode = normalizeLanguageCode(log.language);
             const name = LANGUAGE_NAMES[normCode] || LECTURA_LANGUAGES_MAP[normCode]?.name || normCode.toUpperCase();
             const flagUrl = getLanguageFlagUrl(log.language, this.userCustomFlagsCache);
-            const safeTitle = (log.title || "YouTube Video").replace(/"/g, "&quot;");
-            const safeChannel = (log.channel || "YouTube").replace(/"/g, "&quot;");
+            const safeTitle = (log.title || "Activity Record").replace(/"/g, "&quot;");
+            const safeChannel = (log.channel || "Lectura").replace(/"/g, "&quot;");
             const safeSource = (log.source || "YouTube").replace(/"/g, "&quot;");
             html += `
             <div class="history-item">
@@ -2101,9 +2188,7 @@
     }
     renderSummaryStats() {
       const filtered = this.activityHistoryCache.filter((item) => {
-        if (this.selectedActivityLang === "all") return true;
-        const code = normalizeLanguageCode(item.targetLanguage || "en");
-        return code === this.selectedActivityLang;
+        return matchLanguage(item.targetLanguage, this.selectedActivityLang);
       });
       const activeLangs = new Set(
         this.activityHistoryCache.filter((h) => (Number(h.durationSeconds) || 0) > 0).map((h) => normalizeLanguageCode(h.targetLanguage || "en"))

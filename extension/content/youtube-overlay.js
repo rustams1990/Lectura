@@ -679,8 +679,9 @@
      */
     async getDayActivity(dateStr, language) {
       const settings = await this.getActiveSettings();
-      const langParam = language && language !== "all" ? `&language=${encodeURIComponent(language)}` : "";
-      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}`);
+      const langParam = language && language !== "all" && language !== "overall" ? `&language=${encodeURIComponent(language)}` : "";
+      const tzParam = `&tzOffset=${(/* @__PURE__ */ new Date()).getTimezoneOffset()}`;
+      const url = this.sanitizeUrl(settings.serverUrl, `/api/activity/day?date=${encodeURIComponent(dateStr)}${langParam}${tzParam}`);
       try {
         const response = await fetch(url, {
           method: "GET",
