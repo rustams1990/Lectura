@@ -3849,9 +3849,11 @@ export default function App() {
         playlists={playlists}
         languageFlags={languageFlags}
         onSaveLanguageFlag={(lang, flag) => {
+          const canonical = normalizeLanguage(lang).toLowerCase();
           const nextFlags = {
             ...languageFlags,
-            [lang.toLowerCase()]: flag
+            [lang.toLowerCase()]: flag,
+            [canonical]: flag,
           };
           setLanguageFlags(nextFlags);
           if (storageMode === "server") {

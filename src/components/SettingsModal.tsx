@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Lesson } from "../types";
-import { safeJsonParse, getBCP47LanguageTag, FLAG_EMOJI_TO_CODE } from "../utils";
+import { safeJsonParse, getBCP47LanguageTag, FLAG_EMOJI_TO_CODE, normalizeLanguage } from "../utils";
 import { useToast } from "../context/ToastContext";
 import { APP_VERSION } from "../version";
 import { 
@@ -280,24 +280,48 @@ const DEFAULT_FALLBACK_FLAGS: Record<string, string> = {
   spanish: "🇪🇸",
   espanol: "🇪🇸",
   spanish_esp: "🇪🇸",
-  english: "🇬🇧",
+  es: "🇪🇸",
+  english: "🇺🇸",
+  en: "🇺🇸",
   german: "🇩🇪",
   deutsch: "🇩🇪",
+  de: "🇩🇪",
   french: "🇫🇷",
   francais: "🇫🇷",
+  fr: "🇫🇷",
   japanese: "🇯🇵",
+  ja: "🇯🇵",
   russian: "🇷🇺",
+  ru: "🇷🇺",
   italian: "🇮🇹",
+  it: "🇮🇹",
   ukrainian: "🇺🇦",
   ukrainsk: "🇺🇦",
+  uk: "🇺🇦",
   portuguese: "🇵🇹",
   portugues: "🇵🇹",
+  pt: "🇵🇹",
   brazil: "🇧🇷",
   brazilian: "🇧🇷",
   kazakh: "🇰🇿",
   kazakhstan: "🇰🇿",
   "қазақ": "🇰🇿",
   kazakh_kir: "🇰🇿",
+  kk: "🇰🇿",
+  chinese: "🇨🇳",
+  zh: "🇨🇳",
+  korean: "🇰🇷",
+  ko: "🇰🇷",
+  arabic: "🇸🇦",
+  ar: "🇸🇦",
+  turkish: "🇹🇷",
+  tr: "🇹🇷",
+  polish: "🇵🇱",
+  pl: "🇵🇱",
+  dutch: "🇳🇱",
+  nl: "🇳🇱",
+  swedish: "🇸🇪",
+  sv: "🇸🇪",
 };
 
 export default function SettingsModal({
@@ -730,9 +754,9 @@ export default function SettingsModal({
     const set = new Set<string>();
     lessons.forEach((l) => {
       if (l.targetLanguage) {
-        const trimmed = l.targetLanguage.trim();
-        if (trimmed) {
-          const norm = trimmed.toLowerCase();
+        const canonical = normalizeLanguage(l.targetLanguage.trim());
+        if (canonical) {
+          const norm = canonical.toLowerCase();
           // Exclude single-flag languages with no variant flags (Japanese, Kazakh, Ukrainian)
           if (
             norm.includes("japan") || norm.includes("япон") || norm === "ja" ||
@@ -741,9 +765,7 @@ export default function SettingsModal({
           ) {
             return;
           }
-          // Title case format, e.g. "spanish" -> "Spanish"
-          const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
-          set.add(formatted);
+          set.add(canonical);
         }
       }
     });
@@ -888,9 +910,11 @@ export default function SettingsModal({
               ) : (
                 detectedLanguages.map((lang, index) => {
                   const langLower = lang.toLowerCase();
-                  const currentFlag = (languageFlags[langLower] && languageFlags[langLower] !== "📖") ? languageFlags[langLower] : (DEFAULT_FALLBACK_FLAGS[langLower] || "🇵🇹");
-                  const customValue = customInputs[langLower] !== undefined ? customInputs[langLower] : "";
                   const flagConfig = getFlagsForLanguage(lang);
+                  const currentFlag = (languageFlags[langLower] && languageFlags[langLower] !== "📖")
+                    ? languageFlags[langLower]
+                    : (DEFAULT_FALLBACK_FLAGS[langLower] || (flagConfig.presets && flagConfig.presets[0]) || "🌐");
+                  const customValue = customInputs[langLower] !== undefined ? customInputs[langLower] : "";
                   const isShowingAll = !!showAllFlagsMap[langLower];
                   const activePresets = isShowingAll ? ALL_WORLD_FLAGS : flagConfig.presets;
 
