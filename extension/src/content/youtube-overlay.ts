@@ -1126,7 +1126,7 @@ class YouTubeLecturaOverlay {
         left: 50% !important;
         transform: translateX(-50%) !important;
         width: auto !important;
-        max-width: 86% !important;
+        max-width: 94% !important;
         z-index: 99999999 !important;
         pointer-events: none !important;
         display: flex !important;
@@ -1164,7 +1164,9 @@ class YouTubeLecturaOverlay {
         margin: 0 !important;
         padding: 0 !important;
         display: block !important;
-        white-space: nowrap !important; /* Гарантирует ровно 2 строки, не дает словам сползать */
+        white-space: normal !important; /* Мягкий перенос по словам для предотвращения вылетания за экран */
+        overflow-wrap: break-word !important;
+        word-break: normal !important;
         text-align: center !important;
       }
 
@@ -3448,24 +3450,66 @@ class YouTubeLecturaOverlay {
       }
     };
 
-    const mid = Math.ceil(words.length / 2);
-    const line1Words = words.slice(0, mid);
-    const line2Words = words.slice(mid);
+    // Adaptive line splitting based on player width and font size
+    const isFullscreen =
+      document.fullscreenElement !== null ||
+      this.playerContainer?.classList.contains('ytp-fullscreen') ||
+      document.querySelector('.html5-video-player')?.classList.contains('ytp-fullscreen');
 
-    const line1Div = document.createElement('div');
-    line1Div.className = 'lectura-sub-line';
-    for (let i = 0; i < line1Words.length; i++) {
-      renderWordToken(line1Words[i], line1Div, i === line1Words.length - 1);
-    }
-    boxEl.appendChild(line1Div);
+    const playerEl = (document.querySelector('#movie_player, .html5-video-player') as HTMLElement) || this.playerContainer;
+    const playerWidth = playerEl?.clientWidth || window.innerWidth;
+    const currentFontSize = this.settings?.subtitleFontSize || 22;
+    const effectiveFontSize = isFullscreen ? currentFontSize * 1.18 : currentFontSize;
+    const approxCharWidth = effectiveFontSize * 0.62;
+    // Allow up to 88% of player width for text before wrapping line
+    const maxCharsPerLine = Math.max(38, Math.floor((playerWidth * 0.88) / approxCharWidth));
 
-    if (line2Words.length > 0) {
-      const line2Div = document.createElement('div');
-      line2Div.className = 'lectura-sub-line';
-      for (let i = 0; i < line2Words.length; i++) {
-        renderWordToken(line2Words[i], line2Div, i === line2Words.length - 1);
+    const totalChars = words.reduce((acc, w) => acc + w.length, 0) + (words.length - 1);
+
+    let lines: string[][] = [];
+    if (totalChars <= maxCharsPerLine) {
+      lines = [words];
+    } else {
+      const targetLinesCount = totalChars > maxCharsPerLine * 1.8 ? 3 : 2;
+      const targetCharsPerLine = Math.ceil(totalChars / targetLinesCount);
+
+      let currentLine: string[] = [];
+      let currentChars = 0;
+
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const wordLen = word.length + (currentLine.length > 0 ? 1 : 0);
+        const remainingWords = words.length - i;
+        const remainingLines = targetLinesCount - lines.length;
+
+        if (
+          currentLine.length > 0 &&
+          lines.length < targetLinesCount - 1 &&
+          (currentChars + wordLen > targetCharsPerLine || currentChars >= targetCharsPerLine * 0.85) &&
+          remainingWords >= remainingLines
+        ) {
+          lines.push(currentLine);
+          currentLine = [word];
+          currentChars = word.length;
+        } else {
+          currentLine.push(word);
+          currentChars += wordLen;
+        }
       }
-      boxEl.appendChild(line2Div);
+      if (currentLine.length > 0) {
+        lines.push(currentLine);
+      }
+    }
+
+    for (let l = 0; l < lines.length; l++) {
+      const lineWords = lines[l];
+      if (lineWords.length === 0) continue;
+      const lineDiv = document.createElement('div');
+      lineDiv.className = 'lectura-sub-line';
+      for (let i = 0; i < lineWords.length; i++) {
+        renderWordToken(lineWords[i], lineDiv, i === lineWords.length - 1);
+      }
+      boxEl.appendChild(lineDiv);
     }
 
     // Dual Subtitles translation line

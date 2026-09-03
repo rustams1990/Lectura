@@ -31525,7 +31525,7 @@
         left: 50% !important;
         transform: translateX(-50%) !important;
         width: auto !important;
-        max-width: 86% !important;
+        max-width: 94% !important;
         z-index: 99999999 !important;
         pointer-events: none !important;
         display: flex !important;
@@ -31563,7 +31563,9 @@
         margin: 0 !important;
         padding: 0 !important;
         display: block !important;
-        white-space: nowrap !important; /* \u0413\u0430\u0440\u0430\u043D\u0442\u0438\u0440\u0443\u0435\u0442 \u0440\u043E\u0432\u043D\u043E 2 \u0441\u0442\u0440\u043E\u043A\u0438, \u043D\u0435 \u0434\u0430\u0435\u0442 \u0441\u043B\u043E\u0432\u0430\u043C \u0441\u043F\u043E\u043B\u0437\u0430\u0442\u044C */
+        white-space: normal !important; /* \u041C\u044F\u0433\u043A\u0438\u0439 \u043F\u0435\u0440\u0435\u043D\u043E\u0441 \u043F\u043E \u0441\u043B\u043E\u0432\u0430\u043C \u0434\u043B\u044F \u043F\u0440\u0435\u0434\u043E\u0442\u0432\u0440\u0430\u0449\u0435\u043D\u0438\u044F \u0432\u044B\u043B\u0435\u0442\u0430\u043D\u0438\u044F \u0437\u0430 \u044D\u043A\u0440\u0430\u043D */
+        overflow-wrap: break-word !important;
+        word-break: normal !important;
         text-align: center !important;
       }
 
@@ -34000,22 +34002,49 @@
           parentEl.appendChild(document.createTextNode(" "));
         }
       };
-      const mid = Math.ceil(words.length / 2);
-      const line1Words = words.slice(0, mid);
-      const line2Words = words.slice(mid);
-      const line1Div = document.createElement("div");
-      line1Div.className = "lectura-sub-line";
-      for (let i3 = 0; i3 < line1Words.length; i3++) {
-        renderWordToken(line1Words[i3], line1Div, i3 === line1Words.length - 1);
-      }
-      boxEl.appendChild(line1Div);
-      if (line2Words.length > 0) {
-        const line2Div = document.createElement("div");
-        line2Div.className = "lectura-sub-line";
-        for (let i3 = 0; i3 < line2Words.length; i3++) {
-          renderWordToken(line2Words[i3], line2Div, i3 === line2Words.length - 1);
+      const isFullscreen = document.fullscreenElement !== null || this.playerContainer?.classList.contains("ytp-fullscreen") || document.querySelector(".html5-video-player")?.classList.contains("ytp-fullscreen");
+      const playerEl = document.querySelector("#movie_player, .html5-video-player") || this.playerContainer;
+      const playerWidth = playerEl?.clientWidth || window.innerWidth;
+      const currentFontSize = this.settings?.subtitleFontSize || 22;
+      const effectiveFontSize = isFullscreen ? currentFontSize * 1.18 : currentFontSize;
+      const approxCharWidth = effectiveFontSize * 0.62;
+      const maxCharsPerLine = Math.max(38, Math.floor(playerWidth * 0.88 / approxCharWidth));
+      const totalChars = words.reduce((acc, w) => acc + w.length, 0) + (words.length - 1);
+      let lines = [];
+      if (totalChars <= maxCharsPerLine) {
+        lines = [words];
+      } else {
+        const targetLinesCount = totalChars > maxCharsPerLine * 1.8 ? 3 : 2;
+        const targetCharsPerLine = Math.ceil(totalChars / targetLinesCount);
+        let currentLine = [];
+        let currentChars = 0;
+        for (let i3 = 0; i3 < words.length; i3++) {
+          const word = words[i3];
+          const wordLen = word.length + (currentLine.length > 0 ? 1 : 0);
+          const remainingWords = words.length - i3;
+          const remainingLines = targetLinesCount - lines.length;
+          if (currentLine.length > 0 && lines.length < targetLinesCount - 1 && (currentChars + wordLen > targetCharsPerLine || currentChars >= targetCharsPerLine * 0.85) && remainingWords >= remainingLines) {
+            lines.push(currentLine);
+            currentLine = [word];
+            currentChars = word.length;
+          } else {
+            currentLine.push(word);
+            currentChars += wordLen;
+          }
         }
-        boxEl.appendChild(line2Div);
+        if (currentLine.length > 0) {
+          lines.push(currentLine);
+        }
+      }
+      for (let l2 = 0; l2 < lines.length; l2++) {
+        const lineWords = lines[l2];
+        if (lineWords.length === 0) continue;
+        const lineDiv = document.createElement("div");
+        lineDiv.className = "lectura-sub-line";
+        for (let i3 = 0; i3 < lineWords.length; i3++) {
+          renderWordToken(lineWords[i3], lineDiv, i3 === lineWords.length - 1);
+        }
+        boxEl.appendChild(lineDiv);
       }
       const transDiv = document.createElement("div");
       transDiv.className = "lectura-sub-translation";
