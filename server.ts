@@ -87,6 +87,24 @@ async function startServer() {
     }
   });
 
+  // PWA Manifest: Always deliver fresh manifest with no-cache headers so browsers and devices never retain outdated names or icons
+  const manifestFilePath = path.join(process.cwd(), "public", "manifest.json");
+  app.get(["/manifest.json", "/manifest.webmanifest"], (_req, res) => {
+    try {
+      res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      if (fs.existsSync(manifestFilePath)) {
+        res.sendFile(manifestFilePath);
+      } else {
+        res.status(404).json({ error: "Manifest not found" });
+      }
+    } catch (e) {
+      res.status(500).json({ error: "Failed to serve manifest" });
+    }
+  });
+
 
   // Static Audio Storage & Streaming route (serves audio files directly from disk with HTTP 206 Range support)
   const AUDIO_STORAGE_DIR = path.join(DATA_DIR, "audio_files");
@@ -205,7 +223,12 @@ async function startServer() {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath, {
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith("index.html")) {
+        if (
+          filePath.endsWith("index.html") ||
+          filePath.endsWith("manifest.json") ||
+          filePath.endsWith("manifest.webmanifest") ||
+          filePath.endsWith("sw.js")
+        ) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           res.setHeader("Pragma", "no-cache");
           res.setHeader("Expires", "0");

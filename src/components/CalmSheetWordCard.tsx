@@ -145,7 +145,7 @@ export default function CalmSheetWordCard({
             const newItem: VocabItem = {
               word: cleanWord,
               translation: formatted,
-              definition: dictionaryDefinition || existingVocab?.definition,
+              definition: dictionaryDefinition,
               ipa: ipaText || "",
               grammar: "",
               contextRelation: "",
@@ -223,7 +223,7 @@ export default function CalmSheetWordCard({
         createdAt: Date.now(),
       }),
       translation: currentMeaning.trim(),
-      definition: dictionaryDefinition || existingVocab?.definition,
+      definition: dictionaryDefinition,
       status: currentStatus === "new" ? "2" : currentStatus,
     };
     onSaveVocab(updatedItem);
@@ -263,7 +263,7 @@ export default function CalmSheetWordCard({
         createdAt: Date.now(),
       }),
       translation: currentMeaning || existingVocab?.translation || "",
-      definition: dictionaryDefinition || existingVocab?.definition,
+      definition: dictionaryDefinition,
       status: newStatus,
     };
     onSaveVocab(updatedItem);

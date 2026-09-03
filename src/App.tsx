@@ -2561,10 +2561,11 @@ export default function App() {
     setVocab((prev) => {
       const nextVocab = { ...prev };
       
-      // Inherit existing family definition if this update didn't specify one
+      // Inherit existing family definition ONLY if this update didn't specify one and wasn't explicitly cleared ("")
       let effectiveItem = { ...newVocabItem };
       if (effectiveItem.definition === undefined) {
         for (const lw of linkedWords) {
+          if (lw === cleanWord) continue;
           const k = `${activeLang}_${lw}`;
           const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
           if (ex?.definition && ex.definition.trim() !== "") {
@@ -2629,10 +2630,11 @@ export default function App() {
         const cleanWord = newVocabItem.word.replace(/^[a-zA-Z]+_/, "").toLowerCase();
         const linkedWords = getLinkedWordsFor(cleanWord, activeLang);
 
-        // Inherit existing family definition if this update didn't specify one
+        // Inherit existing family definition ONLY if this update didn't specify one and wasn't explicitly cleared ("")
         let effectiveItem = { ...newVocabItem };
         if (effectiveItem.definition === undefined) {
           for (const lw of linkedWords) {
+            if (lw === cleanWord) continue;
             const k = `${activeLang}_${lw}`;
             const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
             if (ex?.definition && ex.definition.trim() !== "") {

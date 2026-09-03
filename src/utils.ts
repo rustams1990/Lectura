@@ -867,11 +867,16 @@ export function buildVocabItem(
     }
 
   let finalDefinition: string | undefined = undefined;
-  if (newItem.definition !== undefined && typeof newItem.definition === "string" && newItem.definition.trim() !== "") {
-    finalDefinition = newItem.definition.trim();
+  if (newItem.definition !== undefined) {
+    if (typeof newItem.definition === "string" && newItem.definition.trim() !== "") {
+      finalDefinition = newItem.definition.trim();
+    } else {
+      // Explicitly cleared definition
+      finalDefinition = undefined;
+    }
   } else if (existing?.definition && typeof existing.definition === "string" && existing.definition.trim() !== "") {
     finalDefinition = existing.definition.trim();
-  } else if (newItem.definition === "") {
+  } else {
     finalDefinition = undefined;
   }
 

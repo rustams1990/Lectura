@@ -628,7 +628,7 @@ function WordExplainer({
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
-        definition: definitionValue.trim() || existingVocab?.definition || undefined,
+        definition: definitionValue.trim(),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -686,6 +686,7 @@ function WordExplainer({
   const [examplesValue, setExamplesValue] = useState<ExampleSentence[]>([]);
   const [status, setStatus] = useState<WordStatus>("new");
   const internalStatusUpdateRef = useRef(false);
+  const isDefinitionFocusedRef = useRef(false);
   const lastWordRef = useRef<string | null>(null);
   const prevVocabRef = useRef<VocabItem | null>(null);
   const meaningTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1212,17 +1213,20 @@ function WordExplainer({
       return vocab[parentKey] || vocab[parentLower] || null;
     };
 
-    // Resolve definition: own entry first, direct vocab object, then parent entry via wordLinks, then any family link
+    // Resolve definition: own entry first, direct vocab object, then parent entry via wordLinks
     const resolveDefinition = (): string => {
-      if (existingVocab?.definition) return existingVocab.definition;
-
       const wordLower = word.toLowerCase();
       const lang = targetLanguage.toLowerCase();
       const langPrefix = `${lang}_`;
 
-      // 1. Direct check in vocab object
+      // 1. Direct check on exact word entry
       const directVocab = vocab?.[`${langPrefix}${wordLower}`] || vocab?.[wordLower];
-      if (directVocab?.definition) return directVocab.definition;
+      if (directVocab !== undefined && directVocab !== null) {
+        return directVocab.definition || "";
+      }
+      if (existingVocab !== undefined && existingVocab !== null) {
+        return existingVocab.definition || "";
+      }
 
       // 2. Check parent link via wordLinks
       const rawParentKey = wordLinks[`${langPrefix}${wordLower}`] || wordLinks[wordLower] || "";
@@ -1230,18 +1234,6 @@ function WordExplainer({
       if (parentWord && parentWord !== wordLower) {
         const parentEntry = resolveParentVocab(parentWord);
         if (parentEntry?.definition) return parentEntry.definition;
-      }
-
-      // 3. Search across all wordLinks in family for any definition
-      if (wordLinks && vocab) {
-        for (const [fromKey, toKey] of Object.entries(wordLinks)) {
-          const cleanFrom = fromKey.replace(/^[a-zA-Z]+_/, "").toLowerCase();
-          const cleanTo = String(toKey || "").replace(/^[a-zA-Z]+_/, "").toLowerCase();
-          if (cleanFrom === wordLower || cleanTo === wordLower) {
-            const memberVocab = vocab[`${langPrefix}${cleanTo}`] || vocab[cleanTo] || vocab[`${langPrefix}${cleanFrom}`] || vocab[cleanFrom];
-            if (memberVocab?.definition) return memberVocab.definition;
-          }
-        }
       }
 
       return "";
@@ -1263,8 +1255,7 @@ function WordExplainer({
         JSON.stringify(existingVocab.examples) !== JSON.stringify(prevVocab.examples) ||
         JSON.stringify(existingVocab.tags) !== JSON.stringify(prevVocab.tags) ||
         existingVocab.imageUrl !== prevVocab.imageUrl
-      )) ||
-      (resolvedDef !== definitionValue && !internalStatusUpdateRef.current);
+      ));
 
     if (!vocabContentChanged) {
       return;
@@ -1279,7 +1270,9 @@ function WordExplainer({
       const rawTrans = existingVocab.translation || "";
       const isPlaceholderTrans = !rawTrans || rawTrans === "Pending translation" || (rawTrans.startsWith("[") && rawTrans.endsWith("]"));
       setTranslationValue(isPlaceholderTrans ? "" : normalizeTranslationSemicolons(rawTrans));
-      setDefinitionValue(resolvedDef);
+      if (!isDefinitionFocusedRef.current) {
+        setDefinitionValue(resolvedDef);
+      }
       setIpaValue(existingVocab.ipa);
       const cleanGrammar = sanitizeGrammarTag(existingVocab.grammar);
       setGrammarValue(cleanGrammar);
@@ -1301,7 +1294,9 @@ function WordExplainer({
       const detectedInfo = detectedPhrases ? (detectedPhrases[cleanWord] || detectedPhrases[word]) : null;
 
       // Still try to resolve definition from parent even if word not yet in vocab
-      setDefinitionValue(resolvedDef);
+      if (!isDefinitionFocusedRef.current) {
+        setDefinitionValue(resolvedDef);
+      }
 
       if (detectedInfo) {
         setTranslationValue(normalizeTranslationSemicolons(detectedInfo.translation));
@@ -1435,7 +1430,7 @@ function WordExplainer({
       const newVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: data.translation || "",
-        definition: definitionValue.trim() || existingVocab?.definition || undefined,
+        definition: definitionValue.trim(),
         ipa: data.ipa || "",
         grammar: data.grammar || "",
         contextRelation: data.contextRelation || "",
@@ -1491,7 +1486,7 @@ function WordExplainer({
     const newVocab: VocabItem = {
       word: word?.toLowerCase() || "",
       translation: currentTranslation.trim() || "",
-      definition: definitionValue.trim() || existingVocab?.definition || undefined,
+      definition: definitionValue.trim(),
       ipa: currentIpa || "",
       grammar: currentGrammar || "",
       contextRelation: answer,
@@ -1514,7 +1509,7 @@ function WordExplainer({
     const updatedVocab: VocabItem = {
       word: word.toLowerCase(),
       translation: translationValue.trim() || "",
-      definition: definitionValue.trim() || existingVocab?.definition || undefined,
+      definition: definitionValue.trim(),
       ipa: ipaValue || "",
       grammar: grammarValue || "",
       contextRelation: customAnswer,
@@ -1730,7 +1725,7 @@ function WordExplainer({
     const updatedVocab: VocabItem = {
       word: word.toLowerCase(),
       translation: trimmedVal,
-      definition: definitionValue.trim() || existingVocab?.definition || undefined,
+      definition: definitionValue.trim(),
       ipa: ipaValue || "",
       grammar: grammarValue || "",
       contextRelation: contextRelationValue || "",
@@ -1769,10 +1764,10 @@ function WordExplainer({
       vocab?.[prefixedKey] || vocab?.[targetWord] || null;
 
     if (existingTarget) {
-      // Update definition on existing entry; set to undefined when empty (clean removal)
+      // Update definition on existing entry; pass defVal directly ("" means clear)
       onSaveVocab({
         ...existingTarget,
-        definition: defVal || undefined,
+        definition: defVal,
       });
     } else if (defVal) {
       // Parent word or new word not yet in vocab → create entry with status "2"
@@ -1807,7 +1802,7 @@ function WordExplainer({
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : ""),
-        definition: definitionValue.trim() || existingVocab?.definition || undefined,
+        definition: definitionValue.trim(),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1836,7 +1831,7 @@ function WordExplainer({
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
-        definition: definitionValue.trim() || existingVocab?.definition || undefined,
+        definition: definitionValue.trim(),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1884,7 +1879,7 @@ function WordExplainer({
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
-        definition: definitionValue.trim() || existingVocab?.definition || undefined,
+        definition: definitionValue.trim(),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -1923,7 +1918,7 @@ function WordExplainer({
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
-        definition: definitionValue.trim() || existingVocab?.definition || undefined,
+        definition: definitionValue.trim(),
         ipa: ipaValue || "",
         grammar: grammarValue || "",
         contextRelation: contextRelationValue || "",
@@ -2538,10 +2533,15 @@ function WordExplainer({
                     <textarea
                       value={definitionValue}
                       onChange={(e) => setDefinitionValue(e.target.value)}
-                      onBlur={handleSaveDefinition}
+                      onFocus={() => { isDefinitionFocusedRef.current = true; }}
+                      onBlur={() => {
+                        isDefinitionFocusedRef.current = false;
+                        handleSaveDefinition();
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault();
+                          isDefinitionFocusedRef.current = false;
                           handleSaveDefinition();
                           e.currentTarget.blur();
                         }
@@ -2565,8 +2565,7 @@ function WordExplainer({
                           const langPrefix = `${langKey}_`;
                           const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || null;
                           if (existingTarget) {
-                            const { definition: _removed, ...rest } = existingTarget;
-                            onSaveVocab({ ...rest, definition: undefined });
+                            onSaveVocab({ ...existingTarget, definition: "" });
                           }
                         }}
                         title={t('explainer.delete_definition_title', 'Delete definition')}

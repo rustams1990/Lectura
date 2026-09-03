@@ -1788,16 +1788,12 @@ const getActivityHistoryHandler = (req: Request, res: Response) => {
 
   try {
     const db = getDbConnection(userId);
-    const lang = req.query.language ? String(req.query.language).toLowerCase() : null;
-    let query = "SELECT * FROM reading_history WHERE user_id = ?";
-    const params: any[] = [userId];
-    if (lang && lang !== "all") {
-      query += " AND (targetLanguage = ? OR targetLanguage LIKE ?)";
-      params.push(lang, `${lang}%`);
+    const lang = (req.query.language || req.query.lang) ? String(req.query.language || req.query.lang).toLowerCase().trim() : null;
+    let query = "SELECT * FROM reading_history WHERE user_id = ? ORDER BY timestamp DESC";
+    let rows = db.prepare(query).all(userId) as any[];
+    if (lang && lang !== "all" && lang !== "overall") {
+      rows = rows.filter((h) => matchLanguage(h.targetLanguage, lang));
     }
-    query += " ORDER BY timestamp DESC";
-
-    const rows = db.prepare(query).all(...params) as any[];
     const readerSettingsRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'readerSettings'").get(userId) as { value: string } | undefined;
     let dailyGoalMinutes = 15;
     let dailyGoalsByLanguage: Record<string, number> = {};
@@ -1875,6 +1871,42 @@ const getActivityHistoryHandler = (req: Request, res: Response) => {
 router.get("/history", getActivityHistoryHandler);
 router.get("/activity", getActivityHistoryHandler);
 
+function matchLanguage(entryLang?: string, targetLang?: string): boolean {
+  if (!targetLang || targetLang === 'all' || targetLang === 'overall') return true;
+  if (!entryLang) return false;
+
+  const normalize = (l: string): string => {
+    const s = l.toLowerCase().trim();
+    if (s.startsWith('es') || s === 'spanish' || s === 'испанский' || s === 'español') return 'es';
+    if (s.startsWith('en') || s === 'english' || s === 'английский') return 'en';
+    if (s.startsWith('ru') || s === 'russian' || s === 'русский') return 'ru';
+    if (s.startsWith('de') || s === 'german' || s === 'deutsch' || s === 'немецкий') return 'de';
+    if (s.startsWith('fr') || s === 'french' || s === 'français' || s === 'французский') return 'fr';
+    if (s.startsWith('it') || s === 'italian' || s === 'italiano' || s === 'итальянский') return 'it';
+    if (s.startsWith('pt') || s === 'portuguese' || s === 'português' || s === 'португальский') return 'pt';
+    if (s.startsWith('zh') || s === 'chinese' || s === 'китайский') return 'zh';
+    if (s.startsWith('ja') || s === 'japanese' || s === 'японский') return 'ja';
+    if (s.startsWith('ko') || s === 'korean' || s === 'корейский') return 'ko';
+    if (s.startsWith('tr') || s === 'turkish' || s === 'турецкий') return 'tr';
+    if (s.startsWith('uk') || s.startsWith('ua') || s === 'ukrainian' || s === 'украинский') return 'uk';
+    if (s.startsWith('pl') || s === 'polish' || s === 'польский') return 'pl';
+    if (s.startsWith('ar') || s === 'arabic' || s === 'арабский') return 'ar';
+    if (s.startsWith('nl') || s === 'dutch' || s === 'голландский') return 'nl';
+    if (s.startsWith('sv') || s === 'swedish' || s === 'шведский') return 'sv';
+    if (s.startsWith('el') || s === 'greek' || s === 'греческий') return 'el';
+    if (s.startsWith('cs') || s === 'czech' || s === 'чешский') return 'cs';
+    if (s.startsWith('hi') || s === 'hindi' || s === 'хинди') return 'hi';
+    if (s.startsWith('vi') || s === 'vietnamese' || s === 'вьетнамский') return 'vi';
+    if (s.startsWith('kk') || s === 'kazakh' || s === 'казахский') return 'kk';
+    if (s.startsWith('he') || s === 'hebrew' || s === 'иврит') return 'he';
+    if (s.startsWith('fa') || s === 'persian' || s === 'персидский') return 'fa';
+    const clean = s.replace(/[-_].*$/, '');
+    return clean.slice(0, 2);
+  };
+
+  return normalize(entryLang) === normalize(targetLang);
+}
+
 // 15d. Get Granular Day History (GET /api/activity/day & GET /api/history/day)
 const getDayActivityHandler = (req: Request, res: Response) => {
   let userId: string;
@@ -1888,16 +1920,33 @@ const getDayActivityHandler = (req: Request, res: Response) => {
   }
 
   const dateStr = req.query.date ? String(req.query.date).trim() : new Date().toISOString().slice(0, 10);
-  const lang = req.query.language ? String(req.query.language).toLowerCase().trim() : null;
+  const lang = (req.query.language || req.query.lang) ? String(req.query.language || req.query.lang).toLowerCase().trim() : null;
+  const tzOffset = req.query.tzOffset !== undefined ? Number(req.query.tzOffset) : null;
 
   try {
     const db = getDbConnection(userId);
-    let query = "SELECT * FROM reading_history WHERE user_id = ? AND timestamp LIKE ?";
-    const params: any[] = [userId, `${dateStr}%`];
 
-    if (lang && lang !== "all") {
-      query += " AND (targetLanguage = ? OR targetLanguage LIKE ?)";
-      params.push(lang, `${lang}%`);
+    // Compute adjacent days to handle cross-midnight timezone offsets (e.g. UTC+5 or UTC-5)
+    let prevDateStr = "";
+    let nextDateStr = "";
+    try {
+      const parts = dateStr.split("-").map(Number);
+      if (parts.length === 3) {
+        const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        prevDateStr = new Date(d.getTime() - 86400000).toISOString().slice(0, 10);
+        nextDateStr = new Date(d.getTime() + 86400000).toISOString().slice(0, 10);
+      }
+    } catch (_) {}
+
+    let query = "SELECT * FROM reading_history WHERE user_id = ?";
+    const params: any[] = [userId];
+
+    if (prevDateStr && nextDateStr) {
+      query += " AND (timestamp LIKE ? OR timestamp LIKE ? OR timestamp LIKE ?)";
+      params.push(`${dateStr}%`, `${prevDateStr}%`, `${nextDateStr}%`);
+    } else {
+      query += " AND timestamp LIKE ?";
+      params.push(`${dateStr}%`);
     }
     query += " ORDER BY timestamp DESC";
 
@@ -1936,7 +1985,33 @@ const getDayActivityHandler = (req: Request, res: Response) => {
       try { userCustomFlags = JSON.parse(userFlagsRow.value); } catch (_) {}
     }
 
-    const logs = rows.map((h) => {
+    const filteredRows = rows.filter((h) => {
+      // 1. Date check
+      if (h.timestamp) {
+        let itemDate = h.timestamp.slice(0, 10);
+        if (tzOffset !== null && !isNaN(tzOffset)) {
+          const tMs = new Date(h.timestamp).getTime();
+          if (!isNaN(tMs)) {
+            const localMs = tMs - tzOffset * 60 * 1000;
+            itemDate = new Date(localMs).toISOString().slice(0, 10);
+          }
+        }
+        if (itemDate !== dateStr && !h.timestamp.startsWith(dateStr)) {
+          return false;
+        }
+      }
+
+      // 2. Language check using matchLanguage
+      if (lang && lang !== "all" && lang !== "overall") {
+        if (!matchLanguage(h.targetLanguage, lang)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    const logs = filteredRows.map((h) => {
       const durSec = Number(h.durationSeconds) || 0;
       const rawLang = (h.targetLanguage || "en").toLowerCase().trim();
       const cleanLang = rawLang.replace(/[-_].*$/, "");
@@ -1948,13 +2023,13 @@ const getDayActivityHandler = (req: Request, res: Response) => {
 
       return {
         id: h.id,
-        title: h.lessonTitle || h.customTitle || "YouTube Video",
+        title: h.lessonTitle || h.customTitle || "Activity Record",
         minutes,
         durationSeconds: durSec,
         language: langCode,
         flag,
-        channel: h.channelName || "YouTube",
-        source: h.lessonType === "article" ? "Article" : "YouTube",
+        channel: h.channelName || "Lectura",
+        source: h.lessonType === "article" ? "Article" : (h.lessonType === "podcast" ? "Podcast" : "YouTube"),
         url,
         timestamp: h.timestamp,
       };
@@ -2548,7 +2623,8 @@ router.post("/words", (req: Request, res: Response) => {
   if (invalidPlaceholders.includes(wordTranslation.toLowerCase()) || wordTranslation.toLowerCase() === rawWord.toLowerCase()) {
     wordTranslation = "";
   }
-  const wordDefinition = definition ? String(definition).trim() : null;
+  const hasDefinition = definition !== undefined;
+  const wordDefinition = hasDefinition ? (definition ? String(definition).trim() : null) : null;
   const wordIpa = ipa ? String(ipa).trim() : "";
   const wordGrammar = grammar ? String(grammar).trim() : "";
   const wordContext = contextRelation ? String(contextRelation).trim() : (contextSentence ? String(contextSentence).trim() : "");
@@ -2586,7 +2662,7 @@ router.post("/words", (req: Request, res: Response) => {
       db.prepare(`
         UPDATE words SET
           translation = CASE WHEN ? != '' THEN ? ELSE words.translation END,
-          definition = COALESCE(?, definition),
+          definition = CASE WHEN ? = 1 THEN ? ELSE definition END,
           ipa = CASE WHEN ? != '' THEN ? ELSE ipa END,
           grammar = CASE WHEN ? != '' THEN ? ELSE grammar END,
           contextRelation = CASE WHEN ? != '' THEN ? ELSE contextRelation END,
@@ -2597,7 +2673,7 @@ router.post("/words", (req: Request, res: Response) => {
         WHERE user_id = ? AND language_code = ? AND word = ?
       `).run(
         wordTranslation, wordTranslation,
-        wordDefinition,
+        hasDefinition ? 1 : 0, wordDefinition,
         wordIpa, wordIpa,
         wordGrammar, wordGrammar,
         wordContext, wordContext,
