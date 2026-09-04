@@ -142,9 +142,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 border-stone-200 dark:border-zinc-700",
     divider: "border-stone-200/80 dark:border-zinc-800/80",
     subText: "text-stone-600 dark:text-zinc-300",
-    pageIndicator: "bg-stone-100/80 dark:bg-zinc-800/60 border-stone-200/70 dark:border-zinc-700/60 text-stone-700 dark:text-zinc-300",
+    pageIndicator: "bg-white dark:bg-zinc-900 border-stone-200/80 dark:border-zinc-800 text-stone-700 dark:text-zinc-300 shadow-3xs",
     pageButton: "bg-white dark:bg-zinc-900 border-stone-200 dark:border-zinc-800 text-stone-700 dark:text-zinc-300 hover:bg-stone-50 dark:hover:bg-zinc-800/80 shadow-3xs",
-    pageSelect: "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 border-stone-200 dark:border-zinc-700 hover:border-teal-500",
+    pageSelect: "text-teal-600 dark:text-teal-400 hover:text-teal-700",
   },
   cream: {
     container: "bg-[#fcf8f2] dark:bg-zinc-900 text-[#3b2b1a] dark:text-zinc-200 border-[#f3e9d8] dark:border-zinc-800/80",
@@ -154,9 +154,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-[#fcf8f2] dark:bg-zinc-800 text-teal-700 dark:text-teal-400 border-[#e8d7bb] dark:border-zinc-700",
     divider: "border-[#eddcb9] dark:border-zinc-800/80",
     subText: "text-[#4a3622] dark:text-zinc-400",
-    pageIndicator: "bg-[#f4e8d3]/70 dark:bg-zinc-800/60 border-[#eddcb9] dark:border-zinc-700/60 text-[#4a3622] dark:text-zinc-300",
+    pageIndicator: "bg-[#fcf8f2] dark:bg-zinc-900 border-[#eddcb9] dark:border-zinc-800 text-[#4a3622] dark:text-zinc-300 shadow-3xs",
     pageButton: "bg-[#fcf8f2] dark:bg-zinc-900 border-[#eddcb9] dark:border-zinc-800 text-[#4a3622] dark:text-zinc-300 hover:bg-[#f4e8d3]/60 dark:hover:bg-zinc-800/80 shadow-3xs",
-    pageSelect: "bg-[#fcf8f2] dark:bg-zinc-900 text-[#2d5f54] dark:text-teal-400 border-[#eddcb9] dark:border-zinc-700 hover:border-[#2d5f54]",
+    pageSelect: "text-teal-700 dark:text-teal-400 hover:text-teal-800",
   },
   sepia: {
     container: "bg-[#f7f4eb] dark:bg-zinc-900 text-[#2c2a29] dark:text-zinc-200 border-[#e5dec9] dark:border-zinc-800/80",
@@ -166,9 +166,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-[#f7f4eb] dark:bg-zinc-800 text-teal-800 dark:text-teal-400 border-[#e5dec9] dark:border-zinc-700",
     divider: "border-[#e5dec9] dark:border-zinc-800/80",
     subText: "text-[#5a544e] dark:text-zinc-400",
-    pageIndicator: "bg-[#efe9dc]/80 dark:bg-zinc-800/60 border-[#e5dec9] dark:border-zinc-700/60 text-[#4d4843] dark:text-zinc-300",
+    pageIndicator: "bg-[#f7f4eb] dark:bg-zinc-900 border-[#e5dec9] dark:border-zinc-800 text-[#4d4843] dark:text-zinc-300 shadow-3xs",
     pageButton: "bg-[#f7f4eb] dark:bg-zinc-900 border-[#e5dec9] dark:border-zinc-800 text-[#4d4843] dark:text-zinc-300 hover:bg-[#efe9dc]/70 dark:hover:bg-zinc-800/80 shadow-3xs",
-    pageSelect: "bg-[#f7f4eb] dark:bg-zinc-900 text-[#2e5d52] dark:text-teal-400 border-[#e5dec9] dark:border-zinc-700 hover:border-[#2e5d52]",
+    pageSelect: "text-teal-800 dark:text-teal-400 hover:text-teal-900",
   },
   slate: {
     container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
@@ -178,9 +178,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 border-slate-300 dark:border-slate-700",
     divider: "border-slate-200 dark:border-slate-800",
     subText: "text-slate-700 dark:text-slate-300",
-    pageIndicator: "bg-slate-200/60 dark:bg-slate-800/60 border-slate-300/70 dark:border-slate-700/60 text-slate-700 dark:text-slate-300",
+    pageIndicator: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-3xs",
     pageButton: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 shadow-3xs",
-    pageSelect: "bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 border-slate-300 dark:border-slate-700 hover:border-teal-500",
+    pageSelect: "text-teal-600 dark:text-teal-400 hover:text-teal-700",
   },
 };
 
@@ -2503,7 +2503,7 @@ function ReaderPanel({
                       navigateToPage(Number(e.target.value) - 1);
                       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
                     }}
-                    className={`appearance-none pl-2 pr-5 py-0.5 text-xs font-bold rounded-md cursor-pointer focus:outline-none border transition-colors shadow-3xs ${currentTheme.pageSelect}`}
+                    className={`appearance-none bg-transparent pl-1.5 pr-4 py-0.5 text-xs font-bold cursor-pointer focus:outline-none transition-colors ${currentTheme.pageSelect}`}
                   >
                     {Array.from({ length: pages.length }, (_, i) => i + 1).map((page) => (
                       <option key={page} value={page} className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200">
@@ -2511,7 +2511,7 @@ function ReaderPanel({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-3 h-3 absolute right-1 pointer-events-none opacity-60" />
+                  <ChevronDown className="w-3 h-3 absolute right-0.5 pointer-events-none opacity-60" />
                 </div>
                 <span className="font-medium opacity-80">{t('reader.of', 'of')} {pages.length}</span>
               </div>
