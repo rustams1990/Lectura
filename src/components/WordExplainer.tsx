@@ -625,6 +625,7 @@ function WordExplainer({
     setImageUrlValue(url);
     if (word) {
       const nextStatus = status === "new" ? "2" : status;
+      internalStatusUpdateRef.current = true;
       const updatedVocab: VocabItem = {
         word: word.toLowerCase(),
         translation: translationValue.trim() || (nextStatus === "ignored" ? "[Ignored]" : nextStatus === "known" ? "[Known]" : ""),
@@ -1723,7 +1724,34 @@ function WordExplainer({
     if (!word) return;
     
     const trimmedVal = translationValue.trim();
+    const hasOtherData = Boolean(
+      imageUrlValue ||
+      definitionValue.trim() ||
+      (status !== "new") ||
+      (selectedTags && selectedTags.length > 0) ||
+      (examplesValue && examplesValue.length > 0)
+    );
+
     if (!trimmedVal) {
+      if (hasOtherData) {
+        // Word still has image, definition, tags, or active status - preserve the word entry!
+        const updatedVocab: VocabItem = {
+          word: word.toLowerCase(),
+          translation: status === "ignored" ? "[Ignored]" : status === "known" ? "[Known]" : "",
+          definition: definitionValue.trim(),
+          ipa: ipaValue || "",
+          grammar: grammarValue || "",
+          contextRelation: contextRelationValue || "",
+          status: status === "new" ? "2" : status,
+          examples: examplesValue,
+          createdAt: existingVocab ? existingVocab.createdAt : Date.now(),
+          tags: selectedTags,
+          imageUrl: imageUrlValue,
+        };
+        onSaveVocab(updatedVocab);
+        return;
+      }
+
       setStatus("new");
       onDeleteVocab(word.toLowerCase());
       return;
@@ -1751,8 +1779,33 @@ function WordExplainer({
   const handleDeleteTranslation = () => {
     if (!word) return;
     setTranslationValue("");
-    setStatus("new");
-    onDeleteVocab(word.toLowerCase());
+    const hasOtherData = Boolean(
+      imageUrlValue ||
+      definitionValue.trim() ||
+      (status !== "new" && status !== "2") ||
+      (selectedTags && selectedTags.length > 0) ||
+      (examplesValue && examplesValue.length > 0)
+    );
+
+    if (hasOtherData) {
+      const updatedVocab: VocabItem = {
+        word: word.toLowerCase(),
+        translation: "",
+        definition: definitionValue.trim(),
+        ipa: ipaValue || "",
+        grammar: grammarValue || "",
+        contextRelation: contextRelationValue || "",
+        status: status === "new" ? "2" : status,
+        examples: examplesValue,
+        createdAt: existingVocab ? existingVocab.createdAt : Date.now(),
+        tags: selectedTags,
+        imageUrl: imageUrlValue,
+      };
+      onSaveVocab(updatedVocab);
+    } else {
+      setStatus("new");
+      onDeleteVocab(word.toLowerCase());
+    }
   };
 
   // Save definition to the parent (lemma) vocab entry, or self if no parent link
@@ -1771,15 +1824,16 @@ function WordExplainer({
     const langPrefix = `${langKey}_`;
     const prefixedKey = `${langPrefix}${targetWord}`;
     const existingTarget: VocabItem | null | undefined =
-      vocab?.[prefixedKey] || vocab?.[targetWord] || null;
+      vocab?.[prefixedKey] || vocab?.[targetWord] || (targetWord === wordLower ? existingVocab : null);
 
     if (existingTarget) {
       // Update definition on existing entry; pass defVal directly ("" means clear)
       onSaveVocab({
         ...existingTarget,
         definition: defVal,
+        imageUrl: (targetWord === wordLower && imageUrlValue !== undefined) ? imageUrlValue : existingTarget.imageUrl,
       });
-    } else if (defVal) {
+    } else if (defVal || (targetWord === wordLower && imageUrlValue)) {
       // Parent word or new word not yet in vocab → create entry with status "2"
       const newParentVocab: VocabItem = {
         word: targetWord,
@@ -1792,6 +1846,7 @@ function WordExplainer({
         examples: (targetWord === wordLower && examplesValue) ? examplesValue : [],
         createdAt: Date.now(),
         tags: (targetWord === wordLower && selectedTags) ? selectedTags : [],
+        imageUrl: targetWord === wordLower ? imageUrlValue : null,
       };
       if (status === "new") setStatus("2");
       onSaveVocab(newParentVocab);
@@ -2574,9 +2629,13 @@ function WordExplainer({
                           const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
                           const targetWord = (parentWord && parentWord !== wordLower) ? parentWord : wordLower;
                           const langPrefix = `${langKey}_`;
-                          const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || null;
+                          const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || (targetWord === wordLower ? existingVocab : null);
                           if (existingTarget) {
-                            onSaveVocab({ ...existingTarget, definition: "" });
+                            onSaveVocab({
+                              ...existingTarget,
+                              definition: "",
+                              imageUrl: (targetWord === wordLower && imageUrlValue !== undefined) ? imageUrlValue : existingTarget.imageUrl,
+                            });
                           }
                         }}
                         title={t('explainer.delete_definition_title', 'Delete definition')}
@@ -2662,7 +2721,7 @@ function WordExplainer({
                           const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
                           const targetWord = (parentWord && parentWord !== wordLower) ? parentWord : wordLower;
                           const langPrefix = `${langKey}_`;
-                          const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || null;
+                          const existingTarget = vocab?.[`${langPrefix}${targetWord}`] || vocab?.[targetWord] || (targetWord === wordLower ? existingVocab : null);
                           const nextStatus = status === "new" ? "2" : status;
                           if (status === "new") setStatus("2");
 
@@ -2671,7 +2730,8 @@ function WordExplainer({
                               ...existingTarget, 
                               definition: def.trim(),
                               grammar: newGrammar || existingTarget.grammar,
-                              tags: updatedTags
+                              tags: updatedTags,
+                              imageUrl: (targetWord === wordLower && imageUrlValue !== undefined) ? imageUrlValue : existingTarget.imageUrl,
                             });
                           } else {
                             const newVocab: VocabItem = {
@@ -2685,7 +2745,7 @@ function WordExplainer({
                               examples: examplesValue,
                               createdAt: Date.now(),
                               tags: updatedTags,
-                              imageUrl: imageUrlValue,
+                              imageUrl: targetWord === wordLower ? imageUrlValue : null,
                             };
                             onSaveVocab(newVocab);
                           }

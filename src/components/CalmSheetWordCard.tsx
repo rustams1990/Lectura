@@ -152,6 +152,7 @@ export default function CalmSheetWordCard({
               status: currentStatus,
               examples: existingVocab?.examples || [],
               createdAt: Date.now(),
+              imageUrl: existingVocab?.imageUrl ?? (vocab?.[cleanWord]?.imageUrl || null),
             };
             onSaveVocab(newItem);
           }
@@ -225,6 +226,7 @@ export default function CalmSheetWordCard({
       translation: currentMeaning.trim(),
       definition: dictionaryDefinition,
       status: currentStatus === "new" ? "2" : currentStatus,
+      imageUrl: existingVocab?.imageUrl ?? (vocab?.[cleanWord]?.imageUrl || null),
     };
     onSaveVocab(updatedItem);
   };
@@ -246,6 +248,7 @@ export default function CalmSheetWordCard({
           createdAt: Date.now(),
         }),
         status: "ignored",
+        imageUrl: existingVocab?.imageUrl ?? (vocab?.[cleanWord]?.imageUrl || null),
       };
       onSaveVocab(updatedItem);
       return;
@@ -265,6 +268,7 @@ export default function CalmSheetWordCard({
       translation: currentMeaning || existingVocab?.translation || "",
       definition: dictionaryDefinition,
       status: newStatus,
+      imageUrl: existingVocab?.imageUrl ?? (vocab?.[cleanWord]?.imageUrl || null),
     };
     onSaveVocab(updatedItem);
   };
