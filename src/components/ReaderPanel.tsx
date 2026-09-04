@@ -128,6 +128,9 @@ interface ReaderThemeStyles {
   divider: string;
   subText: string;
   selectBg: string;
+  pageIndicator: string;
+  pageButton: string;
+  pageSelect: string;
 }
 
 const themeMap: Record<string, ReaderThemeStyles> = {
@@ -139,6 +142,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 border-stone-200 dark:border-zinc-700",
     divider: "border-stone-200/80 dark:border-zinc-800/80",
     subText: "text-stone-600 dark:text-zinc-300",
+    pageIndicator: "bg-stone-100/80 dark:bg-zinc-800/60 border-stone-200/70 dark:border-zinc-700/60 text-stone-700 dark:text-zinc-300",
+    pageButton: "bg-white dark:bg-zinc-900 border-stone-200 dark:border-zinc-800 text-stone-700 dark:text-zinc-300 hover:bg-stone-50 dark:hover:bg-zinc-800/80 shadow-3xs",
+    pageSelect: "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 border-stone-200 dark:border-zinc-700 hover:border-teal-500",
   },
   cream: {
     container: "bg-[#fcf8f2] dark:bg-zinc-900 text-[#3b2b1a] dark:text-zinc-200 border-[#f3e9d8] dark:border-zinc-800/80",
@@ -148,6 +154,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-[#fcf8f2] dark:bg-zinc-800 text-teal-700 dark:text-teal-400 border-[#e8d7bb] dark:border-zinc-700",
     divider: "border-[#eddcb9] dark:border-zinc-800/80",
     subText: "text-[#4a3622] dark:text-zinc-400",
+    pageIndicator: "bg-[#f4e8d3]/70 dark:bg-zinc-800/60 border-[#eddcb9] dark:border-zinc-700/60 text-[#4a3622] dark:text-zinc-300",
+    pageButton: "bg-[#fcf8f2] dark:bg-zinc-900 border-[#eddcb9] dark:border-zinc-800 text-[#4a3622] dark:text-zinc-300 hover:bg-[#f4e8d3]/60 dark:hover:bg-zinc-800/80 shadow-3xs",
+    pageSelect: "bg-[#fcf8f2] dark:bg-zinc-900 text-[#2d5f54] dark:text-teal-400 border-[#eddcb9] dark:border-zinc-700 hover:border-[#2d5f54]",
   },
   sepia: {
     container: "bg-[#f7f4eb] dark:bg-zinc-900 text-[#2c2a29] dark:text-zinc-200 border-[#e5dec9] dark:border-zinc-800/80",
@@ -157,6 +166,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-[#f7f4eb] dark:bg-zinc-800 text-teal-800 dark:text-teal-400 border-[#e5dec9] dark:border-zinc-700",
     divider: "border-[#e5dec9] dark:border-zinc-800/80",
     subText: "text-[#5a544e] dark:text-zinc-400",
+    pageIndicator: "bg-[#efe9dc]/80 dark:bg-zinc-800/60 border-[#e5dec9] dark:border-zinc-700/60 text-[#4d4843] dark:text-zinc-300",
+    pageButton: "bg-[#f7f4eb] dark:bg-zinc-900 border-[#e5dec9] dark:border-zinc-800 text-[#4d4843] dark:text-zinc-300 hover:bg-[#efe9dc]/70 dark:hover:bg-zinc-800/80 shadow-3xs",
+    pageSelect: "bg-[#f7f4eb] dark:bg-zinc-900 text-[#2e5d52] dark:text-teal-400 border-[#e5dec9] dark:border-zinc-700 hover:border-[#2e5d52]",
   },
   slate: {
     container: "bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-800",
@@ -166,6 +178,9 @@ const themeMap: Record<string, ReaderThemeStyles> = {
     selectBg: "bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 border-slate-300 dark:border-slate-700",
     divider: "border-slate-200 dark:border-slate-800",
     subText: "text-slate-700 dark:text-slate-300",
+    pageIndicator: "bg-slate-200/60 dark:bg-slate-800/60 border-slate-300/70 dark:border-slate-700/60 text-slate-700 dark:text-slate-300",
+    pageButton: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 shadow-3xs",
+    pageSelect: "bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 border-slate-300 dark:border-slate-700 hover:border-teal-500",
   },
 };
 
@@ -2464,7 +2479,7 @@ function ReaderPanel({
         {/* Нижняя чистая панель навигации по страницам */}
         {pages.length > 1 && !(showOnlyUnknown && unknownViewMode === "list") && (
           <div className={lesson.lessonType === "book" ? "mt-auto w-full select-none" : "mt-6 select-none"}>
-            <div className="flex items-center justify-between pt-6 border-t border-neutral-200/60 dark:border-neutral-800/60 select-none">
+            <div className={`flex items-center justify-between pt-6 border-t ${currentTheme.divider} select-none`}>
               <button
                 type="button"
                 id="reader-prev-page-btn"
@@ -2473,29 +2488,32 @@ function ReaderPanel({
                   window.scrollTo({ top: 0, left: 0, behavior: "instant" });
                 }}
                 disabled={clampedPageIdx === 0}
-                className="px-4 py-2 text-xs font-medium rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                className={`px-4 py-2 text-xs font-semibold rounded-xl border disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer ${currentTheme.pageButton}`}
               >
                 ← {t('reader.prev_page', 'Previous')}
               </button>
 
               {/* Компактный дропдаун/индикатор текущей страницы */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/60 text-xs text-neutral-600 dark:text-neutral-300 font-sans">
-                <span>{t('reader.page', 'Page')}</span>
-                <select
-                  value={clampedPageIdx + 1}
-                  onChange={(e) => {
-                    navigateToPage(Number(e.target.value) - 1);
-                    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-                  }}
-                  className="bg-transparent font-semibold text-emerald-600 dark:text-emerald-400 cursor-pointer focus:outline-none"
-                >
-                  {Array.from({ length: pages.length }, (_, i) => i + 1).map((page) => (
-                    <option key={page} value={page} className="dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200">
-                      {page}
-                    </option>
-                  ))}
-                </select>
-                <span>{t('reader.of', 'of')} {pages.length}</span>
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-sans shadow-3xs transition-colors ${currentTheme.pageIndicator}`}>
+                <span className="font-medium opacity-80">{t('reader.page', 'Page')}</span>
+                <div className="relative inline-flex items-center">
+                  <select
+                    value={clampedPageIdx + 1}
+                    onChange={(e) => {
+                      navigateToPage(Number(e.target.value) - 1);
+                      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+                    }}
+                    className={`appearance-none pl-2 pr-5 py-0.5 text-xs font-bold rounded-md cursor-pointer focus:outline-none border transition-colors shadow-3xs ${currentTheme.pageSelect}`}
+                  >
+                    {Array.from({ length: pages.length }, (_, i) => i + 1).map((page) => (
+                      <option key={page} value={page} className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200">
+                        {page}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 absolute right-1 pointer-events-none opacity-60" />
+                </div>
+                <span className="font-medium opacity-80">{t('reader.of', 'of')} {pages.length}</span>
               </div>
 
               <button
@@ -2510,10 +2528,10 @@ function ReaderPanel({
                   }
                 }}
                 disabled={clampedPageIdx === pages.length - 1 && currentStatus === "completed"}
-                className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors border cursor-pointer ${
+                className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all border cursor-pointer ${
                   clampedPageIdx === pages.length - 1
                     ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                    : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850"
+                    : currentTheme.pageButton
                 }`}
               >
                 {clampedPageIdx >= pages.length - 1 ? t('reader.complete_btn', 'Complete ✓') : `${t('reader.next_page', 'Next')} →`}
