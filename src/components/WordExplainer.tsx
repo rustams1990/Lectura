@@ -572,10 +572,10 @@ function WordExplainer({
   const { showToast } = useToast();
   const activeSettings = settings || { readerTheme: "default" };
   const explainerThemeMap = {
-    default: "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-900 dark:text-zinc-100",
-    cream: "bg-[#fcf8f2] dark:bg-zinc-900 border-[#eddcb9] dark:border-zinc-800/80 text-[#3d2c16] dark:text-zinc-100",
-    sepia: "bg-[#f7f4eb] dark:bg-zinc-900 border-[#e5dec9] dark:border-zinc-800/80 text-[#2c2a29] dark:text-zinc-100",
-    slate: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100",
+    default: "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-900 dark:text-zinc-100 shadow-[0_2px_12px_-2px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]",
+    cream: "bg-[#fcf8f2] dark:bg-zinc-900 border-[#eddcb9] dark:border-zinc-800/80 text-[#3d2c16] dark:text-zinc-100 shadow-[0_2px_12px_-2px_rgba(74,54,34,0.07)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]",
+    sepia: "bg-[#f7f4eb] dark:bg-zinc-900 border-[#e5dec9] dark:border-zinc-800/80 text-[#2c2a29] dark:text-zinc-100 shadow-[0_2px_12px_-2px_rgba(50,45,35,0.07)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]",
+    slate: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 shadow-[0_2px_12px_-2px_rgba(30,41,59,0.06)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]",
   };
   const themeClasses = explainerThemeMap[activeSettings.readerTheme || "default"] || explainerThemeMap.default;
 
@@ -2019,7 +2019,7 @@ function WordExplainer({
 
 
   return (
-    <div className={`${themeClasses} w-full rounded-2xl border shadow-xl p-3.5 space-y-2.5 flex flex-col h-auto max-h-[85vh] transition-all duration-200 max-w-full overflow-hidden select-none ${className || ""}`}>
+    <div className={`${themeClasses} w-full rounded-2xl border p-3.5 space-y-2.5 flex flex-col h-auto max-h-[85vh] transition-all duration-200 max-w-full overflow-hidden select-none ${className || ""}`}>
       
       {/* Top Header Row with Word, close and speech synthesis */}
       <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-zinc-100 dark:border-zinc-800 shrink-0">

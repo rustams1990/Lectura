@@ -579,7 +579,7 @@ export default function ReaderScreen({
               {activeLesson ? (
                 <WordDetailContainer
                   forceInspector={true}
-                  className="lg:max-h-none"
+                  className="lg:max-h-none lg:shadow-none"
                   word={effectiveSelectedWord}
                   sentence={effectiveContext}
                   targetLanguage={activeLesson.targetLanguage}
