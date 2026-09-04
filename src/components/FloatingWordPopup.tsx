@@ -166,9 +166,7 @@ export default function FloatingWordPopup(props: FloatingWordPopupProps) {
       onTouchEnd={(e) => e.stopPropagation()}
     >
       {isFullInspector ? (
-        <div className="word-popup-card w-full max-h-[80vh] overflow-y-auto flex flex-col">
-          <WordExplainer {...props} />
-        </div>
+        <WordExplainer {...props} />
       ) : (
         <CalmLightReaderPopup {...props} />
       )}
