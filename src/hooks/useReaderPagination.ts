@@ -204,8 +204,10 @@ export function useReaderPagination({
       let currentWords = 0;
 
       for (const seg of segsList) {
-        const isNonWordSeg = /^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(seg.text.trim()) || /^\[(?:CAPTION:?|caption)/i.test(seg.text.trim());
-        const wordsInSeg = isNonWordSeg ? 0 : seg.text.split(/\s+/).filter(w => w.length > 0).length;
+        const isImgSeg = /^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(seg.text.trim());
+        const isCaptionSeg = /^\[(?:CAPTION:?|caption)/i.test(seg.text.trim());
+        const isNonWordSeg = isImgSeg || isCaptionSeg;
+        const wordsInSeg = isImgSeg ? 90 : (isNonWordSeg ? 10 : seg.text.split(/\s+/).filter(w => w.length > 0).length);
 
         // If a large paragraph exceeds limit, flush current chunk
         if (currentWords > 0 && (currentWords + wordsInSeg > wordLimit + 30)) {
@@ -261,12 +263,13 @@ export function useReaderPagination({
         const segs = paras.map((p: string) => ({ text: p.trim(), timestamp: null }));
         if (segs.length > 0) {
           const chTitle = (typeof ch === "object" && ch.title) ? ch.title : cleanChapterTitle(text, idx + 1);
-          if (/^(?:Chapter\s+1\b|Глава\s+1\b|Part\s+1\b|Section\s+1\b|^i\b|^1\b)/i.test(chTitle.trim())) {
+          if (/^(?:Chapter\s+(?:1\b|[ivx]+\b|one\b)|Глава\s+(?:1\b|[ivx]+\b|один\b|первая\b)|Part\s+(?:1\b|[ivx]+\b)|Section\s+(?:1\b|[ivx]+\b)|^i\b|^1\b)/i.test(chTitle.trim()) || idx > 3) {
             hasSeenChapterOne = true;
           }
-          const isIntro = !hasSeenChapterOne || /^(?:cover|title|dedication|epigraph|copyright|contents|обложка|титул|посвящение|эпиграф)/i.test(chTitle.trim());
+          const isFrontMatter = /^(?:cover|title|dedication|epigraph|copyright|contents|обложка|титул|посвящение|эпиграф)/i.test(chTitle.trim());
+          const isIntro = !hasSeenChapterOne && isFrontMatter;
           const startPageIndex = allPages.length;
-          const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro);
+          const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro && segs.length <= 10);
           allPages.push(...chPages);
           entries.push({
             title: chTitle,
@@ -301,12 +304,13 @@ export function useReaderPagination({
         if (segs.length > 0) {
           chapterCounter++;
           const chTitle = cleanChapterTitle(trimmed, chapterCounter);
-          if (/^(?:Chapter\s+1\b|Глава\s+1\b|Part\s+1\b|Section\s+1\b|^i\b|^1\b)/i.test(chTitle.trim())) {
+          if (/^(?:Chapter\s+(?:1\b|[ivx]+\b|one\b)|Глава\s+(?:1\b|[ivx]+\b|один\b|первая\b)|Part\s+(?:1\b|[ivx]+\b)|Section\s+(?:1\b|[ivx]+\b)|^i\b|^1\b)/i.test(chTitle.trim()) || chapterCounter > 4) {
             hasSeenChapterOne = true;
           }
-          const isIntro = !hasSeenChapterOne || /^(?:cover|title|dedication|epigraph|copyright|contents|обложка|титул|посвящение|эпиграф)/i.test(chTitle.trim());
+          const isFrontMatter = /^(?:cover|title|dedication|epigraph|copyright|contents|обложка|титул|посвящение|эпиграф)/i.test(chTitle.trim());
+          const isIntro = !hasSeenChapterOne && isFrontMatter;
           const startPageIndex = allPages.length;
-          const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro);
+          const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro && segs.length <= 10);
           allPages.push(...chPages);
           entries.push({
             title: chTitle,

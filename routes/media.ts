@@ -301,6 +301,7 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
         .replace(/<[^>]+>/g, "")
         .replace(/&nbsp;/g, " ")
         .replace(/&#160;/g, " ")
+        .replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, " ")
         .replace(/&amp;/g, "&")
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")
@@ -321,7 +322,7 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
             .map((line) => line.trim())
             .filter(Boolean)
             .join(" ")
-            .replace(/[ \t]+/g, " ")
+            .replace(/[ \t\u00a0\u2000-\u200b\u202f\u205f\u3000]+/g, " ")
             .trim();
         })
         .filter(Boolean)
@@ -335,8 +336,10 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
     let combinedText = textBlocks.join("\n\n---PAGE---\n\n");
     combinedText = combinedText
       .replace(/\r\n/g, "\n")
+      .replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, " ")
       .replace(/[ \t]+([.,!?:;…»)'"”\u2019\u201d\u2018\u201c\]\}]+)/g, "$1")
       .replace(/([«(\[{“\u2018\u201c])[ \t]+/g, "$1")
+      .replace(/[ \t]{2,}/g, " ")
       .trim();
 
     const result: EpubParseResult = { title, text: combinedText };

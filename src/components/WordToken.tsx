@@ -51,11 +51,14 @@ function WordTokenComponent({
   onMouseLeave,
 }: WordTokenProps) {
   // Padding computation
+  const isBadgeWord = !isTextMode && status !== "ignored" && status !== "known";
   const paddingClass = isTextMode
     ? ""
     : isInSelectedPhrase
     ? `${isFirstInPhrase ? "pl-1.5" : "pl-0.5"} ${isLastInPhrase ? "pr-1.5" : "pr-0.5"}`
-    : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
+    : isBadgeWord
+    ? `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0" : "pr-1"}`
+    : "px-0";
 
   // Build style class
   let styleClass = "";

@@ -218,11 +218,18 @@ html.dark body {
    ============================================ */
 
 .book-paragraph {
-  text-indent: 1.5rem;
   margin-top: 0;
   margin-bottom: 0.75rem;
   line-height: 1.8;
-  font-family: 'Lora', 'Merriweather', 'Literata', Georgia, Cambria, "Times New Roman", Times, serif;
+  font-family: inherit;
+}
+
+.mode-text .book-paragraph {
+  text-indent: 1.5rem;
+}
+
+.mode-badges .book-paragraph {
+  text-indent: 0;
 }
 
 /* Первый абзац после заголовка или картинки без отступа */

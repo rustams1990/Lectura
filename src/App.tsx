@@ -2258,7 +2258,14 @@ export default function App() {
   const activeLessonImagesMap = useMemo(() => {
     if (!activeLesson?.id) return {};
     const fromStore = getLessonImagesMap(activeLesson.id);
-    const fromLesson = activeLesson.images || {};
+    let fromLesson = activeLesson.images || {};
+    if (typeof fromLesson === "string") {
+      try {
+        fromLesson = JSON.parse(fromLesson);
+      } catch (_) {
+        fromLesson = {};
+      }
+    }
     return { ...fromLesson, ...fromStore };
   }, [activeLesson?.id, activeLesson?.images, lessonImagesVersion]);
 

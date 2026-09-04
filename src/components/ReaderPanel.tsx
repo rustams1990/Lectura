@@ -1338,9 +1338,18 @@ function ReaderPanel({
 
           // 1. Проверка на картинку
           if ((trimmedSegText.startsWith('[IMG:') && trimmedSegText.endsWith(']')) || trimmedSegText.startsWith('__LECTURA_IMG__:')) {
-            const src = trimmedSegText.startsWith('__LECTURA_IMG__:')
+            let src = trimmedSegText.startsWith('__LECTURA_IMG__:')
               ? trimmedSegText.replace('__LECTURA_IMG__:', '').trim()
               : trimmedSegText.slice(5, -1).trim();
+
+            let rawLessonImages = (lesson as any)?.images;
+            if (typeof rawLessonImages === 'string') {
+              try { rawLessonImages = JSON.parse(rawLessonImages); } catch (_) { rawLessonImages = {}; }
+            }
+            const resolved = lessonImagesMap?.[src] || rawLessonImages?.[src] || (lesson as any)?.media?.images?.[src];
+            if (resolved) {
+              src = resolved;
+            }
 
             // Проверяем, есть ли подпись сразу за картинкой
             let nextCaptionText = '';
@@ -1683,7 +1692,7 @@ function ReaderPanel({
                           : "opacity-95 inline"
                       }`}
                     >
-                      {tok.raw}
+                      {tok.raw.includes("\n") ? tok.raw : tok.raw.replace(/[\u00a0\s]+/g, " ")}
                     </span>
                   );
                   tIdx++;
@@ -2052,6 +2061,18 @@ function ReaderPanel({
                 }
               }
 
+              // Absorb immediately adjacent trailing punctuation tokens without spaces (e.g. "raining" followed by ",")
+              let lookAheadIdx = tIdx + 1;
+              while (
+                lookAheadIdx < tokens.length &&
+                !tokens[lookAheadIdx].isWord &&
+                !/^\s+$/.test(tokens[lookAheadIdx].raw) &&
+                /^[.,!?:;…»)'"”\u2019\u201d\]\}]+$/.test(tokens[lookAheadIdx].raw)
+              ) {
+                suffix += tokens[lookAheadIdx].raw;
+                lookAheadIdx++;
+              }
+
               const status = getWordInfo(cleanWord);
               const resolvedCleanWord = resolveWord(cleanWord);
               const isSingleActive = currentActiveWord?.toLowerCase() === cleanWord.toLowerCase() || currentActiveWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
@@ -2207,7 +2228,7 @@ function ReaderPanel({
                 />
               );
 
-              tIdx++;
+              tIdx = lookAheadIdx;
             }
 
             return elements;
@@ -2454,9 +2475,9 @@ function ReaderPanel({
               );
             }
 
-            const indentClass = (!hasTimestamps && !activeSettings.showSentenceTranslations && isBook && !isFirstParagraph)
+            const indentClass = (!hasTimestamps && !activeSettings.showSentenceTranslations && isBook && isTextMode && !isFirstParagraph)
               ? "indent-6"
-              : (isBook && isFirstParagraph ? "indent-0" : "");
+              : "";
 
             return (
               <p 
@@ -2467,7 +2488,7 @@ function ReaderPanel({
                     ? "bg-amber-500/8 dark:bg-amber-500/5 border-l-[3px] border-amber-500 pl-3.5 scale-[1.005] py-2"
                     : "border-l-0 pl-0 py-0"
                 }`}
-                style={isBook ? { textAlign: "left", textIndent: isFirstParagraph ? "0" : "1.5rem" } : undefined}
+                style={isBook ? { textAlign: "left", textIndent: (isFirstParagraph || !isTextMode) ? "0" : "1.5rem" } : undefined}
               >
                 {renderParagraphContent()}
               </p>
