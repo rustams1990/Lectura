@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, startTransition } from "react";
+import React, { useState, useEffect, useMemo, startTransition } from "react";
 import { createPortal } from "react-dom";
 import { ReaderSettings, ReaderToolbarVisibility, DEFAULT_TOOLBAR_VISIBILITY, WordCardViewType, normalizeWordCardView } from "../types";
+import { resolveEffectiveReaderSettings, getScopedSettingPatch } from "../utils/readerSettingsUtils";
 import { Type, Sliders, Check, Minus, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUIStore } from "../store/uiStore";
@@ -39,29 +40,25 @@ export default function TextSettingsControls({
 
   const appearance = useAppearanceStore();
 
+  const effectiveSettings = useMemo(() => {
+    return resolveEffectiveReaderSettings(settings, isBookMode);
+  }, [settings, isBookMode]);
+
   useEffect(() => {
     registerAppearanceSyncCallback((patch) => {
       onUpdateSettings({ ...settings, ...patch });
     });
   }, [settings, onUpdateSettings]);
 
-  const activeFontFamily = isBookMode
-    ? (appearance.fontFamily || settings.bookFontFamily || "serif")
-    : (appearance.fontFamily || settings.fontFamily || "sans");
-
-  const activeDisplayMode = isBookMode
-    ? (appearance.readerViewStyle || settings.bookReaderViewStyle || "text")
-    : (appearance.readerViewStyle || settings.readerViewStyle || "badges");
-
-  const activeFontSize = appearance.fontSize || settings.fontSize || "lg";
-  const activeLineHeight = appearance.lineHeight || settings.lineHeight || "loose";
-  const activeTheme = appearance.readerTheme || settings.readerTheme || "default";
-  const activeMaxWidth = appearance.maxWidth || settings.maxWidth || "wide";
-
-  const rawWordCardMode = isBookMode
-    ? (settings.bookWordCardMode || settings.wordCardMode || "floating")
-    : (settings.wordCardMode || "floating");
-  const activeWordCardView: WordCardViewType = normalizeWordCardView(rawWordCardMode);
+  const activeFontFamily = appearance.fontFamily || effectiveSettings.fontFamily || "sans";
+  const activeDisplayMode = appearance.readerViewStyle || effectiveSettings.readerViewStyle || "badges";
+  const activeFontSize = appearance.fontSize || effectiveSettings.fontSize || "lg";
+  const activeLineHeight = appearance.lineHeight || effectiveSettings.lineHeight || "loose";
+  const activeTheme = appearance.readerTheme || effectiveSettings.readerTheme || "default";
+  const activeMaxWidth = appearance.maxWidth || effectiveSettings.maxWidth || "wide";
+  const activeWordCardView: WordCardViewType = normalizeWordCardView(
+    appearance.wordCardMode || effectiveSettings.wordCardMode || "floating"
+  );
 
   const fontSizes: ReaderSettings["fontSize"][] = ["sm", "base", "lg", "xl", "2xl", "3xl", "4xl"];
   const fontSizeLabels: Record<ReaderSettings["fontSize"], string> = {
@@ -75,12 +72,24 @@ export default function TextSettingsControls({
   };
   const activeFontSizeIndex = Math.max(0, fontSizes.indexOf(activeFontSize));
 
+  const updateSetting = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
+    const patch = getScopedSettingPatch(key, value, isBookMode);
+    if (key === "fontSize") useAppearanceStore.getState().setFontSize(value as any, isBookMode);
+    if (key === "fontFamily") useAppearanceStore.getState().setFontFamily(value as any, isBookMode);
+    if (key === "lineHeight") useAppearanceStore.getState().setLineHeight(value as any, isBookMode);
+    if (key === "maxWidth") useAppearanceStore.getState().setMaxWidth(value as any, isBookMode);
+    if (key === "readerTheme") useAppearanceStore.getState().setReaderTheme(value as any, isBookMode);
+    if (key === "readerViewStyle") useAppearanceStore.getState().setReaderViewStyle(value as any, isBookMode);
+    debounceAppearanceSync(patch);
+  };
+
+  const updateKey = updateSetting;
+
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const idx = Number(e.target.value);
     const next = fontSizes[idx];
     if (next) {
-      useAppearanceStore.getState().setFontSize(next);
-      debounceAppearanceSync({ fontSize: next });
+      updateSetting("fontSize", next);
     }
   };
   const fonts: { id: ReaderSettings["fontFamily"]; name: string }[] = [
@@ -109,65 +118,55 @@ export default function TextSettingsControls({
     { id: "wide", name: "Full" },
   ];
 
-  const updateKey = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
-    debounceAppearanceSync({ [key]: value });
-  };
-
   const handleFontFamilyChange = (font: ReaderSettings["fontFamily"]) => {
-    useAppearanceStore.getState().setFontFamily(font);
-    debounceAppearanceSync({ [isBookMode ? "bookFontFamily" : "fontFamily"]: font });
+    updateSetting("fontFamily", font);
   };
 
   const handleDisplayModeChange = (mode: "badges" | "text") => {
-    useAppearanceStore.getState().setReaderViewStyle(mode);
-    debounceAppearanceSync({ [isBookMode ? "bookReaderViewStyle" : "readerViewStyle"]: mode });
+    updateSetting("readerViewStyle", mode);
   };
 
   const handleThemeChange = (theme: ReaderSettings["readerTheme"]) => {
-    useAppearanceStore.getState().setReaderTheme(theme);
-    debounceAppearanceSync({ readerTheme: theme });
+    updateSetting("readerTheme", theme);
   };
 
   const handleLineHeightChange = (lh: ReaderSettings["lineHeight"]) => {
-    useAppearanceStore.getState().setLineHeight(lh);
-    debounceAppearanceSync({ lineHeight: lh });
+    updateSetting("lineHeight", lh);
   };
 
   const handleMaxWidthChange = (w: ReaderSettings["maxWidth"]) => {
-    useAppearanceStore.getState().setMaxWidth(w);
-    debounceAppearanceSync({ maxWidth: w });
+    updateSetting("maxWidth", w);
   };
 
-  const handleWordCardModeChange = (mode: string) => {
-    startTransition(() => {
-      useSettingsStore.getState().setWordCardMode(mode as any);
-      onUpdateSettings({
-        ...settings,
-        wordCardMode: mode as any,
-        bookWordCardMode: mode as any,
-      });
-      try {
-        localStorage.setItem("lectura_word_card_mode", mode);
+  const handleWordCardModeChange = (mode: WordCardViewType) => {
+    // 1. Instant local appearance store update (0 ms immediate button feedback)
+    useAppearanceStore.getState().setWordCardMode(mode as any, isBookMode);
+    useSettingsStore.getState().setWordCardMode(mode as any);
+
+    try {
+      if (isBookMode) {
         localStorage.setItem("lectura_book_word_card_mode", mode);
-      } catch (_) {}
-    });
+      } else {
+        localStorage.setItem("lectura_word_card_mode", mode);
+      }
+    } catch (_) {}
+
+    // 2. Debounced sync to root state and server to avoid freezing the UI with sync operations
+    const patch = getScopedSettingPatch("wordCardMode", mode as any, isBookMode);
+    debounceAppearanceSync(patch, 200);
   };
 
   const handleDecreaseFont = () => {
     const idx = fontSizes.indexOf(activeFontSize);
     if (idx > 0) {
-      const next = fontSizes[idx - 1];
-      useAppearanceStore.getState().setFontSize(next);
-      debounceAppearanceSync({ fontSize: next });
+      updateSetting("fontSize", fontSizes[idx - 1]);
     }
   };
 
   const handleIncreaseFont = () => {
     const idx = fontSizes.indexOf(activeFontSize);
     if (idx < fontSizes.length - 1) {
-      const next = fontSizes[idx + 1];
-      useAppearanceStore.getState().setFontSize(next);
-      debounceAppearanceSync({ fontSize: next });
+      updateSetting("fontSize", fontSizes[idx + 1]);
     }
   };
 
@@ -489,7 +488,7 @@ export default function TextSettingsControls({
                         }`}
                       >
                         <span className="font-extrabold">{t('reader.card_inspector', 'Inspector')}</span>
-                        <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_inspector_sub', 'Center')}</span>
+                        <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_inspector_sub', 'Sidebar')}</span>
                       </button>
                       <button
                         type="button"
@@ -501,7 +500,7 @@ export default function TextSettingsControls({
                         }`}
                       >
                         <span className="font-extrabold">{t('reader.card_floating', 'Floating')}</span>
-                        <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_floating_sub', 'Calm Pop')}</span>
+                        <span className="text-[9px] opacity-80 font-normal leading-none">{t('reader.card_floating_sub', 'Popup')}</span>
                       </button>
                       <button
                         type="button"
@@ -538,7 +537,7 @@ export default function TextSettingsControls({
                       {t('explainer.page_size', 'Page Size')}
                     </span>
                     <select
-                      value={settings.pageSize || "auto"}
+                      value={effectiveSettings.pageSize || "auto"}
                       onChange={(e) => updateKey("pageSize", e.target.value as any)}
                       className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium cursor-pointer"
                     >
@@ -586,7 +585,7 @@ export default function TextSettingsControls({
                         {t('explainer.sentence_spacing', 'Sentence Spacing')}
                       </span>
                       <select
-                        value={settings.sentenceSpacing || "normal"}
+                        value={effectiveSettings.sentenceSpacing || "normal"}
                         onChange={(e) => updateKey("sentenceSpacing", e.target.value as any)}
                         className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium cursor-pointer"
                       >
@@ -603,7 +602,7 @@ export default function TextSettingsControls({
                         {t('explainer.paragraph_spacing', 'Paragraph Spacing')}
                       </span>
                       <select
-                        value={settings.segmentSpacing || "normal"}
+                        value={effectiveSettings.segmentSpacing || "normal"}
                         onChange={(e) => updateKey("segmentSpacing", e.target.value as any)}
                         className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium cursor-pointer"
                       >

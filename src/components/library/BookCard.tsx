@@ -93,6 +93,29 @@ export const BookCard: React.FC<BookCardProps> = memo(({
   const menuRef = useRef<HTMLDivElement>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(lesson.coverUrl || null);
 
+  // Close menu when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onToggleMenu(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onToggleMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen, onToggleMenu]);
+
   // Sync image source if lesson.coverUrl changes
   useEffect(() => {
     setImgSrc(lesson.coverUrl || null);
@@ -551,7 +574,7 @@ export const BookCard: React.FC<BookCardProps> = memo(({
           </button>
 
           {/* Secondary Actions 3-dots Menu */}
-          <div className="relative font-sans" ref={isMenuOpen ? menuRef : null}>
+          <div className="relative font-sans" ref={menuRef}>
             <button
               type="button"
               id={`book-menu-btn-${lesson.id}`}

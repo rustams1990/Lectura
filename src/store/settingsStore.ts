@@ -80,6 +80,30 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (newSettings.bookFontFamily && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_book_font_family', newSettings.bookFontFamily);
       }
+      if (newSettings.fontSize && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_reader_font_size', newSettings.fontSize);
+      }
+      if (newSettings.bookFontSize && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_book_font_size', newSettings.bookFontSize);
+      }
+      if (newSettings.lineHeight && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_line_height', newSettings.lineHeight);
+      }
+      if (newSettings.bookLineHeight && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_book_line_height', newSettings.bookLineHeight);
+      }
+      if (newSettings.maxWidth && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_reader_text_width', newSettings.maxWidth);
+      }
+      if (newSettings.bookMaxWidth && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_book_text_width', newSettings.bookMaxWidth);
+      }
+      if (newSettings.readerTheme && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_reader_theme', newSettings.readerTheme);
+      }
+      if (newSettings.bookReaderTheme && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_book_reader_theme', newSettings.bookReaderTheme);
+      }
       if (newSettings.showTimestamps !== undefined && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_show_timestamps', String(newSettings.showTimestamps));
       }

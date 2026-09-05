@@ -220,6 +220,68 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
       }
     }
 
+    // Helper: Extract Table of Contents from NCX (EPUB 2) or Nav (EPUB 3)
+    const extractEpubToc = (): Record<string, Array<{ anchor: string | null; title: string }>> => {
+      const tocMap: Record<string, Array<{ anchor: string | null; title: string }>> = {};
+
+      const addTocItem = (basePath: string, src: string, rawTitle: string) => {
+        if (!src || !rawTitle) return;
+        const [filePart, anchorPart] = src.split("#");
+        const resolvedPath = resolveOpfHref(basePath, filePart).toLowerCase();
+        if (!tocMap[resolvedPath]) {
+          tocMap[resolvedPath] = [];
+        }
+        const cleanTitle = rawTitle
+          .replace(/<[^>]+>/g, "")
+          .replace(/&nbsp;/g, " ")
+          .replace(/&#160;/g, " ")
+          .replace(/&amp;/g, "&")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (cleanTitle) {
+          // Avoid duplicate titles for the same anchor/file
+          const exists = tocMap[resolvedPath].some(
+            (it) => it.title.toLowerCase() === cleanTitle.toLowerCase() && it.anchor === (anchorPart || null)
+          );
+          if (!exists) {
+            tocMap[resolvedPath].push({
+              anchor: anchorPart || null,
+              title: cleanTitle,
+            });
+          }
+        }
+      };
+
+      // 1. Try NCX (EPUB 2)
+      const ncxEntry = entries.find((e) => e.entryName.toLowerCase().endsWith(".ncx"));
+      if (ncxEntry) {
+        const ncxXml = ncxEntry.getData().toString("utf-8");
+        ncxXml.replace(
+          /<navPoint[^>]*>[\s\S]*?<navLabel>\s*<text>([\s\S]*?)<\/text>\s*<\/navLabel>\s*<content\s+src=["']([^"']+)["']/gi,
+          (_, text, src) => {
+            addTocItem(ncxEntry.entryName, src, text);
+            return "";
+          }
+        );
+      }
+
+      // 2. Try Nav (EPUB 3)
+      const navEntry = entries.find(
+        (e) => e.entryName.toLowerCase().includes("nav") && (e.entryName.endsWith(".xhtml") || e.entryName.endsWith(".html"))
+      );
+      if (navEntry) {
+        const navXml = navEntry.getData().toString("utf-8");
+        navXml.replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
+          addTocItem(navEntry.entryName, href, text);
+          return "";
+        });
+      }
+
+      return tocMap;
+    };
+
+    const tocMap = extractEpubToc();
+
     const extractedImages: Record<string, string> = {};
     let totalExtractedImages = 0;
     const textBlocks: string[] = [];
@@ -258,13 +320,46 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
 
       let processedHtml = htmlContent;
 
+      // Extract body if present to avoid any head/meta/title leakage
+      const bodyMatch = processedHtml.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+      if (bodyMatch) {
+        processedHtml = bodyMatch[1];
+      }
+
+      // Immediately strip script, style, and head tags before anything else
+      processedHtml = processedHtml
+        .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, "")
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+
+      // Check TOC items mapped to this chapter file
+      const fileTocItems = tocMap[resolvedChapterPath.toLowerCase()] || [];
+      let prependedTitle = "";
+      if (fileTocItems.length > 0) {
+        // Find main file-level title (without anchor, or first item)
+        const mainItem = fileTocItems.find((it) => !it.anchor) || fileTocItems[0];
+        if (mainItem) {
+          prependedTitle = `[CHAPTER: ${mainItem.title}]\n\n`;
+        }
+      }
+
+      // If there are anchor-based TOC items inside this file, insert section breaks at anchors
+      for (const it of fileTocItems) {
+        if (it.anchor) {
+          const anchorRegex = new RegExp(`<[^>]+\\b(?:id|name)=["']${it.anchor}["'][^>]*>`, "i");
+          if (anchorRegex.test(processedHtml)) {
+            processedHtml = processedHtml.replace(anchorRegex, `\n\n---PAGE---\n\n[CHAPTER: ${it.title}]\n\n$&`);
+          }
+        }
+      }
+
       if (includeImages && totalExtractedImages < EPUB_MAX_IMAGES) {
         // Replace <img ...> tags (standard HTML/XHTML)
         processedHtml = processedHtml.replace(/<img\b[^>]*\/?>/gi, (imgTag) => {
           if (totalExtractedImages >= EPUB_MAX_IMAGES) return "";
           const src = getTagAttr(imgTag, "src");
           const imgId = extractImageFromSrc(src, resolvedChapterPath);
-          return imgId ? `\n\n[IMG:${imgId}]\n\n` : "";
+          return imgId ? ` [IMG:${imgId}] ` : "";
         });
 
         // Replace <image ...> tags (SVG/XHTML with xlink:href or href)
@@ -274,7 +369,7 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
           const xlinkHref = getTagAttr(imgTag, "xlink:href") || getTagAttr(imgTag, "href");
           if (!xlinkHref) return "";
           const imgId = extractImageFromSrc(xlinkHref, resolvedChapterPath);
-          return imgId ? `\n\n[IMG:${imgId}]\n\n` : "";
+          return imgId ? ` [IMG:${imgId}] ` : "";
         });
       }
 
@@ -290,8 +385,6 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
       });
 
       let cleanText = processedHtml
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
         .replace(/<\/p>/gi, "\n\n")
         .replace(/<\/div>/gi, "\n\n")
         .replace(/<\/h[1-6]>/gi, "\n\n")
@@ -329,7 +422,12 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
         .join("\n\n");
 
       if (cleanText) {
-        textBlocks.push(cleanText);
+        // If cleanText already has a [CHAPTER: ...] at the very beginning (e.g. from anchor split on first element), don't duplicate
+        if (cleanText.startsWith("[CHAPTER:")) {
+          textBlocks.push(cleanText);
+        } else {
+          textBlocks.push((prependedTitle + cleanText).trim());
+        }
       }
     }
 

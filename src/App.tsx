@@ -4,7 +4,6 @@
  */
 
 import { useUIStore } from "./store/uiStore";
-import { useSettingsStore } from "./store/settingsStore";
 import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
@@ -58,6 +57,7 @@ import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname
 import { resolveApiUrl } from "./utils/apiConfig";
 import { lessonsStore, vocabStore, settingsStore, playlistsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { whisperQueueService } from "./services/whisperQueueService";
+import { checkIsBookLesson } from "./utils/readerSettingsUtils";
 import { useTranslation, Trans } from "react-i18next";
 
 const readerThemes = {
@@ -843,6 +843,14 @@ export default function App() {
       bookReaderViewStyle: (localStorage.getItem("lectura_book_reader_view_style") as any) || DEFAULT_READER_SETTINGS.bookReaderViewStyle,
       fontFamily: (localStorage.getItem("lectura_font_family") as any) || DEFAULT_READER_SETTINGS.fontFamily,
       bookFontFamily: (localStorage.getItem("lectura_book_font_family") as any) || DEFAULT_READER_SETTINGS.bookFontFamily,
+      fontSize: (localStorage.getItem("lectura_reader_font_size") as any) || DEFAULT_READER_SETTINGS.fontSize,
+      bookFontSize: (localStorage.getItem("lectura_book_font_size") as any) || DEFAULT_READER_SETTINGS.bookFontSize,
+      lineHeight: (localStorage.getItem("lectura_line_height") as any) || DEFAULT_READER_SETTINGS.lineHeight,
+      bookLineHeight: (localStorage.getItem("lectura_book_line_height") as any) || DEFAULT_READER_SETTINGS.bookLineHeight,
+      maxWidth: (localStorage.getItem("lectura_reader_text_width") as any) || DEFAULT_READER_SETTINGS.maxWidth,
+      bookMaxWidth: (localStorage.getItem("lectura_book_text_width") as any) || DEFAULT_READER_SETTINGS.bookMaxWidth,
+      readerTheme: (localStorage.getItem("lectura_reader_theme") as any) || DEFAULT_READER_SETTINGS.readerTheme,
+      bookReaderTheme: (localStorage.getItem("lectura_book_reader_theme") || localStorage.getItem("lectura_book_theme") as any) || DEFAULT_READER_SETTINGS.bookReaderTheme,
       wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || DEFAULT_READER_SETTINGS.wordCardMode,
       bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || DEFAULT_READER_SETTINGS.bookWordCardMode,
       showTimestamps: localStorage.getItem("lectura_show_timestamps") !== "false",
@@ -1667,13 +1675,38 @@ export default function App() {
             }
           }
           if (d.readingProgress && typeof d.readingProgress === "object") {
+            const parseProgMeta = (raw: any): { progress: number; updatedAt: number } => {
+              if (!raw) return { progress: 0, updatedAt: 0 };
+              if (typeof raw === "number") return { progress: raw, updatedAt: 0 };
+              if (typeof raw === "object") {
+                const p = parseInt(raw.progress, 10);
+                return { progress: !isNaN(p) && p >= 0 ? p : 0, updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : 0 };
+              }
+              try {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed === "number") return { progress: parsed, updatedAt: 0 };
+                if (parsed && typeof parsed === "object") {
+                  const p = parseInt(parsed.progress, 10);
+                  return { progress: !isNaN(p) && p >= 0 ? p : 0, updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0 };
+                }
+              } catch (_) {}
+              const num = parseInt(raw, 10);
+              return { progress: !isNaN(num) && num >= 0 ? num : 0, updatedAt: 0 };
+            };
+
             for (const [lessonId, val] of Object.entries(d.readingProgress)) {
               if (val !== undefined && val !== null) {
                 // If user is actively reading this lesson, preserve current reader page
                 if (activeTabRef.current === "read" && activeLessonIdRef.current === lessonId) {
                   continue;
                 }
-                safeLocalStorageSetItem(`vocab_progress_${lessonId}`, String(val));
+                const localRaw = localStorage.getItem(`vocab_progress_${lessonId}`);
+                const localInfo = parseProgMeta(localRaw);
+                const serverInfo = parseProgMeta(val);
+                if (!localInfo.updatedAt || serverInfo.updatedAt >= localInfo.updatedAt) {
+                  const toStore = typeof val === "object" ? JSON.stringify(val) : String(val);
+                  safeLocalStorageSetItem(`vocab_progress_${lessonId}`, toStore);
+                }
               }
             }
           }
@@ -3385,7 +3418,7 @@ export default function App() {
     setIsFocusMode(false);
   }, [activeLesson, setIsFocusMode]);
 
-  const isBookLesson = activeLesson?.lessonType === "book";
+  const isBookLesson = checkIsBookLesson(activeLesson);
   const isBookFocusMode = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
   const isImmersiveBook = activeTab === "read" && !!activeLesson && isBookFocusMode;
 
@@ -3477,7 +3510,7 @@ export default function App() {
         lessonCountByLanguage={lessonCountByLanguage}
         onOpenBook={handleOpenWhisperBook}
         onManualSync={() => loadDataFromLocalServer()}
-        activeLessonType={activeLesson?.lessonType}
+        activeLessonType={activeLesson ? (isBookLesson ? "book" : activeLesson.lessonType) : undefined}
       />
 
       {/* ── Focus Mode Sticky Header / Video Zone (Mobile / Tablet Only < 1024px) ── */}

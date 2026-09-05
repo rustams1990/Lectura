@@ -12,7 +12,9 @@ import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBI
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
 import { useSettingsStore } from "../store/settingsStore";
+import { useAppearanceStore } from "../store/useAppearanceStore";
 import { useWordStore, extractSelectedWordText } from "../store/useWordStore";
+import { checkIsBookLesson } from "../utils/readerSettingsUtils";
 
 interface ReaderScreenProps {
   activeLesson: Lesson | null;
@@ -98,20 +100,21 @@ export default function ReaderScreen({
   } = useUIStore();
   const { t } = useTranslation();
   const { selectedElement, selectedWordRect } = useVocab();
-  const { wordCardMode: storeCardMode } = useSettingsStore();
+  const storeCardMode = useSettingsStore((s) => s.wordCardMode);
+  const appearanceCardMode = useAppearanceStore((s) => s.wordCardMode);
   const storeSelectedWord = useWordStore((state) => state.selectedWord);
   const storeWord = extractSelectedWordText(storeSelectedWord);
   const effectiveSelectedWord = storeWord || selectedWord || null;
   const effectiveContext = storeSelectedWord?.contextSentence || selectedContext || null;
-  const isBookLesson = activeLesson?.lessonType === "book";
+  const isBookLesson = checkIsBookLesson(activeLesson);
   const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
 
   // Context-aware word card mode:
   // For books in Book Focus mode: defaults to "floating" (calm popup)
-  // Context-aware word card mode respecting user selection across all modes
-  const rawWordCardMode = isBookLesson
+  // Context-aware word card mode respecting user selection across all modes (appearance store prioritized for 0ms transitions)
+  const rawWordCardMode = appearanceCardMode || (isBookLesson
     ? (readerSettings.bookWordCardMode || readerSettings.wordCardMode || storeCardMode || "floating")
-    : (readerSettings.wordCardMode || storeCardMode || "floating");
+    : (readerSettings.wordCardMode || storeCardMode || "floating"));
   const wordCardView: WordCardViewType = normalizeWordCardView(rawWordCardMode);
 
   const [isDesktop, setIsDesktop] = useState(() =>
@@ -497,7 +500,7 @@ export default function ReaderScreen({
                     <TextSettingsControls
                       settings={readerSettings}
                       onUpdateSettings={setReaderSettings}
-                      lessonType={activeLesson?.lessonType}
+                      lessonType={activeLesson ? (isBookLesson ? "book" : activeLesson.lessonType) : undefined}
                       buttonClassName="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg sm:rounded-xl text-xs font-bold text-slate-700 dark:text-zinc-300 shadow-xs hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer active:scale-95"
                     />
                   </div>

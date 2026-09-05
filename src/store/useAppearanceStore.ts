@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { ReaderSettings } from "../types";
+import { ReaderSettings, WordCardMode } from "../types";
+import { resolveEffectiveReaderSettings } from "../utils/readerSettingsUtils";
 
 export const FONT_SIZE_CSS: Record<string, string> = {
   sm: "0.875rem",
@@ -32,20 +33,24 @@ export const FONT_FAMILY_CSS: Record<string, string> = {
 };
 
 export interface AppearanceState {
+  isBook: boolean;
   fontSize: ReaderSettings["fontSize"];
   fontFamily: ReaderSettings["fontFamily"];
   lineHeight: ReaderSettings["lineHeight"];
   maxWidth: ReaderSettings["maxWidth"];
   readerTheme: ReaderSettings["readerTheme"];
   readerViewStyle: "badges" | "text";
+  wordCardMode: WordCardMode;
 
   // Actions
-  setFontSize: (fontSize: ReaderSettings["fontSize"]) => void;
-  setFontFamily: (fontFamily: ReaderSettings["fontFamily"]) => void;
-  setLineHeight: (lineHeight: ReaderSettings["lineHeight"]) => void;
-  setMaxWidth: (maxWidth: ReaderSettings["maxWidth"]) => void;
-  setReaderTheme: (readerTheme: ReaderSettings["readerTheme"]) => void;
-  setReaderViewStyle: (readerViewStyle: "badges" | "text") => void;
+  setIsBook: (isBook: boolean) => void;
+  setFontSize: (fontSize: ReaderSettings["fontSize"], isBook?: boolean) => void;
+  setFontFamily: (fontFamily: ReaderSettings["fontFamily"], isBook?: boolean) => void;
+  setLineHeight: (lineHeight: ReaderSettings["lineHeight"], isBook?: boolean) => void;
+  setMaxWidth: (maxWidth: ReaderSettings["maxWidth"], isBook?: boolean) => void;
+  setReaderTheme: (readerTheme: ReaderSettings["readerTheme"], isBook?: boolean) => void;
+  setReaderViewStyle: (readerViewStyle: "badges" | "text", isBook?: boolean) => void;
+  setWordCardMode: (wordCardMode: WordCardMode, isBook?: boolean) => void;
   initFromSettings: (settings?: Partial<ReaderSettings>, isBook?: boolean) => void;
 }
 
@@ -70,78 +75,86 @@ export function debounceAppearanceSync(patch: Partial<ReaderSettings>, delayMs =
   }, delayMs);
 }
 
-export const useAppearanceStore = create<AppearanceState>((set) => ({
+export const useAppearanceStore = create<AppearanceState>((set, get) => ({
+  isBook: false,
   fontSize: "lg",
   fontFamily: "sans",
   lineHeight: "loose",
   maxWidth: "wide",
   readerTheme: "default",
   readerViewStyle: "badges",
+  wordCardMode: "floating",
 
-  setFontSize: (fontSize) => {
+  setIsBook: (isBook) => set({ isBook }),
+
+  setFontSize: (fontSize, isBookParam) => {
+    const book = isBookParam ?? get().isBook;
     try {
-      localStorage.setItem("lectura_reader_font_size", fontSize || "lg");
+      localStorage.setItem(book ? "lectura_book_font_size" : "lectura_reader_font_size", fontSize || "lg");
     } catch (_) {}
     set({ fontSize });
   },
 
-  setFontFamily: (fontFamily) => {
+  setFontFamily: (fontFamily, isBookParam) => {
+    const book = isBookParam ?? get().isBook;
     try {
-      localStorage.setItem("lectura_font_family", fontFamily || "sans");
+      localStorage.setItem(book ? "lectura_book_font_family" : "lectura_font_family", fontFamily || "sans");
     } catch (_) {}
     set({ fontFamily });
   },
 
-  setLineHeight: (lineHeight) => {
+  setLineHeight: (lineHeight, isBookParam) => {
+    const book = isBookParam ?? get().isBook;
     try {
-      localStorage.setItem("lectura_line_height", lineHeight || "loose");
+      localStorage.setItem(book ? "lectura_book_line_height" : "lectura_line_height", lineHeight || "loose");
     } catch (_) {}
     set({ lineHeight });
   },
 
-  setMaxWidth: (maxWidth) => {
+  setMaxWidth: (maxWidth, isBookParam) => {
+    const book = isBookParam ?? get().isBook;
     try {
-      localStorage.setItem("lectura_reader_text_width", maxWidth || "wide");
+      localStorage.setItem(book ? "lectura_book_text_width" : "lectura_reader_text_width", maxWidth || "wide");
     } catch (_) {}
     set({ maxWidth });
   },
 
-  setReaderTheme: (readerTheme) => {
+  setReaderTheme: (readerTheme, isBookParam) => {
+    const book = isBookParam ?? get().isBook;
     try {
-      localStorage.setItem("lectura_reader_theme", readerTheme || "default");
+      localStorage.setItem(book ? "lectura_book_reader_theme" : "lectura_reader_theme", readerTheme || "default");
     } catch (_) {}
     set({ readerTheme });
   },
 
-  setReaderViewStyle: (readerViewStyle) => {
+  setReaderViewStyle: (readerViewStyle, isBookParam) => {
+    const book = isBookParam ?? get().isBook;
     try {
-      localStorage.setItem("lectura_reader_view_style", readerViewStyle);
+      localStorage.setItem(book ? "lectura_book_reader_view_style" : "lectura_reader_view_style", readerViewStyle);
     } catch (_) {}
     set({ readerViewStyle });
   },
 
+  setWordCardMode: (wordCardMode, isBookParam) => {
+    const book = isBookParam ?? get().isBook;
+    try {
+      localStorage.setItem(book ? "lectura_book_word_card_mode" : "lectura_word_card_mode", wordCardMode);
+    } catch (_) {}
+    set({ wordCardMode });
+  },
+
   initFromSettings: (settings, isBook = false) => {
     if (!settings) return;
-    set((state) => {
-      const nextFont = isBook
-        ? (settings.bookFontFamily || "serif")
-        : (settings.fontFamily || "sans");
-      const nextStyle = isBook
-        ? (settings.bookReaderViewStyle || "text")
-        : (settings.readerViewStyle || "badges");
-      const nextSize = settings.fontSize || state.fontSize || "lg";
-      const nextLine = settings.lineHeight || state.lineHeight || "loose";
-      const nextWidth = settings.maxWidth || state.maxWidth || "wide";
-      const nextTheme = settings.readerTheme || state.readerTheme || "default";
-
-      return {
-        fontFamily: nextFont,
-        readerViewStyle: nextStyle,
-        fontSize: nextSize,
-        lineHeight: nextLine,
-        maxWidth: nextWidth,
-        readerTheme: nextTheme,
-      };
+    const resolved = resolveEffectiveReaderSettings(settings as ReaderSettings, isBook);
+    set({
+      isBook,
+      fontFamily: resolved.fontFamily || (isBook ? "serif" : "sans"),
+      readerViewStyle: (resolved.readerViewStyle as "badges" | "text") || (isBook ? "text" : "badges"),
+      fontSize: resolved.fontSize || "lg",
+      lineHeight: resolved.lineHeight || "loose",
+      maxWidth: resolved.maxWidth || "wide",
+      readerTheme: resolved.readerTheme || "default",
+      wordCardMode: (resolved.wordCardMode as WordCardMode) || "floating",
     });
   },
 }));

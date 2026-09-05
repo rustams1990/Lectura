@@ -56,6 +56,8 @@ export interface Lesson {
   wordCount?: number | null;
   sourceType?: string | null;
   lessonType?: string; // e.g. "youtube" | "book" | "article" or custom string
+  epub?: string | boolean;
+  pdf?: string | boolean;
   pinned?: boolean;
   translationText?: string | null;
   sentenceTranslations?: Record<string, string>;
@@ -215,6 +217,13 @@ export interface ReaderSettings {
   readerViewStyle?: "badges" | "text"; // standard lessons display mode (default "badges")
   bookReaderViewStyle?: "badges" | "text"; // book lessons display mode (default "text")
   bookFontFamily?: "sans" | "serif" | "mono"; // book lessons font family (default "serif")
+  bookFontSize?: "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  bookLineHeight?: "normal" | "relaxed" | "loose" | "extra-loose";
+  bookReaderTheme?: "default" | "cream" | "sepia" | "slate";
+  bookMaxWidth?: "narrow" | "medium" | "wide";
+  bookPageSize?: "auto" | "all" | "p1" | "p2" | "p3" | "p5" | "p10" | "p15" | "p20" | "w50" | "w100" | "w250" | "w500" | "w1000" | "s5" | "s10" | "s20" | "s30" | "c250" | "c500" | "c1000" | "c2000";
+  bookSentenceSpacing?: "normal" | "spaced" | "wide" | "newline" | "double-newline";
+  bookSegmentSpacing?: "compact" | "normal" | "relaxed" | "loose";
   wordCardMode?: WordCardMode; // "full-inspector" or "calm-sheet" (for standard/video lessons, default "full-inspector")
   bookWordCardMode?: WordCardMode; // specific override for book mode (default "calm-sheet")
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
@@ -225,6 +234,13 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   lineHeight: "relaxed",
   fontFamily: "sans",
   bookFontFamily: "serif",
+  bookFontSize: "lg",
+  bookLineHeight: "loose",
+  bookReaderTheme: "default",
+  bookMaxWidth: "wide",
+  bookPageSize: "auto",
+  bookSentenceSpacing: "normal",
+  bookSegmentSpacing: "normal",
   readerTheme: "default",
   maxWidth: "wide",
   pageSize: "auto",

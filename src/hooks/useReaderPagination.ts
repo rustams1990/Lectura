@@ -199,15 +199,60 @@ export function useReaderPagination({
         return [segsList];
       }
 
+      const isPureImgSeg = (text: string) => {
+        const trimmed = text.trim();
+        if (!trimmed) return false;
+        const stripped = trimmed
+          .replace(/\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]/gi, "")
+          .replace(/__LECTURA_IMG__:[^\s]+/gi, "")
+          .replace(/\[(?:CAPTION:?|caption)[^\]]*\]/gi, "")
+          .replace(/__LECTURA_CAP__:[^\n]+/gi, "")
+          .trim();
+        return stripped.length === 0;
+      };
+
+      // Cluster adjacent pure image segments into a single composite block
+      const clusteredSegs: TextSegment[] = [];
+      let pendingImgSegs: TextSegment[] = [];
+
+      for (const seg of segsList) {
+        if (isPureImgSeg(seg.text)) {
+          pendingImgSegs.push(seg);
+        } else {
+          if (pendingImgSegs.length > 0) {
+            clusteredSegs.push({
+              text: pendingImgSegs.map((s) => s.text.trim()).join("\n"),
+              timestamp: pendingImgSegs[0].timestamp,
+            });
+            pendingImgSegs = [];
+          }
+          clusteredSegs.push(seg);
+        }
+      }
+      if (pendingImgSegs.length > 0) {
+        clusteredSegs.push({
+          text: pendingImgSegs.map((s) => s.text.trim()).join("\n"),
+          timestamp: pendingImgSegs[0].timestamp,
+        });
+      }
+
       const screenPages: TextSegment[][] = [];
       let currentChunk: TextSegment[] = [];
       let currentWords = 0;
 
-      for (const seg of segsList) {
-        const isImgSeg = /^\[(?:\[LECTURA_)?IMG(?:_REF)?:/i.test(seg.text.trim());
-        const isCaptionSeg = /^\[(?:CAPTION:?|caption)/i.test(seg.text.trim());
-        const isNonWordSeg = isImgSeg || isCaptionSeg;
-        const wordsInSeg = isImgSeg ? 90 : (isNonWordSeg ? 10 : seg.text.split(/\s+/).filter(w => w.length > 0).length);
+      for (const seg of clusteredSegs) {
+        const imgMatches = seg.text.match(/\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]|__LECTURA_IMG__:[^\s]+/gi);
+        const imgCount = imgMatches ? imgMatches.length : 0;
+        const isCaptionSeg = /^\[(?:CAPTION:?|caption)/i.test(seg.text.trim()) || seg.text.startsWith("__LECTURA_CAP__:");
+        const textWithoutImages = seg.text
+          .replace(/\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]|__LECTURA_IMG__:[^\s]+/gi, "")
+          .replace(/\[(?:CAPTION:?|caption)[^\]]*\]|__LECTURA_CAP__:[^\n]+/gi, "")
+          .trim();
+        const textWords = textWithoutImages.split(/\s+/).filter(Boolean).length;
+
+        // Unified cluster weight: 20 words base + 5 words per additional image
+        const imageWeight = imgCount > 0 ? 20 + Math.min(imgCount - 1, 6) * 5 : 0;
+        const wordsInSeg = imageWeight + (isCaptionSeg ? 10 : textWords);
 
         // If a large paragraph exceeds limit, flush current chunk
         if (currentWords > 0 && (currentWords + wordsInSeg > wordLimit + 30)) {
@@ -225,30 +270,102 @@ export function useReaderPagination({
       return screenPages;
     };
 
-    const cleanChapterTitle = (rawText: string, fallbackNum: number): string => {
-      let firstLine = rawText.trim().split("\n")[0]?.trim() || "";
+    const cleanChapterTitle = (rawText: string, fallbackNum: number): { title: string; isTOC: boolean } => {
+      const trimmedText = rawText.trim();
       const bookTitle = (lesson.title || "").trim();
 
-      // If the line starts with book title (e.g. "Coraline I." -> "I." or "Coraline Chapter 2" -> "Chapter 2")
-      if (bookTitle && firstLine.toLowerCase().startsWith(bookTitle.toLowerCase())) {
-        firstLine = firstLine.substring(bookTitle.length).trim().replace(/^[-:—.\s]+/, "");
+      // Check explicit [CHAPTER: ...] tag (from EPUB TOC parser)
+      const explicitChapterMatch = trimmedText.match(/\[CHAPTER:\s*([^\]]+)\]/i);
+      if (explicitChapterMatch) {
+        const title = explicitChapterMatch[1].trim();
+        return { title, isTOC: true };
       }
 
-      // Check if it's Roman numeral alone (e.g. "I." -> "Chapter I" or "I.")
-      if (/^[IVXLCDM]+\.?$/i.test(firstLine)) {
-        return `Chapter ${firstLine.replace(/\.$/, "")}`;
+      // Check standard book sections by recognized content signatures
+      if (/^(?:I started this for|This book is dedicated to|Dedicated to|Посвящается|Для моих)/i.test(trimmedText)) {
+        return { title: 'Dedication', isTOC: true };
+      }
+      if (/—\s*G\.\s*K\.\s*Chesterton|Fairy tales are more than true/i.test(trimmedText)) {
+        return { title: 'EPIGRAPH', isTOC: true };
+      }
+      if (/(?:critically acclaimed and award-winning author|author of the novels|Об авторе|About the Author)/i.test(trimmedText)) {
+        return { title: 'About the Author', isTOC: true };
+      }
+      if (/(?:This is a work of fiction|Text copyright ©|All rights reserved under|Copyright ©|Копирайт)/i.test(trimmedText)) {
+        return { title: 'Copyright', isTOC: true };
+      }
+      if (/(?:Jacket art ©|Jacket design by|Cover design by|Illustrations copyright|Credits|Благодарности)/i.test(trimmedText)) {
+        return { title: 'Credits', isTOC: true };
       }
 
-      // Check standard heading formats
-      if (/^(?:(?:Chapter|Глава|Section|Часть|Part)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ВВЕДЕНИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION|ПОСВЯЩЕНИЕ|ЭПИГРАФ|EPIGRAPH|TITLE|COVER)/i.test(firstLine)) {
-        return firstLine;
+      // Check candidate lines
+      const lines = trimmedText
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => {
+          if (!l) return false;
+          if (/^\[(?:\[LECTURA_)?IMG/i.test(l)) return false;
+          if (/^__LECTURA_IMG__/i.test(l)) return false;
+          if (/^\[(?:CAPTION:?|caption)/i.test(l)) return false;
+          if (/^__LECTURA_CAP__/i.test(l)) return false;
+          return true;
+        });
+
+      const textWithoutTags = lines.join(" ").replace(/\[IMG:[^\]]+\]/g, "").trim();
+      const wordCount = textWithoutTags.split(/\s+/).filter(Boolean).length;
+
+      // Pure image plate or standalone illustration without text
+      if (wordCount < 10 && /\[(?:\[LECTURA_)?IMG/i.test(trimmedText)) {
+        return { title: "", isTOC: false };
       }
-      if (firstLine.length > 0 && firstLine.length < 80 && !/[.?!]$/.test(firstLine)) {
-        return firstLine;
+
+      // Filter out lines that just equal the book title
+      const nonBookTitleLines = lines.filter((l) => {
+        const cleanL = l.toLowerCase().replace(/[^a-z0-9а-яё]/gi, "");
+        const cleanB = bookTitle.toLowerCase().replace(/[^a-z0-9а-яё]/gi, "");
+        return cleanL !== cleanB;
+      });
+
+      if (nonBookTitleLines.length === 0) {
+        return { title: "", isTOC: false };
       }
+
+      for (let i = 0; i < Math.min(5, nonBookTitleLines.length); i++) {
+        const line = nonBookTitleLines[i];
+
+        // Roman numeral alone: I., II., III., IV., etc.
+        if (/^[IVXLCDM]+\.?$/i.test(line)) {
+          return { title: line, isTOC: true };
+        }
+
+        // Standard keywords
+        if (
+          /^(?:(?:Chapter|Глава|Section|Часть|Part|Book|Книга)\s+[0-9IVXLCDM\w]+|[IVXLCDM]+\.?|PROLOGUE|EPILOGUE|ПРЕДИСЛОВИЕ|ВВЕДЕНИЕ|ЭПИЛОГ|PREFACE|INTRODUCTION|CONTENTS|DEDICATION|ПОСВЯЩЕНИЕ|ЭПИГРАФ|EPIGRAPH|COVER|ОБЛОЖКА|ABOUT\s+THE\s+AUTHOR|CREDITS|COPYRIGHT|ABOUT\s+THE\s+PUBLISHER|WHY\s+I\s+WROTE|QUESTIONS\s*&|A\s+NOTE\s+ON|SPECIAL\s+MATERIAL)/i.test(
+            line
+          )
+        ) {
+          return { title: line, isTOC: true };
+        }
+
+        // Short heading without trailing sentence punctuation
+        if (line.length > 0 && line.length < 65 && !/[.?!…]$/.test(line)) {
+          return { title: line, isTOC: true };
+        }
+      }
+
+      const first = nonBookTitleLines[0];
+      if (first.length < 65 && !/[.?!…]$/.test(first)) {
+        return { title: first, isTOC: true };
+      }
+
       const targetLang = (lesson.targetLanguage || "").toLowerCase();
       const isRuOrUk = targetLang.startsWith("ru") || targetLang.startsWith("uk") || targetLang === "russian" || targetLang === "ukrainian";
-      return isRuOrUk ? `Глава ${fallbackNum}` : `Chapter ${fallbackNum}`;
+      return { title: isRuOrUk ? `Глава ${fallbackNum}` : `Chapter ${fallbackNum}`, isTOC: true };
+    };
+
+    // Helper: strip [CHAPTER: ...] tag from segment text
+    const cleanSegmentChapterTag = (text: string): string => {
+      return text.replace(/\[CHAPTER:\s*[^\]]+\]\s*/gi, "").trim();
     };
 
     // 1. If lesson has explicit structured chapters array (e.g. lesson.chapters or lesson.parts)
@@ -260,9 +377,12 @@ export function useReaderPagination({
       (lesson as any).chapters.forEach((ch: any, idx: number) => {
         const text = typeof ch === "string" ? ch : (ch.text || ch.content || "");
         const paras = text.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
-        const segs = paras.map((p: string) => ({ text: p.trim(), timestamp: null }));
+        const segs = paras
+          .map((p: string) => ({ text: cleanSegmentChapterTag(p), timestamp: null }))
+          .filter((s: { text: string }) => s.text.length > 0);
         if (segs.length > 0) {
-          const chTitle = (typeof ch === "object" && ch.title) ? ch.title : cleanChapterTitle(text, idx + 1);
+          const { title: detectedTitle, isTOC } = cleanChapterTitle(text, idx + 1);
+          const chTitle = (typeof ch === "object" && ch.title) ? ch.title : detectedTitle;
           if (/^(?:Chapter\s+(?:1\b|[ivx]+\b|one\b)|Глава\s+(?:1\b|[ivx]+\b|один\b|первая\b)|Part\s+(?:1\b|[ivx]+\b)|Section\s+(?:1\b|[ivx]+\b)|^i\b|^1\b)/i.test(chTitle.trim()) || idx > 3) {
             hasSeenChapterOne = true;
           }
@@ -271,12 +391,14 @@ export function useReaderPagination({
           const startPageIndex = allPages.length;
           const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro && segs.length <= 10);
           allPages.push(...chPages);
-          entries.push({
-            title: chTitle,
-            pageIndex: startPageIndex,
-            chapterIndex: idx,
-            progressPercent: 0,
-          });
+          if (isTOC && chTitle) {
+            entries.push({
+              title: chTitle,
+              pageIndex: startPageIndex,
+              chapterIndex: idx,
+              progressPercent: 0,
+            });
+          }
         }
       });
 
@@ -300,10 +422,12 @@ export function useReaderPagination({
         const trimmed = chText.trim();
         if (!trimmed) return;
         const paras = trimmed.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
-        const segs: TextSegment[] = paras.map((p) => ({ text: p.trim(), timestamp: null }));
+        const segs: TextSegment[] = paras
+          .map((p) => ({ text: cleanSegmentChapterTag(p), timestamp: null }))
+          .filter((s) => s.text.length > 0);
         if (segs.length > 0) {
           chapterCounter++;
-          const chTitle = cleanChapterTitle(trimmed, chapterCounter);
+          const { title: chTitle, isTOC } = cleanChapterTitle(trimmed, chapterCounter);
           if (/^(?:Chapter\s+(?:1\b|[ivx]+\b|one\b)|Глава\s+(?:1\b|[ivx]+\b|один\b|первая\b)|Part\s+(?:1\b|[ivx]+\b)|Section\s+(?:1\b|[ivx]+\b)|^i\b|^1\b)/i.test(chTitle.trim()) || chapterCounter > 4) {
             hasSeenChapterOne = true;
           }
@@ -312,12 +436,14 @@ export function useReaderPagination({
           const startPageIndex = allPages.length;
           const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro && segs.length <= 10);
           allPages.push(...chPages);
-          entries.push({
-            title: chTitle,
-            pageIndex: startPageIndex,
-            chapterIndex: chapterCounter - 1,
-            progressPercent: 0,
-          });
+          if (isTOC && chTitle) {
+            entries.push({
+              title: chTitle,
+              pageIndex: startPageIndex,
+              chapterIndex: chapterCounter - 1,
+              progressPercent: 0,
+            });
+          }
         }
       });
 
@@ -347,7 +473,7 @@ export function useReaderPagination({
             const segs: TextSegment[] = paras.map((p) => ({ text: p.trim(), timestamp: null }));
             if (segs.length > 0) {
               chapterCounter++;
-              const chTitle = cleanChapterTitle(trimmed, chapterCounter);
+              const { title: chTitle, isTOC } = cleanChapterTitle(trimmed, chapterCounter);
               if (/^(?:Chapter\s+1\b|Глава\s+1\b|Part\s+1\b|Section\s+1\b|^i\b|^1\b)/i.test(chTitle.trim())) {
                 hasSeenChapterOne = true;
               }
@@ -355,12 +481,14 @@ export function useReaderPagination({
               const startPageIndex = allPages.length;
               const chPages = chunkSegmentsIntoScreenPages(segs, 220, isIntro);
               allPages.push(...chPages);
-              entries.push({
-                title: chTitle,
-                pageIndex: startPageIndex,
-                chapterIndex: chapterCounter - 1,
-                progressPercent: 0,
-              });
+              if (isTOC && chTitle) {
+                entries.push({
+                  title: chTitle,
+                  pageIndex: startPageIndex,
+                  chapterIndex: chapterCounter - 1,
+                  progressPercent: 0,
+                });
+              }
             }
           });
 
@@ -506,10 +634,27 @@ export function useReaderPagination({
   });
 
   const didUserNavigateRef = useRef(false);
+  const isInitialMountRef = useRef(true);
+  const prevLessonIdRef = useRef(lesson.id);
+
+  // Sync saved progress when lesson changes
+  useEffect(() => {
+    if (!lesson.id) return;
+    if (prevLessonIdRef.current !== lesson.id) {
+      prevLessonIdRef.current = lesson.id;
+      isInitialMountRef.current = true;
+      lastFirstSegRef.current = null;
+      didUserNavigateRef.current = false;
+      const saved = localStorage.getItem(`vocab_progress_${lesson.id}`);
+      const targetPage = parseSavedProgressPage(saved);
+      setCurrentPageIdx(targetPage);
+    }
+  }, [lesson.id]);
 
   const flushReadingProgress = (pageIdx: number) => {
     if (!lesson.id) return;
-    const valid = Math.min(Math.max(0, pageIdx), Math.max(0, pages.length - 1));
+    const maxPage = pages.length > 0 ? pages.length - 1 : pageIdx;
+    const valid = Math.min(Math.max(0, pageIdx), Math.max(0, maxPage));
     const updatedAt = Date.now();
     const payload = JSON.stringify({ progress: valid, updatedAt });
     safeLocalStorageSetItem(`vocab_progress_${lesson.id}`, payload);
@@ -655,26 +800,57 @@ export function useReaderPagination({
   }, [clampedPageIdx, activeSegmentsForPage]);
 
   useEffect(() => {
+    // Skip anchor tracking on initial mount / initial page load to strictly respect saved progress
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
     if (!lastFirstSegRef.current || pages.length === 0) return;
     const target = lastFirstSegRef.current;
+    const cleanTarget = target.text.trim();
+    if (!cleanTarget) return;
 
-    let targetPageIdx = -1;
+    let bestIdx = -1;
+    let bestDist = Infinity;
+
+    // 1. Exact segment match (pick candidate closest to currentPageIdx)
     for (let pIdx = 0; pIdx < pages.length; pIdx++) {
       const page = pages[pIdx];
-      const match = page.some(seg => 
-        (target.timestamp && seg.timestamp === target.timestamp) || 
-        (target.text.length > 5 && seg.text.includes(target.text.slice(0, 20))) ||
-        (seg.text.length > 5 && target.text.includes(seg.text.slice(0, 20)))
+      const hasExact = page.some(
+        (seg) =>
+          (target.timestamp && seg.timestamp === target.timestamp) ||
+          seg.text.trim() === cleanTarget
       );
-      if (match) {
-        targetPageIdx = pIdx;
-        break;
+      if (hasExact) {
+        const dist = Math.abs(pIdx - currentPageIdx);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = pIdx;
+        }
       }
     }
 
-    if (targetPageIdx >= 0 && targetPageIdx !== currentPageIdx) {
+    // 2. High-confidence prefix match (at least 35 characters, pick candidate closest to currentPageIdx)
+    if (bestIdx < 0) {
+      const prefix = cleanTarget.slice(0, 50);
+      if (prefix.length >= 35) {
+        for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+          const page = pages[pIdx];
+          const hasPrefix = page.some((seg) => seg.text.includes(prefix));
+          if (hasPrefix) {
+            const dist = Math.abs(pIdx - currentPageIdx);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestIdx = pIdx;
+            }
+          }
+        }
+      }
+    }
+
+    if (bestIdx >= 0 && bestIdx !== currentPageIdx) {
       didUserNavigateRef.current = true;
-      setCurrentPageIdx(targetPageIdx);
+      setCurrentPageIdx(bestIdx);
     }
   }, [pages]);
 

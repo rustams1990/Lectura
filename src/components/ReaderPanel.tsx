@@ -36,6 +36,7 @@ import { TooltipPortal } from "./TooltipPortal";
 import ReaderUnknownWordsList from "./ReaderUnknownWordsList";
 import TextSettingsControls from "./TextSettingsControls";
 import { Lesson, VocabItem, WordStatus, ReaderSettings, HistoryEntry, DEFAULT_TOOLBAR_VISIBILITY } from "../types";
+import { checkIsBookLesson, resolveEffectiveReaderSettings } from "../utils/readerSettingsUtils";
 import { segmentSentenceTokens, cleanWordForLookup, isNumericOrRoman } from "../tokenizer";
 import { useReaderPagination, TextSegment, parseTimestampToSeconds, splitIntoSentences } from "../hooks/useReaderPagination";
 import { useTranslation } from "react-i18next";
@@ -338,12 +339,11 @@ function ReaderPanel({
     bookReaderView,
     setBookReaderView,
   } = useUIStore();
-  const isBookLesson = lesson.lessonType === "book";
-  const isBookFocus = isBookLesson && (bookReaderView === "focus" || bookDisplayMode === "book");
-  const storeFontSize = useSettingsStore((s) => s.fontSize);
+  const isBook = checkIsBookLesson(lesson);
+  const isBookFocus = isBook && (bookReaderView === "focus" || bookDisplayMode === "book");
   const storeCardMode = useSettingsStore((s) => s.wordCardMode);
   
-  const wordCardMode = isBookLesson
+  const wordCardMode = isBook
     ? (settings?.bookWordCardMode || settings?.wordCardMode || storeCardMode || "floating")
     : (settings?.wordCardMode || storeCardMode || "floating");
   const isCalmSheet = wordCardMode === "calm-sheet" || wordCardMode === "floating";
@@ -418,20 +418,21 @@ function ReaderPanel({
   const appearance = useAppearanceStore();
 
   useEffect(() => {
-    useAppearanceStore.getState().initFromSettings(settings, lesson.lessonType === "book");
-  }, [settings, lesson.lessonType]);
+    useAppearanceStore.getState().initFromSettings(settings, isBook);
+  }, [settings, lesson.id, isBook]);
 
   const activeSettings = useMemo(() => {
-    const isBook = lesson.lessonType === "book";
+    const resolved = resolveEffectiveReaderSettings(settings, isBook);
     return {
-      fontSize: appearance.fontSize,
-      lineHeight: appearance.lineHeight,
-      fontFamily: appearance.fontFamily,
-      readerTheme: appearance.readerTheme,
-      maxWidth: appearance.maxWidth,
-      pageSize: settings?.pageSize || "auto",
-      sentenceSpacing: settings?.sentenceSpacing || "normal",
-      segmentSpacing: settings?.segmentSpacing || "normal",
+      ...resolved,
+      fontSize: appearance.fontSize || resolved.fontSize,
+      lineHeight: appearance.lineHeight || resolved.lineHeight,
+      fontFamily: appearance.fontFamily || resolved.fontFamily,
+      readerTheme: appearance.readerTheme || resolved.readerTheme,
+      maxWidth: appearance.maxWidth || resolved.maxWidth,
+      pageSize: resolved.pageSize || "auto",
+      sentenceSpacing: resolved.sentenceSpacing || "normal",
+      segmentSpacing: resolved.segmentSpacing || "normal",
       ttsEngine: settings?.ttsEngine || "google",
       ttsLocale: settings?.ttsLocale || "",
       ttsLocales: settings?.ttsLocales || {},
@@ -444,14 +445,14 @@ function ReaderPanel({
       showSentenceTranslations: !!settings?.showSentenceTranslations,
       showTimestamps: settings?.showTimestamps === undefined ? true : (settings?.showTimestamps === "false" ? false : Boolean(settings?.showTimestamps)),
       cjkWordSpacing: !!settings?.cjkWordSpacing,
-      readerViewStyle: appearance.readerViewStyle,
-      wordCardMode: isBook ? (settings?.bookWordCardMode || "calm-sheet") : (settings?.wordCardMode || "full-inspector"),
+      readerViewStyle: appearance.readerViewStyle || resolved.readerViewStyle,
+      wordCardMode: resolved.wordCardMode,
       bookWordCardMode: settings?.bookWordCardMode || "calm-sheet",
-      bookReaderViewStyle: appearance.readerViewStyle,
-      bookFontFamily: appearance.fontFamily,
+      bookReaderViewStyle: appearance.readerViewStyle || resolved.readerViewStyle,
+      bookFontFamily: appearance.fontFamily || resolved.bookFontFamily,
       toolbarVisibility: settings?.toolbarVisibility,
     };
-  }, [settings, lesson.lessonType, appearance]);
+  }, [settings, isBook, appearance]);
 
   const {
     segments,
@@ -568,7 +569,7 @@ function ReaderPanel({
 
   // Check if active page is a dedication, cover, or title page
   const isDedicationOrTitlePage = useMemo(() => {
-    if (lesson.lessonType !== "book" || activeSegmentsForPage.length === 0) return false;
+    if (!isBook || activeSegmentsForPage.length === 0) return false;
     
     let totalWords = 0;
     let hasImage = false;
@@ -588,7 +589,7 @@ function ReaderPanel({
     if (hasImage && totalWords <= 30) return true;
     if (totalWords > 0 && totalWords <= 70 && (isDedicationKeyword || activeSegmentsForPage.length <= 3)) return true;
     return false;
-  }, [activeSegmentsForPage, lesson.lessonType]);
+  }, [activeSegmentsForPage, isBook]);
 
   // Precompute tokens and phrase matches for the active segments on this page
   const { allPageTokens, pagePhraseMatches, pageDetectedMatches, sentenceTokenRanges } = useMemo(() => {
@@ -1019,7 +1020,7 @@ function ReaderPanel({
       )}
 
       {/* Static Header for Book Focus Mode */}
-      {lesson.lessonType === "book" && isBookFocus && (
+      {isBook && isBookFocus && (
         <header className="flex items-center justify-between py-2 mb-4 border-b border-stone-200/60 dark:border-zinc-800/60 select-none text-xs text-stone-500 dark:text-zinc-400">
           <button
             type="button"
@@ -1074,7 +1075,7 @@ function ReaderPanel({
               settings={activeSettings}
               onUpdateSettings={onUpdateSettings || (() => {})}
               compact={false}
-              lessonType={lesson.lessonType}
+              lessonType={isBook ? "book" : lesson.lessonType}
             />
           </div>
         </header>
@@ -1161,7 +1162,7 @@ function ReaderPanel({
               )}
 
               {/* 5. Video */}
-              {activeSettings.toolbarVisibility?.showVideoToggle !== false && !isBookLesson && lesson.sourceType !== 'book' && lesson.sourceType !== 'article' && Boolean(lesson.youtubeId || (lesson as any).localVideoUrl) && (
+              {activeSettings.toolbarVisibility?.showVideoToggle !== false && !isBook && lesson.sourceType !== 'book' && lesson.sourceType !== 'article' && Boolean(lesson.youtubeId || (lesson as any).localVideoUrl) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1218,7 +1219,7 @@ function ReaderPanel({
                 settings={activeSettings}
                 onUpdateSettings={onUpdateSettings || (() => {})}
                 compact={false}
-                lessonType={lesson.lessonType}
+                lessonType={isBook ? "book" : lesson.lessonType}
               />
             </div>
 
@@ -1336,22 +1337,31 @@ function ReaderPanel({
           // Check if this segment represents an inline image placeholder or caption
           const trimmedSegText = seg.text.trim();
 
-          // 1. Проверка на картинку
-          if ((trimmedSegText.startsWith('[IMG:') && trimmedSegText.endsWith(']')) || trimmedSegText.startsWith('__LECTURA_IMG__:')) {
-            let src = trimmedSegText.startsWith('__LECTURA_IMG__:')
-              ? trimmedSegText.replace('__LECTURA_IMG__:', '').trim()
-              : trimmedSegText.slice(5, -1).trim();
+          // 1. Image Check (single image, image cluster gallery, or legacy image marker)
+          const imgMatches: string[] = [];
+          if (trimmedSegText.startsWith('__LECTURA_IMG__:')) {
+            imgMatches.push(trimmedSegText.replace('__LECTURA_IMG__:', '').trim());
+          } else {
+            const matches = [...trimmedSegText.matchAll(/\[(?:\[LECTURA_)?IMG(?:_REF)?:([^\]|]+)(?:\|[^\]]*)?\]/gi)];
+            if (matches.length > 0) {
+              matches.forEach((m) => imgMatches.push(m[1].trim()));
+            }
+          }
 
+          if (imgMatches.length > 0) {
             let rawLessonImages = (lesson as any)?.images;
             if (typeof rawLessonImages === 'string') {
               try { rawLessonImages = JSON.parse(rawLessonImages); } catch (_) { rawLessonImages = {}; }
             }
-            const resolved = lessonImagesMap?.[src] || rawLessonImages?.[src] || (lesson as any)?.media?.images?.[src];
-            if (resolved) {
-              src = resolved;
-            }
+            const resolveSrc = (idOrSrc: string) => {
+              let res = lessonImagesMap?.[idOrSrc] || rawLessonImages?.[idOrSrc] || (lesson as any)?.media?.images?.[idOrSrc] || idOrSrc;
+              if (typeof res === 'string' && typeof window !== 'undefined' && window.location?.origin) {
+                res = res.replace(/^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, window.location.origin);
+              }
+              return res;
+            };
 
-            // Проверяем, есть ли подпись сразу за картинкой
+            // Check if caption follows immediately
             let nextCaptionText = '';
             const nextSeg = activeSegmentsForPage[pIdx + 1];
             if (nextSeg && nextSeg.text) {
@@ -1363,24 +1373,93 @@ function ReaderPanel({
               }
             }
 
+            // Check if the current page is a full illustration plate (e.g. cover or plate page)
+            const isFullPlate = activeSegmentsForPage.every((s) => {
+              const t = s.text.trim();
+              return (
+                !t ||
+                /\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]|__LECTURA_IMG__:[^\s]+/i.test(t) ||
+                /^\[(?:CAPTION:?|caption)/i.test(t) ||
+                t.startsWith('__LECTURA_CAP__:')
+              );
+            });
+
+            // Case A: Multiple images clustered together -> Render responsive gallery row
+            if (imgMatches.length > 1) {
+              return (
+                <div key={pIdx} className="my-4 mx-auto flex flex-wrap items-center justify-center gap-3 w-full clear-both">
+                  {imgMatches.map((imgId, gIdx) => {
+                    const src = resolveSrc(imgId);
+                    return (
+                      <img
+                        key={gIdx}
+                        src={src}
+                        alt={t('reader.illustration', 'Illustration')}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        className="max-h-24 sm:max-h-28 w-auto h-auto rounded shadow-sm object-contain hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    );
+                  })}
+                  {nextCaptionText && (
+                    <figcaption className="text-xs text-neutral-500 dark:text-neutral-400 italic mt-1.5 text-center select-none w-full">
+                      {nextCaptionText.replace(/^image caption[:,]?\s*/i, '').trim()}
+                    </figcaption>
+                  )}
+                </div>
+              );
+            }
+
+            // Case B: Single image on a full-plate page (cover / full illustration)
+            const singleSrc = resolveSrc(imgMatches[0]);
+            if (isFullPlate) {
+              return (
+                <figure key={pIdx} className="my-6 mx-auto max-w-xl flex flex-col items-center justify-center clear-both w-full">
+                  <img
+                    src={singleSrc}
+                    alt={t('reader.illustration', 'Illustration')}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    id={`pdf-epub-img-${pIdx}`}
+                    className="w-full max-w-md sm:max-w-lg max-h-[75vh] h-auto rounded-xl shadow-md border border-neutral-200 dark:border-neutral-800 object-contain mx-auto"
+                    onError={(e) => {
+                      const el = e.currentTarget;
+                      el.style.display = 'none';
+                      const parent = el.parentElement;
+                      if (parent) parent.style.display = 'none';
+                    }}
+                  />
+                  {nextCaptionText && (
+                    <figcaption className="text-xs text-neutral-500 dark:text-neutral-400 italic mt-2 text-center select-none max-w-md">
+                      {nextCaptionText.replace(/^image caption[:,]?\s*/i, '').trim()}
+                    </figcaption>
+                  )}
+                </figure>
+              );
+            }
+
+            // Case C: Single image in text flow (vignette / inline illustration) -> strictly natural w-auto h-auto
             return (
-              <figure key={pIdx} className="my-6 mx-auto max-w-xl flex flex-col items-start clear-both w-full">
+              <figure key={pIdx} className="my-4 mx-auto max-w-xl flex flex-col items-center justify-center clear-both w-full">
                 <img
-                  src={src}
+                  src={singleSrc}
                   alt={t('reader.illustration', 'Illustration')}
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   id={`pdf-epub-img-${pIdx}`}
-                  className="w-full h-auto rounded-xl shadow-md border border-neutral-200 dark:border-neutral-800 object-contain bg-neutral-900"
+                  className="max-w-full max-h-[50vh] w-auto h-auto rounded-lg shadow-sm object-contain mx-auto"
                   onError={(e) => {
                     const el = e.currentTarget;
-                    el.style.display = "none";
+                    el.style.display = 'none';
                     const parent = el.parentElement;
-                    if (parent) parent.style.display = "none";
+                    if (parent) parent.style.display = 'none';
                   }}
                 />
                 {nextCaptionText && (
-                  <figcaption className="text-xs text-neutral-500 dark:text-neutral-400 italic mt-1.5 text-center select-none w-full">
+                  <figcaption className="text-xs text-neutral-500 dark:text-neutral-400 italic mt-1.5 text-center select-none">
                     {nextCaptionText.replace(/^image caption[:,]?\s*/i, '').trim()}
                   </figcaption>
                 )}
@@ -1480,7 +1559,7 @@ function ReaderPanel({
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     id={`pdf-epub-img-${pIdx}`}
-                    className="w-full max-w-2xl h-auto max-h-[500px] object-contain rounded-xl shadow-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900"
+                    className="max-w-full max-h-[65vh] w-auto h-auto object-contain rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-800 mx-auto"
                     onError={(e) => {
                       // Hide broken images cleanly instead of showing white rectangle
                       const el = e.currentTarget;
@@ -1771,10 +1850,11 @@ function ReaderPanel({
                 }
 
                 const phraseDisplay = phraseTokens.map((t, idx) => {
-                  let text = t.raw;
-                  if (idx === 0) text = text.substring(prefix.length);
-                  if (idx === phraseTokens.length - 1) text = text.substring(0, text.length - suffix.length);
-                  return text;
+                  const isFirst = idx === 0;
+                  const isLast = idx === phraseTokens.length - 1;
+                  const startIdx = isFirst ? prefix.length : 0;
+                  const endIdx = isLast ? t.raw.length - suffix.length : t.raw.length;
+                  return t.raw.substring(startIdx, Math.max(startIdx, endIdx));
                 }).join("");
 
                 const isPhraseSelected = currentActiveWord?.toLowerCase() === matchedPhrase.phrase.toLowerCase();
@@ -2010,13 +2090,11 @@ function ReaderPanel({
                             tokenStyleClass = `${tokenStyleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-zinc-950 scale-103 duration-150`;
                           }
 
-                          let displayText = tok.raw;
-                          if (tokIdx === 0) {
-                            displayText = tok.raw.substring(prefix.length);
-                          }
-                          if (tokIdx === phraseTokens.length - 1) {
-                            displayText = tok.raw.substring(0, tok.raw.length - suffix.length);
-                          }
+                          const isFirst = tokIdx === 0;
+                          const isLast = tokIdx === phraseTokens.length - 1;
+                          const startIdx = isFirst ? prefix.length : 0;
+                          const endIdx = isLast ? tok.raw.length - suffix.length : tok.raw.length;
+                          const displayText = tok.raw.substring(startIdx, Math.max(startIdx, endIdx));
                           
                           return (
                             <span key={tokIdx} className={`${tokenStyleClass} inline-block`}>
@@ -2048,13 +2126,16 @@ function ReaderPanel({
 
               let prefix = "";
               let suffix = "";
-              if (!isCjk) {
+              let wordContent = rawString;
+
+              if (!isCjk && cleanWord) {
                 const cleanedAtStartIdx = rawString.toLowerCase().indexOf(cleanWord);
                 if (cleanedAtStartIdx >= 0) {
                   if (cleanedAtStartIdx > 0) {
                     prefix = rawString.substring(0, cleanedAtStartIdx);
                   }
                   const cleanedAtEndIdx = cleanedAtStartIdx + cleanWord.length;
+                  wordContent = rawString.substring(cleanedAtStartIdx, cleanedAtEndIdx);
                   if (cleanedAtEndIdx < rawString.length) {
                     suffix = rawString.substring(cleanedAtEndIdx);
                   }
@@ -2138,12 +2219,6 @@ function ReaderPanel({
                   styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 shadow-sm`;
                 }
               }
-
-              const wordContent = isCjk ? rawString : (
-                prefix.length > 0 || suffix.length > 0
-                  ? rawString.substring(prefix.length, rawString.length - suffix.length)
-                  : rawString
-              );
 
               const wordId = `${cleanWord}-${tIdx}-${sIdx}-${pIdx}`;
 
@@ -2347,7 +2422,6 @@ function ReaderPanel({
           } else {
             // Render classic clean book block paragraphs
             const isFirstParagraph = pIdx === 0;
-            const isBook = lesson.lessonType === "book";
             const trimmedText = seg.text.trim();
 
             // ── Article headings (from Readability web import) ─────────────────────
@@ -2499,7 +2573,7 @@ function ReaderPanel({
 
         {/* Нижняя чистая панель навигации по страницам */}
         {pages.length > 1 && !(showOnlyUnknown && unknownViewMode === "list") && (
-          <div className={lesson.lessonType === "book" ? "mt-auto w-full select-none" : "mt-6 select-none"}>
+          <div className={isBook ? "mt-auto w-full select-none" : "mt-6 select-none"}>
             <div className={`flex items-center justify-between pt-6 border-t ${currentTheme.divider} select-none`}>
               <button
                 type="button"

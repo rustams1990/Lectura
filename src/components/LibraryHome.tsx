@@ -704,20 +704,16 @@ function LibraryHome({
   const gridDropdownRef = useRef<HTMLDivElement>(null);
 
   const [openMenuLessonId, setOpenMenuLessonId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (gridDropdownRef.current && !gridDropdownRef.current.contains(event.target as Node)) {
         setIsGridDropdownOpen(false);
       }
-      if (openMenuLessonId && menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpenMenuLessonId(null);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [openMenuLessonId]);
+  }, []);
 
   const handleBooksPerRowChange = (cols: number) => {
     setBooksPerRow(cols);
