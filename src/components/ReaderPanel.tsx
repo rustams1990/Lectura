@@ -1328,6 +1328,9 @@ function ReaderPanel({
           if (!seg || !seg.text || seg.text.trim().length === 0) return null;
           const globalSegmentIdx = segments.indexOf(seg);
           const isSegmentActive = globalSegmentIdx === activeSegmentIndex && activeSegmentIndex >= 0;
+          const isUnknownOnlyText = Boolean(showOnlyUnknown && unknownViewMode === "text");
+          const dimClass = "opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300";
+          const groupDimClass = "opacity-15 dark:opacity-10 blur-[2.5px] group-hover:blur-none group-hover:opacity-100 hover:blur-none hover:opacity-100 duration-300";
 
           // Check if we should split by sentence with synchronous normalization
           const sentenceStrings = (activeSettings.sentenceSpacing && activeSettings.sentenceSpacing !== "normal")
@@ -1745,7 +1748,7 @@ function ReaderPanel({
                   elements.push(
                     <span 
                       key={`punct-${tIdx}`} 
-                      className={`text-inherit opacity-95 inline whitespace-nowrap ml-0 ${hasSpaceAfter || isOpeningQuoteOrBracket ? "" : "mr-1.5"}`}
+                      className={`text-inherit ${isUnknownOnlyText ? dimClass : "opacity-95"} inline whitespace-nowrap ml-0 ${hasSpaceAfter || isOpeningQuoteOrBracket ? "" : "mr-1.5"}`}
                     >
                       {tok.raw.trim()}
                     </span>
@@ -1781,7 +1784,7 @@ function ReaderPanel({
                 elements.push(
                   <span 
                     key={`nonword-${tIdx}`} 
-                    className={isNum ? "text-inherit opacity-95 inline" : "opacity-95 inline"}
+                    className={isNum ? `text-inherit ${isUnknownOnlyText ? dimClass : "opacity-95"} inline` : `${isUnknownOnlyText ? dimClass : "opacity-95"} inline`}
                   >
                     {tok.raw}
                   </span>
@@ -1893,12 +1896,17 @@ function ReaderPanel({
                   }
                 }
 
+                const isPhraseKnown = status === "known" || status === "ignored";
+                if (isUnknownOnlyText && isPhraseKnown) {
+                  styleClass = `${styleClass} ${dimClass}`;
+                }
+
                 const wordId = `phrase-${matchedPhrase.phrase}-${tIdx}-${sIdx}-${pIdx}`;
                 const phrasePaddingClass = isTextMode ? "" : `${prefix ? "pl-0.5" : "pl-1"} ${suffix ? "pr-0.5" : "pr-1"}`;
 
                 elements.push(
-                  <span key={tIdx} className={`inline whitespace-nowrap relative ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
-                    {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-95 mr-0">{prefix}</span>}
+                  <span key={tIdx} className={`inline whitespace-nowrap relative group ${hoveredWordId === wordId ? "z-50" : ""} ${getCjkSpacingClass(endIndex)}`} spellCheck={false}>
+                    {prefix && <span className={`inline text-inherit select-none pointer-events-none ${isUnknownOnlyText ? groupDimClass : "opacity-95"} mr-0`}>{prefix}</span>}
                     <span
                       role="button"
                       tabIndex={0}
@@ -1927,7 +1935,7 @@ function ReaderPanel({
                     >
                       {phraseDisplay}
                     </span>
-                    {suffix && <span className="inline text-inherit select-none pointer-events-none opacity-95 ml-0">{suffix}</span>}
+                    {suffix && <span className={`inline text-inherit select-none pointer-events-none ${isUnknownOnlyText ? groupDimClass : "opacity-95"} ml-0`}>{suffix}</span>}
                   </span>
                 );
 
@@ -2031,8 +2039,8 @@ function ReaderPanel({
                 const phraseStatus = isPhraseSaved ? (vocab[phraseLangKey] || vocab[phraseKey]).status : "new";
                 const isPhraseKnown = phraseStatus === "known" || phraseStatus === "ignored";
 
-                if (showOnlyUnknown && unknownViewMode === "text" && isPhraseKnown) {
-                  styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2px] hover:blur-none hover:opacity-100 duration-300`;
+                if (isUnknownOnlyText && isPhraseKnown) {
+                  styleClass = `${styleClass} ${dimClass}`;
                 }
 
                 if (isPhraseActive) {
@@ -2044,8 +2052,8 @@ function ReaderPanel({
                 const wordId = `detected-${matchedDetected.phrase}-${tIdx}-${sIdx}-${pIdx}`;
 
                 elements.push(
-                  <span key={tIdx} className="inline whitespace-nowrap relative" spellCheck={false}>
-                    {prefix && <span className="inline text-inherit select-none pointer-events-none opacity-90 mr-0">{prefix}</span>}
+                  <span key={tIdx} className="inline whitespace-nowrap relative group" spellCheck={false}>
+                    {prefix && <span className={`inline text-inherit select-none pointer-events-none ${isUnknownOnlyText ? groupDimClass : "opacity-90"} mr-0`}>{prefix}</span>}
                     <span
                       role="button"
                       tabIndex={0}
@@ -2077,7 +2085,7 @@ function ReaderPanel({
                       ) : (
                         phraseTokens.map((tok, tokIdx) => {
                           if (!tok.isWord) {
-                            return <span key={tokIdx} className="opacity-95 select-text inline">{tok.raw}</span>;
+                            return <span key={tokIdx} className={`${isUnknownOnlyText && isPhraseKnown ? dimClass : "opacity-95"} select-text inline`}>{tok.raw}</span>;
                           }
                           const wordStatus = getWordInfo(tok.clean);
                           const resolvedCleanWord = resolveWord(tok.clean);
@@ -2085,6 +2093,9 @@ function ReaderPanel({
                           
                           const hasIdiomUnderline = idiomStyle === "underline" || idiomStyle === "hover";
                           let tokenStyleClass = getWordStatusClass(wordStatus, activeSettings.readerTheme, false, true, hasIdiomUnderline);
+                          if (isUnknownOnlyText && isPhraseKnown) {
+                            tokenStyleClass = `${tokenStyleClass} ${dimClass}`;
+                          }
                           
                           if (isWordActive) {
                             tokenStyleClass = `${tokenStyleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-2 dark:ring-offset-zinc-950 scale-103 duration-150`;
@@ -2109,7 +2120,7 @@ function ReaderPanel({
                         </span>
                       )}
                     </span>
-                    {suffix && <span className="inline text-inherit select-none pointer-events-none opacity-95 ml-0">{suffix}</span>}
+                    {suffix && <span className={`inline text-inherit select-none pointer-events-none ${isUnknownOnlyText ? groupDimClass : "opacity-95"} ml-0`}>{suffix}</span>}
                   </span>
                 );
 
@@ -2438,13 +2449,20 @@ function ReaderPanel({
               const headingTokens = segmentSentenceTokens(headingInnerText, lesson.targetLanguage);
               const headingWordNodes = headingTokens.map((tok, tIdx) => {
                 if (!tok.isWord) {
-                  return <span key={tIdx} className="opacity-90 select-text inline">{tok.raw}</span>;
+                  return <span key={tIdx} className={`${isUnknownOnlyText ? dimClass : "opacity-90"} select-text inline`}>{tok.raw}</span>;
                 }
                 const wordKey = `${lesson.targetLanguage.toLowerCase()}_${tok.clean}`;
                 const vocabItem = tok.clean ? (vocab[wordKey] || vocab[tok.clean]) : undefined;
                 const status = vocabItem?.status;
+                const isKnown = status === "known" || status === "ignored";
                 // known → muted; 1-5 (learning stages) → amber; new/ignored → default
-                const knownClass = status === "known" ? "opacity-60" : (status && ["1","2","3","4","5"].includes(status)) ? "text-amber-600 dark:text-amber-400" : "";
+                const knownClass = isUnknownOnlyText && isKnown
+                  ? dimClass
+                  : status === "known"
+                  ? "opacity-60"
+                  : (status && ["1","2","3","4","5"].includes(status))
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "";
                 return (
                   <span
                     key={tIdx}

@@ -1,4 +1,2181 @@
 (() => {
+  var __create = Object.create;
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __getProtoOf = Object.getPrototypeOf;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+    get: (a2, b) => (typeof require !== "undefined" ? require : a2)[b]
+  }) : x)(function(x) {
+    if (typeof require !== "undefined") return require.apply(this, arguments);
+    throw Error('Dynamic require of "' + x + '" is not supported');
+  });
+  var __commonJS = (cb, mod) => function __require2() {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+    // If the importer is in node compatibility mode or this is not an ESM
+    // file that has been converted to a CommonJS file using a Babel-
+    // compatible transform (i.e. "__esModule" has not been set), then set
+    // "default" to the CommonJS "module.exports" for node compatibility.
+    isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+    mod
+  ));
+
+  // node_modules/localforage/dist/localforage.js
+  var require_localforage = __commonJS({
+    "node_modules/localforage/dist/localforage.js"(exports, module) {
+      (function(f3) {
+        if (typeof exports === "object" && typeof module !== "undefined") {
+          module.exports = f3();
+        } else if (typeof define === "function" && define.amd) {
+          define([], f3);
+        } else {
+          var g4;
+          if (typeof window !== "undefined") {
+            g4 = window;
+          } else if (typeof global !== "undefined") {
+            g4 = global;
+          } else if (typeof self !== "undefined") {
+            g4 = self;
+          } else {
+            g4 = this;
+          }
+          g4.localforage = f3();
+        }
+      })(function() {
+        var define2, module2, exports2;
+        return (function e2(t4, n3, r2) {
+          function s3(o3, u2) {
+            if (!n3[o3]) {
+              if (!t4[o3]) {
+                var a2 = typeof __require == "function" && __require;
+                if (!u2 && a2) return a2(o3, true);
+                if (i3) return i3(o3, true);
+                var f3 = new Error("Cannot find module '" + o3 + "'");
+                throw f3.code = "MODULE_NOT_FOUND", f3;
+              }
+              var l2 = n3[o3] = { exports: {} };
+              t4[o3][0].call(l2.exports, function(e3) {
+                var n4 = t4[o3][1][e3];
+                return s3(n4 ? n4 : e3);
+              }, l2, l2.exports, e2, t4, n3, r2);
+            }
+            return n3[o3].exports;
+          }
+          var i3 = typeof __require == "function" && __require;
+          for (var o2 = 0; o2 < r2.length; o2++) s3(r2[o2]);
+          return s3;
+        })({ 1: [function(_dereq_, module3, exports3) {
+          (function(global2) {
+            "use strict";
+            var Mutation = global2.MutationObserver || global2.WebKitMutationObserver;
+            var scheduleDrain;
+            {
+              if (Mutation) {
+                var called = 0;
+                var observer = new Mutation(nextTick);
+                var element = global2.document.createTextNode("");
+                observer.observe(element, {
+                  characterData: true
+                });
+                scheduleDrain = function() {
+                  element.data = called = ++called % 2;
+                };
+              } else if (!global2.setImmediate && typeof global2.MessageChannel !== "undefined") {
+                var channel = new global2.MessageChannel();
+                channel.port1.onmessage = nextTick;
+                scheduleDrain = function() {
+                  channel.port2.postMessage(0);
+                };
+              } else if ("document" in global2 && "onreadystatechange" in global2.document.createElement("script")) {
+                scheduleDrain = function() {
+                  var scriptEl = global2.document.createElement("script");
+                  scriptEl.onreadystatechange = function() {
+                    nextTick();
+                    scriptEl.onreadystatechange = null;
+                    scriptEl.parentNode.removeChild(scriptEl);
+                    scriptEl = null;
+                  };
+                  global2.document.documentElement.appendChild(scriptEl);
+                };
+              } else {
+                scheduleDrain = function() {
+                  setTimeout(nextTick, 0);
+                };
+              }
+            }
+            var draining;
+            var queue = [];
+            function nextTick() {
+              draining = true;
+              var i3, oldQueue;
+              var len = queue.length;
+              while (len) {
+                oldQueue = queue;
+                queue = [];
+                i3 = -1;
+                while (++i3 < len) {
+                  oldQueue[i3]();
+                }
+                len = queue.length;
+              }
+              draining = false;
+            }
+            module3.exports = immediate;
+            function immediate(task) {
+              if (queue.push(task) === 1 && !draining) {
+                scheduleDrain();
+              }
+            }
+          }).call(this, typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
+        }, {}], 2: [function(_dereq_, module3, exports3) {
+          "use strict";
+          var immediate = _dereq_(1);
+          function INTERNAL() {
+          }
+          var handlers = {};
+          var REJECTED = ["REJECTED"];
+          var FULFILLED = ["FULFILLED"];
+          var PENDING = ["PENDING"];
+          module3.exports = Promise2;
+          function Promise2(resolver) {
+            if (typeof resolver !== "function") {
+              throw new TypeError("resolver must be a function");
+            }
+            this.state = PENDING;
+            this.queue = [];
+            this.outcome = void 0;
+            if (resolver !== INTERNAL) {
+              safelyResolveThenable(this, resolver);
+            }
+          }
+          Promise2.prototype["catch"] = function(onRejected) {
+            return this.then(null, onRejected);
+          };
+          Promise2.prototype.then = function(onFulfilled, onRejected) {
+            if (typeof onFulfilled !== "function" && this.state === FULFILLED || typeof onRejected !== "function" && this.state === REJECTED) {
+              return this;
+            }
+            var promise = new this.constructor(INTERNAL);
+            if (this.state !== PENDING) {
+              var resolver = this.state === FULFILLED ? onFulfilled : onRejected;
+              unwrap(promise, resolver, this.outcome);
+            } else {
+              this.queue.push(new QueueItem(promise, onFulfilled, onRejected));
+            }
+            return promise;
+          };
+          function QueueItem(promise, onFulfilled, onRejected) {
+            this.promise = promise;
+            if (typeof onFulfilled === "function") {
+              this.onFulfilled = onFulfilled;
+              this.callFulfilled = this.otherCallFulfilled;
+            }
+            if (typeof onRejected === "function") {
+              this.onRejected = onRejected;
+              this.callRejected = this.otherCallRejected;
+            }
+          }
+          QueueItem.prototype.callFulfilled = function(value) {
+            handlers.resolve(this.promise, value);
+          };
+          QueueItem.prototype.otherCallFulfilled = function(value) {
+            unwrap(this.promise, this.onFulfilled, value);
+          };
+          QueueItem.prototype.callRejected = function(value) {
+            handlers.reject(this.promise, value);
+          };
+          QueueItem.prototype.otherCallRejected = function(value) {
+            unwrap(this.promise, this.onRejected, value);
+          };
+          function unwrap(promise, func, value) {
+            immediate(function() {
+              var returnValue;
+              try {
+                returnValue = func(value);
+              } catch (e2) {
+                return handlers.reject(promise, e2);
+              }
+              if (returnValue === promise) {
+                handlers.reject(promise, new TypeError("Cannot resolve promise with itself"));
+              } else {
+                handlers.resolve(promise, returnValue);
+              }
+            });
+          }
+          handlers.resolve = function(self2, value) {
+            var result = tryCatch(getThen, value);
+            if (result.status === "error") {
+              return handlers.reject(self2, result.value);
+            }
+            var thenable = result.value;
+            if (thenable) {
+              safelyResolveThenable(self2, thenable);
+            } else {
+              self2.state = FULFILLED;
+              self2.outcome = value;
+              var i3 = -1;
+              var len = self2.queue.length;
+              while (++i3 < len) {
+                self2.queue[i3].callFulfilled(value);
+              }
+            }
+            return self2;
+          };
+          handlers.reject = function(self2, error) {
+            self2.state = REJECTED;
+            self2.outcome = error;
+            var i3 = -1;
+            var len = self2.queue.length;
+            while (++i3 < len) {
+              self2.queue[i3].callRejected(error);
+            }
+            return self2;
+          };
+          function getThen(obj) {
+            var then = obj && obj.then;
+            if (obj && (typeof obj === "object" || typeof obj === "function") && typeof then === "function") {
+              return function appyThen() {
+                then.apply(obj, arguments);
+              };
+            }
+          }
+          function safelyResolveThenable(self2, thenable) {
+            var called = false;
+            function onError(value) {
+              if (called) {
+                return;
+              }
+              called = true;
+              handlers.reject(self2, value);
+            }
+            function onSuccess(value) {
+              if (called) {
+                return;
+              }
+              called = true;
+              handlers.resolve(self2, value);
+            }
+            function tryToUnwrap() {
+              thenable(onSuccess, onError);
+            }
+            var result = tryCatch(tryToUnwrap);
+            if (result.status === "error") {
+              onError(result.value);
+            }
+          }
+          function tryCatch(func, value) {
+            var out2 = {};
+            try {
+              out2.value = func(value);
+              out2.status = "success";
+            } catch (e2) {
+              out2.status = "error";
+              out2.value = e2;
+            }
+            return out2;
+          }
+          Promise2.resolve = resolve;
+          function resolve(value) {
+            if (value instanceof this) {
+              return value;
+            }
+            return handlers.resolve(new this(INTERNAL), value);
+          }
+          Promise2.reject = reject;
+          function reject(reason) {
+            var promise = new this(INTERNAL);
+            return handlers.reject(promise, reason);
+          }
+          Promise2.all = all4;
+          function all4(iterable) {
+            var self2 = this;
+            if (Object.prototype.toString.call(iterable) !== "[object Array]") {
+              return this.reject(new TypeError("must be an array"));
+            }
+            var len = iterable.length;
+            var called = false;
+            if (!len) {
+              return this.resolve([]);
+            }
+            var values = new Array(len);
+            var resolved = 0;
+            var i3 = -1;
+            var promise = new this(INTERNAL);
+            while (++i3 < len) {
+              allResolver(iterable[i3], i3);
+            }
+            return promise;
+            function allResolver(value, i4) {
+              self2.resolve(value).then(resolveFromAll, function(error) {
+                if (!called) {
+                  called = true;
+                  handlers.reject(promise, error);
+                }
+              });
+              function resolveFromAll(outValue) {
+                values[i4] = outValue;
+                if (++resolved === len && !called) {
+                  called = true;
+                  handlers.resolve(promise, values);
+                }
+              }
+            }
+          }
+          Promise2.race = race;
+          function race(iterable) {
+            var self2 = this;
+            if (Object.prototype.toString.call(iterable) !== "[object Array]") {
+              return this.reject(new TypeError("must be an array"));
+            }
+            var len = iterable.length;
+            var called = false;
+            if (!len) {
+              return this.resolve([]);
+            }
+            var i3 = -1;
+            var promise = new this(INTERNAL);
+            while (++i3 < len) {
+              resolver(iterable[i3]);
+            }
+            return promise;
+            function resolver(value) {
+              self2.resolve(value).then(function(response) {
+                if (!called) {
+                  called = true;
+                  handlers.resolve(promise, response);
+                }
+              }, function(error) {
+                if (!called) {
+                  called = true;
+                  handlers.reject(promise, error);
+                }
+              });
+            }
+          }
+        }, { "1": 1 }], 3: [function(_dereq_, module3, exports3) {
+          (function(global2) {
+            "use strict";
+            if (typeof global2.Promise !== "function") {
+              global2.Promise = _dereq_(2);
+            }
+          }).call(this, typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
+        }, { "2": 2 }], 4: [function(_dereq_, module3, exports3) {
+          "use strict";
+          var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function(obj) {
+            return typeof obj;
+          } : function(obj) {
+            return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+          };
+          function _classCallCheck(instance, Constructor) {
+            if (!(instance instanceof Constructor)) {
+              throw new TypeError("Cannot call a class as a function");
+            }
+          }
+          function getIDB() {
+            try {
+              if (typeof indexedDB !== "undefined") {
+                return indexedDB;
+              }
+              if (typeof webkitIndexedDB !== "undefined") {
+                return webkitIndexedDB;
+              }
+              if (typeof mozIndexedDB !== "undefined") {
+                return mozIndexedDB;
+              }
+              if (typeof OIndexedDB !== "undefined") {
+                return OIndexedDB;
+              }
+              if (typeof msIndexedDB !== "undefined") {
+                return msIndexedDB;
+              }
+            } catch (e2) {
+              return;
+            }
+          }
+          var idb = getIDB();
+          function isIndexedDBValid() {
+            try {
+              if (!idb || !idb.open) {
+                return false;
+              }
+              var isSafari = typeof openDatabase !== "undefined" && /(Safari|iPhone|iPad|iPod)/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent) && !/BlackBerry/.test(navigator.platform);
+              var hasFetch = typeof fetch === "function" && fetch.toString().indexOf("[native code") !== -1;
+              return (!isSafari || hasFetch) && typeof indexedDB !== "undefined" && // some outdated implementations of IDB that appear on Samsung
+              // and HTC Android devices <4.4 are missing IDBKeyRange
+              // See: https://github.com/mozilla/localForage/issues/128
+              // See: https://github.com/mozilla/localForage/issues/272
+              typeof IDBKeyRange !== "undefined";
+            } catch (e2) {
+              return false;
+            }
+          }
+          function createBlob(parts, properties) {
+            parts = parts || [];
+            properties = properties || {};
+            try {
+              return new Blob(parts, properties);
+            } catch (e2) {
+              if (e2.name !== "TypeError") {
+                throw e2;
+              }
+              var Builder = typeof BlobBuilder !== "undefined" ? BlobBuilder : typeof MSBlobBuilder !== "undefined" ? MSBlobBuilder : typeof MozBlobBuilder !== "undefined" ? MozBlobBuilder : WebKitBlobBuilder;
+              var builder = new Builder();
+              for (var i3 = 0; i3 < parts.length; i3 += 1) {
+                builder.append(parts[i3]);
+              }
+              return builder.getBlob(properties.type);
+            }
+          }
+          if (typeof Promise === "undefined") {
+            _dereq_(3);
+          }
+          var Promise$1 = Promise;
+          function executeCallback(promise, callback) {
+            if (callback) {
+              promise.then(function(result) {
+                callback(null, result);
+              }, function(error) {
+                callback(error);
+              });
+            }
+          }
+          function executeTwoCallbacks(promise, callback, errorCallback) {
+            if (typeof callback === "function") {
+              promise.then(callback);
+            }
+            if (typeof errorCallback === "function") {
+              promise["catch"](errorCallback);
+            }
+          }
+          function normalizeKey(key2) {
+            if (typeof key2 !== "string") {
+              console.warn(key2 + " used as a key, but it is not a string.");
+              key2 = String(key2);
+            }
+            return key2;
+          }
+          function getCallback() {
+            if (arguments.length && typeof arguments[arguments.length - 1] === "function") {
+              return arguments[arguments.length - 1];
+            }
+          }
+          var DETECT_BLOB_SUPPORT_STORE = "local-forage-detect-blob-support";
+          var supportsBlobs = void 0;
+          var dbContexts = {};
+          var toString = Object.prototype.toString;
+          var READ_ONLY = "readonly";
+          var READ_WRITE = "readwrite";
+          function _binStringToArrayBuffer(bin) {
+            var length3 = bin.length;
+            var buf = new ArrayBuffer(length3);
+            var arr = new Uint8Array(buf);
+            for (var i3 = 0; i3 < length3; i3++) {
+              arr[i3] = bin.charCodeAt(i3);
+            }
+            return buf;
+          }
+          function _checkBlobSupportWithoutCaching(idb2) {
+            return new Promise$1(function(resolve) {
+              var txn = idb2.transaction(DETECT_BLOB_SUPPORT_STORE, READ_WRITE);
+              var blob = createBlob([""]);
+              txn.objectStore(DETECT_BLOB_SUPPORT_STORE).put(blob, "key");
+              txn.onabort = function(e2) {
+                e2.preventDefault();
+                e2.stopPropagation();
+                resolve(false);
+              };
+              txn.oncomplete = function() {
+                var matchedChrome = navigator.userAgent.match(/Chrome\/(\d+)/);
+                var matchedEdge = navigator.userAgent.match(/Edge\//);
+                resolve(matchedEdge || !matchedChrome || parseInt(matchedChrome[1], 10) >= 43);
+              };
+            })["catch"](function() {
+              return false;
+            });
+          }
+          function _checkBlobSupport(idb2) {
+            if (typeof supportsBlobs === "boolean") {
+              return Promise$1.resolve(supportsBlobs);
+            }
+            return _checkBlobSupportWithoutCaching(idb2).then(function(value) {
+              supportsBlobs = value;
+              return supportsBlobs;
+            });
+          }
+          function _deferReadiness(dbInfo) {
+            var dbContext = dbContexts[dbInfo.name];
+            var deferredOperation = {};
+            deferredOperation.promise = new Promise$1(function(resolve, reject) {
+              deferredOperation.resolve = resolve;
+              deferredOperation.reject = reject;
+            });
+            dbContext.deferredOperations.push(deferredOperation);
+            if (!dbContext.dbReady) {
+              dbContext.dbReady = deferredOperation.promise;
+            } else {
+              dbContext.dbReady = dbContext.dbReady.then(function() {
+                return deferredOperation.promise;
+              });
+            }
+          }
+          function _advanceReadiness(dbInfo) {
+            var dbContext = dbContexts[dbInfo.name];
+            var deferredOperation = dbContext.deferredOperations.pop();
+            if (deferredOperation) {
+              deferredOperation.resolve();
+              return deferredOperation.promise;
+            }
+          }
+          function _rejectReadiness(dbInfo, err) {
+            var dbContext = dbContexts[dbInfo.name];
+            var deferredOperation = dbContext.deferredOperations.pop();
+            if (deferredOperation) {
+              deferredOperation.reject(err);
+              return deferredOperation.promise;
+            }
+          }
+          function _getConnection(dbInfo, upgradeNeeded) {
+            return new Promise$1(function(resolve, reject) {
+              dbContexts[dbInfo.name] = dbContexts[dbInfo.name] || createDbContext();
+              if (dbInfo.db) {
+                if (upgradeNeeded) {
+                  _deferReadiness(dbInfo);
+                  dbInfo.db.close();
+                } else {
+                  return resolve(dbInfo.db);
+                }
+              }
+              var dbArgs = [dbInfo.name];
+              if (upgradeNeeded) {
+                dbArgs.push(dbInfo.version);
+              }
+              var openreq = idb.open.apply(idb, dbArgs);
+              if (upgradeNeeded) {
+                openreq.onupgradeneeded = function(e2) {
+                  var db = openreq.result;
+                  try {
+                    db.createObjectStore(dbInfo.storeName);
+                    if (e2.oldVersion <= 1) {
+                      db.createObjectStore(DETECT_BLOB_SUPPORT_STORE);
+                    }
+                  } catch (ex) {
+                    if (ex.name === "ConstraintError") {
+                      console.warn('The database "' + dbInfo.name + '" has been upgraded from version ' + e2.oldVersion + " to version " + e2.newVersion + ', but the storage "' + dbInfo.storeName + '" already exists.');
+                    } else {
+                      throw ex;
+                    }
+                  }
+                };
+              }
+              openreq.onerror = function(e2) {
+                e2.preventDefault();
+                reject(openreq.error);
+              };
+              openreq.onsuccess = function() {
+                var db = openreq.result;
+                db.onversionchange = function(e2) {
+                  e2.target.close();
+                };
+                resolve(db);
+                _advanceReadiness(dbInfo);
+              };
+            });
+          }
+          function _getOriginalConnection(dbInfo) {
+            return _getConnection(dbInfo, false);
+          }
+          function _getUpgradedConnection(dbInfo) {
+            return _getConnection(dbInfo, true);
+          }
+          function _isUpgradeNeeded(dbInfo, defaultVersion) {
+            if (!dbInfo.db) {
+              return true;
+            }
+            var isNewStore = !dbInfo.db.objectStoreNames.contains(dbInfo.storeName);
+            var isDowngrade = dbInfo.version < dbInfo.db.version;
+            var isUpgrade = dbInfo.version > dbInfo.db.version;
+            if (isDowngrade) {
+              if (dbInfo.version !== defaultVersion) {
+                console.warn('The database "' + dbInfo.name + `" can't be downgraded from version ` + dbInfo.db.version + " to version " + dbInfo.version + ".");
+              }
+              dbInfo.version = dbInfo.db.version;
+            }
+            if (isUpgrade || isNewStore) {
+              if (isNewStore) {
+                var incVersion = dbInfo.db.version + 1;
+                if (incVersion > dbInfo.version) {
+                  dbInfo.version = incVersion;
+                }
+              }
+              return true;
+            }
+            return false;
+          }
+          function _encodeBlob(blob) {
+            return new Promise$1(function(resolve, reject) {
+              var reader = new FileReader();
+              reader.onerror = reject;
+              reader.onloadend = function(e2) {
+                var base64 = btoa(e2.target.result || "");
+                resolve({
+                  __local_forage_encoded_blob: true,
+                  data: base64,
+                  type: blob.type
+                });
+              };
+              reader.readAsBinaryString(blob);
+            });
+          }
+          function _decodeBlob(encodedBlob) {
+            var arrayBuff = _binStringToArrayBuffer(atob(encodedBlob.data));
+            return createBlob([arrayBuff], { type: encodedBlob.type });
+          }
+          function _isEncodedBlob(value) {
+            return value && value.__local_forage_encoded_blob;
+          }
+          function _fullyReady(callback) {
+            var self2 = this;
+            var promise = self2._initReady().then(function() {
+              var dbContext = dbContexts[self2._dbInfo.name];
+              if (dbContext && dbContext.dbReady) {
+                return dbContext.dbReady;
+              }
+            });
+            executeTwoCallbacks(promise, callback, callback);
+            return promise;
+          }
+          function _tryReconnect(dbInfo) {
+            _deferReadiness(dbInfo);
+            var dbContext = dbContexts[dbInfo.name];
+            var forages = dbContext.forages;
+            for (var i3 = 0; i3 < forages.length; i3++) {
+              var forage = forages[i3];
+              if (forage._dbInfo.db) {
+                forage._dbInfo.db.close();
+                forage._dbInfo.db = null;
+              }
+            }
+            dbInfo.db = null;
+            return _getOriginalConnection(dbInfo).then(function(db) {
+              dbInfo.db = db;
+              if (_isUpgradeNeeded(dbInfo)) {
+                return _getUpgradedConnection(dbInfo);
+              }
+              return db;
+            }).then(function(db) {
+              dbInfo.db = dbContext.db = db;
+              for (var i4 = 0; i4 < forages.length; i4++) {
+                forages[i4]._dbInfo.db = db;
+              }
+            })["catch"](function(err) {
+              _rejectReadiness(dbInfo, err);
+              throw err;
+            });
+          }
+          function createTransaction(dbInfo, mode, callback, retries) {
+            if (retries === void 0) {
+              retries = 1;
+            }
+            try {
+              var tx = dbInfo.db.transaction(dbInfo.storeName, mode);
+              callback(null, tx);
+            } catch (err) {
+              if (retries > 0 && (!dbInfo.db || err.name === "InvalidStateError" || err.name === "NotFoundError")) {
+                return Promise$1.resolve().then(function() {
+                  if (!dbInfo.db || err.name === "NotFoundError" && !dbInfo.db.objectStoreNames.contains(dbInfo.storeName) && dbInfo.version <= dbInfo.db.version) {
+                    if (dbInfo.db) {
+                      dbInfo.version = dbInfo.db.version + 1;
+                    }
+                    return _getUpgradedConnection(dbInfo);
+                  }
+                }).then(function() {
+                  return _tryReconnect(dbInfo).then(function() {
+                    createTransaction(dbInfo, mode, callback, retries - 1);
+                  });
+                })["catch"](callback);
+              }
+              callback(err);
+            }
+          }
+          function createDbContext() {
+            return {
+              // Running localForages sharing a database.
+              forages: [],
+              // Shared database.
+              db: null,
+              // Database readiness (promise).
+              dbReady: null,
+              // Deferred operations on the database.
+              deferredOperations: []
+            };
+          }
+          function _initStorage(options) {
+            var self2 = this;
+            var dbInfo = {
+              db: null
+            };
+            if (options) {
+              for (var i3 in options) {
+                dbInfo[i3] = options[i3];
+              }
+            }
+            var dbContext = dbContexts[dbInfo.name];
+            if (!dbContext) {
+              dbContext = createDbContext();
+              dbContexts[dbInfo.name] = dbContext;
+            }
+            dbContext.forages.push(self2);
+            if (!self2._initReady) {
+              self2._initReady = self2.ready;
+              self2.ready = _fullyReady;
+            }
+            var initPromises = [];
+            function ignoreErrors() {
+              return Promise$1.resolve();
+            }
+            for (var j2 = 0; j2 < dbContext.forages.length; j2++) {
+              var forage = dbContext.forages[j2];
+              if (forage !== self2) {
+                initPromises.push(forage._initReady()["catch"](ignoreErrors));
+              }
+            }
+            var forages = dbContext.forages.slice(0);
+            return Promise$1.all(initPromises).then(function() {
+              dbInfo.db = dbContext.db;
+              return _getOriginalConnection(dbInfo);
+            }).then(function(db) {
+              dbInfo.db = db;
+              if (_isUpgradeNeeded(dbInfo, self2._defaultConfig.version)) {
+                return _getUpgradedConnection(dbInfo);
+              }
+              return db;
+            }).then(function(db) {
+              dbInfo.db = dbContext.db = db;
+              self2._dbInfo = dbInfo;
+              for (var k2 = 0; k2 < forages.length; k2++) {
+                var forage2 = forages[k2];
+                if (forage2 !== self2) {
+                  forage2._dbInfo.db = dbInfo.db;
+                  forage2._dbInfo.version = dbInfo.version;
+                }
+              }
+            });
+          }
+          function getItem(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.get(key2);
+                    req.onsuccess = function() {
+                      var value = req.result;
+                      if (value === void 0) {
+                        value = null;
+                      }
+                      if (_isEncodedBlob(value)) {
+                        value = _decodeBlob(value);
+                      }
+                      resolve(value);
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function iterate(iterator, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.openCursor();
+                    var iterationNumber = 1;
+                    req.onsuccess = function() {
+                      var cursor = req.result;
+                      if (cursor) {
+                        var value = cursor.value;
+                        if (_isEncodedBlob(value)) {
+                          value = _decodeBlob(value);
+                        }
+                        var result = iterator(value, cursor.key, iterationNumber++);
+                        if (result !== void 0) {
+                          resolve(result);
+                        } else {
+                          cursor["continue"]();
+                        }
+                      } else {
+                        resolve();
+                      }
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function setItem(key2, value, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              var dbInfo;
+              self2.ready().then(function() {
+                dbInfo = self2._dbInfo;
+                if (toString.call(value) === "[object Blob]") {
+                  return _checkBlobSupport(dbInfo.db).then(function(blobSupport) {
+                    if (blobSupport) {
+                      return value;
+                    }
+                    return _encodeBlob(value);
+                  });
+                }
+                return value;
+              }).then(function(value2) {
+                createTransaction(self2._dbInfo, READ_WRITE, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    if (value2 === null) {
+                      value2 = void 0;
+                    }
+                    var req = store.put(value2, key2);
+                    transaction.oncomplete = function() {
+                      if (value2 === void 0) {
+                        value2 = null;
+                      }
+                      resolve(value2);
+                    };
+                    transaction.onabort = transaction.onerror = function() {
+                      var err2 = req.error ? req.error : req.transaction.error;
+                      reject(err2);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function removeItem(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_WRITE, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store["delete"](key2);
+                    transaction.oncomplete = function() {
+                      resolve();
+                    };
+                    transaction.onerror = function() {
+                      reject(req.error);
+                    };
+                    transaction.onabort = function() {
+                      var err2 = req.error ? req.error : req.transaction.error;
+                      reject(err2);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function clear(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_WRITE, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.clear();
+                    transaction.oncomplete = function() {
+                      resolve();
+                    };
+                    transaction.onabort = transaction.onerror = function() {
+                      var err2 = req.error ? req.error : req.transaction.error;
+                      reject(err2);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function length2(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.count();
+                    req.onsuccess = function() {
+                      resolve(req.result);
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function key(n3, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              if (n3 < 0) {
+                resolve(null);
+                return;
+              }
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var advanced = false;
+                    var req = store.openKeyCursor();
+                    req.onsuccess = function() {
+                      var cursor = req.result;
+                      if (!cursor) {
+                        resolve(null);
+                        return;
+                      }
+                      if (n3 === 0) {
+                        resolve(cursor.key);
+                      } else {
+                        if (!advanced) {
+                          advanced = true;
+                          cursor.advance(n3);
+                        } else {
+                          resolve(cursor.key);
+                        }
+                      }
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function keys(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.openKeyCursor();
+                    var keys2 = [];
+                    req.onsuccess = function() {
+                      var cursor = req.result;
+                      if (!cursor) {
+                        resolve(keys2);
+                        return;
+                      }
+                      keys2.push(cursor.key);
+                      cursor["continue"]();
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e2) {
+                    reject(e2);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function dropInstance(options, callback) {
+            callback = getCallback.apply(this, arguments);
+            var currentConfig = this.config();
+            options = typeof options !== "function" && options || {};
+            if (!options.name) {
+              options.name = options.name || currentConfig.name;
+              options.storeName = options.storeName || currentConfig.storeName;
+            }
+            var self2 = this;
+            var promise;
+            if (!options.name) {
+              promise = Promise$1.reject("Invalid arguments");
+            } else {
+              var isCurrentDb = options.name === currentConfig.name && self2._dbInfo.db;
+              var dbPromise = isCurrentDb ? Promise$1.resolve(self2._dbInfo.db) : _getOriginalConnection(options).then(function(db) {
+                var dbContext = dbContexts[options.name];
+                var forages = dbContext.forages;
+                dbContext.db = db;
+                for (var i3 = 0; i3 < forages.length; i3++) {
+                  forages[i3]._dbInfo.db = db;
+                }
+                return db;
+              });
+              if (!options.storeName) {
+                promise = dbPromise.then(function(db) {
+                  _deferReadiness(options);
+                  var dbContext = dbContexts[options.name];
+                  var forages = dbContext.forages;
+                  db.close();
+                  for (var i3 = 0; i3 < forages.length; i3++) {
+                    var forage = forages[i3];
+                    forage._dbInfo.db = null;
+                  }
+                  var dropDBPromise = new Promise$1(function(resolve, reject) {
+                    var req = idb.deleteDatabase(options.name);
+                    req.onerror = function() {
+                      var db2 = req.result;
+                      if (db2) {
+                        db2.close();
+                      }
+                      reject(req.error);
+                    };
+                    req.onblocked = function() {
+                      console.warn('dropInstance blocked for database "' + options.name + '" until all open connections are closed');
+                    };
+                    req.onsuccess = function() {
+                      var db2 = req.result;
+                      if (db2) {
+                        db2.close();
+                      }
+                      resolve(db2);
+                    };
+                  });
+                  return dropDBPromise.then(function(db2) {
+                    dbContext.db = db2;
+                    for (var i4 = 0; i4 < forages.length; i4++) {
+                      var _forage = forages[i4];
+                      _advanceReadiness(_forage._dbInfo);
+                    }
+                  })["catch"](function(err) {
+                    (_rejectReadiness(options, err) || Promise$1.resolve())["catch"](function() {
+                    });
+                    throw err;
+                  });
+                });
+              } else {
+                promise = dbPromise.then(function(db) {
+                  if (!db.objectStoreNames.contains(options.storeName)) {
+                    return;
+                  }
+                  var newVersion = db.version + 1;
+                  _deferReadiness(options);
+                  var dbContext = dbContexts[options.name];
+                  var forages = dbContext.forages;
+                  db.close();
+                  for (var i3 = 0; i3 < forages.length; i3++) {
+                    var forage = forages[i3];
+                    forage._dbInfo.db = null;
+                    forage._dbInfo.version = newVersion;
+                  }
+                  var dropObjectPromise = new Promise$1(function(resolve, reject) {
+                    var req = idb.open(options.name, newVersion);
+                    req.onerror = function(err) {
+                      var db2 = req.result;
+                      db2.close();
+                      reject(err);
+                    };
+                    req.onupgradeneeded = function() {
+                      var db2 = req.result;
+                      db2.deleteObjectStore(options.storeName);
+                    };
+                    req.onsuccess = function() {
+                      var db2 = req.result;
+                      db2.close();
+                      resolve(db2);
+                    };
+                  });
+                  return dropObjectPromise.then(function(db2) {
+                    dbContext.db = db2;
+                    for (var j2 = 0; j2 < forages.length; j2++) {
+                      var _forage2 = forages[j2];
+                      _forage2._dbInfo.db = db2;
+                      _advanceReadiness(_forage2._dbInfo);
+                    }
+                  })["catch"](function(err) {
+                    (_rejectReadiness(options, err) || Promise$1.resolve())["catch"](function() {
+                    });
+                    throw err;
+                  });
+                });
+              }
+            }
+            executeCallback(promise, callback);
+            return promise;
+          }
+          var asyncStorage = {
+            _driver: "asyncStorage",
+            _initStorage,
+            _support: isIndexedDBValid(),
+            iterate,
+            getItem,
+            setItem,
+            removeItem,
+            clear,
+            length: length2,
+            key,
+            keys,
+            dropInstance
+          };
+          function isWebSQLValid() {
+            return typeof openDatabase === "function";
+          }
+          var BASE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+          var BLOB_TYPE_PREFIX = "~~local_forage_type~";
+          var BLOB_TYPE_PREFIX_REGEX = /^~~local_forage_type~([^~]+)~/;
+          var SERIALIZED_MARKER = "__lfsc__:";
+          var SERIALIZED_MARKER_LENGTH = SERIALIZED_MARKER.length;
+          var TYPE_ARRAYBUFFER = "arbf";
+          var TYPE_BLOB = "blob";
+          var TYPE_INT8ARRAY = "si08";
+          var TYPE_UINT8ARRAY = "ui08";
+          var TYPE_UINT8CLAMPEDARRAY = "uic8";
+          var TYPE_INT16ARRAY = "si16";
+          var TYPE_INT32ARRAY = "si32";
+          var TYPE_UINT16ARRAY = "ur16";
+          var TYPE_UINT32ARRAY = "ui32";
+          var TYPE_FLOAT32ARRAY = "fl32";
+          var TYPE_FLOAT64ARRAY = "fl64";
+          var TYPE_SERIALIZED_MARKER_LENGTH = SERIALIZED_MARKER_LENGTH + TYPE_ARRAYBUFFER.length;
+          var toString$1 = Object.prototype.toString;
+          function stringToBuffer(serializedString) {
+            var bufferLength = serializedString.length * 0.75;
+            var len = serializedString.length;
+            var i3;
+            var p5 = 0;
+            var encoded1, encoded2, encoded3, encoded4;
+            if (serializedString[serializedString.length - 1] === "=") {
+              bufferLength--;
+              if (serializedString[serializedString.length - 2] === "=") {
+                bufferLength--;
+              }
+            }
+            var buffer = new ArrayBuffer(bufferLength);
+            var bytes = new Uint8Array(buffer);
+            for (i3 = 0; i3 < len; i3 += 4) {
+              encoded1 = BASE_CHARS.indexOf(serializedString[i3]);
+              encoded2 = BASE_CHARS.indexOf(serializedString[i3 + 1]);
+              encoded3 = BASE_CHARS.indexOf(serializedString[i3 + 2]);
+              encoded4 = BASE_CHARS.indexOf(serializedString[i3 + 3]);
+              bytes[p5++] = encoded1 << 2 | encoded2 >> 4;
+              bytes[p5++] = (encoded2 & 15) << 4 | encoded3 >> 2;
+              bytes[p5++] = (encoded3 & 3) << 6 | encoded4 & 63;
+            }
+            return buffer;
+          }
+          function bufferToString(buffer) {
+            var bytes = new Uint8Array(buffer);
+            var base64String = "";
+            var i3;
+            for (i3 = 0; i3 < bytes.length; i3 += 3) {
+              base64String += BASE_CHARS[bytes[i3] >> 2];
+              base64String += BASE_CHARS[(bytes[i3] & 3) << 4 | bytes[i3 + 1] >> 4];
+              base64String += BASE_CHARS[(bytes[i3 + 1] & 15) << 2 | bytes[i3 + 2] >> 6];
+              base64String += BASE_CHARS[bytes[i3 + 2] & 63];
+            }
+            if (bytes.length % 3 === 2) {
+              base64String = base64String.substring(0, base64String.length - 1) + "=";
+            } else if (bytes.length % 3 === 1) {
+              base64String = base64String.substring(0, base64String.length - 2) + "==";
+            }
+            return base64String;
+          }
+          function serialize(value, callback) {
+            var valueType = "";
+            if (value) {
+              valueType = toString$1.call(value);
+            }
+            if (value && (valueType === "[object ArrayBuffer]" || value.buffer && toString$1.call(value.buffer) === "[object ArrayBuffer]")) {
+              var buffer;
+              var marker = SERIALIZED_MARKER;
+              if (value instanceof ArrayBuffer) {
+                buffer = value;
+                marker += TYPE_ARRAYBUFFER;
+              } else {
+                buffer = value.buffer;
+                if (valueType === "[object Int8Array]") {
+                  marker += TYPE_INT8ARRAY;
+                } else if (valueType === "[object Uint8Array]") {
+                  marker += TYPE_UINT8ARRAY;
+                } else if (valueType === "[object Uint8ClampedArray]") {
+                  marker += TYPE_UINT8CLAMPEDARRAY;
+                } else if (valueType === "[object Int16Array]") {
+                  marker += TYPE_INT16ARRAY;
+                } else if (valueType === "[object Uint16Array]") {
+                  marker += TYPE_UINT16ARRAY;
+                } else if (valueType === "[object Int32Array]") {
+                  marker += TYPE_INT32ARRAY;
+                } else if (valueType === "[object Uint32Array]") {
+                  marker += TYPE_UINT32ARRAY;
+                } else if (valueType === "[object Float32Array]") {
+                  marker += TYPE_FLOAT32ARRAY;
+                } else if (valueType === "[object Float64Array]") {
+                  marker += TYPE_FLOAT64ARRAY;
+                } else {
+                  callback(new Error("Failed to get type for BinaryArray"));
+                }
+              }
+              callback(marker + bufferToString(buffer));
+            } else if (valueType === "[object Blob]") {
+              var fileReader = new FileReader();
+              fileReader.onload = function() {
+                var str = BLOB_TYPE_PREFIX + value.type + "~" + bufferToString(this.result);
+                callback(SERIALIZED_MARKER + TYPE_BLOB + str);
+              };
+              fileReader.readAsArrayBuffer(value);
+            } else {
+              try {
+                callback(JSON.stringify(value));
+              } catch (e2) {
+                console.error("Couldn't convert value into a JSON string: ", value);
+                callback(null, e2);
+              }
+            }
+          }
+          function deserialize(value) {
+            if (value.substring(0, SERIALIZED_MARKER_LENGTH) !== SERIALIZED_MARKER) {
+              return JSON.parse(value);
+            }
+            var serializedString = value.substring(TYPE_SERIALIZED_MARKER_LENGTH);
+            var type = value.substring(SERIALIZED_MARKER_LENGTH, TYPE_SERIALIZED_MARKER_LENGTH);
+            var blobType;
+            if (type === TYPE_BLOB && BLOB_TYPE_PREFIX_REGEX.test(serializedString)) {
+              var matcher2 = serializedString.match(BLOB_TYPE_PREFIX_REGEX);
+              blobType = matcher2[1];
+              serializedString = serializedString.substring(matcher2[0].length);
+            }
+            var buffer = stringToBuffer(serializedString);
+            switch (type) {
+              case TYPE_ARRAYBUFFER:
+                return buffer;
+              case TYPE_BLOB:
+                return createBlob([buffer], { type: blobType });
+              case TYPE_INT8ARRAY:
+                return new Int8Array(buffer);
+              case TYPE_UINT8ARRAY:
+                return new Uint8Array(buffer);
+              case TYPE_UINT8CLAMPEDARRAY:
+                return new Uint8ClampedArray(buffer);
+              case TYPE_INT16ARRAY:
+                return new Int16Array(buffer);
+              case TYPE_UINT16ARRAY:
+                return new Uint16Array(buffer);
+              case TYPE_INT32ARRAY:
+                return new Int32Array(buffer);
+              case TYPE_UINT32ARRAY:
+                return new Uint32Array(buffer);
+              case TYPE_FLOAT32ARRAY:
+                return new Float32Array(buffer);
+              case TYPE_FLOAT64ARRAY:
+                return new Float64Array(buffer);
+              default:
+                throw new Error("Unkown type: " + type);
+            }
+          }
+          var localforageSerializer = {
+            serialize,
+            deserialize,
+            stringToBuffer,
+            bufferToString
+          };
+          function createDbTable(t4, dbInfo, callback, errorCallback) {
+            t4.executeSql("CREATE TABLE IF NOT EXISTS " + dbInfo.storeName + " (id INTEGER PRIMARY KEY, key unique, value)", [], callback, errorCallback);
+          }
+          function _initStorage$1(options) {
+            var self2 = this;
+            var dbInfo = {
+              db: null
+            };
+            if (options) {
+              for (var i3 in options) {
+                dbInfo[i3] = typeof options[i3] !== "string" ? options[i3].toString() : options[i3];
+              }
+            }
+            var dbInfoPromise = new Promise$1(function(resolve, reject) {
+              try {
+                dbInfo.db = openDatabase(dbInfo.name, String(dbInfo.version), dbInfo.description, dbInfo.size);
+              } catch (e2) {
+                return reject(e2);
+              }
+              dbInfo.db.transaction(function(t4) {
+                createDbTable(t4, dbInfo, function() {
+                  self2._dbInfo = dbInfo;
+                  resolve();
+                }, function(t5, error) {
+                  reject(error);
+                });
+              }, reject);
+            });
+            dbInfo.serializer = localforageSerializer;
+            return dbInfoPromise;
+          }
+          function tryExecuteSql(t4, dbInfo, sqlStatement, args, callback, errorCallback) {
+            t4.executeSql(sqlStatement, args, callback, function(t5, error) {
+              if (error.code === error.SYNTAX_ERR) {
+                t5.executeSql("SELECT name FROM sqlite_master WHERE type='table' AND name = ?", [dbInfo.storeName], function(t6, results) {
+                  if (!results.rows.length) {
+                    createDbTable(t6, dbInfo, function() {
+                      t6.executeSql(sqlStatement, args, callback, errorCallback);
+                    }, errorCallback);
+                  } else {
+                    errorCallback(t6, error);
+                  }
+                }, errorCallback);
+              } else {
+                errorCallback(t5, error);
+              }
+            }, errorCallback);
+          }
+          function getItem$1(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t4) {
+                  tryExecuteSql(t4, dbInfo, "SELECT * FROM " + dbInfo.storeName + " WHERE key = ? LIMIT 1", [key2], function(t5, results) {
+                    var result = results.rows.length ? results.rows.item(0).value : null;
+                    if (result) {
+                      result = dbInfo.serializer.deserialize(result);
+                    }
+                    resolve(result);
+                  }, function(t5, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function iterate$1(iterator, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t4) {
+                  tryExecuteSql(t4, dbInfo, "SELECT * FROM " + dbInfo.storeName, [], function(t5, results) {
+                    var rows = results.rows;
+                    var length3 = rows.length;
+                    for (var i3 = 0; i3 < length3; i3++) {
+                      var item = rows.item(i3);
+                      var result = item.value;
+                      if (result) {
+                        result = dbInfo.serializer.deserialize(result);
+                      }
+                      result = iterator(result, item.key, i3 + 1);
+                      if (result !== void 0) {
+                        resolve(result);
+                        return;
+                      }
+                    }
+                    resolve();
+                  }, function(t5, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function _setItem(key2, value, callback, retriesLeft) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                if (value === void 0) {
+                  value = null;
+                }
+                var originalValue = value;
+                var dbInfo = self2._dbInfo;
+                dbInfo.serializer.serialize(value, function(value2, error) {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    dbInfo.db.transaction(function(t4) {
+                      tryExecuteSql(t4, dbInfo, "INSERT OR REPLACE INTO " + dbInfo.storeName + " (key, value) VALUES (?, ?)", [key2, value2], function() {
+                        resolve(originalValue);
+                      }, function(t5, error2) {
+                        reject(error2);
+                      });
+                    }, function(sqlError) {
+                      if (sqlError.code === sqlError.QUOTA_ERR) {
+                        if (retriesLeft > 0) {
+                          resolve(_setItem.apply(self2, [key2, originalValue, callback, retriesLeft - 1]));
+                          return;
+                        }
+                        reject(sqlError);
+                      }
+                    });
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function setItem$1(key2, value, callback) {
+            return _setItem.apply(this, [key2, value, callback, 1]);
+          }
+          function removeItem$1(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t4) {
+                  tryExecuteSql(t4, dbInfo, "DELETE FROM " + dbInfo.storeName + " WHERE key = ?", [key2], function() {
+                    resolve();
+                  }, function(t5, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function clear$1(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t4) {
+                  tryExecuteSql(t4, dbInfo, "DELETE FROM " + dbInfo.storeName, [], function() {
+                    resolve();
+                  }, function(t5, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function length$1(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t4) {
+                  tryExecuteSql(t4, dbInfo, "SELECT COUNT(key) as c FROM " + dbInfo.storeName, [], function(t5, results) {
+                    var result = results.rows.item(0).c;
+                    resolve(result);
+                  }, function(t5, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function key$1(n3, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t4) {
+                  tryExecuteSql(t4, dbInfo, "SELECT key FROM " + dbInfo.storeName + " WHERE id = ? LIMIT 1", [n3 + 1], function(t5, results) {
+                    var result = results.rows.length ? results.rows.item(0).key : null;
+                    resolve(result);
+                  }, function(t5, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function keys$1(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t4) {
+                  tryExecuteSql(t4, dbInfo, "SELECT key FROM " + dbInfo.storeName, [], function(t5, results) {
+                    var keys2 = [];
+                    for (var i3 = 0; i3 < results.rows.length; i3++) {
+                      keys2.push(results.rows.item(i3).key);
+                    }
+                    resolve(keys2);
+                  }, function(t5, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function getAllStoreNames(db) {
+            return new Promise$1(function(resolve, reject) {
+              db.transaction(function(t4) {
+                t4.executeSql("SELECT name FROM sqlite_master WHERE type='table' AND name <> '__WebKitDatabaseInfoTable__'", [], function(t5, results) {
+                  var storeNames = [];
+                  for (var i3 = 0; i3 < results.rows.length; i3++) {
+                    storeNames.push(results.rows.item(i3).name);
+                  }
+                  resolve({
+                    db,
+                    storeNames
+                  });
+                }, function(t5, error) {
+                  reject(error);
+                });
+              }, function(sqlError) {
+                reject(sqlError);
+              });
+            });
+          }
+          function dropInstance$1(options, callback) {
+            callback = getCallback.apply(this, arguments);
+            var currentConfig = this.config();
+            options = typeof options !== "function" && options || {};
+            if (!options.name) {
+              options.name = options.name || currentConfig.name;
+              options.storeName = options.storeName || currentConfig.storeName;
+            }
+            var self2 = this;
+            var promise;
+            if (!options.name) {
+              promise = Promise$1.reject("Invalid arguments");
+            } else {
+              promise = new Promise$1(function(resolve) {
+                var db;
+                if (options.name === currentConfig.name) {
+                  db = self2._dbInfo.db;
+                } else {
+                  db = openDatabase(options.name, "", "", 0);
+                }
+                if (!options.storeName) {
+                  resolve(getAllStoreNames(db));
+                } else {
+                  resolve({
+                    db,
+                    storeNames: [options.storeName]
+                  });
+                }
+              }).then(function(operationInfo) {
+                return new Promise$1(function(resolve, reject) {
+                  operationInfo.db.transaction(function(t4) {
+                    function dropTable(storeName) {
+                      return new Promise$1(function(resolve2, reject2) {
+                        t4.executeSql("DROP TABLE IF EXISTS " + storeName, [], function() {
+                          resolve2();
+                        }, function(t5, error) {
+                          reject2(error);
+                        });
+                      });
+                    }
+                    var operations = [];
+                    for (var i3 = 0, len = operationInfo.storeNames.length; i3 < len; i3++) {
+                      operations.push(dropTable(operationInfo.storeNames[i3]));
+                    }
+                    Promise$1.all(operations).then(function() {
+                      resolve();
+                    })["catch"](function(e2) {
+                      reject(e2);
+                    });
+                  }, function(sqlError) {
+                    reject(sqlError);
+                  });
+                });
+              });
+            }
+            executeCallback(promise, callback);
+            return promise;
+          }
+          var webSQLStorage = {
+            _driver: "webSQLStorage",
+            _initStorage: _initStorage$1,
+            _support: isWebSQLValid(),
+            iterate: iterate$1,
+            getItem: getItem$1,
+            setItem: setItem$1,
+            removeItem: removeItem$1,
+            clear: clear$1,
+            length: length$1,
+            key: key$1,
+            keys: keys$1,
+            dropInstance: dropInstance$1
+          };
+          function isLocalStorageValid() {
+            try {
+              return typeof localStorage !== "undefined" && "setItem" in localStorage && // in IE8 typeof localStorage.setItem === 'object'
+              !!localStorage.setItem;
+            } catch (e2) {
+              return false;
+            }
+          }
+          function _getKeyPrefix(options, defaultConfig) {
+            var keyPrefix = options.name + "/";
+            if (options.storeName !== defaultConfig.storeName) {
+              keyPrefix += options.storeName + "/";
+            }
+            return keyPrefix;
+          }
+          function checkIfLocalStorageThrows() {
+            var localStorageTestKey = "_localforage_support_test";
+            try {
+              localStorage.setItem(localStorageTestKey, true);
+              localStorage.removeItem(localStorageTestKey);
+              return false;
+            } catch (e2) {
+              return true;
+            }
+          }
+          function _isLocalStorageUsable() {
+            return !checkIfLocalStorageThrows() || localStorage.length > 0;
+          }
+          function _initStorage$2(options) {
+            var self2 = this;
+            var dbInfo = {};
+            if (options) {
+              for (var i3 in options) {
+                dbInfo[i3] = options[i3];
+              }
+            }
+            dbInfo.keyPrefix = _getKeyPrefix(options, self2._defaultConfig);
+            if (!_isLocalStorageUsable()) {
+              return Promise$1.reject();
+            }
+            self2._dbInfo = dbInfo;
+            dbInfo.serializer = localforageSerializer;
+            return Promise$1.resolve();
+          }
+          function clear$2(callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var keyPrefix = self2._dbInfo.keyPrefix;
+              for (var i3 = localStorage.length - 1; i3 >= 0; i3--) {
+                var key2 = localStorage.key(i3);
+                if (key2.indexOf(keyPrefix) === 0) {
+                  localStorage.removeItem(key2);
+                }
+              }
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function getItem$2(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var result = localStorage.getItem(dbInfo.keyPrefix + key2);
+              if (result) {
+                result = dbInfo.serializer.deserialize(result);
+              }
+              return result;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function iterate$2(iterator, callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var keyPrefix = dbInfo.keyPrefix;
+              var keyPrefixLength = keyPrefix.length;
+              var length3 = localStorage.length;
+              var iterationNumber = 1;
+              for (var i3 = 0; i3 < length3; i3++) {
+                var key2 = localStorage.key(i3);
+                if (key2.indexOf(keyPrefix) !== 0) {
+                  continue;
+                }
+                var value = localStorage.getItem(key2);
+                if (value) {
+                  value = dbInfo.serializer.deserialize(value);
+                }
+                value = iterator(value, key2.substring(keyPrefixLength), iterationNumber++);
+                if (value !== void 0) {
+                  return value;
+                }
+              }
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function key$2(n3, callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var result;
+              try {
+                result = localStorage.key(n3);
+              } catch (error) {
+                result = null;
+              }
+              if (result) {
+                result = result.substring(dbInfo.keyPrefix.length);
+              }
+              return result;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function keys$2(callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var length3 = localStorage.length;
+              var keys2 = [];
+              for (var i3 = 0; i3 < length3; i3++) {
+                var itemKey = localStorage.key(i3);
+                if (itemKey.indexOf(dbInfo.keyPrefix) === 0) {
+                  keys2.push(itemKey.substring(dbInfo.keyPrefix.length));
+                }
+              }
+              return keys2;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function length$2(callback) {
+            var self2 = this;
+            var promise = self2.keys().then(function(keys2) {
+              return keys2.length;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function removeItem$2(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              localStorage.removeItem(dbInfo.keyPrefix + key2);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function setItem$2(key2, value, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = self2.ready().then(function() {
+              if (value === void 0) {
+                value = null;
+              }
+              var originalValue = value;
+              return new Promise$1(function(resolve, reject) {
+                var dbInfo = self2._dbInfo;
+                dbInfo.serializer.serialize(value, function(value2, error) {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    try {
+                      localStorage.setItem(dbInfo.keyPrefix + key2, value2);
+                      resolve(originalValue);
+                    } catch (e2) {
+                      if (e2.name === "QuotaExceededError" || e2.name === "NS_ERROR_DOM_QUOTA_REACHED") {
+                        reject(e2);
+                      }
+                      reject(e2);
+                    }
+                  }
+                });
+              });
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function dropInstance$2(options, callback) {
+            callback = getCallback.apply(this, arguments);
+            options = typeof options !== "function" && options || {};
+            if (!options.name) {
+              var currentConfig = this.config();
+              options.name = options.name || currentConfig.name;
+              options.storeName = options.storeName || currentConfig.storeName;
+            }
+            var self2 = this;
+            var promise;
+            if (!options.name) {
+              promise = Promise$1.reject("Invalid arguments");
+            } else {
+              promise = new Promise$1(function(resolve) {
+                if (!options.storeName) {
+                  resolve(options.name + "/");
+                } else {
+                  resolve(_getKeyPrefix(options, self2._defaultConfig));
+                }
+              }).then(function(keyPrefix) {
+                for (var i3 = localStorage.length - 1; i3 >= 0; i3--) {
+                  var key2 = localStorage.key(i3);
+                  if (key2.indexOf(keyPrefix) === 0) {
+                    localStorage.removeItem(key2);
+                  }
+                }
+              });
+            }
+            executeCallback(promise, callback);
+            return promise;
+          }
+          var localStorageWrapper = {
+            _driver: "localStorageWrapper",
+            _initStorage: _initStorage$2,
+            _support: isLocalStorageValid(),
+            iterate: iterate$2,
+            getItem: getItem$2,
+            setItem: setItem$2,
+            removeItem: removeItem$2,
+            clear: clear$2,
+            length: length$2,
+            key: key$2,
+            keys: keys$2,
+            dropInstance: dropInstance$2
+          };
+          var sameValue = function sameValue2(x, y) {
+            return x === y || typeof x === "number" && typeof y === "number" && isNaN(x) && isNaN(y);
+          };
+          var includes = function includes2(array, searchElement) {
+            var len = array.length;
+            var i3 = 0;
+            while (i3 < len) {
+              if (sameValue(array[i3], searchElement)) {
+                return true;
+              }
+              i3++;
+            }
+            return false;
+          };
+          var isArray13 = Array.isArray || function(arg) {
+            return Object.prototype.toString.call(arg) === "[object Array]";
+          };
+          var DefinedDrivers = {};
+          var DriverSupport = {};
+          var DefaultDrivers = {
+            INDEXEDDB: asyncStorage,
+            WEBSQL: webSQLStorage,
+            LOCALSTORAGE: localStorageWrapper
+          };
+          var DefaultDriverOrder = [DefaultDrivers.INDEXEDDB._driver, DefaultDrivers.WEBSQL._driver, DefaultDrivers.LOCALSTORAGE._driver];
+          var OptionalDriverMethods = ["dropInstance"];
+          var LibraryMethods = ["clear", "getItem", "iterate", "key", "keys", "length", "removeItem", "setItem"].concat(OptionalDriverMethods);
+          var DefaultConfig = {
+            description: "",
+            driver: DefaultDriverOrder.slice(),
+            name: "localforage",
+            // Default DB size is _JUST UNDER_ 5MB, as it's the highest size
+            // we can use without a prompt.
+            size: 4980736,
+            storeName: "keyvaluepairs",
+            version: 1
+          };
+          function callWhenReady(localForageInstance, libraryMethod) {
+            localForageInstance[libraryMethod] = function() {
+              var _args = arguments;
+              return localForageInstance.ready().then(function() {
+                return localForageInstance[libraryMethod].apply(localForageInstance, _args);
+              });
+            };
+          }
+          function extend2() {
+            for (var i3 = 1; i3 < arguments.length; i3++) {
+              var arg = arguments[i3];
+              if (arg) {
+                for (var _key in arg) {
+                  if (arg.hasOwnProperty(_key)) {
+                    if (isArray13(arg[_key])) {
+                      arguments[0][_key] = arg[_key].slice();
+                    } else {
+                      arguments[0][_key] = arg[_key];
+                    }
+                  }
+                }
+              }
+            }
+            return arguments[0];
+          }
+          var LocalForage = (function() {
+            function LocalForage2(options) {
+              _classCallCheck(this, LocalForage2);
+              for (var driverTypeKey in DefaultDrivers) {
+                if (DefaultDrivers.hasOwnProperty(driverTypeKey)) {
+                  var driver = DefaultDrivers[driverTypeKey];
+                  var driverName = driver._driver;
+                  this[driverTypeKey] = driverName;
+                  if (!DefinedDrivers[driverName]) {
+                    this.defineDriver(driver);
+                  }
+                }
+              }
+              this._defaultConfig = extend2({}, DefaultConfig);
+              this._config = extend2({}, this._defaultConfig, options);
+              this._driverSet = null;
+              this._initDriver = null;
+              this._ready = false;
+              this._dbInfo = null;
+              this._wrapLibraryMethodsWithReady();
+              this.setDriver(this._config.driver)["catch"](function() {
+              });
+            }
+            LocalForage2.prototype.config = function config(options) {
+              if ((typeof options === "undefined" ? "undefined" : _typeof(options)) === "object") {
+                if (this._ready) {
+                  return new Error("Can't call config() after localforage has been used.");
+                }
+                for (var i3 in options) {
+                  if (i3 === "storeName") {
+                    options[i3] = options[i3].replace(/\W/g, "_");
+                  }
+                  if (i3 === "version" && typeof options[i3] !== "number") {
+                    return new Error("Database version must be a number.");
+                  }
+                  this._config[i3] = options[i3];
+                }
+                if ("driver" in options && options.driver) {
+                  return this.setDriver(this._config.driver);
+                }
+                return true;
+              } else if (typeof options === "string") {
+                return this._config[options];
+              } else {
+                return this._config;
+              }
+            };
+            LocalForage2.prototype.defineDriver = function defineDriver(driverObject, callback, errorCallback) {
+              var promise = new Promise$1(function(resolve, reject) {
+                try {
+                  var driverName = driverObject._driver;
+                  var complianceError = new Error("Custom driver not compliant; see https://mozilla.github.io/localForage/#definedriver");
+                  if (!driverObject._driver) {
+                    reject(complianceError);
+                    return;
+                  }
+                  var driverMethods = LibraryMethods.concat("_initStorage");
+                  for (var i3 = 0, len = driverMethods.length; i3 < len; i3++) {
+                    var driverMethodName = driverMethods[i3];
+                    var isRequired = !includes(OptionalDriverMethods, driverMethodName);
+                    if ((isRequired || driverObject[driverMethodName]) && typeof driverObject[driverMethodName] !== "function") {
+                      reject(complianceError);
+                      return;
+                    }
+                  }
+                  var configureMissingMethods = function configureMissingMethods2() {
+                    var methodNotImplementedFactory = function methodNotImplementedFactory2(methodName) {
+                      return function() {
+                        var error = new Error("Method " + methodName + " is not implemented by the current driver");
+                        var promise2 = Promise$1.reject(error);
+                        executeCallback(promise2, arguments[arguments.length - 1]);
+                        return promise2;
+                      };
+                    };
+                    for (var _i = 0, _len = OptionalDriverMethods.length; _i < _len; _i++) {
+                      var optionalDriverMethod = OptionalDriverMethods[_i];
+                      if (!driverObject[optionalDriverMethod]) {
+                        driverObject[optionalDriverMethod] = methodNotImplementedFactory(optionalDriverMethod);
+                      }
+                    }
+                  };
+                  configureMissingMethods();
+                  var setDriverSupport = function setDriverSupport2(support) {
+                    if (DefinedDrivers[driverName]) {
+                      console.info("Redefining LocalForage driver: " + driverName);
+                    }
+                    DefinedDrivers[driverName] = driverObject;
+                    DriverSupport[driverName] = support;
+                    resolve();
+                  };
+                  if ("_support" in driverObject) {
+                    if (driverObject._support && typeof driverObject._support === "function") {
+                      driverObject._support().then(setDriverSupport, reject);
+                    } else {
+                      setDriverSupport(!!driverObject._support);
+                    }
+                  } else {
+                    setDriverSupport(true);
+                  }
+                } catch (e2) {
+                  reject(e2);
+                }
+              });
+              executeTwoCallbacks(promise, callback, errorCallback);
+              return promise;
+            };
+            LocalForage2.prototype.driver = function driver() {
+              return this._driver || null;
+            };
+            LocalForage2.prototype.getDriver = function getDriver(driverName, callback, errorCallback) {
+              var getDriverPromise = DefinedDrivers[driverName] ? Promise$1.resolve(DefinedDrivers[driverName]) : Promise$1.reject(new Error("Driver not found."));
+              executeTwoCallbacks(getDriverPromise, callback, errorCallback);
+              return getDriverPromise;
+            };
+            LocalForage2.prototype.getSerializer = function getSerializer(callback) {
+              var serializerPromise = Promise$1.resolve(localforageSerializer);
+              executeTwoCallbacks(serializerPromise, callback);
+              return serializerPromise;
+            };
+            LocalForage2.prototype.ready = function ready(callback) {
+              var self2 = this;
+              var promise = self2._driverSet.then(function() {
+                if (self2._ready === null) {
+                  self2._ready = self2._initDriver();
+                }
+                return self2._ready;
+              });
+              executeTwoCallbacks(promise, callback, callback);
+              return promise;
+            };
+            LocalForage2.prototype.setDriver = function setDriver(drivers, callback, errorCallback) {
+              var self2 = this;
+              if (!isArray13(drivers)) {
+                drivers = [drivers];
+              }
+              var supportedDrivers = this._getSupportedDrivers(drivers);
+              function setDriverToConfig() {
+                self2._config.driver = self2.driver();
+              }
+              function extendSelfWithDriver(driver) {
+                self2._extend(driver);
+                setDriverToConfig();
+                self2._ready = self2._initStorage(self2._config);
+                return self2._ready;
+              }
+              function initDriver(supportedDrivers2) {
+                return function() {
+                  var currentDriverIndex = 0;
+                  function driverPromiseLoop() {
+                    while (currentDriverIndex < supportedDrivers2.length) {
+                      var driverName = supportedDrivers2[currentDriverIndex];
+                      currentDriverIndex++;
+                      self2._dbInfo = null;
+                      self2._ready = null;
+                      return self2.getDriver(driverName).then(extendSelfWithDriver)["catch"](driverPromiseLoop);
+                    }
+                    setDriverToConfig();
+                    var error = new Error("No available storage method found.");
+                    self2._driverSet = Promise$1.reject(error);
+                    return self2._driverSet;
+                  }
+                  return driverPromiseLoop();
+                };
+              }
+              var oldDriverSetDone = this._driverSet !== null ? this._driverSet["catch"](function() {
+                return Promise$1.resolve();
+              }) : Promise$1.resolve();
+              this._driverSet = oldDriverSetDone.then(function() {
+                var driverName = supportedDrivers[0];
+                self2._dbInfo = null;
+                self2._ready = null;
+                return self2.getDriver(driverName).then(function(driver) {
+                  self2._driver = driver._driver;
+                  setDriverToConfig();
+                  self2._wrapLibraryMethodsWithReady();
+                  self2._initDriver = initDriver(supportedDrivers);
+                });
+              })["catch"](function() {
+                setDriverToConfig();
+                var error = new Error("No available storage method found.");
+                self2._driverSet = Promise$1.reject(error);
+                return self2._driverSet;
+              });
+              executeTwoCallbacks(this._driverSet, callback, errorCallback);
+              return this._driverSet;
+            };
+            LocalForage2.prototype.supports = function supports(driverName) {
+              return !!DriverSupport[driverName];
+            };
+            LocalForage2.prototype._extend = function _extend(libraryMethodsAndProperties) {
+              extend2(this, libraryMethodsAndProperties);
+            };
+            LocalForage2.prototype._getSupportedDrivers = function _getSupportedDrivers(drivers) {
+              var supportedDrivers = [];
+              for (var i3 = 0, len = drivers.length; i3 < len; i3++) {
+                var driverName = drivers[i3];
+                if (this.supports(driverName)) {
+                  supportedDrivers.push(driverName);
+                }
+              }
+              return supportedDrivers;
+            };
+            LocalForage2.prototype._wrapLibraryMethodsWithReady = function _wrapLibraryMethodsWithReady() {
+              for (var i3 = 0, len = LibraryMethods.length; i3 < len; i3++) {
+                callWhenReady(this, LibraryMethods[i3]);
+              }
+            };
+            LocalForage2.prototype.createInstance = function createInstance(options) {
+              return new LocalForage2(options);
+            };
+            return LocalForage2;
+          })();
+          var localforage_js = new LocalForage();
+          module3.exports = localforage_js;
+        }, { "3": 3 }] }, {}, [4])(4);
+      });
+    }
+  });
+
   // extension/src/services/storage.ts
   var DEFAULT_SETTINGS = {
     serverUrl: "http://localhost:3000",
@@ -30313,12 +32490,76 @@
     }
     return /^[IVXLCDM]+$/i.test(clean2) && clean2.length > 0 && /^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/i.test(clean2);
   }
+  function normalizeApostrophes(str) {
+    if (!str) return "";
+    return str.replace(/[’‘ʻʼ´`]/g, "'");
+  }
   function cleanWordForLookup(raw) {
     if (!raw) return "";
     let clean2 = raw.trim();
     clean2 = clean2.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, "");
     clean2 = clean2.replace(/^['’"`“«»„‟‹›]+|['’"`”«»„‟‹›]+$/gu, "");
+    clean2 = normalizeApostrophes(clean2);
     return clean2.toLowerCase();
+  }
+  var ENGLISH_NEGATIONS = {
+    "can't": "can",
+    "cannot": "can",
+    "won't": "will",
+    "shan't": "shall",
+    "ain't": "be",
+    "don't": "do",
+    "doesn't": "does",
+    "didn't": "did",
+    "isn't": "is",
+    "aren't": "are",
+    "wasn't": "was",
+    "weren't": "were",
+    "haven't": "have",
+    "hasn't": "has",
+    "hadn't": "had",
+    "wouldn't": "would",
+    "couldn't": "could",
+    "shouldn't": "should",
+    "mustn't": "must"
+  };
+  function normalizeContraction(w, targetLanguage = "") {
+    if (!w) return "";
+    let lower = normalizeApostrophes(w.toLowerCase().trim());
+    const langCode = (targetLanguage || "").toLowerCase().slice(0, 2);
+    if (langCode === "es") {
+      return lower;
+    }
+    if (langCode === "en" || !langCode) {
+      if (ENGLISH_NEGATIONS[lower]) {
+        return ENGLISH_NEGATIONS[lower];
+      }
+      if (lower.endsWith("'") && lower.length > 2) {
+        return lower.slice(0, -1);
+      }
+      if (lower.endsWith("'s")) return lower.slice(0, -2);
+      if (lower.endsWith("'ve")) return lower.slice(0, -3);
+      if (lower.endsWith("'re")) return lower.slice(0, -3);
+      if (lower.endsWith("'m")) return lower.slice(0, -2);
+      if (lower.endsWith("'ll")) return lower.slice(0, -3);
+      if (lower.endsWith("'d")) return lower.slice(0, -2);
+    } else if (langCode === "fr") {
+      if (lower.startsWith("l'")) return lower.slice(2);
+      if (lower.startsWith("d'")) return lower.slice(2);
+      if (lower.startsWith("j'")) return lower.slice(2);
+      if (lower.startsWith("qu'")) return lower.slice(3);
+      if (lower.startsWith("m'")) return lower.slice(2);
+      if (lower.startsWith("t'")) return lower.slice(2);
+      if (lower.startsWith("s'")) return lower.slice(2);
+      if (lower.startsWith("c'")) return lower.slice(2);
+      if (lower.startsWith("n'")) return lower.slice(2);
+    } else if (langCode === "it") {
+      if (lower.startsWith("l'")) return lower.slice(2);
+      if (lower.startsWith("d'")) return lower.slice(2);
+      if (lower.startsWith("un'")) return lower.slice(3);
+      if (lower.startsWith("c'")) return lower.slice(2);
+    }
+    return lower;
   }
   function isNumericOrSymbolToken(str) {
     if (!str) return true;
@@ -30354,6 +32595,6029 @@
       const v2 = c2 === "x" ? r2 : r2 & 3 | 8;
       return v2.toString(16);
     });
+  }
+
+  // src/data/ignoreLists/universal/gaming.json
+  var gaming_default = [
+    "nintendo",
+    "playstation",
+    "xbox",
+    "atari",
+    "capcom",
+    "konami",
+    "ubisoft",
+    "bethesda",
+    "bioware",
+    "insomniac",
+    "bungie",
+    "fromsoftware",
+    "mojang",
+    "supercell",
+    "gamecube",
+    "gameboy",
+    "dualshock",
+    "dualsense",
+    "joycon",
+    "psp",
+    "ps1",
+    "ps2",
+    "ps3",
+    "ps4",
+    "ps5",
+    "oculus",
+    "zelda",
+    "pokemon",
+    "pok\xE9mon",
+    "minecraft",
+    "fortnite",
+    "roblox",
+    "cyberpunk",
+    "skyrim",
+    "bloodborne",
+    "sekiro",
+    "valorant",
+    "splatoon",
+    "tekken",
+    "terraria",
+    "genshin",
+    "honkai"
+  ];
+
+  // src/data/ignoreLists/universal/tech.json
+  var tech_default = [
+    "google",
+    "microsoft",
+    "nvidia",
+    "amd",
+    "qualcomm",
+    "snapdragon",
+    "asus",
+    "acer",
+    "lenovo",
+    "samsung",
+    "xiaomi",
+    "huawei",
+    "logitech",
+    "razer",
+    "corsair",
+    "toshiba",
+    "hitachi",
+    "nikon",
+    "tiktok",
+    "twitch",
+    "netflix",
+    "spotify",
+    "reddit",
+    "github",
+    "gitlab",
+    "linkedin",
+    "whatsapp",
+    "android",
+    "macos",
+    "ubuntu",
+    "debian",
+    "kubernetes",
+    "oled",
+    "amoled",
+    "qled",
+    "nvme",
+    "pcie",
+    "uefi",
+    "gigabyte",
+    "megabyte",
+    "terabyte",
+    "gigahertz",
+    "megahertz",
+    "bluetooth",
+    "wifi",
+    "hdmi",
+    "displayport",
+    "ethernet",
+    "vpn",
+    "http",
+    "https",
+    "json",
+    "xml",
+    "html",
+    "css",
+    "sql"
+  ];
+
+  // src/data/ignoreLists/universal/music.json
+  var music_default = [
+    "acdc",
+    "beatles",
+    "beyonce",
+    "coldplay",
+    "daftpunk",
+    "depechemode",
+    "eminem",
+    "gorillaz",
+    "ledzeppelin",
+    "linkinpark",
+    "maroon5",
+    "megadeth",
+    "metallica",
+    "nirvana",
+    "pinkfloyd",
+    "queen",
+    "radiohead",
+    "rammstein",
+    "shakira",
+    "slipknot"
+  ];
+
+  // src/data/ignoreLists/universal/cinema.json
+  var cinema_default = [
+    "aragorn",
+    "avatar",
+    "batman",
+    "darthvader",
+    "dumbledore",
+    "frodo",
+    "gandalf",
+    "godzilla",
+    "gollum",
+    "hobbit",
+    "hogwarts",
+    "jurassic",
+    "legolas",
+    "marvel",
+    "matrix",
+    "moriarty",
+    "sauron",
+    "sherlock",
+    "skywalker",
+    "spiderman",
+    "superman",
+    "terminator",
+    "thanos",
+    "voldemort",
+    "yoda"
+  ];
+
+  // src/data/ignoreLists/universal/brands.json
+  var brands_default = [
+    "4jstudios",
+    "accenture",
+    "adidas",
+    "armani",
+    "audi",
+    "balenciaga",
+    "bmw",
+    "casio",
+    "chanel",
+    "coca",
+    "cocacola",
+    "cola",
+    "dazs",
+    "fanta",
+    "ferrari",
+    "gucci",
+    "honda",
+    "hyundai",
+    "h\xE4agen",
+    "ikea",
+    "jeep",
+    "kia",
+    "kitkat",
+    "kodak",
+    "lamborghini",
+    "lego",
+    "lg",
+    "louisvuitton",
+    "mercedes",
+    "mondelez",
+    "monsterenergy",
+    "nike",
+    "nissan",
+    "nutella",
+    "oreo",
+    "pepsi",
+    "porsche",
+    "prada",
+    "puma",
+    "redbull",
+    "reebok",
+    "rolex",
+    "samsung",
+    "seiko",
+    "snickers",
+    "spotify",
+    "sprite",
+    "tcl",
+    "tesla",
+    "toyota",
+    "verizon",
+    "versace",
+    "volkswagen",
+    "volvo",
+    "wordpress",
+    "zara"
+  ];
+
+  // src/data/ignoreLists/universal/cities.json
+  var cities_default = [
+    "amsterdam",
+    "athens",
+    "bangkok",
+    "barcelona",
+    "beijing",
+    "berlin",
+    "budapest",
+    "chicago",
+    "copenhagen",
+    "dubai",
+    "dublin",
+    "florence",
+    "frankfurt",
+    "geneva",
+    "helsinki",
+    "istanbul",
+    "jakarta",
+    "kyoto",
+    "lisbon",
+    "london",
+    "madrid",
+    "miami",
+    "milan",
+    "moscow",
+    "munich",
+    "oslo",
+    "paris",
+    "prague",
+    "rome",
+    "seoul",
+    "seville",
+    "shanghai",
+    "singapore",
+    "stockholm",
+    "sydney",
+    "tehran",
+    "tokyo",
+    "toronto",
+    "valencia",
+    "venice",
+    "vienna",
+    "warsaw",
+    "zurich"
+  ];
+
+  // src/data/ignoreLists/universal/names.json
+  var names_default = [
+    "aaden",
+    "aaliyah",
+    "aarav",
+    "aaron",
+    "abagail",
+    "abbigail",
+    "abigail",
+    "abigale",
+    "abigayle",
+    "acey",
+    "achsah",
+    "acie",
+    "acy",
+    "adah",
+    "adalyn",
+    "adalynn",
+    "adam",
+    "adamaris",
+    "addisyn",
+    "addyson",
+    "adelard",
+    "adell",
+    "adella",
+    "adelle",
+    "adelyn",
+    "adilene",
+    "adison",
+    "aditya",
+    "adline",
+    "adrain",
+    "adrian",
+    "adrianna",
+    "adrianne",
+    "adron",
+    "adyson",
+    "aedan",
+    "affie",
+    "afton",
+    "agness",
+    "agusta",
+    "agustus",
+    "aidyn",
+    "ailene",
+    "aili",
+    "ainsley",
+    "aiyana",
+    "aja",
+    "akeelah",
+    "akeem",
+    "alaina",
+    "alan",
+    "alanna",
+    "alannah",
+    "alanzo",
+    "alayna",
+    "albert",
+    "albertha",
+    "alberto",
+    "albertus",
+    "alby",
+    "alcee",
+    "alcie",
+    "aldona",
+    "aleah",
+    "alease",
+    "alecia",
+    "aleck",
+    "aleen",
+    "aleena",
+    "alejandro",
+    "alene",
+    "alesha",
+    "alesia",
+    "aletha",
+    "alethea",
+    "alexande",
+    "alexander",
+    "alexandr",
+    "alexandrea",
+    "alexus",
+    "alexys",
+    "alexzander",
+    "alferd",
+    "alfie",
+    "alfonse",
+    "algernon",
+    "algot",
+    "aliana",
+    "alice",
+    "alijah",
+    "alisson",
+    "alivia",
+    "aliya",
+    "aliza",
+    "alize",
+    "allean",
+    "alleen",
+    "allena",
+    "allene",
+    "alline",
+    "allisson",
+    "allyn",
+    "allyssa",
+    "almedia",
+    "almer",
+    "almina",
+    "almira",
+    "almon",
+    "almus",
+    "almyra",
+    "alois",
+    "aloma",
+    "alonso",
+    "alonza",
+    "aloys",
+    "aloysius",
+    "alpheus",
+    "alphons",
+    "alphonsine",
+    "alphonsus",
+    "altha",
+    "altie",
+    "alvah",
+    "alvan",
+    "alvaro",
+    "alver",
+    "alvera",
+    "alverda",
+    "alverta",
+    "alvia",
+    "alvie",
+    "alvis",
+    "alvy",
+    "alwilda",
+    "alwin",
+    "alwina",
+    "alwine",
+    "alycia",
+    "alys",
+    "alysa",
+    "alyse",
+    "alysha",
+    "alysia",
+    "alyssia",
+    "alyvia",
+    "alzina",
+    "amanda",
+    "amarion",
+    "amaris",
+    "amaya",
+    "amberly",
+    "ambers",
+    "amelia",
+    "amelie",
+    "amey",
+    "amiah",
+    "amirah",
+    "amit",
+    "amiya",
+    "amiyah",
+    "amma",
+    "ammie",
+    "ammon",
+    "amon",
+    "amy",
+    "amya",
+    "anabella",
+    "anabelle",
+    "anahi",
+    "anais",
+    "anastacia",
+    "anastacio",
+    "anders",
+    "andon",
+    "andra",
+    "andrae",
+    "andrea",
+    "andrew",
+    "anfernee",
+    "angela",
+    "angella",
+    "anie",
+    "anika",
+    "aniya",
+    "aniyah",
+    "anjali",
+    "anjanette",
+    "anjelica",
+    "ann",
+    "anna",
+    "annabell",
+    "annalise",
+    "annamae",
+    "annamarie",
+    "anneliese",
+    "annemarie",
+    "anner",
+    "annetta",
+    "annice",
+    "annika",
+    "annis",
+    "ansley",
+    "anson",
+    "anthoney",
+    "anthony",
+    "antione",
+    "antionette",
+    "anton",
+    "antonetta",
+    "antonette",
+    "antonio",
+    "antwain",
+    "antwon",
+    "anwar",
+    "anya",
+    "aracely",
+    "arah",
+    "araminta",
+    "arbie",
+    "ardath",
+    "ardelia",
+    "ardell",
+    "ardella",
+    "ardelle",
+    "ardeth",
+    "ardis",
+    "ardith",
+    "ardyce",
+    "arely",
+    "aretha",
+    "argie",
+    "aric",
+    "arie",
+    "ariella",
+    "arjun",
+    "arkie",
+    "arla",
+    "arlan",
+    "arland",
+    "arleen",
+    "arlen",
+    "arleth",
+    "arletta",
+    "arley",
+    "arlie",
+    "arlin",
+    "arlis",
+    "arlo",
+    "arly",
+    "arlyn",
+    "arlyne",
+    "arman",
+    "arminda",
+    "arminta",
+    "armond",
+    "armstead",
+    "arnav",
+    "arnett",
+    "arrie",
+    "artelia",
+    "arther",
+    "arthor",
+    "arthur",
+    "artis",
+    "arvel",
+    "arvid",
+    "arvil",
+    "arvin",
+    "arvo",
+    "aryana",
+    "aryanna",
+    "asberry",
+    "asbury",
+    "asha",
+    "ashby",
+    "ashely",
+    "asher",
+    "ashlea",
+    "ashley",
+    "ashli",
+    "ashlie",
+    "ashly",
+    "ashlyn",
+    "ashlynn",
+    "ashton",
+    "ashtyn",
+    "ason",
+    "atha",
+    "atticus",
+    "attie",
+    "aubra",
+    "aubree",
+    "aubrie",
+    "audie",
+    "audley",
+    "audrey",
+    "audriana",
+    "audrianna",
+    "audrina",
+    "audry",
+    "audy",
+    "aurilla",
+    "aurthur",
+    "austin",
+    "auston",
+    "austyn",
+    "auther",
+    "authur",
+    "autry",
+    "avah",
+    "averi",
+    "averie",
+    "avie",
+    "ayaan",
+    "ayana",
+    "ayanna",
+    "aydan",
+    "ayden",
+    "aydin",
+    "ayesha",
+    "ayla",
+    "aylin",
+    "azalee",
+    "azzie",
+    "babette",
+    "babyboy",
+    "bailee",
+    "bama",
+    "barbara",
+    "barnie",
+    "bartley",
+    "bascom",
+    "bayard",
+    "baylee",
+    "baylie",
+    "bea",
+    "beadie",
+    "beaulah",
+    "beckham",
+    "beckie",
+    "beda",
+    "bedford",
+    "belen",
+    "belia",
+    "belton",
+    "bena",
+    "benard",
+    "benjaman",
+    "benjamen",
+    "benjamin",
+    "benjamine",
+    "benji",
+    "benjiman",
+    "benjman",
+    "berdie",
+    "berkley",
+    "bernardine",
+    "berneice",
+    "bernetta",
+    "berniece",
+    "bernita",
+    "bertina",
+    "berton",
+    "besse",
+    "betha",
+    "bethann",
+    "bethel",
+    "bethzy",
+    "betsey",
+    "betty",
+    "bettyjane",
+    "bettylou",
+    "beula",
+    "bev",
+    "beverlee",
+    "beyonce",
+    "biddie",
+    "bieber",
+    "billy",
+    "billye",
+    "bina",
+    "birdella",
+    "birt",
+    "birtha",
+    "birtie",
+    "bjorn",
+    "blain",
+    "blanchie",
+    "blane",
+    "bluford",
+    "bobby",
+    "bobbye",
+    "bolden",
+    "boyce",
+    "boysie",
+    "braden",
+    "bradley",
+    "bradyn",
+    "braeden",
+    "braedon",
+    "braelyn",
+    "braiden",
+    "brandan",
+    "brandee",
+    "brandin",
+    "brandon",
+    "brandyn",
+    "brannon",
+    "branson",
+    "brantley",
+    "brayan",
+    "brayden",
+    "braydon",
+    "braylen",
+    "braylon",
+    "breana",
+    "breann",
+    "breanna",
+    "breanne",
+    "bree",
+    "brenda",
+    "brenden",
+    "brendon",
+    "brennen",
+    "brennon",
+    "breonna",
+    "bria",
+    "brian",
+    "brianda",
+    "brianne",
+    "brielle",
+    "brien",
+    "brigette",
+    "briley",
+    "brinda",
+    "brion",
+    "brionna",
+    "britany",
+    "britni",
+    "britny",
+    "britta",
+    "brittaney",
+    "brittani",
+    "brittanie",
+    "brittnay",
+    "brittnee",
+    "brittni",
+    "brittnie",
+    "brittny",
+    "britton",
+    "broderick",
+    "brodie",
+    "brody",
+    "brooklynn",
+    "bruce",
+    "bryan",
+    "bryana",
+    "bryanna",
+    "brycen",
+    "brylee",
+    "bryn",
+    "brynlee",
+    "brynn",
+    "bryson",
+    "bryton",
+    "budd",
+    "buddie",
+    "buel",
+    "buelah",
+    "buell",
+    "bulah",
+    "burdette",
+    "buren",
+    "burk",
+    "burleigh",
+    "burley",
+    "burnell",
+    "burney",
+    "burnice",
+    "burnie",
+    "burrel",
+    "burrell",
+    "bynum",
+    "byrdie",
+    "caden",
+    "cael",
+    "caiden",
+    "cailyn",
+    "caitlynn",
+    "caldonia",
+    "caleigh",
+    "calista",
+    "callum",
+    "cami",
+    "camila",
+    "camisha",
+    "cammie",
+    "camren",
+    "camron",
+    "camryn",
+    "candis",
+    "candyce",
+    "cannie",
+    "capitola",
+    "cappie",
+    "carin",
+    "carisa",
+    "carl",
+    "carlee",
+    "carleen",
+    "carleigh",
+    "carleton",
+    "carley",
+    "carli",
+    "carlie",
+    "carlos",
+    "carlyn",
+    "carma",
+    "carnell",
+    "carolann",
+    "carolee",
+    "carolyn",
+    "carolyne",
+    "carolynn",
+    "carsen",
+    "caryl",
+    "caryn",
+    "casie",
+    "casimer",
+    "cason",
+    "casper",
+    "cass",
+    "cassondra",
+    "caswell",
+    "catharine",
+    "catherine",
+    "cathern",
+    "cathey",
+    "cathi",
+    "cathie",
+    "cathrine",
+    "catrina",
+    "cayden",
+    "cayla",
+    "caylee",
+    "ceasar",
+    "cedrick",
+    "ceil",
+    "celena",
+    "celestia",
+    "celestine",
+    "ceola",
+    "cephus",
+    "chace",
+    "chadd",
+    "chadrick",
+    "chaka",
+    "chalmer",
+    "chalmers",
+    "chancey",
+    "chanelle",
+    "chanie",
+    "channie",
+    "channing",
+    "chante",
+    "chantelle",
+    "charissa",
+    "charisse",
+    "charle",
+    "charlee",
+    "charleen",
+    "charles",
+    "charlize",
+    "charlotta",
+    "charlotte",
+    "charlottie",
+    "charls",
+    "charlsie",
+    "charlton",
+    "charolette",
+    "chauncy",
+    "chaya",
+    "chaz",
+    "chelsey",
+    "chelsi",
+    "chelsie",
+    "chelsy",
+    "cherelle",
+    "cherilyn",
+    "cherise",
+    "cherrelle",
+    "cherri",
+    "cherrie",
+    "cherryl",
+    "cheryl",
+    "cheryle",
+    "cheryll",
+    "chesley",
+    "chessie",
+    "chestina",
+    "chet",
+    "cheyanne",
+    "chimere",
+    "chloie",
+    "chrissie",
+    "chrissy",
+    "christal",
+    "christeen",
+    "christena",
+    "christene",
+    "christian",
+    "christin",
+    "christina",
+    "christine",
+    "christion",
+    "christop",
+    "christy",
+    "chyna",
+    "chynna",
+    "ciara",
+    "ciarra",
+    "cicely",
+    "ciera",
+    "cierra",
+    "ciji",
+    "cinda",
+    "cindi",
+    "cinthia",
+    "citlali",
+    "citlalli",
+    "clabe",
+    "claire",
+    "clarabelle",
+    "clarance",
+    "claribel",
+    "clarinda",
+    "clarnce",
+    "classie",
+    "claud",
+    "clearence",
+    "cleda",
+    "clell",
+    "clella",
+    "clemence",
+    "clemie",
+    "clemma",
+    "clemmie",
+    "clemon",
+    "cleola",
+    "cleon",
+    "cleone",
+    "cleora",
+    "cleta",
+    "cletus",
+    "cleva",
+    "cleve",
+    "clevie",
+    "cliffie",
+    "cloe",
+    "clora",
+    "clotilda",
+    "cloyd",
+    "clyda",
+    "clydie",
+    "clytie",
+    "coby",
+    "codey",
+    "codi",
+    "codie",
+    "coen",
+    "coleton",
+    "coletta",
+    "colie",
+    "collette",
+    "collis",
+    "colten",
+    "colter",
+    "colton",
+    "colvin",
+    "conard",
+    "conor",
+    "consuela",
+    "contina",
+    "coraima",
+    "corbett",
+    "cordaro",
+    "cordell",
+    "cordia",
+    "cordie",
+    "corean",
+    "corene",
+    "coretta",
+    "corie",
+    "corliss",
+    "cornel",
+    "cornelious",
+    "cornie",
+    "corry",
+    "cortney",
+    "courtland",
+    "creola",
+    "cressie",
+    "crissie",
+    "crissy",
+    "cristen",
+    "cristi",
+    "cristin",
+    "cristobal",
+    "cristofer",
+    "cristopher",
+    "cristy",
+    "crysta",
+    "curley",
+    "curtiss",
+    "cydney",
+    "cyndi",
+    "cyntha",
+    "cynthia",
+    "dabney",
+    "dagny",
+    "daija",
+    "daijah",
+    "daisey",
+    "daisha",
+    "daisie",
+    "daisye",
+    "daja",
+    "dakoda",
+    "dakotah",
+    "dallin",
+    "dalvin",
+    "damarcus",
+    "damari",
+    "damarion",
+    "damaris",
+    "dameon",
+    "damond",
+    "dandre",
+    "daneen",
+    "danelle",
+    "danette",
+    "dangelo",
+    "dani",
+    "dania",
+    "danica",
+    "daniel",
+    "danika",
+    "danita",
+    "dann",
+    "danniel",
+    "dannielle",
+    "danyel",
+    "danyell",
+    "danyelle",
+    "daquan",
+    "darcie",
+    "darell",
+    "darian",
+    "darien",
+    "darion",
+    "darl",
+    "darleen",
+    "darline",
+    "darlyne",
+    "darold",
+    "darrian",
+    "darrick",
+    "darrien",
+    "darrion",
+    "darrius",
+    "darron",
+    "darry",
+    "darryle",
+    "darryll",
+    "darryn",
+    "darwyn",
+    "daryle",
+    "daryn",
+    "dashawn",
+    "dasia",
+    "daulton",
+    "daunte",
+    "davante",
+    "davey",
+    "davian",
+    "david",
+    "davie",
+    "davin",
+    "davion",
+    "davon",
+    "davonta",
+    "davonte",
+    "dawna",
+    "dawne",
+    "daxton",
+    "dayami",
+    "dayana",
+    "dayanara",
+    "dayle",
+    "dayna",
+    "dayne",
+    "deandra",
+    "deane",
+    "deangelo",
+    "deante",
+    "deasia",
+    "debbi",
+    "debbra",
+    "debera",
+    "debi",
+    "deborah",
+    "deborrah",
+    "debra",
+    "debrah",
+    "debroah",
+    "declan",
+    "dedra",
+    "dedric",
+    "dedrick",
+    "deeann",
+    "deedee",
+    "deegan",
+    "deetta",
+    "deforest",
+    "deidra",
+    "deion",
+    "dejah",
+    "dejon",
+    "dejuan",
+    "delcie",
+    "deliah",
+    "delina",
+    "delinda",
+    "delisa",
+    "dellar",
+    "delle",
+    "dellia",
+    "dellie",
+    "delmas",
+    "delmus",
+    "delois",
+    "delora",
+    "delpha",
+    "delphia",
+    "delphin",
+    "delsie",
+    "delton",
+    "delvin",
+    "dema",
+    "demarco",
+    "demarcus",
+    "demario",
+    "demarion",
+    "demetri",
+    "demetric",
+    "demetrios",
+    "demian",
+    "demond",
+    "demonte",
+    "deneen",
+    "denese",
+    "denine",
+    "denis",
+    "denisha",
+    "denisse",
+    "denita",
+    "dennie",
+    "dennis",
+    "denton",
+    "denzel",
+    "denzell",
+    "denzil",
+    "deondre",
+    "deonta",
+    "deontae",
+    "deonte",
+    "dequan",
+    "derald",
+    "dereck",
+    "dereon",
+    "deric",
+    "derik",
+    "derl",
+    "deron",
+    "derrek",
+    "derrell",
+    "derwin",
+    "deryl",
+    "desean",
+    "deshaun",
+    "deshawn",
+    "desi",
+    "desirae",
+    "dessa",
+    "destany",
+    "destinee",
+    "destiney",
+    "destini",
+    "destry",
+    "devan",
+    "devante",
+    "devaughn",
+    "deven",
+    "devonta",
+    "devontae",
+    "devonte",
+    "devyn",
+    "deward",
+    "deyanira",
+    "dezzie",
+    "diallo",
+    "diandra",
+    "diane",
+    "dicie",
+    "dickie",
+    "dicy",
+    "diego",
+    "dillan",
+    "dillie",
+    "dillion",
+    "dimitrios",
+    "dionicio",
+    "dionte",
+    "diya",
+    "djuana",
+    "djuna",
+    "docia",
+    "dola",
+    "dollye",
+    "doloris",
+    "dolph",
+    "dolphus",
+    "domenic",
+    "domenick",
+    "dominik",
+    "dominque",
+    "domonique",
+    "donal",
+    "donald",
+    "donat",
+    "donavan",
+    "donavon",
+    "dondre",
+    "donell",
+    "donie",
+    "donita",
+    "donna",
+    "donta",
+    "dontae",
+    "dorathea",
+    "dorathy",
+    "dorene",
+    "doretha",
+    "dori",
+    "doris",
+    "dorla",
+    "dorman",
+    "dorotha",
+    "dorothy",
+    "dorr",
+    "dorris",
+    "dortha",
+    "dorthea",
+    "dorthey",
+    "dosha",
+    "doshia",
+    "doshie",
+    "dosia",
+    "dossie",
+    "dottie",
+    "douglas",
+    "dovie",
+    "dozier",
+    "draven",
+    "drema",
+    "drucilla",
+    "drury",
+    "duard",
+    "durell",
+    "durrell",
+    "durward",
+    "durwood",
+    "dustan",
+    "duwayne",
+    "dwain",
+    "dwaine",
+    "dwan",
+    "dwane",
+    "dwyane",
+    "dyan",
+    "dylan",
+    "dyllan",
+    "dylon",
+    "ean",
+    "earlean",
+    "earley",
+    "earlie",
+    "eartha",
+    "easton",
+    "eathel",
+    "ebba",
+    "ebbie",
+    "ebenezer",
+    "eboni",
+    "eda",
+    "edd",
+    "edie",
+    "edla",
+    "edmon",
+    "edmonia",
+    "ednah",
+    "edra",
+    "edrie",
+    "edris",
+    "eduardo",
+    "edw",
+    "edward",
+    "edyth",
+    "edythe",
+    "effa",
+    "egbert",
+    "einar",
+    "eino",
+    "eithel",
+    "ela",
+    "elaina",
+    "elana",
+    "elayne",
+    "elberta",
+    "elbridge",
+    "elby",
+    "elden",
+    "eldora",
+    "eldred",
+    "eldridge",
+    "eleanora",
+    "eleanore",
+    "elease",
+    "electa",
+    "elena",
+    "elenor",
+    "elenora",
+    "elenore",
+    "elex",
+    "elfie",
+    "elfrieda",
+    "elgie",
+    "elgin",
+    "elian",
+    "elianna",
+    "elick",
+    "elida",
+    "elie",
+    "eliga",
+    "eligah",
+    "elige",
+    "elihu",
+    "elinore",
+    "elizabet",
+    "elizabeth",
+    "elizah",
+    "elizbeth",
+    "elizebeth",
+    "ellamae",
+    "ellar",
+    "eller",
+    "ellery",
+    "elliana",
+    "ellsworth",
+    "ellwood",
+    "ellyn",
+    "elmina",
+    "elmira",
+    "elmire",
+    "elmore",
+    "elmyra",
+    "elna",
+    "elodie",
+    "elois",
+    "elon",
+    "elonzo",
+    "elouise",
+    "elsworth",
+    "elta",
+    "elvera",
+    "elvie",
+    "elwanda",
+    "elwin",
+    "elwyn",
+    "ely",
+    "elyse",
+    "elyssa",
+    "elzada",
+    "elzie",
+    "elzy",
+    "ema",
+    "emaline",
+    "emelie",
+    "emeline",
+    "emely",
+    "emett",
+    "emilee",
+    "emiliano",
+    "emilie",
+    "emily",
+    "emma",
+    "emmalee",
+    "emmaline",
+    "emmer",
+    "emmet",
+    "emmie",
+    "emmit",
+    "emmitt",
+    "emmons",
+    "emogene",
+    "emry",
+    "ennis",
+    "enola",
+    "enrique",
+    "eola",
+    "ephram",
+    "ephriam",
+    "eppie",
+    "epsie",
+    "erastus",
+    "erby",
+    "eric",
+    "erla",
+    "erland",
+    "erle",
+    "erlene",
+    "erline",
+    "erling",
+    "ermina",
+    "erving",
+    "erykah",
+    "eryn",
+    "esequiel",
+    "esker",
+    "esley",
+    "essa",
+    "estefani",
+    "estefania",
+    "estefany",
+    "estel",
+    "estell",
+    "estevan",
+    "estie",
+    "estill",
+    "eston",
+    "etha",
+    "ethan",
+    "ethelbert",
+    "ethelene",
+    "ethelyn",
+    "ethen",
+    "ethie",
+    "ethyle",
+    "etter",
+    "ettie",
+    "eudora",
+    "eugene",
+    "eulah",
+    "euna",
+    "euphemia",
+    "eura",
+    "eustace",
+    "evalena",
+    "evalyn",
+    "evander",
+    "evelena",
+    "evelin",
+    "evelyn",
+    "evelyne",
+    "everet",
+    "evertt",
+    "evette",
+    "evia",
+    "evie",
+    "evon",
+    "evonne",
+    "ewald",
+    "ewart",
+    "ewell",
+    "ewin",
+    "exie",
+    "ezell",
+    "ezzard",
+    "fae",
+    "falon",
+    "fannye",
+    "faron",
+    "farrah",
+    "farris",
+    "felicie",
+    "felicitas",
+    "felipa",
+    "felisha",
+    "felton",
+    "ferd",
+    "ferman",
+    "fernando",
+    "ferne",
+    "festus",
+    "fidencio",
+    "fitzhugh",
+    "fleda",
+    "fleeta",
+    "flem",
+    "flonnie",
+    "florance",
+    "florene",
+    "floretta",
+    "florrie",
+    "floy",
+    "foy",
+    "frances",
+    "francies",
+    "francina",
+    "francisco",
+    "francisqui",
+    "franklin",
+    "franklyn",
+    "frederick",
+    "fredericka",
+    "fredie",
+    "fredy",
+    "freeda",
+    "frona",
+    "fronia",
+    "fronie",
+    "fronnie",
+    "fumiko",
+    "furman",
+    "gabriel",
+    "gabriella",
+    "gaige",
+    "gaither",
+    "gannon",
+    "garett",
+    "garey",
+    "garnett",
+    "garold",
+    "garvin",
+    "gary",
+    "gasper",
+    "gaven",
+    "gavyn",
+    "gaye",
+    "gayla",
+    "gaylen",
+    "gaylene",
+    "gaylon",
+    "gaylord",
+    "gaynell",
+    "gearld",
+    "gearldine",
+    "geary",
+    "genevra",
+    "gennie",
+    "georganna",
+    "george",
+    "georgeann",
+    "georgeanna",
+    "georgetta",
+    "georgiana",
+    "georgiann",
+    "georgianna",
+    "georgie",
+    "geovanni",
+    "gerald",
+    "geralyn",
+    "gerhardt",
+    "geri",
+    "gerold",
+    "gerri",
+    "gerrit",
+    "gertha",
+    "gertie",
+    "giana",
+    "gianna",
+    "gidget",
+    "gifford",
+    "gigi",
+    "gilford",
+    "gilman",
+    "gilmer",
+    "giovani",
+    "giovanny",
+    "girtha",
+    "gisselle",
+    "gladis",
+    "gladyce",
+    "glendon",
+    "glendora",
+    "glennie",
+    "glennis",
+    "glenwood",
+    "glinda",
+    "glynda",
+    "glynis",
+    "glynn",
+    "godfrey",
+    "goebel",
+    "goldia",
+    "gonzalo",
+    "gorden",
+    "gottlieb",
+    "gracelyn",
+    "grayce",
+    "graydon",
+    "grayling",
+    "grayson",
+    "greggory",
+    "gregory",
+    "gretta",
+    "greyson",
+    "grisel",
+    "guilford",
+    "guillermo",
+    "gunda",
+    "gunnar",
+    "guss",
+    "gussie",
+    "gusta",
+    "gustaf",
+    "gustie",
+    "gwenda",
+    "hadassah",
+    "haden",
+    "hadley",
+    "haiden",
+    "hailee",
+    "hailey",
+    "hailie",
+    "hakeem",
+    "halbert",
+    "haleigh",
+    "halie",
+    "hamp",
+    "hannah",
+    "hansford",
+    "hardie",
+    "harl",
+    "harland",
+    "harlen",
+    "harlene",
+    "harlie",
+    "harlon",
+    "harman",
+    "harold",
+    "harper",
+    "harrie",
+    "harriette",
+    "harrold",
+    "hartley",
+    "hartwell",
+    "haruko",
+    "harve",
+    "harvie",
+    "harvy",
+    "hasan",
+    "hasel",
+    "hassie",
+    "haylee",
+    "hayleigh",
+    "hayley",
+    "haylie",
+    "hazelle",
+    "hazen",
+    "heather",
+    "heber",
+    "hedwig",
+    "hedy",
+    "heidy",
+    "helen",
+    "hellen",
+    "helmer",
+    "helyn",
+    "henery",
+    "hennie",
+    "henretta",
+    "henry",
+    "hermina",
+    "hermon",
+    "hernan",
+    "hershell",
+    "hertha",
+    "hervey",
+    "hessie",
+    "hetty",
+    "heyward",
+    "hezzie",
+    "hilah",
+    "hildegard",
+    "hildred",
+    "hildur",
+    "hillard",
+    "hillery",
+    "hilliard",
+    "hilma",
+    "hilmer",
+    "hjalmar",
+    "hjalmer",
+    "hobert",
+    "hobson",
+    "holli",
+    "honora",
+    "hortencia",
+    "hosie",
+    "hosteen",
+    "hoyt",
+    "hughey",
+    "hughie",
+    "huldah",
+    "hurbert",
+    "hyman",
+    "hyrum",
+    "icey",
+    "icie",
+    "idabelle",
+    "idamae",
+    "idell",
+    "idella",
+    "iesha",
+    "ieshia",
+    "ignacio",
+    "ignatz",
+    "ilah",
+    "illa",
+    "illya",
+    "imani",
+    "imanol",
+    "inell",
+    "ingeborg",
+    "inger",
+    "iola",
+    "iona",
+    "iridian",
+    "irine",
+    "irva",
+    "irven",
+    "isaak",
+    "isabell",
+    "isabella",
+    "isadore",
+    "isai",
+    "isaias",
+    "isam",
+    "ishaan",
+    "isham",
+    "isidor",
+    "isom",
+    "isreal",
+    "ivah",
+    "ivan",
+    "iver",
+    "iverson",
+    "ivey",
+    "ivie",
+    "ivor",
+    "iyana",
+    "iyanna",
+    "izabella",
+    "izabelle",
+    "izaiah",
+    "izayah",
+    "izetta",
+    "izola",
+    "izora",
+    "jabbar",
+    "jabez",
+    "jacalyn",
+    "jace",
+    "jacey",
+    "jacki",
+    "jacob",
+    "jacoby",
+    "jacque",
+    "jacquelin",
+    "jacqueline",
+    "jacquelynn",
+    "jacquline",
+    "jacqulyn",
+    "jada",
+    "jaden",
+    "jadon",
+    "jadyn",
+    "jaeda",
+    "jaeden",
+    "jaelyn",
+    "jaelynn",
+    "jaheem",
+    "jaheim",
+    "jahiem",
+    "jahir",
+    "jaida",
+    "jaiden",
+    "jaidyn",
+    "jailene",
+    "jailyn",
+    "jaimee",
+    "jaimie",
+    "jajuan",
+    "jakayla",
+    "jakob",
+    "jakobe",
+    "jaleel",
+    "jaleesa",
+    "jalen",
+    "jalisa",
+    "jalissa",
+    "jaliyah",
+    "jalyn",
+    "jalynn",
+    "jamarcus",
+    "jamarion",
+    "jameel",
+    "james",
+    "jameson",
+    "jamey",
+    "jamin",
+    "jamison",
+    "jamiya",
+    "jammie",
+    "jamya",
+    "janae",
+    "janay",
+    "janeen",
+    "janel",
+    "janene",
+    "janessa",
+    "janet",
+    "janey",
+    "janiah",
+    "janice",
+    "janiya",
+    "janiyah",
+    "jann",
+    "jannette",
+    "janyce",
+    "jaquan",
+    "jaquelin",
+    "jaquez",
+    "jarad",
+    "jaren",
+    "jaret",
+    "jarett",
+    "jarod",
+    "jaron",
+    "jarrad",
+    "jarrell",
+    "jase",
+    "jasen",
+    "jasiah",
+    "jaslene",
+    "jaslyn",
+    "jasmyn",
+    "jasmyne",
+    "jason",
+    "javen",
+    "javier",
+    "javion",
+    "javon",
+    "javonte",
+    "jax",
+    "jaxon",
+    "jaxson",
+    "jayce",
+    "jaycie",
+    "jayda",
+    "jaydan",
+    "jayde",
+    "jayden",
+    "jaydin",
+    "jaydon",
+    "jaye",
+    "jayla",
+    "jaylah",
+    "jaylan",
+    "jaylee",
+    "jayleen",
+    "jaylen",
+    "jaylene",
+    "jaylin",
+    "jaylon",
+    "jaylyn",
+    "jaylynn",
+    "jaymes",
+    "jayvion",
+    "jayvon",
+    "jazlene",
+    "jazlyn",
+    "jazlynn",
+    "jazmin",
+    "jazmine",
+    "jazmyn",
+    "jazmyne",
+    "jean",
+    "jeana",
+    "jeane",
+    "jeanetta",
+    "jeanmarie",
+    "jeanna",
+    "jeb",
+    "jedediah",
+    "jedidiah",
+    "jeffie",
+    "jeffrey",
+    "jelani",
+    "jena",
+    "jenelle",
+    "jenilee",
+    "jennette",
+    "jenni",
+    "jennifer",
+    "jenniffer",
+    "jep",
+    "jeptha",
+    "jerad",
+    "jeraldine",
+    "jeramiah",
+    "jeramie",
+    "jeramy",
+    "jere",
+    "jered",
+    "jerel",
+    "jereme",
+    "jeremey",
+    "jeremie",
+    "jeremy",
+    "jerica",
+    "jerilyn",
+    "jerilynn",
+    "jerimiah",
+    "jerimy",
+    "jermain",
+    "jermey",
+    "jerod",
+    "jeromy",
+    "jerrad",
+    "jerrel",
+    "jerrell",
+    "jerrica",
+    "jerrie",
+    "jerrilyn",
+    "jerry",
+    "jerusha",
+    "jeryl",
+    "jesenia",
+    "jesica",
+    "jesse",
+    "jessee",
+    "jessenia",
+    "jessi",
+    "jessica",
+    "jessika",
+    "jessye",
+    "jethro",
+    "jett",
+    "jetta",
+    "jettie",
+    "jevon",
+    "jiles",
+    "jimena",
+    "jinnie",
+    "joan",
+    "joana",
+    "joaquin",
+    "jobe",
+    "jocelynn",
+    "joe",
+    "joell",
+    "joella",
+    "joelle",
+    "joellen",
+    "joeseph",
+    "joetta",
+    "joette",
+    "johana",
+    "johannah",
+    "johathan",
+    "john",
+    "johney",
+    "johnna",
+    "johnny",
+    "johnpaul",
+    "johny",
+    "joi",
+    "joleen",
+    "jolette",
+    "jolie",
+    "joline",
+    "jonatan",
+    "jonathan",
+    "jonell",
+    "jonna",
+    "jonnie",
+    "jordan",
+    "jorden",
+    "jordin",
+    "jordon",
+    "jordy",
+    "jordyn",
+    "joretta",
+    "jorge",
+    "jorja",
+    "jory",
+    "jose",
+    "joselin",
+    "joseluis",
+    "joselyn",
+    "joseph",
+    "joshua",
+    "joshuah",
+    "josiephine",
+    "joslyn",
+    "jossie",
+    "jovan",
+    "jovani",
+    "jovanni",
+    "jovanny",
+    "jovany",
+    "joyce",
+    "joycelyn",
+    "joye",
+    "juan",
+    "judi",
+    "judie",
+    "judith",
+    "judy",
+    "judyth",
+    "julia",
+    "juliann",
+    "julie",
+    "julious",
+    "julisa",
+    "julissa",
+    "juluis",
+    "junia",
+    "junie",
+    "junious",
+    "junius",
+    "justen",
+    "justin",
+    "justina",
+    "juston",
+    "justus",
+    "justyn",
+    "juwan",
+    "kaaren",
+    "kaci",
+    "kacie",
+    "kacy",
+    "kade",
+    "kadeem",
+    "kaden",
+    "kadence",
+    "kadijah",
+    "kadin",
+    "kadyn",
+    "kaeden",
+    "kael",
+    "kaela",
+    "kaelyn",
+    "kahlil",
+    "kai",
+    "kaia",
+    "kaiden",
+    "kaila",
+    "kailee",
+    "kailey",
+    "kailyn",
+    "kaitlynn",
+    "kaiya",
+    "kala",
+    "kaleb",
+    "kaleena",
+    "kaleigh",
+    "kalen",
+    "kalene",
+    "kaley",
+    "kalie",
+    "kaliyah",
+    "kallie",
+    "kalvin",
+    "kalyn",
+    "kamari",
+    "kamden",
+    "kameron",
+    "kamila",
+    "kamilah",
+    "kamora",
+    "kamren",
+    "kamron",
+    "kamryn",
+    "kandace",
+    "kandi",
+    "kandice",
+    "kandy",
+    "kanesha",
+    "kanisha",
+    "kanye",
+    "karan",
+    "kareen",
+    "karen",
+    "karie",
+    "karis",
+    "karissa",
+    "karlee",
+    "karlene",
+    "karley",
+    "karli",
+    "karlie",
+    "karly",
+    "karolyn",
+    "karon",
+    "karren",
+    "karri",
+    "karrie",
+    "karson",
+    "karsyn",
+    "karter",
+    "karyl",
+    "karyme",
+    "kasandra",
+    "kasen",
+    "kash",
+    "kasie",
+    "kason",
+    "kassandra",
+    "kassidy",
+    "kassie",
+    "katarina",
+    "katelin",
+    "katelynn",
+    "katerina",
+    "kathaleen",
+    "katharina",
+    "katharyn",
+    "katherin",
+    "katherine",
+    "kathern",
+    "kathey",
+    "kathi",
+    "kathleen",
+    "kathlene",
+    "kathlyn",
+    "kathryn",
+    "kathryne",
+    "kathyrn",
+    "kati",
+    "katlin",
+    "katlyn",
+    "katlynn",
+    "kattie",
+    "kavon",
+    "kaya",
+    "kaycee",
+    "kayden",
+    "kaydence",
+    "kaylah",
+    "kaylan",
+    "kayleigh",
+    "kaylen",
+    "kaylene",
+    "kayley",
+    "kayli",
+    "kaylie",
+    "kaylin",
+    "kaylyn",
+    "kaylynn",
+    "kazuko",
+    "kazuo",
+    "keagan",
+    "keandre",
+    "keanna",
+    "keano",
+    "keanu",
+    "keara",
+    "kecia",
+    "keegan",
+    "keeley",
+    "keely",
+    "keena",
+    "keenen",
+    "keesha",
+    "kegan",
+    "keifer",
+    "keila",
+    "keion",
+    "keith",
+    "kelan",
+    "kelby",
+    "kelcie",
+    "keli",
+    "kelis",
+    "kellan",
+    "kellee",
+    "kellen",
+    "kelly",
+    "kelsea",
+    "kelsi",
+    "kelsie",
+    "kelton",
+    "kem",
+    "kenan",
+    "kendal",
+    "kendell",
+    "kenisha",
+    "kenji",
+    "kenley",
+    "kenna",
+    "kennard",
+    "kennedi",
+    "kenneth",
+    "kenney",
+    "kennth",
+    "kenzie",
+    "keon",
+    "kerwin",
+    "kesha",
+    "keshaun",
+    "keshawn",
+    "keshia",
+    "kevan",
+    "kevin",
+    "kevon",
+    "keyla",
+    "keyon",
+    "keyshawn",
+    "khadijah",
+    "khalilah",
+    "khari",
+    "khiry",
+    "khloe",
+    "kian",
+    "kiana",
+    "kianna",
+    "kiara",
+    "kiarra",
+    "kiefer",
+    "kieran",
+    "kierra",
+    "kiersten",
+    "kiley",
+    "kimball",
+    "kimber",
+    "kimberely",
+    "kimberlee",
+    "kimberli",
+    "kimberlie",
+    "kimberly",
+    "kimora",
+    "kindra",
+    "kinley",
+    "kinsley",
+    "kinte",
+    "kipp",
+    "kirstie",
+    "kirstin",
+    "kirt",
+    "kisha",
+    "kittie",
+    "kiya",
+    "kiyoko",
+    "kiyoshi",
+    "kizzie",
+    "kizzy",
+    "knute",
+    "koby",
+    "koda",
+    "kody",
+    "koen",
+    "kolby",
+    "kole",
+    "kolten",
+    "kolton",
+    "konner",
+    "konnor",
+    "korbin",
+    "kordell",
+    "korey",
+    "kori",
+    "kortney",
+    "kourtney",
+    "kraig",
+    "krish",
+    "krissy",
+    "kristal",
+    "kristan",
+    "kristian",
+    "kristofer",
+    "kristyn",
+    "krysta",
+    "krysten",
+    "krystin",
+    "krystina",
+    "krystle",
+    "kunta",
+    "kwame",
+    "kya",
+    "kyan",
+    "kyara",
+    "kyla",
+    "kylah",
+    "kylan",
+    "kyle",
+    "kylee",
+    "kyleigh",
+    "kylene",
+    "kyler",
+    "kymani",
+    "kyra",
+    "kyree",
+    "kyson",
+    "laci",
+    "lacie",
+    "ladarius",
+    "lafe",
+    "lahoma",
+    "lailah",
+    "lainey",
+    "laisha",
+    "laken",
+    "lakendra",
+    "lakesha",
+    "lakeshia",
+    "lalla",
+    "lamarcus",
+    "lamonte",
+    "landan",
+    "landin",
+    "landyn",
+    "lanette",
+    "laney",
+    "lani",
+    "lanie",
+    "lanita",
+    "lannie",
+    "laquan",
+    "laquita",
+    "larae",
+    "laraine",
+    "larkin",
+    "laron",
+    "larry",
+    "larue",
+    "lary",
+    "lashanda",
+    "lashawn",
+    "lashonda",
+    "lashunda",
+    "lasonya",
+    "latanya",
+    "latarsha",
+    "latesha",
+    "latifah",
+    "latonia",
+    "latoria",
+    "latosha",
+    "latoyia",
+    "latrell",
+    "latricia",
+    "laura",
+    "laurance",
+    "lauren",
+    "laurene",
+    "lauryn",
+    "lavelle",
+    "lavenia",
+    "lavera",
+    "laverna",
+    "lavon",
+    "lavona",
+    "lavonda",
+    "lavonia",
+    "lawerence",
+    "lawrance",
+    "lawrence",
+    "lawton",
+    "laylah",
+    "layne",
+    "layton",
+    "leala",
+    "leamon",
+    "leaner",
+    "leatha",
+    "leatrice",
+    "leeann",
+    "leeroy",
+    "leesa",
+    "leia",
+    "leighton",
+    "leilani",
+    "leisa",
+    "leisha",
+    "leitha",
+    "lelah",
+    "lelar",
+    "lem",
+    "lemmie",
+    "lempi",
+    "lennie",
+    "lenon",
+    "lenord",
+    "lenwood",
+    "leoma",
+    "leonce",
+    "leonie",
+    "leonore",
+    "leontine",
+    "leora",
+    "leota",
+    "lesia",
+    "leslee",
+    "lesli",
+    "lesly",
+    "lesta",
+    "lethia",
+    "letta",
+    "lettie",
+    "letty",
+    "levern",
+    "levie",
+    "levin",
+    "levina",
+    "levon",
+    "lexi",
+    "libbie",
+    "lida",
+    "liddie",
+    "lidie",
+    "lilah",
+    "lilburn",
+    "lilianna",
+    "lilie",
+    "lillard",
+    "liller",
+    "lillia",
+    "lilliana",
+    "lillianna",
+    "lillis",
+    "lilyan",
+    "lilyana",
+    "lim",
+    "linda",
+    "lindell",
+    "linn",
+    "linna",
+    "linnea",
+    "linnie",
+    "linsey",
+    "linzy",
+    "lisa",
+    "lish",
+    "lisha",
+    "lissette",
+    "lissie",
+    "lita",
+    "litha",
+    "littie",
+    "littleton",
+    "litzy",
+    "lizabeth",
+    "lizeth",
+    "lizette",
+    "lockie",
+    "loda",
+    "logan",
+    "lollie",
+    "londyn",
+    "loney",
+    "loni",
+    "lonie",
+    "lonna",
+    "lonny",
+    "lonzo",
+    "lorayne",
+    "lorean",
+    "loree",
+    "loreen",
+    "lorelai",
+    "loretto",
+    "loria",
+    "loriann",
+    "lorin",
+    "lorine",
+    "loring",
+    "lorne",
+    "lorrayne",
+    "lorri",
+    "lossie",
+    "lotta",
+    "louann",
+    "louanna",
+    "louetta",
+    "louis",
+    "loula",
+    "louvenia",
+    "lovell",
+    "lovett",
+    "lovie",
+    "lovina",
+    "lovisa",
+    "loy",
+    "loyce",
+    "luanne",
+    "luberta",
+    "lucas",
+    "luciano",
+    "lucindy",
+    "lucious",
+    "luda",
+    "ludie",
+    "lue",
+    "luetta",
+    "lugenia",
+    "luis",
+    "lulah",
+    "lular",
+    "lulie",
+    "lulla",
+    "lum",
+    "lura",
+    "lurana",
+    "lurena",
+    "lurline",
+    "lutie",
+    "luvenia",
+    "luverne",
+    "luvinia",
+    "lyda",
+    "lydell",
+    "lyla",
+    "lyn",
+    "lyndia",
+    "lyndsay",
+    "lyndsey",
+    "lynsey",
+    "lynwood",
+    "mabell",
+    "mabelle",
+    "macel",
+    "macey",
+    "machelle",
+    "maci",
+    "macie",
+    "madaline",
+    "madalyn",
+    "madalynn",
+    "maddison",
+    "madelene",
+    "madelynn",
+    "madie",
+    "madilyn",
+    "madilynn",
+    "madisen",
+    "madison",
+    "madisyn",
+    "madlyn",
+    "madora",
+    "madyson",
+    "maebell",
+    "maebelle",
+    "maegan",
+    "maeve",
+    "magan",
+    "magdalen",
+    "magen",
+    "mahala",
+    "mahalia",
+    "mahalie",
+    "mahlon",
+    "maia",
+    "maira",
+    "maiya",
+    "makai",
+    "makaila",
+    "makala",
+    "makayla",
+    "makena",
+    "makenna",
+    "makenzie",
+    "makhi",
+    "malakai",
+    "malaki",
+    "malcom",
+    "maleah",
+    "malissa",
+    "malissie",
+    "maliyah",
+    "mallie",
+    "mallorie",
+    "malorie",
+    "malvin",
+    "mammie",
+    "mandie",
+    "manerva",
+    "manervia",
+    "manford",
+    "mannie",
+    "manuel",
+    "manuelita",
+    "maralyn",
+    "maranda",
+    "marcelina",
+    "marcellus",
+    "marchello",
+    "mardell",
+    "mareli",
+    "marely",
+    "maren",
+    "margaret",
+    "margaretha",
+    "margarett",
+    "margaretta",
+    "margarette",
+    "margene",
+    "margeret",
+    "marget",
+    "margrett",
+    "margretta",
+    "margueritta",
+    "margurite",
+    "margy",
+    "maria",
+    "mariah",
+    "marianita",
+    "mariann",
+    "maribeth",
+    "marilee",
+    "marilla",
+    "marilynn",
+    "marinda",
+    "mario",
+    "marisela",
+    "mariyah",
+    "markel",
+    "markell",
+    "markita",
+    "markus",
+    "marlana",
+    "marland",
+    "marlee",
+    "marleen",
+    "marlen",
+    "marlena",
+    "marlie",
+    "marlo",
+    "marlyn",
+    "marlys",
+    "marni",
+    "marnita",
+    "marolyn",
+    "marrion",
+    "martell",
+    "martez",
+    "martha",
+    "marti",
+    "martika",
+    "mary",
+    "marybelle",
+    "marybeth",
+    "maryjane",
+    "maryjo",
+    "marylee",
+    "marylin",
+    "marylouise",
+    "marylyn",
+    "masako",
+    "masao",
+    "mateo",
+    "matias",
+    "matie",
+    "matthew",
+    "mattye",
+    "maudie",
+    "maury",
+    "maxie",
+    "maxim",
+    "maximillian",
+    "maximo",
+    "maximus",
+    "maya",
+    "maybell",
+    "maybelle",
+    "mayme",
+    "maymie",
+    "mazie",
+    "mcarthur",
+    "mckayla",
+    "meaghan",
+    "mearl",
+    "mechelle",
+    "medora",
+    "megan",
+    "meggan",
+    "meghann",
+    "mekhi",
+    "melany",
+    "melissa",
+    "melissia",
+    "mell",
+    "mellie",
+    "mellisa",
+    "mellissa",
+    "melodee",
+    "melodie",
+    "melonie",
+    "melony",
+    "melvina",
+    "melvyn",
+    "menachem",
+    "mendy",
+    "merilyn",
+    "merl",
+    "merlene",
+    "merlyn",
+    "merna",
+    "merri",
+    "merrie",
+    "merrilee",
+    "mertie",
+    "mervyn",
+    "merwin",
+    "metha",
+    "metta",
+    "mettie",
+    "mia",
+    "miah",
+    "micayla",
+    "michael",
+    "michaela",
+    "michaele",
+    "michal",
+    "michale",
+    "michell",
+    "michelle",
+    "michial",
+    "miesha",
+    "migdalia",
+    "miguel",
+    "miguelangel",
+    "mikaela",
+    "mikaila",
+    "mikal",
+    "mikala",
+    "mikalah",
+    "mikayla",
+    "mikeal",
+    "mikel",
+    "mikhail",
+    "milas",
+    "milburn",
+    "milda",
+    "miley",
+    "milissa",
+    "milly",
+    "mima",
+    "mindi",
+    "minervia",
+    "minna",
+    "minta",
+    "mintie",
+    "mireya",
+    "miriah",
+    "mirtie",
+    "missie",
+    "misti",
+    "mistie",
+    "mittie",
+    "miya",
+    "moesha",
+    "monika",
+    "monnie",
+    "monserrat",
+    "montie",
+    "montrell",
+    "mordechai",
+    "moriah",
+    "mose",
+    "moshe",
+    "mossie",
+    "mozell",
+    "mozella",
+    "mozelle",
+    "murdock",
+    "murl",
+    "murry",
+    "mya",
+    "myah",
+    "mychal",
+    "myer",
+    "mykel",
+    "myla",
+    "mylee",
+    "mylie",
+    "myranda",
+    "myrl",
+    "myrle",
+    "myrta",
+    "myrtice",
+    "myrtie",
+    "myrtis",
+    "naima",
+    "najee",
+    "nakia",
+    "nakisha",
+    "nakita",
+    "nallely",
+    "namon",
+    "nancie",
+    "nancy",
+    "nanie",
+    "nannette",
+    "naoma",
+    "naomi",
+    "natalee",
+    "natalya",
+    "nathalia",
+    "nathaly",
+    "nathan",
+    "nathanael",
+    "nathanial",
+    "nathen",
+    "natosha",
+    "nautica",
+    "nayeli",
+    "nayely",
+    "nealie",
+    "nealy",
+    "nedra",
+    "needham",
+    "neely",
+    "neha",
+    "nelia",
+    "nelie",
+    "nelle",
+    "nels",
+    "neola",
+    "neoma",
+    "neppie",
+    "nery",
+    "neta",
+    "netta",
+    "nevaeh",
+    "neveah",
+    "nevin",
+    "newell",
+    "nia",
+    "nichelle",
+    "nichol",
+    "nicholas",
+    "nicholaus",
+    "nicki",
+    "nicolas",
+    "nicole",
+    "nicolle",
+    "nikhil",
+    "niki",
+    "nikia",
+    "nikko",
+    "niko",
+    "nikolai",
+    "nikolas",
+    "nikole",
+    "nila",
+    "nilda",
+    "niles",
+    "ninnie",
+    "nira",
+    "noah",
+    "nobie",
+    "noemie",
+    "nohely",
+    "nolen",
+    "nolia",
+    "nolie",
+    "nonie",
+    "norah",
+    "norene",
+    "noreta",
+    "noretta",
+    "norine",
+    "norita",
+    "norval",
+    "norwood",
+    "nya",
+    "nyah",
+    "nyasia",
+    "nyla",
+    "nylah",
+    "nyree",
+    "obe",
+    "obie",
+    "ocie",
+    "octavie",
+    "odalis",
+    "odalys",
+    "oddie",
+    "odelia",
+    "odie",
+    "odus",
+    "offie",
+    "okey",
+    "olan",
+    "oland",
+    "olar",
+    "olena",
+    "olene",
+    "oleta",
+    "olevia",
+    "oley",
+    "olie",
+    "oline",
+    "olivia",
+    "olof",
+    "oma",
+    "omari",
+    "omarion",
+    "omer",
+    "omie",
+    "ona",
+    "oney",
+    "onie",
+    "onnie",
+    "opha",
+    "orah",
+    "oralia",
+    "orelia",
+    "orene",
+    "orie",
+    "oris",
+    "orland",
+    "orlena",
+    "orley",
+    "orlin",
+    "orlo",
+    "orpha",
+    "orra",
+    "orren",
+    "orrie",
+    "orrin",
+    "orvel",
+    "orvil",
+    "orvin",
+    "orvis",
+    "osbaldo",
+    "oscar",
+    "osie",
+    "ossie",
+    "otelia",
+    "otha",
+    "othel",
+    "otho",
+    "ott",
+    "ottie",
+    "ottis",
+    "ouida",
+    "ovila",
+    "ozell",
+    "ozie",
+    "pablo",
+    "pairlee",
+    "paityn",
+    "pallie",
+    "pamala",
+    "pamela",
+    "pamelia",
+    "pamella",
+    "paralee",
+    "parlee",
+    "parthenia",
+    "patric",
+    "patrick",
+    "paul",
+    "pauletta",
+    "paxton",
+    "payten",
+    "payton",
+    "pearla",
+    "pearle",
+    "pearlene",
+    "pearley",
+    "pearline",
+    "peggie",
+    "penni",
+    "perley",
+    "permelia",
+    "pernell",
+    "perri",
+    "peter",
+    "peyton",
+    "phebe",
+    "pheobe",
+    "philip",
+    "phillis",
+    "philomena",
+    "philomene",
+    "phylicia",
+    "phylis",
+    "phyliss",
+    "pinkey",
+    "pinkney",
+    "pleas",
+    "ples",
+    "pollie",
+    "porsha",
+    "posey",
+    "pranav",
+    "prentiss",
+    "pricilla",
+    "prudie",
+    "qiana",
+    "queenie",
+    "quiana",
+    "quinten",
+    "quintin",
+    "racheal",
+    "rachel",
+    "racquel",
+    "raegan",
+    "raekwon",
+    "raelynn",
+    "rafael",
+    "ragna",
+    "raheem",
+    "rahn",
+    "rahsaan",
+    "rahul",
+    "raiden",
+    "raina",
+    "rakeem",
+    "ralph",
+    "randel",
+    "randle",
+    "randolf",
+    "randy",
+    "raquan",
+    "rashaad",
+    "rashaan",
+    "rashad",
+    "rashawn",
+    "rasheed",
+    "rashida",
+    "raul",
+    "rayfield",
+    "rayford",
+    "raymon",
+    "raymond",
+    "rayna",
+    "raynard",
+    "rayne",
+    "rayshawn",
+    "reanna",
+    "reatha",
+    "rebecca",
+    "reece",
+    "regan",
+    "regena",
+    "regenia",
+    "reginal",
+    "rella",
+    "renada",
+    "renae",
+    "renea",
+    "renita",
+    "rennie",
+    "ressie",
+    "reta",
+    "retha",
+    "retta",
+    "rettie",
+    "reubin",
+    "rexford",
+    "reynold",
+    "rheta",
+    "rhett",
+    "rhianna",
+    "rhona",
+    "rhys",
+    "rian",
+    "rianna",
+    "richard",
+    "richelle",
+    "ricki",
+    "rihanna",
+    "rikki",
+    "rilla",
+    "rillie",
+    "rinda",
+    "rishi",
+    "riya",
+    "robb",
+    "robert",
+    "robley",
+    "roby",
+    "roddy",
+    "roderic",
+    "rodolfina",
+    "rodolfito",
+    "rodrigo",
+    "roena",
+    "roger",
+    "rolanda",
+    "rolf",
+    "rollie",
+    "rollin",
+    "romello",
+    "romie",
+    "romona",
+    "rona",
+    "ronal",
+    "ronald",
+    "rondal",
+    "ronin",
+    "ronna",
+    "rosabelle",
+    "rosalee",
+    "rosamond",
+    "rosann",
+    "rosco",
+    "roseanna",
+    "roseanne",
+    "roselyn",
+    "rosena",
+    "rosevelt",
+    "rosey",
+    "rosia",
+    "rossie",
+    "roxann",
+    "roxanna",
+    "roy",
+    "rozanne",
+    "rozella",
+    "ruben",
+    "rubie",
+    "rubye",
+    "rueben",
+    "ruel",
+    "ruffin",
+    "ruffus",
+    "ruie",
+    "russell",
+    "rustin",
+    "ruth",
+    "rutha",
+    "ruthann",
+    "ruthanne",
+    "ruthe",
+    "ryan",
+    "ryann",
+    "ryker",
+    "rylan",
+    "ryland",
+    "rylee",
+    "ryleigh",
+    "ryley",
+    "rylie",
+    "ryne",
+    "sabastian",
+    "sada",
+    "sadie",
+    "sadye",
+    "saige",
+    "salena",
+    "sam",
+    "samantha",
+    "samatha",
+    "samie",
+    "samual",
+    "samuel",
+    "sanai",
+    "sandi",
+    "sandie",
+    "sandra",
+    "saniya",
+    "saniyah",
+    "sanjuanita",
+    "sannie",
+    "santiago",
+    "sara",
+    "sarah",
+    "sarahi",
+    "sariah",
+    "sarrah",
+    "savanah",
+    "savilla",
+    "savion",
+    "schley",
+    "scott",
+    "scotty",
+    "seaborn",
+    "sean",
+    "sebastian",
+    "sebrina",
+    "sedrick",
+    "selah",
+    "seldon",
+    "selmer",
+    "semaj",
+    "sergio",
+    "severt",
+    "shae",
+    "shafter",
+    "shaina",
+    "shalon",
+    "shalonda",
+    "shamar",
+    "shameka",
+    "shamika",
+    "shan",
+    "shanae",
+    "shanda",
+    "shandra",
+    "shaneka",
+    "shanell",
+    "shanelle",
+    "shanequa",
+    "shani",
+    "shania",
+    "shanice",
+    "shaniece",
+    "shanika",
+    "shaniqua",
+    "shanita",
+    "shaniya",
+    "shannan",
+    "shannen",
+    "shanon",
+    "shanta",
+    "shante",
+    "shantel",
+    "shantell",
+    "shaquan",
+    "shaquana",
+    "shaquille",
+    "shaquita",
+    "shara",
+    "shardae",
+    "sharday",
+    "sharde",
+    "sharee",
+    "sharen",
+    "sharita",
+    "sharla",
+    "sharleen",
+    "sharman",
+    "sharon",
+    "sharonda",
+    "sharyl",
+    "sharyn",
+    "shatara",
+    "shaunna",
+    "shavon",
+    "shavonne",
+    "shawanda",
+    "shawnda",
+    "shawnna",
+    "shawnte",
+    "shayla",
+    "shaylee",
+    "shayna",
+    "shayne",
+    "shedrick",
+    "sheilah",
+    "shelba",
+    "shelbi",
+    "shelbie",
+    "shelli",
+    "shellie",
+    "shelva",
+    "shelvia",
+    "shelvie",
+    "shemar",
+    "shena",
+    "shenna",
+    "shep",
+    "sherie",
+    "sherilyn",
+    "sherita",
+    "sherlyn",
+    "sheron",
+    "sherree",
+    "sherrill",
+    "sherron",
+    "sherryl",
+    "sherwin",
+    "sheryll",
+    "sheyla",
+    "shianne",
+    "shiela",
+    "shira",
+    "shirl",
+    "shirlee",
+    "shirleen",
+    "shirlene",
+    "shirley",
+    "shirleyann",
+    "shirlie",
+    "shoji",
+    "shon",
+    "shonda",
+    "shonna",
+    "shreya",
+    "shyann",
+    "shyanne",
+    "shyheim",
+    "shyla",
+    "sibbie",
+    "siddie",
+    "sie",
+    "sigrid",
+    "silvester",
+    "simeon",
+    "simmie",
+    "sinda",
+    "skyla",
+    "skylar",
+    "skyler",
+    "slade",
+    "soloman",
+    "somer",
+    "sonji",
+    "sophia",
+    "sophronia",
+    "spurgeon",
+    "stacia",
+    "stanislaus",
+    "starla",
+    "stasia",
+    "stefani",
+    "stephaine",
+    "stephani",
+    "stephania",
+    "stephanie",
+    "stephany",
+    "stephen",
+    "stephenie",
+    "stephon",
+    "stevan",
+    "stoney",
+    "sudie",
+    "suellen",
+    "susan",
+    "susann",
+    "sussie",
+    "suzan",
+    "suzann",
+    "suzanna",
+    "suzie",
+    "sybilla",
+    "syble",
+    "sydell",
+    "sydnee",
+    "sydni",
+    "sydnie",
+    "syed",
+    "sylva",
+    "sylvania",
+    "sylvanus",
+    "symone",
+    "syreeta",
+    "tabetha",
+    "tahj",
+    "takisha",
+    "talan",
+    "talen",
+    "taliyah",
+    "tallie",
+    "talmadge",
+    "talmage",
+    "tamala",
+    "tamatha",
+    "tambra",
+    "tamekia",
+    "tamela",
+    "tamica",
+    "tamie",
+    "tamiko",
+    "tamisha",
+    "tamya",
+    "tandy",
+    "tanesha",
+    "tangela",
+    "tanika",
+    "taniya",
+    "taniyah",
+    "tanja",
+    "tarah",
+    "tariq",
+    "tarsha",
+    "taryn",
+    "tashina",
+    "tasia",
+    "tatia",
+    "tatianna",
+    "tatsuo",
+    "tatyana",
+    "tatyanna",
+    "taurean",
+    "tavaris",
+    "tavian",
+    "tavion",
+    "tavon",
+    "tawana",
+    "tawanda",
+    "tawanna",
+    "tawnya",
+    "taya",
+    "tayla",
+    "tayler",
+    "tayshaun",
+    "teagan",
+    "teddie",
+    "teela",
+    "teena",
+    "tegan",
+    "tella",
+    "tempie",
+    "tenika",
+    "tenisha",
+    "tennie",
+    "tennille",
+    "terance",
+    "terell",
+    "teresa",
+    "terese",
+    "teressa",
+    "terrill",
+    "terry",
+    "tevin",
+    "texanna",
+    "texie",
+    "theadore",
+    "theda",
+    "thedore",
+    "thekla",
+    "theo",
+    "theodis",
+    "theodocia",
+    "theodosia",
+    "theola",
+    "theophile",
+    "theresia",
+    "therman",
+    "thomas",
+    "thomasina",
+    "thorwald",
+    "thos",
+    "thresa",
+    "thurlow",
+    "thursa",
+    "thurston",
+    "thyra",
+    "tiana",
+    "tianna",
+    "tiarra",
+    "tiera",
+    "tiesha",
+    "tiffani",
+    "tiffanie",
+    "tilda",
+    "tilden",
+    "tilman",
+    "timmie",
+    "timmothy",
+    "timothy",
+    "tiney",
+    "tinie",
+    "tinnie",
+    "tisa",
+    "tishie",
+    "tobi",
+    "toccara",
+    "toivo",
+    "tolbert",
+    "tollie",
+    "tomas",
+    "tomasa",
+    "tomeka",
+    "tomie",
+    "tomika",
+    "toney",
+    "tonja",
+    "torey",
+    "toriano",
+    "torie",
+    "torrey",
+    "torrie",
+    "torry",
+    "tosha",
+    "toshiko",
+    "toshio",
+    "towanda",
+    "toya",
+    "tracee",
+    "trae",
+    "travon",
+    "trayvon",
+    "treena",
+    "tremaine",
+    "tremayne",
+    "trenten",
+    "tresa",
+    "tressa",
+    "tressie",
+    "treva",
+    "trever",
+    "trevin",
+    "trevion",
+    "trevon",
+    "treyton",
+    "treyvon",
+    "tripp",
+    "tristen",
+    "tristian",
+    "tristin",
+    "triston",
+    "trudi",
+    "trudie",
+    "trula",
+    "trumaine",
+    "trystan",
+    "tuan",
+    "twyla",
+    "tye",
+    "tyesha",
+    "tyler",
+    "tylor",
+    "tyquan",
+    "tyra",
+    "tyreek",
+    "tyreese",
+    "tyrek",
+    "tyreke",
+    "tyrel",
+    "tyrell",
+    "tyrese",
+    "tyrik",
+    "tyrin",
+    "tyriq",
+    "tyrique",
+    "tyron",
+    "tyrus",
+    "tyshawn",
+    "ula",
+    "unnamed",
+    "urijah",
+    "valinda",
+    "vallie",
+    "valorie",
+    "vander",
+    "vannie",
+    "vashon",
+    "vashti",
+    "vassie",
+    "velda",
+    "vella",
+    "velva",
+    "venessa",
+    "venie",
+    "venita",
+    "vennie",
+    "veola",
+    "verda",
+    "verdell",
+    "verdie",
+    "vere",
+    "vergie",
+    "vergil",
+    "verl",
+    "verla",
+    "verle",
+    "verlene",
+    "verlie",
+    "verlin",
+    "verlon",
+    "verlyn",
+    "vernell",
+    "verner",
+    "vernetta",
+    "vernia",
+    "vernie",
+    "vernita",
+    "versa",
+    "versie",
+    "vertie",
+    "vester",
+    "veva",
+    "vicie",
+    "vick",
+    "vickey",
+    "vicy",
+    "vikki",
+    "vincent",
+    "viney",
+    "vinie",
+    "vinnie",
+    "vinton",
+    "virdie",
+    "virge",
+    "virgel",
+    "virgia",
+    "virginia",
+    "virgle",
+    "viridiana",
+    "vlasta",
+    "vollie",
+    "volney",
+    "vonetta",
+    "vonnie",
+    "waino",
+    "walter",
+    "waneta",
+    "wanita",
+    "wardell",
+    "wava",
+    "waverly",
+    "wayde",
+    "wayland",
+    "waylon",
+    "wayman",
+    "waymon",
+    "wayne",
+    "welton",
+    "wende",
+    "wendel",
+    "wenzel",
+    "werner",
+    "wes",
+    "wess",
+    "westley",
+    "wilhelmine",
+    "wiliam",
+    "wilkie",
+    "willaim",
+    "willam",
+    "willene",
+    "willia",
+    "william",
+    "willian",
+    "williard",
+    "willie",
+    "williemae",
+    "willodean",
+    "windell",
+    "winfield",
+    "winford",
+    "winnifred",
+    "winona",
+    "winton",
+    "wirt",
+    "woodie",
+    "woodroe",
+    "woodson",
+    "worley",
+    "wyman",
+    "wynona",
+    "xena",
+    "xiomara",
+    "xzavier",
+    "yaakov",
+    "yadiel",
+    "yadira",
+    "yael",
+    "yahaira",
+    "yahir",
+    "yair",
+    "yajaira",
+    "yamilet",
+    "yamilex",
+    "yancy",
+    "yandel",
+    "yareli",
+    "yaretzi",
+    "yaritza",
+    "yasmeen",
+    "yasmin",
+    "yazmin",
+    "yee",
+    "yehuda",
+    "yessenia",
+    "yetta",
+    "yoel",
+    "yolonda",
+    "yosef",
+    "yoselin",
+    "yoshiko",
+    "yoshio",
+    "yulisa",
+    "yulissa",
+    "yurem",
+    "yuridia",
+    "yusuf",
+    "zachary",
+    "zackary",
+    "zackery",
+    "zada",
+    "zadie",
+    "zaid",
+    "zaiden",
+    "zakary",
+    "zander",
+    "zandra",
+    "zaniyah",
+    "zaria",
+    "zariah",
+    "zavier",
+    "zayden",
+    "zayne",
+    "zeb",
+    "zebulon",
+    "zela",
+    "zella",
+    "zelpha",
+    "zenas",
+    "zettie",
+    "zhane",
+    "zigmund",
+    "zillah",
+    "zilpah",
+    "zilpha",
+    "zoa",
+    "zoie",
+    "zollie",
+    "zora",
+    "zula"
+  ];
+
+  // src/data/ignoreLists/universal/misc.json
+  var misc_default5 = [];
+
+  // src/data/ignoreLists/universal/typos.json
+  var typos_default = [
+    "ahhh",
+    "ehhh",
+    "ohhh",
+    "uhhh",
+    "ummm",
+    "wooo"
+  ];
+
+  // src/data/ignoreLists/es/gaming.json
+  var gaming_default2 = [
+    "advance",
+    "akira",
+    "alien",
+    "aliens",
+    "amongos",
+    "animal",
+    "arcane",
+    "autosave",
+    "awakening",
+    "bakug\xE1n",
+    "ball",
+    "batman",
+    "battle",
+    "berserk",
+    "between",
+    "bongi",
+    "boruto",
+    "bossfight",
+    "boy",
+    "breath",
+    "bros",
+    "buff",
+    "build",
+    "call",
+    "camper",
+    "cast",
+    "checkpoint",
+    "chijiro",
+    "clank",
+    "club",
+    "clutch",
+    "colossus",
+    "combo",
+    "cooking",
+    "cooldown",
+    "coop",
+    "crafting",
+    "crash",
+    "crossing",
+    "cube",
+    "cup",
+    "cutscene",
+    "dance",
+    "dantes",
+    "deck",
+    "dlc",
+    "dodge",
+    "doom",
+    "down",
+    "dps",
+    "dragon",
+    "drift",
+    "droprate",
+    "ds",
+    "duty",
+    "eseme",
+    "esport",
+    "esports",
+    "evangelion",
+    "evil",
+    "f91w",
+    "fall",
+    "falls",
+    "farm",
+    "fifa",
+    "forza",
+    "foss",
+    "fps",
+    "framerate",
+    "funko",
+    "gacha",
+    "game",
+    "gameplay",
+    "ghost",
+    "glitch",
+    "goku",
+    "gravity",
+    "grind",
+    "gsock",
+    "gt",
+    "gta",
+    "guyas",
+    "halo",
+    "hawk",
+    "hawks",
+    "hayumi",
+    "headshot",
+    "hirul",
+    "hitbox",
+    "hollywoodense",
+    "horizon",
+    "hot",
+    "hotfix",
+    "iframe",
+    "inferno",
+    "infinite",
+    "inquisition",
+    "inventory",
+    "juice",
+    "kart",
+    "kikas",
+    "killstreak",
+    "kingdom",
+    "kratos",
+    "kuni",
+    "kurama",
+    "lag",
+    "last",
+    "league",
+    "legacy",
+    "legends",
+    "levelup",
+    "light",
+    "linkito",
+    "links",
+    "lobby",
+    "lootbox",
+    "lovecraft",
+    "mask",
+    "masterchief",
+    "matchmaking",
+    "mayoras",
+    "mayura",
+    "meta",
+    "metroid",
+    "metroidvania",
+    "midnight",
+    "minish",
+    "mmo",
+    "mmorpg",
+    "moba",
+    "multiplayer",
+    "naruto",
+    "neo",
+    "nerf",
+    "ninja",
+    "nohit",
+    "noob",
+    "npc",
+    "ocarine",
+    "omnitrix",
+    "one",
+    "orean",
+    "pac-man",
+    "pacman",
+    "parry",
+    "patch",
+    "pc",
+    "pcp",
+    "perk",
+    "permadeath",
+    "pes",
+    "pikachu",
+    "ping",
+    "playstation",
+    "playthrough",
+    "pokebola",
+    "pok\xE9mon",
+    "prime",
+    "ps1",
+    "ps2",
+    "ps3",
+    "ps4",
+    "psp",
+    "pve",
+    "pvp",
+    "qte",
+    "quest",
+    "quicksave",
+    "racing",
+    "ragequit",
+    "ratchet",
+    "raytracing",
+    "resident",
+    "respawn",
+    "return",
+    "revelations",
+    "rider",
+    "rips",
+    "roguelike",
+    "roguelite",
+    "rpg",
+    "rts",
+    "samo",
+    "sandbox",
+    "savepoint",
+    "selna",
+    "shader",
+    "shadow",
+    "shuna",
+    "sidequest",
+    "sifu",
+    "singleplayer",
+    "skem",
+    "skemale",
+    "skemi",
+    "smurf",
+    "sony",
+    "soulslike",
+    "spawn",
+    "speedrun",
+    "speedrunner",
+    "speedrunning",
+    "star",
+    "stealth",
+    "storm",
+    "streamer",
+    "tears",
+    "tech",
+    "ternurines",
+    "timex",
+    "tintom",
+    "tomb",
+    "tps",
+    "tryhard",
+    "tunic",
+    "tushima",
+    "ultimate",
+    "uncharted",
+    "vita",
+    "walkthrough",
+    "wars",
+    "wheel",
+    "wheels",
+    "wii",
+    "wild",
+    "wisdom",
+    "world",
+    "worlds",
+    "xo",
+    "yasaki",
+    "zero"
+  ];
+
+  // src/data/ignoreLists/es/tech.json
+  var tech_default2 = [
+    "backend",
+    "bandwidth",
+    "bitrate",
+    "broadband",
+    "browser",
+    "bug",
+    "cache",
+    "cookie",
+    "cookies",
+    "database",
+    "devops",
+    "domain",
+    "downtime",
+    "firewall",
+    "firmware",
+    "fix",
+    "frontend",
+    "gadget",
+    "geforce",
+    "gigabit",
+    "hardware",
+    "hosting",
+    "latency",
+    "livestream",
+    "megabit",
+    "modem",
+    "mousepad",
+    "offline",
+    "online",
+    "patreon",
+    "pdf",
+    "pixel",
+    "pixels",
+    "plugin",
+    "router",
+    "setup",
+    "smartphone",
+    "smartwatch",
+    "software",
+    "streaming",
+    "subdomain",
+    "sysadmin",
+    "uptime",
+    "webhook",
+    "webinar",
+    "wireless"
+  ];
+
+  // src/data/ignoreLists/es/music.json
+  var music_default2 = [
+    "badbunny",
+    "daddyyankee",
+    "estopa",
+    "heroesdelsilencio",
+    "maluma",
+    "magoz",
+    "mecano",
+    "ozuna",
+    "quevedo",
+    "rosalia",
+    "rosal\xEDa"
+  ];
+
+  // src/data/ignoreLists/es/cinema.json
+  var cinema_default2 = [
+    "almodovar",
+    "almod\xF3var",
+    "berlin",
+    "denver",
+    "lacasadepapel",
+    "nairobi",
+    "oslo",
+    "rio",
+    "tokio",
+    "torrente"
+  ];
+
+  // src/data/ignoreLists/es/brands.json
+  var brands_default2 = [
+    "aliexpress",
+    "bershka",
+    "elcorteingles",
+    "instagram",
+    "mango",
+    "mercadona",
+    "pullandbear",
+    "santander",
+    "seat",
+    "stradivarius",
+    "telefonica",
+    "telef\xF3nica",
+    "tiktok"
+  ];
+
+  // src/data/ignoreLists/es/cities.json
+  var cities_default2 = [
+    "madrid",
+    "barcelona",
+    "valencia",
+    "seville",
+    "sevilla",
+    "zaragoza",
+    "malaga",
+    "m\xE1laga",
+    "bilbao",
+    "bogota",
+    "bogot\xE1",
+    "santiago",
+    "caracas",
+    "quito",
+    "montevideo",
+    "asuncion",
+    "asunci\xF3n",
+    "brasilia",
+    "tokyo",
+    "london",
+    "paris",
+    "berlin",
+    "beijing",
+    "washington",
+    "chicago",
+    "sydney",
+    "toronto",
+    "seoul",
+    "amsterdam",
+    "vienna",
+    "prague",
+    "warsaw",
+    "lisbon",
+    "dublin",
+    "oslo",
+    "stockholm",
+    "helsinki",
+    "copenhagen",
+    "brussels",
+    "budapest",
+    "bucharest",
+    "cairo",
+    "bangkok",
+    "singapore",
+    "jakarta",
+    "melbourne",
+    "montreal",
+    "boston",
+    "houston",
+    "miami",
+    "philadelphia",
+    "atlanta",
+    "dallas",
+    "seattle",
+    "denver",
+    "phoenix",
+    "kyoto",
+    "osaka",
+    "yokohama",
+    "nagoya",
+    "sapporo",
+    "milan",
+    "venice",
+    "florence",
+    "naples",
+    "munich",
+    "hamburg",
+    "frankfurt",
+    "cologne",
+    "stuttgart",
+    "marseille",
+    "lyon",
+    "toulouse",
+    "bordeaux",
+    "vancouver",
+    "calgary",
+    "ottawa",
+    "manchester",
+    "liverpool",
+    "birmingham",
+    "edinburgh",
+    "glasgow"
+  ];
+
+  // src/data/ignoreLists/es/names.json
+  var names_default2 = [
+    "adrian",
+    "adri\xE1n",
+    "alberto",
+    "alejandro",
+    "alfonso",
+    "alvaro",
+    "andres",
+    "andr\xE9s",
+    "antonio",
+    "arturo",
+    "bruno",
+    "carlos",
+    "diego",
+    "eduardo",
+    "emilio",
+    "enrique",
+    "felipe",
+    "fernando",
+    "francisco",
+    "gabriel",
+    "gonzalo",
+    "guillermo",
+    "gustavo",
+    "hector",
+    "hugo",
+    "h\xE9ctor",
+    "ignacio",
+    "ivan",
+    "iv\xE1n",
+    "javier",
+    "joaquin",
+    "joaqu\xEDn",
+    "jorge",
+    "juan",
+    "leonardo",
+    "lucas",
+    "luis",
+    "manuel",
+    "marcos",
+    "mario",
+    "mateo",
+    "miguel",
+    "oscar",
+    "pablo",
+    "pedro",
+    "rafael",
+    "ramon",
+    "ram\xF3n",
+    "raul",
+    "ra\xFAl",
+    "ricardo",
+    "roberto",
+    "rodrigo",
+    "ruben",
+    "rub\xE9n",
+    "sebastian",
+    "sebasti\xE1n",
+    "sergio",
+    "\xE1lvaro",
+    "\xF3scar"
+  ];
+
+  // src/data/ignoreLists/es/misc.json
+  var misc_default6 = [];
+
+  // src/data/ignoreLists/es/typos.json
+  var typos_default2 = [
+    "laasterizaci\xF3n",
+    "never",
+    "of",
+    "telastopos",
+    "the"
+  ];
+
+  // src/data/ignoreLists/en/music.json
+  var music_default3 = [
+    "drake",
+    "dualipa",
+    "katyperry",
+    "ladygaga",
+    "rihanna"
+  ];
+
+  // src/data/ignoreLists/en/cinema.json
+  var cinema_default3 = [
+    "disney",
+    "netflix",
+    "pixar",
+    "universalstudios",
+    "warnerbros"
+  ];
+
+  // src/data/ignoreLists/en/brands.json
+  var brands_default3 = [
+    "pepsico",
+    "starbucks"
+  ];
+
+  // src/data/ignoreLists/en/cities.json
+  var cities_default3 = [
+    "madrid",
+    "paris",
+    "tokyo",
+    "rome",
+    "berlin",
+    "beijing",
+    "moscow",
+    "seoul",
+    "amsterdam",
+    "vienna",
+    "prague",
+    "warsaw",
+    "lisbon",
+    "dublin",
+    "oslo",
+    "stockholm",
+    "helsinki",
+    "copenhagen",
+    "brussels",
+    "budapest",
+    "bucharest",
+    "cairo",
+    "bangkok",
+    "singapore",
+    "jakarta",
+    "melbourne",
+    "montreal",
+    "boston",
+    "houston",
+    "miami",
+    "philadelphia",
+    "atlanta",
+    "dallas",
+    "seattle",
+    "denver",
+    "phoenix",
+    "kyoto",
+    "osaka",
+    "yokohama",
+    "nagoya",
+    "sapporo",
+    "milan",
+    "venice",
+    "florence",
+    "naples",
+    "munich",
+    "hamburg",
+    "frankfurt",
+    "cologne",
+    "stuttgart",
+    "marseille",
+    "lyon",
+    "toulouse",
+    "bordeaux",
+    "vancouver",
+    "calgary",
+    "ottawa",
+    "manchester",
+    "liverpool",
+    "birmingham",
+    "edinburgh",
+    "glasgow"
+  ];
+
+  // src/data/ignoreLists/en/names.json
+  var names_default3 = [
+    "aaron",
+    "adam",
+    "alexander",
+    "amanda",
+    "andrew",
+    "arthur",
+    "ashley",
+    "austin",
+    "benjamin",
+    "brandon",
+    "brian",
+    "carl",
+    "charles",
+    "christian",
+    "christopher",
+    "clarice",
+    "dalia",
+    "daniel",
+    "danielle",
+    "david",
+    "denise",
+    "dennis",
+    "douglas",
+    "edward",
+    "elizabeth",
+    "emily",
+    "eric",
+    "flinderson",
+    "flindersons",
+    "gary",
+    "gerald",
+    "gregory",
+    "gunston",
+    "gunstons",
+    "harold",
+    "henderson",
+    "hendersons",
+    "henry",
+    "james",
+    "jason",
+    "jeffrey",
+    "jennifer",
+    "jeremy",
+    "jerry",
+    "jessica",
+    "joseph",
+    "joshua",
+    "justin",
+    "kayla",
+    "keith",
+    "kevin",
+    "kyle",
+    "larry",
+    "lauren",
+    "lawrence",
+    "lily",
+    "lombardo",
+    "luke",
+    "manny",
+    "matthew",
+    "megan",
+    "michael",
+    "nathan",
+    "nicholas",
+    "patrick",
+    "peter",
+    "phil",
+    "rachel",
+    "robert",
+    "ronald",
+    "ryan",
+    "sal",
+    "samantha",
+    "samuel",
+    "sarah",
+    "scott",
+    "sean",
+    "simone",
+    "stephanie",
+    "stephen",
+    "steven",
+    "terry",
+    "thomas",
+    "tim",
+    "timothy",
+    "tony",
+    "tyler",
+    "valerie",
+    "walter",
+    "zachary",
+    "zoe"
+  ];
+
+  // src/data/ignoreLists/en/misc.json
+  var misc_default7 = [];
+
+  // src/data/ignoreLists/en/typos.json
+  var typos_default3 = [];
+
+  // src/data/ignoreLists/fr/gaming.json
+  var gaming_default3 = [
+    "gameplay",
+    "speedrun",
+    "speedrunner",
+    "walkthrough",
+    "playthrough",
+    "boss",
+    "bossfight",
+    "npc",
+    "rpg",
+    "fps",
+    "mmo",
+    "mmorpg",
+    "moba",
+    "rts",
+    "pvp",
+    "pve",
+    "dps",
+    "nerf",
+    "buff",
+    "drop",
+    "loot",
+    "lootbox",
+    "cooldown",
+    "respawn",
+    "spawn",
+    "checkpoint",
+    "glitch",
+    "patch",
+    "dlc",
+    "gacha",
+    "grind",
+    "farm",
+    "hitbox",
+    "framerate",
+    "ping",
+    "lag",
+    "matchmaking",
+    "lobby",
+    "multiplayer",
+    "singleplayer",
+    "coop",
+    "roguelike",
+    "metroidvania",
+    "soulslike",
+    "sandbox",
+    "cutscene",
+    "crafting",
+    "build",
+    "meta",
+    "combo",
+    "parry",
+    "dodge",
+    "stealth",
+    "noob",
+    "tryhard",
+    "headshot",
+    "esports",
+    "streamer",
+    "stream",
+    "speedrunning",
+    "permadeath"
+  ];
+
+  // src/data/ignoreLists/fr/music.json
+  var music_default4 = [];
+
+  // src/data/ignoreLists/fr/cinema.json
+  var cinema_default4 = [];
+
+  // src/data/ignoreLists/fr/brands.json
+  var brands_default4 = [];
+
+  // src/data/ignoreLists/fr/cities.json
+  var cities_default4 = [
+    "madrid",
+    "tokyo",
+    "berlin",
+    "londres",
+    "rome",
+    "beijing",
+    "washington",
+    "seoul",
+    "amsterdam",
+    "vienne",
+    "prague",
+    "varsovie",
+    "lisbonne",
+    "dublin",
+    "oslo",
+    "stockholm",
+    "helsinki",
+    "copenhague",
+    "bruxelles",
+    "budapest",
+    "bucarest",
+    "bangkok",
+    "singapour",
+    "jakarta",
+    "melbourne",
+    "montreal",
+    "boston",
+    "houston",
+    "miami",
+    "philadelphie",
+    "atlanta",
+    "dallas",
+    "seattle",
+    "denver",
+    "phoenix",
+    "kyoto",
+    "osaka",
+    "yokohama",
+    "nagoya",
+    "sapporo",
+    "milan",
+    "venise",
+    "florence",
+    "naples",
+    "munich",
+    "hambourg",
+    "francfort",
+    "cologne",
+    "stuttgart",
+    "marseille",
+    "lyon",
+    "toulouse",
+    "bordeaux",
+    "nantes",
+    "strasbourg",
+    "montpellier",
+    "rennes",
+    "reims"
+  ];
+
+  // src/data/ignoreLists/fr/names.json
+  var names_default4 = [
+    "alain",
+    "alexandre",
+    "antoine",
+    "christophe",
+    "guillaume",
+    "jean",
+    "julien",
+    "laurent",
+    "maxime",
+    "michel",
+    "nicolas",
+    "philippe",
+    "sebastien"
+  ];
+
+  // src/data/ignoreLists/fr/misc.json
+  var misc_default8 = [];
+
+  // src/data/ignoreLists/fr/typos.json
+  var typos_default4 = [];
+
+  // src/data/ignoreLists/de/gaming.json
+  var gaming_default4 = [
+    "gameplay",
+    "speedrun",
+    "speedrunner",
+    "walkthrough",
+    "playthrough",
+    "boss",
+    "bossfight",
+    "npc",
+    "rpg",
+    "fps",
+    "mmo",
+    "mmorpg",
+    "moba",
+    "rts",
+    "pvp",
+    "pve",
+    "dps",
+    "nerf",
+    "buff",
+    "drop",
+    "loot",
+    "lootbox",
+    "cooldown",
+    "respawn",
+    "spawn",
+    "checkpoint",
+    "glitch",
+    "patch",
+    "dlc",
+    "gacha",
+    "grind",
+    "farm",
+    "hitbox",
+    "framerate",
+    "ping",
+    "lag",
+    "matchmaking",
+    "lobby",
+    "multiplayer",
+    "singleplayer",
+    "coop",
+    "roguelike",
+    "metroidvania",
+    "soulslike",
+    "sandbox",
+    "cutscene",
+    "crafting",
+    "build",
+    "meta",
+    "combo",
+    "parry",
+    "dodge",
+    "stealth",
+    "noob",
+    "pro",
+    "tryhard",
+    "headshot",
+    "esports",
+    "streamer",
+    "stream",
+    "speedrunning",
+    "permadeath"
+  ];
+
+  // src/data/ignoreLists/de/music.json
+  var music_default5 = [];
+
+  // src/data/ignoreLists/de/cinema.json
+  var cinema_default5 = [];
+
+  // src/data/ignoreLists/de/brands.json
+  var brands_default5 = [];
+
+  // src/data/ignoreLists/de/cities.json
+  var cities_default5 = [
+    "madrid",
+    "tokyo",
+    "paris",
+    "london",
+    "rom",
+    "beijing",
+    "washington",
+    "seoul",
+    "amsterdam",
+    "wien",
+    "prag",
+    "warschau",
+    "lissabon",
+    "dublin",
+    "oslo",
+    "stockholm",
+    "helsinki",
+    "kopenhagen",
+    "br\xFCssel",
+    "budapest",
+    "bukarest",
+    "kairo",
+    "bangkok",
+    "singapur",
+    "jakarta",
+    "melbourne",
+    "montreal",
+    "boston",
+    "houston",
+    "miami",
+    "philadelphia",
+    "atlanta",
+    "dallas",
+    "seattle",
+    "denver",
+    "phoenix",
+    "kyoto",
+    "osaka",
+    "yokohama",
+    "nagoya",
+    "sapporo",
+    "mailand",
+    "venedig",
+    "florenz",
+    "neapel",
+    "m\xFCnchen",
+    "hamburg",
+    "frankfurt",
+    "k\xF6ln",
+    "stuttgart",
+    "d\xFCsseldorf",
+    "leipzig",
+    "dortmund",
+    "dresden",
+    "hannover",
+    "n\xFCrnberg"
+  ];
+
+  // src/data/ignoreLists/de/names.json
+  var names_default5 = [
+    "alexander",
+    "andreas",
+    "christian",
+    "florian",
+    "hans",
+    "j\xFCrgen",
+    "klaus",
+    "maximilian",
+    "michael",
+    "sebastian",
+    "stefan",
+    "thomas",
+    "wolfgang"
+  ];
+
+  // src/data/ignoreLists/de/misc.json
+  var misc_default9 = [];
+
+  // src/data/ignoreLists/de/typos.json
+  var typos_default5 = [];
+
+  // src/data/ignoreLists/ru/gaming.json
+  var gaming_default5 = [
+    "gameplay",
+    "\u0433\u0435\u0439\u043C\u043F\u043B\u0435\u0439",
+    "\u0441\u043F\u0438\u0434\u0440\u0430\u043D",
+    "\u0441\u043F\u0438\u0434\u0440\u0430\u043D\u043D\u0435\u0440",
+    "speedrun",
+    "speedrunner",
+    "\u043B\u0435\u0442\u0441\u043F\u043B\u0435\u0439",
+    "walkthrough",
+    "playthrough",
+    "\u0431\u043E\u0441\u0441",
+    "\u0431\u043E\u0441\u0441\u0444\u0430\u0439\u0442",
+    "boss",
+    "bossfight",
+    "\u043D\u043F\u0441",
+    "npc",
+    "\u0440\u043F\u0433",
+    "rpg",
+    "\u0444\u043F\u0441",
+    "fps",
+    "\u043C\u043C\u043E",
+    "\u043C\u043C\u043E\u0440\u043F\u0433",
+    "mmo",
+    "mmorpg",
+    "\u043C\u043E\u0431\u0430",
+    "moba",
+    "\u0440\u0442\u0441",
+    "rts",
+    "\u043F\u0432\u043F",
+    "\u043F\u0432\u0435",
+    "pvp",
+    "pve",
+    "\u0434\u043F\u0441",
+    "dps",
+    "\u043D\u0435\u0440\u0444",
+    "\u0431\u0430\u0444\u0444",
+    "\u043F\u043E\u043D\u0435\u0440\u0444\u0438\u043B\u0438",
+    "\u0430\u043F\u043D\u0443\u043B\u0438",
+    "nerf",
+    "buff",
+    "\u0434\u0440\u043E\u043F",
+    "\u0434\u0440\u043E\u043F\u0440\u0435\u0439\u0442",
+    "drop",
+    "\u043B\u0443\u0442",
+    "\u043B\u0443\u0442\u0431\u043E\u043A\u0441",
+    "loot",
+    "lootbox",
+    "\u043A\u0443\u043B\u0434\u0430\u0443\u043D",
+    "cooldown",
+    "\u0440\u0435\u0441\u043F\u0430\u0432\u043D",
+    "\u0441\u043F\u0430\u0432\u043D",
+    "respawn",
+    "\u0447\u0435\u043A\u043F\u043E\u0438\u043D\u0442",
+    "\u0441\u0435\u0439\u0432\u043F\u043E\u0438\u043D\u0442",
+    "checkpoint",
+    "\u0430\u0432\u0442\u043E\u0441\u0435\u0439\u0432",
+    "autosave",
+    "\u043A\u0432\u0438\u043A\u0441\u0435\u0439\u0432",
+    "\u0433\u043B\u0438\u0442\u0447",
+    "glitch",
+    "\u043F\u0430\u0442\u0447",
+    "\u043F\u0430\u0442\u0447\u043D\u043E\u0443\u0442",
+    "\u0445\u043E\u0442\u0444\u0438\u043A\u0441",
+    "patch",
+    "\u0434\u043B\u0441",
+    "dlc",
+    "\u0433\u0430\u0447\u0430",
+    "gacha",
+    "\u0433\u0440\u0438\u043D\u0434",
+    "\u0444\u0430\u0440\u043C",
+    "grind",
+    "farm",
+    "\u0445\u0438\u0442\u0431\u043E\u043A\u0441",
+    "hitbox",
+    "\u0444\u0440\u0435\u0439\u043C\u0440\u0435\u0439\u0442",
+    "\u0440\u0435\u0439\u0442\u0440\u0435\u0439\u0441\u0438\u043D\u0433",
+    "\u0448\u0435\u0439\u0434\u0435\u0440",
+    "\u043F\u0438\u043D\u0433",
+    "\u043B\u0430\u0433",
+    "ping",
+    "lag",
+    "\u043C\u0430\u0442\u0447\u043C\u0435\u0439\u043A\u0438\u043D\u0433",
+    "\u043B\u043E\u0431\u0431\u0438",
+    "\u043C\u0443\u043B\u044C\u0442\u0438\u043F\u043B\u0435\u0435\u0440",
+    "\u0441\u0438\u043D\u0433\u043B\u043F\u043B\u0435\u0435\u0440",
+    "\u043A\u043E\u043E\u043F",
+    "\u0440\u043E\u0433\u0430\u043B\u0438\u043A",
+    "roguelike",
+    "roguelite",
+    "\u043C\u0435\u0442\u0440\u043E\u0438\u0434\u0432\u0430\u043D\u0438\u044F",
+    "metroidvania",
+    "\u0441\u043E\u0443\u043B\u0441\u043B\u0430\u0439\u043A",
+    "soulslike",
+    "\u043A\u0430\u0442\u0441\u0446\u0435\u043D\u0430",
+    "\u0441\u0430\u0439\u0434\u043A\u0432\u0435\u0441\u0442",
+    "\u043A\u0440\u0430\u0444\u0442",
+    "\u043F\u0435\u0440\u043A",
+    "\u0431\u0438\u043B\u0434",
+    "build",
+    "\u043C\u0435\u0442\u0430",
+    "\u043A\u043E\u043C\u0431\u043E",
+    "\u043F\u0430\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435",
+    "\u0441\u0442\u0435\u043B\u0441",
+    "\u0440\u0435\u0439\u0434\u0436\u043A\u0432\u0438\u0442",
+    "\u043A\u043B\u0430\u0442\u0447",
+    "\u043D\u0443\u0431",
+    "\u0442\u0440\u0430\u0439\u0445\u0430\u0440\u0434",
+    "\u0441\u043C\u0443\u0440\u0444",
+    "\u043A\u0435\u043C\u043F\u0435\u0440",
+    "\u0445\u044D\u0434\u0448\u043E\u0442",
+    "\u043A\u0438\u043B\u043B\u0441\u0442\u0440\u0438\u043A",
+    "\u043A\u0438\u0431\u0435\u0440\u0441\u043F\u043E\u0440\u0442",
+    "esports",
+    "\u0441\u0442\u0440\u0438\u043C\u0435\u0440",
+    "\u0441\u0442\u0440\u0438\u043C",
+    "streamer"
+  ];
+
+  // src/data/ignoreLists/ru/tech.json
+  var tech_default3 = [
+    "cloud",
+    "\u043A\u043B\u0430\u0443\u0434",
+    "\u043F\u0440\u043E\u0448\u0438\u0432\u043A\u0430",
+    "\u0441\u0435\u0440\u0432\u0435\u0440",
+    "server",
+    "\u0444\u0440\u043E\u043D\u0442\u0435\u043D\u0434",
+    "frontend",
+    "\u0431\u044D\u043A\u0435\u043D\u0434",
+    "backend",
+    "\u043E\u043D\u043B\u0430\u0439\u043D",
+    "\u043E\u0444\u043B\u0430\u0439\u043D",
+    "online",
+    "offline",
+    "\u043B\u0430\u0439\u0432\u0441\u0442\u0440\u0438\u043C",
+    "\u0441\u0442\u0440\u0438\u043C\u0438\u043D\u0433",
+    "\u0432\u0435\u0431\u0438\u043D\u0430\u0440",
+    "\u0441\u043C\u0430\u0440\u0442\u0444\u043E\u043D",
+    "\u0441\u043C\u0430\u0440\u0442\u0447\u0430\u0441\u044B",
+    "\u0433\u0430\u0434\u0436\u0435\u0442",
+    "\u0431\u0440\u0430\u0443\u0437\u0435\u0440",
+    "\u043F\u043B\u0430\u0433\u0438\u043D",
+    "\u0444\u0430\u0439\u0440\u0432\u043E\u043B",
+    "\u0440\u043E\u0443\u0442\u0435\u0440",
+    "\u043C\u043E\u0434\u0435\u043C",
+    "\u043F\u0438\u043A\u0441\u0435\u043B\u044C",
+    "\u043F\u0438\u043A\u0441\u0435\u043B\u0438",
+    "\u0431\u0438\u0442\u0440\u0435\u0439\u0442",
+    "\u0445\u043E\u0441\u0442\u0438\u043D\u0433",
+    "\u0434\u043E\u043C\u0435\u043D",
+    "\u0432\u0435\u0431\u0445\u0443\u043A",
+    "\u0434\u0435\u0432\u043E\u043F\u0441"
+  ];
+
+  // src/data/ignoreLists/ru/music.json
+  var music_default6 = [
+    "\u0431\u04382",
+    "\u0437\u0435\u043C\u0444\u0438\u0440\u0430",
+    "\u043A\u0438\u043D\u043E",
+    "\u043A\u043E\u0440\u043E\u043B\u044C\u0438\u0448\u0443\u0442",
+    "\u043B\u0435\u043D\u0438\u043D\u0433\u0440\u0430\u0434",
+    "\u043C\u043E\u0440\u0433\u0435\u043D\u0448\u0442\u0435\u0440\u043D",
+    "\u043C\u0443\u043C\u0438\u0439\u0442\u0440\u043E\u043B\u043B\u044C",
+    "\u043E\u043A\u0441\u0438\u043C\u0438\u0440\u043E\u043D",
+    "\u0441\u043F\u043B\u0438\u043D"
+  ];
+
+  // src/data/ignoreLists/ru/cinema.json
+  var cinema_default6 = [
+    "\u0431\u043E\u0433\u0430\u0442\u044B\u0440\u0438",
+    "\u0432\u043E\u043B\u0430\u043D\u0434\u0435\u043C\u043E\u0440\u0442",
+    "\u0433\u0430\u0440\u0440\u0438\u043F\u043E\u0442\u0442\u0435\u0440",
+    "\u0434\u0430\u0440\u0442\u0432\u0435\u0439\u0434\u0435\u0440",
+    "\u043B\u0443\u043D\u0442\u0438\u043A",
+    "\u0441\u043C\u0435\u0448\u0430\u0440\u0438\u043A\u0438",
+    "\u0447\u0435\u0431\u0443\u0440\u0430\u0448\u043A\u0430"
+  ];
+
+  // src/data/ignoreLists/ru/brands.json
+  var brands_default6 = [
+    "\u0430\u0432\u0442\u043E\u0432\u0430\u0437",
+    "\u0433\u0430\u0437\u043F\u0440\u043E\u043C",
+    "\u043B\u0430\u043C\u043E\u0434\u0430",
+    "\u043B\u0443\u043A\u043E\u0439\u043B",
+    "\u043E\u0437\u043E\u043D",
+    "\u0441\u0431\u0435\u0440\u0431\u0430\u043D\u043A",
+    "\u0442\u0438\u043D\u044C\u043A\u043E\u0444\u0444",
+    "\u044F\u043D\u0434\u0435\u043A\u0441"
+  ];
+
+  // src/data/ignoreLists/ru/cities.json
+  var cities_default6 = [
+    "\u043C\u043E\u0441\u043A\u0432\u0430",
+    "\u043F\u0435\u0442\u0435\u0440\u0431\u0443\u0440\u0433",
+    "\u0442\u043E\u043A\u0438\u043E",
+    "\u043B\u043E\u043D\u0434\u043E\u043D",
+    "\u043F\u0430\u0440\u0438\u0436",
+    "\u0431\u0435\u0440\u043B\u0438\u043D",
+    "\u043F\u0435\u043A\u0438\u043D",
+    "\u0432\u0430\u0448\u0438\u043D\u0433\u0442\u043E\u043D",
+    "\u0441\u0435\u0443\u043B",
+    "\u0430\u043C\u0441\u0442\u0435\u0440\u0434\u0430\u043C",
+    "\u0432\u0435\u043D\u0430",
+    "\u043F\u0440\u0430\u0433\u0430",
+    "\u0432\u0430\u0440\u0448\u0430\u0432\u0430",
+    "\u043B\u0438\u0441\u0441\u0430\u0431\u043E\u043D",
+    "\u0434\u0443\u0431\u043B\u0438\u043D",
+    "\u043E\u0441\u043B\u043E",
+    "\u0441\u0442\u043E\u043A\u0433\u043E\u043B\u044C\u043C",
+    "\u0445\u0435\u043B\u044C\u0441\u0438\u043D\u043A\u0438",
+    "\u043A\u043E\u043F\u0435\u043D\u0433\u0430\u0433\u0435\u043D",
+    "\u0431\u0440\u044E\u0441\u0441\u0435\u043B\u044C",
+    "\u0431\u0443\u0434\u0430\u043F\u0435\u0448\u0442",
+    "\u0431\u0443\u0445\u0430\u0440\u0435\u0441\u0442",
+    "\u043A\u0430\u0438\u0440",
+    "\u0431\u0430\u043D\u0433\u043A\u043E\u043A",
+    "\u0441\u0438\u043D\u0433\u0430\u043F\u0443\u0440",
+    "\u0434\u0436\u0430\u043A\u0430\u0440\u0442\u0430",
+    "\u043C\u0435\u043B\u044C\u0431\u0443\u0440\u043D",
+    "\u043C\u043E\u043D\u0440\u0435\u0430\u043B\u044C",
+    "\u0431\u043E\u0441\u0442\u043E\u043D",
+    "\u0445\u044C\u044E\u0441\u0442\u043E\u043D",
+    "\u043C\u0430\u0439\u0430\u043C\u0438",
+    "\u0444\u0438\u043B\u0430\u0434\u0435\u043B\u044C\u0444\u0438\u044F",
+    "\u0430\u0442\u043B\u0430\u043D\u0442\u0430",
+    "\u0434\u0430\u043B\u043B\u0430\u0441",
+    "\u0441\u0438\u044D\u0442\u043B",
+    "\u0434\u0435\u043D\u0432\u0435\u0440",
+    "\u0444\u0435\u043D\u0438\u043A\u0441",
+    "\u043A\u0438\u043E\u0442\u043E",
+    "\u043E\u0441\u0430\u043A\u0430",
+    "\u043C\u0438\u043B\u0430\u043D",
+    "\u0432\u0435\u043D\u0435\u0446\u0438\u044F",
+    "\u0444\u043B\u043E\u0440\u0435\u043D\u0446\u0438\u044F",
+    "\u043D\u0435\u0430\u043F\u043E\u043B\u044C",
+    "\u043C\u044E\u043D\u0445\u0435\u043D",
+    "\u0433\u0430\u043C\u0431\u0443\u0440\u0433",
+    "\u0444\u0440\u0430\u043D\u043A\u0444\u0443\u0440\u0442",
+    "\u043A\u0451\u043B\u044C\u043D",
+    "\u0448\u0442\u0443\u0442\u0433\u0430\u0440\u0442",
+    "\u043C\u0430\u0440\u0441\u0435\u043B\u044C",
+    "\u043B\u0438\u043E\u043D",
+    "\u0442\u0443\u043B\u0443\u0437\u0430",
+    "\u0431\u043E\u0440\u0434\u043E",
+    "\u0432\u0430\u043D\u043A\u0443\u0432\u0435\u0440",
+    "\u043A\u0430\u043B\u0433\u0430\u0440\u0438",
+    "\u043E\u0442\u0442\u0430\u0432\u0430",
+    "\u043C\u0430\u043D\u0447\u0435\u0441\u0442\u0435\u0440",
+    "\u043B\u0438\u0432\u0435\u0440\u043F\u0443\u043B\u044C",
+    "\u0431\u0438\u0440\u043C\u0438\u043D\u0433\u0435\u043C",
+    "\u044D\u0434\u0438\u043D\u0431\u0443\u0440\u0433",
+    "\u0433\u043B\u0430\u0437\u0433\u043E"
+  ];
+
+  // src/data/ignoreLists/ru/names.json
+  var names_default6 = [
+    "\u0430\u043B\u0435\u043A\u0441\u0430\u043D\u0434\u0440",
+    "\u0430\u043B\u0435\u043A\u0441\u0435\u0439",
+    "\u0431\u043E\u0440\u0438\u0441",
+    "\u0432\u0430\u043B\u0435\u0440\u0438\u0439",
+    "\u0432\u043B\u0430\u0434\u0438\u043C\u0438\u0440",
+    "\u0434\u043C\u0438\u0442\u0440\u0438\u0439",
+    "\u0435\u043A\u0430\u0442\u0435\u0440\u0438\u043D\u0430",
+    "\u0435\u043B\u0435\u043D\u0430",
+    "\u0438\u0433\u043E\u0440\u044C",
+    "\u043C\u0438\u0445\u0430\u0438\u043B",
+    "\u043D\u0430\u0442\u0430\u043B\u044C\u044F",
+    "\u043D\u0438\u043A\u043E\u043B\u0430\u0439",
+    "\u043E\u043B\u044C\u0433\u0430",
+    "\u0441\u0432\u0435\u0442\u043B\u0430\u043D\u0430",
+    "\u0441\u0435\u0440\u0433\u0435\u0439",
+    "\u0442\u0430\u0442\u044C\u044F\u043D\u0430",
+    "\u044E\u0440\u0438\u0439"
+  ];
+
+  // src/data/ignoreLists/ru/misc.json
+  var misc_default10 = [];
+
+  // src/data/ignoreLists/ru/typos.json
+  var typos_default6 = [];
+
+  // src/data/ignoreLists/it/gaming.json
+  var gaming_default6 = [
+    "gameplay",
+    "speedrun",
+    "speedrunner",
+    "walkthrough",
+    "playthrough",
+    "boss",
+    "bossfight",
+    "npc",
+    "rpg",
+    "fps",
+    "mmo",
+    "mmorpg",
+    "moba",
+    "rts",
+    "pvp",
+    "pve",
+    "dps",
+    "nerf",
+    "buff",
+    "drop",
+    "loot",
+    "lootbox",
+    "cooldown",
+    "respawn",
+    "spawn",
+    "checkpoint",
+    "glitch",
+    "patch",
+    "dlc",
+    "gacha",
+    "grind",
+    "farm",
+    "hitbox",
+    "framerate",
+    "ping",
+    "lag",
+    "lobby",
+    "multiplayer",
+    "singleplayer",
+    "coop",
+    "roguelike",
+    "metroidvania",
+    "soulslike",
+    "sandbox",
+    "cutscene",
+    "crafting",
+    "build",
+    "meta",
+    "combo",
+    "parry",
+    "dodge",
+    "stealth",
+    "noob",
+    "headshot",
+    "esports",
+    "streamer"
+  ];
+
+  // src/data/ignoreLists/it/music.json
+  var music_default7 = [];
+
+  // src/data/ignoreLists/it/cinema.json
+  var cinema_default7 = [];
+
+  // src/data/ignoreLists/it/brands.json
+  var brands_default7 = [];
+
+  // src/data/ignoreLists/it/cities.json
+  var cities_default7 = [
+    "madrid",
+    "tokyo",
+    "paris",
+    "londra",
+    "berlino",
+    "pechino",
+    "washington",
+    "seul",
+    "amsterdam",
+    "vienna",
+    "praga",
+    "varsavia",
+    "lisbona",
+    "dublino",
+    "oslo",
+    "stoccolma",
+    "helsinki",
+    "copenaghen",
+    "bruxelles",
+    "budapest",
+    "bucarest",
+    "bangkok",
+    "singapore",
+    "giakarta",
+    "melbourne",
+    "montreal",
+    "boston",
+    "houston",
+    "miami",
+    "filadelfia",
+    "atlanta",
+    "dallas",
+    "seattle",
+    "denver",
+    "phoenix",
+    "kyoto",
+    "osaka",
+    "torino",
+    "palermo",
+    "genova",
+    "bologna",
+    "bari",
+    "catania",
+    "verona",
+    "messina",
+    "padova",
+    "trieste",
+    "taranto",
+    "brescia",
+    "parma",
+    "modena"
+  ];
+
+  // src/data/ignoreLists/it/names.json
+  var names_default7 = [
+    "alessandro",
+    "andrea",
+    "antonio",
+    "davide",
+    "francesco",
+    "giovanni",
+    "giuseppe",
+    "luigi",
+    "marco",
+    "mario",
+    "matteo",
+    "roberto",
+    "salvatore",
+    "stefano"
+  ];
+
+  // src/data/ignoreLists/it/misc.json
+  var misc_default11 = [];
+
+  // src/data/ignoreLists/it/typos.json
+  var typos_default7 = [];
+
+  // src/data/ignoreLists/pt/gaming.json
+  var gaming_default7 = [
+    "gameplay",
+    "speedrun",
+    "speedrunner",
+    "walkthrough",
+    "playthrough",
+    "boss",
+    "bossfight",
+    "npc",
+    "rpg",
+    "fps",
+    "mmo",
+    "mmorpg",
+    "moba",
+    "rts",
+    "pvp",
+    "pve",
+    "dps",
+    "nerf",
+    "buff",
+    "drop",
+    "loot",
+    "lootbox",
+    "cooldown",
+    "respawn",
+    "spawn",
+    "checkpoint",
+    "glitch",
+    "patch",
+    "dlc",
+    "gacha",
+    "grind",
+    "farm",
+    "hitbox",
+    "framerate",
+    "ping",
+    "lag",
+    "lobby",
+    "multiplayer",
+    "singleplayer",
+    "coop",
+    "roguelike",
+    "metroidvania",
+    "soulslike",
+    "sandbox",
+    "cutscene",
+    "crafting",
+    "build",
+    "meta",
+    "combo",
+    "parry",
+    "dodge",
+    "stealth",
+    "noob",
+    "headshot",
+    "esports",
+    "streamer"
+  ];
+
+  // src/data/ignoreLists/pt/music.json
+  var music_default8 = [];
+
+  // src/data/ignoreLists/pt/cinema.json
+  var cinema_default8 = [];
+
+  // src/data/ignoreLists/pt/brands.json
+  var brands_default8 = [];
+
+  // src/data/ignoreLists/pt/cities.json
+  var cities_default8 = [
+    "madrid",
+    "tokyo",
+    "paris",
+    "londres",
+    "berlim",
+    "pequim",
+    "washington",
+    "seul",
+    "amsterda",
+    "amsterd\xE3",
+    "viena",
+    "praga",
+    "varsovia",
+    "vars\xF3via",
+    "lisboa",
+    "dublin",
+    "oslo",
+    "estocolmo",
+    "helsinque",
+    "copenhague",
+    "bruxelas",
+    "budapeste",
+    "bucareste",
+    "bangkok",
+    "singapura",
+    "jacarta",
+    "melbourne",
+    "montreal",
+    "boston",
+    "houston",
+    "miami",
+    "filadelfia",
+    "filad\xE9lfia",
+    "atlanta",
+    "dallas",
+    "seattle",
+    "denver",
+    "phoenix",
+    "kyoto",
+    "osaka",
+    "porto",
+    "coimbra",
+    "braga",
+    "funchal",
+    "setubal",
+    "set\xFAbal",
+    "aveiro",
+    "evora",
+    "\xE9vora",
+    "faro"
+  ];
+
+  // src/data/ignoreLists/pt/names.json
+  var names_default8 = [
+    "antonio",
+    "ant\xF3nio",
+    "carlos",
+    "francisco",
+    "gabriel",
+    "joao",
+    "jose",
+    "jos\xE9",
+    "jo\xE3o",
+    "lucas",
+    "manuel",
+    "mateus",
+    "paulo",
+    "pedro",
+    "rodrigo",
+    "tiago"
+  ];
+
+  // src/data/ignoreLists/pt/misc.json
+  var misc_default12 = [];
+
+  // src/data/ignoreLists/pt/typos.json
+  var typos_default8 = [];
+
+  // src/data/ignoreLists/ignoreService.ts
+  var PROTECTED_WORDS_BLACKLIST = /* @__PURE__ */ new Set([
+    // English common words (fruits, verbs, nouns, adjectives)
+    "apple",
+    "zoom",
+    "nice",
+    "valve",
+    "blizzard",
+    "steam",
+    "switch",
+    "hades",
+    "celeste",
+    "canon",
+    "safari",
+    "docker",
+    "chrome",
+    "edge",
+    "opera",
+    "led",
+    "ram",
+    "war",
+    "god",
+    "boss",
+    "drop",
+    "loot",
+    "cool",
+    "like",
+    "link",
+    "chat",
+    "cloud",
+    "server",
+    "stream",
+    "style",
+    "team",
+    "party",
+    "test",
+    "brand",
+    "meeting",
+    "deadline",
+    "target",
+    "gap",
+    "shell",
+    "oracle",
+    "subway",
+    "chase",
+    "bell",
+    "deal",
+    "dell",
+    "reading",
+    "bath",
+    "split",
+    "intel",
+    "discord",
+    "fedora",
+    "overwatch",
+    "insomniac",
+    "play",
+    "tree",
+    "skill",
+    "music",
+    "guerra",
+    "box",
+    "boxes",
+    "boxing",
+    // English homonym names
+    "will",
+    "may",
+    "bill",
+    "grace",
+    "hope",
+    "rose",
+    "mark",
+    "rich",
+    "faith",
+    "joy",
+    "art",
+    "bob",
+    "rob",
+    "sue",
+    "pat",
+    "gene",
+    "frank",
+    "guy",
+    "penny",
+    "sandy",
+    "rusty",
+    "amber",
+    "cliff",
+    "daisy",
+    "dawn",
+    "lily",
+    "ruby",
+    "victor",
+    "miles",
+    "grant",
+    "wade",
+    "hunter",
+    "mason",
+    "archer",
+    "cooper",
+    "fisher",
+    "cook",
+    "baker",
+    "smith",
+    "taylor",
+    "brown",
+    "white",
+    "black",
+    "green",
+    "wood",
+    "stone",
+    "king",
+    "prince",
+    "knight",
+    "lord",
+    "bishop",
+    "bush",
+    "church",
+    "fox",
+    "wolf",
+    "bird",
+    "young",
+    "long",
+    "short",
+    "little",
+    "small",
+    "sharp",
+    "quick",
+    "smart",
+    "bright",
+    "sweet",
+    "fair",
+    "best",
+    "well",
+    "early",
+    "daily",
+    "page",
+    "major",
+    "general",
+    "ford",
+    "carter",
+    "barr",
+    // Spanish homonym names & vocabulary words
+    "alma",
+    "rosa",
+    "blanca",
+    "dolores",
+    "esperanza",
+    "sol",
+    "victoria",
+    "cruz",
+    "angel",
+    "\xE1ngel",
+    "flor",
+    "mercedes",
+    "carmen",
+    "gloria",
+    "luz",
+    "pilar",
+    "consuelo",
+    "paz",
+    "soledad",
+    "amparo",
+    "rocio",
+    "roc\xEDo",
+    "aurora",
+    "paloma",
+    "estrella",
+    "felix",
+    "f\xE9lix",
+    "salvador",
+    "roman",
+    "rom\xE1n",
+    "domingo",
+    "julio",
+    "agosto",
+    "martin",
+    "mart\xEDn",
+    "leon",
+    "le\xF3n",
+    "franco",
+    "marina",
+    "clara",
+    "reina",
+    "candela",
+    "milagros",
+    "inmaculada",
+    "socorro",
+    "concepcion",
+    "concepci\xF3n",
+    "dulce",
+    "gracia",
+    "fidel",
+    "maximo",
+    "m\xE1ximo",
+    "justo",
+    "modesto",
+    "prudencio",
+    "lima",
+    "huevo",
+    "santo",
+    "cura",
+    "nieve",
+    "m\xFAsica",
+    "musica",
+    "risas",
+    "aplausos",
+    "farmear",
+    "craftear",
+    "grindeo",
+    "nerfeado",
+    "buffeado",
+    "cielo",
+    "mar",
+    "rio",
+    "r\xEDo",
+    "valle",
+    "monte",
+    "sierra",
+    "pena",
+    "pe\xF1a",
+    "castillo",
+    "torre",
+    "fuente",
+    "iglesia",
+    "rey",
+    "conde",
+    "duque",
+    "caballero",
+    "pastor",
+    "bello",
+    "hermoso",
+    "lindo",
+    "bueno",
+    "leal",
+    "fiel",
+    "bravo",
+    "fuerte",
+    "valiente",
+    "grande",
+    "chico",
+    "alto",
+    "bajo",
+    "gordo",
+    "flaco",
+    "rubio",
+    "moreno",
+    "serena",
+    "valentin",
+    "valent\xEDn",
+    "nieves",
+    "asuncion",
+    "asunci\xF3n",
+    "encarnacion",
+    "encarnaci\xF3n",
+    "trinidad",
+    "santos",
+    "almond",
+    // French / Italian / German homonym names & words
+    "sega",
+    "bella",
+    "bello",
+    "blanc",
+    "merci",
+    "stein",
+    "berg",
+    "mann",
+    // Countries in Spanish, English, French, German, Russian, etc.
+    "spain",
+    "espa\xF1a",
+    "espana",
+    "germany",
+    "alemania",
+    "deutschland",
+    "france",
+    "francia",
+    "frankreich",
+    "italy",
+    "italia",
+    "italien",
+    "russia",
+    "rusia",
+    "russland",
+    "\u0440\u043E\u0441\u0441\u0438\u044F",
+    "china",
+    "japan",
+    "jap\xF3n",
+    "japon",
+    "mexico",
+    "m\xE9xico",
+    "usa",
+    "england",
+    "inglaterra",
+    "uk",
+    "canada",
+    "canad\xE1",
+    "brazil",
+    "brasil",
+    "argentina",
+    "colombia",
+    "peru",
+    "per\xFA",
+    "chile",
+    "cuba",
+    "poland",
+    "polonia",
+    "ukraine",
+    "ucrania",
+    "turkey",
+    "turqu\xEDa",
+    "egypt",
+    "egipto",
+    "greece",
+    "grecia",
+    "sweden",
+    "suecia",
+    "norway",
+    "noruega",
+    "finland",
+    "finlandia",
+    "portugal",
+    "holland",
+    "netherlands",
+    "pa\xEDses bajos",
+    "belgium",
+    "b\xE9lgica",
+    "switzerland",
+    "suiza",
+    "austria",
+    "india",
+    "korea",
+    "corea",
+    "australia"
+  ]);
+
+  // src/db.ts
+  var import_localforage = __toESM(require_localforage(), 1);
+  var storeOptions = {
+    name: "LecturaDB",
+    version: 1
+  };
+  var lessonsStore = import_localforage.default.createInstance({ ...storeOptions, storeName: "lessons" });
+  var playlistsStore = import_localforage.default.createInstance({ ...storeOptions, storeName: "playlists" });
+  var vocabStore = import_localforage.default.createInstance({ ...storeOptions, storeName: "vocab" });
+  var settingsStore = import_localforage.default.createInstance({ ...storeOptions, storeName: "settings" });
+  var translationsStore = import_localforage.default.createInstance({ ...storeOptions, storeName: "sentence_translations" });
+
+  // src/utils.ts
+  function getLanguageCode(languageName) {
+    const norm = (languageName || "").toLowerCase().trim();
+    if (norm.startsWith("en") || norm === "\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439") return "en";
+    if (norm.startsWith("es") || norm.startsWith("spa") || norm === "\u0438\u0441\u043F\u0430\u043D\u0441\u043A\u0438\u0439") return "es";
+    if (norm.startsWith("fr") || norm.startsWith("fre") || norm === "\u0444\u0440\u0430\u043D\u0446\u0443\u0437\u0441\u043A\u0438\u0439") return "fr";
+    if (norm.startsWith("de") || norm.startsWith("ger") || norm === "\u043D\u0435\u043C\u0435\u0446\u043A\u0438\u0439") return "de";
+    if (norm.startsWith("it") || norm.startsWith("ita") || norm === "\u0438\u0442\u0430\u043B\u044C\u044F\u043D\u0441\u043A\u0438\u0439") return "it";
+    if (norm.startsWith("ru") || norm === "\u0440\u0443\u0441\u0441\u043A\u0438\u0439") return "ru";
+    if (norm.startsWith("pt") || norm.startsWith("por") || norm === "\u043F\u043E\u0440\u0442\u0443\u0433\u0430\u043B\u044C\u0441\u043A\u0438\u0439") return "pt";
+    if (norm.startsWith("tr") || norm.startsWith("tur") || norm === "\u0442\u0443\u0440\u0435\u0446\u043A\u0438\u0439") return "tr";
+    if (norm.startsWith("ja") || norm.startsWith("jap") || norm === "\u044F\u043F\u043E\u043D\u0441\u043A\u0438\u0439") return "ja";
+    if (norm.startsWith("zh") || norm.startsWith("chi") || norm === "\u043A\u0438\u0442\u0430\u0439\u0441\u043A\u0438\u0439") return "zh";
+    if (norm.startsWith("ar") || norm === "\u0430\u0440\u0430\u0431\u0441\u043A\u0438\u0439") return "ar";
+    if (norm.startsWith("uk") || norm.startsWith("ukr") || norm === "\u0443\u043A\u0440\u0430\u0438\u043D\u0441\u043A\u0438\u0439" || norm === "\u0443\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430" || norm === "\u0443\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0438\u0439") return "uk";
+    if (norm.startsWith("kk") || norm.startsWith("kaz") || norm === "\u043A\u0430\u0437\u0430\u0445\u0441\u043A\u0438\u0439" || norm === "\u049B\u0430\u0437\u0430\u049B\u0448\u0430" || norm === "\u049B\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456") return "kk";
+    if (norm.length >= 2 && /^[a-z]+$/.test(norm.substring(0, 2))) {
+      return norm.substring(0, 2);
+    }
+    return "en";
+  }
+  function migrateLocalStorage() {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    const keys = [
+      "words",
+      "translation_source",
+      "custom_tags",
+      "lessons",
+      "lessontypes",
+      "listening",
+      "aliases",
+      "language_flags",
+      "focus_mode",
+      "layout_width",
+      "reader_settings",
+      "interface_zoom",
+      "local_user",
+      "storage_mode",
+      "daily_word_goal",
+      "last_active_lesson_id",
+      "reading_history"
+    ];
+    keys.forEach((k2) => {
+      const oldKey = `lingq_clone_${k2}`;
+      const newKey = `vocab_clone_${k2}`;
+      const oldVal = localStorage.getItem(oldKey);
+      if (oldVal !== null) {
+        if (localStorage.getItem(newKey) === null) {
+          try {
+            localStorage.setItem(newKey, oldVal);
+          } catch (e2) {
+            console.warn("Quota exceeded on " + newKey);
+          }
+        }
+      }
+    });
+    const exactKeys = [
+      "lingq_default_target_language",
+      "lingq_default_translation_language",
+      "lingq_books_per_row"
+    ];
+    exactKeys.forEach((oldKey) => {
+      const newKey = oldKey.replace("lingq_", "vocab_");
+      const oldVal = localStorage.getItem(oldKey);
+      if (oldVal !== null) {
+        if (localStorage.getItem(newKey) === null) {
+          try {
+            localStorage.setItem(newKey, oldVal);
+          } catch (e2) {
+            console.warn("Quota exceeded on " + newKey);
+          }
+        }
+      }
+    });
+    for (let i3 = 0; i3 < localStorage.length; i3++) {
+      const key = localStorage.key(i3);
+      if (key) {
+        if (key.startsWith("lingq_clone_dicts_")) {
+          const newKey = key.replace("lingq_clone_dicts_", "vocab_clone_dicts_");
+          if (localStorage.getItem(newKey) === null) {
+            localStorage.setItem(newKey, localStorage.getItem(key));
+          }
+        } else if (key.startsWith("lingq_progress_")) {
+          const newKey = key.replace("lingq_progress_", "vocab_progress_");
+          if (localStorage.getItem(newKey) === null) {
+            localStorage.setItem(newKey, localStorage.getItem(key));
+          }
+        }
+      }
+    }
+  }
+  migrateLocalStorage();
+
+  // src/services/ignoreListService.ts
+  var IGNORE_CATEGORIES_CONFIG = {
+    gaming: {
+      id: "gaming",
+      icon: "\u{1F3AE}",
+      nameKey: "ignore_lists.category_gaming",
+      defaultNameRu: "\u0413\u0435\u0439\u043C\u0438\u043D\u0433 \u0438 \u043A\u043E\u043D\u0441\u043E\u043B\u0438",
+      defaultNameEn: "Gaming & Platforms",
+      shortNameKey: "ignore_lists.badge_gaming",
+      shortNameRu: "\u0413\u0435\u0439\u043C\u0438\u043D\u0433",
+      shortNameEn: "Gaming",
+      descKey: "ignore_lists.category_gaming_desc",
+      defaultDescRu: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u044F \u0438\u0433\u0440, \u043A\u043E\u043D\u0441\u043E\u043B\u0435\u0439 \u0438 \u0444\u0440\u0430\u043D\u0448\u0438\u0437 (Nintendo, PlayStation, Xbox, Zelda, Roblox, Skyrim)",
+      defaultDescEn: "Game consoles, platforms, and franchise titles (Nintendo, PlayStation, Xbox, Zelda, Roblox, Skyrim)"
+    },
+    tech_brands: {
+      id: "tech_brands",
+      icon: "\u{1F4BB}",
+      nameKey: "ignore_lists.category_tech_brands",
+      defaultNameRu: "IT \u0438 \u0442\u0435\u0445\u043D\u043E\u043B\u043E\u0433\u0438\u0438",
+      defaultNameEn: "IT & Tech",
+      shortNameKey: "ignore_lists.badge_tech",
+      shortNameRu: "IT",
+      shortNameEn: "IT",
+      descKey: "ignore_lists.category_tech_brands_desc",
+      defaultDescRu: "IT-\u0431\u0440\u0435\u043D\u0434\u044B, \u0430\u043F\u043F\u0430\u0440\u0430\u0442\u043D\u044B\u0435 \u0441\u0442\u0430\u043D\u0434\u0430\u0440\u0442\u044B \u0438 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u044B (Google, Microsoft, Nvidia, Asus, Xiaomi, Bluetooth, WiFi, HDMI)",
+      defaultDescEn: "Tech brands, hardware standards, and protocols (Google, Microsoft, Nvidia, Asus, Xiaomi, Bluetooth, WiFi, HDMI)"
+    },
+    music: {
+      id: "music",
+      icon: "\u{1F3B5}",
+      nameKey: "ignore_lists.category_music",
+      defaultNameRu: "\u041C\u0443\u0437\u044B\u043A\u0430 \u0438 \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u0438",
+      defaultNameEn: "Music & Artists",
+      shortNameKey: "ignore_lists.badge_music",
+      shortNameRu: "\u041C\u0443\u0437\u044B\u043A\u0430",
+      shortNameEn: "Music",
+      descKey: "ignore_lists.category_music_desc",
+      defaultDescRu: "\u041C\u0443\u0437\u044B\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0433\u0440\u0443\u043F\u043F\u044B \u0438 \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u0438 (Radiohead, Metallica, Coldplay, Rammstein, Nirvana, Shakira)",
+      defaultDescEn: "Music bands, artists, and groups (Radiohead, Metallica, Coldplay, Rammstein, Nirvana, Shakira)"
+    },
+    cinema: {
+      id: "cinema",
+      icon: "\u{1F3AC}",
+      nameKey: "ignore_lists.category_cinema",
+      defaultNameRu: "\u041A\u0438\u043D\u043E \u0438 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u0436\u0438",
+      defaultNameEn: "Cinema & Characters",
+      shortNameKey: "ignore_lists.badge_cinema",
+      shortNameRu: "\u041A\u0438\u043D\u043E",
+      shortNameEn: "Cinema",
+      descKey: "ignore_lists.category_cinema_desc",
+      defaultDescRu: "\u0424\u0438\u043B\u044C\u043C\u044B, \u0441\u0435\u0440\u0438\u0430\u043B\u044B \u0438 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u0436\u0438 (Hogwarts, Marvel, Batman, Superman, Gandalf, Skywalker)",
+      defaultDescEn: "Movies, franchises, and characters (Hogwarts, Marvel, Batman, Superman, Gandalf, Skywalker)"
+    },
+    brands: {
+      id: "brands",
+      icon: "\u{1F3F7}\uFE0F",
+      nameKey: "ignore_lists.category_brands",
+      defaultNameRu: "\u041C\u0438\u0440\u043E\u0432\u044B\u0435 \u0431\u0440\u0435\u043D\u0434\u044B",
+      defaultNameEn: "Global Brands",
+      shortNameKey: "ignore_lists.badge_brands",
+      shortNameRu: "\u0411\u0440\u0435\u043D\u0434\u044B",
+      shortNameEn: "Brands",
+      descKey: "ignore_lists.category_brands_desc",
+      defaultDescRu: "\u0411\u0440\u0435\u043D\u0434\u044B \u0430\u0432\u0442\u043E, \u043E\u0434\u0435\u0436\u0434\u044B \u0438 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 (Nike, Adidas, Toyota, Tesla, Pepsi, Lego, Zara)",
+      defaultDescEn: "Auto, apparel, and consumer brands (Nike, Adidas, Toyota, Tesla, Pepsi, Lego, Zara)"
+    },
+    names_cities: {
+      id: "names_cities",
+      icon: "\u{1F3D9}\uFE0F",
+      nameKey: "ignore_lists.category_names_cities",
+      defaultNameRu: "\u0413\u043E\u0440\u043E\u0434\u0430 \u0438 \u0438\u043C\u0435\u043D\u0430",
+      defaultNameEn: "Cities & Names",
+      shortNameKey: "ignore_lists.badge_cities",
+      shortNameRu: "\u0413\u043E\u0440\u043E\u0434\u0430 \u0438 \u0438\u043C\u0435\u043D\u0430",
+      shortNameEn: "Cities & Names",
+      descKey: "ignore_lists.category_names_cities_desc",
+      defaultDescRu: "\u041C\u0438\u0440\u043E\u0432\u044B\u0435 \u0441\u0442\u043E\u043B\u0438\u0446\u044B, \u0433\u043E\u0440\u043E\u0434\u0430 \u0438 \u0438\u043C\u0435\u043D\u0430 (Tokyo, Madrid, London, Paris, Berlin, Carlos, Michael).",
+      defaultDescEn: "World capitals, cities, and personal names (Tokyo, Madrid, London, Paris, Berlin, Carlos, Michael)."
+    },
+    anglicisms: {
+      id: "anglicisms",
+      icon: "\u{1F5E3}\uFE0F",
+      nameKey: "ignore_lists.category_anglicisms",
+      defaultNameRu: "\u041E\u0431\u0449\u0438\u0435 \u0430\u043D\u0433\u043B\u0438\u0446\u0438\u0437\u043C\u044B",
+      defaultNameEn: "Common Anglicisms",
+      shortNameKey: "ignore_lists.badge_anglicism",
+      shortNameRu: "\u0410\u043D\u0433\u043B\u0438\u0446\u0438\u0437\u043C",
+      shortNameEn: "Anglicism",
+      descKey: "ignore_lists.category_anglicisms_desc",
+      defaultDescRu: "\u0417\u0430\u0438\u043C\u0441\u0442\u0432\u043E\u0432\u0430\u043D\u0438\u044F \u0432 \u043D\u0435-\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0445 \u0442\u0435\u043A\u0441\u0442\u0430\u0445. \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u043F\u0440\u0438 \u0438\u0437\u0443\u0447\u0435\u043D\u0438\u0438 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u043E\u0433\u043E.",
+      defaultDescEn: "English loanwords in foreign texts. Automatically disabled when studying English."
+    }
+  };
+  var DEFAULT_IGNORE_CATEGORIES = {
+    gaming: true,
+    tech_brands: true,
+    music: true,
+    cinema: true,
+    brands: true,
+    names_cities: true,
+    anglicisms: true
+  };
+  var IgnoreListManager = class {
+    constructor() {
+      // Key format: `${langCode}_${catId}`
+      this.cache = /* @__PURE__ */ new Map();
+      this.precompile();
+    }
+    precompile() {
+      const supportedLangs = ["es", "fr", "de", "ru", "it", "pt", "en"];
+      const langData = {
+        es: { gaming: gaming_default2, tech: tech_default2, music: music_default2, cinema: cinema_default2, brands: brands_default2, cities: cities_default2, names: names_default2, misc: misc_default6, typos: typos_default2 },
+        en: { gaming: [], tech: [], music: music_default3, cinema: cinema_default3, brands: brands_default3, cities: cities_default3, names: names_default3, misc: misc_default7, typos: typos_default3 },
+        fr: { gaming: gaming_default3, tech: [], music: music_default4, cinema: cinema_default4, brands: brands_default4, cities: cities_default4, names: names_default4, misc: misc_default8, typos: typos_default4 },
+        de: { gaming: gaming_default4, tech: [], music: music_default5, cinema: cinema_default5, brands: brands_default5, cities: cities_default5, names: names_default5, misc: misc_default9, typos: typos_default5 },
+        ru: { gaming: gaming_default5, tech: tech_default3, music: music_default6, cinema: cinema_default6, brands: brands_default6, cities: cities_default6, names: names_default6, misc: misc_default10, typos: typos_default6 },
+        it: { gaming: gaming_default6, tech: [], music: music_default7, cinema: cinema_default7, brands: brands_default7, cities: cities_default7, names: names_default7, misc: misc_default11, typos: typos_default7 },
+        pt: { gaming: gaming_default7, tech: [], music: music_default8, cinema: cinema_default8, brands: brands_default8, cities: cities_default8, names: names_default8, misc: misc_default12, typos: typos_default8 }
+      };
+      supportedLangs.forEach((langCode) => {
+        const data = langData[langCode] || { gaming: [], tech: [], music: [], cinema: [], brands: [], cities: [], names: [], misc: [], typos: [] };
+        const buildSet = (universalArr, langArr) => {
+          const s3 = /* @__PURE__ */ new Set();
+          universalArr.forEach((w) => {
+            const c2 = w.trim().toLowerCase();
+            if (c2 && !PROTECTED_WORDS_BLACKLIST.has(c2)) s3.add(c2);
+          });
+          langArr.forEach((w) => {
+            const c2 = w.trim().toLowerCase();
+            if (c2 && !PROTECTED_WORDS_BLACKLIST.has(c2)) s3.add(c2);
+          });
+          return s3;
+        };
+        this.cache.set(`${langCode}_gaming`, buildSet(gaming_default, data.gaming));
+        this.cache.set(`${langCode}_tech_brands`, buildSet(tech_default, data.tech));
+        this.cache.set(`${langCode}_music`, buildSet(music_default, data.music));
+        this.cache.set(`${langCode}_cinema`, buildSet(cinema_default, data.cinema));
+        this.cache.set(`${langCode}_brands`, buildSet(brands_default, data.brands));
+        const namesCitiesSet = /* @__PURE__ */ new Set();
+        cities_default.forEach((w) => {
+          const c2 = w.trim().toLowerCase();
+          if (c2 && !PROTECTED_WORDS_BLACKLIST.has(c2)) namesCitiesSet.add(c2);
+        });
+        names_default.forEach((w) => {
+          const c2 = w.trim().toLowerCase();
+          if (c2 && !PROTECTED_WORDS_BLACKLIST.has(c2)) namesCitiesSet.add(c2);
+        });
+        data.cities.forEach((w) => {
+          const c2 = w.trim().toLowerCase();
+          if (c2 && !PROTECTED_WORDS_BLACKLIST.has(c2)) namesCitiesSet.add(c2);
+        });
+        data.names.forEach((w) => {
+          const c2 = w.trim().toLowerCase();
+          if (c2 && !PROTECTED_WORDS_BLACKLIST.has(c2)) namesCitiesSet.add(c2);
+        });
+        this.cache.set(`${langCode}_names_cities`, namesCitiesSet);
+        const anglicismsSet = /* @__PURE__ */ new Set();
+        if (langCode !== "en") {
+          data.gaming.forEach((w) => {
+            const c2 = w.trim().toLowerCase();
+            if (c2 && !PROTECTED_WORDS_BLACKLIST.has(c2)) anglicismsSet.add(c2);
+          });
+        }
+        this.cache.set(`${langCode}_anglicisms`, anglicismsSet);
+        this.cache.set(`${langCode}_misc`, buildSet(misc_default5, data.misc));
+        this.cache.set(`${langCode}_typos`, buildSet(typos_default, data.typos));
+      });
+    }
+    /**
+     * Returns total words count for a category in a specific language
+     */
+    getCategoryWordCount(catId, targetLanguage = "Spanish") {
+      const langCode = getLanguageCode(targetLanguage);
+      const cacheKey = `${langCode}_${catId}`;
+      const set = this.cache.get(cacheKey);
+      return set ? set.size : 0;
+    }
+    /**
+     * Fast O(1) language-aware auto-ignore lookup.
+     */
+    checkAutoIgnore(cleanWord, settings, targetLanguage = "Spanish") {
+      if (!cleanWord) {
+        return {
+          isIgnored: false,
+          categoryId: null,
+          nameKey: "",
+          shortNameKey: "",
+          categoryLabelRu: "",
+          categoryLabelEn: "",
+          shortNameRu: "",
+          shortNameEn: "",
+          icon: ""
+        };
+      }
+      const lower = cleanWord.trim().toLowerCase();
+      if (PROTECTED_WORDS_BLACKLIST.has(lower)) {
+        return {
+          isIgnored: false,
+          categoryId: null,
+          nameKey: "",
+          shortNameKey: "",
+          categoryLabelRu: "",
+          categoryLabelEn: "",
+          shortNameRu: "",
+          shortNameEn: "",
+          icon: ""
+        };
+      }
+      const langCode = getLanguageCode(targetLanguage);
+      const categorySettings = {
+        ...DEFAULT_IGNORE_CATEGORIES,
+        ...settings?.ignoreCategories || {}
+      };
+      for (const catId of Object.keys(IGNORE_CATEGORIES_CONFIG)) {
+        if (!categorySettings[catId]) continue;
+        const cacheKey = `${langCode}_${catId}`;
+        const set = this.cache.get(cacheKey);
+        if (set && set.has(lower)) {
+          const meta = IGNORE_CATEGORIES_CONFIG[catId];
+          return {
+            isIgnored: true,
+            categoryId: catId,
+            nameKey: meta.nameKey,
+            shortNameKey: meta.shortNameKey,
+            categoryLabelRu: meta.defaultNameRu,
+            categoryLabelEn: meta.defaultNameEn,
+            shortNameRu: meta.shortNameRu,
+            shortNameEn: meta.shortNameEn,
+            icon: meta.icon
+          };
+        }
+      }
+      const miscSet = this.cache.get(`${langCode}_misc`);
+      if (miscSet && miscSet.has(lower)) {
+        return {
+          isIgnored: true,
+          categoryId: null,
+          nameKey: "ignore_lists.badge_misc",
+          shortNameKey: "ignore_lists.badge_misc",
+          categoryLabelRu: "\u0420\u0430\u0437\u043D\u043E\u0435",
+          categoryLabelEn: "Misc",
+          shortNameRu: "\u0420\u0430\u0437\u043D\u043E\u0435",
+          shortNameEn: "Misc",
+          icon: "\u{1F9E9}"
+        };
+      }
+      const typosSet = this.cache.get(`${langCode}_typos`);
+      if (typosSet && typosSet.has(lower)) {
+        return {
+          isIgnored: true,
+          categoryId: null,
+          nameKey: "ignore_lists.auto_ignored_badge",
+          shortNameKey: "ignore_lists.auto_ignored_badge",
+          categoryLabelRu: "\u0418\u0433\u043D\u043E\u0440",
+          categoryLabelEn: "Ignore",
+          shortNameRu: "\u0418\u0433\u043D\u043E\u0440",
+          shortNameEn: "Ignore",
+          icon: "\u{1F6AB}"
+        };
+      }
+      return {
+        isIgnored: false,
+        categoryId: null,
+        nameKey: "",
+        shortNameKey: "",
+        categoryLabelRu: "",
+        categoryLabelEn: "",
+        shortNameRu: "",
+        shortNameEn: "",
+        icon: ""
+      };
+    }
+  };
+  var ignoreListManager = new IgnoreListManager();
+
+  // extension/src/services/ignore.ts
+  function getLocalizedIgnoreBadge(result, uiLang = "en") {
+    const isRu = uiLang.startsWith("ru");
+    const isEs = uiLang.startsWith("es");
+    const isDe = uiLang.startsWith("de");
+    const catName = isRu ? result.shortNameRu || result.categoryLabelRu || "\u0418\u0433\u043D\u043E\u0440" : result.shortNameEn || result.categoryLabelEn || "Ignore";
+    const prefix5 = isRu ? "\u0418\u0433\u043D\u043E\u0440" : isEs ? "Ignorado" : isDe ? "Ignorieren" : "Ignore";
+    const fullTitle = `${prefix5}: ${catName}`;
+    return {
+      label: fullTitle,
+      icon: result.icon || "\u{1F6AB}",
+      fullTitle
+    };
   }
 
   // extension/src/content/youtube-tracker.ts
@@ -33798,9 +42062,11 @@
      * Smart Lemma and word info lookup (strictly scoped to active language)
      */
     lookupWordInfo(word) {
-      const lower = cleanWordForTranslation(word);
-      if (!lower) return { status: "new" };
+      const rawLower = cleanWordForTranslation(word);
+      if (!rawLower) return { status: "new" };
+      const lower = normalizeApostrophes(rawLower);
       const lang = this.getEffectiveLang();
+      const langLower = lang.toLowerCase();
       const cachedWords = this.cachedWordsByLang[lang] || {};
       const cachedLinks = this.cachedWordLinksByLang[lang] || {};
       const normalizeStatusValue = (raw) => {
@@ -33815,55 +42081,102 @@
         if (s3 === "learning") return "1";
         return s3 || "new";
       };
-      if (cachedWords[lower]) {
-        const item = cachedWords[lower];
+      if (cachedWords[lower] || cachedWords[rawLower]) {
+        const item = cachedWords[lower] || cachedWords[rawLower];
         const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
         const normalizedStatus = normalizeStatusValue(rawStatus);
         return { ...item, status: normalizedStatus, lemma: lower };
       }
-      const parentRoot = cachedLinks[lower];
+      const base = normalizeContraction(lower, lang);
+      if (base && base !== lower) {
+        if (cachedWords[base]) {
+          const item = cachedWords[base];
+          const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
+          const normalizedStatus = normalizeStatusValue(rawStatus);
+          return { ...item, status: normalizedStatus, lemma: base };
+        }
+        if (cachedLinks[base] && cachedWords[cachedLinks[base]]) {
+          const item = cachedWords[cachedLinks[base]];
+          const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
+          const normalizedStatus = normalizeStatusValue(rawStatus);
+          return { ...item, status: normalizedStatus, lemma: cachedLinks[base] };
+        }
+      }
+      const parentRoot = cachedLinks[lower] || cachedLinks[rawLower];
       if (parentRoot && parentRoot !== lower) {
         if (cachedWords[parentRoot]) {
           const item = cachedWords[parentRoot];
           const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
           const normalizedStatus = normalizeStatusValue(rawStatus);
-          return { status: normalizedStatus, lemma: parentRoot };
+          return { ...item, status: normalizedStatus, lemma: parentRoot };
         }
         return { status: "new", lemma: parentRoot };
       }
-      const langLower = lang.toLowerCase();
       let parentLemma = "";
       if (langLower.startsWith("en") && _YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]) {
         parentLemma = _YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower];
       } else if (langLower.startsWith("es") && _YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower]) {
         parentLemma = _YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower];
       }
+      if (!parentLemma && base && base !== lower) {
+        if (langLower.startsWith("en") && _YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base]) {
+          parentLemma = _YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base];
+        }
+      }
       if (parentLemma && parentLemma !== lower) {
         if (cachedWords[parentLemma]) {
           const item = cachedWords[parentLemma];
           const rawStatus = item.status !== void 0 && item.status !== null ? item.status : "new";
           const normalizedStatus = normalizeStatusValue(rawStatus);
-          return { status: normalizedStatus, lemma: parentLemma };
+          return { ...item, status: normalizedStatus, lemma: parentLemma };
         }
         return { status: "new", lemma: parentLemma };
       }
-      return { status: "new" };
+      let autoRes = ignoreListManager.checkAutoIgnore(lower, void 0, lang);
+      let matchedIgnored = lower;
+      if (!autoRes.isIgnored && base && base !== lower) {
+        autoRes = ignoreListManager.checkAutoIgnore(base, void 0, lang);
+        matchedIgnored = base;
+      }
+      if (autoRes.isIgnored) {
+        const badgeMeta = getLocalizedIgnoreBadge(autoRes, this.settings?.interfaceLanguage || "en");
+        return {
+          status: "ignored",
+          isAutoIgnored: true,
+          ignoreCategory: autoRes.categoryLabelEn,
+          ignoreBadge: badgeMeta.label,
+          ignoreIcon: badgeMeta.icon,
+          ignoreCategoryId: autoRes.categoryId,
+          lemma: matchedIgnored !== lower ? matchedIgnored : lower
+        };
+      }
+      return { status: "new", lemma: base !== lower ? base : void 0 };
     }
     /**
      * Generates morphological parent root lemma suggestions for a word
      */
     getSuggestedLemmas(word, lang) {
       if (!word) return [];
-      const lower = word.trim().toLowerCase();
+      const lower = normalizeApostrophes(word.trim().toLowerCase());
       if (lower.length <= 1) return [];
       const langCode = normalizeLangCode(lang);
       const cachedLinks = this.cachedWordLinksByLang[langCode] || {};
       const suggestions = [];
+      const base = normalizeContraction(lower, langCode);
+      if (base && base !== lower) {
+        suggestions.push(base);
+      }
       if (cachedLinks[lower]) {
         suggestions.push(cachedLinks[lower]);
       }
+      if (base && cachedLinks[base]) {
+        suggestions.push(cachedLinks[base]);
+      }
       if (langCode === "en" && _YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]) {
         suggestions.push(_YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]);
+      }
+      if (langCode === "en" && base && _YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base]) {
+        suggestions.push(_YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base]);
       }
       if (langCode === "es" && _YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower]) {
         suggestions.push(_YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower]);
@@ -34218,9 +42531,18 @@
           this.hoverTooltip?.classList.add("visible");
         });
       };
+      if (wordInfo.isAutoIgnored) {
+        renderTooltipDom(`${wordInfo.ignoreIcon || "\u{1F6AB}"} ${wordInfo.ignoreBadge || "Ignored"}`);
+        return;
+      }
       const lang = this.getEffectiveLang();
       const cacheKey = `${lang}:${cleanWord}`;
-      const cachedTrans = _YouTubeLecturaOverlay.localTranslationCache.get(cacheKey) || (this.cachedWordsByLang[lang]?.[cleanWord]?.translation?.trim() || "");
+      const baseWord = normalizeContraction(cleanWord, lang);
+      const baseCacheKey = `${lang}:${baseWord}`;
+      let cachedTrans = _YouTubeLecturaOverlay.localTranslationCache.get(cacheKey) || (this.cachedWordsByLang[lang]?.[cleanWord]?.translation?.trim() || "");
+      if (!cachedTrans && baseWord && baseWord !== cleanWord) {
+        cachedTrans = _YouTubeLecturaOverlay.localTranslationCache.get(baseCacheKey) || (this.cachedWordsByLang[lang]?.[baseWord]?.translation?.trim() || "");
+      }
       const invalidPlaceholders = ["...", "translating...", "loading...", "\u2014", "\u2014 (\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445)", "\u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D", "[ignored]", "[\u0438\u043C\u043F\u043E\u0440\u0442 \u0441 \u0434\u0430\u0442\u043E\u0439]", "ignored"];
       if (cachedTrans && !invalidPlaceholders.includes(cachedTrans.toLowerCase()) && cachedTrans.toLowerCase() !== cleanWord) {
         renderTooltipDom(cachedTrans);
@@ -34499,8 +42821,12 @@
         const cachedLinks = this.cachedWordLinksByLang[langCode] || {};
         const cachedWords = this.cachedWordsByLang[langCode] || {};
         const cleanLower = cleanWordForTranslation(word);
-        const existingParent = cachedLinks[cleanLower] || (wordInfo.lemma && wordInfo.lemma !== cleanLower ? wordInfo.lemma : "");
+        const baseWord = normalizeContraction(cleanLower, langCode);
+        const existingParent = cachedLinks[cleanLower] || (baseWord && cachedLinks[baseWord] ? cachedLinks[baseWord] : wordInfo.lemma && wordInfo.lemma !== cleanLower ? wordInfo.lemma : "");
         let rawTranslation = _YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${cleanLower}`) || (cachedWords[cleanLower]?.translation?.trim() || "");
+        if (!rawTranslation && baseWord && baseWord !== cleanLower) {
+          rawTranslation = _YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${baseWord}`) || (cachedWords[baseWord]?.translation?.trim() || "");
+        }
         const invalidPlaceholders = [
           "translating...",
           "loading...",
@@ -34568,6 +42894,12 @@
         <div class="glass-word-row">
           <h1 class="glass-word-title">${word}</h1>
           <div class="glass-word-meta">
+            ${wordInfo.isAutoIgnored ? `
+              <span class="lectura-ignore-badge" title="${wordInfo.ignoreBadge || "Ignored"}" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.5); color: #d97706;">
+                <span>${wordInfo.ignoreIcon || "\u{1F3D9}\uFE0F"}</span>
+                <span>${wordInfo.ignoreBadge || "Ignore: " + wordInfo.ignoreCategory}</span>
+              </span>
+            ` : ""}
             <span class="glass-lang-tag lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</span>
             <button type="button" class="glass-btn-sound lectura-card-tts" title="Audio">\u{1F50A}</button>
           </div>
@@ -34694,6 +43026,11 @@
                 ${wordInfo.ipa ? `<span class="lectura-extended-ipa">[${wordInfo.ipa}]</span>` : ""}
               </div>
               <div class="lectura-extended-badges">
+                ${wordInfo.isAutoIgnored ? `
+                  <button type="button" class="lectura-dialect-pill" style="border-color: rgba(245, 158, 11, 0.5); color: #d97706; background: rgba(245, 158, 11, 0.12); font-weight: 700;">
+                    ${wordInfo.ignoreIcon || "\u{1F3D9}\uFE0F"} ${wordInfo.ignoreBadge || "Ignore: " + wordInfo.ignoreCategory}
+                  </button>
+                ` : ""}
                 <button type="button" class="lectura-dialect-pill lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</button>
                 <button type="button" class="lectura-card-tts" title="Pronounce">\u{1F50A}</button>
               </div>
@@ -34789,6 +43126,12 @@
             <span class="lectura-card-word">${word}</span>
             <button class="lectura-card-tts" title="Pronounce">\u{1F50A}</button>
             <button class="lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${dialectLabel}</button>
+            ${wordInfo.isAutoIgnored ? `
+              <span class="lectura-ignore-badge" title="${wordInfo.ignoreBadge || "Ignored"}" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.5); color: #f59e0b; margin-left: 4px;">
+                <span>${wordInfo.ignoreIcon || "\u{1F3D9}\uFE0F"}</span>
+                <span>${wordInfo.ignoreBadge || "Ignore: " + wordInfo.ignoreCategory}</span>
+              </span>
+            ` : ""}
             ${lemmaDisplay ? `<span class="lectura-card-lemma">${lemmaDisplay}</span>` : ""}
             <span class="lectura-card-ipa">${wordInfo.ipa ? `[${wordInfo.ipa}]` : ""}</span>
             <span class="lectura-card-lang" style="font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); padding: 2px 6px; border-radius: 4px; color: #38bdf8;">${activeLang}</span>
@@ -35442,3 +43785,20 @@
  * Shared Text & Token utilities for Lectura Extension
  * Aligned directly with Lectura web app tokenizer rules
  */
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * 
+ * Direct unified access to Lectura's Auto-Ignore List engine for the Browser Extension.
+ * Provides instant O(1) checks against Cities, Names, Tech brands, Gaming, Cinema, Music, Brands, Anglicisms.
+ */
+/*! Bundled license information:
+
+localforage/dist/localforage.js:
+  (*!
+      localForage -- Offline Storage, Improved
+      Version 1.10.0
+      https://localforage.github.io/localForage
+      (c) 2013-2017 Mozilla, Apache License 2.0
+  *)
+*/

@@ -556,20 +556,52 @@ export function sanitizeLessonsForLocalStorage(lessons: any[]): string {
   return JSON.stringify(sanitized);
 }
 
+const ENGLISH_NEGATIONS: Record<string, string> = {
+  "can't": "can",
+  "cannot": "can",
+  "won't": "will",
+  "shan't": "shall",
+  "ain't": "be",
+  "don't": "do",
+  "doesn't": "does",
+  "didn't": "did",
+  "isn't": "is",
+  "aren't": "are",
+  "wasn't": "was",
+  "weren't": "were",
+  "haven't": "have",
+  "hasn't": "has",
+  "hadn't": "had",
+  "wouldn't": "would",
+  "couldn't": "could",
+  "shouldn't": "should",
+  "mustn't": "must",
+};
+
 /**
  * Normalizes contractions and possessives to their base forms for status inheritance
  */
 export function normalizeContraction(w: string, targetLanguage: string): string {
   if (!w) return "";
-  let lower = w.toLowerCase().replace(/’/g, "'").trim();
+  let lower = w.toLowerCase().replace(/[’‘ʻʼ´`]/g, "'").trim();
   const langCode = getLanguageCode(targetLanguage);
 
-  if (langCode === "en") {
-    // Strip trailing apostrophe (plural possessive, e.g. users')
-    if (lower.endsWith("'")) {
+  // Spanish ('es') has no standard apostrophe contractions
+  if (langCode === "es") {
+    return lower;
+  }
+
+  if (langCode === "en" || !langCode) {
+    // 1. Explicit English negations
+    if (ENGLISH_NEGATIONS[lower]) {
+      return ENGLISH_NEGATIONS[lower];
+    }
+
+    // 2. Strip trailing apostrophe (plural possessive, e.g. users')
+    if (lower.endsWith("'") && lower.length > 2) {
       lower = lower.slice(0, -1);
     }
-    // Strip possessive/contraction suffixes (excluding negations like 't)
+    // 3. Strip possessive/contraction suffixes
     if (lower.endsWith("'s")) return lower.slice(0, -2);
     if (lower.endsWith("'ve")) return lower.slice(0, -3);
     if (lower.endsWith("'re")) return lower.slice(0, -3);
@@ -581,6 +613,16 @@ export function normalizeContraction(w: string, targetLanguage: string): string 
     if (lower.startsWith("d'")) return lower.slice(2);
     if (lower.startsWith("j'")) return lower.slice(2);
     if (lower.startsWith("qu'")) return lower.slice(3);
+    if (lower.startsWith("m'")) return lower.slice(2);
+    if (lower.startsWith("t'")) return lower.slice(2);
+    if (lower.startsWith("s'")) return lower.slice(2);
+    if (lower.startsWith("c'")) return lower.slice(2);
+    if (lower.startsWith("n'")) return lower.slice(2);
+  } else if (langCode === "it") {
+    if (lower.startsWith("l'")) return lower.slice(2);
+    if (lower.startsWith("d'")) return lower.slice(2);
+    if (lower.startsWith("un'")) return lower.slice(3);
+    if (lower.startsWith("c'")) return lower.slice(2);
   }
 
   return lower;

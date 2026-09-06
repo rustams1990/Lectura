@@ -25,7 +25,17 @@ export function isRomanNumeral(text: string, isEnglish: boolean = false): boolea
 }
 
 /**
+ * Normalizes all Unicode single-quote, apostrophe and accent variants to ASCII apostrophe "'"
+ * Variants handled: ’ (U+2019), ‘ (U+2018), ʻ (U+02BB), ʼ (U+02BC), ´ (U+00B4), ` (U+0060)
+ */
+export function normalizeApostrophes(str: string): string {
+  if (!str) return '';
+  return str.replace(/[’‘ʻʼ´`]/g, "'");
+}
+
+/**
  * Cleans punctuation from edges of words while strictly preserving all accents and diacritics
+ * and standardizing all apostrophe variations.
  */
 export function cleanWordForLookup(raw: string): string {
   if (!raw) return '';
@@ -34,7 +44,88 @@ export function cleanWordForLookup(raw: string): string {
   clean = clean.replace(/^[^\w\p{L}\p{N}]+|[^\w\p{L}\p{N}]+$/gu, '');
   // Strip leading or trailing apostrophes/quotes: " ' “ ” ‘ ’ « » „ ‟ ‹ ›
   clean = clean.replace(/^['’"`“«»„‟‹›]+|['’"`”«»„‟‹›]+$/gu, '');
+  // Normalize internal apostrophes
+  clean = normalizeApostrophes(clean);
   return clean.toLowerCase();
+}
+
+/**
+ * English irregular negation contractions mapped directly to their base verb
+ */
+const ENGLISH_NEGATIONS: Record<string, string> = {
+  "can't": "can",
+  "cannot": "can",
+  "won't": "will",
+  "shan't": "shall",
+  "ain't": "be",
+  "don't": "do",
+  "doesn't": "does",
+  "didn't": "did",
+  "isn't": "is",
+  "aren't": "are",
+  "wasn't": "was",
+  "weren't": "were",
+  "haven't": "have",
+  "hasn't": "has",
+  "hadn't": "had",
+  "wouldn't": "would",
+  "couldn't": "could",
+  "shouldn't": "should",
+  "mustn't": "must",
+};
+
+/**
+ * Normalizes contractions and possessives to their base forms for status inheritance
+ * Strictly respects target language (e.g., Spanish 'es' has no apostrophe contractions).
+ */
+export function normalizeContraction(w: string, targetLanguage: string = ''): string {
+  if (!w) return '';
+  let lower = normalizeApostrophes(w.toLowerCase().trim());
+  const langCode = (targetLanguage || '').toLowerCase().slice(0, 2);
+
+  // Spanish ('es') has no standard apostrophe contractions -> return untouched
+  if (langCode === 'es') {
+    return lower;
+  }
+
+  if (langCode === 'en' || !langCode) {
+    // 1. Explicit English negations
+    if (ENGLISH_NEGATIONS[lower]) {
+      return ENGLISH_NEGATIONS[lower];
+    }
+
+    // 2. Plural possessive with trailing apostrophe (e.g. users' -> users)
+    if (lower.endsWith("'") && lower.length > 2) {
+      return lower.slice(0, -1);
+    }
+
+    // 3. Strict apostrophe-prefixed suffixes only (never strip 'us' to 'u')
+    if (lower.endsWith("'s")) return lower.slice(0, -2);
+    if (lower.endsWith("'ve")) return lower.slice(0, -3);
+    if (lower.endsWith("'re")) return lower.slice(0, -3);
+    if (lower.endsWith("'m")) return lower.slice(0, -2);
+    if (lower.endsWith("'ll")) return lower.slice(0, -3);
+    if (lower.endsWith("'d")) return lower.slice(0, -2);
+  } else if (langCode === 'fr') {
+    // French elisions (strictly applied only to French)
+    if (lower.startsWith("l'")) return lower.slice(2);
+    if (lower.startsWith("d'")) return lower.slice(2);
+    if (lower.startsWith("j'")) return lower.slice(2);
+    if (lower.startsWith("qu'")) return lower.slice(3);
+    if (lower.startsWith("m'")) return lower.slice(2);
+    if (lower.startsWith("t'")) return lower.slice(2);
+    if (lower.startsWith("s'")) return lower.slice(2);
+    if (lower.startsWith("c'")) return lower.slice(2);
+    if (lower.startsWith("n'")) return lower.slice(2);
+  } else if (langCode === 'it') {
+    // Italian elisions (strictly applied only to Italian)
+    if (lower.startsWith("l'")) return lower.slice(2);
+    if (lower.startsWith("d'")) return lower.slice(2);
+    if (lower.startsWith("un'")) return lower.slice(3);
+    if (lower.startsWith("c'")) return lower.slice(2);
+  }
+
+  return lower;
 }
 
 /**

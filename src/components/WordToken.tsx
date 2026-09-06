@@ -91,8 +91,9 @@ function WordTokenComponent({
       styleClass = `bg-[#cbeeff] dark:bg-sky-950/70 hover:bg-[#addbff] dark:hover:bg-sky-900/60 text-sky-900 dark:text-sky-300 ${baseRounding} cursor-pointer transition-colors status-0`;
     }
 
-    if ((status === "ignored" || status === "known") && showOnlyUnknown && unknownViewMode === "text") {
-      styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] hover:blur-none hover:opacity-100 duration-300`;
+    const isUnknownOnlyText = Boolean(showOnlyUnknown && unknownViewMode === "text");
+    if ((status === "ignored" || status === "known") && isUnknownOnlyText) {
+      styleClass = `${styleClass} opacity-15 dark:opacity-10 blur-[2.5px] group-hover:blur-none group-hover:opacity-100 hover:blur-none hover:opacity-100 duration-300`;
     }
 
     if (isTextMode) {
@@ -110,13 +111,18 @@ function WordTokenComponent({
     }
   }
 
+  const isUnknownOnlyText = Boolean(showOnlyUnknown && unknownViewMode === "text");
+  const punctDimClass = isUnknownOnlyText
+    ? "opacity-15 dark:opacity-10 blur-[2.5px] group-hover:blur-none group-hover:opacity-100 duration-300"
+    : "opacity-95";
+
   return (
     <span
-      className={`inline whitespace-nowrap relative ${isHovered ? "z-50" : ""} ${cjkSpacingClass}`}
+      className={`inline whitespace-nowrap relative group ${isHovered ? "z-50" : ""} ${cjkSpacingClass}`}
       spellCheck={false}
     >
       {prefix && (
-        <span className="inline text-inherit select-none pointer-events-none opacity-95 mr-0">
+        <span className={`inline text-inherit select-none pointer-events-none ${punctDimClass} mr-0`}>
           {prefix}
         </span>
       )}
@@ -136,7 +142,7 @@ function WordTokenComponent({
         {wordContent}
       </span>
       {suffix && (
-        <span className="inline text-inherit select-none pointer-events-none opacity-95 ml-0">
+        <span className={`inline text-inherit select-none pointer-events-none ${punctDimClass} ml-0`}>
           {suffix}
         </span>
       )}

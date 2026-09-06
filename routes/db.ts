@@ -7,6 +7,8 @@ import { getDbConnection, SQLITE_DB_PATH } from "./dbConnection.ts";
 import { resolveUserId, requireLocalSyncKey, requireAuth } from "./auth.ts";
 import { analyzeTextComplexity } from "../server/frequency/frequencyService.ts";
 import { handleTrackActivity } from "./history.ts";
+import { normalizeContraction } from "../src/utils.ts";
+import { ignoreListManager } from "../src/services/ignoreListService.ts";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
@@ -2814,7 +2816,13 @@ router.post("/words/batch-status", (req: Request, res: Response) => {
   const rawLang = (language_code || targetLanguage || language || "English").trim();
   const canonicalLang = normalizeLang(rawLang);
 
-  const cleanWords = Array.from(new Set(words.map((w: any) => String(w || "").trim().toLowerCase()).filter(Boolean)));
+  const cleanWords = Array.from(
+    new Set(
+      words
+        .map((w: any) => String(w || "").trim().toLowerCase().replace(/[’‘ʻʼ´`]/g, "'"))
+        .filter(Boolean)
+    )
+  );
   if (cleanWords.length === 0) {
     return res.json({ status: "ok", results: {}, map: {} });
   }
@@ -2822,8 +2830,20 @@ router.post("/words/batch-status", (req: Request, res: Response) => {
   try {
     const db = getDbConnection(userId);
     const chunkSize = 400;
-    const map: Record<string, { status: string; translation: string; ipa?: string; language: string }> = {};
+    const map: Record<string, {
+      status: string;
+      translation: string;
+      ipa?: string;
+      language: string;
+      isAutoIgnored?: boolean;
+      ignoreCategory?: string;
+      ignoreBadge?: string;
+      ignoreIcon?: string;
+      ignoreCategoryId?: string | null;
+      lemma?: string;
+    }> = {};
 
+    // 1. Direct match in user words table
     for (let i = 0; i < cleanWords.length; i += chunkSize) {
       const chunk = cleanWords.slice(i, i + chunkSize);
       const placeholders = chunk.map(() => "?").join(",");
@@ -2839,7 +2859,7 @@ router.post("/words/batch-status", (req: Request, res: Response) => {
 
       for (const r of rows) {
         if (r.word) {
-          const wLower = r.word.toLowerCase().trim();
+          const wLower = r.word.toLowerCase().replace(/[’‘ʻʼ´`]/g, "'").trim();
           let trans = (r.translation || "").trim();
           const invalidPlaceholders = ['translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден'];
           if (invalidPlaceholders.includes(trans.toLowerCase()) || trans.toLowerCase() === wLower) {
@@ -2850,6 +2870,98 @@ router.post("/words/batch-status", (req: Request, res: Response) => {
             translation: trans,
             ipa: r.ipa || "",
             language: r.language_code || canonicalLang
+          };
+        }
+      }
+    }
+
+    // 2. Contraction normalization for words not matched directly
+    const missingContractions: { original: string; base: string }[] = [];
+    for (const w of cleanWords) {
+      if (!map[w]) {
+        const base = normalizeContraction(w, canonicalLang);
+        if (base && base !== w) {
+          if (map[base]) {
+            map[w] = {
+              ...map[base],
+              lemma: base
+            };
+          } else {
+            missingContractions.push({ original: w, base });
+          }
+        }
+      }
+    }
+
+    // If there are contraction base words not yet queried, query them from DB
+    if (missingContractions.length > 0) {
+      const uniqueBases = Array.from(new Set(missingContractions.map((mc) => mc.base)));
+      for (let i = 0; i < uniqueBases.length; i += chunkSize) {
+        const chunk = uniqueBases.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => "?").join(",");
+        const query = `
+          SELECT word, translation, status, language_code, ipa
+          FROM words
+          WHERE user_id = ?
+            AND (lower(language_code) = ? OR lower(language_code) = ?)
+            AND lower(word) IN (${placeholders})
+        `;
+        const params = [userId, canonicalLang.toLowerCase(), rawLang.toLowerCase(), ...chunk];
+        const rows = db.prepare(query).all(...params) as any[];
+
+        for (const r of rows) {
+          if (r.word) {
+            const baseLower = r.word.toLowerCase().replace(/[’‘ʻʼ´`]/g, "'").trim();
+            let trans = (r.translation || "").trim();
+            const invalidPlaceholders = ['translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден'];
+            if (invalidPlaceholders.includes(trans.toLowerCase()) || trans.toLowerCase() === baseLower) {
+              trans = "";
+            }
+            const baseEntry = {
+              status: r.status,
+              translation: trans,
+              ipa: r.ipa || "",
+              language: r.language_code || canonicalLang
+            };
+            map[baseLower] = baseEntry;
+            for (const mc of missingContractions) {
+              if (mc.base === baseLower && !map[mc.original]) {
+                map[mc.original] = {
+                  ...baseEntry,
+                  lemma: baseLower
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Auto-ignore check for remaining words (user's explicit words ALWAYS take priority!)
+    for (const w of cleanWords) {
+      if (!map[w]) {
+        let autoRes = ignoreListManager.checkAutoIgnore(w, undefined, canonicalLang);
+        let matchedWord = w;
+        if (!autoRes.isIgnored) {
+          const base = normalizeContraction(w, canonicalLang);
+          if (base && base !== w) {
+            autoRes = ignoreListManager.checkAutoIgnore(base, undefined, canonicalLang);
+            matchedWord = base;
+          }
+        }
+
+        if (autoRes.isIgnored) {
+          map[w] = {
+            status: 'ignored',
+            translation: '',
+            ipa: '',
+            language: canonicalLang,
+            isAutoIgnored: true,
+            ignoreCategory: autoRes.categoryLabelEn,
+            ignoreBadge: autoRes.shortNameEn,
+            ignoreIcon: autoRes.icon,
+            ignoreCategoryId: autoRes.categoryId,
+            lemma: matchedWord !== w ? matchedWord : undefined
           };
         }
       }

@@ -4,7 +4,8 @@ import { ExtensionSettings, ExtMessage, WordMap } from '../types/index';
 import { ArticleExtractor } from './article-extractor';
 import { getSuggestedLemmas } from '../services/morphology';
 import { isDomainDisabled } from '../services/domain-filter';
-import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken } from '../services/text-utils';
+import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken, normalizeContraction, normalizeApostrophes } from '../services/text-utils';
+import { ignoreListManager, getLocalizedIgnoreBadge, type AutoIgnoreResult } from '../services/ignore';
 
 /**
  * Checks whether an element is an input, textarea, select, contenteditable or code editor
@@ -1948,7 +1949,8 @@ export class PageReader {
     this.activeWord = word;
     this.activeContextSentence = contextSentence;
 
-    const lower = word.toLowerCase();
+    const rawLower = word.toLowerCase();
+    const lower = normalizeApostrophes(rawLower);
     const currentLang = await getEffectiveLanguage(contextSentence || word);
     this.activePopupLang = currentLang;
 
@@ -1957,8 +1959,61 @@ export class PageReader {
       this.cachedWordsByLang[currentLang] = await StorageService.getCachedWords(currentLang);
     }
     const cachedWords = this.cachedWordsByLang[currentLang] || {};
-    const cached = cachedWords[lower];
-    const status = cached?.status || 'new';
+    
+    // 1. Direct match (user's saved word ALWAYS takes top priority)
+    let cached = cachedWords[lower] || cachedWords[rawLower];
+    let resolvedLemma = lower;
+
+    // 2. Contraction normalization (e.g. let's -> let, users' -> users)
+    const baseWord = normalizeContraction(lower, currentLang);
+    if (!cached && baseWord && baseWord !== lower) {
+      if (cachedWords[baseWord]) {
+        cached = cachedWords[baseWord];
+        resolvedLemma = baseWord;
+      }
+    }
+
+    if (!this.cachedWordLinksByLang[currentLang]) {
+      this.cachedWordLinksByLang[currentLang] = {};
+    }
+
+    // 3. Check explicit user parent-child link (e.g. were -> be)
+    const parentRoot = this.cachedWordLinksByLang[currentLang][lower] || 
+      (baseWord ? this.cachedWordLinksByLang[currentLang][baseWord] : '');
+    if (!cached && parentRoot && cachedWords[parentRoot]) {
+      cached = cachedWords[parentRoot];
+      resolvedLemma = parentRoot;
+    }
+
+    // 4. System Auto-Ignore lists (e.g. Hannah -> Cities & Names, Tech brands, etc.)
+    // Only applied if word was NOT explicitly added by user in vocabulary
+    let isAutoIgnored = false;
+    let autoIgnoreBadge = '';
+    let autoIgnoreIcon = '';
+    let autoIgnoreCategory = '';
+
+    if (!cached) {
+      let autoRes = ignoreListManager.checkAutoIgnore(lower, undefined, currentLang);
+      if (!autoRes.isIgnored && baseWord && baseWord !== lower) {
+        autoRes = ignoreListManager.checkAutoIgnore(baseWord, undefined, currentLang);
+      }
+      if (autoRes.isIgnored) {
+        isAutoIgnored = true;
+        const badgeMeta = getLocalizedIgnoreBadge(autoRes, this.settings?.interfaceLanguage || 'en');
+        autoIgnoreBadge = badgeMeta.label;
+        autoIgnoreIcon = badgeMeta.icon;
+        autoIgnoreCategory = autoRes.categoryLabelEn;
+      }
+    }
+
+    const rawStatus = cached?.status || (isAutoIgnored ? '0' : 'new');
+    const normalizeStatusValue = (s: any): string => {
+      const str = String(s || '').toLowerCase().trim();
+      if (['ignored', 'ignore', '0'].includes(str)) return '0';
+      if (['known', 'known_completely', '5'].includes(str)) return 'known';
+      return str || 'new';
+    };
+    const status = normalizeStatusValue(rawStatus);
 
     const isMultiWord = isPhrase || word.includes(' ');
 
@@ -1982,11 +2037,14 @@ export class PageReader {
     let currentDialect = resolveDialect(currentLang, activeDialectCode);
     const dialectLabel = currentDialect.label;
     
-    if (!this.cachedWordLinksByLang[currentLang]) {
-      this.cachedWordLinksByLang[currentLang] = {};
+    const existingParent = this.cachedWordLinksByLang[currentLang][lower] || 
+      (baseWord && this.cachedWordLinksByLang[currentLang][baseWord] ? this.cachedWordLinksByLang[currentLang][baseWord] : (resolvedLemma !== lower ? resolvedLemma : ''));
+    
+    let suggestedLemmas = getSuggestedLemmas(word, currentLang);
+    if (baseWord && baseWord !== lower && !suggestedLemmas.includes(baseWord)) {
+      suggestedLemmas = [baseWord, ...suggestedLemmas];
     }
-    const existingParent = this.cachedWordLinksByLang[currentLang][lower] || '';
-    const suggestedLemmas = getSuggestedLemmas(word, currentLang);
+
     const dictUrls = this.getExternalDictUrls(word, activeLang);
 
     const initialTransHtml = cached?.translation ? this.formatTranslationHtml(cached.translation) : 'Translating...';
@@ -2029,6 +2087,12 @@ export class PageReader {
         <div class="glass-word-row">
           <h1 class="glass-word-title">${word}</h1>
           <div class="glass-word-meta">
+            ${isAutoIgnored ? `
+              <span class="lectura-ignore-badge" title="${autoIgnoreBadge || 'Ignored'}" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.5); color: #d97706;">
+                <span>${autoIgnoreIcon || '🏙️'}</span>
+                <span>${autoIgnoreBadge || 'Ignore: ' + autoIgnoreCategory}</span>
+              </span>
+            ` : ''}
             <span class="glass-lang-tag lectura-card-dialect-badge" title="Dialect: ${currentDialect.name}">${activeLang} | ${dialectLabel}</span>
             <button type="button" class="glass-btn-sound lectura-card-tts" title="Audio">🔊</button>
           </div>
@@ -2247,6 +2311,12 @@ export class PageReader {
             <span class="lectura-card-word">${word}</span>
             <button class="lectura-card-tts" title="Pronounce">🔊</button>
             <button class="lectura-card-dialect-badge" title="Switch Dialect / Accent: ${currentDialect.name}">${dialectLabel}</button>
+            ${isAutoIgnored ? `
+              <span class="lectura-ignore-badge" title="${autoIgnoreBadge || 'Ignored'}" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.5); color: #f59e0b; margin-left: 4px;">
+                <span>${autoIgnoreIcon || '🏙️'}</span>
+                <span>${autoIgnoreBadge || 'Ignore: ' + autoIgnoreCategory}</span>
+              </span>
+            ` : ''}
             <span class="lectura-card-lang-badge">${isMultiWord ? 'Phrase' : activeLang}</span>
             ${cached?.ipa ? `<span class="lectura-card-ipa">[${cached.ipa}]</span>` : ''}
           </div>

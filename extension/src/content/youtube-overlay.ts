@@ -3,7 +3,8 @@ import { StorageService } from '../services/storage';
 import { ExtensionSettings, SubtitleCue, WordMap, WordMapItem, YouTubeActivityPayload } from '../types/index';
 import { getSuggestedLemmas } from '../services/morphology';
 import { t } from '../services/i18n';
-import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken, generateUUID } from '../services/text-utils';
+import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken, generateUUID, normalizeContraction, normalizeApostrophes } from '../services/text-utils';
+import { ignoreListManager, getLocalizedIgnoreBadge, type AutoIgnoreResult } from '../services/ignore';
 import { initYouTubeTracker } from './youtube-tracker';
 
 export { generateUUID };
@@ -3200,11 +3201,23 @@ class YouTubeLecturaOverlay {
   /**
    * Smart Lemma and word info lookup (strictly scoped to active language)
    */
-  private lookupWordInfo(word: string): { status: string; translation?: string; ipa?: string; lemma?: string } {
-    const lower = cleanWordForTranslation(word);
-    if (!lower) return { status: 'new' };
+  private lookupWordInfo(word: string): {
+    status: string;
+    translation?: string;
+    ipa?: string;
+    lemma?: string;
+    isAutoIgnored?: boolean;
+    ignoreCategory?: string;
+    ignoreBadge?: string;
+    ignoreIcon?: string;
+    ignoreCategoryId?: string | null;
+  } {
+    const rawLower = cleanWordForTranslation(word);
+    if (!rawLower) return { status: 'new' };
+    const lower = normalizeApostrophes(rawLower);
 
     const lang = this.getEffectiveLang();
+    const langLower = lang.toLowerCase();
     const cachedWords = this.cachedWordsByLang[lang] || {};
     const cachedLinks = this.cachedWordLinksByLang[lang] || {};
 
@@ -3221,28 +3234,44 @@ class YouTubeLecturaOverlay {
       return s || 'new';
     };
 
-    // 1. Direct match in language dictionary
-    if (cachedWords[lower]) {
-      const item = cachedWords[lower];
+    // 1. Direct match in language dictionary (User saved word ALWAYS takes top priority!)
+    if (cachedWords[lower] || cachedWords[rawLower]) {
+      const item = cachedWords[lower] || cachedWords[rawLower];
       const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
       const normalizedStatus = normalizeStatusValue(rawStatus);
       return { ...item, status: normalizedStatus, lemma: lower };
     }
 
-    // 2. Check explicit user parent-child link (e.g. were -> be)
-    const parentRoot = cachedLinks[lower];
+    // 2. Contraction normalization (e.g. let's -> let, user's -> user, don't -> do, can't -> can)
+    const base = normalizeContraction(lower, lang);
+    if (base && base !== lower) {
+      if (cachedWords[base]) {
+        const item = cachedWords[base];
+        const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
+        const normalizedStatus = normalizeStatusValue(rawStatus);
+        return { ...item, status: normalizedStatus, lemma: base };
+      }
+      if (cachedLinks[base] && cachedWords[cachedLinks[base]]) {
+        const item = cachedWords[cachedLinks[base]];
+        const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
+        const normalizedStatus = normalizeStatusValue(rawStatus);
+        return { ...item, status: normalizedStatus, lemma: cachedLinks[base] };
+      }
+    }
+
+    // 3. Check explicit user parent-child link (e.g. were -> be)
+    const parentRoot = cachedLinks[lower] || cachedLinks[rawLower];
     if (parentRoot && parentRoot !== lower) {
       if (cachedWords[parentRoot]) {
         const item = cachedWords[parentRoot];
         const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
         const normalizedStatus = normalizeStatusValue(rawStatus);
-        return { status: normalizedStatus, lemma: parentRoot };
+        return { ...item, status: normalizedStatus, lemma: parentRoot };
       }
       return { status: 'new', lemma: parentRoot };
     }
 
-    // 3. Dictionary-based irregular lemma lookup (no naive regexes!)
-    const langLower = lang.toLowerCase();
+    // 4. Dictionary-based irregular lemma lookup
     let parentLemma = '';
     if (langLower.startsWith('en') && YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]) {
       parentLemma = YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower];
@@ -3250,17 +3279,45 @@ class YouTubeLecturaOverlay {
       parentLemma = YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower];
     }
 
+    if (!parentLemma && base && base !== lower) {
+      if (langLower.startsWith('en') && YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base]) {
+        parentLemma = YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base];
+      }
+    }
+
     if (parentLemma && parentLemma !== lower) {
       if (cachedWords[parentLemma]) {
         const item = cachedWords[parentLemma];
         const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
         const normalizedStatus = normalizeStatusValue(rawStatus);
-        return { status: normalizedStatus, lemma: parentLemma };
+        return { ...item, status: normalizedStatus, lemma: parentLemma };
       }
       return { status: 'new', lemma: parentLemma };
     }
 
-    return { status: 'new' };
+    // 5. System Auto-Ignore lists (e.g. Hannah -> Cities & Names, Tech brands, Gaming, etc.)
+    // Only applied if word was NOT explicitly added by user in vocabulary
+    let autoRes = ignoreListManager.checkAutoIgnore(lower, undefined, lang);
+    let matchedIgnored = lower;
+    if (!autoRes.isIgnored && base && base !== lower) {
+      autoRes = ignoreListManager.checkAutoIgnore(base, undefined, lang);
+      matchedIgnored = base;
+    }
+
+    if (autoRes.isIgnored) {
+      const badgeMeta = getLocalizedIgnoreBadge(autoRes, this.settings?.interfaceLanguage || 'en');
+      return {
+        status: 'ignored',
+        isAutoIgnored: true,
+        ignoreCategory: autoRes.categoryLabelEn,
+        ignoreBadge: badgeMeta.label,
+        ignoreIcon: badgeMeta.icon,
+        ignoreCategoryId: autoRes.categoryId,
+        lemma: matchedIgnored !== lower ? matchedIgnored : lower,
+      };
+    }
+
+    return { status: 'new', lemma: base !== lower ? base : undefined };
   }
 
   /**
@@ -3268,19 +3325,31 @@ class YouTubeLecturaOverlay {
    */
   private getSuggestedLemmas(word: string, lang: string): string[] {
     if (!word) return [];
-    const lower = word.trim().toLowerCase();
+    const lower = normalizeApostrophes(word.trim().toLowerCase());
     if (lower.length <= 1) return [];
 
     const langCode = normalizeLangCode(lang);
     const cachedLinks = this.cachedWordLinksByLang[langCode] || {};
     const suggestions: string[] = [];
 
+    // 1. Contraction base suggestion (e.g. let for let's)
+    const base = normalizeContraction(lower, langCode);
+    if (base && base !== lower) {
+      suggestions.push(base);
+    }
+
     if (cachedLinks[lower]) {
       suggestions.push(cachedLinks[lower]);
+    }
+    if (base && cachedLinks[base]) {
+      suggestions.push(cachedLinks[base]);
     }
 
     if (langCode === 'en' && YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]) {
       suggestions.push(YouTubeLecturaOverlay.ENGLISH_IRREGULARS[lower]);
+    }
+    if (langCode === 'en' && base && YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base]) {
+      suggestions.push(YouTubeLecturaOverlay.ENGLISH_IRREGULARS[base]);
     }
 
     if (langCode === 'es' && YouTubeLecturaOverlay.SPANISH_IRREGULARS[lower]) {
@@ -3702,11 +3771,25 @@ class YouTubeLecturaOverlay {
       });
     };
 
-    // 1. Instant check from local memory cache or vocabulary
+    // 1. Instant check for auto-ignored word
+    if (wordInfo.isAutoIgnored) {
+      renderTooltipDom(`${wordInfo.ignoreIcon || '🚫'} ${wordInfo.ignoreBadge || 'Ignored'}`);
+      return;
+    }
+
+    // 2. Instant check from local memory cache or vocabulary (including contraction base)
     const lang = this.getEffectiveLang();
     const cacheKey = `${lang}:${cleanWord}`;
-    const cachedTrans = YouTubeLecturaOverlay.localTranslationCache.get(cacheKey) || 
+    const baseWord = normalizeContraction(cleanWord, lang);
+    const baseCacheKey = `${lang}:${baseWord}`;
+
+    let cachedTrans = YouTubeLecturaOverlay.localTranslationCache.get(cacheKey) || 
       (this.cachedWordsByLang[lang]?.[cleanWord]?.translation?.trim() || '');
+
+    if (!cachedTrans && baseWord && baseWord !== cleanWord) {
+      cachedTrans = YouTubeLecturaOverlay.localTranslationCache.get(baseCacheKey) ||
+        (this.cachedWordsByLang[lang]?.[baseWord]?.translation?.trim() || '');
+    }
 
     const invalidPlaceholders = ['...', 'translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден', '[ignored]', '[импорт с датой]', 'ignored'];
     if (cachedTrans && !invalidPlaceholders.includes(cachedTrans.toLowerCase()) && cachedTrans.toLowerCase() !== cleanWord) {
@@ -4047,11 +4130,18 @@ class YouTubeLecturaOverlay {
     const cachedLinks = this.cachedWordLinksByLang[langCode] || {};
     const cachedWords = this.cachedWordsByLang[langCode] || {};
     const cleanLower = cleanWordForTranslation(word);
-    const existingParent = cachedLinks[cleanLower] || (wordInfo.lemma && wordInfo.lemma !== cleanLower ? wordInfo.lemma : '');
+    const baseWord = normalizeContraction(cleanLower, langCode);
+    const existingParent = cachedLinks[cleanLower] || 
+      (baseWord && cachedLinks[baseWord] ? cachedLinks[baseWord] : (wordInfo.lemma && wordInfo.lemma !== cleanLower ? wordInfo.lemma : ''));
     
     // Check if we have an immediate non-empty translation (and filter out placeholder strings)
     let rawTranslation = YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${cleanLower}`) || 
       (cachedWords[cleanLower]?.translation?.trim() || '');
+
+    if (!rawTranslation && baseWord && baseWord !== cleanLower) {
+      rawTranslation = YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${baseWord}`) ||
+        (cachedWords[baseWord]?.translation?.trim() || '');
+    }
 
     const invalidPlaceholders = [
       'translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден',
@@ -4109,6 +4199,12 @@ class YouTubeLecturaOverlay {
         <div class="glass-word-row">
           <h1 class="glass-word-title">${word}</h1>
           <div class="glass-word-meta">
+            ${wordInfo.isAutoIgnored ? `
+              <span class="lectura-ignore-badge" title="${wordInfo.ignoreBadge || 'Ignored'}" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.5); color: #d97706;">
+                <span>${wordInfo.ignoreIcon || '🏙️'}</span>
+                <span>${wordInfo.ignoreBadge || 'Ignore: ' + wordInfo.ignoreCategory}</span>
+              </span>
+            ` : ''}
             <span class="glass-lang-tag lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</span>
             <button type="button" class="glass-btn-sound lectura-card-tts" title="Audio">🔊</button>
           </div>
@@ -4235,6 +4331,11 @@ class YouTubeLecturaOverlay {
                 ${wordInfo.ipa ? `<span class="lectura-extended-ipa">[${wordInfo.ipa}]</span>` : ''}
               </div>
               <div class="lectura-extended-badges">
+                ${wordInfo.isAutoIgnored ? `
+                  <button type="button" class="lectura-dialect-pill" style="border-color: rgba(245, 158, 11, 0.5); color: #d97706; background: rgba(245, 158, 11, 0.12); font-weight: 700;">
+                    ${wordInfo.ignoreIcon || '🏙️'} ${wordInfo.ignoreBadge || 'Ignore: ' + wordInfo.ignoreCategory}
+                  </button>
+                ` : ''}
                 <button type="button" class="lectura-dialect-pill lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${activeLang} | ${dialectLabel}</button>
                 <button type="button" class="lectura-card-tts" title="Pronounce">🔊</button>
               </div>
@@ -4335,6 +4436,12 @@ class YouTubeLecturaOverlay {
             <span class="lectura-card-word">${word}</span>
             <button class="lectura-card-tts" title="Pronounce">🔊</button>
             <button class="lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${dialectLabel}</button>
+            ${wordInfo.isAutoIgnored ? `
+              <span class="lectura-ignore-badge" title="${wordInfo.ignoreBadge || 'Ignored'}" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.5); color: #f59e0b; margin-left: 4px;">
+                <span>${wordInfo.ignoreIcon || '🏙️'}</span>
+                <span>${wordInfo.ignoreBadge || 'Ignore: ' + wordInfo.ignoreCategory}</span>
+              </span>
+            ` : ''}
             ${lemmaDisplay ? `<span class="lectura-card-lemma">${lemmaDisplay}</span>` : ''}
             <span class="lectura-card-ipa">${wordInfo.ipa ? `[${wordInfo.ipa}]` : ''}</span>
             <span class="lectura-card-lang" style="font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); padding: 2px 6px; border-radius: 4px; color: #38bdf8;">${activeLang}</span>
