@@ -22,12 +22,12 @@ if not exist "node_modules\" (
 
 :: Check for .env file
 if not exist ".env" (
-    if exist ".env-1.example" (
+    if exist ".env.example" (
         echo [!] .env file missing. Creating from example...
-        copy ".env-1.example" ".env"
+        copy ".env.example" ".env"
         echo [!] Created .env from example. PLEASE ADD YOUR GEMINI_API_KEY to it!
     ) else (
-        echo [!] Warning: .env file and .env-1.example missing.
+        echo [!] Warning: .env file and .env.example missing.
     )
 )
 

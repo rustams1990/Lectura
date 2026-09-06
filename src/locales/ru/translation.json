@@ -353,7 +353,7 @@
     "error": "⚠️ Ошибка:",
     "local_description": "Войдите или создайте аккаунт, чтобы сохранять материалы и синхронизировать прогресс чтения между устройствами.",
     "login": "Вход",
-    "placeholder_name": "Ваше имя (например, Rustam)",
+    "placeholder_name": "Ваше имя (например, Alex)",
     "placeholder_email": "Email адрес или логин",
     "placeholder_password": "Пароль",
     "btn_register": "Создать аккаунт",

@@ -61,7 +61,7 @@ export default defineConfig(() => {
       watch: null,
       proxy: {
         '/api': {
-          target: process.env.VITE_BACKEND_URL || 'http://192.168.0.250:8586',
+          target: process.env.VITE_BACKEND_URL || 'http://localhost:3000',
           changeOrigin: true,
         },
       },

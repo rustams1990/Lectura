@@ -806,21 +806,15 @@ function performLegacyFileMigration(db: Database.Database) {
 
 // ============================================================
 // Auto-assign all 'default' orphan records to the primary user
-// This runs once at startup so Rustam's 35 books appear immediately
+// This runs once at startup so default library appears for the first user
 // ============================================================
 
 function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
   try {
-    // Find primary user
+    // Find primary user (first registered user in the database)
     let primaryUser = db.prepare(
-      "SELECT id, email FROM server_users WHERE email = ? LIMIT 1"
-    ).get("rustamniy@gmail.com") as any;
-
-    if (!primaryUser) {
-      primaryUser = db.prepare(
-        "SELECT id, email FROM server_users ORDER BY created_at ASC LIMIT 1"
-      ).get() as any;
-    }
+      "SELECT id, email FROM server_users ORDER BY created_at ASC LIMIT 1"
+    ).get() as any;
 
     if (!primaryUser) {
       console.log("[AutoAssign] No registered users found yet. Skipping.");
@@ -840,7 +834,7 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
 
     if (!migrationDone || (primaryWordCount === 0 && totalWords > 50)) {
       // ── ONE-TIME MIGRATION / RESTORE MAIN USER ──────────────────────────────
-      // Assign ALL existing data to the primary user rustamniy@gmail.com
+      // Assign ALL existing data to the primary user
       console.log(`[AutoAssign] Assigning main library → "${email}" (${uid})`);
 
       db.transaction(() => {

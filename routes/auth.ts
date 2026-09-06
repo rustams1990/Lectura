@@ -114,13 +114,9 @@ export function resolveUserId(req: Request): string {
   // Fallback: If no user specified or "default", map to the primary user or single user
   try {
     const db = getDbConnection("default");
-    const primaryUser = db.prepare("SELECT id FROM server_users WHERE lower(email) = 'rustamniy@gmail.com' LIMIT 1").get() as { id: string } | undefined;
+    const primaryUser = db.prepare("SELECT id FROM server_users ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
     if (primaryUser) {
       return primaryUser.id;
-    }
-    const allUsers = db.prepare("SELECT id FROM server_users LIMIT 2").all() as { id: string }[];
-    if (allUsers.length === 1) {
-      return allUsers[0].id;
     }
   } catch (_) {}
 

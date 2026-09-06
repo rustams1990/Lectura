@@ -41,7 +41,7 @@ export function handleTrackActivity(req: Request, res: Response) {
     } else {
       try {
         const db = getDbConnection("default");
-        const primaryUser = db.prepare("SELECT id FROM server_users WHERE lower(email) = 'rustamniy@gmail.com' LIMIT 1").get() as { id: string } | undefined;
+        const primaryUser = db.prepare("SELECT id FROM server_users ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
         userId = primaryUser ? primaryUser.id : "default";
       } catch (_) {
         userId = "default";

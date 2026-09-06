@@ -36,3 +36,7 @@ audio_files/
 extension - Copy*
 extension/dist/
 
+# Development tests and temporary files
+scripts/test*
+scripts/test_*
+tmp.tsx

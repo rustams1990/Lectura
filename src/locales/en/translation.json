@@ -353,7 +353,7 @@
     "error": "⚠️ Error:",
     "local_description": "Sign in or create an account to safely save your library and sync reading progress across devices.",
     "login": "Sign In",
-    "placeholder_name": "Your name (e.g., Rustam)",
+    "placeholder_name": "Your name (e.g., Alex)",
     "placeholder_email": "Email address or username",
     "placeholder_password": "Password",
     "btn_register": "Create Account",

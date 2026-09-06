@@ -1,6 +1,6 @@
 # Lectura Project Rules & Dogmas
 
-Refer to [.agents/rules/lectura_core_dogmas.md](file:///c:/Users/User/Desktop/Lectura/.agents/rules/lectura_core_dogmas.md) for full details.
+Refer to [.agents/rules/lectura_core_dogmas.md](.agents/rules/lectura_core_dogmas.md) for full details.
 
 ### Key Rules:
 1. **Multi-Account Data Isolation**: Strict user-level data segregation (`user_id` scoping on all queries, notes, books, stats, settings). No cross-account data leaks.
