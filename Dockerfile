@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-venv \
     ca-certificates \
     ffmpeg \
-    && pip install --no-cache-dir --break-system-packages faster-whisper \
+    && pip install --no-cache-dir --break-system-packages faster-whisper yt-dlp \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files

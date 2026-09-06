@@ -8,8 +8,7 @@ import { Type } from "@google/genai";
 import * as pdfParseModule from "pdf-parse";
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
-import { formatGeminiTranscript } from "./youtube.ts";
-import ytdlp from "yt-dlp-exec";
+import { getYtDlp } from "./ytdlpWrapper.ts";
 import { getDbConnection } from "./dbConnection.ts";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
@@ -1871,7 +1870,7 @@ router.post("/media/download", async (req: Request, res: Response) => {
 
         let processErrorMsg = "";
 
-        const cp = (ytdlp as any).exec(videoUrl, ytArgs);
+        const cp = (getYtDlp() as any).exec(videoUrl, ytArgs);
 
         cp.stdout?.on("data", (data: Buffer) => {
           const text = data.toString();
@@ -2134,7 +2133,7 @@ router.get("/media/youtube-stream/:videoId", async (req: Request, res: Response)
         };
 
         let processErrorMsg = "";
-        const cp = (ytdlp as any).exec(videoUrl, ytArgs);
+        const cp = (getYtDlp() as any).exec(videoUrl, ytArgs);
 
         cp.stdout?.on("data", (data: Buffer) => {
           const text = data.toString();

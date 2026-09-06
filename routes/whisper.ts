@@ -3,7 +3,7 @@ import os from "os";
 import fs from "fs";
 import path from "path";
 import { spawn, ChildProcess } from "child_process";
-import ytdlp from "yt-dlp-exec";
+import { getYtDlp } from "./ytdlpWrapper.ts";
 import { resolvePythonExecutable } from "../server/whisper/python_resolver.ts";
 import { getDbConnection } from "./dbConnection.ts";
 
@@ -149,8 +149,8 @@ async function processQueue() {
         } catch (_) {}
       }
 
-      const outPattern = path.join(uploadDir, `yt_whisper_${activeItem.id}.%(ext)s`);
-      await (ytdlp as any)(activeItem.sourceUrl, {
+      const dlp = getYtDlp();
+      await (dlp as any)(activeItem.sourceUrl, {
         // Prefer lightweight audio-only formats: m4a → opus → webm → any audio
         format: "ba[ext=m4a]/ba[ext=opus]/ba[ext=webm]/bestaudio/best",
         output: outPattern,
@@ -264,8 +264,8 @@ async function processQueue() {
         try {
           activeItem.stageText = "Trying yt-dlp fallback for podcast...";
           broadcastSse("queue_update", { queue, activeItem });
-          const outPattern = path.join(uploadDir, `podcast_ytdlp_${activeItem.id}.%(ext)s`);
-          await (ytdlp as any)(podcastUrl, {
+          const dlp = getYtDlp();
+          await (dlp as any)(podcastUrl, {
             format: "ba[ext=m4a]/ba[ext=mp3]/bestaudio/best",
             output: outPattern,
             noCheckCertificate: true,

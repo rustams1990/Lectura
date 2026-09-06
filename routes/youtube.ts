@@ -3,6 +3,8 @@ import os from "os";
 import fs from "fs";
 import path from "path";
 import ytdlp from "yt-dlp-exec";
+import { getYtDlp } from "./ytdlpWrapper.ts";
+import { YoutubeTranscript } from "youtube-transcript";
 import WebVTT from "node-webvtt";
 import { aiRateLimit, sanitizeLang } from "./ai.ts";
 import { getGeminiClient } from "./geminiClient.ts";
@@ -127,7 +129,7 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
   try {
     const resPage = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9"
       }
@@ -245,6 +247,50 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
     let isSuccessful = false;
     let lines: string[] = [];
 
+    // Helper to fetch and format subtitles via YoutubeTranscript (fast InnerTube API, no child process)
+    const fetchWithYoutubeTranscript = async (lang?: string): Promise<boolean> => {
+      try {
+        const opts = lang ? { lang } : undefined;
+        const rawCues = await YoutubeTranscript.fetchTranscript(videoId, opts);
+        if (!rawCues || rawCues.length === 0) return false;
+
+        const cleanCues = rawCues.map(c => {
+          let t = c.text || "";
+          t = t
+            .replace(/&nbsp;/g, " ")
+            .replace(/&#160;/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&apos;/g, "'")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&#10;/g, " ")
+            .replace(/[♪♫♬♩#]+|>>+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          return {
+            start: c.offset / 1000,
+            end: (c.offset + c.duration) / 1000,
+            text: t
+          };
+        }).filter(c => c.text.length > 0);
+
+        if (cleanCues.length === 0) return false;
+
+        if (doChunkSentences) {
+          const formattedSentences = chunkSubtitlesIntoSentences(cleanCues);
+          lines = formattedSentences.map(s => `${s.start}s\t${s.text}`);
+        } else {
+          lines = cleanCues.map(cue => `${Math.floor(cue.start)}s\t${cue.text}`);
+        }
+        return lines.length > 0;
+      } catch (err: any) {
+        console.log(`[YouTube] youtube-transcript info for ${videoId}${lang ? ` (lang: ${lang})` : ""}:`, err.message || err);
+        return false;
+      }
+    };
+
     // Helper to download and parse subtitles with yt-dlp
     const downloadSubs = async (lang: string) => {
       const tempDir = os.tmpdir();
@@ -291,13 +337,14 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
       };
 
       try {
-        await (ytdlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
+        const dlp = getYtDlp();
+        await (dlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
           writeSub: true,
           writeAutoSub: true,
-          subLang: lang,
+          subLang: `${lang}.*,${lang}`,
           subFormat: 'vtt',
           addHeader: [
-            'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept-Language:en-US,en;q=0.9'
           ],
           extractorArgs: 'youtube:player_client=android,web',
@@ -307,6 +354,7 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
         });
       } catch (dlErr: any) {
         // yt-dlp may return exit code 1 if secondary auto-translation fails, but primary .vtt file is written!
+        console.warn(`[YouTube] yt-dlp warning/info for ${videoId} (${lang}):`, dlErr.message || dlErr);
       }
 
       try {
@@ -432,10 +480,20 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
     };
 
     if (mode !== "force_ai") {
-      // 1. Try fetching with preferred language
-      isSuccessful = await downloadSubs(langCode);
+      // 1. Try fast retrieval via InnerTube API with requested language
+      isSuccessful = await fetchWithYoutubeTranscript(langCode);
 
-      // 2. Try fetching with default language (English fallback)
+      // 2. Try fast retrieval with video default/auto transcript
+      if (!isSuccessful) {
+        isSuccessful = await fetchWithYoutubeTranscript();
+      }
+
+      // 3. Fallback to yt-dlp with requested language
+      if (!isSuccessful) {
+        isSuccessful = await downloadSubs(langCode);
+      }
+
+      // 4. Fallback to yt-dlp with English
       if (!isSuccessful) {
         isSuccessful = await downloadSubs("en");
       }
@@ -467,13 +525,14 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
           const tempAudioDir = os.tmpdir();
           const tempAudioBase = path.join(tempAudioDir, `yt_audio_${videoId}_${Date.now()}`);
           
-          await (ytdlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
+          const dlp = getYtDlp();
+          await (dlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
             extractAudio: true,
             audioFormat: 'mp3',
             audioQuality: 5,
             format: 'bestaudio/best',
             addHeader: [
-              'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
               'Accept-Language:en-US,en;q=0.9'
             ],
             extractorArgs: 'youtube:player_client=android,web',
@@ -636,13 +695,14 @@ router.post("/youtube-playlist", async (req, res) => {
 
     // 1. Primary extractor via yt-dlp-exec (Flat playlist, no limits, no audio download)
     try {
-      const data: any = await (ytdlp as any)(canonicalPlaylistUrl, {
+      const dlp = getYtDlp();
+      const data: any = await (dlp as any)(canonicalPlaylistUrl, {
         dumpSingleJson: true,
         flatPlaylist: true,
         noWarnings: true,
         ignoreErrors: true,
         addHeader: [
-          "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
           "Accept-Language:en-US,en;q=0.9"
         ],
         extractorArgs: "youtube:player_client=android,web",
