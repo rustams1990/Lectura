@@ -8,6 +8,7 @@ import { Type } from "@google/genai";
 import * as pdfParseModule from "pdf-parse";
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
+import { formatGeminiTranscript } from "./youtube.ts";
 import { getYtDlp } from "./ytdlpWrapper.ts";
 import { getDbConnection } from "./dbConnection.ts";
 import { JSDOM } from "jsdom";

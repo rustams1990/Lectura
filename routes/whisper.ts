@@ -149,6 +149,7 @@ async function processQueue() {
         } catch (_) {}
       }
 
+      const outPattern = path.join(uploadDir, `yt_whisper_${activeItem.id}.%(ext)s`);
       const dlp = getYtDlp();
       await (dlp as any)(activeItem.sourceUrl, {
         // Prefer lightweight audio-only formats: m4a → opus → webm → any audio
@@ -264,6 +265,7 @@ async function processQueue() {
         try {
           activeItem.stageText = "Trying yt-dlp fallback for podcast...";
           broadcastSse("queue_update", { queue, activeItem });
+          const outPattern = path.join(uploadDir, `podcast_ytdlp_${activeItem!.id}.%(ext)s`);
           const dlp = getYtDlp();
           await (dlp as any)(podcastUrl, {
             format: "ba[ext=m4a]/ba[ext=mp3]/bestaudio/best",
@@ -499,8 +501,16 @@ async function persistWhisperBook(item: WhisperQueueItem, event: any): Promise<s
   const bookId = `lesson_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const formattedContent = formatWhisperToLecturaParagraphs(event.segments || []);
   const resolvedTargetLang = normalizeTargetLanguage(item.language && item.language !== "auto" ? item.language : event.language);
+  let user = item.userId || "default";
+  if (user === "default_user" || user === "default") {
+    try {
+      const primaryUser = db.prepare("SELECT id FROM server_users ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
+      user = primaryUser ? primaryUser.id : "default";
+    } catch (_) {
+      user = "default";
+    }
+  }
   const ytId = item.sourceType === "youtube" ? extractYouTubeId(item.sourceUrl) : null;
-  const user = item.userId || "default";
   const now = Date.now();
 
   // Build best-quality thumbnail: prefer maxresdefault, fallback to sddefault/hqdefault
