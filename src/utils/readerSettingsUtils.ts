@@ -140,7 +140,7 @@ export function createScopedSettingsPatch(
           if (key === "fontFamily") localStorage.setItem("lectura_font_family", String(val));
           if (key === "readerTheme") localStorage.setItem("lectura_reader_theme", String(val));
           if (key === "lineHeight") localStorage.setItem("lectura_line_height", String(val));
-          if (key === "maxWidth") localStorage.setItem("lectura_reader_text_width", String(val));
+          if (key === "maxWidth") localStorage.setItem("lectura_reader_typography_width", String(val));
           if (key === "readerViewStyle") localStorage.setItem("lectura_reader_view_style", String(val));
           if (key === "wordCardMode") localStorage.setItem("lectura_word_card_mode", String(val));
         }

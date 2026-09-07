@@ -129,6 +129,20 @@ export default function ReaderScreen({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Synchronize layout width mode from readerSettings if present
+  useEffect(() => {
+    if (readerSettings?.readerLayoutWidth && readerSettings.readerLayoutWidth !== readerTextWidth) {
+      setReaderTextWidth(readerSettings.readerLayoutWidth);
+    }
+  }, [readerSettings?.readerLayoutWidth, readerTextWidth, setReaderTextWidth]);
+
+  const handleSetReaderLayoutWidth = (mode: "standard" | "wide" | "full") => {
+    setReaderTextWidth(mode);
+    if (setReaderSettings) {
+      setReaderSettings((prev) => ({ ...prev, readerLayoutWidth: mode }));
+    }
+  };
+
   // Auto-activate Focus Mode for video lessons on mobile & tablet devices (< 1024px)
   useEffect(() => {
     if (!activeLesson) return;
@@ -462,7 +476,7 @@ export default function ReaderScreen({
                       <div className="flex items-center gap-2.5 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-[11px] font-bold shadow-xs shrink-0">
                         <button
                           type="button"
-                          onClick={() => setReaderTextWidth('standard')}
+                          onClick={() => handleSetReaderLayoutWidth('standard')}
                           className={`transition-colors cursor-pointer ${
                             (readerTextWidth || 'full') === 'standard'
                               ? 'text-teal-600 dark:text-teal-400 font-bold'
@@ -473,7 +487,7 @@ export default function ReaderScreen({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setReaderTextWidth('wide')}
+                          onClick={() => handleSetReaderLayoutWidth('wide')}
                           className={`transition-colors cursor-pointer ${
                             (readerTextWidth || 'full') === 'wide'
                               ? 'text-teal-600 dark:text-teal-400 font-bold'
@@ -484,7 +498,7 @@ export default function ReaderScreen({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setReaderTextWidth('full')}
+                          onClick={() => handleSetReaderLayoutWidth('full')}
                           className={`transition-colors cursor-pointer ${
                             (readerTextWidth || 'full') === 'full'
                               ? 'text-teal-600 dark:text-teal-400 font-bold'

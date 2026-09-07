@@ -93,7 +93,7 @@ export const useUIStore = create<UIState>((set) => ({
   })(),
   readerTextWidth: (() => {
     try {
-      const saved = localStorage.getItem("lectura_reader_text_width");
+      const saved = localStorage.getItem("lectura_reader_layout_width");
       if (saved && ["standard", "wide", "full"].includes(saved)) {
         return saved as ReaderTextWidthType;
       }
@@ -135,7 +135,7 @@ export const useUIStore = create<UIState>((set) => ({
     set({ interfaceMaxWidth: mode, layoutWidthMode: mode });
   },
   setReaderTextWidth: (mode) => {
-    try { localStorage.setItem("lectura_reader_text_width", mode); } catch (_) {}
+    try { localStorage.setItem("lectura_reader_layout_width", mode); } catch (_) {}
     set({ readerTextWidth: mode });
   },
   setIsWordPopupOpen: (open) => set({ isWordPopupOpen: open }),

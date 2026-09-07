@@ -226,6 +226,7 @@ export interface ReaderSettings {
   bookSegmentSpacing?: "compact" | "normal" | "relaxed" | "loose";
   wordCardMode?: WordCardMode; // "full-inspector" or "calm-sheet" (for standard/video lessons, default "full-inspector")
   bookWordCardMode?: WordCardMode; // specific override for book mode (default "calm-sheet")
+  readerLayoutWidth?: "standard" | "wide" | "full";
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
 }
 
@@ -243,6 +244,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   bookSegmentSpacing: "normal",
   readerTheme: "default",
   maxWidth: "wide",
+  readerLayoutWidth: "full",
   pageSize: "auto",
   sentenceSpacing: "normal",
   segmentSpacing: "normal",

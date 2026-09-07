@@ -114,7 +114,7 @@ export const useAppearanceStore = create<AppearanceState>((set, get) => ({
   setMaxWidth: (maxWidth, isBookParam) => {
     const book = isBookParam ?? get().isBook;
     try {
-      localStorage.setItem(book ? "lectura_book_text_width" : "lectura_reader_text_width", maxWidth || "wide");
+      localStorage.setItem(book ? "lectura_book_text_width" : "lectura_reader_typography_width", maxWidth || "wide");
     } catch (_) {}
     set({ maxWidth });
   },

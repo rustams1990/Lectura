@@ -93,7 +93,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         localStorage.setItem('lectura_book_line_height', newSettings.bookLineHeight);
       }
       if (newSettings.maxWidth && typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('lectura_reader_text_width', newSettings.maxWidth);
+        localStorage.setItem('lectura_reader_typography_width', newSettings.maxWidth);
       }
       if (newSettings.bookMaxWidth && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_book_text_width', newSettings.bookMaxWidth);
