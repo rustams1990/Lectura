@@ -296,8 +296,15 @@ export default function App() {
 
   const availableTargetLanguages = useMemo(() => {
     const list = new Set<string>();
+    const activeLanguagesWithBooks = new Set<string>();
     lessons.forEach((l) => {
-      if (l.targetLanguage) list.add(normalizeLanguage(l.targetLanguage));
+      if (l.targetLanguage) {
+        const norm = normalizeLanguage(l.targetLanguage);
+        list.add(norm);
+        if (!l.isArchived) {
+          activeLanguagesWithBooks.add(norm.toLowerCase());
+        }
+      }
     });
     Object.keys(vocab || {}).forEach((key) => {
       const parts = key.split("_");
@@ -312,9 +319,48 @@ export default function App() {
     }
 
     const hiddenLower = new Set(hiddenLanguages.map((l) => normalizeLanguage(l).toLowerCase()));
-    const filtered = Array.from(list).filter((lang) => !hiddenLower.has(lang.toLowerCase()));
+    // If a language has active books in the library, it must NEVER be hidden
+    const filtered = Array.from(list).filter((lang) => {
+      const lower = lang.toLowerCase();
+      if (activeLanguagesWithBooks.has(lower)) return true;
+      return !hiddenLower.has(lower);
+    });
     return ["All", ...filtered];
   }, [lessons, vocab, pinnedLanguages, hiddenLanguages, selectedTargetLanguage]);
+
+  // Auto-heal: If user has active books in a language, automatically remove it from hiddenLanguages
+  useEffect(() => {
+    if (!lessons || lessons.length === 0 || hiddenLanguages.length === 0) return;
+    const activeLangs = new Set(
+      lessons
+        .filter((l) => !l.isArchived && l.targetLanguage)
+        .map((l) => normalizeLanguage(l.targetLanguage).toLowerCase())
+    );
+    if (activeLangs.size === 0) return;
+
+    const next = hiddenLanguages.filter((h) => !activeLangs.has(normalizeLanguage(h).toLowerCase()));
+    if (next.length !== hiddenLanguages.length) {
+      setHiddenLanguages(next);
+      safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(next));
+      settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(next)).catch(() => {});
+      if (storageMode === "server") {
+        syncDataToLocalServer(
+          lessonsRef.current,
+          lessonTypesRef.current,
+          vocabRef.current,
+          wordLinksRef.current,
+          listeningSecondsRef.current,
+          languageFlags,
+          historyRef.current,
+          undefined,
+          readerSettings,
+          pinnedLanguagesRef.current,
+          next,
+          selectedTargetLanguageRef.current
+        ).catch(() => {});
+      }
+    }
+  }, [lessons, hiddenLanguages, storageMode, languageFlags, readerSettings]);
 
   const lessonCountByLanguage = useMemo(() => {
     const map: Record<string, number> = {};
@@ -2890,6 +2936,17 @@ export default function App() {
 
     setActiveLessonId(lessonWithDate.id);
     setShowImportForm(false);
+    if (lessonWithDate.targetLanguage) {
+      const addedLangNorm = normalizeLanguage(lessonWithDate.targetLanguage);
+      setHiddenLanguages((prev) => {
+        const next = prev.filter((l) => l.toLowerCase() !== addedLangNorm.toLowerCase());
+        if (next.length !== prev.length) {
+          safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(next));
+          settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(next)).catch(() => {});
+        }
+        return next;
+      });
+    }
     if (storageMode === "server") {
       syncDataToLocalServer(updatedLessons.length > 0 ? updatedLessons : [lessonWithDate, ...lessons]).catch((err) => console.error(err));
     }

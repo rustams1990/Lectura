@@ -570,6 +570,20 @@ async function persistWhisperBook(item: WhisperQueueItem, event: any): Promise<s
     );
 
     console.log(`[Whisper] Successfully saved lesson '${item.title}' (ID: ${bookId}, Lang: ${resolvedTargetLang}, User: ${user}) to SQLite`);
+
+    // Ensure target language is unhidden for this user in metadata
+    try {
+      const hiddenRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'hiddenLanguages'").get(user) as { value: string } | undefined;
+      if (hiddenRow?.value) {
+        const parsed = JSON.parse(hiddenRow.value);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.filter((l: string) => l.toLowerCase() !== resolvedTargetLang.toLowerCase());
+          if (updated.length !== parsed.length) {
+            db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'hiddenLanguages', ?)").run(user, JSON.stringify(updated));
+          }
+        }
+      }
+    } catch (_) {}
   } catch (err: any) {
     console.error("[Whisper Auto-Persist DB Error]:", err);
   }
