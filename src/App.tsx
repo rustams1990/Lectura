@@ -217,6 +217,85 @@ export default function App() {
     listeningSecondsRef.current = listeningSeconds;
   }, [listeningSeconds]);
 
+  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem("vocab_clone_language_flags");
+      const parsed = saved ? JSON.parse(saved) : {};
+      const preview = getUIPreviewCache();
+      if (preview?.selectedLanguage && preview?.selectedVariant) {
+        const lKey = preview.selectedLanguage.toLowerCase();
+        if (!parsed[lKey]) {
+          parsed[lKey] = preview.selectedVariant;
+        }
+      }
+      return parsed;
+    } catch (_) {
+      return {};
+    }
+  });
+  const languageFlagsRef = useRef<Record<string, string>>(languageFlags);
+  useEffect(() => {
+    languageFlagsRef.current = languageFlags;
+  }, [languageFlags]);
+
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
+    const defaults: ReaderSettings = {
+      ...DEFAULT_READER_SETTINGS,
+      geminiApiKey: localStorage.getItem("vocab_clone_gemini_key") || "",
+      readerViewStyle: (localStorage.getItem("lectura_reader_view_style") as any) || DEFAULT_READER_SETTINGS.readerViewStyle,
+      bookReaderViewStyle: (localStorage.getItem("lectura_book_reader_view_style") as any) || DEFAULT_READER_SETTINGS.bookReaderViewStyle,
+      fontFamily: (localStorage.getItem("lectura_font_family") as any) || DEFAULT_READER_SETTINGS.fontFamily,
+      bookFontFamily: (localStorage.getItem("lectura_book_font_family") as any) || DEFAULT_READER_SETTINGS.bookFontFamily,
+      fontSize: (localStorage.getItem("lectura_reader_font_size") as any) || DEFAULT_READER_SETTINGS.fontSize,
+      bookFontSize: (localStorage.getItem("lectura_book_font_size") as any) || DEFAULT_READER_SETTINGS.bookFontSize,
+      lineHeight: (localStorage.getItem("lectura_line_height") as any) || DEFAULT_READER_SETTINGS.lineHeight,
+      bookLineHeight: (localStorage.getItem("lectura_book_line_height") as any) || DEFAULT_READER_SETTINGS.bookLineHeight,
+      maxWidth: (localStorage.getItem("lectura_reader_text_width") as any) || DEFAULT_READER_SETTINGS.maxWidth,
+      bookMaxWidth: (localStorage.getItem("lectura_book_text_width") as any) || DEFAULT_READER_SETTINGS.bookMaxWidth,
+      readerTheme: (localStorage.getItem("lectura_reader_theme") as any) || DEFAULT_READER_SETTINGS.readerTheme,
+      bookReaderTheme: (localStorage.getItem("lectura_book_reader_theme") || localStorage.getItem("lectura_book_theme") as any) || DEFAULT_READER_SETTINGS.bookReaderTheme,
+      wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || DEFAULT_READER_SETTINGS.wordCardMode,
+      bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || DEFAULT_READER_SETTINGS.bookWordCardMode,
+      showTimestamps: localStorage.getItem("lectura_show_timestamps") !== "false",
+      toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
+    };
+    try {
+      const saved = localStorage.getItem("vocab_clone_reader_settings");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.ttsEngine_v2) {
+          parsed.ttsEngine = "google";
+          parsed.ttsEngine_v2 = true;
+        }
+        if (!parsed.toolbarVisibility_v3) {
+          parsed.toolbarVisibility = {
+            ...DEFAULT_TOOLBAR_VISIBILITY,
+            ...(parsed.toolbarVisibility || {}),
+            showTranslation: false,
+            showPlayPairs: false,
+            showAiHub: false,
+          };
+          parsed.toolbarVisibility_v3 = true;
+        }
+        return {
+          ...defaults,
+          ...parsed,
+          toolbarVisibility: {
+            ...DEFAULT_TOOLBAR_VISIBILITY,
+            ...(parsed.toolbarVisibility || {}),
+          },
+        };
+      }
+    } catch (e) {
+      console.error("Failed to parse saved reader settings:", e);
+    }
+    return defaults;
+  });
+  const readerSettingsRef = useRef<ReaderSettings>(readerSettings);
+  useEffect(() => {
+    readerSettingsRef.current = readerSettings;
+  }, [readerSettings]);
+
   const [selectedTargetLanguage, setSelectedTargetLanguage] = useState<string>(() => {
     const preview = getUIPreviewCache();
     if (preview?.selectedLanguage) {
@@ -358,24 +437,20 @@ export default function App() {
       setHiddenLanguages(next);
       safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(next));
       settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(next)).catch(() => {});
-      if (storageMode === "server") {
-        syncDataToLocalServer(
-          lessonsRef.current,
-          lessonTypesRef.current,
-          vocabRef.current,
-          wordLinksRef.current,
-          listeningSecondsRef.current,
-          languageFlags,
-          historyRef.current,
-          undefined,
-          readerSettings,
-          pinnedLanguagesRef.current,
-          next,
-          selectedTargetLanguageRef.current
-        ).catch(() => {});
-      }
+      try {
+        const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+        const syncKey = localStorage.getItem("vocab_clone_local_sync_key") || localStorage.getItem("local_sync_key");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (syncKey) headers["x-sync-key"] = syncKey;
+        fetch(resolveApiUrl("/api/metadata"), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ key: "hiddenLanguages", value: JSON.stringify(next) })
+        }).catch(() => {});
+      } catch (_) {}
     }
-  }, [lessons, hiddenLanguages, storageMode, languageFlags, readerSettings]);
+  }, [lessons, hiddenLanguages]);
 
   const lessonCountByLanguage = useMemo(() => {
     const map: Record<string, number> = {};
@@ -875,84 +950,6 @@ export default function App() {
   }, [activeTab, activeLessonId, isFocusMode, activeOverlayCount, buildHashUrl]);
 
   const [showIosInstallBanner, setShowIosInstallBanner] = useState<boolean>(false);
-  const [languageFlags, setLanguageFlags] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem("vocab_clone_language_flags");
-      const parsed = saved ? JSON.parse(saved) : {};
-      const preview = getUIPreviewCache();
-      if (preview?.selectedLanguage && preview?.selectedVariant) {
-        const lKey = preview.selectedLanguage.toLowerCase();
-        if (!parsed[lKey]) {
-          parsed[lKey] = preview.selectedVariant;
-        }
-      }
-      return parsed;
-    } catch (_) {
-      return {};
-    }
-  });
-  const languageFlagsRef = useRef<Record<string, string>>(languageFlags);
-  useEffect(() => {
-    languageFlagsRef.current = languageFlags;
-  }, [languageFlags]);
-
-  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
-    const defaults: ReaderSettings = {
-      ...DEFAULT_READER_SETTINGS,
-      geminiApiKey: localStorage.getItem("vocab_clone_gemini_key") || "",
-      readerViewStyle: (localStorage.getItem("lectura_reader_view_style") as any) || DEFAULT_READER_SETTINGS.readerViewStyle,
-      bookReaderViewStyle: (localStorage.getItem("lectura_book_reader_view_style") as any) || DEFAULT_READER_SETTINGS.bookReaderViewStyle,
-      fontFamily: (localStorage.getItem("lectura_font_family") as any) || DEFAULT_READER_SETTINGS.fontFamily,
-      bookFontFamily: (localStorage.getItem("lectura_book_font_family") as any) || DEFAULT_READER_SETTINGS.bookFontFamily,
-      fontSize: (localStorage.getItem("lectura_reader_font_size") as any) || DEFAULT_READER_SETTINGS.fontSize,
-      bookFontSize: (localStorage.getItem("lectura_book_font_size") as any) || DEFAULT_READER_SETTINGS.bookFontSize,
-      lineHeight: (localStorage.getItem("lectura_line_height") as any) || DEFAULT_READER_SETTINGS.lineHeight,
-      bookLineHeight: (localStorage.getItem("lectura_book_line_height") as any) || DEFAULT_READER_SETTINGS.bookLineHeight,
-      maxWidth: (localStorage.getItem("lectura_reader_text_width") as any) || DEFAULT_READER_SETTINGS.maxWidth,
-      bookMaxWidth: (localStorage.getItem("lectura_book_text_width") as any) || DEFAULT_READER_SETTINGS.bookMaxWidth,
-      readerTheme: (localStorage.getItem("lectura_reader_theme") as any) || DEFAULT_READER_SETTINGS.readerTheme,
-      bookReaderTheme: (localStorage.getItem("lectura_book_reader_theme") || localStorage.getItem("lectura_book_theme") as any) || DEFAULT_READER_SETTINGS.bookReaderTheme,
-      wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || DEFAULT_READER_SETTINGS.wordCardMode,
-      bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || DEFAULT_READER_SETTINGS.bookWordCardMode,
-      showTimestamps: localStorage.getItem("lectura_show_timestamps") !== "false",
-      toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
-    };
-    try {
-      const saved = localStorage.getItem("vocab_clone_reader_settings");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (!parsed.ttsEngine_v2) {
-          parsed.ttsEngine = "google";
-          parsed.ttsEngine_v2 = true;
-        }
-        if (!parsed.toolbarVisibility_v3) {
-          parsed.toolbarVisibility = {
-            ...DEFAULT_TOOLBAR_VISIBILITY,
-            ...(parsed.toolbarVisibility || {}),
-            showTranslation: false,
-            showPlayPairs: false,
-            showAiHub: false,
-          };
-          parsed.toolbarVisibility_v3 = true;
-        }
-        return {
-          ...defaults,
-          ...parsed,
-          toolbarVisibility: {
-            ...DEFAULT_TOOLBAR_VISIBILITY,
-            ...(parsed.toolbarVisibility || {}),
-          },
-        };
-      }
-    } catch (e) {
-      console.error("Failed to parse saved reader settings:", e);
-    }
-    return defaults;
-  });
-  const readerSettingsRef = useRef<ReaderSettings>(readerSettings);
-  useEffect(() => {
-    readerSettingsRef.current = readerSettings;
-  }, [readerSettings]);
 
   const lastSettingsLocalChangeTimeRef = useRef<number>(0);
 
