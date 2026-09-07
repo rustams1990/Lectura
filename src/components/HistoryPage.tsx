@@ -425,15 +425,13 @@ function HistoryPage({
         Number((lesson as any)?.audioDuration) ||
         0;
 
-      const effectiveDurationSeconds = (isLessonDone && bestDuration > 0)
-        ? bestDuration
-        : Math.max(totalDurationSeconds, bestLastPosition || 0);
+      const effectiveDurationSeconds = totalDurationSeconds;
 
       aggregated.push({
         ...latest,
         id: latest.id,
         timestamp: latest.timestamp, // Most recent activity timestamp of that day
-        durationSeconds: effectiveDurationSeconds, // Full duration if completed, else accumulated/last position
+        durationSeconds: effectiveDurationSeconds, // Actual accumulated study time on that day
         duration: bestDuration,
         actionType: latest.actionType || (isAudioOrVideoLesson ? "listen" : "read"),
         status: isLessonDone ? "completed" : (latest.status || "in_progress"),
@@ -1619,9 +1617,8 @@ function HistoryPage({
                     Number((matchedLesson as any)?.audioDuration) ||
                     0;
 
-                  const displayDuration = (isCompleted && totalMediaDuration > 0)
-                    ? totalMediaDuration
-                    : (item.durationSeconds || item.lastPosition || 0);
+                  const displayDuration = item.durationSeconds || 0;
+                  const progressPosition = item.lastPosition || displayDuration;
 
                   // Universal Badge mapping based on actionType & category
                   const badge = (() => {
@@ -1751,7 +1748,7 @@ function HistoryPage({
                                 style={{
                                   width: isCompleted
                                     ? "100%"
-                                    : `${Math.min(100, Math.max(8, Math.round((displayDuration / totalMediaDuration) * 100)))}%`
+                                    : `${Math.min(100, Math.max(8, Math.round((progressPosition / totalMediaDuration) * 100)))}%`
                                 }}
                               />
                             </div>
@@ -1856,7 +1853,7 @@ function HistoryPage({
                                       style={{
                                         width: isCompleted
                                           ? "100%"
-                                          : `${Math.min(100, Math.max(8, Math.round((displayDuration / totalMediaDuration) * 100)))}%`
+                                          : `${Math.min(100, Math.max(8, Math.round((progressPosition / totalMediaDuration) * 100)))}%`
                                       }}
                                     />
                                   </div>

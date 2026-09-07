@@ -735,10 +735,8 @@ export default function App() {
             : (item.lessonId || targetLesson.id);
 
           const targetTotalDuration = Number(targetLesson.duration) || Number((targetLesson as any).audioDuration) || 0;
+          // Duration must strictly reflect actual spent study time, never scrubber position (lastPosition)
           const calculatedDuration = Math.round(((item.durationSeconds || 0) + (durationSeconds || 0)) * 10) / 10;
-          const finalDuration = (nextStatus === "completed" && targetTotalDuration > 0)
-            ? targetTotalDuration
-            : Math.max(calculatedDuration, lastPosition || 0);
 
           return {
             ...item,
@@ -747,7 +745,7 @@ export default function App() {
             timestamp: now,
             actionType: nextActionType,
             status: nextStatus,
-            durationSeconds: finalDuration,
+            durationSeconds: calculatedDuration,
             duration: targetTotalDuration > 0 ? targetTotalDuration : item.duration,
             lastPosition: lastPosition !== undefined ? lastPosition : item.lastPosition,
             youtubeId: item.youtubeId || (targetLesson as any).youtubeId || null,
@@ -760,9 +758,7 @@ export default function App() {
         });
       } else {
         const targetTotalDuration = Number(targetLesson.duration) || Number((targetLesson as any).audioDuration) || 0;
-        const initialDuration = (actionType === "complete" && targetTotalDuration > 0)
-          ? targetTotalDuration
-          : Math.round((durationSeconds || 0) * 10) / 10;
+        const initialDuration = Math.round((durationSeconds || 0) * 10) / 10;
 
         const generatedId = generateHistoryId({
           durationSeconds: initialDuration,
