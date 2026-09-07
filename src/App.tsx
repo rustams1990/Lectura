@@ -120,6 +120,21 @@ export default function App() {
     isSidebarOpen, setIsSidebarOpen
   } = useUIStore();
   const { t } = useTranslation();
+  const {
+    user: activeUser,
+    serverToken,
+    storageMode,
+    setStorageMode,
+    localSyncKey,
+    setLocalSyncKey,
+    localSyncError,
+    setLocalSyncError,
+    isAuthLoading,
+    isAuthenticated,
+    loginLocalServer,
+    registerLocalServer,
+    logout,
+  } = useAuth();
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showLocalLoginModal, setShowLocalLoginModal] = useState<boolean>(false);
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
@@ -1214,21 +1229,6 @@ export default function App() {
     }, 2500);
     return () => clearTimeout(timer);
   }, []);
-  const {
-    user: activeUser,
-    serverToken,
-    storageMode,
-    setStorageMode,
-    localSyncKey,
-    setLocalSyncKey,
-    localSyncError,
-    setLocalSyncError,
-    isAuthLoading,
-    isAuthenticated,
-    loginLocalServer,
-    registerLocalServer,
-    logout,
-  } = useAuth();
 
   useEffect(() => {
     async function initDb() {
