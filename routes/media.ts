@@ -132,6 +132,96 @@ interface EpubParseResult {
   title: string;
   text: string;
   images?: Record<string, string>;
+  coverUrl?: string;
+}
+
+function extractEpubCover(entries: ZipEntry[], opfXml: string, opfEntryName: string): string | undefined {
+  const resolveCoverEntry = (href: string): ZipEntry | undefined => {
+    if (!href) return undefined;
+    const cleanHref = href.split("#")[0].trim();
+    if (!cleanHref) return undefined;
+    const resolvedPath = resolveOpfHref(opfEntryName, cleanHref);
+    return findZipEntry(entries, resolvedPath) || findZipEntry(entries, cleanHref);
+  };
+
+  const imageBufferToDataUrl = (entry: ZipEntry): string => {
+    const mime = getMimeFromPath(entry.entryName);
+    const base64 = entry.getData().toString("base64");
+    return `data:${mime};base64,${base64}`;
+  };
+
+  // 1. EPUB 3: item with properties="cover-image" in manifest
+  const epub3Match = opfXml.match(/<item\b[^>]*\bproperties\s*=\s*["'][^"']*\bcover-image\b[^"']*["'][^>]*>/i);
+  if (epub3Match) {
+    const href = getTagAttr(epub3Match[0], "href");
+    if (href) {
+      const entry = resolveCoverEntry(href);
+      if (entry) return imageBufferToDataUrl(entry);
+    }
+  }
+
+  // 2. EPUB 2: meta name="cover" content="id" (or meta content="id" name="cover")
+  const metaCoverMatch = opfXml.match(/<meta\b[^>]*\bname\s*=\s*["']cover["'][^>]*\bcontent\s*=\s*["']([^"']+)["'][^>]*>/i) ||
+                        opfXml.match(/<meta\b[^>]*\bcontent\s*=\s*["']([^"']+)["'][^>]*\bname\s*=\s*["']cover["'][^>]*>/i);
+  if (metaCoverMatch) {
+    const coverId = metaCoverMatch[1];
+    const escaped = coverId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const itemRegex = new RegExp(`<item\\b[^>]*\\bid\\s*=\\s*["']${escaped}["'][^>]*>`, "i");
+    const itemMatch = opfXml.match(itemRegex);
+    if (itemMatch) {
+      const href = getTagAttr(itemMatch[0], "href");
+      if (href) {
+        const entry = resolveCoverEntry(href);
+        if (entry) return imageBufferToDataUrl(entry);
+      }
+    }
+    const directEntry = resolveCoverEntry(coverId);
+    if (directEntry) return imageBufferToDataUrl(directEntry);
+  }
+
+  // 3. Guide reference type="cover"
+  const guideCoverMatch = opfXml.match(/<reference\b[^>]*\btype\s*=\s*["']cover["'][^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/i);
+  if (guideCoverMatch) {
+    const href = guideCoverMatch[1];
+    if (/\.(jpe?g|png|webp)$/i.test(href)) {
+      const entry = resolveCoverEntry(href);
+      if (entry) return imageBufferToDataUrl(entry);
+    } else {
+      const pageEntry = resolveCoverEntry(href);
+      if (pageEntry) {
+        const pageHtml = pageEntry.getData().toString("utf-8");
+        const imgMatch = pageHtml.match(/<(?:img|image)\b[^>]*\b(?:src|xlink:href|href)\s*=\s*["']([^"']+)["'][^>]*>/i);
+        if (imgMatch) {
+          const imgSrc = imgMatch[1];
+          const pageDir = pageEntry.entryName.includes("/") ? pageEntry.entryName.substring(0, pageEntry.entryName.lastIndexOf("/")) : "";
+          const resolvedImg = resolveRelativePath(pageDir, safeDecodePath(imgSrc));
+          const entry = findZipEntry(entries, resolvedImg) || findZipEntry(entries, imgSrc);
+          if (entry) return imageBufferToDataUrl(entry);
+        }
+      }
+    }
+  }
+
+  // 4. Manifest item where id or href contains "cover" and is an image
+  const manifestItems = opfXml.match(/<item\b[^>]*\/?>/gi) || [];
+  for (const it of manifestItems) {
+    const mediaType = getTagAttr(it, "media-type");
+    const href = getTagAttr(it, "href");
+    const id = getTagAttr(it, "id");
+    const isImage = (mediaType && mediaType.startsWith("image/")) || /\.(jpe?g|png|webp)$/i.test(href);
+    if (isImage && (/cover/i.test(id) || /cover/i.test(href))) {
+      const entry = resolveCoverEntry(href);
+      if (entry) return imageBufferToDataUrl(entry);
+    }
+  }
+
+  // 5. Fallback: Search all zip entries for cover.(jpg|jpeg|png|webp)
+  const fallbackCover = entries.find((e) => !e.isDirectory && /(?:^|\/)cover[^\/]*\.(jpe?g|png|webp)$/i.test(e.entryName));
+  if (fallbackCover) {
+    return imageBufferToDataUrl(fallbackCover);
+  }
+
+  return undefined;
 }
 
 function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult {
@@ -445,6 +535,13 @@ function parseEpub(epubBuffer: Buffer, includeImages: boolean): EpubParseResult 
       result.images = extractedImages;
       console.log(`[EPUB] Extracted ${Object.keys(extractedImages).length} images from "${title}"`);
     }
+
+    const coverUrl = extractEpubCover(entries, opfXml, opfEntry.entryName);
+    if (coverUrl) {
+      result.coverUrl = coverUrl;
+      console.log(`[EPUB] Extracted cover image for "${title}"`);
+    }
+
     return result;
   } catch (err: any) {
     console.error(`[EPUB] Parsing failed:`, err);
@@ -1905,10 +2002,17 @@ router.post("/media/download", async (req: Request, res: Response) => {
             const speed = match[3] || "";
             const eta = match[4] || "";
             downloadProgressMap.set(lockKey, {
-              percent: !isNaN(pct) ? pct : 50,
+              percent: !isNaN(pct) ? Math.min(99, pct) : 50,
               speed,
               eta,
               status: "downloading"
+            });
+          } else if (text.includes("[Merger]") || text.includes("Merging formats") || text.includes("[ffmpeg]")) {
+            downloadProgressMap.set(lockKey, {
+              percent: 99,
+              speed: "Обработка...",
+              eta: "00:01",
+              status: "merging"
             });
           }
         });

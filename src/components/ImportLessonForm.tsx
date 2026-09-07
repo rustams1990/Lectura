@@ -581,6 +581,45 @@ export default function ImportLessonForm({
         setTitle(data.title || file.name.replace(/\.[^/.]+$/, ""));
         setText(data.text || "");
 
+        if (data.coverUrl) {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement("canvas");
+              const maxWidth = 380;
+              const maxHeight = 560;
+              let width = img.width;
+              let height = img.height;
+              if (width > height) {
+                if (width > maxWidth) {
+                  height = Math.round((height * maxWidth) / width);
+                  width = maxWidth;
+                }
+              } else {
+                if (height > maxHeight) {
+                  width = Math.round((width * maxHeight) / height);
+                  height = maxHeight;
+                }
+              }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, width, height);
+                setCoverUrl(canvas.toDataURL("image/jpeg", 0.82));
+              } else {
+                setCoverUrl(data.coverUrl);
+              }
+            } catch (_) {
+              setCoverUrl(data.coverUrl);
+            }
+          };
+          img.onerror = () => {
+            setCoverUrl(data.coverUrl);
+          };
+          img.src = data.coverUrl;
+        }
+
         // Server returns Record<string, string> (flat dataUrl map), but pendingImages expects {dataUrl, width, height}
         if (data.images && typeof data.images === "object") {
           const normalized: Record<string, { dataUrl: string; width: string; height: string }> = {};

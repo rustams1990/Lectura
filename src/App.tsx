@@ -961,6 +961,9 @@ export default function App() {
       readerSettingsRef.current = next;
       useSettingsStore.getState().setSettings(next);
       safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(next));
+      if (next.readerLayoutWidth) {
+        safeLocalStorageSetItem("lectura_reader_layout_width", next.readerLayoutWidth);
+      }
       settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
       try {
         const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
@@ -3538,7 +3541,7 @@ export default function App() {
         isFocusMode={isFocusMode || isImmersiveBook}
         activeTab={activeTab}
         readerSettings={readerSettings}
-        onUpdateReaderSettings={setReaderSettings}
+        onUpdateReaderSettings={updateSettingsAndSync}
         currentReaderTheme={currentReaderTheme}
         layoutContainerClass={layoutContainerClass}
         setIsSidebarOpen={setIsSidebarOpen}

@@ -5,6 +5,15 @@ import { ReaderSettings, Lesson, WordCardMode, DEFAULT_READER_SETTINGS } from '.
  */
 export function isBookLesson(lesson?: Partial<Lesson> | null): boolean {
   if (!lesson) return false;
+  if (
+    lesson.lessonType === "article" ||
+    lesson.lessonType === "website" ||
+    lesson.lessonType === "news" ||
+    lesson.sourceType === "article" ||
+    lesson.sourceType === "website"
+  ) {
+    return false;
+  }
   return (
     lesson.lessonType === "book" ||
     lesson.sourceType === "book" ||

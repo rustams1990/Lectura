@@ -1001,6 +1001,8 @@
     "yt_source_local": "Local Video",
     "yt_source_youtube": "YouTube Stream",
     "yt_download_tooltip": "Download video to server for offline playback",
+    "yt_eta": "Remaining",
+    "yt_downloading": "Downloading...",
     "from_word": "from",
     "sentence_spacing": "Sentence Spacing",
     "auto_punct_split": "Sentence Split (., ?, !)",

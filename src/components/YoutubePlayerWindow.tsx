@@ -805,15 +805,36 @@ export default function YoutubePlayerWindow({
 
           {/* Quick download button if not yet downloaded and not blocked */}
           {!isMinimized && !localMediaUrl && !isEmbedBlocked && (
-            <button
-              type="button"
-              disabled={isDownloading}
-              onClick={() => handleDownloadMedia(false)}
-              className="p-1 rounded-md text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
-              title={t('explainer.yt_download_tooltip', 'Скачать видео на сервер для офлайн-просмотра')}
-            >
-              {isDownloading ? <Loader2 className="w-3 h-3 animate-spin text-teal-500" /> : <Download className="w-3 h-3" />}
-            </button>
+            isDownloading ? (
+              <div
+                className="relative flex items-center px-2 py-0.5 rounded-md bg-teal-500/10 dark:bg-teal-950/40 border border-teal-500/30 text-teal-600 dark:text-teal-400 text-[10px] font-bold select-none overflow-hidden cursor-wait"
+                title={`${downloadProgress.percent}% • ${downloadProgress.eta ? `${t('explainer.yt_eta', 'Осталось')}: ${downloadProgress.eta}` : t('explainer.yt_downloading', 'Загрузка...')} ${downloadProgress.speed ? `(${downloadProgress.speed})` : ''}`}
+              >
+                <div className="flex items-center gap-1.5 z-10">
+                  <Loader2 className="w-3 h-3 animate-spin text-teal-500 shrink-0" />
+                  <span className="font-mono font-bold leading-none">{downloadProgress.percent}%</span>
+                  {downloadProgress.eta && (
+                    <span className="text-zinc-500 dark:text-zinc-400 font-mono text-[9px] leading-none">
+                      · {downloadProgress.eta}
+                    </span>
+                  )}
+                </div>
+                {/* Background progress fill */}
+                <div
+                  className="absolute left-0 bottom-0 top-0 bg-teal-500/20 dark:bg-teal-500/25 transition-all duration-300 pointer-events-none"
+                  style={{ width: `${Math.max(2, Math.min(100, downloadProgress.percent))}%` }}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDownloadMedia(false)}
+                className="p-1 rounded-md text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                title={t('explainer.yt_download_tooltip', 'Скачать видео на сервер для офлайн-просмотра')}
+              >
+                <Download className="w-3 h-3" />
+              </button>
+            )
           )}
 
           {/* Presets */}

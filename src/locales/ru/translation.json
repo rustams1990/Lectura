@@ -1001,6 +1001,8 @@
     "yt_source_local": "Локальное видео",
     "yt_source_youtube": "YouTube онлайн",
     "yt_download_tooltip": "Скачать видео на сервер для офлайн-просмотра",
+    "yt_eta": "Осталось",
+    "yt_downloading": "Загрузка...",
     "from_word": "от",
     "sentence_spacing": "Интервал предложений",
     "auto_punct_split": "Разбивать по предложениям (., ?, !)",

@@ -138,6 +138,9 @@ export default function ReaderScreen({
 
   const handleSetReaderLayoutWidth = (mode: "standard" | "wide" | "full") => {
     setReaderTextWidth(mode);
+    try {
+      localStorage.setItem("lectura_reader_layout_width", mode);
+    } catch (_) {}
     if (setReaderSettings) {
       setReaderSettings((prev) => ({ ...prev, readerLayoutWidth: mode }));
     }

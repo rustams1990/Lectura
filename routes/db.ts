@@ -384,7 +384,13 @@ export function getLocalServerDb(userId: string = "default") {
         durationSeconds: l.durationSeconds ?? l.duration ?? null,
         youtubeDuration: l.youtubeDuration ?? l.duration ?? null,
         audioDuration: l.audioDuration ?? null,
-        sourceType: l.sourceType ?? (l.lessonType === "youtube" ? "youtube" : l.lessonType === "podcast" ? "podcast" : "book"),
+        sourceType: l.sourceType || (
+          l.lessonType === "youtube" ? "youtube" :
+          (l.lessonType === "podcast" || l.lessonType === "audio") ? "podcast" :
+          (l.lessonType === "article" || l.lessonType === "website" || l.lessonType === "news") ? "article" :
+          (l.lessonType === "book" || l.epub || l.pdf) ? "book" :
+          (l.lessonType || "article")
+        ),
         wordCount: l.wordCount ?? null,
       };
     });
@@ -584,8 +590,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, channelUrl, playlistId, images, audioProgress
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, channelUrl, playlistId, images, audioProgress, sourceType
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertPlaylist = db.prepare(`
@@ -769,7 +775,14 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           l.channelUrl || null,
           l.playlistId || null,
           l.images ? (typeof l.images === "string" ? l.images : JSON.stringify(l.images)) : null,
-          l.audioProgress !== undefined ? Math.floor(Number(l.audioProgress) || 0) : (existingLesson?.audioProgress || 0)
+          l.audioProgress !== undefined ? Math.floor(Number(l.audioProgress) || 0) : (existingLesson?.audioProgress || 0),
+          l.sourceType || (
+            l.lessonType === "youtube" ? "youtube" :
+            (l.lessonType === "podcast" || l.lessonType === "audio") ? "podcast" :
+            (l.lessonType === "article" || l.lessonType === "website" || l.lessonType === "news") ? "article" :
+            (l.lessonType === "book" || l.epub || l.pdf) ? "book" :
+            (l.lessonType || "article")
+          )
         );
       }
 
@@ -2510,8 +2523,8 @@ router.post("/lessons", (req: Request, res: Response) => {
       db.prepare(`
         INSERT INTO lessons (
           id, user_id, title, text, audioUrl, targetLanguage, translationLanguage,
-          isBuiltIn, isArchived, coverUrl, lessonType, pinned, createdAt, channelTitle, channelUrl
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, ?, ?, ?)
+          isBuiltIn, isArchived, coverUrl, lessonType, pinned, createdAt, channelTitle, channelUrl, sourceType
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
           text = excluded.text,
@@ -2520,7 +2533,8 @@ router.post("/lessons", (req: Request, res: Response) => {
           translationLanguage = excluded.translationLanguage,
           coverUrl = COALESCE(excluded.coverUrl, lessons.coverUrl),
           channelTitle = COALESCE(excluded.channelTitle, lessons.channelTitle),
-          channelUrl = COALESCE(excluded.channelUrl, lessons.channelUrl)
+          channelUrl = COALESCE(excluded.channelUrl, lessons.channelUrl),
+          sourceType = COALESCE(excluded.sourceType, lessons.sourceType)
       `).run(
         lessonId,
         userId,
@@ -2533,7 +2547,8 @@ router.post("/lessons", (req: Request, res: Response) => {
         type,
         now,
         author || channelTitle || null,
-        sourceUrl || null
+        sourceUrl || null,
+        type
       );
 
       // 2. Add initial reading history item
