@@ -755,6 +755,81 @@ function sanitizeImageUrl(rawUrl: string | null | undefined, baseUrl: string): s
   }
 }
 
+/**
+ * Resolve an img src to an absolute URL.
+ * Handles relative paths, srcset, and lazy-load data-src.
+ */
+function resolveImgSrc(el: Element, baseUrl: string): string | null {
+  // ── 1. Collect all candidate URL attributes in priority order ──────────────
+  // data-src / data-original / data-lazy-src come BEFORE src because sites like BBC
+  // put a transparent base64 placeholder in src= and the real URL in data-src=
+  const rawCandidates: string[] = [];
+
+  // Lazy-load attributes (highest priority)
+  for (const attr of ["data-src", "data-original", "data-lazy-src", "data-lazy", "data-url", "data-image-src"]) {
+    const v = el.getAttribute(attr);
+    if (v) rawCandidates.push(v);
+  }
+
+  // ── 2. srcset / data-srcset: pick entry with the largest width descriptor ──
+  // BBC uses srcset="url1 240w, url2 480w, url3 960w" — we want the last (largest)
+  for (const attr of ["data-srcset", "srcset"]) {
+    const srcset = el.getAttribute(attr);
+    if (!srcset) continue;
+    const entries = srcset
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => {
+        const parts = s.split(/\s+/);
+        const url = parts[0];
+        const desc = parts[1] || "";
+        const wMatch = desc.match(/^(\d+)w$/i);
+        const xMatch = desc.match(/^([\d.]+)x$/i);
+        const weight = wMatch ? parseInt(wMatch[1], 10) : xMatch ? parseFloat(xMatch[1]) * 1000 : 0;
+        return { url, weight };
+      })
+      .filter((e) => !!e.url);
+    if (entries.length === 0) continue;
+    entries.sort((a, b) => b.weight - a.weight);
+    rawCandidates.push(entries[0].url);
+  }
+
+  // ── 3. Also check <picture><source> siblings for srcset ───────────────────
+  const picture = el.parentElement;
+  if (picture && picture.tagName.toLowerCase() === "picture") {
+    const sources = Array.from(picture.querySelectorAll("source"));
+    for (const source of sources) {
+      const srcset = source.getAttribute("srcset") || source.getAttribute("data-srcset");
+      if (srcset) {
+        const entries = srcset
+          .split(",")
+          .map((s) => s.trim().split(/\s+/)[0])
+          .filter(Boolean);
+        if (entries.length > 0) rawCandidates.push(entries[entries.length - 1]);
+      }
+    }
+  }
+
+  // ── 4. Plain src last (lowest priority — often a placeholder on lazy sites) ─
+  const plainSrc = el.getAttribute("src");
+  if (plainSrc) rawCandidates.push(plainSrc);
+
+  // ── 5. Resolve and validate each candidate ────────────────────────────────
+  const JUNK_RE = /^data:|1x1|tracking|pixel|spinner|spacer|blank\.gif|placeholder|transparent|\.svg(\?|$)/i;
+  for (const raw of rawCandidates) {
+    if (!raw || raw.trim().length < 6) continue;
+    if (JUNK_RE.test(raw.trim())) continue;
+    try {
+      const resolved = new URL(raw.trim(), baseUrl).href;
+      if (/^https?:\/\//i.test(resolved)) return resolved;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
   const dom = new JSDOM(rawHtml, { url: baseUrl });
   const doc = dom.window.document;
@@ -824,7 +899,14 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
   const imageContainers = doc.querySelectorAll('figure, picture, [data-component="image-block"], .article__image, .lead-image, .image-container, [class*="image-block"], [class*="figure"], img');
   
   imageContainers.forEach(container => {
-    if (container.tagName === 'IMG' && container.closest('figure, picture')) return;
+    if (!container.parentNode) return;
+
+    // Avoid double processing child elements if their outer container was already selected
+    if (container.tagName === 'IMG') {
+      if (container.closest('figure, picture, [data-component="image-block"]')) return;
+    } else {
+      if (container.parentElement?.closest('figure, picture, [data-component="image-block"]')) return;
+    }
 
     let bestUrl: string | null = null;
 
@@ -842,36 +924,54 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
       }
     }
 
-    // img attributes
+    // img attributes (inspect all <img> tags inside container, not just the first one)
     if (!bestUrl) {
-      const imgNode = container.tagName === 'IMG' ? (container as HTMLImageElement) : container.querySelector('img');
-      if (imgNode) {
-        const raw = imgNode.getAttribute('data-src') ||
-                    imgNode.getAttribute('data-original') ||
-                    imgNode.getAttribute('data-lazy-src') ||
-                    imgNode.getAttribute('srcset') ||
-                    imgNode.getAttribute('src');
-        if (raw) {
-          const parts = raw.split(',').map(s => s.trim().split(/\s+/)[0]);
-          const valid = parts.map(p => sanitizeImageUrl(p, baseUrl)).filter(Boolean) as string[];
-          if (valid.length > 0) bestUrl = valid[valid.length - 1];
+      const imgs = container.tagName === 'IMG'
+        ? [container as HTMLImageElement]
+        : Array.from(container.querySelectorAll('img'));
+
+      for (const imgNode of imgs) {
+        const candidate = resolveImgSrc(imgNode, baseUrl);
+        if (candidate) {
+          bestUrl = candidate;
+          break;
         }
       }
     }
+
+    const figcap = container.querySelector('figcaption, [class*="caption" i], [data-testid*="caption"], .caption');
+    const creditEl = container.querySelector('[class*="credit" i], [data-testid*="credit"], .credit');
+    let captionText = figcap?.textContent?.replace(/^image caption[:,]?\s*/i, '').trim() || '';
+    const creditText = creditEl && (!figcap || !figcap.contains(creditEl)) ? creditEl.textContent?.trim() || '' : '';
+
+    if (!captionText && container.tagName === 'IMG') {
+      const alt = container.getAttribute('alt')?.trim();
+      if (alt && alt.length > 5 && !alt.toLowerCase().includes('image unavailable') && !alt.toLowerCase().includes('placeholder')) {
+        captionText = alt;
+      }
+    }
+
+    if (creditText && !captionText.includes(creditText)) {
+      captionText = captionText ? `${captionText} (${creditText})` : creditText;
+    }
+    if (captionText && captionText.length > 300) captionText = captionText.slice(0, 300);
 
     if (bestUrl) {
       const pImg = doc.createElement('p');
       pImg.textContent = `[IMG:${bestUrl}]`;
       container.parentNode?.insertBefore(pImg, container);
 
-      const caption = container.querySelector('figcaption, .caption, .credit')?.textContent?.replace(/^image caption[:,]?\s*/i, '').trim();
-      if (caption) {
+      if (captionText) {
         const pCap = doc.createElement('p');
-        pCap.textContent = `[CAPTION:${caption}]`;
+        pCap.textContent = `[CAPTION:${captionText}]`;
         container.parentNode?.insertBefore(pCap, container);
       }
+      container.remove();
+    } else {
+      if (['FIGURE', 'PICTURE', 'IMG'].includes(container.tagName)) {
+        container.remove();
+      }
     }
-    container.remove();
   });
 
   // 4. Запуск Mozilla Readability
@@ -887,7 +987,7 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
   let finalText = '';
 
   // 5. Конвертируем контент в чистые абзацы
-  if (parsed && parsed.content && wordCount > 250) {
+  if (parsed && parsed.content && wordCount >= 50) {
     const contentDoc = new JSDOM(`<body>${parsed.content}</body>`).window.document;
     const blocks: string[] = [];
 
@@ -964,112 +1064,35 @@ export function cleanAndFormatArticle(rawHtml: string, baseUrl: string) {
 }
 
 /**
- * Resolve an img src to an absolute URL.
- * Handles relative paths, srcset, and lazy-load data-src.
- */
-function resolveImgSrc(el: Element, baseUrl: string): string | null {
-  // ── 1. Collect all candidate URL attributes in priority order ──────────────
-  // data-src / data-original / data-lazy-src come BEFORE src because sites like BBC
-  // put a transparent base64 placeholder in src= and the real URL in data-src=
-  const rawCandidates: string[] = [];
-
-  // Lazy-load attributes (highest priority)
-  for (const attr of ["data-src", "data-original", "data-lazy-src", "data-lazy", "data-url", "data-image-src"]) {
-    const v = el.getAttribute(attr);
-    if (v) rawCandidates.push(v);
-  }
-
-  // ── 2. srcset / data-srcset: pick entry with the largest width descriptor ──
-  // BBC uses srcset="url1 240w, url2 480w, url3 960w" — we want the last (largest)
-  for (const attr of ["data-srcset", "srcset"]) {
-    const srcset = el.getAttribute(attr);
-    if (!srcset) continue;
-    // Parse "url 240w, url 480w" or "url 1x, url 2x"
-    const entries = srcset
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((s) => {
-        const parts = s.split(/\s+/);
-        const url = parts[0];
-        // Parse width descriptor (e.g. "960w") or density (e.g. "2x")
-        const desc = parts[1] || "";
-        const wMatch = desc.match(/^(\d+)w$/i);
-        const xMatch = desc.match(/^([\d.]+)x$/i);
-        const weight = wMatch ? parseInt(wMatch[1], 10) : xMatch ? parseFloat(xMatch[1]) * 1000 : 0;
-        return { url, weight };
-      })
-      .filter((e) => !!e.url);
-    if (entries.length === 0) continue;
-    // Pick highest-weight (largest) entry
-    entries.sort((a, b) => b.weight - a.weight);
-    rawCandidates.push(entries[0].url);
-  }
-
-  // ── 3. Also check <picture><source> siblings for srcset ───────────────────
-  const picture = el.parentElement;
-  if (picture && picture.tagName.toLowerCase() === "picture") {
-    const sources = Array.from(picture.querySelectorAll("source"));
-    for (const source of sources) {
-      const srcset = source.getAttribute("srcset") || source.getAttribute("data-srcset");
-      if (srcset) {
-        const entries = srcset
-          .split(",")
-          .map((s) => s.trim().split(/\s+/)[0])
-          .filter(Boolean);
-        if (entries.length > 0) rawCandidates.push(entries[entries.length - 1]);
-      }
-    }
-  }
-
-  // ── 4. Plain src last (lowest priority — often a placeholder on lazy sites) ─
-  const plainSrc = el.getAttribute("src");
-  if (plainSrc) rawCandidates.push(plainSrc);
-
-  // ── 5. Resolve and validate each candidate ────────────────────────────────
-  const JUNK_RE = /^data:|1x1|tracking|pixel|spinner|spacer|blank\.gif|placeholder|transparent|\.svg(\?|$)/i;
-  for (const raw of rawCandidates) {
-    if (!raw || raw.trim().length < 6) continue;
-    if (JUNK_RE.test(raw.trim())) continue;
-    try {
-      const resolved = new URL(raw.trim(), baseUrl).href;
-      // Must be a proper http(s) URL pointing to something image-like OR a CDN path
-      if (/^https?:\/\//i.test(resolved)) return resolved;
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-/**
  * Обработка блока с картинкой и подписью (<figure>):
  * Извлекает URL картинки и подпись/автора, формируя:
  * \n\n[IMG:url]\n\n[CAPTION:text]\n\n
  */
 function processFigureElement(figure: Element, baseUrl: string): string {
   // 1. Ищем URL картинки
-  const img = figure.querySelector('img');
-  const source = figure.querySelector('source');
-  
-  let rawSrc = img?.getAttribute('data-src') || 
-               img?.getAttribute('src') || 
-               source?.getAttribute('srcset') || 
-               img?.getAttribute('srcset');
-
-  if (rawSrc) {
-    const parts = rawSrc.split(',').map(s => s.trim().split(' ')[0]);
-    rawSrc = parts[parts.length - 1];
-  }
-
+  const sources = Array.from(figure.querySelectorAll('source'));
   let fullImageUrl: string | null = null;
-  if (img) {
-    fullImageUrl = resolveImgSrc(img, baseUrl);
+  for (const src of sources) {
+    const srcset = src.getAttribute('srcset') || src.getAttribute('data-srcset');
+    if (srcset) {
+      const parts = srcset.split(',').map((s) => s.trim().split(/\s+/)[0]);
+      const valid = parts.map((p) => sanitizeImageUrl(p, baseUrl)).filter(Boolean) as string[];
+      if (valid.length > 0) {
+        fullImageUrl = valid[valid.length - 1];
+        break;
+      }
+    }
   }
-  if (!fullImageUrl && rawSrc && !rawSrc.startsWith('data:image')) {
-    try {
-      fullImageUrl = new URL(rawSrc, baseUrl).href;
-    } catch {}
+
+  if (!fullImageUrl) {
+    const imgs = Array.from(figure.querySelectorAll('img'));
+    for (const img of imgs) {
+      const candidate = resolveImgSrc(img, baseUrl);
+      if (candidate) {
+        fullImageUrl = candidate;
+        break;
+      }
+    }
   }
 
   if (!fullImageUrl) {
@@ -1078,7 +1101,7 @@ function processFigureElement(figure: Element, baseUrl: string): string {
 
   let result = `\n\n[IMG:${fullImageUrl}]\n\n`;
 
-  const figcaption = figure.querySelector('figcaption');
+  const figcaption = figure.querySelector('figcaption, [class*="caption" i], [data-testid*="caption"], .caption');
   let rawCap = figcaption ? (figcaption.textContent || '').trim().replace(/\s+/g, ' ') : '';
   let captionText = rawCap.replace(/^image caption[:,]?\s*/i, '').trim();
 
