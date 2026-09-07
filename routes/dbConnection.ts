@@ -824,59 +824,23 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
     const uid = primaryUser.id;
     const email = primaryUser.email;
 
-    // Check if the ONE-TIME forced migration has already been done
-    const migrationDone = (db.prepare(
-      "SELECT value FROM metadata WHERE user_id = '__system__' AND key = 'initial_user_migration_done'"
-    ).get() as any)?.value === "1";
-
-    const primaryWordCount = (db.prepare("SELECT COUNT(*) as c FROM words WHERE user_id = ?").get(uid) as any)?.c || 0;
-    const totalWords = (db.prepare("SELECT COUNT(*) as c FROM words").get() as any)?.c || 0;
-
-    if (!migrationDone || (primaryWordCount === 0 && totalWords > 50)) {
-      // ── ONE-TIME MIGRATION / RESTORE MAIN USER ──────────────────────────────
-      // Assign ALL existing data to the primary user
-      console.log(`[AutoAssign] Assigning main library → "${email}" (${uid})`);
-
-      db.transaction(() => {
-        const [lN, wN, hN, mN, liN, pN] = [
-          db.prepare("UPDATE OR IGNORE lessons SET user_id = ?").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE words SET user_id = ?").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE reading_history SET user_id = ?").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE word_links SET user_id = ?").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id != '__system__'").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE playlists SET user_id = ?").run(uid).changes,
-        ];
-
-        // Mark migration complete
-        db.prepare(
-          "INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES ('__system__', 'initial_user_migration_done', '1')"
-        ).run();
-
-        console.log(
-          `[AutoAssign] ✅ Main library assigned: ${lN} lessons, ${wN} words, ` +
-          `${hN} history, ${pN} playlists → "${email}" (${uid})`
-        );
-      })();
-
+    // Only assign truly orphaned records whose user_id does not belong to ANY registered user
+    const orphaned = db.transaction(() => {
+      const [lN, wN, hN, mN, liN, pN] = [
+        db.prepare("UPDATE OR IGNORE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE OR IGNORE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE OR IGNORE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE OR IGNORE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+        db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users) AND user_id != '__system__'").run(uid).changes,
+        db.prepare("UPDATE OR IGNORE playlists SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
+      ];
+      return lN + wN + pN;
+    });
+    const changed = orphaned();
+    if (changed > 0) {
+      console.log(`[AutoAssign] Assigned ${changed} orphaned records → "${email}" (${uid})`);
     } else {
-      // ── SUBSEQUENT RUNS: only assign truly orphaned records ─────────────────
-      const orphaned = db.transaction(() => {
-        const [lN, wN, hN, mN, liN, pN] = [
-          db.prepare("UPDATE OR IGNORE lessons SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE words SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE reading_history SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE word_links SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users) AND user_id != '__system__'").run(uid).changes,
-          db.prepare("UPDATE OR IGNORE playlists SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
-        ];
-        return lN + wN + pN;
-      });
-      const changed = orphaned();
-      if (changed > 0) {
-        console.log(`[AutoAssign] Assigned ${changed} orphaned records → "${email}" (${uid})`);
-      } else {
-        console.log("[AutoAssign] All records properly assigned. Nothing to fix.");
-      }
+      console.log("[AutoAssign] All records properly assigned. Nothing to fix.");
     }
   } catch (e) {
     console.error("[AutoAssign] Failed:", e);
