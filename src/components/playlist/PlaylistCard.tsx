@@ -4,6 +4,7 @@ import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRest
 import { useTranslation } from "react-i18next";
 import { FLAG_EMOJI_TO_CODE } from "../../utils";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
+import { getItemEffectiveDuration } from "../../utils/durationUtils";
 
 export function renderCircularFlag(flagEmoji: string) {
   const code = FLAG_EMOJI_TO_CODE[flagEmoji];
@@ -108,7 +109,13 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   const localizedLang = getLocalizedLanguageName(playlist.language, i18n.language);
 
   // Total duration calculation
-  const totalSeconds = items.reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
+  const totalSeconds = useMemo(() => {
+    return items.reduce((acc, item) => {
+      const lesson = (item.lessonId ? lessons.find((l) => l.id === item.lessonId) : undefined) ||
+                     (item.videoId ? lessons.find((l) => l.youtubeId === item.videoId) : undefined);
+      return acc + getItemEffectiveDuration(item, lesson);
+    }, 0);
+  }, [items, lessons]);
 
   // Calculate completed count
   const completedCount = useMemo(() => {
@@ -183,29 +190,13 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
       )}
 
       {/* Playlist Stacked Cover Banner */}
-      <div className="relative aspect-video bg-zinc-950 p-4 text-white flex flex-col justify-between overflow-hidden">
-        {/* Blurred background */}
-        {playlist.thumbnailUrl && (
-          <img
-            src={playlist.thumbnailUrl}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover blur-md opacity-40 scale-110 select-none pointer-events-none"
-            onError={(e) => {
-              const target = e.currentTarget;
-              if (target.src.includes("/maxresdefault.jpg")) {
-                target.src = target.src.replace("/maxresdefault.jpg", "/hqdefault.jpg");
-              }
-            }}
-          />
-        )}
-
+      <div className="relative aspect-video bg-zinc-950 p-3 text-white flex flex-col justify-between overflow-hidden">
         {/* Crisp cover image */}
         {playlist.thumbnailUrl ? (
           <img
             src={playlist.thumbnailUrl}
             alt=""
-            className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none drop-shadow-md"
+            className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none transition-transform duration-300 group-hover:scale-105"
             onError={(e) => {
               const target = e.currentTarget;
               if (target.src.includes("/maxresdefault.jpg")) {
@@ -219,41 +210,37 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
           </div>
         )}
 
-        {/* Gradient shadow for text contrast */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/20 z-[1] pointer-events-none" />
-
-        {/* Right side playlist stack side-bar graphic (YouTube style right overlay) */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-black/40 backdrop-blur-xs flex flex-col items-center justify-center gap-1 z-[2] border-l border-white/10 pointer-events-none">
-          <ListVideo className="w-6 h-6 text-white/90" />
-          <span className="text-[11px] font-black text-white/90 uppercase tracking-wider font-mono">
-            {itemCount}
-          </span>
-          <span className="text-[9px] font-bold text-white/70 uppercase">
-            {t("playlist.videos", "videos")}
-          </span>
-        </div>
+        {/* Optional dim overlay only if dimBookCovers setting is enabled */}
+        {settings?.dimBookCovers && (
+          <div className="absolute inset-0 bg-black/40 z-[1] pointer-events-none" />
+        )}
 
         {/* Top line: Language Pill & Badges */}
         <div className="flex items-center justify-between z-10 w-full">
           <div className="flex items-center gap-1.5">
-            <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/50 backdrop-blur-md pl-1.5 pr-2.5 py-1 rounded-full border border-white/10">
+            <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/60 backdrop-blur-md pl-1.5 pr-2.5 py-1 rounded-full border border-white/10 text-white shadow-xs">
               {renderCircularFlag(flag)}
               <span className="truncate max-w-[90px]">{localizedLang}</span>
             </span>
             {playlist.isArchived && (
-              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-amber-500/90 backdrop-blur-md text-white rounded">
+              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-amber-500/90 backdrop-blur-md text-white rounded shadow-xs">
                 {t("common.archived", "Archived")}
               </span>
             )}
           </div>
         </div>
 
-        {/* Bottom line in cover */}
-        <div className="z-10 mt-auto pr-[35%]">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-teal-500/80 backdrop-blur-md text-white rounded-md">
+        {/* Bottom line in cover: Type Badge (left) & Videos Count Badge (right) */}
+        <div className="z-10 mt-auto flex items-center justify-between w-full">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-teal-600/95 backdrop-blur-md text-white rounded-md shadow-xs">
             <ListVideo className="w-2.5 h-2.5" />
             {playlist.sourceType === "youtube_playlist" ? "YouTube Playlist" : t("playlist.collection", "Collection")}
           </span>
+
+          <div className="px-2 py-0.5 bg-black/75 backdrop-blur-md rounded-md text-white font-mono text-[10px] font-bold flex items-center gap-1 border border-white/10 shadow-xs">
+            <ListVideo className="w-3 h-3 text-white/90" />
+            <span>{itemCount}</span>
+          </div>
         </div>
       </div>
 

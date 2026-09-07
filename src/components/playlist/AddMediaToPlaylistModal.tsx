@@ -4,6 +4,7 @@ import { X, Youtube, BookOpen, Plus, Search, Check, Loader2, Sparkles } from "lu
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
 import { resolveApiUrl } from "../../utils/apiConfig";
+import { getLessonEffectiveDuration } from "../../utils/durationUtils";
 
 interface AddMediaToPlaylistModalProps {
   isOpen: boolean;
@@ -155,13 +156,14 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
       );
       showToast(t("playlist.removed_from_playlist", "Removed from playlist"), "info");
     } else {
+      const effectiveDuration = getLessonEffectiveDuration(lesson);
       const newItem: PlaylistItem = {
         id: `item_${lesson.id}_${Date.now()}`,
         lessonId: lesson.id,
         title: lesson.title,
         videoId: lesson.youtubeId || null,
-        durationSeconds: lesson.youtubeDuration || 0,
-        thumbnailUrl: lesson.coverUrl || "",
+        durationSeconds: effectiveDuration || lesson.youtubeDuration || 0,
+        thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
         transcriptLoaded: !!(lesson.text && lesson.text.length > 20),
       };
       updatedItems = [...items, newItem];

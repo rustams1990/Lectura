@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Playlist, PlaylistItem, Lesson } from "../../types";
 import { X, ListVideo, Plus, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
 import { renderCircularFlag, getLanguageFlagEmoji } from "./PlaylistCard";
+import { getLessonEffectiveDuration } from "../../utils/durationUtils";
+import { formatDuration } from "./PlaylistDetailView";
 
 interface AddToPlaylistModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface AddToPlaylistModalProps {
   playlists: Playlist[];
   languageFlags?: Record<string, string>;
   onUpdatePlaylist: (updated: Playlist) => void;
+  onAddPlaylist?: (newPlaylist: Playlist) => void;
   onAddOrUpdateLesson?: (lesson: Lesson) => void;
 }
 
@@ -22,12 +25,80 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   playlists = [],
   languageFlags = {},
   onUpdatePlaylist,
+  onAddPlaylist,
   onAddOrUpdateLesson,
 }) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
 
+  const [isCreating, setIsCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsCreating(false);
+      setNewTitle("");
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isCreating) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isCreating]);
+
   if (!isOpen) return null;
+
+  const handleCreatePlaylist = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmedTitle = newTitle.trim();
+    if (!trimmedTitle) return;
+
+    const newPlaylistId = `pl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const effectiveDuration = getLessonEffectiveDuration(lesson);
+    const newItem: PlaylistItem = {
+      id: `item_${lesson.id}_${Date.now()}`,
+      lessonId: lesson.id,
+      title: lesson.title,
+      videoId: lesson.youtubeId || null,
+      durationSeconds: effectiveDuration,
+      thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
+      transcriptLoaded: !!(lesson.text && lesson.text.length > 20),
+    };
+
+    const newPlaylist: Playlist = {
+      id: newPlaylistId,
+      title: trimmedTitle,
+      thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
+      sourceType: "custom_collection",
+      itemCount: 1,
+      language: (lesson.targetLanguage || "en").toLowerCase(),
+      items: [newItem],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (typeof onAddPlaylist === "function") {
+      onAddPlaylist(newPlaylist);
+    } else {
+      onUpdatePlaylist(newPlaylist);
+    }
+
+    if (typeof onAddOrUpdateLesson === "function") {
+      onAddOrUpdateLesson({
+        ...lesson,
+        playlistId: newPlaylistId,
+      });
+    }
+
+    showToast(t("playlist.created_and_added", "Playlist created and video added!"), "success");
+    setIsCreating(false);
+    setNewTitle("");
+  };
 
   const handleSelectPlaylist = (playlist: Playlist) => {
     const isAlreadyIn = playlist.items?.some(
@@ -43,13 +114,14 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
       showToast(t("playlist.removed_from_playlist", "Removed from playlist"), "info");
     } else {
       // Add to playlist
+      const effectiveDuration = getLessonEffectiveDuration(lesson);
       const newItem: PlaylistItem = {
         id: `item_${lesson.id}_${Date.now()}`,
         lessonId: lesson.id,
         title: lesson.title,
         videoId: lesson.youtubeId || null,
-        durationSeconds: lesson.youtubeDuration || 0,
-        thumbnailUrl: lesson.coverUrl || "",
+        durationSeconds: effectiveDuration,
+        thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
         transcriptLoaded: !!(lesson.text && lesson.text.length > 20),
       };
       updatedItems = [...(playlist.items || []), newItem];
@@ -166,10 +238,88 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
               );
             })
           )}
+
+          {/* New Playlist Form / Button (positioned directly below playlist items) */}
+          {isCreating ? (
+            <form
+              onSubmit={handleCreatePlaylist}
+              className="p-3.5 rounded-2xl border border-teal-500/40 bg-teal-50/40 dark:bg-teal-950/30 space-y-2.5 animate-in fade-in zoom-in-98 duration-150"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                  {t("playlist.new_playlist", "New playlist")}
+                </span>
+              </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setIsCreating(false);
+                    setNewTitle("");
+                  }
+                }}
+                placeholder={t("playlist.enter_playlist_title", "Playlist title...")}
+                className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden focus:ring-2 focus:ring-teal-500/50"
+              />
+              <div className="flex items-center justify-end gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreating(false);
+                    setNewTitle("");
+                  }}
+                  className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 font-semibold rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  {t("playlist.cancel", "Cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newTitle.trim()}
+                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg shadow-xs transition-all cursor-pointer"
+                >
+                  {t("playlist.create", "Create")}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setIsCreating(true);
+                setNewTitle("");
+              }}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700/80 hover:border-teal-500/60 dark:hover:border-teal-400/60 bg-zinc-50/40 hover:bg-teal-50/40 dark:bg-zinc-800/20 dark:hover:bg-teal-950/20 text-zinc-600 dark:text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 transition-all cursor-pointer group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 group-hover:bg-teal-100 dark:group-hover:bg-teal-900/40 flex items-center justify-center transition-colors">
+                <Plus className="w-4 h-4" />
+              </div>
+              <span className="font-bold text-xs">{t("playlist.new_playlist", "New playlist")}</span>
+            </button>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 flex justify-end">
+        <div className="px-5 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 flex items-center justify-between">
+          {!isCreating ? (
+            <button
+              type="button"
+              onClick={() => {
+                setIsCreating(true);
+                setNewTitle("");
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-xl transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{t("playlist.new_playlist", "New playlist")}</span>
+            </button>
+          ) : (
+            <div />
+          )}
           <button
             type="button"
             onClick={onClose}

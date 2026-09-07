@@ -1729,6 +1729,12 @@
     "completed_short": "completed",
     "completed_label": "Completed:",
     "open_playlist_btn": "Open Playlist",
-    "continue_btn": "Continue"
+    "continue_btn": "Continue",
+    "new_playlist": "New playlist",
+    "create_playlist": "Create playlist",
+    "enter_playlist_title": "Playlist title...",
+    "created_and_added": "Playlist created and video added!",
+    "cancel": "Cancel",
+    "create": "Create"
   }
 }

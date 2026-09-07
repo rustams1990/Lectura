@@ -1729,6 +1729,12 @@
     "completed_short": "завершено",
     "completed_label": "Завершено:",
     "open_playlist_btn": "Открыть плейлист",
-    "continue_btn": "Продолжить"
+    "continue_btn": "Продолжить",
+    "new_playlist": "Новый плейлист",
+    "create_playlist": "Создать плейлист",
+    "enter_playlist_title": "Название плейлиста...",
+    "created_and_added": "Плейлист создан и видео добавлено!",
+    "cancel": "Отмена",
+    "create": "Создать"
   }
 }

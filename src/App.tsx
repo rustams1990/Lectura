@@ -3179,7 +3179,10 @@ export default function App() {
 
   const handleUpdatePlaylist = (updatedPlaylist: Playlist) => {
     lastLocalChangeTime.current = Date.now();
-    const next = playlists.map(p => p.id === updatedPlaylist.id ? updatedPlaylist : p);
+    const exists = playlists.some(p => p.id === updatedPlaylist.id);
+    const next = exists
+      ? playlists.map(p => p.id === updatedPlaylist.id ? updatedPlaylist : p)
+      : [updatedPlaylist, ...playlists];
     setPlaylists(next);
     playlistsRef.current = next;
     playlistsStore.setItem(updatedPlaylist.id, updatedPlaylist).catch(() => {});
@@ -3773,6 +3776,7 @@ export default function App() {
                 handleToggleArchivePlaylist(id, e);
               }}
               onUpdatePlaylist={handleUpdatePlaylist}
+              onAddPlaylist={handleAddPlaylist}
               onAddOrUpdateLesson={(newLesson) => {
                 handleAddLesson(newLesson);
               }}

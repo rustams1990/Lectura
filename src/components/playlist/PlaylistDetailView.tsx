@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Playlist, PlaylistItem, Lesson, ReaderSettings, HistoryEntry, VocabItem } from "../../types";
 import {
   ArrowLeft, Play, BookOpen, Headphones, Trash2, CheckCircle2,
@@ -10,6 +10,7 @@ import { useToast } from "../../context/ToastContext";
 import { resolveApiUrl } from "../../utils/apiConfig";
 import { renderCircularFlag, getLanguageFlagEmoji } from "./PlaylistCard";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
+import { getItemEffectiveDuration } from "../../utils/durationUtils";
 import { usePlaylistStore } from "../../store/playlistStore";
 import { lessonsStore } from "../../db";
 import { calculateBookStats, getCachedBookStats } from "../LibraryHome";
@@ -98,7 +99,6 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
 
   const items = playlist.items || [];
-  const totalSeconds = items.reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
   const localizedLang = getLocalizedLanguageName(playlist.language, i18n.language);
   const flag = getLanguageFlagEmoji(playlist.language, languageFlags);
 
@@ -114,6 +114,37 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     }
     return undefined;
   };
+
+  const totalSeconds = useMemo(() => {
+    return items.reduce((acc, item) => {
+      const lesson = getItemLesson(item);
+      return acc + getItemEffectiveDuration(item, lesson);
+    }, 0);
+  }, [items, lessons]);
+
+  // Auto-heal missing durationSeconds for playlist items
+  useEffect(() => {
+    if (!playlist.items || playlist.items.length === 0 || !lessons || lessons.length === 0) return;
+    let hasChanges = false;
+    const updatedItems = playlist.items.map((item) => {
+      if (!item.durationSeconds || item.durationSeconds <= 0) {
+        const lesson = getItemLesson(item);
+        const dur = getItemEffectiveDuration(item, lesson);
+        if (dur > 0) {
+          hasChanges = true;
+          return { ...item, durationSeconds: dur };
+        }
+      }
+      return item;
+    });
+    if (hasChanges) {
+      onUpdatePlaylist({
+        ...playlist,
+        items: updatedItems,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }, [playlist.id, lessons]);
 
   // Check completion status from history
   const isItemCompleted = (item: PlaylistItem): boolean => {
@@ -133,7 +164,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
         videoProgressSec = parseFloat(storedYtProg) || 0;
       }
     }
-    const durationSec = item.durationSeconds || lesson?.youtubeDuration || 0;
+    const durationSec = getItemEffectiveDuration(item, lesson);
     let progressPercent = 0;
     if (durationSec > 0 && videoProgressSec > 0) {
       progressPercent = Math.min(100, Math.round((videoProgressSec / durationSec) * 100));
@@ -191,9 +222,9 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
     // 3. Sorting
     if (sortOption === "duration_asc") {
-      result.sort((a, b) => (a.durationSeconds || 0) - (b.durationSeconds || 0));
+      result.sort((a, b) => getItemEffectiveDuration(a, getItemLesson(a)) - getItemEffectiveDuration(b, getItemLesson(b)));
     } else if (sortOption === "duration_desc") {
-      result.sort((a, b) => (b.durationSeconds || 0) - (a.durationSeconds || 0));
+      result.sort((a, b) => getItemEffectiveDuration(b, getItemLesson(b)) - getItemEffectiveDuration(a, getItemLesson(a)));
     } else if (sortOption === "title_asc") {
       result.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
     } else if (sortOption === "title_desc") {
@@ -705,11 +736,14 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                             e.currentTarget.style.display = "none";
                           }}
                         />
-                        {item.durationSeconds ? (
-                          <div className="absolute bottom-1 right-1 px-1 py-0.2 text-[9px] font-mono font-bold bg-black/80 text-white rounded">
-                            {formatDuration(item.durationSeconds)}
-                          </div>
-                        ) : null}
+                        {(() => {
+                          const dur = getItemEffectiveDuration(item, getItemLesson(item));
+                          return dur > 0 ? (
+                            <div className="absolute bottom-1 right-1 px-1 py-0.2 text-[9px] font-mono font-bold bg-black/80 text-white rounded">
+                              {formatDuration(dur)}
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
@@ -1096,7 +1130,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                     videoProgressSec = parseFloat(storedYtProg) || 0;
                   }
                 }
-                const durationSec = item.durationSeconds || lesson?.youtubeDuration || 0;
+                const durationSec = getItemEffectiveDuration(item, lesson);
                 let progressPercent = 0;
                 if (durationSec > 0 && videoProgressSec > 0) {
                   progressPercent = Math.min(100, Math.round((videoProgressSec / durationSec) * 100));
@@ -1140,9 +1174,9 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                           }
                         }}
                       />
-                      {item.durationSeconds > 0 && (
+                      {durationSec > 0 && (
                         <span className="absolute bottom-1 right-1 px-1.5 py-0.2 bg-black/85 text-white font-mono text-[9px] font-bold rounded">
-                          {formatDuration(item.durationSeconds)}
+                          {formatDuration(durationSec)}
                         </span>
                       )}
 

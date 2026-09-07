@@ -628,7 +628,7 @@ export const BookCard: React.FC<BookCardProps> = memo(({
                 </button>
 
                 {/* Add to playlist */}
-                {playlists && playlists.length > 0 && onOpenPlaylistModal && (
+                {onOpenPlaylistModal && (
                   <button
                     type="button"
                     onClick={(e) => {
