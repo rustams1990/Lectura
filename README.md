@@ -1,123 +1,159 @@
-# Lectura — Умная система чтения и изучения языков с ИИ
+[🇷🇺 Читать на русском языке](README_RU.md)
 
-Добро пожаловать в **Lectura**! Это современное интерактивное приложение для чтения книг, статей и просмотра видео на иностранных языках с мгновенным контекстным переводом, озвучкой, разбором грамматики и автоматическим формированием личного словаря на базе искусственного интеллекта Google Gemini.
+# Lectura — Smart AI-Powered Language Reading & Learning Platform
 
----
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](docker-compose.prod.yml)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/rustams1990/Lectura/releases)
 
-## 🚀 Быстрый старт (для Windows)
+**Lectura** is an open-source, full-featured language immersion and reading platform. It transforms foreign books, web articles, and YouTube videos into interactive learning experiences with instant AI context translation, morphological breakdown, IPA pronunciation, studio-quality speech synthesis, and Spaced Repetition (SRS) vocabulary tracking.
 
-Самый простой способ запустить систему на Windows — использовать автоматический скрипт:
-
-1. Убедитесь, что у вас установлен **Node.js** (версии 18 или новее). Если его нет, скачайте и установите с официального сайта: [nodejs.org](https://nodejs.org/).
-2. Дважды кликните по файлу **`run.bat`** в корневой папке проекта.
-   * Скрипт сам проверит установку Node.js.
-   * Автоматически установит все необходимые зависимости (`npm install`), если они отсутствуют.
-   * Создаст файл конфигурации `.env` из примера, если вы запускаете проект впервые.
-   * Запустит локальный сервер.
-3. Откройте браузер и перейдите по адресу: **[http://localhost:3000](http://localhost:3000)**.
+Supports both cloud AI (**Google Gemini**) and 100% offline self-hosted AI (**Ollama & Kokoro-82M TTS**).
 
 ---
 
-## 🛠️ Ручная установка и запуск (для всех ОС: Windows, macOS, Linux)
+## 🌟 Key Features
 
-Если вы предпочитаете запускать приложение через терминал или командную строку:
-
-### Шаг 1. Установка Node.js
-Установите **Node.js** (версия LTS 18+). Проверить установку можно командой:
-```bash
-node -v
-npm -v
-```
-
-### Шаг 2. Установка зависимостей
-Откройте терминал/командную строку в папке проекта и выполните команду:
-```bash
-npm install
-```
-
-### Шаг 3. Настройка файла окружения (`.env`)
-1. Переименуйте файл `.env.example` (или создайте копию) в **`.env`** в корневой папке проекта.
-2. Откройте `.env` в текстовом редакторе и укажите ваш API-ключ Gemini:
-   ```env
-   GEMINI_API_KEY=ваш_ключ_gemini_api
-   APP_URL=http://localhost:3000
-   ```
-   * *Как получить API-ключ:* Перейдите в [Google AI Studio](https://aistudio.google.com/), войдите под своим Google-аккаунтом и нажмите **"Create API Key"**. Ключ бесплатный для личного использования.
-
-### Шаг 4. Запуск сервера разработки
-Запустите локальный сервер с помощью команды:
-```bash
-npm run dev
-```
-После успешного запуска приложение станет доступно по адресу **`http://localhost:3000`**.
+* 📖 **Interactive Reading Environment:**
+  * Click on any word for immediate contextual translation powered by AI (taking sentence context into account).
+  * IPA (International Phonetic Alphabet) transcription and native-speaker TTS audio.
+  * Deep grammatical breakdown (part of speech, tense, gender, root lemma).
+  * 2 contextual example sentences for each word.
+  * Drag-to-select multi-word phrases, idioms, and phrasal verbs.
+* 📚 **Multi-Format Content Importer:**
+  * Import **EPUB, PDF, and TXT** books and documents.
+  * Web article reader: paste any web article URL, and the built-in reader extracts clean text, stripping ads and clutter.
+* 🎬 **Interactive YouTube Player:**
+  * Paste any YouTube video link. Lectura parses synchronous subtitles into interactive clickable text.
+  * Watch native videos while having line-by-line or word-by-word instant translations.
+* 🧠 **Vocabulary Management & Spaced Repetition (SRS):**
+  * Automated word classification: *New*, *Learning*, *Familiar*, *Mastered*.
+  * Smart morphology engine: groups inflected word forms under their base dictionary lemma to eliminate duplicate vocabulary clutter.
+  * Interactive practice modes: Flashcards, Spelling test, and Listening comprehension.
+* 🔒 **Complete Privacy & Local Storage:**
+  * All user notes, book progress, and vocabulary are stored locally in an embedded **SQLite** database.
+  * Zero forced vendor lock-in: works completely offline with self-hosted Ollama models.
+* 📱 **Multi-Device Sync & Cross-Platform:**
+  * Web application (desktop and mobile browsers).
+  * Native Android application built with Capacitor.
 
 ---
 
-## 📦 Режимы хранения данных (Базы данных)
+## 🚀 Quick Start & Installation
 
-Приложение поддерживает два независимых режима хранения вашего прогресса чтения и словаря:
+### Option 1: Docker (Recommended — Fastest & Easiest)
+No Node.js or build toolchains required.
 
-1. **Локальный режим (Local Dev Server Sync)**
-   * **Как работает:** Все ваши данные (добавленные книги, слова, прогресс) сохраняются прямо на вашем компьютере в файл **`local_server_db.json`** в корне папки проекта.
-   * **Плюсы:** Полная приватность, высокая скорость работы, не требует настройки облачных баз данных. Данные легко скопировать или перенести на другой ПК.
-   * **Настройка:** Включается автоматически при работе локально.
-
-2. **Облачный режим (Firebase)**
-   * **Как работает:** Данные синхронизируются с облачной базой данных Google Firebase Firestore.
-   * **Плюсы:** Возможность входить под своей учетной записью Google и иметь доступ к прогрессу с любого устройства (например, с планшета или телефона).
-   * **Настройка:** Конфигурация по умолчанию уже прописана в файле `firebase-applet-config.json`. При входе в систему через кнопку Google Auth в приложении, вы можете переключить режим хранения на `Cloud`.
-
----
-
-## 💡 Основные возможности системы
-
-* **Интерактивное чтение:** Нажмите на любое незнакомое слово в тексте, чтобы мгновенно получить:
-  * Контекстуальный перевод (ИИ анализирует окружающее предложение, чтобы дать точный перевод именно для этого случая).
-  * Транскрипцию в формате IPA (фонетический алфавит).
-  * Грамматический разбор (часть речи, род, форма).
-  * 2 примера предложений с переводом.
-* **Импорт материалов:**
-  * Загружайте файлы в формате **PDF, TXT, EPUB**.
-  * Добавляйте веб-страницы по ссылкам (умный парсер очистит страницу от рекламы и оставит только текст для чтения).
-* **Интерактивный YouTube-плеер:** Вставьте ссылку на любое видео с YouTube. Система извлечет субтитры, преобразует их в интерактивный текст для чтения, и позволит вам смотреть видео с одновременным разбором текста.
-* **Личный словарь (Слова):**
-  * Слова делятся по уровням освоения (Изучается, Знакомо, Известно).
-  * Система автоматически связывает разные словоформы (например, *wars* и *war*) с базовым паттерном (корнем), предотвращая захламление словаря дубликатами.
-* **Кастомизация:** В настройках можно выбрать темную/светлую тему, изменить размер шрифта, а также выбрать целевой язык обучения (например, английский, испанский и др.) с красивыми флагами стран.
-
----
-
-## 🧠 Локальные ИИ и Озвучка (Ollama & Kokoro-82M TTS)
-
-Приложение поддерживает полностью офлайновую работу без зависимости от внешних облачных сервисов:
-
-### 1. Текстовый ИИ (Ollama)
-Для перевода, разбора грамматики и идиом на Ubuntu Server:
-1. Установите Ollama: `curl -fsSL https://ollama.com/install.sh | sh`
-2. Запустите модель: `ollama run qwen2.5:3b`
-3. В настройках приложения выберите **AI Provider: Local (Ollama)**.
-
-### 2. Студийная локальная озвучка (Kokoro-82M / Piper TTS)
-Для качественной локальной озвучки слов без обращения к Google:
-1. Запустите контейнер Kokoro-FastAPI (или Piper HTTP):
+1. Ensure [Docker Desktop](https://www.docker.com/) is installed and running.
+2. Clone the repository:
    ```bash
-   docker run -d -p 8880:8880 ghcr.io/resemble-ai/kokoro-fastapi
+   git clone https://github.com/rustams1990/Lectura.git
+   cd Lectura
    ```
-2. В настройках приложения в разделе **«Движок озвучки слов (TTS)»** выберите **Kokoro-82M / Local TTS**.
+3. Launch the container:
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+4. Open **[http://localhost:8586](http://localhost:8586)** in your browser.
+5. In the Lectura UI, click the **Settings** gear icon and paste your free **Google Gemini API Key**.
 
 ---
 
-## ❓ Решение частых проблем
+### Option 2: Windows 1-Click Launch (Without Docker)
 
-### ❌ Порт 3000 уже занят
-Если при запуске вы видите ошибку `port 3000 is already in use`, значит на вашем ПК уже работает другая программа на этом порту.
-* Вы можете завершить процесс, занимающий этот порт, либо изменить порт в файле `server.ts` (строка `const PORT = 3000;`).
-
-### ❌ Ошибка перевода ("Demo Mode" или ошибка API)
-Если вместо полноценного перевода от ИИ вы получаете плашку `[Demo Translation]`, это означает, что приложение не смогло прочитать ваш API-ключ Gemini.
-* Проверьте, что в файле `.env` имя переменной написано как `GEMINI_API_KEY`, и после знака `=` нет пробелов и кавычек.
-* Убедитесь, что вы перезапустили сервер после изменения файла `.env`.
+1. Install [Node.js](https://nodejs.org/) (version 20+).
+2. Download or clone this repository.
+3. Double-click the **`run.bat`** file in the project root.
+   * The script automatically verifies your environment, installs dependencies (`npm install`), creates configuration, and starts the server.
+4. Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
-Желаем приятного и эффективного изучения языков с **Lectura**! 📖✨
+### Option 3: Developer Setup (Windows, macOS, Linux)
+
+1. Clone and install dependencies:
+   ```bash
+   git clone https://github.com/rustams1990/Lectura.git
+   cd Lectura
+   npm install
+   ```
+2. Copy environment sample:
+   ```bash
+   cp .env.example .env
+   ```
+3. Start development server with hot-reload:
+   ```bash
+   npm run dev
+   ```
+4. Access the web app at **`http://localhost:3000`**.
+
+---
+
+### Option 4: Ubuntu Server Deployment (Production)
+
+1. Install Docker:
+   ```bash
+   sudo apt update && sudo apt install -y docker.io docker-compose-v2
+   sudo systemctl enable --now docker
+   ```
+2. Clone and start:
+   ```bash
+   git clone https://github.com/rustams1990/Lectura.git
+   cd Lectura
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+   The application will be running at `http://YOUR_SERVER_IP:8586`.
+
+3. **Fast Server Updates**:
+   To update to the latest release in 15 seconds with automatic database backup:
+   ```bash
+   ./scripts/update-server.sh
+   ```
+   *The update script automatically snapshots your SQLite database into `./backups`, pulls the pre-built Docker image, and restarts the container.*
+
+---
+
+## 📱 Mobile App (Android)
+
+Download the ready-to-install **`Lectura.apk`** from [GitHub Releases](https://github.com/rustams1990/Lectura/releases). 
+
+Point the app to your server URL (e.g. `http://192.168.1.100:8586` or your public domain) to synchronize your reading progress, vocabulary, and stats across devices.
+
+---
+
+## ⚙️ AI Configuration
+
+### Google Gemini (Cloud Mode)
+* Get a free API key at [Google AI Studio](https://aistudio.google.com/).
+* Enter the key directly in the application **Settings** modal (stored securely in your browser/account profile).
+
+### Ollama (Offline / Self-Hosted Mode)
+* Install [Ollama](https://ollama.com/) on your host machine or server.
+* Pull a model of your choice:
+  ```bash
+  ollama run qwen2.5:3b
+  ```
+* In Lectura Settings, set **AI Provider** to **Local (Ollama)**.
+
+### Local TTS (Kokoro-82M)
+* For offline neural text-to-speech, run the Kokoro FastAPI container:
+  ```bash
+  docker run -d -p 8880:8880 ghcr.io/resemble-ai/kokoro-fastapi
+  ```
+* In Lectura Settings, select **Kokoro-82M / Local TTS** as the audio provider.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons, Framer Motion
+* **Backend:** Node.js, Express, Better-SQLite3, TSX, esbuild
+* **Mobile:** Capacitor (Android & iOS)
+* **Storage:** SQLite (WAL mode, multi-account isolation)
+* **Deployment:** Docker, GitHub Actions, GHCR
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
