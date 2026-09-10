@@ -1,0 +1,70 @@
+{
+  "sunt": ["a fi", "fi"],
+  "ești": ["a fi", "fi"],
+  "este": ["a fi", "fi"],
+  "e": ["a fi", "fi"],
+  "suntem": ["a fi", "fi"],
+  "sunteți": ["a fi", "fi"],
+  "era": ["a fi", "fi"],
+  "fost": ["a fi", "fi"],
+
+  "am": ["a avea", "avea"],
+  "ai": ["a avea", "avea"],
+  "are": ["a avea", "avea"],
+  "avem": ["a avea", "avea"],
+  "aveți": ["a avea", "avea"],
+  "au": ["a avea", "avea"],
+  "avut": ["a avea", "avea"],
+
+  "fac": ["a face", "face"],
+  "faci": ["a face", "face"],
+  "face": ["a face", "face"],
+  "facem": ["a face", "face"],
+  "făcut": ["a face", "face"],
+
+  "merg": ["a merge", "merge"],
+  "mergi": ["a merge", "merge"],
+  "mergem": ["a merge", "merge"],
+  "mers": ["a merge", "merge"],
+
+  "spun": ["a spune", "spune"],
+  "spui": ["a spune", "spune"],
+  "spune": ["a spune", "spune"],
+  "spus": ["a spune", "spune"],
+
+  "văd": ["a vedea", "vedea"],
+  "vezi": ["a vedea", "vedea"],
+  "vede": ["a vedea", "vedea"],
+  "văzut": ["a vedea", "vedea"],
+
+  "vin": ["a veni", "veni"],
+  "vii": ["a veni", "veni"],
+  "vine": ["a veni", "veni"],
+  "venit": ["a veni", "veni"],
+
+  "dau": ["a da", "da"],
+  "dai": ["a da", "da"],
+  "dă": ["a da", "da"],
+  "dat": ["a da", "da"],
+
+  "iau": ["a lua", "lua"],
+  "iei": ["a lua", "lua"],
+  "ia": ["a lua", "lua"],
+  "luat": ["a lua", "lua"],
+
+  "omul": ["om"],
+  "oamenii": ["om"],
+  "oamenilor": ["om"],
+
+  "băiatul": ["băiat"],
+  "băieții": ["băiat"],
+
+  "casa": ["casă"],
+  "casele": ["casă"],
+
+  "fata": ["fată"],
+  "fetele": ["fată"],
+
+  "ziua": ["zi"],
+  "zilele": ["zi"]
+}

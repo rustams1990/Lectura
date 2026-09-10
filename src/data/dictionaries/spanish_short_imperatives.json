@@ -1,0 +1,15 @@
+{
+  "di": ["decir"],
+  "haz": ["hacer"],
+  "ve": ["ir", "ver"],
+  "pon": ["poner"],
+  "ten": ["tener"],
+  "sal": ["salir"],
+  "ven": ["venir"],
+  "val": ["valer"],
+  "da": ["dar"],
+  "trae": ["traer"],
+  "oye": ["oír"],
+  "sé": ["ser", "saber"],
+  "se": ["ser", "saber"]
+}

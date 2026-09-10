@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lectura Settings</title>
+  <link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="lectura-extension-popup">
+    <!-- Header -->
+    <header class="ext-header">
+      <div class="ext-brand">
+        <span class="ext-logo">📖</span>
+        <div class="ext-brand-title">
+          <span class="ext-title">Lectura</span>
+          <span class="ext-ver">v2.99</span>
+        </div>
+      </div>
+      <div class="ext-header-right">
+        <span id="connectionBadge" class="ext-status-badge badge-disconnected" data-i18n="checking_connection">Checking...</span>
+        <button type="button" id="btnOptions" class="ext-icon-btn" title="Open Full Options">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Tab Switcher -->
+    <div class="popup-tabs-nav">
+      <button type="button" id="tabBtnSettings" class="tab-btn active" data-i18n="tab_settings">
+        ⚙️ Settings
+      </button>
+      <button type="button" id="tabBtnActivity" class="tab-btn" data-i18n="tab_activity">
+        📊 Activity
+      </button>
+    </div>
+
+    <!-- Tab 1: Settings Content -->
+    <div id="tabContentSettings" class="tab-content">
+      <!-- 0. Master Power Switch & Quick Site Toggle -->
+      <div class="ext-master-power-card" id="masterPowerCard" style="margin-bottom: 8px;">
+        <div class="power-card-left">
+          <div class="power-status-dot active" id="powerStatusDot"></div>
+          <div class="power-text-block">
+            <div class="power-status-title" id="powerStatusTitle" data-i18n="ext_enabled">Lectura Active</div>
+            <div class="power-status-desc" id="powerStatusDesc" data-i18n="ext_enabled_desc">Translating & capturing vocabulary</div>
+          </div>
+        </div>
+        <label class="ext-switch power-switch">
+          <input type="checkbox" id="globalEnabledToggle" checked />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="site-quick-toggle-row" id="siteQuickToggleRow" style="margin-bottom: 8px;">
+        <div class="site-quick-info">
+          <span class="site-quick-icon">🌐</span>
+          <span class="site-quick-domain" id="currentTabDomain">loading...</span>
+        </div>
+        <button type="button" class="site-quick-btn" id="btnToggleSiteBlacklist" data-i18n="disable_on_site">
+          Disable on this site
+        </button>
+      </div>
+
+      <!-- 1. Quick Study Language Bar -->
+      <section class="ext-card" style="padding: 9px 12px; margin-bottom: 8px;">
+        <div class="ext-field-group" style="margin-bottom: 0;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+            <label class="ext-label" for="targetLanguage" style="margin-bottom: 0; font-weight: 700; color: #0f172a; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.3px;" data-i18n="study_lang">Study Language</label>
+            <span id="studyLangFlagBadge" style="display: inline-flex; align-items: center; gap: 4px;">
+              <img id="studyLangFlagImg" src="https://flagcdn.com/w40/es.png" alt="flag" style="width: 17px; height: 17px; border-radius: 50%; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" />
+            </span>
+          </div>
+          <select class="ext-select" id="targetLanguage" style="font-weight: 600; font-size: 12.5px;">
+            <option value="es" selected>Spanish (es)</option>
+            <option value="en">English (en)</option>
+            <option value="fr">French (fr)</option>
+            <option value="de">German (de)</option>
+            <option value="it">Italian (it)</option>
+            <option value="ru">Russian (ru)</option>
+            <option value="pt">Portuguese (pt)</option>
+            <option value="zh">Chinese (zh)</option>
+            <option value="ja">Japanese (ja)</option>
+            <option value="ko">Korean (ko)</option>
+            <option value="tr">Turkish (tr)</option>
+            <option value="pl">Polish (pl)</option>
+            <option value="uk">Ukrainian (uk)</option>
+            <option value="kk">Kazakh (kk)</option>
+            <option value="ar">Arabic (ar)</option>
+            <option value="he">Hebrew (he)</option>
+            <option value="sv">Swedish (sv)</option>
+            <option value="nl">Dutch (nl)</option>
+            <option value="hi">Hindi (hi)</option>
+            <option value="fa">Persian (fa)</option>
+            <option value="el">Greek (el)</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- 2. Main Toggles: YouTube Overlay & Track Activity -->
+      <section class="ext-card" style="padding: 10px 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px;">
+        <div class="ext-toggle-row" style="margin: 0; padding: 0;">
+          <div class="toggle-info">
+            <span class="toggle-text" style="font-weight: 700; color: #0f172a;" data-i18n="enable_yt_overlay">Enable YouTube Overlay</span>
+            <span class="toggle-hint" style="font-size: 11px; color: #64748b;" data-i18n="enable_yt_overlay_hint">Show interactive subtitles</span>
+          </div>
+          <label class="ext-switch">
+            <input type="checkbox" id="enableYoutubeOverlayCheck" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div style="height: 1px; background: #f1f5f9;"></div>
+
+        <div class="ext-toggle-row" style="margin: 0; padding: 0;">
+          <div class="toggle-info">
+            <span class="toggle-text" style="font-weight: 700; color: #0f172a;" data-i18n="track_listening_activity">Track Listening Activity</span>
+            <span class="toggle-hint" style="font-size: 11px; color: #64748b;" data-i18n="track_listening_hint">Record watch time in calendar</span>
+          </div>
+          <label class="ext-switch">
+            <input type="checkbox" id="trackListeningActivityCheck" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- 3. Subtitles & Player Settings -->
+      <section class="ext-card" style="margin-bottom: 8px;">
+        <!-- 1) Word Popup Theme -->
+        <div class="ext-field-group">
+          <label class="ext-label" for="popupThemeSelect" data-i18n="word_popup_theme">Word Popup Theme</label>
+          <select class="ext-select" id="popupThemeSelect">
+            <option value="glass" selected data-i18n="theme_glass">✨ Modern Glass (Neon)</option>
+            <option value="calm_light" data-i18n="theme_calm_light">🌿 Calm Light (Pastel)</option>
+            <option value="extended" data-i18n="theme_extended">📚 Extended (Dictionary)</option>
+            <option value="compact" data-i18n="theme_compact">⚡ Compact (Minimal)</option>
+          </select>
+        </div>
+
+        <!-- 2) Subtitle Highlight Style -->
+        <div class="ext-field-group">
+          <label class="ext-label" data-i18n="subtitle_style">Subtitle Highlight Style</label>
+          <div class="ext-segmented-group">
+            <button type="button" id="btnModeUnderline" class="ext-segmented-btn active" data-mode="underline" data-i18n="style_underline">
+              _ Underline
+            </button>
+            <button type="button" id="btnModeColor" class="ext-segmented-btn" data-mode="color" data-i18n="style_color">
+              🎨 Color
+            </button>
+          </div>
+        </div>
+
+        <!-- 3) Subtitle Size & Slider -->
+        <div class="ext-field-group">
+          <label class="ext-label" for="subFontSize" style="display: flex; justify-content: space-between; align-items: center;">
+            <span data-i18n="subtitle_font_size">Subtitle Font Size</span>
+            <span id="subFontSizeValue" style="font-weight: 700; color: #059669;">22px</span>
+          </label>
+          <input type="range" id="subFontSize" min="16" max="36" value="22" step="1" style="width: 100%; cursor: pointer; accent-color: #059669;" />
+        </div>
+
+        <!-- 4) Цвет фона плашки (пресеты + прозрачность) -->
+        <div class="ext-field-group">
+          <label class="ext-label" data-i18n="subtitle_bg_color" style="margin-bottom: 6px;">Subtitle Background Color</label>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="sub-bg-preset-btn" data-color="rgba(0, 0, 0, 0.45)" title="Translucent (Default)" style="width: 26px; height: 26px; border-radius: 6px; background: rgba(0, 0, 0, 0.45); border: 2px solid #555; cursor: pointer;"></button>
+            <button type="button" class="sub-bg-preset-btn" data-color="rgba(15, 23, 42, 0.88)" title="Dark Slate" style="width: 26px; height: 26px; border-radius: 6px; background: #0f172a; border: 1px solid #475569; cursor: pointer;"></button>
+            <button type="button" class="sub-bg-preset-btn" data-color="rgba(0, 0, 0, 0.85)" title="Deep Black" style="width: 26px; height: 26px; border-radius: 6px; background: #000000; border: 1px solid #475569; cursor: pointer;"></button>
+            <button type="button" class="sub-bg-preset-btn" data-color="rgba(24, 24, 27, 0.90)" title="Zinc" style="width: 26px; height: 26px; border-radius: 6px; background: #18181b; border: 1px solid #475569; cursor: pointer;"></button>
+            <button type="button" class="sub-bg-preset-btn" data-color="transparent" title="No Background" style="width: 26px; height: 26px; border-radius: 6px; background: transparent; border: 1px dashed #94a3b8; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center;">🚫</button>
+            <input type="color" id="subBgColorPicker" value="#000000" style="width: 28px; height: 26px; border-radius: 6px; border: 1px solid #cbd5e1; cursor: pointer; padding: 0;" title="Custom Color" />
+          </div>
+        </div>
+
+        <!-- 5) Тогглы: Dual Subtitles, Pause Video on Word Click -->
+        <div class="ext-toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-text" data-i18n="enable_dual_subs">Dual Subtitles</span>
+            <span class="toggle-hint" data-i18n="dual_subs_hint">Hotkeys: [B] or [E]</span>
+          </div>
+          <label class="ext-switch">
+            <input type="checkbox" id="dualSubsCheck" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="ext-toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-text" data-i18n="pause_on_click">Pause Video on Word Click</span>
+          </div>
+          <label class="ext-switch">
+            <input type="checkbox" id="pauseOnWordClickCheck" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- 6) Кнопки импорта и синхронизации: Import Current Video, Open App, Sync Words -->
+      <div class="ext-actions-group">
+        <button type="button" class="ext-btn ext-btn-primary ext-btn-lg" id="btnImportPage" data-i18n="import_video_page">
+          📥 Import Current Video / Page
+        </button>
+        <div class="ext-row">
+          <button type="button" class="ext-btn ext-btn-secondary flex-1" id="btnOpenLectura" data-i18n="open_app">
+            🚀 Open App
+          </button>
+          <button type="button" class="ext-btn ext-btn-secondary flex-1" id="btnSyncWords" data-i18n="sync_words">
+            🔄 Sync Words
+          </button>
+        </div>
+      </div>
+    </div>
+
+  <!-- Tab 2: Activity & Calendar Content -->
+  <div id="tabContentActivity" class="tab-content hidden">
+    <!-- 1. Language Pills Grid (Dynamically Populated) -->
+    <div class="lang-pills-card">
+      <div class="lang-pills-grid" id="activityLangPills">
+        <button type="button" class="lang-pill active" data-lang="all">🌐 Overall</button>
+      </div>
+    </div>
+
+    <!-- 2. Summary: Week / Month / Languages -->
+    <div class="activity-summary-grid">
+      <div class="stat-card">
+        <div class="label" data-i18n="stat_week">WEEK</div>
+        <div id="statWeek" class="value">0 m</div>
+      </div>
+      <div class="stat-card">
+        <div class="label" data-i18n="stat_month">MONTH</div>
+        <div id="statMonth" class="value">0 h</div>
+      </div>
+      <div class="stat-card">
+        <div class="label" data-i18n="stat_languages">LANGUAGES</div>
+        <div id="statLangsCount" class="value">1</div>
+      </div>
+    </div>
+
+    <!-- 3. Calendar Card -->
+    <div class="calendar-card">
+      <div class="calendar-header">
+        <button type="button" id="prevMonthBtn" class="cal-nav-btn" title="Previous Month">‹</button>
+        <div class="calendar-header-center">
+          <span id="currentMonthYearLabel" class="calendar-title">August 2026</span>
+          <span id="calendarGoalBadge" class="calendar-goal-badge">Goal: 60 m/day</span>
+        </div>
+        <button type="button" id="nextMonthBtn" class="cal-nav-btn" title="Next Month">›</button>
+      </div>
+
+      <!-- Weekday Labels -->
+      <div class="calendar-weekdays-grid">
+        <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+      </div>
+
+      <!-- Calendar Days Grid -->
+      <div id="calendarDaysGrid" class="calendar-days-grid">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+
+    <!-- 4. Day History Section -->
+    <div id="dayHistorySection" class="day-history-card">
+      <div class="day-history-header">
+        <div>
+          <h3 class="day-history-title" data-i18n="day_history">Day History</h3>
+          <p id="selectedDateLabel" class="day-history-subtitle">August 24, 2026</p>
+        </div>
+        <span class="day-history-hint" data-i18n="click_day_hint">Click a day in calendar</span>
+      </div>
+
+      <!-- Список карточек видео за день -->
+      <div id="dayLogsContainer" class="day-logs-container">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Alert Toast -->
+  <div id="statusAlert" class="ext-alert hidden"></div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
+

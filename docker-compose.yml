@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  lectura:
+    build: .
+    container_name: lectura
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persists SQLite database, audio caches, and image caches
+      - ./data:/app/data
+    environment:
+      # Enter your Gemini API key here
+      - GEMINI_API_KEY=your_gemini_api_key_here
+      
+      # The URL where this server will be accessed (replace with your server's IP address or domain)
+      - APP_URL=http://your-server-ip:3000
+      
+      # Port the server listens on inside the container (default 3000)
+      - PORT=3000
+      
+      # Path to storage folder (default /app/data inside the container)
+      - DATA_DIR=/app/data
+      
+      # If you run a local LLM via Ollama on the host machine:
+      # - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

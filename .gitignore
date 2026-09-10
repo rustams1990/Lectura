@@ -1,0 +1,42 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Databases and cache
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+/data/
+audio_cache/
+image_cache/
+
+# Backups
+21.06*
+Резервы/
+
+# Temporary downloaded dictionary source files
+tools/dictionaries/*.dic
+tools/dictionaries/*_50k.txt
+
+# Media and Models
+media/
+models/
+scratch/
+audio_files/
+*.part
+*.m4a
+*.mp4
+
+# Extension backups
+extension - Copy*
+extension/dist/
+
+# Development tests and temporary files
+scripts/test*
+scripts/test_*
+tmp.tsx

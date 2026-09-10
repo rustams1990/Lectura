@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  lectura:
+    image: ghcr.io/rustams1990/lectura:latest
+    container_name: lectura
+    restart: unless-stopped
+    ports:
+      - "8586:3000" # Внешний порт сервера 8586, внутренний 3000
+    volumes:
+      # Папка для базы данных и медиа-кэша на диске сервера
+      - ./data:/app/data
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - APP_URL=${APP_URL:-http://localhost:8586}
+      - PORT=3000
+      - DATA_DIR=/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -1,0 +1,355 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Lora", "Merriweather", "Literata", Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Base Root HTML and Body Layout */
+html, body {
+  overflow-x: clip;
+  max-width: 100vw;
+  width: 100%;
+}
+
+/* Base Root Dark Mode Styling */
+html.dark,
+html.dark body {
+  background-color: #111111 !important;
+  color: #f4f4f5;
+}
+
+/* ============================================
+   PREMIUM DARK MODE DESIGN SYSTEM (EDGE-STYLE NEUTRAL)
+   ============================================ */
+
+/* Dark mode root-level color tokens */
+.dark {
+  color-scheme: dark;
+}
+
+/* Override zinc-950 (default dark bg) to a classic neutral dark background */
+.dark .bg-zinc-950 {
+  background-color: #111111;
+}
+
+/* Card surfaces */
+.dark .bg-zinc-900 {
+  background-color: #1e1e1e;
+}
+
+/* Elevated surfaces or hovers */
+.dark .bg-zinc-800 {
+  background-color: #2d2d2d;
+}
+
+/* Borders */
+.dark .border-zinc-800 {
+  border-color: #333333;
+}
+
+.dark .border-zinc-700 {
+  border-color: #444444;
+}
+
+/* Improved dark background for the main page */
+.dark .bg-stone-950,
+.dark .bg-zinc-950 {
+  background-color: #111111;
+}
+
+/* Dark mode glow accent for interactive elements */
+.dark button:focus-visible {
+  outline: 2px solid rgba(45, 212, 191, 0.5);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar adjustments for a clean, non-intrusive scroll layout */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.dark * {
+  scrollbar-color: #2e2e35 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #2e2e35;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3f3f47;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #2e2e35;
+}
+
+/* Explicit no-scrollbar utility to override global * scrollbar styling */
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ============================================
+   DARK MODE PREMIUM BUTTON STYLING
+   ============================================ */
+
+/* Ensure dark backgrounds don't show pure black - use deep charcoal */
+.dark body {
+  background-color: #111111;
+}
+
+/* Premium dark selection color */
+.dark ::selection {
+  background-color: rgba(45, 212, 191, 0.25);
+  color: #e4e4f0;
+}
+
+/* ============================================
+   CUSTOM ANIMATIONS
+   ============================================ */
+
+/* Indeterminate progress bar — loops left-to-right */
+@keyframes slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/* Bell notification wiggle */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  15%       { transform: rotate(-10deg); }
+  30%       { transform: rotate(10deg); }
+  45%       { transform: rotate(-7deg); }
+  60%       { transform: rotate(7deg); }
+  75%       { transform: rotate(-3deg); }
+  90%       { transform: rotate(3deg); }
+}
+
+.animate-wiggle {
+  animation: wiggle 2.5s ease-in-out infinite;
+}
+
+/* ============================================
+   FLOATING WORD CONTEXTUAL POPOVER
+   ============================================ */
+
+.lectura-floating-popover {
+  position: absolute;
+  z-index: 9999;
+  width: 430px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  animation: popoverFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* Основной контейнер всплывающей карточки */
+.word-popup-card {
+  border-radius: 20px !important;
+  overflow: hidden !important; /* Обрезает все прямоугольные подложки и внутренние слои */
+  background: #ffffff !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dark .word-popup-card {
+  background: #18181b !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================
+   READER SCROLL MARGINS & PAGINATION
+   ============================================ */
+
+.reader-line-item:first-child,
+#reader-top,
+#reader-top-anchor {
+  scroll-margin-top: calc(var(--focus-player-height, 0px) + 24px);
+}
+
+/* ============================================
+   CLASSIC BOOK TYPOGRAPHY (IMMERSIVE BOOK MODE)
+   ============================================ */
+
+.book-paragraph {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  line-height: 1.8;
+  font-family: inherit;
+}
+
+.mode-text .book-paragraph {
+  text-indent: 1.5rem;
+}
+
+.mode-badges .book-paragraph {
+  text-indent: 0;
+}
+
+/* Первый абзац после заголовка или картинки без отступа */
+.book-paragraph:first-of-type,
+.book-paragraph-first,
+img + .book-paragraph,
+.reader-image-container + .book-paragraph {
+  text-indent: 0 !important;
+}
+
+.book-chapter-container {
+  min-height: 90vh;
+  padding-top: 3rem;
+  margin-bottom: 5rem;
+  border-top: 1px dashed rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================
+   ZERO-RE-RENDER READER CONTAINER & DISPLAY MODES
+   ============================================ */
+.reader-text-container {
+  font-size: var(--reader-font-size, 1.125rem);
+  line-height: var(--reader-line-height, 1.95);
+  font-family: var(--reader-font-family, inherit);
+}
+
+/* Badges Mode */
+.mode-badges .reader-word-token {
+  display: inline-block;
+  margin-top: 0.125rem;
+  margin-bottom: 0.125rem;
+}
+
+/* Book / Clean Text Mode */
+.mode-text .reader-word-token,
+.mode-book .reader-word-token {
+  display: inline !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-bottom-width: 0 !important;
+  box-shadow: none !important;
+}
+
+.mode-text .reader-word-token:not(.in-selected-phrase),
+.mode-book .reader-word-token:not(.in-selected-phrase) {
+  background-color: transparent !important;
+}
+
+/* Status colors in Text / Book Mode */
+.mode-text .reader-word-token.status-0:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-0:not(.in-selected-phrase) {
+  color: #0284c7 !important; /* sky-600 */
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-0:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-0:not(.in-selected-phrase) {
+  color: #38bdf8 !important; /* sky-400 */
+}
+
+.mode-text .reader-word-token.status-1:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-1:not(.in-selected-phrase) {
+  color: #e11d48 !important; /* rose-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-1:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-1:not(.in-selected-phrase) {
+  color: #fb7185 !important; /* rose-400 */
+}
+
+.mode-text .reader-word-token.status-2:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-2:not(.in-selected-phrase) {
+  color: #d97706 !important; /* amber-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-2:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-2:not(.in-selected-phrase) {
+  color: #fbbf24 !important; /* amber-400 */
+}
+
+.mode-text .reader-word-token.status-3:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-3:not(.in-selected-phrase),
+.mode-text .reader-word-token.status-learning:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-learning:not(.in-selected-phrase) {
+  color: #059669 !important; /* emerald-600 */
+  font-weight: 500;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-3:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-3:not(.in-selected-phrase) {
+  color: #34d399 !important; /* emerald-400 */
+}
+
+.mode-text .reader-word-token.status-4:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-4:not(.in-selected-phrase) {
+  color: #2563eb !important; /* blue-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-4:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-4:not(.in-selected-phrase) {
+  color: #60a5fa !important; /* blue-400 */
+}
+
+.mode-text .reader-word-token.status-5:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-5:not(.in-selected-phrase) {
+  color: #9333ea !important; /* purple-600 */
+  font-weight: 600;
+}
+:where(.dark, .dark *) .mode-text .reader-word-token.status-5:not(.in-selected-phrase),
+:where(.dark, .dark *) .mode-book .reader-word-token.status-5:not(.in-selected-phrase) {
+  color: #c084fc !important; /* purple-400 */
+}
+
+.mode-text .reader-word-token.status-known:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-known:not(.in-selected-phrase),
+.mode-text .reader-word-token.status-ignored:not(.in-selected-phrase),
+.mode-book .reader-word-token.status-ignored:not(.in-selected-phrase) {
+  color: inherit !important;
+  font-weight: 400;
+}
+
+.mode-text .reader-word-token:hover:not(.in-selected-phrase),
+.mode-book .reader-word-token:hover:not(.in-selected-phrase) {
+  text-decoration-line: underline !important;
+  text-underline-offset: 2px !important;
+}

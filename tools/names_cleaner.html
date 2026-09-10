@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lectura — Очиститель Базы Имён (250k+ Names Sanitizer)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    }
+
+    header {
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #60a5fa;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .file-btn {
+      background: #0284c7;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+      transition: background 0.15s;
+    }
+    .file-btn:hover { background: #0369a1; }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+      margin-top: 4px;
+    }
+    .stat-value.success { color: var(--success); }
+    .stat-value.warning { color: var(--warning); }
+    .stat-value.danger { color: var(--danger); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 850px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pane-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    textarea {
+      width: 100%;
+      height: 380px;
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+
+    .btn-success { background: var(--success); color: white; }
+    .btn-success:hover:not(:disabled) { background: #059669; }
+
+    .btn-secondary { background: #334155; color: white; }
+    .btn-secondary:hover:not(:disabled) { background: #475569; }
+
+    .btn-danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.25); }
+
+    .rejected-box {
+      margin-top: 16px;
+      background: rgba(245, 158, 11, 0.05);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+
+    .rejected-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fbbf24;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .rejected-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 120px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+
+    .rejected-tag {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: monospace;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lang-pill {
+      background: #7f1d1d;
+      color: #fecaca;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      letter-spacing: 0.05em;
+    }
+
+    .notice {
+      margin-top: 16px;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: #93c5fd;
+      line-height: 1.6;
+    }
+
+    .lang-filter-bar {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+    }
+
+    .lang-filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .lang-filter-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lang-filter-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-tiny {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-tiny:hover {
+      background: #334155;
+      color: var(--text);
+    }
+
+    .lang-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .lang-label {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .lang-label:hover {
+      border-color: #38bdf8;
+      background: #1e293b/80;
+    }
+
+    .lang-label input[type="checkbox"] {
+      accent-color: #0284c7;
+      cursor: pointer;
+      width: 14px;
+      height: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div>
+        <h1>👤 Очиститель Базы Имён для Lectura</h1>
+        <div class="subtitle">Удаляет из базы омографы, словарные слова и добродетели (Princess, Hope, Rosa, Will, May, Sol, Cruz...)</div>
+      </div>
+      <div class="top-actions">
+        <label class="file-btn">
+          📂 Открыть CSV / TXT файл
+          <input type="file" id="fileInput" accept=".csv,.txt,.json" style="display:none;" onchange="handleFile(event)">
+        </label>
+      </div>
+    </header>
+
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label">Строк на входе</div>
+        <div id="statTotal" class="stat-value">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Чистых уникальных имён</div>
+        <div id="statClean" class="stat-value success">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Отсеяно словарных слов</div>
+        <div id="statRejected" class="stat-value danger">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Устранено дубликатов</div>
+        <div id="statDupes" class="stat-value warning">0</div>
+      </div>
+    </div>
+
+    <!-- Multi-Language Filter Selection -->
+    <div class="lang-filter-bar">
+      <div class="lang-filter-header">
+        <span class="lang-filter-title">🌐 Фильтровать по словарям языков:</span>
+        <div class="lang-filter-actions">
+          <button type="button" class="btn-tiny" onclick="toggleAllLangs(true)">✓ Выбрать все</button>
+          <button type="button" class="btn-tiny" onclick="toggleAllLangs(false)">✕ Снять все</button>
+        </div>
+      </div>
+      <div class="lang-checkboxes">
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="ES" checked onchange="autoReProcess()"> 🇪🇸 Испанский (ES)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="EN" checked onchange="autoReProcess()"> 🇬🇧 Английский (EN)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="FR" checked onchange="autoReProcess()"> 🇫🇷 Французский (FR)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="DE" checked onchange="autoReProcess()"> 🇩🇪 Немецкий (DE)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="RU" checked onchange="autoReProcess()"> 🇷🇺 Русский (RU)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="IT" checked onchange="autoReProcess()"> 🇮🇹 Итальянский (IT)</label>
+        <label class="lang-label"><input type="checkbox" class="lang-cb" value="PT" checked onchange="autoReProcess()"> 🇵🇹 Португальский (PT)</label>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="pane">
+        <div class="pane-header">
+          <span>Исходный текст / CSV датасет</span>
+          <span id="inputStatus" style="font-size:11px;">Вставьте текст или откройте файл</span>
+        </div>
+        <textarea id="inputText" placeholder="Вставьте сюда строки из вашего CSV файла (или нажмите «Открыть CSV / TXT файл» выше)...&#10;&#10;Пример формата:&#10;2008,&quot;Alannah&quot;,0.00014,&quot;girl&quot;&#10;2008,&quot;Princess&quot;,0.00014,&quot;girl&quot;&#10;2008,&quot;Esperanza&quot;,0.000133,&quot;girl&quot;&#10;2008,&quot;Carlos&quot;,0.00021,&quot;boy&quot;"></textarea>
+      </div>
+
+      <div class="pane">
+        <div class="pane-header">
+          <span>Готовый чистый JSON для Lectura</span>
+          <span id="outputStatus" style="color:var(--success); font-size:11px;">Ожидание...</span>
+        </div>
+        <textarea id="outputText" readonly placeholder="Здесь появится готовый очищенный JSON..."></textarea>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn-primary" onclick="processText()">⚡ Запустить очистку и фильтрацию</button>
+      <select id="targetFileName" style="background:#1e293b; color:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-weight:600; font-size:13px; outline:none; cursor:pointer;">
+        <option value="names.json">👤 names.json (Имена)</option>
+        <option value="cities.json">🏙️ cities.json (Города)</option>
+        <option value="brands.json">🏷️ brands.json (Бренды)</option>
+        <option value="cinema.json">🎬 cinema.json (Кино / Персонажи)</option>
+        <option value="music.json">🎵 music.json (Музыка / Группы)</option>
+        <option value="gaming.json">🎮 gaming.json (Гейминг)</option>
+        <option value="tech.json">💻 tech.json (IT / Техника)</option>
+      </select>
+      <button class="btn-success" onclick="downloadJSON()">💾 Скачать выбранный .json</button>
+      <button class="btn-secondary" onclick="copyResult()">📋 Скопировать JSON</button>
+      <button class="btn-danger" onclick="clearAll()">🗑️ Очистить всё</button>
+    </div>
+
+    <div id="rejectedBox" class="rejected-box" style="display:none;">
+      <div class="rejected-title">
+        🛡️ Примеры отсеянных опасных слов (которые не попали в игнор):
+        <span id="rejectedCountText" style="font-size:12px; font-weight:normal; color:var(--text-muted);"></span>
+      </div>
+      <div id="rejectedTags" class="rejected-tags"></div>
+    </div>
+
+    <div class="notice">
+      💡 <b>Как это работает:</b><br>
+      • Вы можете вставить как 100 строк, так и все 258 000 строк сразу (или просто открыть файл через кнопку наверху).<br>
+      • Скрипт мгновенно проверяет каждое слово по <b>офлайн-базе из 935 609 слов 7 языков</b> (Spanish, English, French, German, Russian, Italian, Portuguese) и отсеивает любые совпадения с реальными словами.<br>
+      • Полученный файл можно сохранить в <code>src/data/ignoreLists/universal/</code>.
+    </div>
+  </div>
+
+  <script src="dictionaries/master_dictionary.js?v=3"></script>
+  <script>
+    // Comprehensive Multilingual Dictionary Blacklist
+    const DICTIONARY_WORDS = new Set([
+      // English words & titles
+      'able', 'ace', 'art', 'baron', 'best', 'bird', 'blade', 'blessing', 'blue', 'bright', 'brown', 'buddy', 'busy',
+      'candy', 'case', 'cash', 'chance', 'clay', 'clear', 'cliff', 'clover', 'cook', 'counsel', 'courage', 'cross', 'crystal',
+      'daily', 'danger', 'dark', 'dawn', 'day', 'deal', 'dear', 'diamond', 'divine', 'dodge', 'dream', 'duke', 'dusty',
+      'early', 'earth', 'east', 'easy', 'echo', 'edge', 'fancy', 'favor', 'flash', 'fleet', 'flint', 'fortune', 'fox',
+      'frank', 'free', 'fresh', 'frost', 'gale', 'gardener', 'gem', 'gift', 'glory', 'gold', 'golden', 'grace', 'grand',
+      'gray', 'grey', 'green', 'guide', 'gull', 'gunner', 'handy', 'harbor', 'hardy', 'harmony', 'haven', 'heart', 'heaven',
+      'hero', 'hill', 'holly', 'holy', 'honest', 'honey', 'hope', 'hunter', 'ideal', 'iron', 'ivy', 'jewel', 'joy', 'judge',
+      'july', 'june', 'just', 'justice', 'keen', 'king', 'knight', 'lake', 'lane', 'lark', 'lead', 'leaf', 'liberty', 'light',
+      'lily', 'little', 'lively', 'lock', 'lord', 'love', 'loyal', 'lucky', 'magic', 'major', 'manly', 'march', 'mark',
+      'mason', 'master', 'matrix', 'may', 'mayor', 'meadow', 'mercy', 'merit', 'miller', 'minor', 'mint', 'miracle',
+      'modest', 'monday', 'money', 'moon', 'morning', 'moss', 'mount', 'noble', 'noon', 'north', 'novel', 'nurse', 'ocean',
+      'olive', 'orange', 'page', 'palace', 'palm', 'park', 'parker', 'parson', 'pastor', 'patent', 'patience', 'peace',
+      'peak', 'pearl', 'peer', 'penny', 'perfection', 'pilot', 'piper', 'plain', 'pleasant', 'plenty', 'poet', 'polar',
+      'pope', 'porter', 'power', 'praise', 'prayer', 'prince', 'princess', 'prior', 'promise', 'proud', 'prudence', 'pure',
+      'queen', 'quest', 'quick', 'rain', 'ranger', 'ray', 'reason', 'red', 'reed', 'reid', 'reign', 'remedy', 'rich',
+      'rider', 'ridge', 'ring', 'river', 'robin', 'rock', 'rose', 'royal', 'ruby', 'ruler', 'runner', 'rush', 'rust',
+      'sage', 'sailor', 'saint', 'sand', 'sandy', 'sargent', 'savior', 'scarlet', 'scout', 'seal', 'season', 'secret',
+      'senior', 'serene', 'serenity', 'shade', 'shadow', 'sharp', 'shepherd', 'shield', 'shine', 'ship', 'shore', 'short',
+      'silver', 'simple', 'singer', 'sky', 'smart', 'smile', 'smith', 'smoke', 'snow', 'soldier', 'sole', 'solitude',
+      'song', 'soul', 'sound', 'south', 'spark', 'sparrow', 'spear', 'speed', 'spirit', 'spring', 'spur', 'square', 'star',
+      'steel', 'steer', 'sterling', 'stone', 'storm', 'story', 'stout', 'stream', 'street', 'strong', 'sugar', 'summer',
+      'sun', 'sunday', 'sunny', 'supreme', 'sweet', 'swift', 'sword', 'tailor', 'tale', 'talent', 'target', 'taylor', 'teal',
+      'temperance', 'temple', 'tender', 'thistle', 'thorn', 'thunder', 'tide', 'tiger', 'timber', 'time', 'top', 'tower',
+      'trace', 'track', 'trader', 'trail', 'treasure', 'tree', 'tribute', 'trinity', 'trip', 'triumph', 'true', 'trust',
+      'truth', 'turner', 'twin', 'union', 'unity', 'vale', 'valley', 'valor', 'vanilla', 'velvet', 'venture', 'verse',
+      'vessel', 'veteran', 'vibe', 'vicar', 'victor', 'victory', 'view', 'vigor', 'village', 'vintage', 'violet', 'virtue',
+      'vision', 'voice', 'voyage', 'waif', 'walker', 'wall', 'war', 'ward', 'warden', 'warrior', 'watch', 'water', 'wave',
+      'way', 'weaver', 'welcome', 'well', 'west', 'wheat', 'wheel', 'whisper', 'white', 'wild', 'will', 'willow', 'wind',
+      'wine', 'wing', 'winner', 'winter', 'wisdom', 'wise', 'wish', 'wolf', 'wonder', 'wood', 'wool', 'word', 'worker',
+      'world', 'worth', 'worthy', 'wren', 'wright', 'yard', 'year', 'yield', 'young', 'youth', 'zeal', 'zenith',
+      'bill', 'gene', 'pat', 'sue', 'cat', 'don', 'guy', 'bob', 'dale', 'carol', 'daisy', 'foster', 'butler', 'cook',
+      'abbot', 'monk', 'priest', 'clerk', 'essence', 'laurel', 'haven', 'destiny', 'heaven', 'flea', 'fly', 'bee', 'wasp', 'ant', 'beetle',
+
+      // Spanish words (nouns, adjectives, virtues)
+      'alma', 'rosa', 'blanca', 'dolores', 'esperanza', 'sol', 'victoria', 'cruz', 'angel', 'flor', 'luz', 'mercedes', 'pilar', 'paz',
+      'soledad', 'amparo', 'consuelo', 'marina', 'clara', 'dulce', 'gloria', 'gracia', 'reina', 'rocio', 'santos', 'serena',
+      'valentin', 'socorro', 'remedios', 'milagros', 'nieves', 'asuncion', 'concepcion', 'encarnacion', 'inmaculada', 'trinidad',
+      'camino', 'estrella', 'cielo', 'mar', 'rio', 'valle', 'monte', 'sierra', 'pena', 'castillo', 'torre', 'fuente', 'iglesia',
+      'cruz', 'rey', 'conde', 'duque', 'caballero', 'escudero', 'pastor', 'vaquero', 'marinero', 'herrero', 'carpintero', 'zapatero',
+      'molinero', 'panadero', 'carnicero', 'pescador', 'cazador', 'leñador', 'minero', 'tejedor', 'sastre', 'barbero', 'medico',
+      'bello', 'hermoso', 'lindo', 'bueno', 'santo', 'justo', 'noble', 'franco', 'leal', 'fiel', 'bravo', 'fuerte', 'valiente',
+      'grande', 'chico', 'pequeno', 'alto', 'bajo', 'gordo', 'flaco', 'rubio', 'moreno', 'castano', 'cano', 'calvo', 'tuerto',
+      'almond', 'berry', 'cherry', 'cinnamon', 'clove', 'coco', 'ginger', 'hazel', 'honey', 'jasmine', 'lemon', 'maple', 'nutmeg', 'peach', 'pepper', 'plum', 'rosemary', 'saffron', 'sugar', 'sweet',
+
+      // Russian common words
+      'вера', 'надежда', 'любовь', 'лев', 'светлана', 'роза', 'май', 'слава', 'лилия', 'роман', 'полина', 'марина', 'свет',
+      'мир', 'воля', 'доля', 'заря', 'луна', 'звезда', 'весна', 'лето', 'осень', 'зима', 'день', 'ночь', 'утро', 'вечер',
+
+      // French, German, Italian, Portuguese common words
+      'pierre', 'sole', 'franco', 'bruno', 'march', 'soleil', 'lune', 'fleur', 'rose', 'blanc', 'noir', 'petit', 'grand',
+      'sonne', 'mond', 'stern', 'blume', 'rose', 'weiss', 'schwarz', 'klein', 'gross', 'sole', 'luna', 'stella', 'fiore',
+      'rosa', 'bianco', 'nero', 'piccolo', 'grande', 'sol', 'lua', 'estrela', 'flor', 'rosa', 'branco', 'preto', 'pequeno'
+    ]);
+
+    const COUNTRIES = new Set([
+      'spain', 'españa', 'germany', 'alemania', 'france', 'francia', 'italy', 'italia', 'russia', 'rusia', 'россия',
+      'china', 'japan', 'japon', 'mexico', 'méxico', 'usa', 'uk', 'canada', 'brazil', 'argentina', 'colombia', 'peru',
+      'perú', 'america', 'europe', 'asia', 'africa', 'australia', 'india', 'egypt', 'greece', 'turkey', 'sweden', 'norway'
+    ]);
+
+    const input = document.getElementById('inputText');
+    const output = document.getElementById('outputText');
+    const statTotal = document.getElementById('statTotal');
+    const statClean = document.getElementById('statClean');
+    const statRejected = document.getElementById('statRejected');
+    const statDupes = document.getElementById('statDupes');
+    const rejectedBox = document.getElementById('rejectedBox');
+    const rejectedTags = document.getElementById('rejectedTags');
+    const rejectedCountText = document.getElementById('rejectedCountText');
+
+    let currentCleanArray = [];
+
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      document.getElementById('inputStatus').innerText = `Загрузка ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`;
+      
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        input.value = evt.target.result;
+        document.getElementById('inputStatus').innerText = `Загружен: ${file.name}`;
+        processText();
+      };
+      reader.readAsText(file);
+    }
+
+    function extractName(line) {
+      if (!line) return null;
+      const t = line.trim();
+      if (!t || t.startsWith('#')) return null;
+
+      // Match CSV: 2008,"Alannah",0.00014,"girl"
+      const csvMatch = t.match(/^"?\d{4}"?,\s*"?([a-zA-Z\u00C0-\u024F\u0400-\u04FF'-]+)"?/);
+      if (csvMatch) return csvMatch[1];
+
+      // Match quoted name: "Alannah",
+      const quoteMatch = t.match(/^["']([a-zA-Z\u00C0-\u024F\u0400-\u04FF'-]+)["'],?/);
+      if (quoteMatch) return quoteMatch[1];
+
+      // Fallback comma split
+      if (t.includes(',')) {
+        const parts = t.split(',');
+        for (const p of parts) {
+          const c = p.replace(/["'\r\n\t]/g, '').trim();
+          if (/^[a-zA-Z\u00C0-\u024F\u0400-\u04FF]{2,}$/.test(c) && c !== 'girl' && c !== 'boy' && isNaN(Number(c))) {
+            return c;
+          }
+        }
+      }
+
+      // Plain token
+      const c = t.replace(/["'\r\n\t,;]/g, '').trim();
+      if (/^[a-zA-Z\u00C0-\u024F\u0400-\u04FF]{2,}$/.test(c)) {
+        return c;
+      }
+      return null;
+    }
+
+    function getSelectedLanguages() {
+      const cbs = document.querySelectorAll('.lang-cb:checked');
+      const set = new Set();
+      cbs.forEach(cb => set.add(cb.value));
+      return set;
+    }
+
+    function toggleAllLangs(select) {
+      document.querySelectorAll('.lang-cb').forEach(cb => {
+        cb.checked = select;
+      });
+      autoReProcess();
+    }
+
+    function autoReProcess() {
+      if (input.value && input.value.trim().length > 0) {
+        processText();
+      }
+    }
+
+    function processText() {
+      const text = input.value;
+      if (!text.trim()) {
+        alert('Пожалуйста, вставьте текст или откройте файл!');
+        return;
+      }
+
+      const selectedLangs = getSelectedLanguages();
+      const lines = text.split(/\r?\n/);
+      const totalLines = lines.length;
+
+      const cleanSet = new Set();
+      const rejectedSet = new Set();
+      let rawNamesCount = 0;
+
+      for (let i = 0; i < totalLines; i++) {
+        const name = extractName(lines[i]);
+        if (!name) continue;
+
+        rawNamesCount++;
+        const lower = name.toLowerCase().trim();
+
+        // 1. Length <= 2
+        if (lower.length <= 2) {
+          rejectedSet.add(`${name} <span class="lang-pill">короткое</span>`);
+          continue;
+        }
+
+        // 2. Multi-Language Full Offline Dictionary with Selective Filtering
+        const wordLangsStr = (window.OFFLINE_DICTIONARY_MAP && window.OFFLINE_DICTIONARY_MAP[lower]) || 
+                             (DICTIONARY_WORDS.has(lower) ? 'ES, EN' : '');
+        
+        let isRejectedByDict = false;
+        let matchedLangsList = [];
+
+        if (wordLangsStr) {
+          const list = wordLangsStr.split(', ');
+          matchedLangsList = list.filter(l => {
+            if (l === 'EN/ES') return selectedLangs.has('EN') || selectedLangs.has('ES');
+            return selectedLangs.has(l);
+          });
+          if (matchedLangsList.length > 0) {
+            isRejectedByDict = true;
+          }
+        }
+
+        if (isRejectedByDict) {
+          rejectedSet.add(`${name} <span class="lang-pill">${matchedLangsList.join(', ')}</span>`);
+          continue;
+        }
+
+        // 3. Country / Demonym
+        if (COUNTRIES.has(lower)) {
+          rejectedSet.add(`${name} <span class="lang-pill">страна</span>`);
+          continue;
+        }
+
+        cleanSet.add(lower);
+      }
+
+      const sortedClean = Array.from(cleanSet).sort((a, b) => a.localeCompare(b));
+      currentCleanArray = sortedClean;
+
+      // Stats
+      statTotal.innerText = totalLines.toLocaleString();
+      statClean.innerText = sortedClean.length.toLocaleString();
+      statRejected.innerText = rejectedSet.size.toLocaleString();
+      statDupes.innerText = Math.max(0, rawNamesCount - sortedClean.length - rejectedSet.size).toLocaleString();
+
+      // Output JSON
+      output.value = JSON.stringify(sortedClean, null, 2);
+      document.getElementById('outputStatus').innerText = `Готово: ${sortedClean.length.toLocaleString()} имён`;
+
+      // Rejected Preview
+      if (rejectedSet.size > 0) {
+        rejectedBox.style.display = 'block';
+        rejectedCountText.innerText = `(всего отсеяно ${rejectedSet.size} опасных слов)`;
+        
+        const preview = Array.from(rejectedSet).slice(0, 150);
+        rejectedTags.innerHTML = preview.map(w => `<span class="rejected-tag">🚫 ${w}</span>`).join('');
+      } else {
+        rejectedBox.style.display = 'none';
+      }
+    }
+
+    function copyResult() {
+      if (!output.value) {
+        alert('Сначала выполните очистку!');
+        return;
+      }
+      navigator.clipboard.writeText(output.value).then(() => {
+        alert('✅ JSON скопирован в буфер обмена!');
+      });
+    }
+
+    function downloadJSON() {
+      if (!output.value) {
+        alert('Сначала выполните очистку!');
+        return;
+      }
+      const selectedName = document.getElementById('targetFileName')?.value || "names.json";
+      const blob = new Blob([output.value], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = selectedName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function clearAll() {
+      input.value = '';
+      output.value = '';
+      statTotal.innerText = '0';
+      statClean.innerText = '0';
+      statRejected.innerText = '0';
+      statDupes.innerText = '0';
+      rejectedBox.style.display = 'none';
+      document.getElementById('inputStatus').innerText = 'Очищено';
+      document.getElementById('outputStatus').innerText = 'Ожидание...';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+{
+  "gidiyor": ["gitmek"],
+  "gitti": ["gitmek"],
+  "gidecek": ["gitmek"],
+  "gider": ["gitmek"],
+  "gitmeyin": ["gitmek"],
+
+  "ediyor": ["etmek"],
+  "etti": ["etmek"],
+  "edecek": ["etmek"],
+  "eder": ["etmek"],
+
+  "yiyor": ["yemek"],
+  "yedi": ["yemek"],
+  "ye": ["yemek"],
+  "diye": ["demek"],
+  "diyor": ["demek"],
+  "dedi": ["demek"],
+
+  "oluyor": ["olmak"],
+  "oldu": ["olmak"],
+  "olacak": ["olmak"],
+  "olur": ["olmak"],
+
+  "geliyor": ["gelmek"],
+  "geldi": ["gelmek"],
+  "gelecek": ["gelmek"],
+  "gelir": ["gelmek"],
+
+  "yapıyor": ["yapmak"],
+  "yaptı": ["yapmak"],
+  "yapacak": ["yapmak"],
+  "yapar": ["yapmak"],
+
+  "görüyor": ["görmek"],
+  "gördü": ["görmek"],
+  "görecek": ["görmek"],
+  "görür": ["görmek"],
+
+  "alıyor": ["almak"],
+  "aldı": ["almak"],
+  "alacak": ["almak"],
+  "alır": ["almak"],
+
+  "veriyor": ["vermek"],
+  "verdi": ["vermek"],
+  "verecek": ["vermek"],
+  "verir": ["vermek"],
+
+  "biliyor": ["bilmek"],
+  "bildi": ["bilmek"],
+  "bilecek": ["bilmek"],
+  "bilir": ["bilmek"],
+
+  "istiyor": ["istemek"],
+  "istedi": ["istemek"],
+  "iste": ["istemek"],
+
+  "anlıyor": ["anlamak"],
+  "anladı": ["anlamak"],
+
+  "başlıyor": ["başlamak"],
+  "başladı": ["başlamak"],
+
+  "burnum": ["burun"],
+  "burnu": ["burun"],
+  "burnumuz": ["burun"],
+  "şehre": ["şehir"],
+  "şehri": ["şehir"],
+  "şehirim": ["şehir"],
+  "aklı": ["akıl"],
+  "aklın": ["akıl"],
+  "aklım": ["akıl"],
+  "oğlu": ["oğul"],
+  "oğlum": ["oğul"],
+  "göğsüm": ["göğüs"],
+  "göğsü": ["göğüs"]
+}

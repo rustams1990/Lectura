@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+  <head><script>window.onerror = function(msg, url, lineNo, columnNo, error) { fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msg, lineNo, columnNo, stack: error ? error.stack : '' }) }); return false; }; window.addEventListener('unhandledrejection', function(event) { fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msg: event.reason.message, stack: event.reason.stack }) }); });</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- Disable index.html caching to guarantee instant updates on deployment -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <meta name="app-identifier" content="lectura-core-app" />
+    <title>Lectura</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json?v=2.99.203" />
+    <!-- Google Fonts with Preconnect for maximum speed and reliable CDN delivery -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Lora:ital,wght@0,400..700;1,400..700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Literata:ital,opsz,wght@0,7..72,400..700;1,7..72,400..700&display=swap" rel="stylesheet" />
+    <!-- PWA Support -->
+    <meta name="theme-color" content="#0d9488" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Lectura" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+  </head>
+  <body>
+    <script>
+      try {
+        const isDark = localStorage.getItem("vocab_clone_dark_mode") === "true";
+        if (isDark) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      } catch (e) {}
+      try {
+        const saved = localStorage.getItem("vocab_clone_words");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === "object") {
+            let modified = false;
+            const cleansed = {};
+            for (const [key, value] of Object.entries(parsed)) {
+              if (value && typeof value === "object" && typeof value.word === "string") {
+                cleansed[key] = value;
+              } else {
+                modified = true;
+              }
+            }
+            if (modified) {
+              localStorage.setItem("vocab_clone_words", JSON.stringify(cleansed));
+              console.log("Cleaned up invalid records in localStorage.");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("LocalStorage pre-cleanse error:", err);
+      }
+
+      // Register Service Worker — served dynamically by Express with APP_VERSION injected
+      // into CACHE_NAME so old caches are always purged on every update (fixes Edge tablet caching)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          let refreshing = false;
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            if (!refreshing) {
+              refreshing = true;
+              window.location.reload();
+            }
+          });
+
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+            .then(function(reg) {
+              console.log('[SW] Registered, scope:', reg.scope);
+              reg.update();
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+              reg.addEventListener('updatefound', function() {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', function() {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  });
+                }
+              });
+            })
+            .catch(function(err) {
+              console.warn('[SW] Registration failed:', err);
+            });
+        });
+      }
+    </script>
+    <div id="root" data-app-identifier="lectura-core-app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+

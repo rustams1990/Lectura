@@ -1,0 +1,52 @@
+{
+  "olen": ["olla"],
+  "olet": ["olla"],
+  "on": ["olla"],
+  "olemme": ["olla"],
+  "oitte": ["olla"],
+  "ovat": ["olla"],
+  "oli": ["olla"],
+  "olivat": ["olla"],
+  "ollut": ["olla"],
+  "olleet": ["olla"],
+
+  "menen": ["mennä"],
+  "menee": ["mennä"],
+  "meni": ["mennä"],
+  "menivät": ["mennä"],
+  "mennyt": ["mennä"],
+
+  "tulen": ["tulla"],
+  "tulee": ["tulla"],
+  "tuli": ["tulla"],
+  "tulivat": ["tulla"],
+  "tullut": ["tulla"],
+
+  "näen": ["nähdä"],
+  "näkee": ["nähdä"],
+  "näki": ["nähdä"],
+  "nähnyt": ["nähdä"],
+
+  "teen": ["tehdä"],
+  "tekee": ["tehdä"],
+  "teki": ["tehdä"],
+  "teхnyt": ["tehdä"],
+
+  "sanon": ["sanoa"],
+  "sanoo": ["sanoa"],
+  "sanoi": ["sanoa"],
+
+  "lauen": ["lukea"],
+  "luki": ["lukea"],
+  "lukee": ["lukea"],
+
+  "talot": ["talo"],
+  "talossa": ["talo"],
+  "talosta": ["talo"],
+  "taloon": ["talo"],
+  "taloissa": ["talo"],
+
+  "kirjat": ["kirja"],
+  "kirjassa": ["kirja"],
+  "kirjasta": ["kirja"]
+}
