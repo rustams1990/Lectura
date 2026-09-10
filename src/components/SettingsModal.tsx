@@ -324,7 +324,7 @@ const DEFAULT_FALLBACK_FLAGS: Record<string, string> = {
   sv: "🇸🇪",
 };
 
-export default function SettingsModal({
+function SettingsModal({
   isOpen,
   onClose,
   lessons,
@@ -776,14 +776,14 @@ export default function SettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Semi-transparent backdrop with lightweight blur and layer promotion */}
+      {/* Semi-transparent backdrop without GPU blur passes */}
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-200"
+        className="fixed inset-0 bg-black/60 transition-opacity duration-150"
         onClick={onClose}
       />
 
       {/* Settings Modal Box */}
-      <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-xl flex flex-col max-h-[85vh]">
         
         {/* Modal Header */}
         <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/40">
@@ -2527,10 +2527,10 @@ export default function SettingsModal({
       {confirmImport && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-150"
+            className="fixed inset-0 bg-black/60 transition-opacity duration-150"
             onClick={() => setConfirmImport(null)}
           />
-          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-xl z-10 flex flex-col gap-4">
             
             <div className="flex items-center gap-3">
               <div className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl">
@@ -2614,10 +2614,10 @@ export default function SettingsModal({
       {confirmRestoreBackup && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-150"
+            className="fixed inset-0 bg-black/60 transition-opacity duration-150"
             onClick={() => !isRestoringServerBackup && setConfirmRestoreBackup(null)}
           />
-          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-xl z-10 flex flex-col gap-4">
             
             <div className="flex items-center gap-3">
               <div className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl">
@@ -2688,10 +2688,10 @@ export default function SettingsModal({
       {showConfirmClearHistory && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-150"
+            className="fixed inset-0 bg-black/60 transition-opacity duration-150"
             onClick={() => setShowConfirmClearHistory(false)}
           />
-          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-xl z-10 flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded-2xl">
                 <AlertTriangle className="w-6 h-6" />
@@ -2737,6 +2737,9 @@ export default function SettingsModal({
     </div>
   );
 }
+
+const MemoizedSettingsModal = React.memo(SettingsModal);
+export default MemoizedSettingsModal;
 
 const PROVIDER_PRESETS: Record<string, {
   name: string;
