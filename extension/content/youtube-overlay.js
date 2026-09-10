@@ -39276,6 +39276,7 @@
       this.startTokenIndex = null;
       this.selectedTokens = [];
       this.isShiftDown = false;
+      this.hasDraggedMultiple = false;
       // Mini Hover Tooltip (Language Reactor Style)
       this.hoverTooltip = null;
       this.hoverTimeoutId = null;
@@ -39591,6 +39592,9 @@
       window.addEventListener("keyup", (e2) => {
         if (e2.key === "Shift") this.isShiftDown = false;
       });
+      window.addEventListener("blur", () => {
+        this.isShiftDown = false;
+      });
     }
     setupClickOutsideListener() {
       document.addEventListener("click", (e2) => {
@@ -39718,34 +39722,63 @@
       this.toastElement = document.createElement("div");
       this.toastElement.className = "lectura-toast";
       this.shadowRoot.appendChild(this.toastElement);
-      this.shadowRoot.addEventListener(
-        "click",
-        (e2) => {
-          const mouseEvt = e2;
-          const target = mouseEvt.target?.closest?.(".lectura-token, .lectura-sub-word");
-          if (!target) return;
-          mouseEvt.preventDefault();
-          mouseEvt.stopPropagation();
-          if (this.hoverTimeoutId) {
-            window.clearTimeout(this.hoverTimeoutId);
-            this.hoverTimeoutId = null;
-          }
-          this.hideHoverTooltip();
-          const word = target.getAttribute("data-word") || target.textContent?.trim() || "";
-          const sentence = target.closest(".lectura-line")?.textContent || target.closest(".lectura-subtitles-container")?.textContent || "";
-          if (word) {
+      let isMouseDown = false;
+      let dragStartIndex = null;
+      this.subtitleBox.addEventListener("mousedown", (e2) => {
+        const target = e2.target?.closest?.(".lectura-token, .lectura-word-token");
+        if (!target) return;
+        isMouseDown = true;
+        this.hasDraggedMultiple = false;
+        dragStartIndex = parseInt(target.dataset.tokenIndex || "-1", 10);
+      });
+      this.subtitleBox.addEventListener("mouseover", (e2) => {
+        if (!isMouseDown || dragStartIndex === null || dragStartIndex === -1) return;
+        const target = e2.target?.closest?.(".lectura-token, .lectura-word-token");
+        if (!target) return;
+        const currentIdx = parseInt(target.dataset.tokenIndex || "-1", 10);
+        if (currentIdx === -1) return;
+        if (currentIdx !== dragStartIndex) {
+          this.hasDraggedMultiple = true;
+          const allTokens = Array.from(this.subtitleBox?.querySelectorAll(".lectura-token, .lectura-word-token") || []);
+          const minIdx = Math.min(dragStartIndex, currentIdx);
+          const maxIdx = Math.max(dragStartIndex, currentIdx);
+          allTokens.forEach((t4) => {
+            const idx = parseInt(t4.dataset.tokenIndex || "-1", 10);
+            if (idx >= minIdx && idx <= maxIdx) {
+              t4.classList.add("lectura-token--selected");
+            } else {
+              t4.classList.remove("lectura-token--selected");
+            }
+          });
+        }
+      });
+      window.addEventListener("mouseup", (e2) => {
+        if (!isMouseDown) return;
+        isMouseDown = false;
+        if (this.hasDraggedMultiple && dragStartIndex !== null) {
+          const target = e2.target?.closest?.(".lectura-token, .lectura-word-token");
+          const allTokens = Array.from(this.subtitleBox?.querySelectorAll(".lectura-token, .lectura-word-token") || []);
+          const endIdx = target ? parseInt(target.dataset.tokenIndex || "-1", 10) : -1;
+          const validEndIdx = endIdx !== -1 ? endIdx : dragStartIndex;
+          const minIdx = Math.min(dragStartIndex, validEndIdx);
+          const maxIdx = Math.max(dragStartIndex, validEndIdx);
+          if (minIdx !== maxIdx) {
             if (this.settings?.pauseOnWordClick && this.videoElement && !this.videoElement.paused) {
               this.videoElement.pause();
             }
-            const allTokens = Array.from(this.subtitleBox?.querySelectorAll(".lectura-token") || []);
-            allTokens.forEach((t4) => t4.classList.remove("lectura-token--selected"));
-            target.classList.add("lectura-token--selected");
-            this.selectedTokens = [target];
-            this.showWordCard(word, sentence, target);
+            this.selectedTokens = allTokens.filter((t4) => {
+              const idx = parseInt(t4.dataset.tokenIndex || "-1", 10);
+              return idx >= minIdx && idx <= maxIdx;
+            });
+            this.selectedTokens.forEach((t4) => t4.classList.add("lectura-token--selected"));
+            const phraseText = this.selectedTokens.map((t4) => t4.textContent?.trim() || "").join(" ").trim();
+            this.startTokenIndex = dragStartIndex;
+            this.isPhraseSelecting = true;
+            this.showWordCard(phraseText, this.currentSubtitleText, this.selectedTokens[0]);
           }
-        },
-        true
-      );
+        }
+        dragStartIndex = null;
+      });
       this.playerContainer?.appendChild(this.overlayContainer);
       const ensureOverlayAnchor = () => {
         const player = document.querySelector("#movie_player, .html5-video-player") || this.playerContainer;
@@ -39813,6 +39846,8 @@
         box-sizing: border-box !important;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
         text-align: center !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
       }
 
       .lectura-sub-line,
@@ -39845,15 +39880,26 @@
       .lectura-token {
         display: inline !important;
         cursor: pointer !important;
-        padding: 0 1px !important;
+        padding: 0 2px !important;
         margin: 0 1px !important;
         font-weight: 700 !important;
+        border-radius: 3px !important;
         transition: background 0.12s ease, color 0.12s ease !important;
       }
 
       .lectura-word-token:hover,
       .lectura-token:hover {
         background: rgba(255, 255, 255, 0.25) !important;
+      }
+
+      /* \u0412\u044B\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u0438\u0445 \u0441\u043B\u043E\u0432 (Shift + Click / \u041C\u044B\u0448\u044C \u0434\u043B\u044F \u0438\u0434\u0438\u043E\u043C \u0438 \u0444\u0440\u0430\u0437\u043E\u0432\u044B\u0445 \u0433\u043B\u0430\u0433\u043E\u043B\u043E\u0432) */
+      .lectura-word-token.lectura-token--selected,
+      .lectura-token.lectura-token--selected {
+        background: rgba(14, 165, 233, 0.45) !important;
+        color: #ffffff !important;
+        border-radius: 4px !important;
+        outline: 2px solid #38bdf8 !important;
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.6) !important;
       }
 
       /* \u041F\u041E\u041B\u041D\u041E\u042D\u041A\u0420\u0410\u041D\u041D\u042B\u0419 \u0420\u0415\u0416\u0418\u041C (.ytp-fullscreen) */
@@ -42246,6 +42292,7 @@
           span.className = "lectura-word-token lectura-token";
           span.textContent = coreWord;
           span.dataset.word = coreWord.toLowerCase();
+          span.dataset.coreWord = coreWord;
           span.dataset.tokenIndex = String(tokenIndexCounter++);
           const wordInfo = this.lookupWordInfo(coreWord);
           span.classList.add(`status-${wordInfo.status}`);
@@ -42261,6 +42308,10 @@
             this.hideHoverTooltip();
           });
           span.addEventListener("click", (e2) => {
+            if (this.hasDraggedMultiple) {
+              this.hasDraggedMultiple = false;
+              return;
+            }
             if (this.hoverTimeoutId) {
               window.clearTimeout(this.hoverTimeoutId);
               this.hoverTimeoutId = null;
@@ -42272,7 +42323,8 @@
             }
             const allTokens = Array.from(this.subtitleBox?.querySelectorAll(".lectura-token, .lectura-word-token") || []);
             const clickedIdx = parseInt(span.dataset.tokenIndex || "0", 10);
-            if ((e2.shiftKey || this.isShiftDown) && this.startTokenIndex !== null && allTokens.length > 0) {
+            const isShift = Boolean(e2.shiftKey || this.isShiftDown);
+            if (isShift && this.startTokenIndex !== null && allTokens.length > 0) {
               const minIdx = Math.min(this.startTokenIndex, clickedIdx);
               const maxIdx = Math.max(this.startTokenIndex, clickedIdx);
               allTokens.forEach((t4) => t4.classList.remove("lectura-token--selected"));

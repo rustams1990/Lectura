@@ -529,6 +529,7 @@ class YouTubeLecturaOverlay {
   private startTokenIndex: number | null = null;
   private selectedTokens: HTMLElement[] = [];
   private isShiftDown: boolean = false;
+  private hasDraggedMultiple: boolean = false;
 
   // Mini Hover Tooltip (Language Reactor Style)
   private hoverTooltip: HTMLElement | null = null;
@@ -888,6 +889,9 @@ class YouTubeLecturaOverlay {
     window.addEventListener('keyup', (e) => {
       if (e.key === 'Shift') this.isShiftDown = false;
     });
+    window.addEventListener('blur', () => {
+      this.isShiftDown = false;
+    });
   }
 
   private setupClickOutsideListener() {
@@ -1044,42 +1048,71 @@ class YouTubeLecturaOverlay {
     this.toastElement.className = 'lectura-toast';
     this.shadowRoot.appendChild(this.toastElement);
 
-    // Delegated click listener on ShadowRoot for all subtitle tokens
-    this.shadowRoot.addEventListener(
-      'click',
-      (e: Event) => {
-        const mouseEvt = e as MouseEvent;
-        const target = (mouseEvt.target as HTMLElement)?.closest?.('.lectura-token, .lectura-sub-word') as HTMLElement | null;
-        if (!target) return;
+    // Multi-token Mouse Drag Selection on Subtitle Box
+    let isMouseDown = false;
+    let dragStartIndex: number | null = null;
 
-        mouseEvt.preventDefault();
-        mouseEvt.stopPropagation();
+    this.subtitleBox.addEventListener('mousedown', (e: MouseEvent) => {
+      const target = (e.target as HTMLElement)?.closest?.('.lectura-token, .lectura-word-token') as HTMLElement | null;
+      if (!target) return;
+      isMouseDown = true;
+      this.hasDraggedMultiple = false;
+      dragStartIndex = parseInt(target.dataset.tokenIndex || '-1', 10);
+    });
 
-        if (this.hoverTimeoutId) {
-          window.clearTimeout(this.hoverTimeoutId);
-          this.hoverTimeoutId = null;
-        }
-        this.hideHoverTooltip();
+    this.subtitleBox.addEventListener('mouseover', (e: MouseEvent) => {
+      if (!isMouseDown || dragStartIndex === null || dragStartIndex === -1) return;
+      const target = (e.target as HTMLElement)?.closest?.('.lectura-token, .lectura-word-token') as HTMLElement | null;
+      if (!target) return;
+      const currentIdx = parseInt(target.dataset.tokenIndex || '-1', 10);
+      if (currentIdx === -1) return;
 
-        const word = target.getAttribute('data-word') || target.textContent?.trim() || '';
-        const sentence =
-          target.closest('.lectura-line')?.textContent ||
-          target.closest('.lectura-subtitles-container')?.textContent ||
-          '';
+      if (currentIdx !== dragStartIndex) {
+        this.hasDraggedMultiple = true;
+        const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token') || []);
+        const minIdx = Math.min(dragStartIndex, currentIdx);
+        const maxIdx = Math.max(dragStartIndex, currentIdx);
 
-        if (word) {
+        allTokens.forEach((t) => {
+          const idx = parseInt(t.dataset.tokenIndex || '-1', 10);
+          if (idx >= minIdx && idx <= maxIdx) {
+            t.classList.add('lectura-token--selected');
+          } else {
+            t.classList.remove('lectura-token--selected');
+          }
+        });
+      }
+    });
+
+    window.addEventListener('mouseup', (e: MouseEvent) => {
+      if (!isMouseDown) return;
+      isMouseDown = false;
+
+      if (this.hasDraggedMultiple && dragStartIndex !== null) {
+        const target = (e.target as HTMLElement)?.closest?.('.lectura-token, .lectura-word-token') as HTMLElement | null;
+        const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token') || []);
+        const endIdx = target ? parseInt(target.dataset.tokenIndex || '-1', 10) : -1;
+        const validEndIdx = endIdx !== -1 ? endIdx : dragStartIndex;
+        const minIdx = Math.min(dragStartIndex, validEndIdx);
+        const maxIdx = Math.max(dragStartIndex, validEndIdx);
+
+        if (minIdx !== maxIdx) {
           if (this.settings?.pauseOnWordClick && this.videoElement && !this.videoElement.paused) {
             this.videoElement.pause();
           }
-          const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token') || []);
-          allTokens.forEach((t) => t.classList.remove('lectura-token--selected'));
-          target.classList.add('lectura-token--selected');
-          this.selectedTokens = [target];
-          this.showWordCard(word, sentence, target);
+          this.selectedTokens = allTokens.filter((t) => {
+            const idx = parseInt(t.dataset.tokenIndex || '-1', 10);
+            return idx >= minIdx && idx <= maxIdx;
+          });
+          this.selectedTokens.forEach((t) => t.classList.add('lectura-token--selected'));
+          const phraseText = this.selectedTokens.map((t) => t.textContent?.trim() || '').join(' ').trim();
+          this.startTokenIndex = dragStartIndex;
+          this.isPhraseSelecting = true;
+          this.showWordCard(phraseText, this.currentSubtitleText, this.selectedTokens[0]);
         }
-      },
-      true
-    );
+      }
+      dragStartIndex = null;
+    });
 
     this.playerContainer?.appendChild(this.overlayContainer);
 
@@ -1151,6 +1184,8 @@ class YouTubeLecturaOverlay {
         box-sizing: border-box !important;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
         text-align: center !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
       }
 
       .lectura-sub-line,
@@ -1183,15 +1218,26 @@ class YouTubeLecturaOverlay {
       .lectura-token {
         display: inline !important;
         cursor: pointer !important;
-        padding: 0 1px !important;
+        padding: 0 2px !important;
         margin: 0 1px !important;
         font-weight: 700 !important;
+        border-radius: 3px !important;
         transition: background 0.12s ease, color 0.12s ease !important;
       }
 
       .lectura-word-token:hover,
       .lectura-token:hover {
         background: rgba(255, 255, 255, 0.25) !important;
+      }
+
+      /* Выделение нескольких слов (Shift + Click / Мышь для идиом и фразовых глаголов) */
+      .lectura-word-token.lectura-token--selected,
+      .lectura-token.lectura-token--selected {
+        background: rgba(14, 165, 233, 0.45) !important;
+        color: #ffffff !important;
+        border-radius: 4px !important;
+        outline: 2px solid #38bdf8 !important;
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.6) !important;
       }
 
       /* ПОЛНОЭКРАННЫЙ РЕЖИМ (.ytp-fullscreen) */
@@ -3434,6 +3480,7 @@ class YouTubeLecturaOverlay {
         span.className = 'lectura-word-token lectura-token';
         span.textContent = coreWord;
         span.dataset.word = coreWord.toLowerCase();
+        span.dataset.coreWord = coreWord;
         span.dataset.tokenIndex = String(tokenIndexCounter++);
 
         const wordInfo = this.lookupWordInfo(coreWord);
@@ -3453,6 +3500,11 @@ class YouTubeLecturaOverlay {
         });
 
         span.addEventListener('click', (e) => {
+          if (this.hasDraggedMultiple) {
+            this.hasDraggedMultiple = false;
+            return;
+          }
+
           if (this.hoverTimeoutId) {
             window.clearTimeout(this.hoverTimeoutId);
             this.hoverTimeoutId = null;
@@ -3465,8 +3517,9 @@ class YouTubeLecturaOverlay {
 
           const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token') || []);
           const clickedIdx = parseInt(span.dataset.tokenIndex || '0', 10);
+          const isShift = Boolean(e.shiftKey || this.isShiftDown);
 
-          if ((e.shiftKey || this.isShiftDown) && this.startTokenIndex !== null && allTokens.length > 0) {
+          if (isShift && this.startTokenIndex !== null && allTokens.length > 0) {
             const minIdx = Math.min(this.startTokenIndex, clickedIdx);
             const maxIdx = Math.max(this.startTokenIndex, clickedIdx);
 

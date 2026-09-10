@@ -128,18 +128,61 @@ function generateLecturaPngIcons(iconsDir) {
 
       for (const size of sizes) {
         const out = new Uint8Array(size * size * 4);
-        const xRatio = srcW / size;
-        const yRatio = srcH / size;
+        const scaleX = srcW / size;
+        const scaleY = srcH / size;
+
         for (let y = 0; y < size; y++) {
+          const yStart = y * scaleY;
+          const yEnd = (y + 1) * scaleY;
+          const iyMin = Math.floor(yStart);
+          const iyMax = Math.min(srcH, Math.ceil(yEnd));
+
           for (let x = 0; x < size; x++) {
-            const srcX = Math.min(srcW - 1, Math.floor(x * xRatio));
-            const srcY = Math.min(srcH - 1, Math.floor(y * yRatio));
-            const srcIdx = (srcY * srcW + srcX) * 4;
+            const xStart = x * scaleX;
+            const xEnd = (x + 1) * scaleX;
+            const ixMin = Math.floor(xStart);
+            const ixMax = Math.min(srcW, Math.ceil(xEnd));
+
+            let totalWeight = 0;
+            let rSum = 0;
+            let gSum = 0;
+            let bSum = 0;
+            let aSum = 0;
+
+            for (let iy = iyMin; iy < iyMax; iy++) {
+              const yWeight = Math.min(iy + 1, yEnd) - Math.max(iy, yStart);
+              if (yWeight <= 0) continue;
+
+              for (let ix = ixMin; ix < ixMax; ix++) {
+                const xWeight = Math.min(ix + 1, xEnd) - Math.max(ix, xStart);
+                if (xWeight <= 0) continue;
+
+                const weight = xWeight * yWeight;
+                const idx = (iy * srcW + ix) * 4;
+                const a = rgba[idx + 3] / 255;
+
+                rSum += rgba[idx] * a * weight;
+                gSum += rgba[idx + 1] * a * weight;
+                bSum += rgba[idx + 2] * a * weight;
+                aSum += rgba[idx + 3] * weight;
+                totalWeight += weight;
+              }
+            }
+
             const outIdx = (y * size + x) * 4;
-            out[outIdx] = rgba[srcIdx];
-            out[outIdx + 1] = rgba[srcIdx + 1];
-            out[outIdx + 2] = rgba[srcIdx + 2];
-            out[outIdx + 3] = rgba[srcIdx + 3];
+            if (totalWeight > 0 && aSum > 0) {
+              const finalA = aSum / totalWeight;
+              const alphaRatio = finalA / 255;
+              out[outIdx] = Math.round((rSum / totalWeight) / alphaRatio);
+              out[outIdx + 1] = Math.round((gSum / totalWeight) / alphaRatio);
+              out[outIdx + 2] = Math.round((bSum / totalWeight) / alphaRatio);
+              out[outIdx + 3] = Math.round(finalA);
+            } else {
+              out[outIdx] = 0;
+              out[outIdx + 1] = 0;
+              out[outIdx + 2] = 0;
+              out[outIdx + 3] = 0;
+            }
           }
         }
         const pngBuf = Buffer.from(UPNG.encode([out.buffer], size, size, 0));
