@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
-  "private": true,
-  "version": "2.99.203",
+  "name": "lectura",
+  "version": "1.0.0",
+  "description": "Smart AI-powered language reading and learning system",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "tsx watch server.ts",
