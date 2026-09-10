@@ -19,10 +19,10 @@ export default function QueueModal() {
   if (!showQueueModal || queue.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-150"
         onClick={() => setShowQueueModal(false)}
       />
 

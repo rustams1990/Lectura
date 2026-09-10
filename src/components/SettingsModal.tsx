@@ -775,10 +775,10 @@ export default function SettingsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-      {/* Semi-transparent backdrop with animation */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Semi-transparent backdrop with lightweight blur and layer promotion */}
       <div 
-        className="fixed inset-0 bg-zinc-950/60 backdrop-blur-md transition-opacity duration-300 animate-in fade-in"
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-200"
         onClick={onClose}
       />
 
@@ -2525,9 +2525,9 @@ export default function SettingsModal({
 
       {/* Restoration Confirmation Modal Overlay */}
       {confirmImport && (
-        <div className="fixed inset-0 z-60 overflow-y-auto flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-150"
             onClick={() => setConfirmImport(null)}
           />
           <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
@@ -2612,9 +2612,9 @@ export default function SettingsModal({
 
       {/* Server Backup Restoration Confirmation Modal Overlay */}
       {confirmRestoreBackup && (
-        <div className="fixed inset-0 z-60 overflow-y-auto flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-150"
             onClick={() => !isRestoringServerBackup && setConfirmRestoreBackup(null)}
           />
           <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
@@ -2686,9 +2686,9 @@ export default function SettingsModal({
 
       {/* Clear Activity History Confirmation Modal Overlay */}
       {showConfirmClearHistory && (
-        <div className="fixed inset-0 z-60 overflow-y-auto flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-zinc-950/70 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-150"
             onClick={() => setShowConfirmClearHistory(false)}
           />
           <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md p-6 shadow-2xl z-10 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
@@ -2939,13 +2939,16 @@ function AIProfilesManager({ settings, onSettingsChange, t }: AIProfilesManagerP
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [, setTick] = useState(0);
 
-  // Periodic tick for remaining cooldown counters
+  // Periodic tick for remaining cooldown counters - only runs when a cooldown is active
   useEffect(() => {
+    const hasActiveCooldown = profiles.some(p => isProfileOnCooldown(p.id));
+    if (!hasActiveCooldown) return;
+
     const timer = setInterval(() => {
       setTick(t => t + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [profiles]);
 
   const saveProfiles = (newProfiles: AIProfile[]) => {
     const reindexed = newProfiles.map((p, idx) => ({ ...p, priority: idx + 1 }));
