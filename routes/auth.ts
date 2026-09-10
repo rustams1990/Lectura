@@ -111,15 +111,8 @@ export function resolveUserId(req: Request): string {
     return rawUser;
   }
 
-  // Fallback: If no user specified or "default", map to the primary user or single user
-  try {
-    const db = getDbConnection("default");
-    const primaryUser = db.prepare("SELECT id FROM server_users ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
-    if (primaryUser) {
-      return primaryUser.id;
-    }
-  } catch (_) {}
-
+  // If no user specified or "default", unauthenticated requests stay in "default" (guest) scope
+  // to ensure strict Multi-Account Data Isolation and never leak registered users' personal libraries.
   return "default";
 }
 

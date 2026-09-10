@@ -13,7 +13,6 @@ const PRECACHE_ASSETS = [
   "/",
   "/index.html",
   "/manifest.json",
-  "/manifest.json?v=2.99.203",
 ];
 
 // 1. Install Event: Pre-cache core shell resources

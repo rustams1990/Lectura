@@ -39,13 +39,7 @@ export function handleTrackActivity(req: Request, res: Response) {
         userId = fallbackUser;
       }
     } else {
-      try {
-        const db = getDbConnection("default");
-        const primaryUser = db.prepare("SELECT id FROM server_users ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
-        userId = primaryUser ? primaryUser.id : "default";
-      } catch (_) {
-        userId = "default";
-      }
+      userId = "default";
     }
   }
 

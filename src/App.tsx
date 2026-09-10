@@ -1443,19 +1443,26 @@ export default function App() {
         serverInitialLoadComplete.current = false;
         // Clear any previous error so a fresh login always triggers a clean sync
         setLocalSyncError(false);
-        // Give the auth system 600ms to write the token to localStorage before syncing
-        setTimeout(() => loadDataFromLocalServer(), 600);
+        // Only load from server if an authenticated user is logged in
+        if (activeUserId) {
+          setTimeout(() => loadDataFromLocalServer(), 600);
+        }
         return;
       }
-      loadDataFromLocalServer();
+      if (activeUserId) {
+        loadDataFromLocalServer();
+      }
     }
   }, [activeUserId, storageMode, isAuthLoading]);
 
   useEffect(() => {
     const handleLogout = () => {
       serverInitialLoadComplete.current = false;
-      setLessons(normalizeBuiltInLessons(BUILT_IN_LESSONS));
+      const initialLessons = normalizeBuiltInLessons(BUILT_IN_LESSONS);
+      setLessons(initialLessons);
+      useLessonStore.getState().setLessons(initialLessons);
       setLessonTypes(ensureDefaultLessonTypes(DEFAULT_LESSON_TYPES));
+      setPlaylists([]);
       setVocab({});
       setWordLinks({});
       setListeningSeconds(0);
@@ -1493,7 +1500,11 @@ export default function App() {
     const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
     const savedUserStr = localStorage.getItem("vocab_clone_local_user");
     const hasSavedSession = !!(savedToken && savedUserStr);
-    if (!hasSavedSession && isAuthLoading) return;
+    if (!hasSavedSession && (isAuthLoading || !activeUserId)) {
+      setIsInitialServerLoading(false);
+      setIsSyncing(false);
+      return;
+    }
 
     isServerLoadInProgress.current = true;
     setIsSyncing(true);
