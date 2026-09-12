@@ -26,12 +26,8 @@ if %ERRORLEVEL% neq 0 (
 
 :: Check for node_modules and tsx
 set NEED_INSTALL=0
-if not exist "node_modules\" (
-    set NEED_INSTALL=1
-) else if not exist "node_modules\tsx\" (
-    echo [!] Incomplete node_modules detected (missing tsx). Reinstalling...
-    set NEED_INSTALL=1
-)
+if not exist "node_modules\" set NEED_INSTALL=1
+if not exist "node_modules\tsx\" set NEED_INSTALL=1
 
 if "!NEED_INSTALL!"=="1" (
     echo [2/3] Installing dependencies...
@@ -46,7 +42,7 @@ if "!NEED_INSTALL!"=="1" (
         echo    and check "Add python.exe to PATH" during setup.
         echo 2. Or install without native scripts: npm install --ignore-scripts
         echo.
-        echo Tip: Delete the incomplete "node_modules" folder before retrying.
+        echo Tip: Delete incomplete node_modules folder before retrying.
         echo ====================================================================
         pause
         exit /b
