@@ -151,21 +151,29 @@ async function processQueue() {
 
       const outPattern = path.join(uploadDir, `yt_whisper_${activeItem.id}.%(ext)s`);
       const dlp = getYtDlp();
-      await (dlp as any)(activeItem.sourceUrl, {
-        // Prefer lightweight audio-only formats: m4a → opus → webm → any audio
-        format: "ba[ext=m4a]/ba[ext=opus]/ba[ext=webm]/bestaudio/best",
-        output: outPattern,
-        noCheckCertificate: true,
-        preferFreeFormats: true,
-        // Parallel fragment downloads for faster streaming
-        concurrentFragments: 4,
-        bufferSize: "16K",
-        addHeader: [
-          'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language:en-US,en;q=0.9'
-        ],
-        extractorArgs: 'youtube:player_client=android,web'
-      });
+      try {
+        await (dlp as any)(activeItem.sourceUrl, {
+          // Prefer lightweight audio-only formats: m4a → opus → webm → any audio
+          format: "ba[ext=m4a]/ba[ext=opus]/ba[ext=webm]/bestaudio/best",
+          output: outPattern,
+          noCheckCertificate: true,
+          preferFreeFormats: true,
+          concurrentFragments: 4,
+          bufferSize: "16K",
+          addHeader: [
+            'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language:en-US,en;q=0.9'
+          ]
+        });
+      } catch (firstErr: any) {
+        console.warn("[Whisper] Primary YouTube audio extraction failed, retrying with fallback audio format...", firstErr?.message || firstErr);
+        await (dlp as any)(activeItem.sourceUrl, {
+          format: "bestaudio/best",
+          output: outPattern,
+          noCheckCertificate: true,
+          preferFreeFormats: true
+        });
+      }
 
       // Find the actual output file regardless of audio codec (.opus, .m4a, .webm, etc.)
       const files = fs.readdirSync(uploadDir);

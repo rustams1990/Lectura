@@ -347,7 +347,6 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
             'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept-Language:en-US,en;q=0.9'
           ],
-          extractorArgs: 'youtube:player_client=android,web',
           output: tempBasePath,
           skipDownload: true,
           noCheckCertificate: true,
@@ -535,7 +534,6 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
               'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
               'Accept-Language:en-US,en;q=0.9'
             ],
-            extractorArgs: 'youtube:player_client=android,web',
             output: `${tempAudioBase}.%(ext)s`,
             noCheckCertificate: true,
           });
@@ -705,7 +703,6 @@ router.post("/youtube-playlist", async (req, res) => {
           "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
           "Accept-Language:en-US,en;q=0.9"
         ],
-        extractorArgs: "youtube:player_client=android,web",
         noCheckCertificate: true,
       });
 

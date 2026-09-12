@@ -1980,7 +1980,6 @@ router.post("/media/download", async (req: Request, res: Response) => {
           noPlaylist: true,
           newline: true,
           noWarnings: true,
-          extractorArgs: "youtube:player_client=ios,web,mweb",
         };
 
         if (isAudio) {
@@ -2257,7 +2256,6 @@ router.get("/media/youtube-stream/:videoId", async (req: Request, res: Response)
           newline: true,
           noWarnings: true,
           format: "ba/b",
-          extractorArgs: "youtube:player_client=ios,web,mweb",
         };
 
         let processErrorMsg = "";
