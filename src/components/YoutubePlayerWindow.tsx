@@ -756,13 +756,13 @@ export default function YoutubePlayerWindow({
         isDragging || isResizing 
           ? "border-teal-400 dark:border-teal-700 shadow-teal-500/10" 
           : "border-zinc-200 dark:border-zinc-800"
-      } rounded-2xl shadow-2xl overflow-hidden z-[999] flex flex-col transition-colors duration-150 animate-in fade-in zoom-in-95`}
+      } rounded-2xl shadow-2xl z-[999] flex flex-col transition-colors duration-150 animate-in fade-in zoom-in-95`}
     >
       {/* Header bar - acts as Drag handle */}
       <div
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
-        className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between select-none shrink-0 touch-none ${
+        className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between select-none shrink-0 touch-none rounded-t-2xl overflow-hidden ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
         title={t('explainer.yt_drag', 'Перетащите плеер удерживая левую кнопку мыши')}
@@ -912,7 +912,7 @@ export default function YoutubePlayerWindow({
           opacity: isMinimized ? 0 : 1,
           pointerEvents: isMinimized ? "none" : "auto"
         }} 
-        className="w-full bg-black relative flex-1 transition-all duration-150 overflow-hidden"
+        className="w-full bg-black relative flex-1 transition-all duration-150 overflow-hidden rounded-b-2xl"
       >
         {/* Case 1: Playing Local HTML5 Video */}
         {useLocalMedia && localMediaUrl ? (
