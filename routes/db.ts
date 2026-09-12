@@ -73,7 +73,7 @@ async function fetchFreeDictionaryFromCom(word: string, langCode: string) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "LecturaApp/2.99 (https://github.com/lectura; contact@lectura.local)",
+        "User-Agent": "LecturaApp/1.0.1 (https://github.com/lectura; contact@lectura.local)",
         "Accept": "application/json"
       }
     });
@@ -103,7 +103,7 @@ async function fetchFreeDictionary(word: string, langCode: string) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "LecturaApp/2.99 (https://github.com/lectura; contact@lectura.local)",
+        "User-Agent": "LecturaApp/1.0.1 (https://github.com/lectura; contact@lectura.local)",
         "Accept": "application/json"
       }
     });
@@ -136,7 +136,7 @@ async function fetchWiktionarySingle(word: string, lang: string = 'en') {
     const response = await fetch(endpoint, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'LecturaApp/2.99 (https://github.com/lectura; contact@lectura.local)',
+        'User-Agent': 'LecturaApp/1.0.1 (https://github.com/lectura; contact@lectura.local)',
         'Accept': 'application/json'
       }
     });

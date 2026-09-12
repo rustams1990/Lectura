@@ -21,7 +21,7 @@ import lessonsRouter from "./routes/lessons.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { APP_VERSION } from "./src/version.ts";
 
-// Lectura Server Entry v2.99.110
+// Lectura Server Entry v1.0.1
 dotenv.config();
 
 async function startServer() {

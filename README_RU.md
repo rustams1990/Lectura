@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](docker-compose.prod.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/rustams1990/Lectura/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-green.svg)](https://github.com/rustams1990/Lectura/releases)
 
 Добро пожаловать в **Lectura**! Это современное приложение с открытым исходным кодом для чтения книг, статей и просмотра видео на иностранных языках с мгновенным контекстным переводом, качественной озвучкой, разбором грамматики и автоматическим формированием личного словаря на базе искусственного интеллекта Google Gemini или локальных моделей (Ollama).
 
@@ -35,11 +35,29 @@
 
 ## 🚀 Варианты запуска и установки
 
-### Способ 1. Запуск через Docker (Рекомендуется для всех ОС)
-Самый быстрый и надежный способ — не требует установки Node.js или компиляторов.
+### Способ 1. Быстрый запуск на Windows в 1 клик (Без Docker — Рекомендуется)
+Самый лёгкий способ запустить проект на домашнем компьютере с Windows:
 
-1. Убедитесь, что установлен [Docker Desktop](https://www.docker.com/).
-2. Склонируйте репозиторий:
+1. Установите:
+   * **[Node.js](https://nodejs.org/)** (версия 20 или новее LTS).
+   * **[Python 3](https://www.python.org/downloads/)** (требуется библиотеке `yt-dlp` для извлечения видео и субтитров с YouTube).
+     > ⚠️ **Важно:** при установке Python обязательно отметьте галочку **"Add python.exe to PATH"** в первом окне установщика!
+2. Скачайте архив с релизом (или клонируйте репозиторий) и дважды кликните по файлу **`run.bat`**.
+   * Скрипт сам проверит окружение, установит зависимости (`npm install`), создаст конфигурацию `.env` и поднимет сервер.
+3. Откройте браузер: **[http://localhost:3000](http://localhost:3000)**.
+4. В приложении нажмите иконку шестерёнки (**Настройки**) и вставьте ваш бесплатный ключ **Google Gemini API**.
+
+---
+
+### Способ 2. Запуск через Docker (Опционально)
+Запуск в изолированном контейнере без необходимости ставить Node.js и Python на хост-систему.
+
+1. Убедитесь, что установлен и запущен [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+   * *Для Windows:* можно скачать `.exe` с официального сайта или выполнить в консоли:
+     ```cmd
+     winget install --id Docker.DockerDesktop --source winget
+     ```
+2. Склонируйте репозиторий (или скачайте исходный код):
    ```bash
    git clone https://github.com/rustams1990/Lectura.git
    cd Lectura
@@ -48,38 +66,30 @@
    ```bash
    docker compose -f docker-compose.prod.yml up -d
    ```
-4. Откройте в браузере: **[http://localhost:8586](http://localhost:8586)** (или порт 3000 при использовании обычного `docker-compose.yml`).
+4. Откройте в браузере: **[http://localhost:8586](http://localhost:8586)**.
 5. Перейдите в **Настройки (Settings)** внутри Lectura и укажите ваш бесплатный ключ **Google Gemini API**.
-
----
-
-### Способ 2. Быстрый запуск на Windows (без Docker)
-В проекте предусмотрен готовый скрипт автозапуска:
-
-1. Установите [Node.js](https://nodejs.org/) (версия 20 или новее).
-2. Скачайте проект и дважды кликните по файлу **`run.bat`**.
-   * Скрипт сам проверит окружение, установит зависимости (`npm install`) и поднимет сервер.
-3. Откройте браузер: **[http://localhost:3000](http://localhost:3000)**.
 
 ---
 
 ### Способ 3. Для разработчиков (Terminal: Windows, macOS, Linux)
 
-1. Установите Node.js 20+:
+1. Убедитесь, что установлены **Node.js 20+** и **Python 3**.
+2. Установите зависимости:
    ```bash
    git clone https://github.com/rustams1990/Lectura.git
    cd Lectura
    npm install
    ```
-2. Создайте файл `.env`:
+   *(Если Python не установлен, можно выполнить `npm install --ignore-scripts`, но функционал скачивания YouTube-видео потребует наличия Python)*.
+3. Создайте файл `.env`:
    ```bash
    cp .env.example .env
    ```
-3. Запустите в режиме разработки (с горячей перезагрузкой):
+4. Запустите в режиме разработки (с горячей перезагрузкой):
    ```bash
    npm run dev
    ```
-4. Приложение доступно по адресу: **`http://localhost:3000`**.
+5. Приложение доступно по адресу: **`http://localhost:3000`**.
 
 ---
 

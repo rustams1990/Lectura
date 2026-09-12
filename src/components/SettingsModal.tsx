@@ -28,6 +28,7 @@ import WhisperSettingsManager from "./WhisperSettingsManager";
 import IgnoreListsSettingsManager from "./IgnoreListsSettingsManager";
 import { Capacitor } from "@capacitor/core";
 import { getServerBaseUrl, setServerBaseUrl, testServerConnection } from "../utils/mobileServerBridge";
+import { getLanguageFlagEmoji } from "./LibraryHome";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -111,7 +112,7 @@ function getFlagsForLanguage(langName: string): { presets: string[]; label: stri
   // English
   if (norm.includes("english") || norm.includes("англ") || norm === "en") {
     return {
-      presets: ["🇺🇸", "🇬🇧", "🇨🇦", "🇦🇺", "🇳🇿", "🇮🇪", "🇿🇦", "🇯🇲", "🇸🇬", "🇮🇳"],
+      presets: ["🇬🇧", "🇺🇸", "🇨🇦", "🇦🇺", "🇳🇿", "🇮🇪", "🇿🇦", "🇯🇲", "🇸🇬", "🇮🇳"],
       label: "English-speaking countries:"
     };
   }
@@ -281,8 +282,8 @@ const DEFAULT_FALLBACK_FLAGS: Record<string, string> = {
   espanol: "🇪🇸",
   spanish_esp: "🇪🇸",
   es: "🇪🇸",
-  english: "🇺🇸",
-  en: "🇺🇸",
+  english: "🇬🇧",
+  en: "🇬🇧",
   german: "🇩🇪",
   deutsch: "🇩🇪",
   de: "🇩🇪",
@@ -913,7 +914,7 @@ function SettingsModal({
                   const flagConfig = getFlagsForLanguage(lang);
                   const currentFlag = (languageFlags[langLower] && languageFlags[langLower] !== "📖")
                     ? languageFlags[langLower]
-                    : (DEFAULT_FALLBACK_FLAGS[langLower] || (flagConfig.presets && flagConfig.presets[0]) || "🌐");
+                    : (getLanguageFlagEmoji(lang, languageFlags) || DEFAULT_FALLBACK_FLAGS[langLower] || (flagConfig.presets && flagConfig.presets[0]) || "🌐");
                   const customValue = customInputs[langLower] !== undefined ? customInputs[langLower] : "";
                   const isShowingAll = !!showAllFlagsMap[langLower];
                   const activePresets = isShowingAll ? ALL_WORLD_FLAGS : flagConfig.presets;

@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](docker-compose.prod.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/rustams1990/Lectura/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-green.svg)](https://github.com/rustams1990/Lectura/releases)
 
 **Lectura** is an open-source, full-featured language immersion and reading platform. It transforms foreign books, web articles, and YouTube videos into interactive learning experiences with instant AI context translation, morphological breakdown, IPA pronunciation, studio-quality speech synthesis, and Spaced Repetition (SRS) vocabulary tracking.
 
@@ -41,10 +41,29 @@ Supports both cloud AI (**Google Gemini**) and 100% offline self-hosted AI (**Ol
 
 ## 🚀 Quick Start & Installation
 
-### Option 1: Docker (Recommended — Fastest & Easiest)
-No Node.js or build toolchains required.
+### Option 1: Windows 1-Click Launch (Without Docker — Recommended for Windows)
+The easiest way to run Lectura locally on Windows:
 
-1. Ensure [Docker Desktop](https://www.docker.com/) is installed and running.
+1. Install prerequisites:
+   * **[Node.js](https://nodejs.org/)** (version 20+ LTS).
+   * **[Python 3](https://www.python.org/downloads/)** (required by `yt-dlp` for YouTube video and subtitle parsing).
+     > ⚠️ **Important:** During Python setup, ensure you check the box: **"Add python.exe to PATH"**!
+2. Download or clone this repository.
+3. Double-click the **`run.bat`** file in the project root.
+   * The script automatically verifies your environment, installs dependencies (`npm install`), creates configuration, and starts the server.
+4. Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+5. In the Lectura UI, click the **Settings** gear icon and paste your free **Google Gemini API Key**.
+
+---
+
+### Option 2: Docker (Isolated Container)
+Runs Lectura in a container without needing Node.js or Python installed directly on the host system.
+
+1. Ensure [Docker Desktop](https://www.docker.com/products/docker-desktop/) is installed and running.
+   * *On Windows:* download the installer from docker.com or install via terminal:
+     ```cmd
+     winget install --id Docker.DockerDesktop --source winget
+     ```
 2. Clone the repository:
    ```bash
    git clone https://github.com/rustams1990/Lectura.git
@@ -59,33 +78,25 @@ No Node.js or build toolchains required.
 
 ---
 
-### Option 2: Windows 1-Click Launch (Without Docker)
-
-1. Install [Node.js](https://nodejs.org/) (version 20+).
-2. Download or clone this repository.
-3. Double-click the **`run.bat`** file in the project root.
-   * The script automatically verifies your environment, installs dependencies (`npm install`), creates configuration, and starts the server.
-4. Open **[http://localhost:3000](http://localhost:3000)** in your browser.
-
----
-
 ### Option 3: Developer Setup (Windows, macOS, Linux)
 
-1. Clone and install dependencies:
+1. Ensure **Node.js 20+** and **Python 3** are installed.
+2. Clone and install dependencies:
    ```bash
    git clone https://github.com/rustams1990/Lectura.git
    cd Lectura
    npm install
    ```
-2. Copy environment sample:
+   *(If Python is not installed, you can run `npm install --ignore-scripts`, though YouTube subtitle extraction will require Python at runtime)*.
+3. Copy environment sample:
    ```bash
    cp .env.example .env
    ```
-3. Start development server with hot-reload:
+4. Start development server with hot-reload:
    ```bash
    npm run dev
    ```
-4. Access the web app at **`http://localhost:3000`**.
+5. Access the web app at **`http://localhost:3000`**.
 
 ---
 
