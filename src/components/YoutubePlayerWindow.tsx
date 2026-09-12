@@ -326,12 +326,9 @@ export default function YoutubePlayerWindow({
             videoId: youtubeId,
             playerVars: {
               enablejsapi: 1,
-              controls: 1,
               rel: 0,
               autoplay: 0,
               playsinline: 1,
-              modestbranding: 0,
-              origin: typeof window !== "undefined" ? window.location.origin : undefined,
               start: startSeconds > 0 ? startSeconds : undefined,
             },
             events: {
@@ -1110,13 +1107,13 @@ export default function YoutubePlayerWindow({
           <div
             onMouseDown={handleResizeStart("w")}
             onTouchStart={handleResizeStart("w")}
-            className="absolute left-0 inset-y-4 w-1 cursor-ew-resize z-30 bg-transparent touch-none"
+            className="absolute left-0 inset-y-4 w-2 cursor-ew-resize z-30 bg-transparent touch-none"
           />
           {/* Right Edge */}
           <div
             onMouseDown={handleResizeStart("e")}
             onTouchStart={handleResizeStart("e")}
-            className="absolute right-0 inset-y-4 w-1 cursor-ew-resize z-30 bg-transparent touch-none"
+            className="absolute right-0 inset-y-4 w-2 cursor-ew-resize z-30 bg-transparent touch-none"
           />
           {/* Top-Left Corner */}
           <div
