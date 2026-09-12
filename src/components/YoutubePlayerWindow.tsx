@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw, Download, AlertTriangle, Loader2, HardDrive, Globe } from "lucide-react";
+import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw, Download, AlertTriangle, Loader2, HardDrive, Globe, Play, Pause, RotateCcw, RotateCw, ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
@@ -20,10 +20,15 @@ export default function YoutubePlayerWindow({
   onVideoEnded,
 }: YoutubePlayerWindowProps) {
   const { t } = useTranslation();
-  const { setCurrentTime, seekToTime, playbackRate } = useLesson();
+  const { currentTime, setCurrentTime, seekToTime, playbackRate, setPlaybackRate, duration: lessonDuration } = useLesson();
   const { youtubeId } = lesson;
   const lastTickTimeRef = useRef<number | null>(null);
   if (!youtubeId) return null;
+
+  // Track playback state & duration for internal control bar
+  const [isLocalPlaying, setIsLocalPlaying] = useState<boolean>(false);
+  const [hasStarted, setHasStarted] = useState<boolean>(false);
+  const [totalDuration, setTotalDuration] = useState<number>(lesson.duration || lessonDuration || 0);
 
   // Track minimized (rolled up) state
   const [isMinimized, setIsMinimized] = useState(false);
@@ -40,8 +45,8 @@ export default function YoutubePlayerWindow({
   const [downloadProgress, setDownloadProgress] = useState<{ percent: number; speed: string; eta: string }>({ percent: 0, speed: "", eta: "" });
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  // Default window dimensions in pixels (440px wide, 248px content height + 44px header = 292px)
-  const [size, setSize] = useState({ width: 440, height: 292 });
+  // Default window dimensions: 440px wide, 248px content height + 44px header + 40px controls = 332px
+  const [size, setSize] = useState({ width: 440, height: 332 });
   const [position, setPosition] = useState({ x: 20, y: 150 });
   const [iframeKey, setIframeKey] = useState(0); // For reloading the player if needed
 
@@ -326,9 +331,11 @@ export default function YoutubePlayerWindow({
             videoId: youtubeId,
             playerVars: {
               enablejsapi: 1,
+              controls: 1,
               rel: 0,
               autoplay: 0,
               playsinline: 1,
+              origin: typeof window !== "undefined" ? window.location.origin : undefined,
               start: startSeconds > 0 ? startSeconds : undefined,
             },
             events: {
@@ -339,6 +346,11 @@ export default function YoutubePlayerWindow({
                 if (playbackRate && player && typeof player.setPlaybackRate === "function") {
                   try { player.setPlaybackRate(playbackRate); } catch (e) {}
                 }
+
+                try {
+                  const dur = player.getDuration();
+                  if (dur && dur > 0) setTotalDuration(Math.round(dur));
+                } catch (_) {}
 
                 let currentStartSeconds = startSeconds;
                 try {
@@ -355,18 +367,6 @@ export default function YoutubePlayerWindow({
                   try {
                     player.seekTo(targetSeek, true);
                   } catch (e) {}
-                  setTimeout(() => {
-                    if (isUnmounted) return;
-                    try {
-                      player.seekTo(targetSeek, true);
-                    } catch (e) {}
-                  }, 300);
-                  setTimeout(() => {
-                    if (isUnmounted) return;
-                    try {
-                      player.seekTo(targetSeek, true);
-                    } catch (e) {}
-                  }, 800);
                 }
               },
               onStateChange: (event: any) => {
@@ -377,10 +377,17 @@ export default function YoutubePlayerWindow({
 
                 // 1: PLAYING
                 if (state === 1 || (YTStates && state === YTStates.PLAYING)) {
+                  setIsLocalPlaying(true);
+                  setHasStarted(true);
                   lastTickTimeRef.current = Date.now();
                   usePlaylistStore.getState().setIsPlaying(false);
                   window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: lesson.id, guid: youtubeId } }));
                   startTrackingTime();
+
+                  try {
+                    const dur = Math.round(playerRef.current?.getDuration?.() || 0);
+                    if (dur > 0) setTotalDuration(dur);
+                  } catch (_) {}
                 } 
                 // 2: PAUSED, 0: ENDED, 3: BUFFERING, -1: UNSTARTED, 5: CUED
                 else if (
@@ -393,10 +400,14 @@ export default function YoutubePlayerWindow({
                     state === YTStates.CUED
                   ))
                 ) {
+                  if (state === 2 || (YTStates && state === YTStates.PAUSED)) {
+                    setIsLocalPlaying(false);
+                  }
                   stopTrackingTime();
                 }
 
                 if (state === 0 || (YTStates && state === YTStates.ENDED)) {
+                  setIsLocalPlaying(false);
                   try {
                     const dur = Math.round(playerRef.current?.getDuration?.() || lesson.duration || 0);
                     if (onListeningTick && dur > 0) {
@@ -471,6 +482,8 @@ export default function YoutubePlayerWindow({
         } catch (e) {}
       } else if (playerRef.current && typeof playerRef.current.seekTo === "function") {
         try {
+          setHasStarted(true);
+          setIsLocalPlaying(true);
           playerRef.current.seekTo(effectiveSeek, true);
           if (typeof playerRef.current.playVideo === "function") {
             playerRef.current.playVideo();
@@ -495,6 +508,95 @@ export default function YoutubePlayerWindow({
       } catch (e) {}
     }
   }, [playbackRate, useLocalMedia]);
+
+  // Playback control handlers for built-in controls bar
+  const togglePlayPause = () => {
+    setHasStarted(true);
+    if (useLocalMedia && videoElRef.current) {
+      if (videoElRef.current.paused) {
+        videoElRef.current.play().catch(() => {});
+        setIsLocalPlaying(true);
+      } else {
+        videoElRef.current.pause();
+        setIsLocalPlaying(false);
+      }
+    } else if (playerRef.current) {
+      try {
+        const state = typeof playerRef.current.getPlayerState === "function" ? playerRef.current.getPlayerState() : -1;
+        if (state === 1) {
+          playerRef.current.pauseVideo();
+          setIsLocalPlaying(false);
+        } else {
+          playerRef.current.playVideo();
+          setIsLocalPlaying(true);
+        }
+      } catch (e) {
+        try {
+          playerRef.current.playVideo();
+          setIsLocalPlaying(true);
+        } catch (_) {}
+      }
+    }
+  };
+
+  const handleScrub = (targetTime: number) => {
+    setCurrentTime(targetTime);
+    if (useLocalMedia && videoElRef.current) {
+      try {
+        videoElRef.current.currentTime = targetTime;
+      } catch (_) {}
+    } else if (playerRef.current && typeof playerRef.current.seekTo === "function") {
+      try {
+        playerRef.current.seekTo(targetTime, true);
+      } catch (_) {}
+    }
+  };
+
+  const seekRelative = (delta: number) => {
+    const next = Math.max(0, Math.min(totalDuration || 99999, currentTime + delta));
+    handleScrub(next);
+  };
+
+  const cycleSpeed = () => {
+    const speeds = [0.75, 1, 1.25, 1.5, 2];
+    const cur = playbackRate || 1;
+    const next = speeds[(speeds.indexOf(cur) + 1) % speeds.length];
+    setPlaybackRate(next);
+    if (useLocalMedia && videoElRef.current) {
+      videoElRef.current.playbackRate = next;
+    } else if (playerRef.current && typeof playerRef.current.setPlaybackRate === "function") {
+      try { playerRef.current.setPlaybackRate(next); } catch (_) {}
+    }
+  };
+
+  const formatTime = (seconds: number): string => {
+    if (isNaN(seconds) || seconds < 0) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Global hotkeys: Space to toggle play/pause, Left/Right arrows for -5s/+5s
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || "").toLowerCase();
+      if (activeTag === "input" || activeTag === "textarea" || (document.activeElement as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        seekRelative(-5);
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        seekRelative(5);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isLocalPlaying, currentTime, totalDuration, useLocalMedia]);
 
   // Helper to read the current interface zoom factor
   const getZoomFactor = (): number => {
@@ -681,7 +783,7 @@ export default function YoutubePlayerWindow({
 
       const nextWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaW));
       const contentHeight = Math.round((nextWidth * 9) / 16);
-      const nextHeight = contentHeight + 44;
+      const nextHeight = contentHeight + 84;
 
       // Calculate anchor position shifts based on edge
       let nextX = startPosX;
@@ -731,12 +833,12 @@ export default function YoutubePlayerWindow({
   const applyPresetSize = (preset: "small" | "medium" | "large") => {
     const s = getZoomFactor();
     if (preset === "small") {
-      setSize({ width: 340, height: Math.round((340 * 9) / 16) + 44 });
+      setSize({ width: 340, height: Math.round((340 * 9) / 16) + 84 });
     } else if (preset === "medium") {
-      setSize({ width: 440, height: Math.round((440 * 9) / 16) + 44 });
+      setSize({ width: 440, height: Math.round((440 * 9) / 16) + 84 });
     } else if (preset === "large") {
       const targetWidth = Math.min(640, window.innerWidth / s - 44);
-      setSize({ width: targetWidth, height: Math.round((targetWidth * 9) / 16) + 44 });
+      setSize({ width: targetWidth, height: Math.round((targetWidth * 9) / 16) + 84 });
     }
   };
 
@@ -905,7 +1007,7 @@ export default function YoutubePlayerWindow({
       {/* Embed Media Player Container */}
       <div 
         style={{
-          height: isMinimized ? "0px" : `${size.height - 44}px`,
+          height: isMinimized ? "0px" : `${size.height - 84}px`,
           opacity: isMinimized ? 0 : 1,
           pointerEvents: isMinimized ? "none" : "auto"
         }} 
@@ -923,6 +1025,9 @@ export default function YoutubePlayerWindow({
               onLoadedMetadata={() => {
                 if (videoElRef.current) {
                   videoElRef.current.playbackRate = playbackRate || 1;
+                  if (videoElRef.current.duration) {
+                    setTotalDuration(Math.round(videoElRef.current.duration));
+                  }
                   const startSec = initialSeekTargetRef.current || 0;
                   if (startSec > 2) {
                     videoElRef.current.currentTime = startSec;
@@ -954,9 +1059,12 @@ export default function YoutubePlayerWindow({
                 }
               }}
               onPlay={() => {
+                setIsLocalPlaying(true);
+                setHasStarted(true);
                 lastTickTimeRef.current = Date.now();
               }}
               onPause={() => {
+                setIsLocalPlaying(false);
                 lastTickTimeRef.current = null;
                 if (videoElRef.current) {
                   saveProgressNow(videoElRef.current.currentTime);
@@ -966,6 +1074,7 @@ export default function YoutubePlayerWindow({
                 }
               }}
               onEnded={() => {
+                setIsLocalPlaying(false);
                 try {
                   const total = Math.round(videoElRef.current?.duration || lesson.duration || 0);
                   if (onListeningTick && total > 0) {
@@ -1070,6 +1179,42 @@ export default function YoutubePlayerWindow({
               }`}
             />
 
+            {/* Initial Thumbnail & Big Play Button Overlay — eliminates the initial black screen! */}
+            {!hasStarted && !isLocalPlaying && !isEmbedBlocked && (
+              <div 
+                onClick={() => {
+                  setHasStarted(true);
+                  if (playerRef.current && typeof playerRef.current.playVideo === "function") {
+                    playerRef.current.playVideo();
+                  }
+                }}
+                className="absolute inset-0 z-20 bg-black/50 hover:bg-black/30 cursor-pointer flex items-center justify-center transition-all group overflow-hidden"
+              >
+                <img
+                  src={lesson.coverUrl || `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`}
+                  alt={lesson.title}
+                  className="absolute inset-0 w-full h-full object-cover opacity-85 group-hover:opacity-95 group-hover:scale-105 transition-all duration-300"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`;
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+
+                <div className="relative z-10 w-14 h-14 rounded-full bg-teal-600/90 hover:bg-teal-500 text-white flex items-center justify-center shadow-xl shadow-teal-950/60 transform group-hover:scale-110 transition-all duration-200">
+                  <Play className="w-7 h-7 fill-current ml-0.5" />
+                </div>
+
+                <div className="absolute bottom-2 inset-x-3 text-center z-10">
+                  <span className="text-[11px] font-bold text-white/95 drop-shadow-md truncate block">
+                    {lesson.title}
+                  </span>
+                  <span className="text-[9px] text-teal-300/90 drop-shadow-xs">
+                    {t('explainer.yt_click_to_play', 'Нажмите для воспроизведения')}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Guard overlay: active ONLY during active drag or resize so mouse doesn't stick inside iframe */}
             {(isDragging || isResizing) && (
               <div 
@@ -1087,6 +1232,83 @@ export default function YoutubePlayerWindow({
           </div>
         )}
       </div>
+
+      {/* Dedicated Playback Controls Bar */}
+      {!isMinimized && (
+        <div className="h-10 px-2.5 bg-zinc-900 border-t border-zinc-800 flex items-center gap-2 select-none shrink-0 text-zinc-300">
+          {/* Play / Pause button */}
+          <button
+            type="button"
+            onClick={togglePlayPause}
+            className="w-7 h-7 rounded-full bg-teal-600 hover:bg-teal-500 text-white flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-sm active:scale-95"
+            title={isLocalPlaying ? t('player.pause', 'Пауза (Пробел)') : t('player.play', 'Воспроизведение (Пробел)')}
+          >
+            {isLocalPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+          </button>
+
+          {/* -5s Rewind */}
+          <button
+            type="button"
+            onClick={() => seekRelative(-5)}
+            className="p-1 text-zinc-400 hover:text-white rounded transition-colors cursor-pointer shrink-0 flex items-center gap-0.5 text-[10px] font-bold active:scale-95"
+            title={t('player.rewind_5', 'Назад на 5 секунд (←)')}
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>5</span>
+          </button>
+
+          {/* +5s Forward */}
+          <button
+            type="button"
+            onClick={() => seekRelative(5)}
+            className="p-1 text-zinc-400 hover:text-white rounded transition-colors cursor-pointer shrink-0 flex items-center gap-0.5 text-[10px] font-bold active:scale-95"
+            title={t('player.forward_5', 'Вперед на 5 секунд (→)')}
+          >
+            <RotateCw className="w-3 h-3" />
+            <span>5</span>
+          </button>
+
+          {/* Scrubber timeline */}
+          <div className="flex-1 flex items-center gap-2 min-w-0">
+            <span className="text-[10px] font-mono text-zinc-400 shrink-0 select-none">
+              {formatTime(currentTime)}
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={totalDuration || 100}
+              step={0.5}
+              value={currentTime || 0}
+              onChange={(e) => handleScrub(parseFloat(e.target.value))}
+              className="flex-1 h-1 bg-zinc-700 hover:bg-zinc-600 rounded-lg appearance-none cursor-pointer accent-teal-500 min-w-[40px]"
+            />
+            <span className="text-[10px] font-mono text-zinc-500 shrink-0 select-none">
+              {formatTime(totalDuration)}
+            </span>
+          </div>
+
+          {/* Speed button */}
+          <button
+            type="button"
+            onClick={cycleSpeed}
+            className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-mono font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer shrink-0 active:scale-95"
+            title={t('player.speed', 'Скорость воспроизведения')}
+          >
+            {playbackRate || 1}x
+          </button>
+
+          {/* Open on YouTube */}
+          <a
+            href={`https://www.youtube.com/watch?v=${youtubeId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1 text-zinc-400 hover:text-red-400 rounded transition-colors cursor-pointer shrink-0"
+            title={t('player.open_youtube', 'Открыть на YouTube')}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      )}
 
       {/* ── Multi-Directional Resize Handles (Opera-style PiP — non-overlapping perimeter handles) ── */}
       {!isMinimized && (
