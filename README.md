@@ -54,6 +54,11 @@ The easiest way to run Lectura locally on Windows:
 4. Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 5. In the Lectura UI, click the **Settings** gear icon and paste your free **Google Gemini API Key**.
 
+#### 🔄 How to update Lectura on Windows:
+All your books, vocabulary cards, progress, and settings are preserved in **`local_server_db.sqlite`** (and API keys in **`.env`**):
+* **Automatic 1-Click Update:** Double-click **`update.bat`**. It automatically snapshots your database into `./backups/`, fetches new code, and runs `npm install`.
+* **Manual Update (from new release ZIP):** Extract the new release ZIP and copy two files from your old folder into the new one: `local_server_db.sqlite` and `.env`. Then run `run.bat`.
+
 ---
 
 ### Option 2: Docker (Isolated Container)
