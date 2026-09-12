@@ -293,9 +293,12 @@ export default function FocusPinnedPlayer({
             videoId: youtubeId,
             playerVars: {
               enablejsapi: 1,
+              controls: 1,
               rel: 0,
               autoplay: 0,
               playsinline: 1,
+              modestbranding: 0,
+              origin: typeof window !== "undefined" ? window.location.origin : undefined,
               start: startSec > 0 ? startSec : undefined,
             },
             events: {
