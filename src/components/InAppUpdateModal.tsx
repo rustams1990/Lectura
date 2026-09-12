@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, Download, X, ExternalLink, CheckCircle2, ArrowUpCircle } from 'lucide-react';
+import { Sparkles, Download, X, ExternalLink, CheckCircle2, ArrowUpCircle, Terminal } from 'lucide-react';
 import { GitHubReleaseInfo, downloadAndInstallApk, dismissUpdateTag } from '../services/inAppUpdaterService';
 import { APP_VERSION } from '../version';
+import { Capacitor } from '@capacitor/core';
 
 interface InAppUpdateModalProps {
   release: GitHubReleaseInfo | null;
@@ -88,6 +89,16 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
             {release.body || t('updater.no_changelog', 'Performance improvements and bug fixes.')}
           </div>
         </div>
+
+        {/* Desktop 1-Click Update Hint */}
+        {!Capacitor.isNativePlatform() && (
+          <div className="p-2.5 bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-800/60 rounded-2xl text-xs text-teal-800 dark:text-teal-200 flex items-center gap-2.5">
+            <Terminal className="w-4 h-4 shrink-0 text-teal-600 dark:text-teal-400" />
+            <span className="leading-snug">
+              {t('updater.desktop_hint', '💡 На Windows достаточно запустить update.bat в папке Lectura для обновления в 1 клик с бэкапом базы данных.')}
+            </span>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="space-y-2 pt-1">

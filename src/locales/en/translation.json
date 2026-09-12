@@ -1560,7 +1560,8 @@
     "starting": "Starting download...",
     "download_started": "Download started in background. The installer will open automatically.",
     "view_on_github": "View on GitHub",
-    "dont_ask_again": "Don't ask for this version"
+    "dont_ask_again": "Don't ask for this version",
+    "desktop_hint": "On Windows, simply run update.bat in your Lectura folder to update automatically with a DB backup."
   },
   "podcasts": {
     "title": "Podcasts",
