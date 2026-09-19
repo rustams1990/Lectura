@@ -3653,7 +3653,10 @@ export default function App() {
         } transition-all duration-300 ${
           activeTab === "read" ? "max-w-full" : layoutContainerClass
         } ${hasActiveQueue ? "pb-36 sm:pb-32" : ""}`}
-        style={hasActiveQueue ? { paddingBottom: "max(8rem, calc(6rem + env(safe-area-inset-bottom)))" } : undefined}
+        style={{
+          ...(hasActiveQueue ? { paddingBottom: "max(8rem, calc(6rem + env(safe-area-inset-bottom)))" } : {}),
+          ...(showLocalLoginModal ? { contain: "paint layout" } : {}),
+        }}
       >
         
         {/* Dynamic Achievements HUD Panel */}

@@ -272,7 +272,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
   const currentLang = ["en", "de", "es", "fr", "it", "pl", "pt", "ru", "tr", "uk", "zh", "ja", "ko"].includes(i18n.language) ? i18n.language : (i18n.language?.slice(0, 2) || "en");
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4 animate-in zoom-in-95 duration-150 max-h-[95vh] overflow-y-auto custom-scrollbar">
         
         {/* Top Header: Unified Scalable Language Selector & Close */}
