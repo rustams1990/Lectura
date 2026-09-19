@@ -376,7 +376,23 @@ Return your answer strictly in JSON format with these exact keys:
   - "translation": translation of the example sentence in ${translationLanguage || "Russian"}`;
     } else {
       systemInstruction = `You are a precise language dictionary and vocabulary explainer. Provide exact translations and grammatical breakdown. Return strictly valid JSON.`;
-      prompt = `Translate the word "${cleanWord}" (which is inside the surrounding context: "${context || cleanWord}") from ${targetLanguage || "auto-detect"} to ${translationLanguage || "Russian"}.
+      const isMonolingual = targetLanguage.toLowerCase().trim() === translationLanguage.toLowerCase().trim() ||
+        (targetLanguage.toLowerCase().startsWith("en") && translationLanguage.toLowerCase().startsWith("en"));
+      if (isMonolingual) {
+        prompt = `Explain the word "${cleanWord}" (which is inside the surrounding context: "${context || cleanWord}") in ${translationLanguage}.
+Since both the text language and study/translation language are ${targetLanguage}, provide a clear, concise definition, meaning in this context, or primary synonyms in ${translationLanguage} for the "translation" field (do NOT merely repeat the word "${cleanWord}" unchanged, provide its clear meaning/definition in ${translationLanguage}).
+Provide the exact IPA pronunciation of the word "${cleanWord}", its grammar/part of speech details, explanation on how it functions in this context in ${translationLanguage}, and 2 helpful example sentences in ${targetLanguage} featuring this word with their explanations/definitions in ${translationLanguage}.
+
+Return your answer strictly in JSON format with these exact keys:
+- "translation": the definition or meaning of the word
+- "ipa": the phonetic IPA representation of the word (e.g., [ola])
+- "grammar": Grammatical class or part of speech in English (e.g. "Noun", "Verb", "Adjective", "Adverb", "Pronoun", "Preposition", "Conjunction", "Interjection", "Idiom", "Phrasal Verb", "Set Expression"). Must be strictly in English, maximum 1-2 words, with NO description or explanation, and NEVER in Russian.
+- "contextRelation": explanation of how the word functions/means in the current sentence context
+- "examples": an array of 2 objects, each containing:
+  - "text": a simple example sentence in the target language featuring the word
+  - "translation": explanation or meaning of the example sentence`;
+      } else {
+        prompt = `Translate the word "${cleanWord}" (which is inside the surrounding context: "${context || cleanWord}") from ${targetLanguage || "auto-detect"} to ${translationLanguage || "Russian"}.
 Provide the exact IPA pronunciation of the word "${cleanWord}", its grammar/part of speech details, explanation on how it functions in this context, and 2 helpful example sentences in ${targetLanguage || "the target language"} featuring this word with translations in ${translationLanguage || "Russian"}.
 
 Return your answer strictly in JSON format with these exact keys:
@@ -387,6 +403,7 @@ Return your answer strictly in JSON format with these exact keys:
 - "examples": an array of 2 objects, each containing:
   - "text": a simple example sentence in the target language featuring the word
   - "translation": translation of the example sentence`;
+      }
     }
 
     const data = await callUniversalAiProvider(profile, prompt, {

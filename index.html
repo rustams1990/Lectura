@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ru">
-  <head><script>window.onerror = function(msg, url, lineNo, columnNo, error) { fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msg, lineNo, columnNo, stack: error ? error.stack : '' }) }); return false; }; window.addEventListener('unhandledrejection', function(event) { fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msg: event.reason.message, stack: event.reason.stack }) }); });</script>
+  <head><script>window.onerror = function(msg, url, lineNo, columnNo, error) { fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msg, lineNo, columnNo, stack: error ? error.stack : '' }) }).catch(function() {}); return false; }; window.addEventListener('unhandledrejection', function(event) { fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msg: event.reason && event.reason.message ? event.reason.message : String(event.reason), stack: event.reason && event.reason.stack ? event.reason.stack : '' }) }).catch(function() {}); });</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <!-- Disable index.html caching to guarantee instant updates on deployment -->
@@ -57,10 +57,29 @@
         console.error("LocalStorage pre-cleanse error:", err);
       }
 
-      // Register Service Worker — served dynamically by Express with APP_VERSION injected
-      // into CACHE_NAME so old caches are always purged on every update (fixes Edge tablet caching)
+      // Register Service Worker in LAN/production only. Localhost dev must stay uncached
+      // so code edits are visible immediately while working on Lectura.
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
+          var isLocalDevHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          if (isLocalDevHost) {
+            navigator.serviceWorker.getRegistrations()
+              .then(function(regs) {
+                return Promise.all(regs.map(function(reg) { return reg.unregister(); }));
+              })
+              .then(function() {
+                if ('caches' in window) {
+                  return caches.keys().then(function(keys) {
+                    return Promise.all(keys.map(function(key) { return caches.delete(key); }));
+                  });
+                }
+              })
+              .catch(function(err) {
+                console.warn('[SW] Local dev cleanup failed:', err);
+              });
+            return;
+          }
+
           let refreshing = false;
           navigator.serviceWorker.addEventListener('controllerchange', function() {
             if (!refreshing) {

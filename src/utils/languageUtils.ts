@@ -57,8 +57,8 @@ export function getLanguageCode(languageName?: string | null): string {
 
 /**
  * Resolves the dynamic translation target language with hierarchical fallback:
- * 1. Pinned Target Language (if user pinned a default translation language)
- * 2. Book Target Language (explicit translation language on the book/lesson, if different from study language)
+ * 1. Book Target Language (explicit translation language set on the book/lesson)
+ * 2. Pinned Target Language (if user pinned a default translation language)
  * 3. UI Language (current active i18n interface language)
  * 4. Fallback ("es" / "Spanish" if studying English, otherwise "en" / "English")
  */
@@ -68,18 +68,14 @@ export function resolveTargetLanguage(
   pinnedTargetLang?: string | null,
   uiLanguage: string = 'en'
 ): string {
-  // 1. Priority to user-pinned translation language
-  if (pinnedTargetLang && pinnedTargetLang.trim()) {
-    return pinnedTargetLang.trim();
+  // 1. Book translation language set in the book (explicit user choice for this lesson/book, including monolingual study)
+  if (bookTargetLang && bookTargetLang.trim()) {
+    return bookTargetLang.trim();
   }
 
-  // 2. Book translation language set in the book (if defined and different from study language)
-  if (bookTargetLang && bookTargetLang.trim()) {
-    const codeBook = getLanguageCode(bookTargetLang);
-    const codeStudy = getLanguageCode(studyLang);
-    if (codeBook && codeBook !== codeStudy) {
-      return bookTargetLang.trim();
-    }
+  // 2. User-pinned translation language
+  if (pinnedTargetLang && pinnedTargetLang.trim()) {
+    return pinnedTargetLang.trim();
   }
 
   // 3. UI Language of Lectura

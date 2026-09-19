@@ -85,10 +85,20 @@ export const sanitizeDictItem = (d: any): DictionaryItem => {
   if (!displayType || (isGtransOrReverso && displayType === "new_tab")) {
     displayType = "window_popup";
   }
+  let urlTemplate = d.urlTemplate || "";
+  if (urlTemplate.includes("cambridge.org/dictionary/english-english/")) {
+    urlTemplate = urlTemplate.replace("cambridge.org/dictionary/english-english/", "cambridge.org/dictionary/english/");
+  }
+  if (urlTemplate.includes("context.reverso.net/translation/english-english/")) {
+    urlTemplate = urlTemplate.replace("context.reverso.net/translation/english-english/", "dictionary.reverso.net/english-definition/");
+  }
+  if (urlTemplate.includes("context.reverso.net/translation/spanish-spanish/")) {
+    urlTemplate = urlTemplate.replace("context.reverso.net/translation/spanish-spanish/", "dictionary.reverso.net/spanish-definition/");
+  }
   return {
     id: d.id || `dict_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     name: d.name || "Dictionary",
-    urlTemplate: d.urlTemplate || "",
+    urlTemplate,
     displayType: displayType || "window_popup",
     enabled: d.enabled !== false,
     order: typeof d.order === "number" ? d.order : undefined
@@ -113,7 +123,9 @@ export const getDefaultMeaningDictionaries = (targetLanguage: string, translatio
       {
         id: "reverso-es",
         name: "Reverso Context",
-        urlTemplate: `https://context.reverso.net/translation/spanish-${targetReverso}/{word}`,
+        urlTemplate: targetReverso === "spanish"
+          ? "https://dictionary.reverso.net/spanish-definition/{word}"
+          : `https://context.reverso.net/translation/spanish-${targetReverso}/{word}`,
         displayType: "window_popup",
         enabled: true
       },
@@ -134,7 +146,9 @@ export const getDefaultMeaningDictionaries = (targetLanguage: string, translatio
       {
         id: "cambridge-es",
         name: "Cambridge",
-        urlTemplate: "https://dictionary.cambridge.org/dictionary/spanish-english/{word}",
+        urlTemplate: targetReverso === "spanish"
+          ? "https://dictionary.cambridge.org/dictionary/spanish/{word}"
+          : "https://dictionary.cambridge.org/dictionary/spanish-english/{word}",
         displayType: "window_popup",
         enabled: true
       }
@@ -153,14 +167,18 @@ export const getDefaultMeaningDictionaries = (targetLanguage: string, translatio
       {
         id: "reverso-en",
         name: "Reverso Context",
-        urlTemplate: `https://context.reverso.net/translation/english-${targetReverso}/{word}`,
+        urlTemplate: targetReverso === "english"
+          ? "https://dictionary.reverso.net/english-definition/{word}"
+          : `https://context.reverso.net/translation/english-${targetReverso}/{word}`,
         displayType: "window_popup",
         enabled: true
       },
       {
         id: "cambridge-en",
         name: "Cambridge",
-        urlTemplate: `https://dictionary.cambridge.org/dictionary/english-${targetReverso}/{word}`,
+        urlTemplate: targetReverso === "english"
+          ? "https://dictionary.cambridge.org/dictionary/english/{word}"
+          : `https://dictionary.cambridge.org/dictionary/english-${targetReverso}/{word}`,
         displayType: "window_popup",
         enabled: true
       }
@@ -256,7 +274,9 @@ export const getDefaultMeaningDictionaries = (targetLanguage: string, translatio
     {
       id: "reverso-auto",
       name: "Reverso Context",
-      urlTemplate: `https://context.reverso.net/translation/${sourceReverso}-${targetReverso}/{word}`,
+      urlTemplate: sourceReverso === targetReverso
+        ? `https://dictionary.reverso.net/${sourceReverso}-definition/{word}`
+        : `https://context.reverso.net/translation/${sourceReverso}-${targetReverso}/{word}`,
       displayType: "window_popup",
       enabled: true
     }

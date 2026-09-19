@@ -75,6 +75,31 @@ async function startServer() {
   const swTemplatePath = path.join(process.cwd(), "public", "sw.js");
   app.get("/sw.js", (_req, res) => {
     try {
+      if (process.env.NODE_ENV !== "production") {
+        res.setHeader("Content-Type", "application/javascript");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+        res.send(`
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+    await self.registration.unregister();
+    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of clients) {
+      client.navigate(client.url);
+    }
+  })());
+});
+`);
+        return;
+      }
+
       const swTemplate = fs.readFileSync(swTemplatePath, "utf8");
       const swContent = swTemplate.replace(/__CACHE_VERSION__/g, APP_VERSION);
       res.setHeader("Content-Type", "application/javascript");

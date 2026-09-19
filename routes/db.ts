@@ -1052,7 +1052,9 @@ router.post("/dictionary-explain", async (req: Request, res: Response) => {
   let comDictResult: any = null;
   let wiktionaryResult: any = null;
 
-  if (source === "google" || (translationLanguage && translationLanguage !== "mono" && getLangCode(translationLanguage) !== getLangCode(targetLanguage))) {
+  const isMonolingual = getLangCode(translationLanguage) === getLangCode(targetLanguage);
+
+  if (!isMonolingual && (source === "google" || (translationLanguage && translationLanguage !== "mono"))) {
     const sourceLangCode = getLangCode(targetLanguage);
     const destLangCode = getLangCode(translationLanguage || "ru");
     const googleTrans = await fetchGoogleTranslate(cleanWord, sourceLangCode, destLangCode, true);
@@ -1061,13 +1063,13 @@ router.post("/dictionary-explain", async (req: Request, res: Response) => {
     }
   }
 
-  if (source === "free_dictionary" || source === "hybrid" || !source || (source === "google" && !translation)) {
+  if (isMonolingual || source === "free_dictionary" || source === "hybrid" || !source || (source === "google" && !translation)) {
     comDictResult = await fetchFreeDictionaryFromCom(cleanWord, langCode);
     if (!comDictResult) {
       freeDictResult = await fetchFreeDictionary(cleanWord, langCode);
     }
   }
-  if (source === "wiktionary" || source === "hybrid" || !source || (source === "google" && !translation)) {
+  if (isMonolingual || source === "wiktionary" || source === "hybrid" || !source || (source === "google" && !translation)) {
     wiktionaryResult = await fetchWiktionary(cleanWord, langCode);
   }
 
@@ -1192,9 +1194,11 @@ router.post("/dictionary-explain", async (req: Request, res: Response) => {
   if (source === "google") {
     const sourceLangCode = getLangCode(targetLanguage);
     const destLangCode = getLangCode(translationLanguage);
-    const googleTrans = await fetchGoogleTranslate(cleanWord, sourceLangCode, destLangCode, true);
-    if (googleTrans) {
-      translation = googleTrans;
+    if (sourceLangCode !== destLangCode) {
+      const googleTrans = await fetchGoogleTranslate(cleanWord, sourceLangCode, destLangCode, true);
+      if (googleTrans) {
+        translation = googleTrans;
+      }
     }
 
     if (examples.length > 0) {

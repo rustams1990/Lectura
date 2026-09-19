@@ -379,10 +379,15 @@ export default function CalmSheetWordCard({
     else if (langCode === "pt") cambridgeDict = "portuguese-english";
     else if (langCode === "ru") cambridgeDict = "russian-english";
 
+    const isSameLang = langCode === (translationLanguage || "russian").slice(0, 2).toLowerCase();
+    const reversoUrl = isSameLang
+      ? `https://dictionary.reverso.net/${targetLanguage.toLowerCase()}-definition/${encoded}`
+      : `https://context.reverso.net/translation/${targetLanguage.toLowerCase()}-${(translationLanguage || "russian").toLowerCase()}/${encoded}`;
+
     return {
       cambridge: `https://dictionary.cambridge.org/dictionary/${cambridgeDict}/${encoded}`,
       wiktionary: `https://${langCode}.wiktionary.org/wiki/${encoded}`,
-      reverso: `https://context.reverso.net/translation/${targetLanguage.toLowerCase()}-${(translationLanguage || "russian").toLowerCase()}/${encoded}`,
+      reverso: reversoUrl,
     };
   }, [cleanWord, targetLanguage, translationLanguage]);
 
