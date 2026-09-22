@@ -251,6 +251,18 @@ export default function YoutubePlayerWindow({
               if (Date.now() - lastStorageSaveTimeRef.current >= 3000) {
                 saveProgressNow(time);
               }
+
+              // Periodic 5s listening tick while playing actively
+              if (lastTickTimeRef.current) {
+                const now = Date.now();
+                const delta = (now - lastTickTimeRef.current) / 1000;
+                if (delta >= 5.0) {
+                  if (delta > 0 && delta <= 15 && onListeningTick) {
+                    onListeningTick(delta, false, time);
+                  }
+                  lastTickTimeRef.current = now;
+                }
+              }
             }
           } catch (e) {}
         }
@@ -464,6 +476,7 @@ export default function YoutubePlayerWindow({
 
   useEffect(() => {
     if (effectiveSeek !== null && effectiveSeek !== undefined) {
+      lastTickTimeRef.current = Date.now();
       if (useLocalMedia && videoElRef.current) {
         try {
           videoElRef.current.currentTime = effectiveSeek;

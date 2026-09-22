@@ -38746,6 +38746,7 @@
     if (!duration && videoElement && !isNaN(videoElement.duration)) {
       duration = Math.round(videoElement.duration);
     }
+    const initialPos = videoElement && !isNaN(videoElement.currentTime) ? Math.round(videoElement.currentTime) : 0;
     const session = {
       videoId,
       title,
@@ -38753,8 +38754,12 @@
       channelUrl: `https://www.youtube.com/watch?v=${videoId}`,
       duration,
       studyLanguage: getStudyLanguage(settings),
-      maxWatchedPosition: 0,
-      lastReportedPosition: 0,
+      actualWatchedSeconds: 0,
+      lastFlushedSeconds: 0,
+      lastPlaybackPosition: initialPos,
+      lastWallClockTime: videoElement && !videoElement.paused ? Date.now() : null,
+      currentPosition: initialPos,
+      isCompleted: false,
       intervalId: null,
       videoElement: videoElement || null
     };
@@ -38763,33 +38768,92 @@
     syncOpenSession(session);
     if (videoElement) {
       const onTimeUpdate = () => {
-        if (!session.videoElement || session.videoElement.paused) return;
-        const cur = Math.round(session.videoElement.currentTime || 0);
-        if (cur > session.maxWatchedPosition) {
-          session.maxWatchedPosition = cur;
+        if (!session.videoElement || session.videoElement.paused || session.videoElement.seeking) return;
+        const now = Date.now();
+        const cur = session.videoElement.currentTime;
+        session.currentPosition = cur;
+        if (session.lastWallClockTime === null) {
+          session.lastWallClockTime = now;
+          session.lastPlaybackPosition = cur;
+          return;
+        }
+        const wallDelta = (now - session.lastWallClockTime) / 1e3;
+        const mediaDelta = cur - session.lastPlaybackPosition;
+        if (mediaDelta < 0 || mediaDelta >= 3 || wallDelta >= 3) {
+          session.lastWallClockTime = now;
+          session.lastPlaybackPosition = cur;
+          return;
+        }
+        if (mediaDelta > 0 && wallDelta > 0) {
+          const rate = session.videoElement.playbackRate || 1;
+          const effectiveDelta = Math.min(mediaDelta, wallDelta * rate + 0.5);
+          session.actualWatchedSeconds += effectiveDelta;
+        }
+        session.lastWallClockTime = now;
+        session.lastPlaybackPosition = cur;
+      };
+      const onPlay = () => {
+        if (!session.videoElement) return;
+        session.lastWallClockTime = Date.now();
+        session.lastPlaybackPosition = session.videoElement.currentTime;
+        session.currentPosition = session.videoElement.currentTime;
+      };
+      const onPause = () => {
+        if (session.lastWallClockTime && session.videoElement) {
+          const now = Date.now();
+          const wallDelta = (now - session.lastWallClockTime) / 1e3;
+          const cur = session.videoElement.currentTime;
+          const mediaDelta = cur - session.lastPlaybackPosition;
+          if (mediaDelta > 0 && mediaDelta < 5 && wallDelta < 5) {
+            const rate = session.videoElement.playbackRate || 1;
+            session.actualWatchedSeconds += Math.min(mediaDelta, wallDelta * rate + 0.5);
+          }
+          session.currentPosition = cur;
+          session.lastPlaybackPosition = cur;
+          session.lastWallClockTime = null;
+        }
+        flushCurrentSession(session, false, false);
+      };
+      const onSeeking = () => {
+        session.lastWallClockTime = null;
+        if (session.videoElement) {
+          session.currentPosition = session.videoElement.currentTime;
+          session.lastPlaybackPosition = session.videoElement.currentTime;
+        }
+      };
+      const onSeeked = () => {
+        if (session.videoElement) {
+          session.currentPosition = session.videoElement.currentTime;
+          session.lastPlaybackPosition = session.videoElement.currentTime;
+          if (!session.videoElement.paused) {
+            session.lastWallClockTime = Date.now();
+          }
         }
       };
       const onEnded = () => {
-        const total = Math.round(session.videoElement?.duration || session.duration || session.maxWatchedPosition);
-        session.maxWatchedPosition = total;
+        session.isCompleted = true;
+        if (session.videoElement) {
+          session.currentPosition = session.videoElement.duration || session.currentPosition;
+        }
         flushCurrentSession(session, true, true);
       };
-      const onPause = () => {
-        flushCurrentSession(session, false, false);
-      };
       videoElement.addEventListener("timeupdate", onTimeUpdate);
-      videoElement.addEventListener("ended", onEnded);
+      videoElement.addEventListener("play", onPlay);
       videoElement.addEventListener("pause", onPause);
+      videoElement.addEventListener("seeking", onSeeking);
+      videoElement.addEventListener("seeked", onSeeked);
+      videoElement.addEventListener("ended", onEnded);
       session.cleanup = () => {
         videoElement.removeEventListener("timeupdate", onTimeUpdate);
-        videoElement.removeEventListener("ended", onEnded);
+        videoElement.removeEventListener("play", onPlay);
         videoElement.removeEventListener("pause", onPause);
+        videoElement.removeEventListener("seeking", onSeeking);
+        videoElement.removeEventListener("seeked", onSeeked);
+        videoElement.removeEventListener("ended", onEnded);
       };
       session.intervalId = setInterval(() => {
-        if (session.videoElement && !session.videoElement.paused && session.maxWatchedPosition > session.lastReportedPosition) {
-          const total = Math.round(session.videoElement.duration || session.duration || 0);
-          const isCompleted = session.videoElement.ended || total > 0 && session.maxWatchedPosition >= total - 5;
-          flushCurrentSession(session, false, isCompleted);
+        if (session.videoElement && !session.videoElement.paused && session.actualWatchedSeconds > session.lastFlushedSeconds) {
+          flushCurrentSession(session, false, false);
         }
       }, 1e4);
     }
@@ -38798,6 +38862,7 @@
     try {
       const settings = await StorageService.getSettings();
       if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
+      const currentPos = Math.round(session.videoElement?.currentTime ?? session.currentPosition ?? 0);
       sendPayload(
         settings,
         {
@@ -38811,6 +38876,9 @@
           timeSpentSeconds: 0,
           studyLanguage: session.studyLanguage,
           addedSeconds: 0,
+          watchedSeconds: 0,
+          lastPosition: currentPos,
+          currentTime: currentPos,
           isCompleted: false,
           timestamp: Date.now()
         },
@@ -38825,13 +38893,16 @@
     const currentDuration = Math.round(
       session.videoElement?.duration || session.duration || 0
     );
-    const completed = isCompleted || (session.videoElement ? session.videoElement.ended : false) || currentDuration > 0 && session.maxWatchedPosition >= currentDuration - 5;
-    const effectiveTimeSpent = completed && currentDuration > 0 ? currentDuration : session.maxWatchedPosition;
-    if (effectiveTimeSpent <= session.lastReportedPosition && !completed && !isFinal) {
+    const currentPos = Math.round(
+      session.videoElement?.currentTime ?? session.currentPosition ?? 0
+    );
+    const completed = isCompleted || Boolean(session.videoElement ? session.videoElement.ended : false) || session.isCompleted || currentDuration > 0 && currentPos >= currentDuration - 5 && session.actualWatchedSeconds > 10;
+    const totalWatched = Math.round(session.actualWatchedSeconds);
+    const added = Math.max(0, totalWatched - session.lastFlushedSeconds);
+    if (added <= 0 && !completed && !isFinal) {
       return;
     }
-    const added = Math.max(0, effectiveTimeSpent - session.lastReportedPosition);
-    session.lastReportedPosition = effectiveTimeSpent;
+    session.lastFlushedSeconds = totalWatched;
     try {
       const settings = await StorageService.getSettings();
       if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
@@ -38843,15 +38914,17 @@
         channelUrl: session.channelUrl,
         duration: currentDuration,
         durationSeconds: currentDuration,
-        timeSpentSeconds: effectiveTimeSpent,
+        timeSpentSeconds: totalWatched,
         addedSeconds: added,
-        watchedSeconds: effectiveTimeSpent,
+        watchedSeconds: added,
+        lastPosition: currentPos,
+        currentTime: currentPos,
         studyLanguage: session.studyLanguage,
         isCompleted: completed,
         timestamp: Date.now()
       };
       console.log(
-        `\u23F1\uFE0F [Lectura Tracker] Progress (${session.videoId}): ${effectiveTimeSpent}s / ${currentDuration}s (+${added}s, completed=${completed}, final=${isFinal})`
+        `\u23F1\uFE0F [Lectura Tracker] Progress (${session.videoId}): watched ${totalWatched}s (+${added}s), pos ${currentPos}s / ${currentDuration}s (completed=${completed}, final=${isFinal})`
       );
       sendPayload(settings, payload, isFinal);
     } catch (err) {

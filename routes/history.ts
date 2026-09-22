@@ -57,6 +57,9 @@ export function handleTrackActivity(req: Request, res: Response) {
     language,
     addedSeconds,
     watchedSeconds,
+    lastPosition: reqLastPosition,
+    currentTime,
+    progress,
     isCompleted,
     timestamp
   } = req.body || {};
@@ -72,8 +75,19 @@ export function handleTrackActivity(req: Request, res: Response) {
   const cleanCover = thumbnailUrl || (cleanVideoId ? `https://img.youtube.com/vi/${cleanVideoId}/hqdefault.jpg` : null);
   const targetLang = String(studyLanguage || language || "es").toLowerCase().trim();
   const totalDuration = Math.max(0, Math.round(Number(duration || durationSeconds) || 0));
-  const explicitTimeSpent = req.body?.timeSpentSeconds !== undefined ? Math.max(0, Math.round(Number(req.body.timeSpentSeconds) || 0)) : undefined;
-  const addedSec = Math.max(0, Math.round(Number(addedSeconds ?? watchedSeconds) || 0));
+
+  const rawPos = reqLastPosition ?? currentTime ?? progress;
+  const resolvedLastPosition = rawPos !== undefined && !isNaN(Number(rawPos))
+    ? Math.max(0, Math.round(Number(rawPos)))
+    : undefined;
+
+  // Added seconds strictly reflects incremental study time spent (capped to 7200s)
+  const addedSec = req.body?.addedSeconds !== undefined
+    ? Math.min(7200, Math.max(0, Math.round(Number(req.body.addedSeconds) || 0)))
+    : (req.body?.watchedSeconds !== undefined && Number(req.body.watchedSeconds) <= 300)
+      ? Math.min(300, Math.max(0, Math.round(Number(req.body.watchedSeconds) || 0)))
+      : 0;
+
   const completed = Boolean(isCompleted);
   const statusStr = completed ? "COMPLETED" : "IN_PROGRESS";
 
@@ -112,12 +126,8 @@ export function handleTrackActivity(req: Request, res: Response) {
 
     if (lesson) {
       const prevTimeSpent = lesson.timeSpentSeconds || 0;
-      const newTimeSpent = completed && totalDuration > 0
-        ? totalDuration
-        : explicitTimeSpent !== undefined
-          ? Math.max(prevTimeSpent, explicitTimeSpent)
-          : prevTimeSpent + addedSec;
-      incrementalSec = Math.max(0, newTimeSpent - prevTimeSpent);
+      const newTimeSpent = prevTimeSpent + addedSec;
+      incrementalSec = addedSec;
 
       const newStatus = completed ? "COMPLETED" : (lesson.status || "IN_PROGRESS");
       db.prepare(`
@@ -141,9 +151,7 @@ export function handleTrackActivity(req: Request, res: Response) {
       lesson.timeSpentSeconds = newTimeSpent;
     } else {
       // Activity from browser extension only: DO NOT create a lesson in the library!
-      incrementalSec = addedSec > 0
-        ? addedSec
-        : (explicitTimeSpent !== undefined ? explicitTimeSpent : (completed && totalDuration > 0 ? totalDuration : 0));
+      incrementalSec = addedSec;
     }
 
     const recordedLessonId = lesson ? lesson.id : effectiveLessonId;
@@ -172,11 +180,10 @@ export function handleTrackActivity(req: Request, res: Response) {
 
     if (existingHistory) {
       const prevDuration = existingHistory.durationSeconds || 0;
-      const updatedDuration = completed && totalDuration > 0
-        ? totalDuration
-        : explicitTimeSpent !== undefined
-          ? Math.max(prevDuration, explicitTimeSpent)
-          : prevDuration + addedSec;
+      const updatedDuration = prevDuration + addedSec;
+      const finalLastPosition = resolvedLastPosition !== undefined
+        ? resolvedLastPosition
+        : (existingHistory.lastPosition || 0);
 
       db.prepare(`
         UPDATE reading_history SET
@@ -200,7 +207,7 @@ export function handleTrackActivity(req: Request, res: Response) {
         channelAvatarUrl || null,
         cleanChannelUrl || null,
         cleanCover,
-        updatedDuration,
+        finalLastPosition,
         totalDuration,
         totalDuration,
         userId,
@@ -208,11 +215,8 @@ export function handleTrackActivity(req: Request, res: Response) {
       );
     } else {
       // Create new history entry (even with 0 seconds on initial video open, so it immediately shows up in TODAY)
-      const initialDuration = completed && totalDuration > 0
-        ? totalDuration
-        : explicitTimeSpent !== undefined
-          ? explicitTimeSpent
-          : addedSec;
+      const initialDuration = addedSec;
+      const initialLastPos = resolvedLastPosition !== undefined ? resolvedLastPosition : 0;
 
       const historyId = "hist_yt_" + (cleanVideoId || Date.now().toString(36)) + "_" + Date.now().toString(36);
       db.prepare(`
@@ -236,7 +240,7 @@ export function handleTrackActivity(req: Request, res: Response) {
         cleanChannelUrl || null,
         cleanTitle,
         JSON.stringify(["youtube", "extension"]),
-        initialDuration,
+        initialLastPos,
         totalDuration
       );
     }

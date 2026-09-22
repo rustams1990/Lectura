@@ -627,6 +627,7 @@ export default function App() {
       channelAvatarUrl?: string | null;
       guid?: string | null;
       lastPosition?: number;
+      duration?: number | null;
       audioDuration?: number | null;
       youtubeId?: string | null;
       audioBase64?: string | null;

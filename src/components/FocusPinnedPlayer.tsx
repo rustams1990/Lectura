@@ -245,6 +245,18 @@ export default function FocusPinnedPlayer({
               if (Date.now() - lastStorageSaveRef.current >= 3000) {
                 saveNow(cur);
               }
+
+              // Periodic 5s listening tick while playing actively
+              if (lastTickRef.current) {
+                const now = Date.now();
+                const delta = (now - lastTickRef.current) / 1000;
+                if (delta >= 5.0) {
+                  if (delta > 0 && delta <= 15 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
+                    onListeningTick(delta, false, cur);
+                  }
+                  lastTickRef.current = now;
+                }
+              }
             }
           } catch {}
         }
@@ -385,6 +397,7 @@ export default function FocusPinnedPlayer({
   // External seek
   useEffect(() => {
     if (seekToTime != null) {
+      lastTickRef.current = Date.now();
       if (useLocalMedia && videoElRef.current) {
         try {
           videoElRef.current.currentTime = seekToTime;

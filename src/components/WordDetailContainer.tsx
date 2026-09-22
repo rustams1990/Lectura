@@ -34,6 +34,7 @@ export interface WordDetailContainerProps {
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
   /** When true, always renders the full Inspector (WordExplainer) regardless of wordCardMode setting. */
   forceInspector?: boolean;
+  className?: string;
 }
 
 export default function WordDetailContainer(props: WordDetailContainerProps) {
