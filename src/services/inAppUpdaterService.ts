@@ -65,11 +65,15 @@ export async function checkForGitHubUpdate(manualCheck = false): Promise<GitHubR
     const latestTag = (data.tag_name || '').trim();
     if (!latestTag) return null;
 
-    // Check if user dismissed this specific version in automatic mode
+    // Check if user dismissed this specific version in automatic mode (permanent or session-level)
     if (!manualCheck) {
       try {
         const dismissedTag = localStorage.getItem(LAST_DISMISSED_TAG_KEY);
         if (dismissedTag === latestTag) {
+          return null;
+        }
+        const sessionDismissed = sessionStorage.getItem('lectura_dismissed_session');
+        if (sessionDismissed === latestTag) {
           return null;
         }
       } catch (_) {}

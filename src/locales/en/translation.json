@@ -1561,7 +1561,14 @@
     "download_started": "Download started in background. The installer will open automatically.",
     "view_on_github": "View on GitHub",
     "dont_ask_again": "Don't ask for this version",
-    "desktop_hint": "On Windows, simply run update.bat in your Lectura folder to update automatically with a DB backup."
+    "desktop_hint": "On Windows, simply run update.bat in your Lectura folder to update automatically with a DB backup.",
+    "server_cmd_title": "Ubuntu Server update command:",
+    "server_hint": "Script automatically creates a database backup, pulls fresh Docker image v{{ver}}, and restarts Lectura.",
+    "windows_cmd_title": "Local Windows server update command:",
+    "windows_hint": "Run update.bat in your Lectura root folder to update with a database backup.",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "download_apk_btn": "Download APK for Android {{size}}"
   },
   "podcasts": {
     "title": "Podcasts",

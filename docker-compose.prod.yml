@@ -17,3 +17,12 @@ services:
       - DATA_DIR=/app/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # Опционально: Автоматическое фоновое обновление Lectura при выходе новых версий
+  watchtower:
+    image: containrrr/watchtower
+    container_name: lectura-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 1800 --cleanup lectura
