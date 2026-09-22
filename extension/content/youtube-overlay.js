@@ -42810,11 +42810,26 @@
     /**
      * Generates external dictionary URLs (Language Reactor style)
      */
-    getExternalDictUrls(word, targetLang) {
+    getExternalDictUrls(word, targetLang, nativeLang) {
       const clean2 = encodeURIComponent(word.trim());
       const code = normalizeLangCode(targetLang);
       const langName = getLanguageDisplayName(code).toLowerCase();
-      const reversoPair = `${langName}-russian`;
+      const langMap = {
+        en: "english",
+        es: "spanish",
+        fr: "french",
+        de: "german",
+        it: "italian",
+        ru: "russian",
+        pt: "portuguese",
+        zh: "chinese",
+        ja: "japanese",
+        ko: "korean",
+        ar: "arabic",
+        tr: "turkish"
+      };
+      const nativeCode = normalizeLangCode(nativeLang || "russian");
+      const nativeName = langMap[nativeCode] || nativeLang?.toLowerCase() || "russian";
       let cambridgeDict = "english";
       if (code === "es") cambridgeDict = "spanish-english";
       else if (code === "fr") cambridgeDict = "french-english";
@@ -42824,8 +42839,9 @@
       else if (code === "ru") cambridgeDict = "russian-english";
       else if (code === "ja") cambridgeDict = "japanese-english";
       const wiktionaryLang = code;
+      const reversoUrl = langName === nativeName ? `https://dictionary.reverso.net/${langName}-definition/${clean2}` : `https://context.reverso.net/translation/${langName}-${nativeName}/${clean2}`;
       return {
-        reverso: `https://context.reverso.net/translation/${reversoPair}/${clean2}`,
+        reverso: reversoUrl,
         cambridge: `https://dictionary.cambridge.org/dictionary/${cambridgeDict}/${clean2}`,
         wiktionary: `https://${wiktionaryLang}.wiktionary.org/wiki/${clean2}`
       };
@@ -42899,7 +42915,7 @@
         const readyTranslation = rawTranslation;
         const uiLang = this.settings?.interfaceLanguage || "en";
         const highlightedContext = this.highlightWordInContext(contextSentence, word);
-        const dictUrls = this.getExternalDictUrls(word, activeLang);
+        const dictUrls = this.getExternalDictUrls(word, activeLang, this.settings?.nativeLanguage);
         const initialTranslationHtml = readyTranslation ? this.formatTranslationHtml(readyTranslation) : t3("translating", uiLang);
         const translationLines = readyTranslation ? readyTranslation.split("\n").map((l2) => l2.trim()).filter(Boolean) : [];
         const glassMainTranslation = translationLines[0] || (readyTranslation || t3("translating", uiLang));
@@ -43002,7 +43018,7 @@
             <div class="glass-dict-grid">
               <a href="${dictUrls.cambridge}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Cambridge \u2197</a>
               <a href="${dictUrls.wiktionary}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Wiktionary \u2197</a>
-              <a href="${dictUrls.reverso || `https://context.reverso.net/translation/${activeLang.toLowerCase()}-russian/${encodeURIComponent(word)}`}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Reverso \u2197</a>
+              <a href="${dictUrls.reverso}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Reverso \u2197</a>
             </div>
           </div>
         </div>

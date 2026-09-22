@@ -4106,13 +4106,19 @@ class YouTubeLecturaOverlay {
   /**
    * Generates external dictionary URLs (Language Reactor style)
    */
-  private getExternalDictUrls(word: string, targetLang: string) {
+  private getExternalDictUrls(word: string, targetLang: string, nativeLang?: string) {
     const clean = encodeURIComponent(word.trim());
     const code = normalizeLangCode(targetLang);
     const langName = getLanguageDisplayName(code).toLowerCase();
-    
-    // Reverso pair
-    const reversoPair = `${langName}-russian`;
+
+    // Resolve native/translation language for Reverso pair
+    const langMap: Record<string, string> = {
+      en: 'english', es: 'spanish', fr: 'french', de: 'german',
+      it: 'italian', ru: 'russian', pt: 'portuguese', zh: 'chinese',
+      ja: 'japanese', ko: 'korean', ar: 'arabic', tr: 'turkish',
+    };
+    const nativeCode = normalizeLangCode(nativeLang || 'russian');
+    const nativeName = langMap[nativeCode] || nativeLang?.toLowerCase() || 'russian';
 
     // Cambridge dictionary code
     let cambridgeDict = 'english';
@@ -4127,8 +4133,13 @@ class YouTubeLecturaOverlay {
     // Wiktionary subdomain
     const wiktionaryLang = code;
 
+    // If study language == native language, show definition instead of translation
+    const reversoUrl = (langName === nativeName)
+      ? `https://dictionary.reverso.net/${langName}-definition/${clean}`
+      : `https://context.reverso.net/translation/${langName}-${nativeName}/${clean}`;
+
     return {
-      reverso: `https://context.reverso.net/translation/${reversoPair}/${clean}`,
+      reverso: reversoUrl,
       cambridge: `https://dictionary.cambridge.org/dictionary/${cambridgeDict}/${clean}`,
       wiktionary: `https://${wiktionaryLang}.wiktionary.org/wiki/${clean}`,
     };
@@ -4213,7 +4224,7 @@ class YouTubeLecturaOverlay {
 
     const uiLang = this.settings?.interfaceLanguage || 'en';
     const highlightedContext = this.highlightWordInContext(contextSentence, word);
-    const dictUrls = this.getExternalDictUrls(word, activeLang);
+    const dictUrls = this.getExternalDictUrls(word, activeLang, this.settings?.nativeLanguage);
     const initialTranslationHtml = readyTranslation ? this.formatTranslationHtml(readyTranslation) : t('translating', uiLang);
     const translationLines = readyTranslation ? readyTranslation.split('\n').map((l) => l.trim()).filter(Boolean) : [];
     const glassMainTranslation = translationLines[0] || (readyTranslation || t('translating', uiLang));
@@ -4308,7 +4319,7 @@ class YouTubeLecturaOverlay {
             <div class="glass-dict-grid">
               <a href="${dictUrls.cambridge}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Cambridge ↗</a>
               <a href="${dictUrls.wiktionary}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Wiktionary ↗</a>
-              <a href="${dictUrls.reverso || `https://context.reverso.net/translation/${activeLang.toLowerCase()}-russian/${encodeURIComponent(word)}`}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Reverso ↗</a>
+              <a href="${dictUrls.reverso}" target="_blank" rel="noopener noreferrer" class="glass-dict-btn">Reverso ↗</a>
             </div>
           </div>
         </div>

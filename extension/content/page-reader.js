@@ -40216,7 +40216,7 @@
         return { translationText: "\u2014", baseRoot: detectedBaseRoot };
       }
     }
-    getExternalDictUrls(word, languageNameOrCode) {
+    getExternalDictUrls(word, languageNameOrCode, nativeLang) {
       const clean2 = encodeURIComponent(word.trim());
       const code = normalizeLangCode(languageNameOrCode);
       const langNames = {
@@ -40234,7 +40234,8 @@
         tr: "turkish"
       };
       const langName = langNames[code] || "english";
-      const reversoPair = `${langName}-russian`;
+      const nativeCode = normalizeLangCode(nativeLang || "russian");
+      const nativeName = langNames[nativeCode] || nativeLang?.toLowerCase() || "russian";
       let cambridgeDict = "english";
       if (code === "es") cambridgeDict = "spanish-english";
       else if (code === "fr") cambridgeDict = "french-english";
@@ -40244,8 +40245,9 @@
       else if (code === "ru") cambridgeDict = "russian-english";
       else if (code === "ja") cambridgeDict = "japanese-english";
       const wiktionaryLang = code;
+      const reversoUrl = langName === nativeName ? `https://dictionary.reverso.net/${langName}-definition/${clean2}` : `https://context.reverso.net/translation/${langName}-${nativeName}/${clean2}`;
       return {
-        reverso: `https://context.reverso.net/translation/${reversoPair}/${clean2}`,
+        reverso: reversoUrl,
         cambridge: `https://dictionary.cambridge.org/dictionary/${cambridgeDict}/${clean2}`,
         wiktionary: `https://${wiktionaryLang}.wiktionary.org/wiki/${clean2}`
       };
@@ -40336,7 +40338,7 @@
       if (baseWord && baseWord !== lower && !suggestedLemmas.includes(baseWord)) {
         suggestedLemmas = [baseWord, ...suggestedLemmas];
       }
-      const dictUrls = this.getExternalDictUrls(word, activeLang);
+      const dictUrls = this.getExternalDictUrls(word, activeLang, this.settings?.nativeLanguage);
       const initialTransHtml = cached?.translation ? this.formatTranslationHtml(cached.translation) : "Translating...";
       const translationLines = cached?.translation ? cached.translation.split("\n").map((l2) => l2.trim()).filter(Boolean) : [];
       const glassMainTranslation = translationLines[0] || (cached?.translation || "Translating...");
@@ -40813,7 +40815,24 @@
           const clean2 = encodeURIComponent(word.trim());
           let url = "";
           if (dict === "reverso") {
-            url = currentLang === "es" ? `https://context.reverso.net/translation/spanish-russian/${clean2}` : `https://context.reverso.net/translation/english-russian/${clean2}`;
+            const langMap = {
+              en: "english",
+              es: "spanish",
+              fr: "french",
+              de: "german",
+              it: "italian",
+              ru: "russian",
+              pt: "portuguese",
+              zh: "chinese",
+              ja: "japanese",
+              ko: "korean",
+              ar: "arabic",
+              tr: "turkish"
+            };
+            const studyName = langMap[currentLang] || currentLang;
+            const nativeCode = normalizeLangCode(this.settings?.nativeLanguage || "russian");
+            const nativeName = langMap[nativeCode] || "russian";
+            url = studyName === nativeName ? `https://dictionary.reverso.net/${studyName}-definition/${clean2}` : `https://context.reverso.net/translation/${studyName}-${nativeName}/${clean2}`;
           } else if (dict === "cambridge") {
             url = `https://dictionary.cambridge.org/dictionary/english/${clean2}`;
           } else if (dict === "wiktionary") {

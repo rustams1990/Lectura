@@ -74,7 +74,7 @@ const getLanguageReversoName = (languageName: string): string => {
   return norm || "english";
 };
 
-export const sanitizeDictItem = (d: any): DictionaryItem => {
+export const sanitizeDictItem = (d: any, targetLanguage?: string, translationLanguage?: string): DictionaryItem => {
   const isGtransOrReverso = (
     d.name?.includes("Google") ||
     d.name?.includes("Reverso") ||
@@ -89,12 +89,39 @@ export const sanitizeDictItem = (d: any): DictionaryItem => {
   if (urlTemplate.includes("cambridge.org/dictionary/english-english/")) {
     urlTemplate = urlTemplate.replace("cambridge.org/dictionary/english-english/", "cambridge.org/dictionary/english/");
   }
-  if (urlTemplate.includes("context.reverso.net/translation/english-english/")) {
-    urlTemplate = urlTemplate.replace("context.reverso.net/translation/english-english/", "dictionary.reverso.net/english-definition/");
+  // Generic: replace any context.reverso.net/translation/LANG-LANG/ with dictionary.reverso.net/LANG-definition/
+  urlTemplate = urlTemplate.replace(
+    /context\.reverso\.net\/translation\/([a-z]+)-\1\//,
+    "dictionary.reverso.net/$1-definition/"
+  );
+
+  // If source and target language are known and it's a Reverso dictionary
+  if (targetLanguage && translationLanguage) {
+    const sourceReverso = getLanguageReversoName(targetLanguage);
+    const targetReverso = getLanguageReversoName(translationLanguage);
+    const isReverso = d.id?.includes("reverso") || urlTemplate.includes("reverso.net") || d.name?.toLowerCase().includes("reverso");
+
+    if (isReverso) {
+      if (sourceReverso === targetReverso) {
+        // Monolingual: Reverso doesn't have same-language translation, route to Definition!
+        urlTemplate = urlTemplate.replace(
+          /context\.reverso\.net\/translation\/[a-z]+-[a-z]+\//,
+          `dictionary.reverso.net/${sourceReverso}-definition/`
+        );
+        if (!urlTemplate.includes("dictionary.reverso.net")) {
+          urlTemplate = `https://dictionary.reverso.net/${sourceReverso}-definition/{word}`;
+        }
+      } else if (d.id?.startsWith("reverso-")) {
+        // Standard built-in Reverso item: adapt target language pair if it was a translation url
+        if (urlTemplate.includes("context.reverso.net/translation/")) {
+          urlTemplate = `https://context.reverso.net/translation/${sourceReverso}-${targetReverso}/{word}`;
+        } else if (urlTemplate.includes("dictionary.reverso.net/")) {
+          urlTemplate = `https://context.reverso.net/translation/${sourceReverso}-${targetReverso}/{word}`;
+        }
+      }
+    }
   }
-  if (urlTemplate.includes("context.reverso.net/translation/spanish-spanish/")) {
-    urlTemplate = urlTemplate.replace("context.reverso.net/translation/spanish-spanish/", "dictionary.reverso.net/spanish-definition/");
-  }
+
   return {
     id: d.id || `dict_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     name: d.name || "Dictionary",
@@ -204,7 +231,9 @@ export const getDefaultMeaningDictionaries = (targetLanguage: string, translatio
       {
         id: "reverso-uk",
         name: "Reverso Context",
-        urlTemplate: `https://context.reverso.net/translation/ukrainian-${targetReverso}/{word}`,
+        urlTemplate: targetReverso === "ukrainian"
+          ? "https://dictionary.reverso.net/ukrainian-definition/{word}"
+          : `https://context.reverso.net/translation/ukrainian-${targetReverso}/{word}`,
         displayType: "window_popup",
         enabled: true
       }
@@ -223,7 +252,9 @@ export const getDefaultMeaningDictionaries = (targetLanguage: string, translatio
       {
         id: "reverso-pt",
         name: "Reverso Context",
-        urlTemplate: `https://context.reverso.net/translation/portuguese-${targetReverso}/{word}`,
+        urlTemplate: targetReverso === "portuguese"
+          ? "https://dictionary.reverso.net/portuguese-definition/{word}"
+          : `https://context.reverso.net/translation/portuguese-${targetReverso}/{word}`,
         displayType: "window_popup",
         enabled: true
       },
@@ -256,7 +287,9 @@ export const getDefaultMeaningDictionaries = (targetLanguage: string, translatio
       {
         id: "reverso-kk",
         name: "Reverso Context",
-        urlTemplate: `https://context.reverso.net/translation/kazakh-${targetReverso}/{word}`,
+        urlTemplate: targetReverso === "kazakh"
+          ? "https://dictionary.reverso.net/kazakh-definition/{word}"
+          : `https://context.reverso.net/translation/kazakh-${targetReverso}/{word}`,
         displayType: "window_popup",
         enabled: true
       }
@@ -315,12 +348,26 @@ export const getDefaultDefinitionDictionaries = (targetLanguage: string): Dictio
         urlTemplate: "https://dictionary.cambridge.org/dictionary/spanish/{word}",
         displayType: "window_popup",
         enabled: true
+      },
+      {
+        id: "reverso-es-def",
+        name: "Reverso (Definición)",
+        urlTemplate: "https://dictionary.reverso.net/spanish-definition/{word}",
+        displayType: "window_popup",
+        enabled: true
       }
     ];
   }
 
   if (sourceCode === "en") {
     return [
+      {
+        id: "reverso-en-def",
+        name: "Reverso Definition",
+        urlTemplate: "https://dictionary.reverso.net/english-definition/{word}",
+        displayType: "window_popup",
+        enabled: true
+      },
       {
         id: "cambridge-en-def",
         name: "Cambridge English",
@@ -492,7 +539,7 @@ export const normalizeDictionaryPreferences = (
 
   // Backward compatibility: if raw is an old flat array DictionaryItem[]
   if (Array.isArray(raw)) {
-    const migratedMeaning = raw.map(sanitizeDictItem);
+    const migratedMeaning = raw.map((d) => sanitizeDictItem(d, targetLanguage, translationLanguage));
     return {
       meaning: migratedMeaning.length > 0 ? migratedMeaning : defaultMeaning,
       definition: defaultDefinition
@@ -505,13 +552,13 @@ export const normalizeDictionaryPreferences = (
     let definitionList: DictionaryItem[] = [];
 
     if (Array.isArray(raw.meaning)) {
-      meaningList = raw.meaning.map(sanitizeDictItem);
+      meaningList = raw.meaning.map((d) => sanitizeDictItem(d, targetLanguage, translationLanguage));
     } else {
       meaningList = defaultMeaning;
     }
 
     if (Array.isArray(raw.definition)) {
-      definitionList = raw.definition.map(sanitizeDictItem);
+      definitionList = raw.definition.map((d) => sanitizeDictItem(d, targetLanguage, translationLanguage));
     } else {
       definitionList = defaultDefinition;
     }
@@ -844,7 +891,21 @@ function WordExplainer({
   const handleOpenDictionary = (dict: DictionaryItem, wordToLookup: string) => {
     const cleanWord = (wordToLookup || "").trim();
     const encodedWord = encodeURIComponent(cleanWord);
-    const url = dict.urlTemplate
+    let template = dict.urlTemplate;
+
+    // Safety: ensure Reverso uses Definition for same-language monolingual lookups
+    const isReverso = dict.id?.includes("reverso") || template.includes("reverso.net") || dict.name?.toLowerCase().includes("reverso");
+    if (isReverso) {
+      const sourceReverso = getLanguageReversoName(targetLanguage);
+      const targetReverso = getLanguageReversoName(effectiveTranslationLanguage);
+      if (sourceReverso === targetReverso) {
+        template = `https://dictionary.reverso.net/${sourceReverso}-definition/{word}`;
+      } else if (dict.id?.startsWith("reverso-") && template.includes("dictionary.reverso.net/")) {
+        template = `https://context.reverso.net/translation/${sourceReverso}-${targetReverso}/{word}`;
+      }
+    }
+
+    const url = template
       .replace(/{word}/g, encodedWord)
       .replace(/{query}/g, encodedWord);
 
