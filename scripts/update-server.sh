@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # ==============================================================================
 # Lectura — Fast Production Update Script for Ubuntu Server
 # Conforms to Lectura Dogmas: Mandatory DB backup before every server update
@@ -8,9 +8,17 @@
 set -e
 
 COMPOSE_FILE="docker-compose.prod.yml"
-DATA_DIR="./data"
 BACKUP_DIR="./backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+# 0. Load environment variables from .env if present (e.g. DATA_PATH)
+if [ -f ".env" ]; then
+  set -a
+  source .env 2>/dev/null || true
+  set +a
+fi
+
+DATA_DIR="${DATA_PATH:-${DATA_DIR:-./data}}"
 
 echo "========================================="
 echo "Lectura Fast Production Update"
