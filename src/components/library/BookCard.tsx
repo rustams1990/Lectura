@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useRef } from "react";
 import { Lesson, ReaderSettings, Playlist } from "../../types";
-import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore } from "lucide-react";
+import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { getCategoryIcon, getCategoryDisplayName } from "../ImportLessonForm";
@@ -165,6 +165,41 @@ export const BookCard: React.FC<BookCardProps> = memo(({
     const hours = (totalMinutes / 60).toFixed(1).replace(/\.0$/, "");
     return `~${hours} ${isRu ? "ч" : "h"}`;
   };
+
+  // Check if this card has been opened/started
+  const isStarted = (() => {
+    if (isVideo) {
+      if (videoProgress > 0) return true;
+      const storedYt = typeof localStorage !== "undefined" ? localStorage.getItem(`youtube_progress_${lesson.id}`) : null;
+      if (storedYt !== null) return true;
+    }
+    if (isAudioMedia) {
+      const aProg = Number(lesson.audioProgress ?? (lesson as any).audio_progress);
+      if (!isNaN(aProg) && aProg > 0) return true;
+    }
+    const storedReading = typeof localStorage !== "undefined" ? localStorage.getItem(`vocab_progress_${lesson.id}`) : null;
+    if (storedReading !== null) return true;
+
+    if ((lesson as any).isCompleted || ((lesson as any).readCount && (lesson as any).readCount > 0)) {
+      return true;
+    }
+    if (typeof (lesson as any).progress === "number" && (lesson as any).progress > 0) {
+      return true;
+    }
+    if (typeof (lesson as any).timeSpentSeconds === "number" && (lesson as any).timeSpentSeconds > 0) {
+      return true;
+    }
+    return false;
+  })();
+
+  const ActionIcon = isVideo ? Play : isAudioMedia ? Headphones : BookOpen;
+  const actionLabel = isStarted
+    ? t("library.continue_btn", "Continue")
+    : isVideo
+    ? t("library.watch_btn", "Watch")
+    : isAudioMedia
+    ? t("library.listen_btn", "Listen")
+    : t("library.read_btn", "Read");
 
   return (
     <div
@@ -561,7 +596,7 @@ export const BookCard: React.FC<BookCardProps> = memo(({
           </div>
         )}
 
-        {/* Actions row: Neutral Read Button + 3-dots Menu */}
+        {/* Actions row: Neutral Action Button + 3-dots Menu */}
         <div className="flex gap-2 items-center pt-1 border-t border-zinc-100 dark:border-zinc-800">
           <button
             type="button"
@@ -569,8 +604,8 @@ export const BookCard: React.FC<BookCardProps> = memo(({
             onClick={() => onSelectLesson(lesson.id)}
             className="flex-1 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 active:scale-98 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700/60 font-bold text-xs rounded-xl shadow-3xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
           >
-            <BookOpen className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-            <span>{bookStats.knownPct > 0 || bookStats.uniqueKnownCount > 0 ? t("library.continue_btn", "Continue") : t("library.read_btn", "Read")}</span>
+            <ActionIcon className={`w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400 ${isVideo ? "fill-current" : ""}`} />
+            <span>{actionLabel}</span>
           </button>
 
           {/* Secondary Actions 3-dots Menu */}
