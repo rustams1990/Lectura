@@ -158,12 +158,11 @@ export const BookCard: React.FC<BookCardProps> = memo(({
   const formatEstimatedReadTime = (words: number): string => {
     if (!words || words <= 0) return "";
     const totalMinutes = Math.max(1, Math.round(words / 160));
-    const isRu = i18n.language?.startsWith("ru");
     if (totalMinutes < 60) {
-      return `~${totalMinutes} ${isRu ? "мин" : "min"}`;
+      return `~${totalMinutes} ${t("library.min", "min")}`;
     }
     const hours = (totalMinutes / 60).toFixed(1).replace(/\.0$/, "");
-    return `~${hours} ${isRu ? "ч" : "h"}`;
+    return `~${hours} ${t("library.hour_short", "h")}`;
   };
 
   // Check if this card has been opened/started
@@ -355,7 +354,7 @@ export const BookCard: React.FC<BookCardProps> = memo(({
               {lesson.difficulty && (
                 <span 
                   className="text-[9.5px] font-black leading-none px-2 py-1 rounded-full bg-black/65 text-white border border-white/10 flex items-center justify-center shadow-xs cursor-default select-none shrink-0"
-                  title={lesson.difficultyExplanation || `Уровень сложности: ${lesson.difficulty}`}
+                  title={lesson.difficultyExplanation || `${t("library.difficulty_prefix", "Difficulty:")} ${lesson.difficulty}`}
                 >
                   {lesson.difficulty}
                 </span>
@@ -373,7 +372,7 @@ export const BookCard: React.FC<BookCardProps> = memo(({
                     ? "bg-amber-500 text-white border-amber-400 font-extrabold shadow-sm hover:bg-amber-600 scale-110"
                     : "bg-black/60 text-zinc-300 border-white/10 hover:bg-black/80 hover:text-white hover:scale-110"
                 }`}
-                title={lesson.pinned ? "Открепить книгу (Unpin Book)" : "Закрепить книгу (Pin Book)"}
+                title={lesson.pinned ? t("library.unpin_book", "Unpin Book") : t("library.pin_book", "Pin Book")}
               >
                 <Pin className={`w-3 h-3 ${lesson.pinned ? "fill-white" : ""}`} />
               </button>
@@ -439,7 +438,7 @@ export const BookCard: React.FC<BookCardProps> = memo(({
               {lesson.difficulty && (
                 <span 
                   className="text-[9.5px] font-bold leading-none px-1.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs cursor-default select-none shrink-0"
-                  title={lesson.difficultyExplanation || `Difficulty: ${lesson.difficulty}`}
+                  title={lesson.difficultyExplanation || `${t("library.difficulty_prefix", "Difficulty:")} ${lesson.difficulty}`}
                 >
                   {lesson.difficulty}
                 </span>
@@ -482,12 +481,20 @@ export const BookCard: React.FC<BookCardProps> = memo(({
                 <div 
                   style={{ width: `${bookStats.knownVocabularyPct}%` }}
                   className="bg-emerald-500 h-full transition-all duration-300 cursor-help"
-                  title={`Словарный запас: ${bookStats.knownVocabularyPct}% (Изучено: ${bookStats.uniqueKnownCount} лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
+                  title={t("library.tooltip_vocab_bar", "Vocabulary: {{pct}}% (Learned: {{known}} lemmas out of {{total}} to study)", {
+                    pct: bookStats.knownVocabularyPct,
+                    known: bookStats.uniqueKnownCount,
+                    total: bookStats.eligibleLemmas
+                  })}
                 />
                 <div 
                   style={{ width: `${bookStats.unknownVocabularyPct}%` }}
                   className="bg-sky-400 h-full transition-all duration-300 cursor-help"
-                  title={`Новых слов: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} новых лемм из ${bookStats.eligibleLemmas})`}
+                  title={t("library.tooltip_new_bar", "New words: {{pct}}% ({{unknown}} new lemmas out of {{total}})", {
+                    pct: bookStats.unknownVocabularyPct,
+                    unknown: bookStats.uniqueUnknownCount,
+                    total: bookStats.eligibleLemmas
+                  })}
                 />
               </>
             ) : (
@@ -495,12 +502,20 @@ export const BookCard: React.FC<BookCardProps> = memo(({
                 <div 
                   style={{ width: `${bookStats.knownPct}%` }}
                   className="bg-emerald-500 h-full transition-all duration-300 cursor-help"
-                  title={`Понимание: ${bookStats.knownPct}% (Известно: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению токенов)`}
+                  title={t("library.tooltip_comp_bar", "Comprehension: {{pct}}% (Known: {{known}} of {{tokens}} tokens to study)", {
+                    pct: bookStats.knownPct,
+                    known: bookStats.knownCount,
+                    tokens: bookStats.eligibleTokens
+                  })}
                 />
                 <div 
                   style={{ width: `${bookStats.unknownPct}%` }}
                   className="bg-sky-400 h-full transition-all duration-300 cursor-help"
-                  title={`Непонимание: ${bookStats.unknownPct}% (Неизвестно: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов)`}
+                  title={t("library.tooltip_not_comp_bar", "Not understood: {{pct}}% (Unknown: {{unknown}} of {{tokens}} tokens)", {
+                    pct: bookStats.unknownPct,
+                    unknown: bookStats.unknownCount,
+                    tokens: bookStats.eligibleTokens
+                  })}
                 />
               </>
             )}
@@ -510,13 +525,20 @@ export const BookCard: React.FC<BookCardProps> = memo(({
             <div className="flex flex-col gap-0.5 text-[9px] font-extrabold font-sans">
               <div className="flex justify-between items-center">
                 <span 
-                  title={`Известные слова: ${bookStats.knownCount} вхождений (${bookStats.uniqueKnownCount} уникальных лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
+                  title={t("library.tooltip_known_words_detailed", "Known words: {{count}} occurrences ({{unique}} unique lemmas out of {{total}} to study)", {
+                    count: bookStats.knownCount,
+                    unique: bookStats.uniqueKnownCount,
+                    total: bookStats.eligibleLemmas
+                  })}
                   className="text-emerald-500 hover:underline cursor-help"
                 >
                   {t("library.understood_stat", "Understood:")} {bookStats.knownPct}% ({bookStats.knownCount} / {bookStats.eligibleTokens} {t("library.words", "words")})
                 </span>
                 <span 
-                  title={`Неизвестные слова: ${bookStats.unknownCount} вхождений (${bookStats.uniqueUnknownCount} уникальных лемм)`}
+                  title={t("library.tooltip_unknown_words_detailed", "Unknown words: {{count}} occurrences ({{unique}} unique lemmas)", {
+                    count: bookStats.unknownCount,
+                    unique: bookStats.uniqueUnknownCount
+                  })}
                   className="text-sky-500 dark:text-sky-400 hover:underline cursor-help"
                 >
                   {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}% ({bookStats.unknownCount} {t("library.words", "words")})
@@ -524,13 +546,19 @@ export const BookCard: React.FC<BookCardProps> = memo(({
               </div>
               <div className="flex justify-between items-center">
                 <span 
-                  title={`Уникальные изученные леммы: ${bookStats.uniqueKnownCount} из ${bookStats.eligibleLemmas} подлежащих изучению`}
+                  title={t("library.tooltip_unique_known_lemmas", "Unique learned lemmas: {{unique}} out of {{total}} to study", {
+                    unique: bookStats.uniqueKnownCount,
+                    total: bookStats.eligibleLemmas
+                  })}
                   className="text-emerald-500 dark:text-emerald-400 hover:underline cursor-help"
                 >
                   • {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}% ({bookStats.uniqueKnownCount} / {bookStats.eligibleLemmas} {t("library.unique", "unique")})
                 </span>
                 <span 
-                  title={`Новые уникальные леммы: ${bookStats.uniqueUnknownCount} из ${bookStats.eligibleLemmas}`}
+                  title={t("library.tooltip_unique_unknown_lemmas", "New unique lemmas: {{unique}} out of {{total}}", {
+                    unique: bookStats.uniqueUnknownCount,
+                    total: bookStats.eligibleLemmas
+                  })}
                   className="text-sky-500 dark:text-sky-400 hover:underline cursor-help"
                 >
                   • {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}% ({bookStats.uniqueUnknownCount} {t("library.unique", "unique")})
@@ -542,13 +570,19 @@ export const BookCard: React.FC<BookCardProps> = memo(({
               {settings?.mainStatsMetric === "vocabulary" ? (
                 <>
                   <span 
-                    title={`Известные слова: ${bookStats.knownCount} из ${bookStats.eligibleTokens} подлежащих изучению`}
+                    title={t("library.tooltip_known_words_compact", "Known words: {{count}} out of {{tokens}} to study", {
+                      count: bookStats.knownCount,
+                      tokens: bookStats.eligibleTokens
+                    })}
                     className="text-emerald-500 hover:underline cursor-help animate-none"
                   >
                     {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
                   </span>
                   <span 
-                    title={`Неизвестные слова: ${bookStats.unknownCount} из ${bookStats.eligibleTokens} токенов`}
+                    title={t("library.tooltip_unknown_words_compact", "Unknown words: {{count}} out of {{tokens}} tokens", {
+                      count: bookStats.unknownCount,
+                      tokens: bookStats.eligibleTokens
+                    })}
                     className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
                   >
                     {t("library.not_understood", "Not Understood:")} {bookStats.unknownPct}%
@@ -557,13 +591,20 @@ export const BookCard: React.FC<BookCardProps> = memo(({
               ) : (
                 <>
                   <span 
-                    title={`Словарный запас: ${bookStats.knownVocabularyPct}% (${bookStats.uniqueKnownCount} лемм из ${bookStats.eligibleLemmas} подлежащих изучению)`}
+                    title={t("library.tooltip_vocab_compact", "Vocabulary: {{pct}}% ({{unique}} lemmas out of {{total}} to study)", {
+                      pct: bookStats.knownVocabularyPct,
+                      unique: bookStats.uniqueKnownCount,
+                      total: bookStats.eligibleLemmas
+                    })}
                     className="text-emerald-500 hover:underline cursor-help animate-none"
                   >
                     {t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}%
                   </span>
                   <span 
-                    title={`Новых слов: ${bookStats.unknownVocabularyPct}% (${bookStats.uniqueUnknownCount} новых уникальных лемм)`}
+                    title={t("library.tooltip_new_compact", "New words: {{pct}}% ({{unique}} new unique lemmas)", {
+                      pct: bookStats.unknownVocabularyPct,
+                      unique: bookStats.uniqueUnknownCount
+                    })}
                     className="text-sky-500 dark:text-sky-400 hover:underline cursor-help animate-none"
                   >
                     {t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}%
