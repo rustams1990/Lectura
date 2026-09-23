@@ -2474,13 +2474,16 @@ export default function App() {
       }
     };
 
+    const isListening = (item: HistoryEntry) =>
+      item.actionType === "listen" || item.category === "podcast" || item.category === "video";
+
     const dedupedHist = dedupeHistory(history);
     const historyListeningSeconds = dedupedHist
-      .filter((item) => item.actionType === "listen")
+      .filter((item) => isListening(item))
       .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
 
     const todayListeningSeconds = dedupedHist
-      .filter((item) => item.actionType === "listen" && isToday(item.timestamp))
+      .filter((item) => isListening(item) && isToday(item.timestamp))
       .reduce((acc, item) => acc + (item.durationSeconds || 0), 0);
 
     return {

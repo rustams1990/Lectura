@@ -507,7 +507,9 @@ function LibraryHome({
       }
     }
 
-    const selectedLangLower = selectedLanguage !== "All" ? selectedLanguage.toLowerCase() : null;
+    const selectedLangLower = selectedLanguage && selectedLanguage !== "All"
+      ? normalizeLanguage(selectedLanguage).toLowerCase()
+      : null;
     const onlyParents = settings?.onlyPatterns !== false;
 
     let known = 0;
@@ -608,13 +610,14 @@ function LibraryHome({
 
     // Helper to get exact target language for history entry
     const getHistoryItemLanguage = (item: HistoryEntry): string => {
+      if (!item) return "spanish";
       if (item.targetLanguage && typeof item.targetLanguage === "string" && item.targetLanguage.trim()) {
-        return item.targetLanguage.trim().toLowerCase();
+        return normalizeLanguage(item.targetLanguage.trim()).toLowerCase();
       }
       if (item.lessonId) {
         const foundLesson = lessons.find((l) => l.id === item.lessonId);
-        if (foundLesson && foundLesson.targetLanguage) {
-          return foundLesson.targetLanguage.trim().toLowerCase();
+        if (foundLesson && foundLesson.targetLanguage && foundLesson.targetLanguage.trim()) {
+          return normalizeLanguage(foundLesson.targetLanguage.trim()).toLowerCase();
         }
       }
       return "spanish";
@@ -665,8 +668,14 @@ function LibraryHome({
     dedupedHist.forEach((item) => {
       const isListening = item.actionType === "listen" || item.category === "podcast" || item.category === "video";
       if (!isListening || !item.durationSeconds) return;
-      const rawLang = item.targetLanguage || "Spanish";
-      const langKey = rawLang.charAt(0).toUpperCase() + rawLang.slice(1).toLowerCase();
+      let rawLang = item.targetLanguage;
+      if (!rawLang && item.lessonId) {
+        const foundLesson = lessons.find((l) => l.id === item.lessonId);
+        if (foundLesson && foundLesson.targetLanguage) {
+          rawLang = foundLesson.targetLanguage;
+        }
+      }
+      const langKey = normalizeLanguage(rawLang || "Spanish");
 
       const existing = map.get(langKey) || { todaySeconds: 0, totalSeconds: 0 };
       existing.totalSeconds += item.durationSeconds;
@@ -681,7 +690,7 @@ function LibraryHome({
       todaySeconds: Math.round(data.todaySeconds),
       totalSeconds: Math.round(data.totalSeconds),
     }));
-  }, [history]);
+  }, [history, lessons]);
   const [filterType, setFilterType] = useState<"all" | "builtin" | "custom">("all");
   const [selectedLessonType, setSelectedLessonType] = useState<string>("All");
   const [showArchived, setShowArchived] = useState<boolean>(false);

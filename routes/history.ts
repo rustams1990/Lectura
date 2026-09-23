@@ -4,6 +4,42 @@ import { getDbConnection } from "./dbConnection.ts";
 
 const router = Router();
 
+const LANG_MAP: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+  de: "German",
+  fr: "French",
+  it: "Italian",
+  ru: "Russian",
+  ja: "Japanese",
+  zh: "Chinese",
+  pt: "Portuguese",
+  nl: "Dutch",
+  pl: "Polish",
+  sv: "Swedish",
+  da: "Danish",
+  fi: "Finnish",
+  no: "Norwegian",
+  ko: "Korean",
+  ar: "Arabic",
+  tr: "Turkish",
+  hi: "Hindi",
+  uk: "Ukrainian",
+  vi: "Vietnamese",
+  th: "Thai",
+  el: "Greek",
+};
+
+function normalizeLang(lang: string): string {
+  if (!lang) return "Spanish";
+  const lower = lang.trim().toLowerCase();
+  if (LANG_MAP[lower]) return LANG_MAP[lower];
+  if (lang.length > 2) {
+    return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
+  }
+  return lang;
+}
+
 /**
  * Robust YouTube & Media Watch Time Tracking endpoint.
  * Atomically updates:
@@ -73,7 +109,8 @@ export function handleTrackActivity(req: Request, res: Response) {
     channelUrl || (cleanVideoId ? `https://www.youtube.com/watch?v=${cleanVideoId}` : "")
   ).trim();
   const cleanCover = thumbnailUrl || (cleanVideoId ? `https://img.youtube.com/vi/${cleanVideoId}/hqdefault.jpg` : null);
-  const targetLang = String(studyLanguage || language || "es").toLowerCase().trim();
+  const rawTargetLang = String(studyLanguage || language || "es").toLowerCase().trim();
+  const targetLang = normalizeLang(rawTargetLang);
   const totalDuration = Math.max(0, Math.round(Number(duration || durationSeconds) || 0));
 
   const rawPos = reqLastPosition ?? currentTime ?? progress;
