@@ -68,7 +68,7 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
     : null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[99999] backdrop-blur-xs">
+    <div className="fixed inset-0 bg-black/65 flex items-center justify-center p-4 z-[99999]">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl relative space-y-4 max-h-[92vh] overflow-y-auto">
         
         {/* Header */}

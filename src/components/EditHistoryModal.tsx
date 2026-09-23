@@ -469,7 +469,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70">
       <div className="w-full max-w-lg max-h-[90dvh] flex flex-col bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-150 font-sans">
         {/* 1. Fixed Modal Header */}
         <div className="shrink-0 px-4 sm:px-6 py-3.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
@@ -858,7 +858,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
           </div>
 
           {/* 3. Fixed Modal Footer */}
-          <div className="shrink-0 px-4 sm:px-6 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-850/80 backdrop-blur-xs flex justify-end gap-2">
+          <div className="shrink-0 px-4 sm:px-6 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850 flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}

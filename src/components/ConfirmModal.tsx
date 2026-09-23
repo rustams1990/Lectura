@@ -46,7 +46,7 @@ export default function ConfirmModal({
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
@@ -57,7 +57,7 @@ export default function ConfirmModal({
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className={`p-3 rounded-2xl ${isDanger ? "bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400" : "bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400"}`}>
-              {isDanger ? <Trash2 className="w-6 h-6 animate-pulse" /> : <AlertTriangle className="w-6 h-6" />}
+              {isDanger ? <Trash2 className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
             </div>
             <div>
               <h3 className="text-base font-black text-zinc-900 dark:text-white tracking-tight">

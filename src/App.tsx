@@ -3659,7 +3659,7 @@ export default function App() {
         } ${hasActiveQueue ? "pb-36 sm:pb-32" : ""}`}
         style={{
           ...(hasActiveQueue ? { paddingBottom: "max(8rem, calc(6rem + env(safe-area-inset-bottom)))" } : {}),
-          ...(showLocalLoginModal ? { contain: "paint layout" } : {}),
+          ...(showLocalLoginModal || showUpdateModal ? { contain: "paint layout" } : {}),
         }}
       >
         

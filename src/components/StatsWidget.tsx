@@ -34,7 +34,7 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
       {/* Listening Card */}
       <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01]">
         <div className="hidden sm:flex p-3 rounded-xl bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 shrink-0">
-          <Headphones className="w-5 h-5 animate-pulse" />
+          <Headphones className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1 w-full">
           <span className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 uppercase font-black tracking-wider block truncate">

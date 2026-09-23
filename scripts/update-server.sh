@@ -9,7 +9,11 @@ set -e
 
 COMPOSE_FILE="docker-compose.prod.yml"
 BACKUP_DIR="./backups"
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+# Pull latest repository changes if in a git repo
+if [ -d ".git" ]; then
+  echo "Pulling latest repository changes..."
+  git pull --ff-only 2>/dev/null || git pull 2>/dev/null || true
+fi
 
 # 0. Load environment variables from .env if present (e.g. DATA_PATH)
 if [ -f ".env" ]; then

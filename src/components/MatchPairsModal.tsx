@@ -195,7 +195,7 @@ export default function MatchPairsModal({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/65 backdrop-blur-xs font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 font-sans"
       onClick={onClose}
     >
       <motion.div
