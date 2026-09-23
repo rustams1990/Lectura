@@ -709,7 +709,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                         if (match.channelUrl) setFormChannelUrl(match.channelUrl);
                       }
                     }}
-                    placeholder={t('import.channel_name_placeholder', 'e.g. Andrea la Mexicana, Mr Salas')}
+                    placeholder={t('import.channel_name_placeholder', 'Channel or author name')}
                     className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 font-semibold"
                   />
                   <datalist id="modal-history-channels">

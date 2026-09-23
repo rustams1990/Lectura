@@ -950,7 +950,7 @@
     "save_changes_btn": "変更を保存する",
     "channel": "Channel / Author",
     "channel_name_label": "Channel / Author Name",
-    "channel_name_placeholder": "e.g. Andrea la Mexicana, Mr Salas",
+    "channel_name_placeholder": "チャンネル名または作者名",
     "channel_url_label": "Channel URL (YouTube)",
     "resolve_channel_btn": "Find",
     "channel_url_required": "Please enter a valid YouTube channel URL",

@@ -950,7 +950,7 @@
     "save_changes_btn": "Enregistrer les modifications",
     "channel": "Channel / Author",
     "channel_name_label": "Channel / Author Name",
-    "channel_name_placeholder": "e.g. Andrea la Mexicana, Mr Salas",
+    "channel_name_placeholder": "Nom de la chaîne ou de l'auteur",
     "channel_url_label": "Channel URL (YouTube)",
     "resolve_channel_btn": "Find",
     "channel_url_required": "Please enter a valid YouTube channel URL",

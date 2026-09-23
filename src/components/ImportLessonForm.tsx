@@ -2352,7 +2352,7 @@ export default function ImportLessonForm({
                 list="existing-channels-list"
                 value={channelName || ""}
                 onChange={(e) => handleChannelNameChange(e.target.value)}
-                placeholder={t('import.channel_name_placeholder', 'e.g. Andrea la Mexicana, Mr Salas')}
+                placeholder={t('import.channel_name_placeholder', 'Channel or author name')}
                 className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
               />
               <datalist id="existing-channels-list">

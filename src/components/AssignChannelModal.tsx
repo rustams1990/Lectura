@@ -389,7 +389,7 @@ export default function AssignChannelModal({
                 list="modal-existing-channels"
                 value={newChannelName}
                 onChange={(e) => handlePickExistingChannel(e.target.value)}
-                placeholder={t('import.channel_name_placeholder', 'e.g. Andrea la Mexicana, Mr Salas')}
+                placeholder={t('import.channel_name_placeholder', 'Channel or author name')}
                 className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
               />
               <datalist id="modal-existing-channels">
