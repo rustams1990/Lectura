@@ -141,7 +141,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
       thumbnailUrl: items[0]?.thumbnailUrl || sourcePlaylist.thumbnailUrl || "",
       sourceType: "custom_collection",
       itemCount: newItems.length,
-      language: sourceLangNorm,
+      language: sourceLang,
       items: newItems,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

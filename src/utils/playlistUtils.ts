@@ -43,9 +43,10 @@ export function segregatePlaylistsByLanguage(
   const newPlaylistsByLangAndTitle = new Map<string, Playlist>();
 
   for (const pl of playlists) {
-    const plProperLang = normalizeLanguage(pl.language || "Spanish");
-    const plLangNorm = plProperLang.toLowerCase();
     const items = pl.items || [];
+    const firstLessonWithLang = items.map((it) => (it.lessonId ? lessonById.get(it.lessonId) : null) || (it.videoId ? lessonByVideoId.get(it.videoId) : null)).find((l) => !!l?.targetLanguage);
+    const plProperLang = normalizeLanguage(pl.language || firstLessonWithLang?.targetLanguage || "English");
+    const plLangNorm = plProperLang.toLowerCase();
     const matchingItems: PlaylistItem[] = [];
     const misallocatedItemsByLang = new Map<string, PlaylistItem[]>();
 

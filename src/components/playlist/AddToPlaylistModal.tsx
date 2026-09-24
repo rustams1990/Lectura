@@ -90,7 +90,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
       thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
       sourceType: "custom_collection",
       itemCount: 1,
-      language: lessonLangNorm,
+      language: lessonLang,
       items: [newItem],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

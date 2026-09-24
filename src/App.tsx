@@ -1598,9 +1598,10 @@ export default function App() {
             });
           }
 
+          let loadedSafeLessons: Lesson[] | null = null;
           if (d.lessons && Array.isArray(d.lessons)) {
             const { archivingIds } = useLessonStore.getState();
-            const safeLessons = d.lessons
+            loadedSafeLessons = d.lessons
               .filter((l: any) => {
                 if (!l) return false;
                 if (typeof l.text === "string" && l.text.trim().length > 0) return true;
@@ -1622,12 +1623,12 @@ export default function App() {
                 }
                 return updated;
               });
-            setLessons(safeLessons);
-            lessonsRef.current = safeLessons;
-            lessonsStore.setItem("lessons", safeLessons).catch(() => {});
+            setLessons(loadedSafeLessons);
+            lessonsRef.current = loadedSafeLessons;
+            lessonsStore.setItem("lessons", loadedSafeLessons).catch(() => {});
           }
           if (d.playlists && Array.isArray(d.playlists)) {
-            const currentLessons = safeLessons || lessonsRef.current;
+            const currentLessons = loadedSafeLessons || lessonsRef.current || [];
             const segregated = segregatePlaylistsByLanguage(d.playlists, currentLessons);
             setPlaylists(segregated.playlists);
             playlistsRef.current = segregated.playlists;
