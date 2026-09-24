@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   lectura:
     image: ghcr.io/rustams1990/lectura:latest

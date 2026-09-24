@@ -30,6 +30,7 @@ echo "========================================="
 
 # 1. Mandatory Database Backup
 mkdir -p "$BACKUP_DIR"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 if [ -f "$DATA_DIR/local_server_db.sqlite" ]; then
   echo "Step 1/3: Creating mandatory DB backup..."
   if command -v sqlite3 &> /dev/null; then
@@ -48,7 +49,11 @@ docker compose -f "$COMPOSE_FILE" pull
 
 # 3. Start or restart container
 echo "Step 3/3: Starting Lectura container..."
-docker compose -f "$COMPOSE_FILE" up -d
+docker compose -f "$COMPOSE_FILE" up -d || {
+  echo "Container state settling, retrying in 3 seconds..."
+  sleep 3
+  docker compose -f "$COMPOSE_FILE" up -d
+}
 
 # 4. Clean dangling images to save disk space
 docker image prune -f > /dev/null 2>&1 || true
