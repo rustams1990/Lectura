@@ -3194,10 +3194,11 @@ export default function App() {
 
   const handleUpdatePlaylist = (updatedPlaylist: Playlist) => {
     lastLocalChangeTime.current = Date.now();
-    const exists = playlists.some(p => p.id === updatedPlaylist.id);
+    const currentList = playlistsRef.current || playlists;
+    const exists = currentList.some(p => p.id === updatedPlaylist.id);
     const next = exists
-      ? playlists.map(p => p.id === updatedPlaylist.id ? updatedPlaylist : p)
-      : [updatedPlaylist, ...playlists];
+      ? currentList.map(p => p.id === updatedPlaylist.id ? updatedPlaylist : p)
+      : [updatedPlaylist, ...currentList];
     setPlaylists(next);
     playlistsRef.current = next;
     playlistsStore.setItem(updatedPlaylist.id, updatedPlaylist).catch(() => {});
@@ -3217,6 +3218,112 @@ export default function App() {
         selectedTargetLanguage,
         undefined,
         next
+      ).catch((err) => console.error(err));
+    }
+  };
+
+  const handleMovePlaylistItem = (
+    itemsToMove: PlaylistItem[],
+    sourcePlaylistId: string,
+    targetPlaylistId: string,
+    mode: "move" | "copy"
+  ) => {
+    lastLocalChangeTime.current = Date.now();
+    const currentList = playlistsRef.current || playlists;
+    const targetPl = currentList.find((p) => p.id === targetPlaylistId);
+    if (!targetPl) return;
+
+    const movingItemIds = new Set(itemsToMove.map((it) => it.id));
+    const movingLessonIds = new Set(itemsToMove.map((it) => it.lessonId).filter(Boolean));
+    const movingVideoIds = new Set(itemsToMove.map((it) => it.videoId).filter(Boolean));
+
+    const nextPlaylists = currentList.map((pl) => {
+      // 1. If moving, remove from source playlist
+      if (pl.id === sourcePlaylistId && mode === "move") {
+        const remainingItems = (pl.items || []).filter(
+          (it) =>
+            !movingItemIds.has(it.id) &&
+            (!it.lessonId || !movingLessonIds.has(it.lessonId)) &&
+            (!it.videoId || !movingVideoIds.has(it.videoId))
+        );
+        return {
+          ...pl,
+          items: remainingItems,
+          itemCount: remainingItems.length,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      // 2. Add to target playlist
+      if (pl.id === targetPlaylistId) {
+        const existingItems = pl.items || [];
+        const existingLessonIds = new Set(existingItems.map((it) => it.lessonId).filter(Boolean));
+        const existingVideoIds = new Set(existingItems.map((it) => it.videoId).filter(Boolean));
+
+        const newItemsToAdd = itemsToMove
+          .filter((it) => {
+            if (it.lessonId && existingLessonIds.has(it.lessonId)) return false;
+            if (it.videoId && existingVideoIds.has(it.videoId)) return false;
+            return true;
+          })
+          .map((it, idx) => ({
+            ...it,
+            id: `item_${it.lessonId || it.videoId || Date.now()}_${Date.now()}_${idx}`,
+          }));
+
+        const updatedItems = [...existingItems, ...newItemsToAdd];
+        return {
+          ...pl,
+          items: updatedItems,
+          itemCount: updatedItems.length,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      return pl;
+    });
+
+    setPlaylists(nextPlaylists);
+    playlistsRef.current = nextPlaylists;
+
+    // Persist updated playlists to store
+    const updatedSource = nextPlaylists.find((p) => p.id === sourcePlaylistId);
+    const updatedTarget = nextPlaylists.find((p) => p.id === targetPlaylistId);
+    if (updatedSource && mode === "move") playlistsStore.setItem(updatedSource.id, updatedSource).catch(() => {});
+    if (updatedTarget) playlistsStore.setItem(updatedTarget.id, updatedTarget).catch(() => {});
+
+    // Update associated lessons' playlistId if mode === "move"
+    if (mode === "move") {
+      itemsToMove.forEach((it) => {
+        const matchLesson = lessonsRef.current.find(
+          (l) => (it.lessonId && l.id === it.lessonId) || (it.videoId && l.youtubeId === it.videoId)
+        );
+        if (matchLesson) {
+          handleAddLesson({
+            ...matchLesson,
+            playlistId: targetPlaylistId,
+          });
+        }
+      });
+    }
+
+    // Sync to server if in server mode
+    if (storageMode === "server") {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        nextPlaylists
       ).catch((err) => console.error(err));
     }
   };
@@ -3727,6 +3834,7 @@ export default function App() {
           <div className="py-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
             <PlaylistDetailView
               playlist={playlists.find(p => p.id === selectedPlaylistId)!}
+              playlists={playlists}
               lessons={lessons}
               history={history}
               onBack={() => setSelectedPlaylistId(null)}
@@ -3772,6 +3880,8 @@ export default function App() {
               onAddLessonToLibrary={(newLesson) => {
                 handleAddLesson(newLesson);
               }}
+              onMovePlaylistItem={handleMovePlaylistItem}
+              onAddPlaylist={handleAddPlaylist}
               vocab={vocab}
               wordLinks={wordLinks}
               languageFlags={languageFlags}

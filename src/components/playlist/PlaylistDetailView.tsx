@@ -3,7 +3,8 @@ import { Playlist, PlaylistItem, Lesson, ReaderSettings, HistoryEntry, VocabItem
 import {
   ArrowLeft, Play, BookOpen, Headphones, Trash2, CheckCircle2,
   Clock, ExternalLink, Loader2, Sparkles, AlertCircle, Share2,
-  ListVideo, RefreshCw, Archive, ArchiveRestore, ArrowUpDown, Search, ChevronDown, Plus, CheckSquare, Square, Check
+  ListVideo, RefreshCw, Archive, ArchiveRestore, ArrowUpDown, Search, ChevronDown, Plus, CheckSquare, Square, Check,
+  FolderInput, X
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
@@ -15,6 +16,7 @@ import { usePlaylistStore } from "../../store/playlistStore";
 import { lessonsStore } from "../../db";
 import { calculateBookStats, getCachedBookStats } from "../LibraryHome";
 import AddMediaToPlaylistModal from "./AddMediaToPlaylistModal";
+import MoveToPlaylistModal from "./MoveToPlaylistModal";
 
 export type PlaylistSortOption = 
   | 'default'       // Исходный порядок плейлиста (по порядку добавления / #1, #2...)
@@ -29,6 +31,7 @@ export type PlaylistStatusFilter = 'all' | 'new' | 'in_progress' | 'completed';
 interface PlaylistDetailViewProps {
   playlist: Playlist;
   lessons: Lesson[];
+  playlists?: Playlist[];
   history?: HistoryEntry[];
   vocab?: Record<string, any>;
   wordLinks?: Record<string, string>;
@@ -38,6 +41,13 @@ interface PlaylistDetailViewProps {
   onPlayQueue?: (items: any[], startIndex?: number) => void;
   onUpdatePlaylist: (updated: Playlist) => void;
   onDeletePlaylist: (playlistId: string) => void;
+  onMovePlaylistItem?: (
+    items: PlaylistItem[],
+    sourcePlaylistId: string,
+    targetPlaylistId: string,
+    mode: "move" | "copy"
+  ) => void;
+  onAddPlaylist?: (newPlaylist: Playlist) => void;
   onToggleArchive?: (playlistId: string) => void;
   onAddOrUpdateLesson?: (lesson: Lesson) => void;
   onAddLessonToLibrary?: (lesson: Lesson) => void;
@@ -69,6 +79,7 @@ export function formatTotalDuration(seconds: number, t: any): string {
 export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   playlist,
   lessons,
+  playlists = [],
   history = [],
   vocab = {},
   wordLinks = {},
@@ -78,6 +89,8 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   onPlayQueue,
   onUpdatePlaylist,
   onDeletePlaylist,
+  onMovePlaylistItem,
+  onAddPlaylist,
   onToggleArchive,
   onAddOrUpdateLesson,
   onAddLessonToLibrary,
@@ -89,6 +102,9 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddMediaModal, setShowAddMediaModal] = useState(false);
+  const [moveModalItems, setMoveModalItems] = useState<PlaylistItem[] | null>(null);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const [newVideosFound, setNewVideosFound] = useState<PlaylistItem[] | null>(null);
   const [selectedNewVideoIds, setSelectedNewVideoIds] = useState<Set<string>>(new Set());
@@ -531,6 +547,53 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     showToast(t("playlist.episode_removed", "Video removed from playlist"), "success");
   };
 
+  // Selection & Move helpers
+  const toggleSelectItem = (itemId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItemIds.size === sortedAndFilteredItems.length) {
+      setSelectedItemIds(new Set());
+    } else {
+      setSelectedItemIds(new Set(sortedAndFilteredItems.map((it) => it.id)));
+    }
+  };
+
+  const handleBatchMove = () => {
+    const selectedItems = items.filter((it) => selectedItemIds.has(it.id));
+    if (selectedItems.length === 0) return;
+    setMoveModalItems(selectedItems);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedItemIds.size === 0) return;
+    const remainingItems = items.filter((it) => !selectedItemIds.has(it.id));
+    onUpdatePlaylist({
+      ...playlist,
+      items: remainingItems,
+      itemCount: remainingItems.length,
+      updatedAt: new Date().toISOString(),
+    });
+    showToast(
+      t("playlist.batch_deleted", "Removed {{count}} videos from playlist", {
+        count: selectedItemIds.size,
+      }),
+      "success"
+    );
+    setSelectedItemIds(new Set());
+    setIsSelectMode(false);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
       {/* Top Back Navigation Bar */}
@@ -616,7 +679,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-in fade-in">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-rose-500/10 text-rose-500 rounded-2xl">
@@ -658,7 +721,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
       {/* New Videos Found (Diff Checker Sync) Modal */}
       {newVideosFound && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-in fade-in">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 sm:p-6 max-w-lg w-full space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-3">
@@ -805,7 +868,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
         
         {/* Left Column (Sticky Sidebar Header - YouTube Proportional Width) */}
         <div className="w-full lg:w-[350px] xl:w-[380px] shrink-0 lg:sticky lg:top-20 space-y-4">
-          <div className="bg-gradient-to-b from-zinc-100/90 via-zinc-100/50 to-zinc-50 dark:from-zinc-800/90 dark:via-zinc-900/80 dark:to-zinc-950 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 p-5 space-y-4 shadow-sm backdrop-blur-sm">
+          <div className="bg-gradient-to-b from-zinc-100 via-zinc-100/90 to-zinc-50 dark:from-zinc-850 dark:via-zinc-900 dark:to-zinc-950 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 p-5 space-y-4 shadow-sm">
             {/* Big Playlist Cover Art (Full Width 16:9 Aspect Ratio) */}
             <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-zinc-950 shadow-md border border-zinc-800/80 group">
               {playlist.thumbnailUrl ? (
@@ -827,7 +890,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
               )}
 
               {/* Bottom right track count badge */}
-              <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-lg text-white font-mono text-xs font-bold flex items-center gap-1.5 border border-white/10 shadow-sm">
+              <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 bg-black/90 rounded-lg text-white font-mono text-xs font-bold flex items-center gap-1.5 border border-white/10 shadow-sm">
                 <ListVideo className="w-3.5 h-3.5" />
                 <span>{items.length}</span>
               </div>
@@ -933,6 +996,26 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
               >
                 <Plus className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 <span className="hidden sm:inline">{t("playlist.add_btn_short", "Add")}</span>
+              </button>
+
+              {/* Multi-select toggle button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSelectMode(!isSelectMode);
+                  setSelectedItemIds(new Set());
+                }}
+                className={`w-9 h-9 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 border ${
+                  isSelectMode
+                    ? "bg-teal-600 text-white border-teal-600 shadow-sm"
+                    : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700/60"
+                }`}
+                title={isSelectMode ? t("common.cancel", "Cancel") : t("playlist.select_videos", "Select multiple")}
+              >
+                {isSelectMode ? <X className="w-4 h-4" /> : <CheckSquare className="w-4 h-4 text-teal-600 dark:text-teal-400" />}
+                <span className="hidden sm:inline">
+                  {isSelectMode ? t("common.cancel", "Cancel") : t("common.select", "Select")}
+                </span>
               </button>
               {/* Bulk Subtitles Download Button */}
               {pendingItems.length > 0 ? (
@@ -1090,6 +1173,67 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
             </button>
           </div>
 
+          {/* Multi-selection Action Toolbar */}
+          {isSelectMode && (
+            <div className="p-3 bg-teal-50/90 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800/80 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className="text-xs font-bold text-teal-700 dark:text-teal-300 hover:underline cursor-pointer flex items-center gap-1.5"
+                >
+                  {selectedItemIds.size === sortedAndFilteredItems.length && sortedAndFilteredItems.length > 0 ? (
+                    <CheckSquare className="w-4 h-4" />
+                  ) : (
+                    <Square className="w-4 h-4" />
+                  )}
+                  <span>
+                    {selectedItemIds.size === sortedAndFilteredItems.length && sortedAndFilteredItems.length > 0
+                      ? t("common.deselect_all", "Deselect all")
+                      : t("common.select_all", "Select all")}
+                  </span>
+                </button>
+                <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">
+                  • {t("playlist.selected_count", "Selected: {{count}}", { count: selectedItemIds.size })}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={selectedItemIds.size === 0}
+                  onClick={handleBatchMove}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <FolderInput className="w-3.5 h-3.5" />
+                  <span>{t("playlist.move_selected", "Move")} ({selectedItemIds.size})</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={selectedItemIds.size === 0}
+                  onClick={handleBatchDelete}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{t("common.delete", "Delete")}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSelectMode(false);
+                    setSelectedItemIds(new Set());
+                  }}
+                  className="p-1.5 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 rounded-lg cursor-pointer"
+                  title={t("common.close", "Close")}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Episode Cards List */}
           {sortedAndFilteredItems.length === 0 ? (
             <div className="p-8 bg-zinc-50 dark:bg-zinc-900/40 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 text-center space-y-2">
@@ -1120,6 +1264,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 const lesson = getItemLesson(item);
                 const isCompleted = isItemCompleted(item);
                 const isLoading = loadingItemId === item.id;
+                const isSelected = selectedItemIds.has(item.id);
                 const hasSubtitles = item.transcriptLoaded || (lesson && lesson.text && lesson.text.length > 50);
 
                 // Calculate playback/reading progress
@@ -1146,20 +1291,41 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 return (
                   <div
                     key={item.id}
-                    onClick={() => handleOpenItem(item)}
+                    onClick={(e) => {
+                      if (isSelectMode) {
+                        toggleSelectItem(item.id, e);
+                      } else {
+                        handleOpenItem(item);
+                      }
+                    }}
                     className={`group p-2.5 sm:p-3 rounded-2xl border transition-all duration-150 flex items-center gap-3 cursor-pointer active:scale-[0.99] select-none ${
-                      isCompleted
+                      isSelectMode && isSelected
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-400 dark:border-teal-600 shadow-xs"
+                        : isCompleted
                         ? "bg-zinc-50/70 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/60 opacity-85"
                         : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md"
                     }`}
                   >
-                    {/* Track Original Index number (Desktop only) */}
-                    <span
-                      title={`#${originalIndex}`}
-                      className="w-5 text-center text-xs font-mono font-bold text-zinc-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 shrink-0 hidden sm:inline-block"
-                    >
-                      #{originalIndex}
-                    </span>
+                    {/* Track Original Index number or Checkbox in Select Mode */}
+                    {isSelectMode ? (
+                      <div
+                        onClick={(e) => toggleSelectItem(item.id, e)}
+                        className="cursor-pointer shrink-0 text-teal-600 dark:text-teal-400 w-5 flex items-center justify-center"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                        ) : (
+                          <Square className="w-5 h-5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300" />
+                        )}
+                      </div>
+                    ) : (
+                      <span
+                        title={`#${originalIndex}`}
+                        className="w-5 text-center text-xs font-mono font-bold text-zinc-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 shrink-0 hidden sm:inline-block"
+                      >
+                        #{originalIndex}
+                      </span>
+                    )}
 
                     {/* Video Thumbnail (Fixed 24/28 width, compact aspect-video) */}
                     <div className="relative w-24 sm:w-28 h-[58px] sm:h-[68px] rounded-xl overflow-hidden bg-zinc-950 shrink-0 border border-zinc-800">
@@ -1181,7 +1347,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                       )}
 
                       {isCompleted && (
-                        <div className="absolute inset-0 bg-teal-900/50 backdrop-blur-3xs flex items-center justify-center">
+                        <div className="absolute inset-0 bg-teal-950/70 flex items-center justify-center">
                           <CheckCircle2 className="w-5 h-5 text-teal-300" />
                         </div>
                       )}
@@ -1255,11 +1421,23 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Trailing Loader / Delete Button */}
+                    {/* Trailing Loader / Move & Delete Buttons */}
                     <div className="flex items-center gap-1 shrink-0">
                       {isLoading && (
                         <Loader2 className="w-4 h-4 animate-spin text-teal-600 dark:text-teal-400 mr-1" />
                       )}
+                      {/* Move to another playlist button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoveModalItems([item]);
+                        }}
+                        title={t("playlist.move_video", "Переместить в другой плейлист")}
+                        className="p-1.5 text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-teal-200 dark:hover:border-teal-800/50 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      >
+                        <FolderInput className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1279,6 +1457,27 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Move / Copy to Playlist Modal */}
+      {moveModalItems && moveModalItems.length > 0 && (
+        <MoveToPlaylistModal
+          isOpen={true}
+          onClose={() => setMoveModalItems(null)}
+          sourcePlaylist={playlist}
+          items={moveModalItems}
+          playlists={playlists}
+          languageFlags={languageFlags}
+          onMoveItems={(items, sourceId, targetId, mode) => {
+            onMovePlaylistItem?.(items, sourceId, targetId, mode);
+            if (mode === "move") {
+              setSelectedItemIds(new Set());
+              setIsSelectMode(false);
+            }
+            setMoveModalItems(null);
+          }}
+          onAddPlaylist={onAddPlaylist}
+        />
+      )}
     </div>
   );
 };

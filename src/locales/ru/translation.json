@@ -1760,6 +1760,21 @@
     "enter_playlist_title": "Название плейлиста...",
     "created_and_added": "Плейлист создан и видео добавлено!",
     "cancel": "Отмена",
-    "create": "Создать"
+    "create": "Создать",
+    "move_modal_title": "Переместить видео",
+    "move_modal_title_multi": "Переместить видео ({{count}})",
+    "source_playlist": "Из плейлиста:",
+    "mode_move": "Переместить",
+    "mode_copy": "Копировать",
+    "search_target_placeholder": "Поиск плейлиста...",
+    "create_new_playlist": "Создать новый плейлист",
+    "already_added": "Уже добавлен",
+    "move_action_btn": "Переместить сюда",
+    "copy_action_btn": "Копировать сюда",
+    "move_video": "Переместить в другой плейлист",
+    "select_videos": "Выбрать несколько",
+    "move_selected": "Переместить",
+    "batch_deleted": "Удалено {{count}} видео из плейлиста",
+    "no_target_playlists": "Других плейлистов не найдено"
   }
 }

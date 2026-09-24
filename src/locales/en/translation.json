@@ -1760,6 +1760,21 @@
     "enter_playlist_title": "Playlist title...",
     "created_and_added": "Playlist created and video added!",
     "cancel": "Cancel",
-    "create": "Create"
+    "create": "Create",
+    "move_modal_title": "Move Video",
+    "move_modal_title_multi": "Move Videos ({{count}})",
+    "source_playlist": "From playlist:",
+    "mode_move": "Move",
+    "mode_copy": "Copy",
+    "search_target_placeholder": "Search playlist...",
+    "create_new_playlist": "Create new playlist",
+    "already_added": "Already added",
+    "move_action_btn": "Move here",
+    "copy_action_btn": "Copy here",
+    "move_video": "Move to another playlist",
+    "select_videos": "Select multiple",
+    "move_selected": "Move",
+    "batch_deleted": "Removed {{count}} videos from playlist",
+    "no_target_playlists": "No other playlists found"
   }
 }
