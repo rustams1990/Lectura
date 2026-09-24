@@ -178,7 +178,7 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
               <div className="p-3 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">
-                    {t('updater.server_cmd_title', 'Команда обновления на сервере Ubuntu:')}
+                    {t('updater.server_cmd_title', 'Ubuntu Server update command:')}
                   </span>
                   <button
                     type="button"
@@ -186,14 +186,14 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
                     className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 text-[10px] font-bold hover:bg-teal-100 transition cursor-pointer"
                   >
                     {copiedServerCmd ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedServerCmd ? t('updater.copied', 'Скопировано!') : t('updater.copy', 'Скопировать')}</span>
+                    <span>{copiedServerCmd ? t('updater.copied', 'Copied!') : t('updater.copy', 'Copy')}</span>
                   </button>
                 </div>
                 <div className="bg-zinc-900 text-zinc-100 p-2.5 rounded-xl font-mono text-[11px] overflow-x-auto select-all">
                   bash scripts/update-server.sh
                 </div>
                 <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">
-                  {t('updater.server_hint', 'Скрипт автоматически сделает бэкап базы данных, скачает свежий Docker-образ v{{ver}} и перезапустит Lectura.', { ver: release.tag_name })}
+                  {t('updater.server_hint', 'Script automatically creates a database backup, pulls fresh Docker image v{{ver}}, and restarts Lectura.', { ver: release.tag_name })}
                 </p>
               </div>
             )}
@@ -203,7 +203,7 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
               <div className="p-3 bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">
-                    {t('updater.windows_cmd_title', 'Команда для локального сервера Windows:')}
+                    {t('updater.windows_cmd_title', 'Local Windows server update command:')}
                   </span>
                   <button
                     type="button"
@@ -211,14 +211,14 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
                     className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 text-[10px] font-bold hover:bg-teal-100 transition cursor-pointer"
                   >
                     {copiedWindowsCmd ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedWindowsCmd ? t('updater.copied', 'Скопировано!') : t('updater.copy', 'Скопировать')}</span>
+                    <span>{copiedWindowsCmd ? t('updater.copied', 'Copied!') : t('updater.copy', 'Copy')}</span>
                   </button>
                 </div>
                 <div className="bg-zinc-900 text-zinc-100 p-2.5 rounded-xl font-mono text-[11px] overflow-x-auto select-all">
                   update.bat
                 </div>
                 <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">
-                  {t('updater.windows_hint', 'Запустите update.bat в корне папки Lectura для обновления с бэкапом базы данных.')}
+                  {t('updater.windows_hint', 'Run update.bat in your Lectura root folder to update with a database backup.')}
                 </p>
               </div>
             )}
@@ -232,7 +232,7 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
               >
                 <Smartphone className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                 <span>
-                  {t('updater.download_apk_btn', 'Скачать APK для Android {{size}}', {
+                  {t('updater.download_apk_btn', 'Download APK for Android {{size}}', {
                     size: formattedSize ? `(${formattedSize})` : '',
                   })}
                 </span>
@@ -246,7 +246,7 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
               onClick={handleClose}
               className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-500 active:scale-[0.99] text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-teal-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>{t('common.close', 'Понятно')}</span>
+              <span>{t('updater.got_it', 'Got it')}</span>
             </button>
           </div>
         )}

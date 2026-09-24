@@ -1547,7 +1547,8 @@
     "starting": "Starting download...",
     "download_started": "Download started in background. The installer will open automatically.",
     "view_on_github": "View on GitHub",
-    "dont_ask_again": "Don't ask for this version"
+    "dont_ask_again": "Don't ask for this version",
+    "got_it": "Entendido"
   },
   "podcasts": {
     "title": "Podcasts",

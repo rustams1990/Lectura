@@ -1585,7 +1585,8 @@
     "windows_hint": "Запустите update.bat в корне папки Lectura для обновления с бэкапом базы данных.",
     "copy": "Скопировать",
     "copied": "Скопировано!",
-    "download_apk_btn": "Скачать APK для Android {{size}}"
+    "download_apk_btn": "Скачать APK для Android {{size}}",
+    "got_it": "Понятно"
   },
   "podcasts": {
     "title": "Подкасты",

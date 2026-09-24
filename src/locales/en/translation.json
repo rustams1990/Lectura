@@ -1585,7 +1585,8 @@
     "windows_hint": "Run update.bat in your Lectura root folder to update with a database backup.",
     "copy": "Copy",
     "copied": "Copied!",
-    "download_apk_btn": "Download APK for Android {{size}}"
+    "download_apk_btn": "Download APK for Android {{size}}",
+    "got_it": "Got it"
   },
   "podcasts": {
     "title": "Podcasts",
