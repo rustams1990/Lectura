@@ -1775,6 +1775,10 @@
     "select_videos": "Выбрать несколько",
     "move_selected": "Переместить",
     "batch_deleted": "Удалено {{count}} видео из плейлиста",
-    "no_target_playlists": "Других плейлистов не найдено"
+    "no_target_playlists": "Других плейлистов не найдено",
+    "no_playlists_for_lang": "Для этого языка пока нет плейлистов.",
+    "create_first_playlist_hint": "Создайте свой первый плейлист ниже!",
+    "no_other_playlists_for_lang": "Других плейлистов для этого языка не найдено",
+    "playlists_for_language": "Плейлисты ({{lang}})"
   }
 }

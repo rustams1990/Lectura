@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
 import { resolveApiUrl } from "../../utils/apiConfig";
 import { getLessonEffectiveDuration } from "../../utils/durationUtils";
+import { normalizeLanguage } from "../../utils";
 
 interface AddMediaToPlaylistModalProps {
   isOpen: boolean;
@@ -56,6 +57,9 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
       return;
     }
 
+    const playlistLang = normalizeLanguage(playlist.language || "English");
+    const playlistLangNorm = playlistLang.toLowerCase();
+
     setIsLoadingYt(true);
     try {
       // Attempt to fetch video info from subtitles endpoint
@@ -64,7 +68,7 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url: `https://www.youtube.com/watch?v=${videoId}`,
-          targetLanguage: playlist.language || "english",
+          targetLanguage: playlistLangNorm,
           uiLang: i18n.language,
         }),
       });
@@ -84,7 +88,7 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
           coverUrl: thumbnailUrl,
           youtubeId: videoId,
           youtubeDuration: durationSeconds || null,
-          targetLanguage: playlist.language || "english",
+          targetLanguage: playlistLangNorm,
           translationLanguage: "russian",
           lessonType: "youtube",
           playlistId: playlist.id,
@@ -188,10 +192,10 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
   // Filter lessons from library
   const filteredLibraryLessons = useMemo(() => {
     let list = lessons;
-    // Prefer matching language first
+    // Strict language matching
     if (playlist.language) {
-      const plLang = playlist.language.toLowerCase();
-      list = list.filter((l) => (l.targetLanguage || "").toLowerCase() === plLang || !l.targetLanguage);
+      const plLangNorm = normalizeLanguage(playlist.language).toLowerCase();
+      list = list.filter((l) => normalizeLanguage(l.targetLanguage || "").toLowerCase() === plLangNorm);
     }
     if (librarySearch.trim()) {
       const q = librarySearch.toLowerCase().trim();

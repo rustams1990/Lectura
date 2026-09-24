@@ -770,8 +770,17 @@ function LibraryHome({
         list.add(normalizeLanguage(l.targetLanguage));
       }
     });
+
+    (playlists || []).forEach((pl) => {
+      const isPlArchived = !!pl.isArchived;
+      const matchesArchive = showArchived ? isPlArchived : !isPlArchived;
+      if (matchesArchive && pl.language) {
+        list.add(normalizeLanguage(pl.language));
+      }
+    });
+
     return ["All", ...Array.from(list)];
-  }, [lessons, showArchived, filterType, selectedLessonType]);
+  }, [lessons, playlists, showArchived, filterType, selectedLessonType]);
 
 
 
@@ -803,19 +812,30 @@ function LibraryHome({
     return false;
   };
 
-  // Set of all lesson and video IDs that belong to any active (non-archived) playlist
+  const playlistMap = useMemo(() => {
+    const map = new Map<string, Playlist>();
+    (playlists || []).forEach((pl) => map.set(pl.id, pl));
+    return map;
+  }, [playlists]);
+
+  // Set of all lesson and video IDs that belong to any active (non-archived) playlist matching current language
   const playlistLessonKeys = useMemo(() => {
+    const selNorm = selectedLanguage && selectedLanguage !== "All" ? normalizeLanguage(selectedLanguage).toLowerCase() : null;
     const set = new Set<string>();
     (playlists || []).forEach((pl) => {
       if (!pl.isArchived) {
-        (pl.items || []).forEach((it) => {
-          if (it.lessonId) set.add(it.lessonId);
-          if (it.videoId) set.add(`yt_${it.videoId}`);
-        });
+        const plLangNorm = normalizeLanguage(pl.language || "").toLowerCase();
+        // If a specific language is selected, only consider playlists matching that language
+        if (!selNorm || plLangNorm === selNorm) {
+          (pl.items || []).forEach((it) => {
+            if (it.lessonId) set.add(it.lessonId);
+            if (it.videoId) set.add(`yt_${it.videoId}`);
+          });
+        }
       }
     });
     return set;
-  }, [playlists]);
+  }, [playlists, selectedLanguage]);
 
   // Filter lessons based on search, type, and archive state
   const filteredLessons = useMemo(() => {
@@ -827,13 +847,27 @@ function LibraryHome({
       const isBookArchived = archivingIds.has(lesson.id) ? true : !!lesson.isArchived;
       const matchesArchive = showArchived ? isBookArchived : !isBookArchived;
 
-      // Do not clutter the main shelf with child lessons of a playlist unless searching or filtered
-      const isInAnyPlaylist =
-        !!lesson.playlistId ||
-        playlistLessonKeys.has(lesson.id) ||
-        (lesson.youtubeId ? playlistLessonKeys.has(`yt_${lesson.youtubeId}`) : false);
+      // Do not clutter the main shelf with child lessons of a playlist unless searching or filtered.
+      // Strict check: only consider in playlist if the playlist matches the lesson's targetLanguage!
+      let isInActivePlaylist = false;
+      if (lesson.playlistId) {
+        const assignedPl = playlistMap.get(lesson.playlistId);
+        if (assignedPl && !assignedPl.isArchived) {
+          const plLang = normalizeLanguage(assignedPl.language || "").toLowerCase();
+          const lessonLang = normalizeLanguage(lesson.targetLanguage || "").toLowerCase();
+          if (plLang === lessonLang) {
+            isInActivePlaylist = true;
+          }
+        }
+      }
+      if (!isInActivePlaylist) {
+        isInActivePlaylist =
+          playlistLessonKeys.has(lesson.id) ||
+          (lesson.youtubeId ? playlistLessonKeys.has(`yt_${lesson.youtubeId}`) : false);
+      }
+
       const notHiddenByPlaylist =
-        !isInAnyPlaylist ||
+        !isInActivePlaylist ||
         searchQuery.trim().length > 0 ||
         (selectedLessonType !== "All" && selectedLessonType !== "playlist");
 
@@ -936,6 +970,10 @@ function LibraryHome({
 
   // Filter playlists
   const filteredPlaylists = useMemo(() => {
+    const selNorm = selectedLanguage && selectedLanguage !== "All"
+      ? normalizeLanguage(selectedLanguage).toLowerCase()
+      : null;
+
     return (playlists || []).filter((pl) => {
       const isPlArchived = !!pl.isArchived;
       const matchesArchive = showArchived ? isPlArchived : !isPlArchived;
@@ -949,10 +987,8 @@ function LibraryHome({
         pl.language.toLowerCase().includes(q) ||
         getLocalizedLanguageName(pl.language, i18n.language).toLowerCase().includes(q);
 
-      const matchesLanguage =
-        selectedLanguage === "All" ||
-        pl.language.toLowerCase() === selectedLanguage.toLowerCase() ||
-        getLocalizedLanguageName(pl.language, "en").toLowerCase() === selectedLanguage.toLowerCase();
+      const plLangNorm = normalizeLanguage(pl.language || "").toLowerCase();
+      const matchesLanguage = !selNorm || plLangNorm === selNorm;
 
       const matchesLessonType =
         selectedLessonType === "All" ||
@@ -963,15 +999,29 @@ function LibraryHome({
     });
   }, [playlists, searchQuery, selectedLanguage, selectedLessonType, showArchived, i18n.language]);
 
+  // Playlists matching the current language filter and archive state (regardless of category chip)
+  const languagePlaylists = useMemo(() => {
+    const selNorm = selectedLanguage && selectedLanguage !== "All"
+      ? normalizeLanguage(selectedLanguage).toLowerCase()
+      : null;
+    return (playlists || []).filter((pl) => {
+      const isPlArchived = !!pl.isArchived;
+      const matchesArchive = showArchived ? isPlArchived : !isPlArchived;
+      if (!matchesArchive) return false;
+      if (!selNorm) return true;
+      return normalizeLanguage(pl.language || "").toLowerCase() === selNorm;
+    });
+  }, [playlists, selectedLanguage, showArchived]);
+
   // Active/Archived counts respecting current selectedLanguage filter
   const isAllLanguage = !selectedLanguage || selectedLanguage.toLowerCase() === "all";
 
   const matchesLanguageFilter = (itemLang?: string) => {
     if (isAllLanguage) return true;
     if (!itemLang) return false;
-    const l = itemLang.toLowerCase();
-    const sel = selectedLanguage.toLowerCase();
-    return l === sel || getLocalizedLanguageName(l, "en").toLowerCase() === sel;
+    const l = normalizeLanguage(itemLang).toLowerCase();
+    const sel = normalizeLanguage(selectedLanguage).toLowerCase();
+    return l === sel;
   };
 
   const rawActiveCount = useMemo(() => {
@@ -1200,7 +1250,7 @@ function LibraryHome({
             <span>{t("library.all", "All")}</span>
           </button>
 
-          {playlists.length > 0 && (
+          {languagePlaylists.length > 0 && (
             <button
               type="button"
               onClick={() => setSelectedLessonType("playlist")}
@@ -1211,7 +1261,7 @@ function LibraryHome({
               }`}
             >
               <ListVideo className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
-              <span>{t("playlist.playlists", "Playlists")} ({playlists.length})</span>
+              <span>{t("playlist.playlists", "Playlists")} ({languagePlaylists.length})</span>
             </button>
           )}
 

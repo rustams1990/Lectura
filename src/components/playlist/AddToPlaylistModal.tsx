@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Playlist, PlaylistItem, Lesson } from "../../types";
 import { X, ListVideo, Plus, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,8 @@ import { useToast } from "../../context/ToastContext";
 import { renderCircularFlag, getLanguageFlagEmoji } from "./PlaylistCard";
 import { getLessonEffectiveDuration } from "../../utils/durationUtils";
 import { formatDuration } from "./PlaylistDetailView";
+import { normalizeLanguage } from "../../utils";
+import { getLocalizedLanguageName } from "../../utils/stringUtils";
 
 interface AddToPlaylistModalProps {
   isOpen: boolean;
@@ -28,12 +30,24 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   onAddPlaylist,
   onAddOrUpdateLesson,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
 
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const lessonLang = normalizeLanguage(lesson.targetLanguage || "English");
+  const lessonLangNorm = lessonLang.toLowerCase();
+
+  // Strictly filter playlists matching target language of this lesson
+  const availablePlaylists = useMemo(() => {
+    return (playlists || []).filter((pl) => {
+      if (pl.isArchived) return false;
+      const plLangNorm = normalizeLanguage(pl.language || "").toLowerCase();
+      return plLangNorm === lessonLangNorm;
+    });
+  }, [playlists, lessonLangNorm]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -76,7 +90,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
       thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
       sourceType: "custom_collection",
       itemCount: 1,
-      language: (lesson.targetLanguage || "en").toLowerCase(),
+      language: lessonLangNorm,
       items: [newItem],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -156,14 +170,20 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
               <ListVideo className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                {t("playlist.add_to_playlist", "Add to playlist")}
-              </h3>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  {t("playlist.add_to_playlist", "Add to playlist")}
+                </h3>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shrink-0">
+                  {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage || "en", languageFlags))}
+                  <span>{getLocalizedLanguageName(lessonLang, i18n.language)}</span>
+                </span>
+              </div>
               <p className="text-[11px] text-zinc-500 truncate max-w-[240px]">
                 {lesson.title}
               </p>
@@ -172,7 +192,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -180,15 +200,18 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
 
         {/* Playlists List */}
         <div className="p-4 overflow-y-auto space-y-2 flex-1">
-          {playlists.length === 0 ? (
+          {availablePlaylists.length === 0 ? (
             <div className="text-center py-8 space-y-2">
               <ListVideo className="w-8 h-8 text-zinc-400 mx-auto opacity-50" />
               <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-                {t("playlist.no_playlists_yet", "You have no playlists yet.")}
+                {t("playlist.no_playlists_for_lang", "No playlists for this language yet.")}
+              </p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                {t("playlist.create_first_playlist_hint", "Create your first playlist below!")}
               </p>
             </div>
           ) : (
-            playlists.map((pl) => {
+            availablePlaylists.map((pl) => {
               const isIncluded = pl.items?.some(
                 (it) => it.lessonId === lesson.id || (lesson.youtubeId && it.videoId === lesson.youtubeId)
               );

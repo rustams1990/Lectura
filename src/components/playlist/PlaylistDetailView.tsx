@@ -537,6 +537,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
   // Remove individual episode from playlist
   const handleRemoveEpisode = (itemId: string) => {
+    const itemToRemove = items.find((it) => it.id === itemId);
     const updatedItems = items.filter((it) => it.id !== itemId);
     onUpdatePlaylist({
       ...playlist,
@@ -544,6 +545,17 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
       itemCount: updatedItems.length,
       updatedAt: new Date().toISOString(),
     });
+    if (itemToRemove && typeof onAddOrUpdateLesson === "function") {
+      const matchLesson = lessons.find(
+        (l) => (itemToRemove.lessonId && l.id === itemToRemove.lessonId) || (itemToRemove.videoId && l.youtubeId === itemToRemove.videoId)
+      );
+      if (matchLesson && matchLesson.playlistId === playlist.id) {
+        onAddOrUpdateLesson({
+          ...matchLesson,
+          playlistId: undefined,
+        });
+      }
+    }
     showToast(t("playlist.episode_removed", "Video removed from playlist"), "success");
   };
 
@@ -577,6 +589,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
   const handleBatchDelete = () => {
     if (selectedItemIds.size === 0) return;
+    const deletedItems = items.filter((it) => selectedItemIds.has(it.id));
     const remainingItems = items.filter((it) => !selectedItemIds.has(it.id));
     onUpdatePlaylist({
       ...playlist,
@@ -584,6 +597,19 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
       itemCount: remainingItems.length,
       updatedAt: new Date().toISOString(),
     });
+    if (typeof onAddOrUpdateLesson === "function") {
+      deletedItems.forEach((deletedItem) => {
+        const matchLesson = lessons.find(
+          (l) => (deletedItem.lessonId && l.id === deletedItem.lessonId) || (deletedItem.videoId && l.youtubeId === deletedItem.videoId)
+        );
+        if (matchLesson && matchLesson.playlistId === playlist.id) {
+          onAddOrUpdateLesson({
+            ...matchLesson,
+            playlistId: undefined,
+          });
+        }
+      });
+    }
     showToast(
       t("playlist.batch_deleted", "Removed {{count}} videos from playlist", {
         count: selectedItemIds.size,

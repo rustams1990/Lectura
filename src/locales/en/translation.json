@@ -1775,6 +1775,10 @@
     "select_videos": "Select multiple",
     "move_selected": "Move",
     "batch_deleted": "Removed {{count}} videos from playlist",
-    "no_target_playlists": "No other playlists found"
+    "no_target_playlists": "No other playlists found",
+    "no_playlists_for_lang": "No playlists for this language yet.",
+    "create_first_playlist_hint": "Create your first playlist below!",
+    "no_other_playlists_for_lang": "No other playlists for this language found",
+    "playlists_for_language": "Playlists ({{lang}})"
   }
 }
