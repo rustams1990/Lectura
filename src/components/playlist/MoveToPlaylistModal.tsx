@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Playlist, PlaylistItem } from "../../types";
+import { Playlist, PlaylistItem, Lesson } from "../../types";
 import {
   X,
   FolderInput,
@@ -25,6 +25,7 @@ interface MoveToPlaylistModalProps {
   items: PlaylistItem[];
   sourcePlaylist: Playlist;
   playlists: Playlist[];
+  lessons?: Lesson[];
   languageFlags?: Record<string, string>;
   onMoveItems: (
     items: PlaylistItem[],
@@ -41,6 +42,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
   items,
   sourcePlaylist,
   playlists = [],
+  lessons = [],
   languageFlags = {},
   onMoveItems,
   onAddPlaylist,
@@ -54,7 +56,15 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
   const [newTitle, setNewTitle] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const sourceLang = normalizeLanguage(sourcePlaylist.language || "English");
+  // If item has its own lesson target language (e.g. English item in a Spanish playlist),
+  // use the item's target language so it moves to a playlist of its own language!
+  const itemMatchLesson = useMemo(() => {
+    if (!items || items.length === 0 || !lessons || lessons.length === 0) return null;
+    const first = items[0];
+    return lessons.find((l) => (first.lessonId && l.id === first.lessonId) || (first.videoId && l.youtubeId === first.videoId));
+  }, [items, lessons]);
+
+  const sourceLang = normalizeLanguage(itemMatchLesson?.targetLanguage || sourcePlaylist.language || "English");
   const sourceLangNorm = sourceLang.toLowerCase();
 
   useEffect(() => {

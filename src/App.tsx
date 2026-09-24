@@ -58,6 +58,7 @@ import { resolveApiUrl } from "./utils/apiConfig";
 import { lessonsStore, vocabStore, settingsStore, playlistsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { whisperQueueService } from "./services/whisperQueueService";
 import { checkIsBookLesson } from "./utils/readerSettingsUtils";
+import { segregatePlaylistsByLanguage } from "./utils/playlistUtils";
 import { useTranslation, Trans } from "react-i18next";
 
 const readerThemes = {
@@ -1305,7 +1306,18 @@ export default function App() {
           if (val && val.id) loadedPlaylists.push(val);
         });
         if (loadedPlaylists.length > 0) {
-          setPlaylists(loadedPlaylists);
+          const currentLessons = (savedLessons as Lesson[]) || [];
+          const segregated = segregatePlaylistsByLanguage(loadedPlaylists, currentLessons);
+          setPlaylists(segregated.playlists);
+          playlistsRef.current = segregated.playlists;
+          if (segregated.hasChanges) {
+            segregated.playlists.forEach((p) => playlistsStore.setItem(p.id, p).catch(() => {}));
+            if (segregated.lessons && segregated.lessons !== currentLessons) {
+              setLessons(segregated.lessons);
+              lessonsRef.current = segregated.lessons;
+              lessonsStore.setItem("lessons", segregated.lessons).catch(() => {});
+            }
+          }
         }
 
       } catch (e) {
@@ -1615,11 +1627,38 @@ export default function App() {
             lessonsStore.setItem("lessons", safeLessons).catch(() => {});
           }
           if (d.playlists && Array.isArray(d.playlists)) {
-            setPlaylists(d.playlists);
-            playlistsRef.current = d.playlists;
-            d.playlists.forEach((pl: Playlist) => {
+            const currentLessons = safeLessons || lessonsRef.current;
+            const segregated = segregatePlaylistsByLanguage(d.playlists, currentLessons);
+            setPlaylists(segregated.playlists);
+            playlistsRef.current = segregated.playlists;
+            segregated.playlists.forEach((pl: Playlist) => {
               playlistsStore.setItem(pl.id, pl).catch(() => {});
             });
+            if (segregated.hasChanges) {
+              if (segregated.lessons && segregated.lessons !== currentLessons) {
+                setLessons(segregated.lessons);
+                lessonsRef.current = segregated.lessons;
+                lessonsStore.setItem("lessons", segregated.lessons).catch(() => {});
+              }
+              if (storageMode === "server") {
+                syncDataToLocalServer(
+                  segregated.lessons,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  segregated.playlists
+                ).catch(() => {});
+              }
+            }
           }
           if (d.lessonTypes) setLessonTypes(d.lessonTypes);
 

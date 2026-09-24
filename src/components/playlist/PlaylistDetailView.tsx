@@ -1492,6 +1492,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
           sourcePlaylist={playlist}
           items={moveModalItems}
           playlists={playlists}
+          lessons={lessons}
           languageFlags={languageFlags}
           onMoveItems={(items, sourceId, targetId, mode) => {
             onMovePlaylistItem?.(items, sourceId, targetId, mode);

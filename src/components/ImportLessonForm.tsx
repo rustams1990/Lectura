@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Lesson, LessonType, ReaderSettings, Playlist } from "../types";
-import { safeJsonParse, safeLocalStorageSetItem } from "../utils";
+import { safeJsonParse, safeLocalStorageSetItem, normalizeLanguage } from "../utils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
+import { getLocalizedLanguageName } from "../utils/stringUtils";
 import { LANGUAGES_SUPPORTED } from "../data";
 import { resolveApiUrl } from "../utils/apiConfig";
 import {
@@ -764,6 +765,29 @@ export default function ImportLessonForm({
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>(editingLesson?.playlistId || "none");
   const [newPlaylistTitle, setNewPlaylistTitle] = useState<string>("");
 
+  const normalizedTargetLang = useMemo(() => {
+    return normalizeLanguage(targetLanguage || "English").toLowerCase();
+  }, [targetLanguage]);
+
+  // Strictly filter playlists matching target language of this lesson
+  const matchingPlaylists = useMemo(() => {
+    return (playlists || []).filter((pl) => {
+      if (pl.isArchived) return false;
+      const plLang = normalizeLanguage(pl.language || "").toLowerCase();
+      return plLang === normalizedTargetLang;
+    });
+  }, [playlists, normalizedTargetLang]);
+
+  // When targetLanguage changes, reset selectedPlaylistId if it belongs to a different language
+  useEffect(() => {
+    if (selectedPlaylistId !== "none" && selectedPlaylistId !== "new") {
+      const isAvailable = matchingPlaylists.some((pl) => pl.id === selectedPlaylistId);
+      if (!isAvailable) {
+        setSelectedPlaylistId("none");
+      }
+    }
+  }, [matchingPlaylists, selectedPlaylistId]);
+
   const isYoutubePlaylistUrl = /[?&]list=([a-zA-Z0-9_-]+)/i.test(youtubeUrlInput.trim());
 
   const handleYtPlaylistFetch = async (e?: React.MouseEvent) => {
@@ -1276,7 +1300,7 @@ export default function ImportLessonForm({
         thumbnailUrl: coverUrl || "",
         sourceType: "custom_collection",
         itemCount: 1,
-        language: targetLanguage || "en",
+        language: normalizedTargetLang,
         items: [newPlItem],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -1284,10 +1308,10 @@ export default function ImportLessonForm({
       finalPlaylistId = newPlId;
       if (onAddPlaylist) onAddPlaylist(newPl);
     } else if (selectedPlaylistId !== "none" && selectedPlaylistId !== "new") {
-      finalPlaylistId = selectedPlaylistId;
-      if (playlists && onUpdatePlaylist) {
-        const existingPl = playlists.find(p => p.id === selectedPlaylistId);
-        if (existingPl) {
+      const existingPl = matchingPlaylists.find(p => p.id === selectedPlaylistId);
+      if (existingPl) {
+        finalPlaylistId = selectedPlaylistId;
+        if (onUpdatePlaylist) {
           const existingItems = existingPl.items || [];
           const currentLessonId = editingLesson?.id || Date.now().toString();
           if (!existingItems.some(it => it.lessonId === currentLessonId)) {
@@ -1308,6 +1332,8 @@ export default function ImportLessonForm({
             });
           }
         }
+      } else {
+        finalPlaylistId = null;
       }
     } else if (selectedPlaylistId === "none") {
       finalPlaylistId = null;
@@ -2685,12 +2711,18 @@ export default function ImportLessonForm({
             >
               <option value="none">{t('playlist.none_direct', 'None (Direct to Library)')}</option>
               <option value="new">+ {t('playlist.create_new', 'Create New Playlist...')}</option>
-              {(playlists || []).map((pl) => (
+              {matchingPlaylists.map((pl) => (
                 <option key={pl.id} value={pl.id}>
                   📁 {pl.title} ({pl.itemCount || pl.items?.length || 0} {t('playlist.videos', 'videos')})
                 </option>
               ))}
             </select>
+
+            {matchingPlaylists.length === 0 && selectedPlaylistId !== "new" && (
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 pt-0.5">
+                {t('playlist.no_playlists_for_this_lang', 'Для этого языка ({{lang}}) пока нет плейлистов. Выберите «+ Создать новый плейлист...» чтобы создать.', { lang: getLocalizedLanguageName(targetLanguage, i18n.language) })}
+              </p>
+            )}
 
             {selectedPlaylistId === "new" && (
               <div className="animate-in fade-in slide-in-from-top-1 duration-150">
