@@ -821,6 +821,23 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         );
       }
 
+      // Ensure lessons belonging to playlists have their playlistId accurately updated in database
+      if (Array.isArray(playlists) && playlists.length > 0) {
+        const updateLessonPlaylistStmt = db.prepare(
+          "UPDATE lessons SET playlistId = ? WHERE user_id = ? AND (id = ? OR (youtubeId IS NOT NULL AND length(youtubeId) > 2 AND youtubeId = ?))"
+        );
+        for (const p of playlists) {
+          try {
+            const items = Array.isArray(p.items) ? p.items : (typeof p.items === "string" ? JSON.parse(p.items || "[]") : []);
+            for (const item of items) {
+              if (item.lessonId || item.videoId) {
+                updateLessonPlaylistStmt.run(p.id, userId, item.lessonId || "", item.videoId || "");
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
       const types = data.lessonTypes || [];
       if (Array.isArray(data.lessonTypes)) {
         const currentTypeIds = types.map((t: any) => t.id).filter(Boolean);

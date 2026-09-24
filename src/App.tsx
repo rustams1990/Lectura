@@ -1574,6 +1574,18 @@ export default function App() {
           const d = body.data;
           const normalizedCloudVocab = normalizeVocabRecord(d.vocab);
           const normalizedCloudWordLinks = normalizeWordLinksRecord(d.wordLinks);
+          // Cross-reference with playlists to ensure lessons belonging to a playlist never lose playlistId
+          const playlistIdByLessonId = new Map<string, string>();
+          const playlistIdByVideoId = new Map<string, string>();
+          if (d.playlists && Array.isArray(d.playlists)) {
+            d.playlists.forEach((pl: Playlist) => {
+              (pl.items || []).forEach((it) => {
+                if (it.lessonId) playlistIdByLessonId.set(it.lessonId, pl.id);
+                if (it.videoId) playlistIdByVideoId.set(it.videoId, pl.id);
+              });
+            });
+          }
+
           if (d.lessons && Array.isArray(d.lessons)) {
             const { archivingIds } = useLessonStore.getState();
             const safeLessons = d.lessons
@@ -1585,13 +1597,18 @@ export default function App() {
                 return false;
               })
               .map((l: any) => {
+                const assignedPlId =
+                  playlistIdByLessonId.get(l.id) ||
+                  (l.youtubeId ? playlistIdByVideoId.get(l.youtubeId) : undefined) ||
+                  l.playlistId;
+                let updated = assignedPlId !== l.playlistId ? { ...l, playlistId: assignedPlId } : l;
                 if (archivingIds.has(l.id)) {
                   const currentLocal = lessonsRef.current.find((item) => item.id === l.id);
                   if (currentLocal) {
-                    return { ...l, isArchived: currentLocal.isArchived };
+                    updated = { ...updated, isArchived: currentLocal.isArchived };
                   }
                 }
-                return l;
+                return updated;
               });
             setLessons(safeLessons);
             lessonsRef.current = safeLessons;
@@ -1599,6 +1616,7 @@ export default function App() {
           }
           if (d.playlists && Array.isArray(d.playlists)) {
             setPlaylists(d.playlists);
+            playlistsRef.current = d.playlists;
             d.playlists.forEach((pl: Playlist) => {
               playlistsStore.setItem(pl.id, pl).catch(() => {});
             });
@@ -2928,26 +2946,24 @@ export default function App() {
       setLessonImages(lessonWithDate.id, images as any);
       setLessonImagesVersion((v) => v + 1);
     }
-    let updatedLessons: Lesson[] = [];
-    setLessons((prev) => {
-      const exists = prev.some((l) => l.id === lessonWithDate.id);
-      if (exists) {
-        updatedLessons = prev.map((l) => (l.id === lessonWithDate.id ? { ...l, ...lessonWithDate } : l));
-      } else {
-        updatedLessons = [lessonWithDate, ...prev];
-      }
-      return updatedLessons;
-    });
-    // Instantly persist new lesson to IndexedDB cache
-    lessonsStore.getItem<Lesson[]>("lessons").then((cached) => {
-      const list = cached || lessons;
-      const exists = list.some((l) => l.id === lessonWithDate.id);
-      const nextList = exists ? list.map((l) => (l.id === lessonWithDate.id ? { ...l, ...lessonWithDate } : l)) : [lessonWithDate, ...list];
-      lessonsStore.setItem("lessons", nextList).catch(() => {});
-    }).catch(() => {});
 
-    setActiveLessonId(lessonWithDate.id);
-    setShowImportForm(false);
+    const currentLessons = lessonsRef.current || lessons;
+    const exists = currentLessons.some((l) => l.id === lessonWithDate.id);
+    const updatedLessons: Lesson[] = exists
+      ? currentLessons.map((l) => (l.id === lessonWithDate.id ? { ...l, ...lessonWithDate } : l))
+      : [lessonWithDate, ...currentLessons];
+
+    setLessons(updatedLessons);
+    lessonsRef.current = updatedLessons;
+
+    // Instantly persist new lesson to IndexedDB cache
+    lessonsStore.setItem("lessons", updatedLessons).catch(() => {});
+
+    if (showImportForm) {
+      setActiveLessonId(lessonWithDate.id);
+      setShowImportForm(false);
+    }
+
     if (lessonWithDate.targetLanguage) {
       const addedLangNorm = normalizeLanguage(lessonWithDate.targetLanguage);
       setHiddenLanguages((prev) => {
@@ -2960,7 +2976,22 @@ export default function App() {
       });
     }
     if (storageMode === "server") {
-      syncDataToLocalServer(updatedLessons.length > 0 ? updatedLessons : [lessonWithDate, ...lessons]).catch((err) => console.error(err));
+      syncDataToLocalServer(
+        updatedLessons,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        playlistsRef.current
+      ).catch((err) => console.error(err));
     }
   };
 
@@ -3168,13 +3199,35 @@ export default function App() {
 
   const handleAddPlaylist = (newPlaylist: Playlist) => {
     lastLocalChangeTime.current = Date.now();
-    const next = [newPlaylist, ...playlists.filter(p => p.id !== newPlaylist.id)];
+    const currentList = playlistsRef.current || playlists;
+    const next = [newPlaylist, ...currentList.filter(p => p.id !== newPlaylist.id)];
     setPlaylists(next);
     playlistsRef.current = next;
     playlistsStore.setItem(newPlaylist.id, newPlaylist).catch(() => {});
+
+    // Ensure matching lessons have their playlistId updated
+    const playlistLessonIds = new Set((newPlaylist.items || []).map(it => it.lessonId).filter(Boolean));
+    const playlistVideoIds = new Set((newPlaylist.items || []).map(it => it.videoId).filter(Boolean));
+    const currentLessons = lessonsRef.current || lessons;
+    let lessonsChanged = false;
+    const nextLessons = currentLessons.map(l => {
+      const isItem = playlistLessonIds.has(l.id) || (l.youtubeId && playlistVideoIds.has(l.youtubeId));
+      if (isItem && l.playlistId !== newPlaylist.id) {
+        lessonsChanged = true;
+        return { ...l, playlistId: newPlaylist.id };
+      }
+      return l;
+    });
+
+    if (lessonsChanged) {
+      setLessons(nextLessons);
+      lessonsRef.current = nextLessons;
+      lessonsStore.setItem("lessons", nextLessons).catch(() => {});
+    }
+
     if (storageMode === "server") {
       syncDataToLocalServer(
-        lessonsRef.current,
+        lessonsChanged ? nextLessons : lessonsRef.current,
         lessonTypes,
         vocabRef.current,
         wordLinksRef.current,
@@ -3202,9 +3255,34 @@ export default function App() {
     setPlaylists(next);
     playlistsRef.current = next;
     playlistsStore.setItem(updatedPlaylist.id, updatedPlaylist).catch(() => {});
+
+    // Ensure matching lessons have their playlistId updated
+    const playlistLessonIds = new Set((updatedPlaylist.items || []).map(it => it.lessonId).filter(Boolean));
+    const playlistVideoIds = new Set((updatedPlaylist.items || []).map(it => it.videoId).filter(Boolean));
+    const currentLessons = lessonsRef.current || lessons;
+    let lessonsChanged = false;
+    const nextLessons = currentLessons.map(l => {
+      const isItem = playlistLessonIds.has(l.id) || (l.youtubeId && playlistVideoIds.has(l.youtubeId));
+      if (isItem && l.playlistId !== updatedPlaylist.id) {
+        lessonsChanged = true;
+        return { ...l, playlistId: updatedPlaylist.id };
+      }
+      if (!isItem && l.playlistId === updatedPlaylist.id) {
+        lessonsChanged = true;
+        return { ...l, playlistId: undefined };
+      }
+      return l;
+    });
+
+    if (lessonsChanged) {
+      setLessons(nextLessons);
+      lessonsRef.current = nextLessons;
+      lessonsStore.setItem("lessons", nextLessons).catch(() => {});
+    }
+
     if (storageMode === "server") {
       syncDataToLocalServer(
-        lessonsRef.current,
+        lessonsChanged ? nextLessons : lessonsRef.current,
         lessonTypes,
         vocabRef.current,
         wordLinksRef.current,

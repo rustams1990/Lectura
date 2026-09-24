@@ -803,6 +803,20 @@ function LibraryHome({
     return false;
   };
 
+  // Set of all lesson and video IDs that belong to any active (non-archived) playlist
+  const playlistLessonKeys = useMemo(() => {
+    const set = new Set<string>();
+    (playlists || []).forEach((pl) => {
+      if (!pl.isArchived) {
+        (pl.items || []).forEach((it) => {
+          if (it.lessonId) set.add(it.lessonId);
+          if (it.videoId) set.add(`yt_${it.videoId}`);
+        });
+      }
+    });
+    return set;
+  }, [playlists]);
+
   // Filter lessons based on search, type, and archive state
   const filteredLessons = useMemo(() => {
     const list = lessons.filter((lesson) => {
@@ -814,7 +828,14 @@ function LibraryHome({
       const matchesArchive = showArchived ? isBookArchived : !isBookArchived;
 
       // Do not clutter the main shelf with child lessons of a playlist unless searching or filtered
-      const notHiddenByPlaylist = !lesson.playlistId || searchQuery.trim().length > 0 || (selectedLessonType !== "All" && selectedLessonType !== "playlist");
+      const isInAnyPlaylist =
+        !!lesson.playlistId ||
+        playlistLessonKeys.has(lesson.id) ||
+        (lesson.youtubeId ? playlistLessonKeys.has(`yt_${lesson.youtubeId}`) : false);
+      const notHiddenByPlaylist =
+        !isInAnyPlaylist ||
+        searchQuery.trim().length > 0 ||
+        (selectedLessonType !== "All" && selectedLessonType !== "playlist");
 
       const matchesSearch =
         lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
