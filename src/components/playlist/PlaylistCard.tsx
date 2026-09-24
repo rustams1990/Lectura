@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Playlist, Lesson, HistoryEntry, ReaderSettings } from "../../types";
-import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore, Pencil } from "lucide-react";
+import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore, Pencil, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { SelectPlaylistCoverModal } from "./SelectPlaylistCoverModal";
 import { FLAG_EMOJI_TO_CODE } from "../../utils";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { getItemEffectiveDuration } from "../../utils/durationUtils";
@@ -80,6 +81,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   const { t, i18n } = useTranslation();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showCoverPicker, setShowCoverPicker] = useState(false);
   const [renameTitle, setRenameTitle] = useState(playlist.title);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -154,6 +156,25 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   }, [items, lessons, history]);
 
   const progressPercent = itemCount > 0 ? Math.round((completedCount / itemCount) * 100) : 0;
+
+  // Determine effective cover thumbnail
+  const effectiveThumbnailUrl = useMemo(() => {
+    const coverItem = playlist.primaryItemId
+      ? items.find((it) => it.id === playlist.primaryItemId)
+      : null;
+    const matchedCoverLesson = coverItem
+      ? (coverItem.lessonId ? lessons.find((l) => l.id === coverItem.lessonId) : null) ||
+        (coverItem.videoId ? lessons.find((l) => l.youtubeId === coverItem.videoId) : null)
+      : null;
+    return (
+      coverItem?.thumbnailUrl ||
+      matchedCoverLesson?.coverUrl ||
+      (coverItem?.videoId ? `https://img.youtube.com/vi/${coverItem.videoId}/hqdefault.jpg` : null) ||
+      playlist.thumbnailUrl ||
+      items[0]?.thumbnailUrl ||
+      (items[0]?.videoId ? `https://img.youtube.com/vi/${items[0].videoId}/hqdefault.jpg` : "")
+    );
+  }, [playlist.primaryItemId, playlist.thumbnailUrl, items, lessons]);
 
   return (
     <div
@@ -259,9 +280,9 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
       {/* Playlist Stacked Cover Banner */}
       <div className="relative aspect-video bg-zinc-950 p-3 text-white flex flex-col justify-between overflow-hidden">
         {/* Crisp cover image */}
-        {playlist.thumbnailUrl ? (
+        {effectiveThumbnailUrl ? (
           <img
-            src={playlist.thumbnailUrl}
+            src={effectiveThumbnailUrl}
             alt=""
             className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none transition-transform duration-300 group-hover:scale-105"
             onError={(e) => {
@@ -441,6 +462,22 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                   </button>
                 )}
 
+                {/* Choose cover video */}
+                {items.length > 1 && onUpdatePlaylist && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      setShowCoverPicker(true);
+                    }}
+                    className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                    <span>{t("playlist.choose_cover", "Выбрать обложку")}</span>
+                  </button>
+                )}
+
                 <div className="border-t border-zinc-100 dark:border-zinc-800 my-1" />
 
                 {/* Delete */}
@@ -461,6 +498,17 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Select Cover Modal */}
+      {showCoverPicker && onUpdatePlaylist && (
+        <SelectPlaylistCoverModal
+          isOpen={showCoverPicker}
+          onClose={() => setShowCoverPicker(false)}
+          playlist={playlist}
+          lessons={lessons}
+          onUpdatePlaylist={onUpdatePlaylist}
+        />
+      )}
     </div>
   );
 };

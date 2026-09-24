@@ -4125,6 +4125,8 @@ export default function App() {
             <PodcastsPage
               lessons={lessons}
               history={history}
+              vocab={vocab}
+              wordLinks={wordLinks}
               selectedTargetLanguage={selectedTargetLanguage}
               onOpenLesson={handleOpenWhisperBook}
               onToggleCompleteLesson={(lessonId) => {

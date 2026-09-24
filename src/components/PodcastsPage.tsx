@@ -9,7 +9,7 @@ import { usePodcastStore } from "../store/podcastStore";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useToast } from "../context/ToastContext";
 import { useWhisperQueue } from "../services/whisperQueueService";
-import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastTimelineEpisode } from "../types";
+import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastTimelineEpisode, VocabItem } from "../types";
 import PodcastChannelView, { EpisodeRow, getEpisodeLessonInfo, EpisodeLessonInfo, parseDurationToSeconds } from "./PodcastChannelView";
 import { normalizeLanguage } from "../utils";
 
@@ -156,6 +156,8 @@ const PodcastCard = React.memo<PodcastCardProps>(({
 interface PodcastsPageProps {
   lessons?: Lesson[];
   history?: HistoryEntry[];
+  vocab?: Record<string, VocabItem>;
+  wordLinks?: Record<string, string>;
   selectedTargetLanguage?: string;
   onOpenLesson?: (lessonId: string) => void;
   onToggleCompleteLesson?: (lessonId: string) => void;
@@ -164,6 +166,8 @@ interface PodcastsPageProps {
 export default function PodcastsPage({
   lessons = [],
   history = [],
+  vocab = {},
+  wordLinks = {},
   selectedTargetLanguage,
   onOpenLesson,
   onToggleCompleteLesson,
@@ -491,6 +495,8 @@ export default function PodcastsPage({
         onBack={handleBack}
         lessons={lessons}
         history={history}
+        vocab={vocab}
+        wordLinks={wordLinks}
         selectedTargetLanguage={selectedTargetLanguage}
         onOpenLesson={onOpenLesson}
         onToggleCompleteLesson={onToggleCompleteLesson}
@@ -1007,6 +1013,8 @@ export default function PodcastsPage({
                       importStage={stage}
                       isPlaying={currentPlayingGuid === ep.guid}
                       showPodcastTitle={true}
+                      vocab={vocab}
+                      wordLinks={wordLinks}
                       onPlay={handlePlayTimelineEpisode}
                       onImport={handleImportTimelineEpisode}
                       onOpenLesson={onOpenLesson}

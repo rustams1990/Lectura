@@ -4,7 +4,7 @@ import {
   ArrowLeft, Play, BookOpen, Headphones, Trash2, CheckCircle2,
   Clock, ExternalLink, Loader2, Sparkles, AlertCircle, Share2,
   ListVideo, RefreshCw, Archive, ArchiveRestore, ArrowUpDown, Search, ChevronDown, Plus, CheckSquare, Square, Check,
-  FolderInput, X, Pencil
+  FolderInput, X, Pencil, Star, GripVertical, BarChart2
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
@@ -12,11 +12,14 @@ import { resolveApiUrl } from "../../utils/apiConfig";
 import { renderCircularFlag, getLanguageFlagEmoji } from "./PlaylistCard";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { getItemEffectiveDuration } from "../../utils/durationUtils";
+import { normalizeContraction } from "../../utils";
+import { ignoreListManager } from "../../services/ignoreListService";
 import { usePlaylistStore } from "../../store/playlistStore";
 import { lessonsStore } from "../../db";
-import { calculateBookStats, getCachedBookStats } from "../LibraryHome";
+import { calculateBookStats, getCachedBookStats, getCachedTokens } from "../LibraryHome";
 import AddMediaToPlaylistModal from "./AddMediaToPlaylistModal";
 import MoveToPlaylistModal from "./MoveToPlaylistModal";
+import SelectPlaylistCoverModal from "./SelectPlaylistCoverModal";
 
 export type PlaylistSortOption = 
   | 'default'       // Исходный порядок плейлиста (по порядку добавления / #1, #2...)
@@ -76,6 +79,32 @@ export function formatTotalDuration(seconds: number, t: any): string {
   return `${m} ${t("common.minutes_short", "m")}`;
 }
 
+export function formatWordCount(count: number): string {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace('.0', '')}k`;
+  }
+  return `${count}`;
+}
+
+export interface PlaylistAggregateStats {
+  hasAnyText: boolean;
+  lessonsWithTextCount: number;
+  totalItemsCount: number;
+  totalWords: number;
+  uniqueTotalWords: number;
+  eligibleTokens: number;
+  knownTokens: number;
+  unknownTokens: number;
+  knownPct: number;
+  unknownPct: number;
+  eligibleLemmas: number;
+  uniqueKnownCount: number;
+  uniqueUnknownCount: number;
+  knownVocabularyPct: number;
+  unknownVocabularyPct: number;
+  difficultyLabel?: string;
+}
+
 export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   playlist,
   lessons,
@@ -102,6 +131,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddMediaModal, setShowAddMediaModal] = useState(false);
+  const [showCoverPicker, setShowCoverPicker] = useState(false);
   const [moveModalItems, setMoveModalItems] = useState<PlaylistItem[] | null>(null);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -110,6 +140,9 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   const [selectedNewVideoIds, setSelectedNewVideoIds] = useState<Set<string>>(new Set());
   const [sortOption, setSortOption] = useState<PlaylistSortOption>("default");
   const [statusFilter, setStatusFilter] = useState<PlaylistStatusFilter>("all");
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<"before" | "after" | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
@@ -163,6 +196,196 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
       if (match) return match;
     }
     return undefined;
+  };
+
+  // Aggregated vocabulary, comprehension & difficulty statistics across the playlist
+  const playlistAggregateStats = useMemo<PlaylistAggregateStats>(() => {
+    let lessonsWithTextCount = 0;
+    let totalWords = 0;
+    let knownTokens = 0;
+    let unknownTokens = 0;
+    let ignoredTokens = 0;
+
+    const uniqueKnownWords = new Set<string>();
+    const uniqueUnknownWords = new Set<string>();
+    const uniqueIgnoredWords = new Set<string>();
+    const uniqueTotalWords = new Set<string>();
+    const difficulties: string[] = [];
+
+    const defaultLang = (playlist.language || "spanish").toLowerCase();
+
+    for (const item of items) {
+      const lesson = getItemLesson(item);
+      if (lesson?.difficulty) {
+        difficulties.push(lesson.difficulty.trim().toUpperCase());
+      }
+
+      if (!lesson || !lesson.text || lesson.text.length <= 20) {
+        continue;
+      }
+
+      lessonsWithTextCount++;
+      const cleanText = lesson.text.replace(/\[(?:\[LECTURA_)?IMG(?:_REF)?:[^\]]+\]/gi, " ");
+      const lang = (lesson.targetLanguage || defaultLang).toLowerCase();
+      const tokens = getCachedTokens(lesson.id || cleanText.slice(0, 30), cleanText, lesson.targetLanguage || defaultLang);
+      const processedWords = tokens.filter((t) => t.isWord && t.clean).map((t) => t.clean as string);
+
+      for (const word of processedWords) {
+        totalWords++;
+        const key = word.toLowerCase();
+        const langKey = `${lang}_${key}`;
+        const resolvedKey = (wordLinks[langKey] || wordLinks[key] || key).replace(/^[a-zA-Z]+_/, "");
+        const langKeyForResolved = `${lang}_${resolvedKey}`;
+
+        let vItem = vocab[langKeyForResolved] || vocab[resolvedKey];
+        if (!vItem) {
+          const normalized = normalizeContraction(resolvedKey, lang);
+          if (normalized !== resolvedKey) {
+            vItem = vocab[`${lang}_${normalized}`] || vocab[normalized];
+          }
+        }
+
+        uniqueTotalWords.add(resolvedKey);
+
+        const isManuallyIgnored = !!(vItem && vItem.status === "ignored");
+        const isAutoIgnored = !vItem && ignoreListManager.checkAutoIgnore(resolvedKey, undefined, lang).isIgnored;
+        const isIgnored = isManuallyIgnored || isAutoIgnored;
+
+        if (isIgnored) {
+          ignoredTokens++;
+          uniqueIgnoredWords.add(resolvedKey);
+        } else if (vItem && vItem.status === "known") {
+          knownTokens++;
+          uniqueKnownWords.add(resolvedKey);
+        } else {
+          unknownTokens++;
+          uniqueUnknownWords.add(resolvedKey);
+        }
+      }
+    }
+
+    const eligibleTokens = totalWords - ignoredTokens;
+    const eligibleLemmas = uniqueKnownWords.size + uniqueUnknownWords.size;
+    const knownPct = eligibleTokens > 0 ? Math.round((knownTokens / eligibleTokens) * 100) : 0;
+    const unknownPct = 100 - knownPct;
+    const knownVocabularyPct = eligibleLemmas > 0 ? Math.round((uniqueKnownWords.size / eligibleLemmas) * 100) : 0;
+    const unknownVocabularyPct = 100 - knownVocabularyPct;
+
+    let difficultyLabel: string | undefined = undefined;
+    if (difficulties.length > 0) {
+      const CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"];
+      const sortedDiffs = [...new Set(difficulties)].sort((a, b) => {
+        const idxA = CEFR_ORDER.indexOf(a);
+        const idxB = CEFR_ORDER.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
+      });
+      if (sortedDiffs.length === 1) {
+        difficultyLabel = sortedDiffs[0];
+      } else {
+        difficultyLabel = `${sortedDiffs[0]} – ${sortedDiffs[sortedDiffs.length - 1]}`;
+      }
+    }
+
+    return {
+      hasAnyText: lessonsWithTextCount > 0,
+      lessonsWithTextCount,
+      totalItemsCount: items.length,
+      totalWords,
+      uniqueTotalWords: uniqueTotalWords.size,
+      eligibleTokens,
+      knownTokens,
+      unknownTokens,
+      knownPct,
+      unknownPct,
+      eligibleLemmas,
+      uniqueKnownCount: uniqueKnownWords.size,
+      uniqueUnknownCount: uniqueUnknownWords.size,
+      knownVocabularyPct,
+      unknownVocabularyPct,
+      difficultyLabel,
+    };
+  }, [items, lessons, vocab, wordLinks, playlist.language]);
+
+  // Active cover item based on primaryItemId or first item
+  const activeCoverItem = useMemo(() => {
+    if (playlist.primaryItemId) {
+      const found = items.find((it) => it.id === playlist.primaryItemId);
+      if (found) return found;
+    }
+    return items[0] || null;
+  }, [playlist.primaryItemId, items]);
+
+  const effectiveThumbnailUrl = useMemo(() => {
+    const matchedCoverLesson = activeCoverItem ? getItemLesson(activeCoverItem) : null;
+    return (
+      activeCoverItem?.thumbnailUrl ||
+      matchedCoverLesson?.coverUrl ||
+      (activeCoverItem?.videoId ? `https://img.youtube.com/vi/${activeCoverItem.videoId}/hqdefault.jpg` : null) ||
+      playlist.thumbnailUrl ||
+      ""
+    );
+  }, [activeCoverItem, playlist.thumbnailUrl, lessons]);
+
+  const handleSetCoverItem = (item: PlaylistItem) => {
+    const matchedLesson = getItemLesson(item);
+    const chosenThumbnail =
+      item.thumbnailUrl ||
+      matchedLesson?.coverUrl ||
+      (item.videoId ? `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg` : "") ||
+      playlist.thumbnailUrl;
+
+    onUpdatePlaylist({
+      ...playlist,
+      primaryItemId: item.id,
+      thumbnailUrl: chosenThumbnail,
+      updatedAt: new Date().toISOString(),
+    });
+    showToast(t("playlist.cover_updated", "Обложка плейлиста обновлена!"), "success");
+  };
+
+  // Drag and drop reordering
+  const handleReorderItems = (sourceId: string, targetId: string, position: "before" | "after") => {
+    if (sourceId === targetId) return;
+
+    const sourceIndex = items.findIndex((it) => it.id === sourceId);
+    const targetIndex = items.findIndex((it) => it.id === targetId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const reordered = [...items];
+    const [movedItem] = reordered.splice(sourceIndex, 1);
+
+    // Recalculate target index after removing movedItem
+    let newTargetIndex = reordered.findIndex((it) => it.id === targetId);
+    if (position === "after") {
+      newTargetIndex += 1;
+    }
+
+    reordered.splice(newTargetIndex, 0, movedItem);
+
+    // Switch to default order so user sees their new custom order immediately
+    if (sortOption !== "default") {
+      setSortOption("default");
+    }
+
+    // If no explicit primaryItemId was set, ensure thumbnailUrl stays updated if the first item changed
+    let nextThumbnail = playlist.thumbnailUrl;
+    if (!playlist.primaryItemId && reordered.length > 0) {
+      const firstItem = reordered[0];
+      const matchedLesson = getItemLesson(firstItem);
+      nextThumbnail = firstItem.thumbnailUrl || matchedLesson?.coverUrl || (firstItem.videoId ? `https://img.youtube.com/vi/${firstItem.videoId}/hqdefault.jpg` : "") || playlist.thumbnailUrl;
+    }
+
+    onUpdatePlaylist({
+      ...playlist,
+      items: reordered,
+      thumbnailUrl: nextThumbnail,
+      updatedAt: new Date().toISOString(),
+    });
+
+    showToast(t("playlist.order_updated", "Порядок видео обновлен!"), "success");
   };
 
   const totalSeconds = useMemo(() => {
@@ -573,10 +796,21 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   const handleRemoveEpisode = (itemId: string) => {
     const itemToRemove = items.find((it) => it.id === itemId);
     const updatedItems = items.filter((it) => it.id !== itemId);
+    const isRemovingPrimary = playlist.primaryItemId === itemId;
+    const nextPrimaryItem = isRemovingPrimary
+      ? updatedItems[0]
+      : (playlist.primaryItemId ? updatedItems.find((it) => it.id === playlist.primaryItemId) : updatedItems[0]);
+    const nextLesson = nextPrimaryItem ? getItemLesson(nextPrimaryItem) : null;
+    const nextThumbnail = nextPrimaryItem
+      ? (nextPrimaryItem.thumbnailUrl || nextLesson?.coverUrl || (nextPrimaryItem.videoId ? `https://img.youtube.com/vi/${nextPrimaryItem.videoId}/hqdefault.jpg` : "") || playlist.thumbnailUrl)
+      : "";
+
     onUpdatePlaylist({
       ...playlist,
       items: updatedItems,
       itemCount: updatedItems.length,
+      primaryItemId: isRemovingPrimary ? (updatedItems[0]?.id || undefined) : playlist.primaryItemId,
+      thumbnailUrl: isRemovingPrimary ? nextThumbnail : playlist.thumbnailUrl,
       updatedAt: new Date().toISOString(),
     });
     if (itemToRemove && typeof onAddOrUpdateLesson === "function") {
@@ -625,10 +859,21 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     if (selectedItemIds.size === 0) return;
     const deletedItems = items.filter((it) => selectedItemIds.has(it.id));
     const remainingItems = items.filter((it) => !selectedItemIds.has(it.id));
+    const isRemovingPrimary = playlist.primaryItemId ? selectedItemIds.has(playlist.primaryItemId) : false;
+    const nextPrimaryItem = isRemovingPrimary
+      ? remainingItems[0]
+      : (playlist.primaryItemId ? remainingItems.find((it) => it.id === playlist.primaryItemId) : remainingItems[0]);
+    const nextLesson = nextPrimaryItem ? getItemLesson(nextPrimaryItem) : null;
+    const nextThumbnail = nextPrimaryItem
+      ? (nextPrimaryItem.thumbnailUrl || nextLesson?.coverUrl || (nextPrimaryItem.videoId ? `https://img.youtube.com/vi/${nextPrimaryItem.videoId}/hqdefault.jpg` : "") || playlist.thumbnailUrl)
+      : "";
+
     onUpdatePlaylist({
       ...playlist,
       items: remainingItems,
       itemCount: remainingItems.length,
+      primaryItemId: isRemovingPrimary ? (remainingItems[0]?.id || undefined) : playlist.primaryItemId,
+      thumbnailUrl: isRemovingPrimary ? nextThumbnail : playlist.thumbnailUrl,
       updatedAt: new Date().toISOString(),
     });
     if (typeof onAddOrUpdateLesson === "function") {
@@ -931,9 +1176,9 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
           <div className="bg-gradient-to-b from-zinc-100 via-zinc-100/90 to-zinc-50 dark:from-zinc-850 dark:via-zinc-900 dark:to-zinc-950 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 p-5 space-y-4 shadow-sm">
             {/* Big Playlist Cover Art (Full Width 16:9 Aspect Ratio) */}
             <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-zinc-950 shadow-md border border-zinc-800/80 group">
-              {playlist.thumbnailUrl ? (
+              {effectiveThumbnailUrl ? (
                 <img
-                  src={playlist.thumbnailUrl}
+                  src={effectiveThumbnailUrl}
                   alt={playlist.title}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => {
@@ -949,8 +1194,21 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 </div>
               )}
 
+              {/* Quick Change Cover button on hover */}
+              {items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowCoverPicker(true)}
+                  className="absolute top-2.5 right-2.5 px-2.5 py-1 bg-black/75 hover:bg-black/90 backdrop-blur-md rounded-xl text-white text-[11px] font-bold flex items-center gap-1.5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-md active:scale-95 z-10"
+                  title={t("playlist.choose_cover", "Выбрать обложку")}
+                >
+                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                  <span>{t("playlist.cover_badge", "Обложка")}</span>
+                </button>
+              )}
+
               {/* Bottom right track count badge */}
-              <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 bg-black/90 rounded-lg text-white font-mono text-xs font-bold flex items-center gap-1.5 border border-white/10 shadow-sm">
+              <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 bg-black/90 rounded-lg text-white font-mono text-xs font-bold flex items-center gap-1.5 border border-white/10 shadow-sm z-10">
                 <ListVideo className="w-3.5 h-3.5" />
                 <span>{items.length}</span>
               </div>
@@ -1079,6 +1337,124 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 <span>{t("player.play_all", "Play All")}</span>
               </button>
             </div>
+
+            {/* Aggregate Vocabulary & Comprehension Analytics */}
+            {playlistAggregateStats.hasAnyText ? (
+              <div className="pt-3.5 border-t border-zinc-200/80 dark:border-zinc-800 space-y-3">
+                {/* Header with Title and CEFR Level */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <BarChart2 className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                      {t("playlist.analytics_title", "Лексика и понимание")}
+                    </span>
+                  </div>
+                  {playlistAggregateStats.difficultyLabel && (
+                    <span
+                      className="text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80"
+                      title={t("playlist.level_label", "Сложность")}
+                    >
+                      {playlistAggregateStats.difficultyLabel}
+                    </span>
+                  )}
+                </div>
+
+                {/* Comprehension Bar */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span>{t("playlist.comprehension_stat", "Понимание")}:</span>
+                      <span className="text-sm font-black">{playlistAggregateStats.knownPct}%</span>
+                    </span>
+                    <span className="text-sky-500 dark:text-sky-400 text-[11px] font-semibold">
+                      {t("library.new_stat", "New:")} {playlistAggregateStats.unknownPct}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-sky-500/20 flex overflow-hidden">
+                    <div
+                      style={{ width: `${playlistAggregateStats.knownPct}%` }}
+                      className="bg-emerald-500 h-full transition-all duration-300"
+                    />
+                    <div
+                      style={{ width: `${playlistAggregateStats.unknownPct}%` }}
+                      className="bg-sky-400 h-full transition-all duration-300"
+                    />
+                  </div>
+                </div>
+
+                {/* 2x2 Stats Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {/* Total Unique Words */}
+                  <div className="p-2.5 rounded-xl bg-white/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/50">
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium leading-none">
+                      {t("playlist.total_unique_words", "Всего уникальных")}
+                    </div>
+                    <div className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 font-mono mt-1.5 leading-none">
+                      ~{formatWordCount(playlistAggregateStats.uniqueTotalWords)}
+                    </div>
+                  </div>
+
+                  {/* New to you */}
+                  <div className="p-2.5 rounded-xl bg-white/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/50">
+                    <div className="text-[10px] text-sky-600 dark:text-sky-400 font-medium leading-none">
+                      {t("playlist.new_for_you", "Новых для вас")}
+                    </div>
+                    <div className="text-base font-extrabold text-sky-600 dark:text-sky-400 font-mono mt-1.5 leading-none flex items-baseline gap-1">
+                      <span>~{formatWordCount(playlistAggregateStats.uniqueUnknownCount)}</span>
+                      <span className="text-[10px] font-sans font-bold opacity-80">({playlistAggregateStats.unknownVocabularyPct}%)</span>
+                    </div>
+                  </div>
+
+                  {/* Already known */}
+                  <div className="p-2.5 rounded-xl bg-white/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/50">
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium leading-none">
+                      {t("playlist.already_known", "Уже знакомо")}
+                    </div>
+                    <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mt-1.5 leading-none flex items-baseline gap-1">
+                      <span>~{formatWordCount(playlistAggregateStats.uniqueKnownCount)}</span>
+                      <span className="text-[10px] font-sans font-bold opacity-80">({playlistAggregateStats.knownVocabularyPct}%)</span>
+                    </div>
+                  </div>
+
+                  {/* Total running words */}
+                  <div className="p-2.5 rounded-xl bg-white/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/50">
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium leading-none">
+                      {t("playlist.total_words_stream", "Всего слов")}
+                    </div>
+                    <div className="text-base font-extrabold text-zinc-700 dark:text-zinc-300 font-mono mt-1.5 leading-none">
+                      ~{formatWordCount(playlistAggregateStats.totalWords)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subtitle coverage note */}
+                <div className="pt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center justify-between">
+                  {playlistAggregateStats.lessonsWithTextCount === items.length ? (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium text-[10.5px]">
+                      <CheckCircle2 className="w-3 h-3 shrink-0" />
+                      <span>{t("playlist.all_subtitles_analyzed", "Все {{count}} видео проанализированы", { count: items.length })}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10.5px] text-zinc-500 dark:text-zinc-400">
+                      {t("playlist.based_on_subtitles", "На основе {{current}} из {{total}} видео с субтитрами", {
+                        current: playlistAggregateStats.lessonsWithTextCount,
+                        total: items.length,
+                      })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : items.length > 0 ? (
+              <div className="pt-3 border-t border-zinc-200/80 dark:border-zinc-800 text-center p-3 rounded-2xl bg-zinc-50/50 dark:bg-zinc-900/40 border border-dashed border-zinc-200 dark:border-zinc-800/80 space-y-1">
+                <div className="flex items-center justify-center gap-1.5 text-zinc-400 dark:text-zinc-500 text-xs font-semibold">
+                  <BarChart2 className="w-3.5 h-3.5" />
+                  <span>{t("playlist.analytics_title", "Лексика и понимание")}</span>
+                </div>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight">
+                  {t("playlist.no_subtitles_stats", "Субтитры еще не загружены для анализа лексики")}
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1343,6 +1719,83 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
             </div>
           )}
 
+          {/* Overall Playlist Vocabulary & Difficulty Summary Ribbon */}
+          {playlistAggregateStats.hasAnyText && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-teal-500/10 via-sky-500/5 to-indigo-500/10 dark:from-teal-950/40 dark:via-sky-950/20 dark:to-indigo-950/30 border border-teal-500/20 dark:border-teal-500/30 text-xs shadow-3xs">
+              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-zinc-700 dark:text-zinc-300">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-zinc-400">🔤</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">{t("playlist.summary_ribbon_unique", "Всего уникальных слов:")}</span>
+                  <span className="font-mono font-bold text-zinc-950 dark:text-white">
+                    ~{formatWordCount(playlistAggregateStats.uniqueTotalWords)}
+                  </span>
+                </div>
+
+                <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">•</span>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-zinc-400">📘</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">{t("playlist.summary_ribbon_new", "Новых для вас:")}</span>
+                  <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                    ~{formatWordCount(playlistAggregateStats.uniqueUnknownCount)}
+                  </span>
+                  <span className="text-[10.5px] font-bold text-sky-600/85 dark:text-sky-400/85">
+                    ({playlistAggregateStats.unknownVocabularyPct}%)
+                  </span>
+                </div>
+
+                <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">•</span>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-zinc-400">📗</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">{t("playlist.summary_ribbon_understood", "Понятно:")}</span>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    {playlistAggregateStats.knownPct}%
+                  </span>
+                </div>
+
+                {playlistAggregateStats.difficultyLabel && (
+                  <>
+                    <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">•</span>
+                    <span
+                      className="text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shrink-0"
+                      title={t("playlist.level_label", "Сложность")}
+                    >
+                      {playlistAggregateStats.difficultyLabel}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Right side: Dual Progress Bar + Coverage */}
+              <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+                <div
+                  className="w-16 sm:w-20 h-2 rounded-full bg-sky-500/20 flex overflow-hidden shrink-0"
+                  title={`${t("playlist.comprehension_stat", "Понимание")}: ${playlistAggregateStats.knownPct}%`}
+                >
+                  <div
+                    style={{ width: `${playlistAggregateStats.knownPct}%` }}
+                    className="bg-emerald-500 h-full transition-all duration-300"
+                  />
+                  <div
+                    style={{ width: `${playlistAggregateStats.unknownPct}%` }}
+                    className="bg-sky-400 h-full transition-all duration-300"
+                  />
+                </div>
+
+                <span
+                  className="text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono"
+                  title={t("playlist.based_on_subtitles", "На основе {{current}} из {{total}} видео с субтитрами", {
+                    current: playlistAggregateStats.lessonsWithTextCount,
+                    total: items.length,
+                  })}
+                >
+                  {playlistAggregateStats.lessonsWithTextCount}/{items.length} 🎬
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Episode Cards List */}
           {sortedAndFilteredItems.length === 0 ? (
             <div className="p-8 bg-zinc-50 dark:bg-zinc-900/40 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 text-center space-y-2">
@@ -1396,10 +1849,63 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 const rawWordCount = hasLessonText ? lesson!.text.split(/\s+/).filter(Boolean).length : null;
                 const formattedWordCount = rawWordCount !== null ? (rawWordCount >= 1000 ? `${(rawWordCount / 1000).toFixed(1).replace('.0', '')}k` : `${rawWordCount}`) : null;
                 const bookStats = (hasLessonText && vocab && wordLinks) ? getCachedBookStats(lesson!, vocab, wordLinks) : null;
+                const isCover = activeCoverItem?.id === item.id;
 
                 return (
                   <div
                     key={item.id}
+                    draggable={!isSelectMode}
+                    onDragStart={(e) => {
+                      if (isSelectMode) {
+                        e.preventDefault();
+                        return;
+                      }
+                      const target = e.target as HTMLElement;
+                      if (target.closest("button") || target.closest("input")) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setDraggedItemId(item.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", item.id);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (!draggedItemId || draggedItemId === item.id) return;
+                      e.dataTransfer.dropEffect = "move";
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const midY = rect.top + rect.height / 2;
+                      const pos = e.clientY < midY ? "before" : "after";
+                      if (dragOverItemId !== item.id || dropPosition !== pos) {
+                        setDragOverItemId(item.id);
+                        setDropPosition(pos);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                      if (dragOverItemId === item.id) {
+                        setDragOverItemId(null);
+                        setDropPosition(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (!draggedItemId || draggedItemId === item.id) {
+                        setDraggedItemId(null);
+                        setDragOverItemId(null);
+                        setDropPosition(null);
+                        return;
+                      }
+                      handleReorderItems(draggedItemId, item.id, dropPosition || "before");
+                      setDraggedItemId(null);
+                      setDragOverItemId(null);
+                      setDropPosition(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedItemId(null);
+                      setDragOverItemId(null);
+                      setDropPosition(null);
+                    }}
                     onClick={(e) => {
                       if (isSelectMode) {
                         toggleSelectItem(item.id, e);
@@ -1407,14 +1913,30 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                         handleOpenItem(item);
                       }
                     }}
-                    className={`group p-2.5 sm:p-3 rounded-2xl border transition-all duration-150 flex items-center gap-3 cursor-pointer active:scale-[0.99] select-none ${
+                    className={`group relative p-2.5 sm:p-3 rounded-2xl border transition-all duration-150 flex items-center gap-3 cursor-pointer select-none ${
                       isSelectMode && isSelected
                         ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-400 dark:border-teal-600 shadow-xs"
                         : isCompleted
                         ? "bg-zinc-50/70 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/60 opacity-85"
                         : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md"
+                    } ${
+                      draggedItemId === item.id
+                        ? "opacity-35 scale-[0.99] border-dashed border-teal-500 bg-teal-50/20 dark:bg-teal-950/20"
+                        : ""
                     }`}
                   >
+                    {/* Drag Insertion Indicators */}
+                    {dragOverItemId === item.id && dropPosition === "before" && (
+                      <div className="absolute -top-1.5 inset-x-2 h-1 bg-teal-500 rounded-full z-20 shadow-sm shadow-teal-500/50 flex items-center pointer-events-none">
+                        <div className="w-2.5 h-2.5 rounded-full bg-teal-500 -ml-1 ring-2 ring-white dark:ring-zinc-900" />
+                      </div>
+                    )}
+                    {dragOverItemId === item.id && dropPosition === "after" && (
+                      <div className="absolute -bottom-1.5 inset-x-2 h-1 bg-teal-500 rounded-full z-20 shadow-sm shadow-teal-500/50 flex items-center pointer-events-none">
+                        <div className="w-2.5 h-2.5 rounded-full bg-teal-500 -ml-1 ring-2 ring-white dark:ring-zinc-900" />
+                      </div>
+                    )}
+
                     {/* Track Original Index number or Checkbox in Select Mode */}
                     {isSelectMode ? (
                       <div
@@ -1428,12 +1950,20 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                         )}
                       </div>
                     ) : (
-                      <span
-                        title={`#${originalIndex}`}
-                        className="w-5 text-center text-xs font-mono font-bold text-zinc-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 shrink-0 hidden sm:inline-block"
-                      >
-                        #{originalIndex}
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div
+                          className="text-zinc-300 dark:text-zinc-600 hover:text-teal-600 dark:hover:text-teal-400 p-0.5 rounded transition-colors flex items-center justify-center cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-100"
+                          title={t("playlist.drag_to_reorder", "Перетащите, чтобы изменить порядок")}
+                        >
+                          <GripVertical className="w-3.5 h-3.5" />
+                        </div>
+                        <span
+                          title={`#${originalIndex}`}
+                          className="w-5 text-center text-xs font-mono font-bold text-zinc-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 shrink-0 hidden sm:inline-block"
+                        >
+                          #{originalIndex}
+                        </span>
+                      </div>
                     )}
 
                     {/* Video Thumbnail (Fixed 24/28 width, compact aspect-video) */}
@@ -1493,6 +2023,14 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                           </span>
                         )}
 
+                        {/* Cover Badge */}
+                        {isCover && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] font-extrabold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-3xs">
+                            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                            <span>{t("playlist.cover_badge", "Обложка")}</span>
+                          </span>
+                        )}
+
                         {/* Difficulty Badge */}
                         {lesson?.difficulty && (
                           <span
@@ -1514,10 +2052,50 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                             )}
 
                             {bookStats && (
-                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
-                                <span>•</span>
-                                <span>{bookStats.knownPct}% {t("library.understood_stat", "understood")}</span>
-                              </span>
+                              <>
+                                <span 
+                                  className="inline-flex items-center gap-1.5 font-bold"
+                                  title={t("library.tooltip_comp_bar", "Comprehension: {{pct}}% (Known: {{known}} of {{tokens}} tokens to study)", {
+                                    pct: bookStats.knownPct,
+                                    known: bookStats.knownCount,
+                                    tokens: bookStats.eligibleTokens
+                                  })}
+                                >
+                                  <span>•</span>
+                                  <span className="text-emerald-600 dark:text-emerald-400">
+                                    {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
+                                  </span>
+                                  <div
+                                    className="w-10 sm:w-12 h-1.5 rounded-full bg-sky-500/20 flex overflow-hidden shrink-0 self-center"
+                                  >
+                                    <div style={{ width: `${bookStats.knownPct}%` }} className="bg-emerald-500 h-full transition-all duration-300" />
+                                    <div style={{ width: `${bookStats.unknownPct}%` }} className="bg-sky-400 h-full transition-all duration-300" />
+                                  </div>
+                                </span>
+
+                                <span 
+                                  className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold"
+                                  title={t("library.tooltip_vocab_compact", "Vocabulary: {{pct}}% ({{unique}} lemmas out of {{total}} to study)", {
+                                    pct: bookStats.knownVocabularyPct,
+                                    unique: bookStats.uniqueKnownCount,
+                                    total: bookStats.eligibleLemmas
+                                  })}
+                                >
+                                  <span>•</span>
+                                  <span>{t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}%</span>
+                                </span>
+
+                                <span 
+                                  className="inline-flex items-center gap-1 text-sky-500 dark:text-sky-400 font-bold"
+                                  title={t("library.tooltip_new_compact", "New words: {{pct}}% ({{unique}} new unique lemmas)", {
+                                    pct: bookStats.unknownVocabularyPct,
+                                    unique: bookStats.uniqueUnknownCount
+                                  })}
+                                >
+                                  <span>•</span>
+                                  <span>{t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}%</span>
+                                </span>
+                              </>
                             )}
                           </>
                         ) : (
@@ -1535,6 +2113,22 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                       {isLoading && (
                         <Loader2 className="w-4 h-4 animate-spin text-teal-600 dark:text-teal-400 mr-1" />
                       )}
+                      {/* Set as Cover button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetCoverItem(item);
+                        }}
+                        title={isCover ? t("playlist.is_cover_item", "Главное видео (обложка)") : t("playlist.set_as_cover", "Сделать обложкой")}
+                        className={`p-1.5 rounded-xl transition-all cursor-pointer border ${
+                          isCover
+                            ? "text-amber-500 bg-amber-500/15 border-amber-500/30 opacity-100 shadow-3xs"
+                            : "text-zinc-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-transparent hover:border-amber-200 dark:hover:border-amber-800/50 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        }`}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${isCover ? "fill-amber-400 text-amber-500" : ""}`} />
+                      </button>
                       {/* Move to another playlist button */}
                       <button
                         type="button"
@@ -1586,6 +2180,17 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
             setMoveModalItems(null);
           }}
           onAddPlaylist={onAddPlaylist}
+        />
+      )}
+
+      {/* Select Cover Modal */}
+      {showCoverPicker && (
+        <SelectPlaylistCoverModal
+          isOpen={showCoverPicker}
+          onClose={() => setShowCoverPicker(false)}
+          playlist={playlist}
+          lessons={lessons}
+          onUpdatePlaylist={onUpdatePlaylist}
         />
       )}
     </div>

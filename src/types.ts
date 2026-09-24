@@ -101,6 +101,7 @@ export interface Playlist {
   itemCount: number;
   language: string; // 'es', 'en' etc.
   items: PlaylistItem[];
+  primaryItemId?: string;
   isArchived?: boolean;
   createdAt: string;
   updatedAt: string;

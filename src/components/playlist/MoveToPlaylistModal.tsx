@@ -330,9 +330,9 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                   <div className="flex items-center gap-3 min-w-0">
                     {/* Playlist Cover */}
                     <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-zinc-950 shrink-0 border border-zinc-200/60 dark:border-zinc-800/80">
-                      {pl.thumbnailUrl ? (
+                      {(pl.thumbnailUrl || pl.items?.[0]?.thumbnailUrl) ? (
                         <img
-                          src={pl.thumbnailUrl}
+                          src={pl.thumbnailUrl || pl.items?.[0]?.thumbnailUrl}
                           alt={pl.title}
                           className="w-full h-full object-cover group-hover/item:scale-105 transition-transform"
                         />

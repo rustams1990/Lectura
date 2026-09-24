@@ -71,11 +71,14 @@ export function segregatePlaylistsByLanguage(
 
     // Update original playlist with only matching items
     if (matchingItems.length !== items.length) {
+      const stillHasPrimary = pl.primaryItemId ? matchingItems.some(it => it.id === pl.primaryItemId) : false;
       updatedPlaylists.push({
         ...pl,
         items: matchingItems,
         itemCount: matchingItems.length,
         language: pl.language || plProperLang,
+        primaryItemId: stillHasPrimary ? pl.primaryItemId : (matchingItems[0]?.id || undefined),
+        thumbnailUrl: stillHasPrimary ? pl.thumbnailUrl : (matchingItems[0]?.thumbnailUrl || pl.thumbnailUrl || ""),
         updatedAt: new Date().toISOString(),
       });
     } else {

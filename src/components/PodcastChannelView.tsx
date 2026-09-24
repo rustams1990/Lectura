@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { usePodcastStore } from "../store/podcastStore";
 import { usePlaylistStore } from "../store/playlistStore";
-import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastEpisode } from "../types";
+import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastEpisode, VocabItem } from "../types";
+import { getCachedBookStats } from "./LibraryHome";
 import { useToast } from "../context/ToastContext";
 import { whisperQueueService } from "../services/whisperQueueService";
 import { formatAppDate } from "../utils/dateFormatter";
@@ -233,6 +234,8 @@ export interface EpisodeRowProps {
   importStage?: "downloading" | "transcribing" | null;
   isPlaying?: boolean;
   showPodcastTitle?: boolean;
+  vocab?: Record<string, VocabItem>;
+  wordLinks?: Record<string, string>;
   onPlay: (ep: PodcastEpisode) => void;
   onImport: (ep: PodcastEpisode) => void;
   onOpenLesson?: (lessonId: string) => void;
@@ -242,7 +245,9 @@ export interface EpisodeRowProps {
 
 export const EpisodeRow = React.memo<EpisodeRowProps>(({
   episode, podcastTitle, artworkUrl, language, lessonInfo,
-  isImporting, importStage, isPlaying, showPodcastTitle, onPlay, onImport, onOpenLesson, onToggleCompleteLesson, onOpenPodcast,
+  isImporting, importStage, isPlaying, showPodcastTitle,
+  vocab, wordLinks,
+  onPlay, onImport, onOpenLesson, onToggleCompleteLesson, onOpenPodcast,
 }) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -250,6 +255,11 @@ export const EpisodeRow = React.memo<EpisodeRowProps>(({
 
   const status = lessonInfo.status;
   const isImported = status !== "not_in_library";
+
+  const hasLessonText = Boolean(lessonInfo.lesson && typeof lessonInfo.lesson.text === "string" && lessonInfo.lesson.text.trim().length > 0);
+  const bookStats = (hasLessonText && vocab && wordLinks) ? getCachedBookStats(lessonInfo.lesson!, vocab, wordLinks) : null;
+  const wordCount = lessonInfo.lesson?.wordsCount || (lessonInfo.lesson?.text ? lessonInfo.lesson.text.trim().split(/\s+/).filter(Boolean).length : 0);
+  const formattedWordCount = wordCount >= 1000 ? `${(wordCount / 1000).toFixed(1)}k` : wordCount.toString();
 
   const handleCopyAudio = useCallback(() => {
     if (episode.audioUrl) {
@@ -387,6 +397,61 @@ export const EpisodeRow = React.memo<EpisodeRowProps>(({
             </>
           )}
 
+          {/* Word Count & Book stats if imported and text exists */}
+          {hasLessonText && wordCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400 font-medium">
+              <span>•</span>
+              <span>📚 {formattedWordCount} {t("library.words", "words")}</span>
+            </span>
+          )}
+
+          {bookStats && (
+            <>
+              <span 
+                className="inline-flex items-center gap-1.5 font-bold"
+                title={t("library.tooltip_comp_bar", "Comprehension: {{pct}}% (Known: {{known}} of {{tokens}} tokens to study)", {
+                  pct: bookStats.knownPct,
+                  known: bookStats.knownCount,
+                  tokens: bookStats.eligibleTokens
+                })}
+              >
+                <span>•</span>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {t("library.understood_stat", "Understood:")} {bookStats.knownPct}%
+                </span>
+                <div
+                  className="w-10 sm:w-12 h-1.5 rounded-full bg-sky-500/20 flex overflow-hidden shrink-0 self-center"
+                >
+                  <div style={{ width: `${bookStats.knownPct}%` }} className="bg-emerald-500 h-full transition-all duration-300" />
+                  <div style={{ width: `${bookStats.unknownPct}%` }} className="bg-sky-400 h-full transition-all duration-300" />
+                </div>
+              </span>
+
+              <span 
+                className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold"
+                title={t("library.tooltip_vocab_compact", "Vocabulary: {{pct}}% ({{unique}} lemmas out of {{total}} to study)", {
+                  pct: bookStats.knownVocabularyPct,
+                  unique: bookStats.uniqueKnownCount,
+                  total: bookStats.eligibleLemmas
+                })}
+              >
+                <span>•</span>
+                <span>{t("library.vocab_stat", "Vocabulary:")} {bookStats.knownVocabularyPct}%</span>
+              </span>
+
+              <span 
+                className="inline-flex items-center gap-1 text-sky-500 dark:text-sky-400 font-bold"
+                title={t("library.tooltip_new_compact", "New words: {{pct}}% ({{unique}} new unique lemmas)", {
+                  pct: bookStats.unknownVocabularyPct,
+                  unique: bookStats.uniqueUnknownCount
+                })}
+              >
+                <span>•</span>
+                <span>{t("library.new_stat", "New:")} {bookStats.unknownVocabularyPct}%</span>
+              </span>
+            </>
+          )}
+
           {/* Transcript badge (desktop) */}
           {(episode.hasTranscript || episode.transcriptUrl) && (
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full border border-teal-200 dark:border-teal-800" title={t("podcasts.full_transcript", "Полный интерактивный транскрипт")}>
@@ -502,6 +567,8 @@ export const EpisodeRow = React.memo<EpisodeRowProps>(({
     prev.showPodcastTitle === next.showPodcastTitle &&
     prev.lessonInfo?.status === next.lessonInfo?.status &&
     prev.lessonInfo?.lesson?.id === next.lessonInfo?.lesson?.id &&
+    prev.vocab === next.vocab &&
+    prev.wordLinks === next.wordLinks &&
     prev.onPlay === next.onPlay &&
     prev.onImport === next.onImport &&
     prev.onOpenLesson === next.onOpenLesson &&
@@ -516,6 +583,8 @@ interface PodcastChannelViewProps {
   podcast: PodcastSubscription | PodcastSearchResult;
   lessons?: Lesson[];
   history?: HistoryEntry[];
+  vocab?: Record<string, VocabItem>;
+  wordLinks?: Record<string, string>;
   selectedTargetLanguage?: string;
   onBack: () => void;
   onOpenLesson?: (lessonId: string) => void;
@@ -523,7 +592,7 @@ interface PodcastChannelViewProps {
 }
 
 export default function PodcastChannelView({
-  podcast, lessons = [], history = [], selectedTargetLanguage, onBack, onOpenLesson, onToggleCompleteLesson,
+  podcast, lessons = [], history = [], vocab = {}, wordLinks = {}, selectedTargetLanguage, onBack, onOpenLesson, onToggleCompleteLesson,
 }: PodcastChannelViewProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -954,6 +1023,8 @@ export default function PodcastChannelView({
                     isImporting={Boolean(importingEpisodes[episode.guid])}
                     importStage={importingStages[episode.guid]}
                     isPlaying={currentPlayingGuid === episode.guid}
+                    vocab={vocab}
+                    wordLinks={wordLinks}
                     onPlay={handlePlay}
                     onImport={handleImport}
                     onOpenLesson={onOpenLesson}
