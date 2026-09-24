@@ -1666,6 +1666,10 @@
   "playlist": {
     "card_badge": "≡ {{count}} videos",
     "play_all": "Play All",
+    "rename": "Rename",
+    "rename_playlist": "Rename Playlist",
+    "renamed_success": "Playlist renamed to \"{{title}}\"",
+    "title_cannot_be_empty": "Title cannot be empty",
     "delete_title": "Delete Playlist",
     "delete_confirm": "Delete playlist \"{{title}}\" and its container? Individual lessons already imported into your library will be preserved.",
     "select_playlist_label": "Playlist / Collection",

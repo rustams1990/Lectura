@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Playlist, Lesson, HistoryEntry, ReaderSettings } from "../../types";
-import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore } from "lucide-react";
+import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FLAG_EMOJI_TO_CODE } from "../../utils";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
@@ -60,6 +60,7 @@ interface PlaylistCardProps {
   onDeletePlaylist?: (id: string, e: React.MouseEvent) => void;
   onToggleArchive?: (id: string, e: React.MouseEvent) => void;
   onPlayAllPlaylist?: (playlist: Playlist, e: React.MouseEvent) => void;
+  onUpdatePlaylist?: (updated: Playlist) => void;
   languageFlags?: Record<string, string>;
   settings?: ReaderSettings;
 }
@@ -72,13 +73,33 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   onDeletePlaylist,
   onToggleArchive,
   onPlayAllPlaylist,
+  onUpdatePlaylist,
   languageFlags = {},
   settings,
 }) => {
   const { t, i18n } = useTranslation();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameTitle, setRenameTitle] = useState(playlist.title);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setRenameTitle(playlist.title);
+  }, [playlist.title]);
+
+  const handleConfirmRename = () => {
+    const trimmed = renameTitle.trim();
+    if (!trimmed) return;
+    if (trimmed !== playlist.title && onUpdatePlaylist) {
+      onUpdatePlaylist({
+        ...playlist,
+        title: trimmed,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    setShowRenameModal(false);
+  };
 
   // Close menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -184,6 +205,52 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
               className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-97 text-zinc-300 border border-zinc-700/60 font-black text-[11px] rounded-xl transition-all cursor-pointer"
             >
               {t("library.cancel", "Cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Modal Overlay */}
+      {showRenameModal && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-0 bg-zinc-950/95 backdrop-blur-md z-50 p-4 flex flex-col justify-between animate-in fade-in zoom-in-95 duration-150 text-white font-sans text-left"
+        >
+          <div className="flex flex-col flex-1 justify-center space-y-3">
+            <div className="flex items-center gap-2 text-teal-400">
+              <Pencil className="w-4 h-4" />
+              <h4 className="text-xs font-bold uppercase tracking-wider">
+                {t("playlist.rename_playlist", "Rename Playlist")}
+              </h4>
+            </div>
+            <input
+              type="text"
+              value={renameTitle}
+              onChange={(e) => setRenameTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleConfirmRename();
+                if (e.key === "Escape") setShowRenameModal(false);
+              }}
+              autoFocus
+              className="w-full px-3 py-2 text-xs font-semibold bg-zinc-900 border border-zinc-700 focus:border-teal-500 rounded-xl text-white outline-none"
+            />
+          </div>
+
+          <div className="flex gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={handleConfirmRename}
+              disabled={!renameTitle.trim()}
+              className="flex-1 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 active:scale-97 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer shadow-md"
+            >
+              {t("common.save", "Save")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowRenameModal(false)}
+              className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-97 text-zinc-300 border border-zinc-700/60 font-bold text-[11px] rounded-xl transition-all cursor-pointer"
+            >
+              {t("common.cancel", "Cancel")}
             </button>
           </div>
         </div>
@@ -354,6 +421,23 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                   >
                     <Archive className="w-3.5 h-3.5 text-zinc-400" />
                     <span>{playlist.isArchived ? t("library.restore_tooltip", "Restore to bookshelf") : t("library.archive_tooltip", "Move to archive")}</span>
+                  </button>
+                )}
+
+                {/* Rename */}
+                {onUpdatePlaylist && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      setRenameTitle(playlist.title);
+                      setShowRenameModal(true);
+                    }}
+                    className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>{t("playlist.rename", "Rename")}</span>
                   </button>
                 )}
 

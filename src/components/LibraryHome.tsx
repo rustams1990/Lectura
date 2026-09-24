@@ -1391,6 +1391,7 @@ function LibraryHome({
                 onDeletePlaylist={onDeletePlaylist}
                 onToggleArchive={onToggleArchivePlaylist}
                 onPlayAllPlaylist={onPlayAllPlaylist}
+                onUpdatePlaylist={onUpdatePlaylist}
                 languageFlags={languageFlags}
                 settings={settings}
               />

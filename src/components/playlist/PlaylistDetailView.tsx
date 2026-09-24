@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Playlist, PlaylistItem, Lesson, ReaderSettings, HistoryEntry, VocabItem } from "../../types";
 import {
   ArrowLeft, Play, BookOpen, Headphones, Trash2, CheckCircle2,
   Clock, ExternalLink, Loader2, Sparkles, AlertCircle, Share2,
   ListVideo, RefreshCw, Archive, ArchiveRestore, ArrowUpDown, Search, ChevronDown, Plus, CheckSquare, Square, Check,
-  FolderInput, X
+  FolderInput, X, Pencil
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
@@ -113,6 +113,40 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   const [filterQuery, setFilterQuery] = useState("");
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitleValue, setEditingTitleValue] = useState(playlist.title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setEditingTitleValue(playlist.title);
+  }, [playlist.title]);
+
+  useEffect(() => {
+    if (isEditingTitle) {
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+        titleInputRef.current?.select();
+      }, 50);
+    }
+  }, [isEditingTitle]);
+
+  const handleSaveTitle = () => {
+    const trimmed = editingTitleValue.trim();
+    if (!trimmed) {
+      showToast(t("playlist.title_cannot_be_empty", "Title cannot be empty"), "error");
+      return;
+    }
+    if (trimmed !== playlist.title) {
+      const updated: Playlist = {
+        ...playlist,
+        title: trimmed,
+        updatedAt: new Date().toISOString(),
+      };
+      onUpdatePlaylist(updated);
+      showToast(t("playlist.renamed_success", "Playlist renamed to \"{{title}}\"", { title: trimmed }), "success");
+    }
+    setIsEditingTitle(false);
+  };
 
   const items = playlist.items || [];
   const localizedLang = getLocalizedLanguageName(playlist.language, i18n.language);
@@ -939,9 +973,58 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 )}
               </div>
 
-              <h1 className="text-xl sm:text-2xl font-bold text-zinc-950 dark:text-white leading-tight tracking-tight">
-                {playlist.title}
-              </h1>
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2 pt-1 w-full">
+                  <input
+                    ref={titleInputRef}
+                    type="text"
+                    value={editingTitleValue}
+                    onChange={(e) => setEditingTitleValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveTitle();
+                      if (e.key === "Escape") setIsEditingTitle(false);
+                    }}
+                    className="flex-1 min-w-0 px-3 py-1.5 text-base sm:text-lg font-bold bg-white dark:bg-zinc-900 border border-teal-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-zinc-950 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTitle}
+                    disabled={!editingTitleValue.trim()}
+                    className="p-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-xl transition cursor-pointer shrink-0 shadow-sm"
+                    title={t("common.save", "Save")}
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTitleValue(playlist.title);
+                      setIsEditingTitle(false);
+                    }}
+                    className="p-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-xl transition cursor-pointer shrink-0"
+                    title={t("common.cancel", "Cancel")}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group/pl-title">
+                  <h1 className="text-xl sm:text-2xl font-bold text-zinc-950 dark:text-white leading-tight tracking-tight">
+                    {playlist.title}
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTitleValue(playlist.title);
+                      setIsEditingTitle(true);
+                    }}
+                    className="opacity-60 group-hover/pl-title:opacity-100 hover:!opacity-100 p-1.5 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800 rounded-lg transition cursor-pointer shrink-0"
+                    title={t("playlist.rename", "Rename playlist")}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
 
               {playlist.channelTitle && (
                 <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">

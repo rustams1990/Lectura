@@ -1666,6 +1666,10 @@
   "playlist": {
     "card_badge": "≡ {{count}} видео",
     "play_all": "Слушать всё",
+    "rename": "Переименовать",
+    "rename_playlist": "Переименовать плейлист",
+    "renamed_success": "Плейлист переименован в «{{title}}»",
+    "title_cannot_be_empty": "Название не может быть пустым",
     "delete_title": "Удалить плейлист",
     "delete_confirm": "Удалить плейлист «{{title}}»? Уже загруженные книги останутся в вашей библиотеке.",
     "select_playlist_label": "Плейлист / Коллекция",
