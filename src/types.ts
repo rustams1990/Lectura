@@ -241,6 +241,7 @@ export interface ReaderSettings {
   bookWordCardMode?: WordCardMode; // specific override for book mode (default "calm-sheet")
   readerLayoutWidth?: "standard" | "wide" | "full";
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
+  autoPlayNextLesson?: boolean; // When true, automatically transitions to next lesson upon completion (default: true)
 }
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
@@ -290,6 +291,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   showTimestamps: true,
   cjkWordSpacing: false,
   toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
+  autoPlayNextLesson: true,
 };
 
 export type WordCardViewType = 'inspector' | 'floating' | 'sheet';

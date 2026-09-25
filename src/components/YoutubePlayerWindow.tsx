@@ -5,6 +5,8 @@ import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
 import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
+import { useToast } from "../context/ToastContext";
+import { useBingeQueueStore } from "../store/useBingeQueueStore";
 
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
@@ -20,6 +22,7 @@ export default function YoutubePlayerWindow({
   onVideoEnded,
 }: YoutubePlayerWindowProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { setCurrentTime, seekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
   const lastTickTimeRef = useRef<number | null>(null);
@@ -56,6 +59,7 @@ export default function YoutubePlayerWindow({
   const lastStorageSaveTimeRef = useRef<number>(0);
   const hasRestoredPositionRef = useRef<boolean>(false);
   const initialSeekTargetRef = useRef<number>(0);
+  const isEndedRef = useRef<boolean>(false);
 
   // Parse saved progress
   const parseSavedVideoProgress = (raw: string | null): number => {
@@ -76,7 +80,9 @@ export default function YoutubePlayerWindow({
   };
 
   const saveProgressNow = (time: number) => {
-    if (time === undefined || isNaN(time) || time <= 2) return;
+    if (isEndedRef.current || time === undefined || isNaN(time) || time <= 2) return;
+    const dur = Math.round(playerRef.current?.getDuration?.() || videoElRef.current?.duration || lesson.duration || 0);
+    if (dur > 0 && time >= dur - 2) return;
     try {
       const seconds = Math.floor(time);
       const updatedAt = Date.now();
@@ -409,6 +415,7 @@ export default function YoutubePlayerWindow({
                 }
 
                 if (state === 0 || (YTStates && state === YTStates.ENDED)) {
+                  isEndedRef.current = true;
                   try {
                     const dur = Math.round(playerRef.current?.getDuration?.() || lesson.duration || 0);
                     if (onListeningTick && dur > 0) {
@@ -417,6 +424,18 @@ export default function YoutubePlayerWindow({
                     localStorage.removeItem(`youtube_progress_${lesson.id}`);
                     settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
                     window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));
+
+                    const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                    const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                    const headers: Record<string, string> = { "Content-Type": "application/json" };
+                    if (token) headers["Authorization"] = `Bearer ${token}`;
+                    if (syncKey) headers["x-sync-key"] = syncKey;
+                    fetch("/api/progress", {
+                      method: "POST",
+                      headers,
+                      keepalive: true,
+                      body: JSON.stringify({ type: "video", lessonId: lesson.id, progress: 0, updatedAt: Date.now() })
+                    }).catch(() => {});
                   } catch (e) {}
                   if (onVideoEnded) onVideoEnded();
                 }
@@ -453,10 +472,11 @@ export default function YoutubePlayerWindow({
       }
       (window as any).getYoutubeCurrentTime = null;
 
-      if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+      if (!isEndedRef.current && playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
         try {
           const time = playerRef.current.getCurrentTime();
-          if (time !== undefined && !isNaN(time)) {
+          const dur = Math.round(playerRef.current?.getDuration?.() || lesson.duration || 0);
+          if (time !== undefined && !isNaN(time) && (dur <= 0 || time < dur - 2)) {
             saveProgressNow(time);
           }
         } catch (e) {}
@@ -480,13 +500,48 @@ export default function YoutubePlayerWindow({
       if (useLocalMedia && videoElRef.current) {
         try {
           videoElRef.current.currentTime = effectiveSeek;
-          videoElRef.current.play().catch(() => {});
+          videoElRef.current.play().catch((err) => {
+            console.error("Playback error:", err);
+            useBingeQueueStore.getState().setAutoplayBlocked(true);
+            showToast(
+              t(
+                "reader.autoplay_blocked_toast",
+                "Autoplay was blocked by the browser. Please interact with the page to enable playback."
+              ),
+              "info"
+            );
+          });
         } catch (e) {}
       } else if (playerRef.current && typeof playerRef.current.seekTo === "function") {
         try {
           playerRef.current.seekTo(effectiveSeek, true);
           if (typeof playerRef.current.playVideo === "function") {
-            playerRef.current.playVideo();
+            try {
+              const res = playerRef.current.playVideo();
+              if (res && typeof res.catch === "function") {
+                res.catch((err: any) => {
+                  console.error("Playback error:", err);
+                  useBingeQueueStore.getState().setAutoplayBlocked(true);
+                  showToast(
+                    t(
+                      "reader.autoplay_blocked_toast",
+                      "Autoplay was blocked by the browser. Please interact with the page to enable playback."
+                    ),
+                    "info"
+                  );
+                });
+              }
+            } catch (playErr) {
+              console.error("playVideo error:", playErr);
+              useBingeQueueStore.getState().setAutoplayBlocked(true);
+              showToast(
+                t(
+                  "reader.autoplay_blocked_toast",
+                  "Autoplay was blocked by the browser. Please interact with the page to enable playback."
+                ),
+                "info"
+              );
+            }
           }
         } catch (e) {
           console.error("Seeking YouTube video failed:", e);
@@ -979,6 +1034,7 @@ export default function YoutubePlayerWindow({
                 }
               }}
               onEnded={() => {
+                isEndedRef.current = true;
                 try {
                   const total = Math.round(videoElRef.current?.duration || lesson.duration || 0);
                   if (onListeningTick && total > 0) {
@@ -987,6 +1043,18 @@ export default function YoutubePlayerWindow({
                   localStorage.removeItem(`youtube_progress_${lesson.id}`);
                   settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
                   window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));
+
+                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (token) headers["Authorization"] = `Bearer ${token}`;
+                  if (syncKey) headers["x-sync-key"] = syncKey;
+                  fetch("/api/progress", {
+                    method: "POST",
+                    headers,
+                    keepalive: true,
+                    body: JSON.stringify({ type: "video", lessonId: lesson.id, progress: 0, updatedAt: Date.now() })
+                  }).catch(() => {});
                 } catch (e) {}
                 if (onVideoEnded) onVideoEnded();
               }}

@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useRef } from "react";
 import { Lesson, ReaderSettings, Playlist } from "../../types";
-import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore, Play } from "lucide-react";
+import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore, Play, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { getCategoryIcon, getCategoryDisplayName } from "../ImportLessonForm";
@@ -58,6 +58,9 @@ interface BookCardProps {
   onPlaySingleLesson?: (lesson: Lesson) => void;
   onSetDeletingLessonId: (id: string | null) => void;
   onToggleMenu: (id: string | null) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const BookCard: React.FC<BookCardProps> = memo(({
@@ -88,6 +91,9 @@ export const BookCard: React.FC<BookCardProps> = memo(({
   onPlaySingleLesson,
   onSetDeletingLessonId,
   onToggleMenu,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }) => {
   const { t, i18n } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -147,10 +153,28 @@ export const BookCard: React.FC<BookCardProps> = memo(({
     if (typeof (lesson as any).videoProgress === "string" && parseFloat((lesson as any).videoProgress) > 0) {
       return parseFloat((lesson as any).videoProgress);
     }
-    const stored = typeof localStorage !== "undefined" ? localStorage.getItem(`youtube_progress_${lesson.id}`) : null;
-    if (stored) {
-      const val = parseFloat(stored);
+    const parseProg = (raw: string | null): number => {
+      if (!raw) return 0;
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === "number") return parsed;
+        if (parsed && typeof parsed === "object" && parsed.progress !== undefined) {
+          const val = parseFloat(parsed.progress);
+          return !isNaN(val) ? val : 0;
+        }
+      } catch (_) {}
+      const val = parseFloat(raw);
       return isNaN(val) ? 0 : val;
+    };
+    if (typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem(`youtube_progress_${lesson.id}`);
+      const val = parseProg(stored);
+      if (val > 0) return val;
+      if (lesson.youtubeId) {
+        const storedYt = localStorage.getItem(`youtube_progress_${lesson.youtubeId}`);
+        const ytVal = parseProg(storedYt);
+        if (ytVal > 0) return ytVal;
+      }
     }
     return 0;
   })();
@@ -203,13 +227,42 @@ export const BookCard: React.FC<BookCardProps> = memo(({
   return (
     <div
       id={`book-card-${lesson.id}`}
-      onClick={() => onSelectLesson(lesson.id)}
+      onClick={() => {
+        if (isSelectionMode && onToggleSelect) {
+          onToggleSelect(lesson.id);
+        } else {
+          onSelectLesson(lesson.id);
+        }
+      }}
       className={`group relative bg-white dark:bg-zinc-900 rounded-2xl border ${
-        lesson.pinned
+        isSelected
+          ? "border-teal-500 ring-2 ring-teal-500 shadow-md bg-teal-50/15 dark:bg-teal-950/20"
+          : lesson.pinned
           ? "border-amber-400 dark:border-amber-500/55 shadow-sm shadow-amber-100/10 ring-1 ring-amber-400/20"
           : "border-zinc-200 dark:border-zinc-800"
-      } hover:border-teal-200 dark:hover:border-teal-950 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden`}
+      } hover:border-teal-300 dark:hover:border-teal-800 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden`}
     >
+      {/* Selection Checkbox */}
+      {isSelectionMode && (
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.(lesson.id);
+          }}
+          className="absolute top-2.5 left-2.5 z-30 flex items-center justify-center cursor-pointer transition-transform active:scale-90"
+        >
+          <div
+            className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all shadow-md ${
+              isSelected
+                ? "bg-teal-600 border-teal-600 text-white"
+                : "bg-white/95 dark:bg-zinc-900/95 border-zinc-300 dark:border-zinc-600 text-transparent hover:border-teal-500"
+            }`}
+          >
+            <Check className="w-3.5 h-3.5 stroke-[3]" />
+          </div>
+        </div>
+      )}
+
       {/* Book spine decorative border (only for books) */}
       {isBook && (
         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-black/20 via-transparent to-black/20 z-10 pointer-events-none" />

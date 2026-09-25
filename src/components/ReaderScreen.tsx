@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages, List, Clock } from "lucide-react";
+import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages, List, Clock, FastForward } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
@@ -8,6 +8,8 @@ import WordDetailContainer from "./WordDetailContainer";
 import WordExplainer from "./WordExplainer";
 import FloatingWordPopup from "./FloatingWordPopup";
 import AiHubModal from "./AiHubModal";
+import { NextLessonCountdownOverlay } from "./reader/NextLessonCountdownOverlay";
+import { useBingeQueueStore } from "../store/useBingeQueueStore";
 import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBILITY, ReaderToolbarVisibility, WordCardViewType, normalizeWordCardView, isVideoLesson } from "../types";
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
@@ -99,6 +101,16 @@ export default function ReaderScreen({
     setBookReaderView,
   } = useUIStore();
   const { t } = useTranslation();
+  const countdownState = useBingeQueueStore((s) => s.countdownState);
+  const triggerImmediate = useBingeQueueStore((s) => s.triggerImmediate);
+  const cancelCountdown = useBingeQueueStore((s) => s.cancelCountdown);
+
+  // Cancel countdown when leaving reader or unmounting
+  useEffect(() => {
+    return () => {
+      useBingeQueueStore.getState().cancelCountdown();
+    };
+  }, []);
   const { selectedElement, selectedWordRect } = useVocab();
   const storeCardMode = useSettingsStore((s) => s.wordCardMode);
   const appearanceCardMode = useAppearanceStore((s) => s.wordCardMode);
@@ -415,21 +427,18 @@ export default function ReaderScreen({
                     {toolbarVisibility.showTimestampsToggle !== false && !isBookLesson && activeLesson?.sourceType !== 'book' && activeLesson?.sourceType !== 'article' && activeLesson?.lessonType !== 'article' && Boolean(activeLesson && (activeLesson.youtubeId || activeLesson.audioUrl || activeLesson.audioBase64 || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "podcast" || activeLesson.lessonType === "audio" || /\b(\d{1,2}:)?\d{1,2}:\d{2}\b/.test(activeLesson.text))) && (
                       <button
                         onClick={() =>
-                          setReaderSettings((prev) => {
-                            const prevVal = prev.showTimestamps === undefined ? true : (prev.showTimestamps === "false" ? false : Boolean(prev.showTimestamps));
-                            return {
-                              ...prev,
-                              showTimestamps: !prevVal,
-                            };
-                          })
+                          setReaderSettings((prev) => ({
+                            ...prev,
+                            showTimestamps: prev.showTimestamps === undefined ? false : !prev.showTimestamps,
+                          }))
                         }
                         className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                          (readerSettings.showTimestamps === undefined ? true : (readerSettings.showTimestamps === "false" ? false : Boolean(readerSettings.showTimestamps)))
+                          readerSettings.showTimestamps !== false
                             ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
                             : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
                         }`}
                         title={
-                          (readerSettings.showTimestamps === undefined ? true : (readerSettings.showTimestamps === "false" ? false : Boolean(readerSettings.showTimestamps)))
+                          readerSettings.showTimestamps !== false
                             ? t('reader.hide_timestamps_title', 'Hide timestamps')
                             : t('reader.show_timestamps_title', 'Show timestamps')
                         }
@@ -438,6 +447,30 @@ export default function ReaderScreen({
                         <span>{t('reader.timestamps_btn', 'Timestamps')}</span>
                       </button>
                     )}
+
+                    {/* Auto-play Next Lesson Toggle */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setReaderSettings((prev) => ({
+                          ...prev,
+                          autoPlayNextLesson: prev.autoPlayNextLesson === undefined ? false : !prev.autoPlayNextLesson,
+                        }))
+                      }
+                      className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        readerSettings.autoPlayNextLesson !== false
+                          ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
+                          : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                      }`}
+                      title={
+                        readerSettings.autoPlayNextLesson !== false
+                          ? t("reader.autoplay_next_lesson_on", "Auto-play next lesson: On")
+                          : t("reader.autoplay_next_lesson_off", "Auto-play next lesson: Off")
+                      }
+                    >
+                      <FastForward className="w-3.5 h-3.5" />
+                      <span>{t("reader.autoplay_next_lesson", "Auto-play")}</span>
+                    </button>
                   </div>
 
                   {/* Right items group (Display Mode, Width, Text Settings AA) */}
@@ -783,6 +816,21 @@ export default function ReaderScreen({
         readerSettings={readerSettings}
         t={t}
         currentReaderTheme={currentReaderTheme}
+      />
+
+      {/* Next Lesson Auto-play Countdown Overlay */}
+      <NextLessonCountdownOverlay
+        isOpen={countdownState.active}
+        nextLesson={countdownState.nextLesson}
+        isLastInPlaylist={countdownState.isLastInPlaylist}
+        playlistTitle={countdownState.playlistTitle}
+        secondsRemaining={countdownState.secondsRemaining}
+        onPlayNow={triggerImmediate}
+        onCancel={cancelCountdown}
+        onBackToLibrary={() => {
+          cancelCountdown();
+          setActiveTab("library");
+        }}
       />
     </>
   );

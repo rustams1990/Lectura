@@ -65,6 +65,7 @@ export default function FocusPinnedPlayer({
   const lastContextTimeRef = useRef<number>(0);
   const lastTickRef = useRef<number | null>(null);
   const lastStorageSaveRef = useRef<number>(0);
+  const isEndedRef = useRef<boolean>(false);
 
   if (!youtubeId) return null;
 
@@ -101,7 +102,9 @@ export default function FocusPinnedPlayer({
   };
 
   const saveNow = (time: number) => {
-    if (time == null || isNaN(time) || time <= 2) return;
+    if (isEndedRef.current || time == null || isNaN(time) || time <= 2) return;
+    const dur = Math.round(playerRef.current?.getDuration?.() || videoElRef.current?.duration || lesson.duration || 0);
+    if (dur > 0 && time >= dur - 2) return;
     try {
       const sec = Math.floor(time);
       const updatedAt = Date.now();
@@ -348,6 +351,7 @@ export default function FocusPinnedPlayer({
                   stopTracking();
                 }
                 if (state === 0 || (YTStates && state === YTStates.ENDED)) {
+                  isEndedRef.current = true;
                   try {
                     const dur = Math.round(playerRef.current?.getDuration?.() || lesson.duration || 0);
                     if (onListeningTick && dur > 0) {
@@ -360,6 +364,17 @@ export default function FocusPinnedPlayer({
                         detail: { lessonId: lesson.id, videoProgress: "0" },
                       })
                     );
+                    const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                    const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                    const headers: Record<string, string> = { "Content-Type": "application/json" };
+                    if (token) headers["Authorization"] = `Bearer ${token}`;
+                    if (syncKey) headers["x-sync-key"] = syncKey;
+                    fetch("/api/progress", {
+                      method: "POST",
+                      headers,
+                      keepalive: true,
+                      body: JSON.stringify({ type: "video", lessonId: lesson.id, progress: 0, updatedAt: Date.now() }),
+                    }).catch(() => {});
                   } catch {}
                   onVideoEnded?.();
                 }
@@ -387,7 +402,15 @@ export default function FocusPinnedPlayer({
       dead = true;
       if (initTimeoutRef.current) clearTimeout(initTimeoutRef.current);
       if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
-      try { if (playerRef.current?.getCurrentTime) saveNow(playerRef.current.getCurrentTime()); } catch {}
+      try {
+        if (!isEndedRef.current && playerRef.current?.getCurrentTime) {
+          const time = playerRef.current.getCurrentTime();
+          const dur = Math.round(playerRef.current?.getDuration?.() || lesson.duration || 0);
+          if (time !== undefined && !isNaN(time) && (dur <= 0 || time < dur - 2)) {
+            saveNow(time);
+          }
+        }
+      } catch {}
       try {
         if (playerRef.current?.destroy) { playerRef.current.destroy(); playerRef.current = null; }
       } catch {}
@@ -636,6 +659,7 @@ export default function FocusPinnedPlayer({
                 }
               }}
               onEnded={() => {
+                isEndedRef.current = true;
                 try {
                   const total = Math.round(videoElRef.current?.duration || lesson.duration || 0);
                   if (onListeningTick && total > 0) {
@@ -644,6 +668,18 @@ export default function FocusPinnedPlayer({
                   localStorage.removeItem(`youtube_progress_${lesson.id}`);
                   settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
                   window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));
+
+                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (token) headers["Authorization"] = `Bearer ${token}`;
+                  if (syncKey) headers["x-sync-key"] = syncKey;
+                  fetch("/api/progress", {
+                    method: "POST",
+                    headers,
+                    keepalive: true,
+                    body: JSON.stringify({ type: "video", lessonId: lesson.id, progress: 0, updatedAt: Date.now() }),
+                  }).catch(() => {});
                 } catch (e) {}
                 if (onVideoEnded) onVideoEnded();
               }}

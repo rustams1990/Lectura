@@ -8,7 +8,7 @@ import ReaderScreen from "./components/ReaderScreen";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
-import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist, DEFAULT_TOOLBAR_VISIBILITY, DEFAULT_READER_SETTINGS, isVideoLesson } from "./types";
+import { Lesson, LessonType, VocabItem, WordStatus, AppStats, ReaderSettings, HistoryEntry, Playlist, PlaylistItem, DEFAULT_TOOLBAR_VISIBILITY, DEFAULT_READER_SETTINGS, isVideoLesson } from "./types";
 import { BUILT_IN_LESSONS, DEFAULT_LESSON_TYPES, ensureDefaultLessonTypes } from "./data";
 import AppSidebar from "./components/layout/AppSidebar";
 import AppHeader from "./components/layout/AppHeader";
@@ -53,6 +53,8 @@ import InAppUpdateModal from "./components/InAppUpdateModal";
 import PodcastsPage from "./components/PodcastsPage";
 import { checkForGitHubUpdate, GitHubReleaseInfo } from "./services/inAppUpdaterService";
 import { usePlaylistStore } from "./store/playlistStore";
+import { useBingeQueueStore } from "./store/useBingeQueueStore";
+import { calculateNextBingeLesson } from "./utils/bingeQueueUtils";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History, Mic2 } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem, getUIPreviewCache, saveUIPreviewCache, normalizeLanguage, getActiveMediaCurrentTime, generateHistoryId } from "./utils";
 import { resolveApiUrl } from "./utils/apiConfig";
@@ -680,13 +682,14 @@ export default function App() {
       const todayDateStr = new Date().toLocaleDateString("en-CA");
 
       // Resolve primary tag and additional tags with inheritance: targetLesson -> parent playlist
-      const matchingPlaylist = targetLesson.playlistId ? playlists.find((p) => p.id === targetLesson.playlistId) : null;
-      const resolvedPrimaryTag = targetLesson.primaryTag || matchingPlaylist?.primaryTag || (targetLesson.tags && targetLesson.tags.length > 0 ? targetLesson.tags[0] : null);
+      const targetLessonAny = targetLesson as any;
+      const matchingPlaylist = targetLessonAny.playlistId ? playlists.find((p) => p.id === targetLessonAny.playlistId) : null;
+      const resolvedPrimaryTag = targetLessonAny.primaryTag || matchingPlaylist?.primaryTag || (targetLessonAny.tags && targetLessonAny.tags.length > 0 ? targetLessonAny.tags[0] : null);
       const resolvedTags = Array.from(new Set([
-        ...(targetLesson.tags || []),
+        ...(targetLessonAny.tags || []),
         ...(matchingPlaylist?.tags || []),
         ...(matchingPlaylist?.primaryTag ? [matchingPlaylist.primaryTag] : []),
-        ...(targetLesson.primaryTag ? [targetLesson.primaryTag] : [])
+        ...(targetLessonAny.primaryTag ? [targetLessonAny.primaryTag] : [])
       ])).filter(Boolean);
 
       const targetIndex = prev.findIndex((h) => {
@@ -1768,20 +1771,11 @@ export default function App() {
                 return true;
               });
 
-            // Preserve only very recent local sessions (created in the last 10s) not yet sent to server
-            const serverIds = new Set(cleanServerHistory.map((h: HistoryEntry) => h.id));
-            const now = Date.now();
-            const recentUnsynced = historyRef.current.filter((localItem) => {
-              if (serverIds.has(localItem.id)) return false;
-              if (cleanServerHistory.some((srv: HistoryEntry) => 
-                ((srv as any).guid && (localItem as any).guid === (srv as any).guid) ||
-                (srv.lessonId && localItem.lessonId === srv.lessonId)
-              )) return false;
-              const itemTime = new Date(localItem.timestamp).getTime() || 0;
-              return (now - itemTime < 10000) && (localItem.durationSeconds || 0) > 0;
-            });
-
-            const cleanHistory = dedupeHistory([...recentUnsynced, ...cleanServerHistory]);
+            // Smart history merge: combine local in-memory history with server history.
+            // dedupeHistory automatically preserves completed status and the maximum duration.
+            const activeDeletedIds = new Set(pendingSyncDeletedHistoryRef.current);
+            const cleanHistory = dedupeHistory([...historyRef.current, ...cleanServerHistory])
+              .filter((h) => !activeDeletedIds.has(h.id));
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
@@ -1799,8 +1793,22 @@ export default function App() {
           if (d.videoProgress && typeof d.videoProgress === "object") {
             for (const [lessonId, val] of Object.entries(d.videoProgress)) {
               if (val !== undefined && val !== null) {
-                safeLocalStorageSetItem(`youtube_progress_${lessonId}`, String(val));
-                settingsStore.setItem(`youtube_progress_${lessonId}`, String(val)).catch(() => {});
+                const isLessonCompleted =
+                  cleanHistory.some(
+                    (h) =>
+                      (h.lessonId === lessonId || h.id === lessonId || h.guid === lessonId) &&
+                      (h.status === "completed" || h.actionType === "complete" || (h.progressPercent !== undefined && h.progressPercent >= 95))
+                  ) ||
+                  localStorage.getItem(`vocab_progress_${lessonId}`) === "100" ||
+                  (d.readingProgress && typeof d.readingProgress === "object" && (d.readingProgress[lessonId] === "100" || (d.readingProgress[lessonId] as any)?.progress === 100));
+
+                if (isLessonCompleted) {
+                  localStorage.removeItem(`youtube_progress_${lessonId}`);
+                  settingsStore.removeItem(`youtube_progress_${lessonId}`).catch(() => {});
+                } else {
+                  safeLocalStorageSetItem(`youtube_progress_${lessonId}`, String(val));
+                  settingsStore.setItem(`youtube_progress_${lessonId}`, String(val)).catch(() => {});
+                }
               }
             }
           }
@@ -3684,6 +3692,9 @@ export default function App() {
   const handleMediaEnded = (targetLesson: Lesson) => {
     if (!targetLesson || !targetLesson.id) return;
     safeLocalStorageSetItem(`vocab_progress_${targetLesson.id}`, "100");
+    if (targetLesson.youtubeId) {
+      safeLocalStorageSetItem(`vocab_progress_${targetLesson.youtubeId}`, "100");
+    }
     setLessons((prev) => {
       let changed = false;
       const next = prev.map((l) => {
@@ -3699,7 +3710,39 @@ export default function App() {
       }
       return changed ? next : prev;
     });
-    recordHistoryActivity(targetLesson, "complete");
+    recordHistoryActivity(targetLesson, "complete", undefined, undefined, true);
+
+    // Binge Auto-play Queue Flow
+    if (readerSettings.autoPlayNextLesson !== false) {
+      useBingeQueueStore.getState().setAutoplayBlocked(false);
+      const queueContext = useBingeQueueStore.getState().queueContext;
+      const { nextLesson, isLastInPlaylist, playlistTitle } = calculateNextBingeLesson(
+        targetLesson,
+        lessonsRef.current,
+        playlists,
+        queueContext
+      );
+
+      if (isLastInPlaylist) {
+        useBingeQueueStore.getState().showPlaylistCompleted(playlistTitle);
+      } else if (nextLesson) {
+        useBingeQueueStore.getState().startCountdown(nextLesson, () => {
+          setSelectedPlaylistId(null);
+          setActiveLessonId(nextLesson.id);
+          setSelectedWord(null);
+          setActiveTab("read");
+          safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", nextLesson.id);
+          try {
+            const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+            const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            if (syncKey) headers["x-sync-key"] = syncKey;
+            fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: nextLesson.id }) }).catch(() => {});
+          } catch (_) {}
+        });
+      }
+    }
   };
 
   // Clean up listening buffer on unmount

@@ -718,7 +718,7 @@ export default function CalmSheetWordCard({
           type="button"
           onClick={() => handleStatusChange("ignored")}
           className={`flex-1 h-8 rounded-full text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
-            currentStatus === "ignored" || currentStatus === "0"
+            currentStatus === "ignored" || (currentStatus as any) === "0"
               ? "bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-400 font-extrabold"
               : "text-slate-500 dark:text-zinc-400 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
           }`}

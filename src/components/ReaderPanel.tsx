@@ -443,7 +443,7 @@ function ReaderPanel({
       idiomHighlightStyle: settings?.idiomHighlightStyle || "badge",
       showProgressBar: settings?.showProgressBar !== false,
       showSentenceTranslations: !!settings?.showSentenceTranslations,
-      showTimestamps: settings?.showTimestamps === undefined ? true : (settings?.showTimestamps === "false" ? false : Boolean(settings?.showTimestamps)),
+      showTimestamps: settings?.showTimestamps !== false,
       cjkWordSpacing: !!settings?.cjkWordSpacing,
       readerViewStyle: appearance.readerViewStyle || resolved.readerViewStyle,
       wordCardMode: resolved.wordCardMode,
@@ -909,7 +909,7 @@ function ReaderPanel({
 
   const getPhraseTextColorClass = (status: WordStatus) => {
     switch (status) {
-      case "0":
+      case "0" as any:
       case "new" as any:
         return "text-rose-600 dark:text-rose-400";
       case "1":
@@ -1875,7 +1875,7 @@ function ReaderPanel({
                     styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 font-bold bg-teal-500/15 rounded px-0.5`;
                   }
                 } else {
-                  if (status === "0" || (status as any) === "new") {
+                  if ((status as any) === "0" || (status as any) === "new") {
                     styleClass = `bg-[#f8b4be]/45 dark:bg-rose-950/60 hover:bg-[#f8b4be]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded-[3px] px-1 py-0.5 leading-tight font-medium ${borderClass} cursor-pointer transition-colors`;
                   } else if (status === "1") {
                     styleClass = `bg-[#f3a4b0]/45 dark:bg-rose-950/60 hover:bg-[#f3a4b0]/70 dark:hover:bg-rose-900/60 text-rose-950 dark:text-rose-300 rounded-[3px] px-1 py-0.5 leading-tight font-medium ${borderClass} cursor-pointer transition-colors`;

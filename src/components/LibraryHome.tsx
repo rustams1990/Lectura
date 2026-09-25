@@ -1,6 +1,6 @@
 import React, { useState, useMemo, memo, useRef, useEffect, useCallback } from "react";
 import { Lesson, LessonType, VocabItem, AppStats, ReaderSettings, HistoryEntry, LanguageListeningStat, Playlist } from "../types";
-import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones, LayoutGrid, X, MoreVertical, ListVideo } from "lucide-react";
+import { Search, BookOpen, Plus, Trash2, BookMarked, Sparkles, Filter, Archive, Check, Pencil, Pin, RefreshCw, TrendingUp, Lightbulb, Flame, ArrowRight, Loader2, ChevronUp, ChevronDown, Headphones, LayoutGrid, X, MoreVertical, ListVideo, CheckSquare } from "lucide-react";
 import { ICON_MAP, getCategoryIcon, getCategoryDisplayName } from "./ImportLessonForm";
 import { normalizeContraction, safeLocalStorageSetItem, FLAG_EMOJI_TO_CODE, dedupeHistory, getUIPreviewCache, saveUIPreviewCache, normalizeLanguage } from "../utils";
 import { getLocalizedLanguageName } from "../utils/stringUtils";
@@ -19,6 +19,12 @@ import LevelFilterDropdown, { DifficultyGroup } from "./library/LevelFilterDropd
 import { useLessonStore } from "../store/useLessonStore";
 import { getLessonEffectiveDuration } from "../utils/durationUtils";
 import { computePlaylistDifficultyRange, playlistMatchesDifficultyFilter } from "../utils/playlistDifficultyUtils";
+import { useLibraryStore } from "../store/useLibraryStore";
+import { LibraryBatchActionBar } from "./library/LibraryBatchActionBar";
+import { BatchTagModal } from "./library/BatchTagModal";
+import { BatchPlaylistModal } from "./library/BatchPlaylistModal";
+import { useBingeQueueStore } from "../store/useBingeQueueStore";
+import { resolveApiUrl } from "../utils/apiConfig";
 
 
 export function getDifficultyBadgeStyles(_level?: string) {
@@ -1354,6 +1360,198 @@ function LibraryHome({
     setCurrentPage(1);
   }, [searchQuery, selectedLanguage, filterType, selectedLessonType, selectedTag, selectedDifficulty, showArchived]);
 
+  const {
+    isSelectionMode,
+    selectedBookIds,
+    isBatchLoading,
+    setSelectionMode,
+    toggleSelectionMode,
+    toggleBookSelection,
+    selectAll,
+    clearSelection,
+    setIsBatchLoading,
+  } = useLibraryStore();
+
+  const [batchModalState, setBatchModalState] = useState<{
+    type: "addTag" | "setPrimaryTag" | "movePlaylist" | null;
+  }>({ type: null });
+
+  // Escape key exits selection mode or closes batch modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isSelectionMode) {
+        if (batchModalState.type) {
+          setBatchModalState({ type: null });
+        } else {
+          setSelectionMode(false);
+          clearSelection();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSelectionMode, batchModalState.type, setSelectionMode, clearSelection]);
+
+  // When filters or search change, clear selection so hidden items aren't accidentally modified
+  useEffect(() => {
+    if (selectedBookIds.length > 0) {
+      clearSelection();
+    }
+  }, [searchQuery, selectedLanguage, filterType, selectedLessonType, selectedTag, selectedDifficulty, showArchived, currentPage, clearSelection]);
+
+  // Clear selection on unmount
+  useEffect(() => {
+    return () => {
+      clearSelection();
+    };
+  }, [clearSelection]);
+
+  const visibleLessonIds = useMemo(() => paginatedLessons.map((l) => l.id), [paginatedLessons]);
+  const isAllSelected = visibleLessonIds.length > 0 && visibleLessonIds.every((id) => selectedBookIds.includes(id));
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      clearSelection();
+    } else {
+      selectAll(visibleLessonIds);
+    }
+  };
+
+  const executeBatchAction = async (
+    action: "addTag" | "removeTag" | "setPrimaryTag" | "archive" | "assignPlaylist",
+    payload: any
+  ) => {
+    if (selectedBookIds.length === 0) return;
+    setIsBatchLoading(true);
+
+    try {
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || localStorage.getItem("vocab_clone_auth_token") || "";
+      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const localSyncKey = localStorage.getItem("local_sync_key") || localStorage.getItem("vocab_clone_local_sync_key") || "";
+      const currentUserId = savedUser ? (savedUser.uid || savedUser.email || "default") : "default";
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-local-sync-key": localSyncKey,
+        "x-local-sync-user": currentUserId,
+      };
+      if (savedToken) {
+        headers["Authorization"] = `Bearer ${savedToken}`;
+      }
+
+      const res = await fetch(resolveApiUrl("/api/lessons/batch"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          userId: currentUserId,
+          lessonIds: selectedBookIds,
+          action,
+          payload,
+          ...payload,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Batch action failed: ${res.statusText}`);
+      }
+
+      // Optimistic update in frontend state
+      if (typeof onAddOrUpdateLesson === "function") {
+        for (const lessonId of selectedBookIds) {
+          const original = lessons.find((l) => l.id === lessonId);
+          if (!original) continue;
+
+          let updated = { ...original };
+          if (action === "addTag") {
+            const rawTag = String(payload.tag || "").trim().replace(/^#+/, "").trim();
+            const cleanTag = rawTag.charAt(0).toUpperCase() + rawTag.slice(1);
+            let tags = Array.isArray(updated.tags) ? [...updated.tags] : [];
+            if (!tags.some((t) => t.toLowerCase() === cleanTag.toLowerCase())) {
+              tags.push(cleanTag);
+            }
+            updated.tags = tags;
+            if (!updated.primaryTag) {
+              updated.primaryTag = cleanTag;
+            }
+          } else if (action === "setPrimaryTag") {
+            const rawTag = String(payload.primaryTag || payload.tag || "").trim().replace(/^#+/, "").trim();
+            const cleanTag = rawTag.charAt(0).toUpperCase() + rawTag.slice(1);
+            let tags = Array.isArray(updated.tags) ? [...updated.tags] : [];
+            if (!tags.some((t) => t.toLowerCase() === cleanTag.toLowerCase())) {
+              tags.push(cleanTag);
+            }
+            updated.tags = tags;
+            updated.primaryTag = cleanTag;
+          } else if (action === "archive") {
+            const targetArch = payload.isArchived !== undefined ? Boolean(payload.isArchived) : true;
+            updated.isArchived = targetArch;
+            useLessonStore.getState().archiveLesson(lessonId, targetArch).catch(() => {});
+          } else if (action === "assignPlaylist") {
+            updated.playlistId = payload.playlistId || undefined;
+          }
+
+          onAddOrUpdateLesson(updated);
+        }
+      }
+
+      // Synchronize playlists state locally when moving to / from playlist
+      if (action === "assignPlaylist" && typeof onUpdatePlaylist === "function") {
+        const targetPlId = payload.playlistId || null;
+        (playlists || []).forEach((pl) => {
+          let plItems = Array.isArray(pl.items) ? [...pl.items] : [];
+          let changed = false;
+          const remaining = plItems.filter((it) => !selectedBookIds.includes(it.lessonId || ""));
+          if (remaining.length !== plItems.length) {
+            plItems = remaining;
+            changed = true;
+          }
+          if (pl.id === targetPlId) {
+            for (const id of selectedBookIds) {
+              const lessonObj = lessons.find((l) => l.id === id);
+              if (lessonObj) {
+                plItems.push({
+                  id: `item_${lessonObj.id}_${Date.now()}`,
+                  lessonId: lessonObj.id,
+                  title: lessonObj.title,
+                  videoId: lessonObj.youtubeId || null,
+                  durationSeconds: getLessonEffectiveDuration(lessonObj),
+                  thumbnailUrl: lessonObj.coverUrl || "",
+                  transcriptLoaded: !!(lessonObj.text && lessonObj.text.length > 20),
+                });
+                changed = true;
+              }
+            }
+          }
+          if (changed) {
+            onUpdatePlaylist({
+              ...pl,
+              items: plItems,
+              itemCount: plItems.length,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        });
+      }
+
+      showToast(
+        t("library.batch_success", "Successfully updated {{count}} items", {
+          count: selectedBookIds.length,
+        }),
+        "success"
+      );
+
+      clearSelection();
+      setBatchModalState({ type: null });
+    } catch (err: any) {
+      console.error("Batch operation error:", err);
+      showToast(err.message || t("library.batch_error", "Failed to apply batch changes"), "error");
+    } finally {
+      setIsBatchLoading(false);
+    }
+  };
+
   return (
     <div className="library-container w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
       <StatsWidget
@@ -1577,6 +1775,21 @@ function LibraryHome({
             </button>
           )}
 
+          {/* Batch Selection Mode toggle button */}
+          <button
+            type="button"
+            onClick={toggleSelectionMode}
+            className={`px-2.5 py-1.5 border active:scale-97 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all shadow-3xs ${
+              isSelectionMode
+                ? "bg-teal-600 text-white border-teal-600 shadow-teal-500/20"
+                : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200/80 dark:border-zinc-800"
+            }`}
+            title={isSelectionMode ? t("library.done_selecting", "Done") : t("library.select_multiple", "Select Multiple")}
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{isSelectionMode ? t("library.done", "Done") : t("library.select", "Select")}</span>
+          </button>
+
           {/* Reset All Filters button */}
           {isAnyFilterActive && (
             <button
@@ -1661,7 +1874,13 @@ function LibraryHome({
                   renderCircularFlag={renderCircularFlag}
                   getLanguageFlagEmoji={getLanguageFlagEmoji}
                   formatDuration={formatDuration}
-                  onSelectLesson={onSelectLesson}
+                  onSelectLesson={(id) => {
+                    useBingeQueueStore.getState().setQueueContext({
+                      type: "library",
+                      lessonIds: filteredLessons.map((l) => l.id),
+                    });
+                    onSelectLesson(id);
+                  }}
                   onDeleteLesson={onDeleteLesson}
                   onToggleArchiveLesson={onToggleArchiveLesson}
                   onTogglePinLesson={onTogglePinLesson}
@@ -1670,6 +1889,9 @@ function LibraryHome({
                   onPlaySingleLesson={handlePlaySingleLesson}
                   onSetDeletingLessonId={setDeletingLessonId}
                   onToggleMenu={setOpenMenuLessonId}
+                  isSelectionMode={isSelectionMode}
+                  isSelected={selectedBookIds.includes(lesson.id)}
+                  onToggleSelect={toggleBookSelection}
                 />
               );
             })}
@@ -1846,6 +2068,58 @@ function LibraryHome({
           onUpdatePlaylist={onUpdatePlaylist || (() => {})}
           onAddPlaylist={onAddPlaylist}
           onAddOrUpdateLesson={onAddOrUpdateLesson}
+        />
+      )}
+
+      {/* Floating Batch Action Bar */}
+      {isSelectionMode && (
+        <LibraryBatchActionBar
+          selectedCount={selectedBookIds.length}
+          totalVisibleCount={visibleLessonIds.length}
+          isAllSelected={isAllSelected}
+          isArchivedView={showArchived}
+          onToggleSelectAll={handleToggleSelectAll}
+          onOpenAddTag={() => setBatchModalState({ type: "addTag" })}
+          onOpenSetPrimaryTag={() => setBatchModalState({ type: "setPrimaryTag" })}
+          onOpenMovePlaylist={() => setBatchModalState({ type: "movePlaylist" })}
+          onBatchArchive={(arch) => executeBatchAction("archive", { isArchived: arch })}
+          onCancel={() => {
+            clearSelection();
+            setSelectionMode(false);
+          }}
+          isLoading={isBatchLoading}
+        />
+      )}
+
+      {/* Batch Tag Modal */}
+      {(batchModalState.type === "addTag" || batchModalState.type === "setPrimaryTag") && (
+        <BatchTagModal
+          isOpen={true}
+          onClose={() => setBatchModalState({ type: null })}
+          selectedCount={selectedBookIds.length}
+          mode={batchModalState.type}
+          availableTags={availableLibraryTags}
+          onSubmit={(tagName, mode) => {
+            if (mode === "addTag") {
+              executeBatchAction("addTag", { tag: tagName });
+            } else {
+              executeBatchAction("setPrimaryTag", { primaryTag: tagName });
+            }
+          }}
+          isLoading={isBatchLoading}
+        />
+      )}
+
+      {/* Batch Move to Playlist Modal */}
+      {batchModalState.type === "movePlaylist" && (
+        <BatchPlaylistModal
+          isOpen={true}
+          onClose={() => setBatchModalState({ type: null })}
+          selectedCount={selectedBookIds.length}
+          playlists={playlists || []}
+          targetLanguage={selectedLanguage !== "All" ? selectedLanguage : undefined}
+          onSubmit={(playlistId) => executeBatchAction("assignPlaylist", { playlistId })}
+          isLoading={isBatchLoading}
         />
       )}
 

@@ -21,6 +21,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { parseTimestampToSeconds } from "../hooks/useReaderPagination";
 import { usePlaylistStore } from "../store/playlistStore";
+import { useToast } from "../context/ToastContext";
+import { useBingeQueueStore } from "../store/useBingeQueueStore";
 import { ReaderSettings } from "../types";
 
 const SPEED_PRESETS = [0.5, 0.75, 0.85, 1.0, 1.15, 1.25, 1.5, 1.75, 2.0];
@@ -112,6 +114,7 @@ export default function AudioPlayerBar({
   onToggleShowOnlyUnknown,
 }: AudioPlayerBarProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const themeStyles = audioThemeMap[readerTheme] || audioThemeMap.default;
   const {
     activeLesson,
@@ -463,6 +466,14 @@ export default function AudioPlayerBar({
       window.dispatchEvent(new CustomEvent("media-play-start", { detail: { trackId: activeLesson?.id, guid: (activeLesson as any)?.guid } }));
       audio.play().catch((err) => {
         console.error("Playback error:", err?.message || err);
+        useBingeQueueStore.getState().setAutoplayBlocked(true);
+        showToast(
+          t(
+            "reader.autoplay_blocked_toast",
+            "Autoplay was blocked by the browser. Please interact with the page to enable playback."
+          ),
+          "info"
+        );
       });
       setIsPlaying(true);
     }

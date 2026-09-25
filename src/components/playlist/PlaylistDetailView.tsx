@@ -15,6 +15,7 @@ import { getItemEffectiveDuration } from "../../utils/durationUtils";
 import { normalizeContraction } from "../../utils";
 import { ignoreListManager } from "../../services/ignoreListService";
 import { usePlaylistStore } from "../../store/playlistStore";
+import { useBingeQueueStore } from "../../store/useBingeQueueStore";
 import { lessonsStore } from "../../db";
 import { calculateBookStats, getCachedBookStats, getCachedTokens } from "../LibraryHome";
 import AddMediaToPlaylistModal from "./AddMediaToPlaylistModal";
@@ -24,6 +25,7 @@ import PlaylistTagsModal from "./PlaylistTagsModal";
 import LevelFilterDropdown, { DifficultyGroup } from "../library/LevelFilterDropdown";
 import TagFilterDropdown from "../library/TagFilterDropdown";
 import { classifyDifficulty } from "../../utils/playlistDifficultyUtils";
+import { getTagColor, getAllKnownTags } from "../../utils/tagColors";
 
 export type PlaylistSortOption = 
   | 'default'       // Исходный порядок плейлиста (по порядку добавления / #1, #2...)
@@ -452,30 +454,99 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     }
   }, [playlist.id, lessons]);
 
-  // Check completion status from history
+  // Helper to parse stored video progress safely
+  const parseVideoProgress = (raw: string | null): number => {
+    if (!raw) return 0;
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "number") return parsed > 2 ? Math.floor(parsed) : 0;
+      if (parsed && typeof parsed === "object" && parsed.progress !== undefined) {
+        const p = parseFloat(parsed.progress);
+        return !isNaN(p) && p > 2 ? Math.floor(p) : 0;
+      }
+    } catch (_) {}
+    const num = parseFloat(raw);
+    return !isNaN(num) && num > 2 ? Math.floor(num) : 0;
+  };
+
+  const getItemVideoProgress = (item: PlaylistItem, lesson?: Lesson): number => {
+    const targetLessonId = lesson?.id || item.lessonId;
+    const targetVideoId = lesson?.youtubeId || item.videoId;
+    let sec = 0;
+    if (targetLessonId) {
+      sec = parseVideoProgress(localStorage.getItem(`youtube_progress_${targetLessonId}`));
+    }
+    if (sec <= 0 && targetVideoId) {
+      sec = parseVideoProgress(localStorage.getItem(`youtube_progress_${targetVideoId}`));
+    }
+    return sec;
+  };
+
+  // Check completion status from history and localStorage
   const isItemCompleted = (item: PlaylistItem): boolean => {
     const lesson = getItemLesson(item);
-    if (!lesson) return false;
-    return history.some((h) => h.lessonId === lesson.id && (h.status === "completed" || h.actionType === "complete" || h.progressPercent === 100));
+    const targetLessonId = lesson?.id || item.lessonId;
+    const targetVideoId = lesson?.youtubeId || item.videoId;
+    const itemTitle = (item.title || lesson?.title || "").trim().toLowerCase();
+
+    // 1. Direct completion marker in localStorage (set by handleMediaEnded)
+    if (targetLessonId && localStorage.getItem(`vocab_progress_${targetLessonId}`) === "100") {
+      return true;
+    }
+    if (targetVideoId && localStorage.getItem(`vocab_progress_${targetVideoId}`) === "100") {
+      return true;
+    }
+
+    // 2. Playback progress >= 95% of duration
+    const durationSec = getItemEffectiveDuration(item, lesson);
+    const progSec = getItemVideoProgress(item, lesson);
+    if (durationSec > 10 && progSec > 0 && progSec >= durationSec * 0.95) {
+      return true;
+    }
+
+    // 3. Match against reading/listening history entries
+    return history.some((h) => {
+      const match =
+        (targetLessonId && (h.lessonId === targetLessonId || h.id === targetLessonId)) ||
+        (targetVideoId && (h.guid === targetVideoId || h.youtubeId === targetVideoId || h.lessonId === targetVideoId || h.lessonId === `youtube_${targetVideoId}`)) ||
+        (itemTitle && h.lessonTitle && h.lessonTitle.trim().toLowerCase() === itemTitle);
+
+      if (!match) return false;
+      return (
+        h.status === "completed" ||
+        h.actionType === "complete" ||
+        (h.progressPercent !== undefined && h.progressPercent >= 95)
+      );
+    });
   };
 
   // Get item status (completed | in_progress | new)
   const getItemStatus = (item: PlaylistItem): "completed" | "in_progress" | "new" => {
     if (isItemCompleted(item)) return "completed";
     const lesson = getItemLesson(item);
-    let videoProgressSec = 0;
-    if (lesson) {
-      const storedYtProg = localStorage.getItem(`youtube_progress_${lesson.id}`);
-      if (storedYtProg) {
-        videoProgressSec = parseFloat(storedYtProg) || 0;
-      }
-    }
+    const targetLessonId = lesson?.id || item.lessonId;
+    const targetVideoId = lesson?.youtubeId || item.videoId;
+    const itemTitle = (item.title || lesson?.title || "").trim().toLowerCase();
+
+    const videoProgressSec = getItemVideoProgress(item, lesson);
     const durationSec = getItemEffectiveDuration(item, lesson);
     let progressPercent = 0;
     if (durationSec > 0 && videoProgressSec > 0) {
       progressPercent = Math.min(100, Math.round((videoProgressSec / durationSec) * 100));
     }
-    if (progressPercent > 2 || history.some((h) => h.lessonId === lesson?.id)) {
+    if (progressPercent >= 95) {
+      return "completed";
+    }
+
+    const hasHistoryActivity = history.some((h) => {
+      const match =
+        (targetLessonId && (h.lessonId === targetLessonId || h.id === targetLessonId)) ||
+        (targetVideoId && (h.guid === targetVideoId || h.youtubeId === targetVideoId || h.lessonId === targetVideoId || h.lessonId === `youtube_${targetVideoId}`)) ||
+        (itemTitle && h.lessonTitle && h.lessonTitle.trim().toLowerCase() === itemTitle);
+      return Boolean(match);
+    });
+
+    if (progressPercent > 2 || hasHistoryActivity) {
       return "in_progress";
     }
     return "new";
@@ -674,6 +745,14 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
   // Helper to open lesson
   const openLessonSafe = (lessonId: string) => {
+    useBingeQueueStore.getState().setQueueContext({
+      type: "playlist",
+      playlistId: playlist.id,
+      playlistTitle: playlist.title,
+      lessonIds: sortedAndFilteredItems
+        .map((it) => it.lessonId || (lessons.find((l) => it.videoId && l.youtubeId === it.videoId)?.id) || "")
+        .filter(Boolean),
+    });
     if (typeof onOpenLesson === "function") {
       onOpenLesson(lessonId);
     } else if (typeof onSelectLesson === "function") {
@@ -1968,19 +2047,13 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 const hasSubtitles = item.transcriptLoaded || (lesson && lesson.text && lesson.text.length > 50);
 
                 // Calculate playback/reading progress
-                let videoProgressSec = 0;
-                if (lesson) {
-                  const storedYtProg = localStorage.getItem(`youtube_progress_${lesson.id}`);
-                  if (storedYtProg) {
-                    videoProgressSec = parseFloat(storedYtProg) || 0;
-                  }
-                }
+                const videoProgressSec = getItemVideoProgress(item, lesson);
                 const durationSec = getItemEffectiveDuration(item, lesson);
                 let progressPercent = 0;
                 if (durationSec > 0 && videoProgressSec > 0) {
                   progressPercent = Math.min(100, Math.round((videoProgressSec / durationSec) * 100));
                 }
-                const isInProgress = !isCompleted && (progressPercent > 2 || history.some((h) => h.lessonId === lesson?.id));
+                const isInProgress = !isCompleted && getItemStatus(item) === "in_progress";
 
                 // Calculate word counts & comprehension stats
                 const hasLessonText = !!(lesson && lesson.text && lesson.text.length > 20);

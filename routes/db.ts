@@ -9,6 +9,7 @@ import { analyzeTextComplexity } from "../server/frequency/frequencyService.ts";
 import { handleTrackActivity } from "./history.ts";
 import { normalizeContraction } from "../src/utils.ts";
 import { ignoreListManager } from "../src/services/ignoreListService.ts";
+import { handleBatchLessons } from "./lessons.ts";
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
@@ -1571,6 +1572,11 @@ router.post("/progress", (req: Request, res: Response) => {
 
   try {
     const db = getDbConnection(userId);
+    if (progress === 0 || progress === "0") {
+      db.prepare("DELETE FROM metadata WHERE user_id = ? AND key = ?").run(userId, key);
+      return res.json({ status: "success", progress: 0, deleted: true });
+    }
+
     const existingRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = ?").get(userId, key) as { value: string } | undefined;
 
     let shouldSave = true;
@@ -2336,6 +2342,8 @@ router.post("/lessons/:id/archive", (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to archive lesson: " + err.message });
   }
 });
+
+router.post("/lessons/batch", handleBatchLessons);
 
 // 16.0 List Lessons with Filter & SQL Sorting (supports YouTube duration ASC/DESC)
 router.get("/lessons", (req: Request, res: Response) => {
