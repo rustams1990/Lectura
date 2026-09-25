@@ -170,9 +170,32 @@ function setupSchema(db: Database.Database) {
       language TEXT NOT NULL DEFAULT 'en',
       items TEXT,
       isArchived INTEGER DEFAULT 0,
+      primaryTag TEXT,
+      tags TEXT,
       createdAt TEXT,
       updatedAt TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS tags (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'default',
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#3B82F6',
+      targetLanguage TEXT,
+      createdAt TEXT,
+      UNIQUE(user_id, name, targetLanguage)
+    );
+
+    CREATE TABLE IF NOT EXISTS item_tags (
+      user_id TEXT NOT NULL DEFAULT 'default',
+      item_id TEXT NOT NULL,
+      tag_id TEXT NOT NULL,
+      is_primary INTEGER DEFAULT 0,
+      PRIMARY KEY (user_id, item_id, tag_id),
+      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_item_tags_lookup ON item_tags(user_id, item_id);
+    CREATE INDEX IF NOT EXISTS idx_item_tags_primary ON item_tags(user_id, is_primary);
   `);
 
   // ── metadata: needs composite PK (user_id, key) ──────────────────────────────
@@ -354,6 +377,12 @@ function setupSchema(db: Database.Database) {
   if (!lessonsCols.includes("sourceType")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN sourceType TEXT;`); } catch (_) {}
   }
+  if (!lessonsCols.includes("primaryTag")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN primaryTag TEXT;`); } catch (_) {}
+  }
+  if (!lessonsCols.includes("tags")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN tags TEXT;`); } catch (_) {}
+  }
 
   // study_activity_logs table for daily study analytics and streaks
   try {
@@ -376,6 +405,12 @@ function setupSchema(db: Database.Database) {
   }
   if (!playlistsCols.includes("isArchived")) {
     try { db.exec(`ALTER TABLE playlists ADD COLUMN isArchived INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!playlistsCols.includes("primaryTag")) {
+    try { db.exec(`ALTER TABLE playlists ADD COLUMN primaryTag TEXT;`); } catch (_) {}
+  }
+  if (!playlistsCols.includes("tags")) {
+    try { db.exec(`ALTER TABLE playlists ADD COLUMN tags TEXT;`); } catch (_) {}
   }
 
   // Purge any empty phantom lessons created by background activity tracking
@@ -509,6 +544,9 @@ function setupSchema(db: Database.Database) {
   if (!historyCols.includes("tags")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN tags TEXT;`); } catch (_) {}
   }
+  if (!historyCols.includes("primaryTag")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN primaryTag TEXT;`); } catch (_) {}
+  }
   if (!historyCols.includes("lastPosition")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN lastPosition REAL DEFAULT 0;`); } catch (_) {}
   }
@@ -524,6 +562,15 @@ function setupSchema(db: Database.Database) {
   if (!historyCols.includes("duration")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN duration REAL DEFAULT 0;`); } catch (_) {}
   }
+
+  // Clean up auto-generated ["youtube", "extension"] mock tags from reading_history
+  try {
+    db.prepare(`
+      UPDATE reading_history
+      SET tags = NULL
+      WHERE tags = '["youtube","extension"]' OR tags = '["youtube", "extension"]' OR tags = '["extension","youtube"]' OR tags = '["extension", "youtube"]'
+    `).run();
+  } catch (_) {}
 
   // Ensure activity_history view exists if any external service/query expects it
   try {

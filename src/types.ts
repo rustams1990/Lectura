@@ -77,6 +77,16 @@ export interface Lesson {
   audioProgress?: number;
   audio_progress?: number;
   audio_progress_updated_at?: number;
+  primaryTag?: string | null;
+  tags?: string[];
+}
+
+export interface TagItem {
+  id: string;
+  name: string;
+  color: string;
+  targetLanguage?: string;
+  isPrimary?: boolean;
 }
 
 export interface PlaylistItem {
@@ -103,6 +113,8 @@ export interface Playlist {
   items: PlaylistItem[];
   primaryItemId?: string;
   isArchived?: boolean;
+  primaryTag?: string | null;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -329,6 +341,7 @@ export interface HistoryEntry {
   duration?: number;
   notes?: string;
   tags?: string[];
+  primaryTag?: string | null;
   channelName?: string | null;
   channelAvatarUrl?: string | null;
   channelUrl?: string | null;

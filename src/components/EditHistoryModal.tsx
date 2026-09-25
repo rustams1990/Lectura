@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   History,
@@ -11,14 +11,20 @@ import {
   FileText,
   MessageSquare,
   Check,
+  Star,
+  Tag,
+  Plus,
+  Pencil,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { HistoryEntry, Lesson, ActivitySourceMode, CustomActivityCategory } from "../types";
+import { HistoryEntry, Lesson, Playlist, ActivitySourceMode, CustomActivityCategory } from "../types";
 import { resolveApiUrl } from "../utils/apiConfig";
 import { generateHistoryId } from "../utils";
 import { useToast } from "../context/ToastContext";
 import { AppDatePicker } from "./common/AppDatePicker";
 import { AppTimePicker } from "./common/AppTimePicker";
+import { getTagColor, getAllKnownTags } from "../utils/tagColors";
+import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
 
 export const ACTIVITY_LANGUAGES = [
   { code: "es", name: "Spanish", native: "Español", flag: "🇪🇸" },
@@ -65,6 +71,7 @@ export interface EditHistoryModalProps {
   onClose: () => void;
   entry: HistoryEntry | null;
   lessons: Lesson[];
+  playlists?: Playlist[];
   history: HistoryEntry[];
   existingChannels: Array<{ name: string; avatarUrl?: string | null; channelUrl?: string | null }>;
   selectedLanguage: string;
@@ -77,6 +84,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   onClose,
   entry,
   lessons,
+  playlists = [],
   history,
   existingChannels,
   selectedLanguage,
@@ -98,6 +106,9 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   const [formDateOnly, setFormDateOnly] = useState("");
   const [formTime, setFormTime] = useState("00:00");
   const [formTags, setFormTags] = useState("");
+  const [formTagsList, setFormTagsList] = useState<string[]>([]);
+  const [formPrimaryTag, setFormPrimaryTag] = useState<string | null>(null);
+  const [newTagInput, setNewTagInput] = useState("");
   const [formChannelName, setFormChannelName] = useState("");
   const [formChannelUrl, setFormChannelUrl] = useState("");
   const [formChannelAvatarUrl, setFormChannelAvatarUrl] = useState<string | null>(null);
@@ -121,6 +132,16 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
       setFormNotes(entry.notes || "");
       setFormTags(entry.tags ? entry.tags.join(", ") : "");
+
+      const initialTags = entry.tags && Array.isArray(entry.tags) ? [...entry.tags] : [];
+      const initialPrimary = entry.primaryTag || (initialTags.length > 0 ? initialTags[0] : null);
+      if (initialPrimary && !initialTags.includes(initialPrimary)) {
+        initialTags.unshift(initialPrimary);
+      }
+      setFormTagsList(initialTags);
+      setFormPrimaryTag(initialPrimary);
+      setNewTagInput("");
+
       setFormChannelName(entry.channelName || matchedLesson?.channelName || (matchedLesson as any)?.channelTitle || "");
       setFormChannelUrl((entry as any).channelUrl || matchedLesson?.channelUrl || "");
       setFormChannelAvatarUrl(entry.channelAvatarUrl || matchedLesson?.channelAvatarUrl || null);
@@ -155,6 +176,9 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormMinutes("15");
       setFormNotes("");
       setFormTags("");
+      setFormTagsList([]);
+      setFormPrimaryTag(null);
+      setNewTagInput("");
       setFormChannelName("");
       setFormChannelUrl("");
       setFormChannelAvatarUrl(null);
@@ -169,6 +193,80 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormTime(`${hh}:${min}`);
     }
   }, [isOpen, entry, lessons, selectedLanguage]);
+
+  const handleAddTag = (rawName: string) => {
+    let clean = rawName.trim().replace(/^#+/, "").trim();
+    if (!clean) return;
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    if (formTagsList.some((t) => t.toLowerCase() === clean.toLowerCase())) {
+      showToast(t('tags.already_added', 'This tag has already been added'), 'info');
+      setNewTagInput("");
+      return;
+    }
+    const updated = [...formTagsList, clean];
+    setFormTagsList(updated);
+    if (!formPrimaryTag) {
+      setFormPrimaryTag(clean);
+    }
+    setNewTagInput("");
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const updated = formTagsList.filter((t) => t.toLowerCase() !== tagToRemove.toLowerCase());
+    setFormTagsList(updated);
+    if (formPrimaryTag && formPrimaryTag.toLowerCase() === tagToRemove.toLowerCase()) {
+      setFormPrimaryTag(updated.length > 0 ? updated[0] : null);
+    }
+  };
+
+  const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null);
+  const [editingTagValue, setEditingTagValue] = useState<string>("");
+
+  const handleStartEditTag = (index: number, currentTag: string) => {
+    setEditingTagIndex(index);
+    setEditingTagValue(currentTag);
+  };
+
+  const handleSaveTagEdit = (index: number) => {
+    let clean = editingTagValue.trim().replace(/^#+/, "").trim();
+    if (!clean) {
+      setEditingTagIndex(null);
+      return;
+    }
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    const oldTag = formTagsList[index];
+    if (oldTag && oldTag.toLowerCase() === clean.toLowerCase()) {
+      setEditingTagIndex(null);
+      return;
+    }
+
+    if (formTagsList.some((t, idx) => idx !== index && t.toLowerCase() === clean.toLowerCase())) {
+      showToast(t('tags.already_added', 'This tag has already been added'), 'info');
+      setEditingTagIndex(null);
+      return;
+    }
+
+    const nextTags = [...formTagsList];
+    nextTags[index] = clean;
+    setFormTagsList(nextTags);
+
+    if (formPrimaryTag && oldTag && formPrimaryTag.toLowerCase() === oldTag.toLowerCase()) {
+      setFormPrimaryTag(clean);
+    }
+    setEditingTagIndex(null);
+  };
+
+  const handleTogglePrimary = (tagName: string) => {
+    if (formPrimaryTag && formPrimaryTag.toLowerCase() === tagName.toLowerCase()) {
+      setFormPrimaryTag(null);
+    } else {
+      setFormPrimaryTag(tagName);
+    }
+  };
+
+  const allAvailableHistoryTags = useMemo(() => {
+    return getAllKnownTags(lessons, playlists, history);
+  }, [lessons, playlists, history]);
 
   const handleResolveFormChannel = async () => {
     const rawUrl = formChannelUrl.trim();
@@ -239,6 +337,9 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
 
     let updatedLessons: Lesson[] | null = null;
 
+    const parsedTags = formTagsList.length > 0 ? formTagsList : formTags.split(",").map((t) => t.trim()).filter(Boolean);
+    const primaryTagVal = formPrimaryTag || (parsedTags.length > 0 ? parsedTags[0] : null);
+
     if (formMode === "library") {
       const selectedLesson = lessons.find((l) => l.id === formLessonId);
       title = selectedLesson ? selectedLesson.title : (formCustomTitle.trim() || t('history_page.lesson_default_short', "Lesson"));
@@ -258,6 +359,8 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                 channelTitle: channelName,
                 channelAvatarUrl: channelAvatarUrl,
                 channelUrl: formChannelUrl.trim() || l.channelUrl,
+                primaryTag: primaryTagVal || l.primaryTag,
+                tags: parsedTags.length > 0 ? parsedTags : l.tags,
               }
             : l
         );
@@ -283,8 +386,6 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
         timestamp = parsed.toISOString();
       }
     }
-
-    const parsedTags = formTags.split(",").map((t) => t.trim()).filter(Boolean);
 
     setIsSavingEntry(true);
     try {
@@ -317,6 +418,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
               durationSeconds,
               notes: formNotes.trim(),
               tags: parsedTags,
+              primaryTag: primaryTagVal,
               timestamp,
               channelName,
               channelAvatarUrl,
@@ -355,6 +457,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
             durationSeconds,
             notes: formNotes.trim(),
             tags: parsedTags,
+            primaryTag: primaryTagVal,
             timestamp,
             channelName,
             channelAvatarUrl,
@@ -380,6 +483,8 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
               channelAvatar: channelAvatarUrl,
               channelAvatarUrl: channelAvatarUrl,
               channelUrl: formChannelUrl.trim() || undefined,
+              primaryTag: primaryTagVal || undefined,
+              tags: parsedTags.length > 0 ? parsedTags : undefined,
             }),
           }).catch((e) => console.warn("Failed to patch lesson:", e));
         }
@@ -416,6 +521,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
           durationSeconds,
           notes: formNotes.trim(),
           tags: parsedTags,
+          primaryTag: primaryTagVal,
           timestamp,
           channelName,
           channelAvatarUrl,
@@ -445,6 +551,8 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
               channelAvatar: channelAvatarUrl,
               channelAvatarUrl: channelAvatarUrl,
               channelUrl: formChannelUrl.trim() || undefined,
+              primaryTag: primaryTagVal || undefined,
+              tags: parsedTags.length > 0 ? parsedTags : undefined,
             }),
           }).catch((e) => console.warn("Failed to patch lesson channel:", e));
         }
@@ -843,17 +951,154 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                {t('history_page.tags_label', 'Tags (comma separated)')}
-              </label>
-              <input
-                type="text"
-                value={formTags}
-                onChange={(e) => setFormTags(e.target.value)}
-                placeholder={t('history_page.tags_placeholder', 'E.g.: Grammar, Podcast, Vocabulary')}
-                className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-sans"
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                  {t('tags.modal_title', 'Categories & Tags')}
+                </label>
+                <span className="text-[10px] text-zinc-400 flex items-center gap-1">
+                  <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                  {t('tags.star_primary_hint', 'Star = Primary Topic (100% donut balance)')}
+                </span>
+              </div>
+
+              {/* Tag Chips */}
+              {formTagsList.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-2 bg-zinc-50 dark:bg-zinc-950/70 border border-zinc-200/70 dark:border-zinc-800 rounded-xl">
+                  {formTagsList.map((tag, idx) => {
+                    const isPrimary = formPrimaryTag && formPrimaryTag.toLowerCase() === tag.toLowerCase();
+                    const color = getTagColor(tag);
+                    const isEditingThis = editingTagIndex === idx;
+
+                    if (isEditingThis) {
+                      return (
+                        <div
+                          key={`edit-${idx}`}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-teal-400 bg-white dark:bg-zinc-800 shadow-sm animate-in fade-in zoom-in-95 duration-100"
+                        >
+                          <span className="text-teal-600 dark:text-teal-400 text-xs font-bold">#</span>
+                          <input
+                            type="text"
+                            value={editingTagValue}
+                            onChange={(e) => setEditingTagValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSaveTagEdit(idx);
+                              } else if (e.key === "Escape") {
+                                setEditingTagIndex(null);
+                              }
+                            }}
+                            autoFocus
+                            className="w-24 sm:w-32 px-1 py-0.5 text-xs font-semibold bg-transparent text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveTagEdit(idx)}
+                            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded cursor-pointer transition"
+                            title={t("common.save", "Save")}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingTagIndex(null)}
+                            className="p-1 text-zinc-400 hover:text-zinc-600 rounded cursor-pointer transition"
+                            title={t("common.cancel", "Cancel")}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={tag}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all ${
+                          isPrimary
+                            ? "ring-2 ring-amber-400 dark:ring-amber-500/70 border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200"
+                            : `${color.lightBg} ${color.border} ${color.text}`
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePrimary(tag)}
+                          className="cursor-pointer hover:scale-110 active:scale-95 transition"
+                          title={
+                            isPrimary
+                              ? t("tags.is_primary_click_to_unset", "Primary tag (click to unset)")
+                              : t("tags.click_to_make_primary", "Click to make Primary")
+                          }
+                        >
+                          <Star
+                            className={`w-3.5 h-3.5 ${
+                              isPrimary
+                                ? "text-amber-500 fill-amber-500"
+                                : "text-zinc-400 hover:text-amber-500"
+                            }`}
+                          />
+                        </button>
+                        <span
+                          onDoubleClick={() => handleStartEditTag(idx, tag)}
+                          className="cursor-text"
+                          title={t("tags.double_click_to_edit", "Double click to rename")}
+                        >
+                          #{tag}
+                        </span>
+                        {isPrimary && (
+                          <span className="text-[9px] uppercase tracking-wider font-black px-1 py-0.2 bg-amber-500 text-white rounded">
+                            {t("tags.primary_badge", "Primary")}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditTag(idx, tag)}
+                          className="text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 p-0.5 rounded transition cursor-pointer"
+                          title={t("common.edit", "Edit tag name")}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="text-zinc-400 hover:text-rose-500 p-0.5 rounded transition cursor-pointer"
+                          title={t("common.remove", "Remove")}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add Tag Input with live search autocomplete */}
+              <TagInputWithAutocomplete
+                value={newTagInput}
+                onChange={setNewTagInput}
+                onAddTag={handleAddTag}
+                availableTags={allAvailableHistoryTags}
+                currentTags={formTagsList}
+                placeholder={t('tags.input_placeholder', 'e.g. Grammar, Podcast, Tech...')}
               />
+
+              {/* Suggestions */}
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {["Gaming", "Tech", "Podcast", "Grammar", "Vocabulary", "Stories", "News", "Travel"]
+                  .filter((s) => !formTagsList.some((t) => t.toLowerCase() === s.toLowerCase()))
+                  .slice(0, 6)
+                  .map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => handleAddTag(s)}
+                      className="text-[10px] px-2 py-0.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-md transition cursor-pointer"
+                    >
+                      +{s}
+                    </button>
+                  ))}
+              </div>
             </div>
           </div>
 

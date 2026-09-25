@@ -4,7 +4,7 @@ import {
   ArrowLeft, Play, BookOpen, Headphones, Trash2, CheckCircle2,
   Clock, ExternalLink, Loader2, Sparkles, AlertCircle, Share2,
   ListVideo, RefreshCw, Archive, ArchiveRestore, ArrowUpDown, Search, ChevronDown, Plus, CheckSquare, Square, Check,
-  FolderInput, X, Pencil, Star, GripVertical, BarChart2
+  FolderInput, X, Pencil, Star, GripVertical, BarChart2, Tag
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
@@ -20,6 +20,8 @@ import { calculateBookStats, getCachedBookStats, getCachedTokens } from "../Libr
 import AddMediaToPlaylistModal from "./AddMediaToPlaylistModal";
 import MoveToPlaylistModal from "./MoveToPlaylistModal";
 import SelectPlaylistCoverModal from "./SelectPlaylistCoverModal";
+import PlaylistTagsModal from "./PlaylistTagsModal";
+import { getTagColor, getAllKnownTags } from "../../utils/tagColors";
 
 export type PlaylistSortOption = 
   | 'default'       // Исходный порядок плейлиста (по порядку добавления / #1, #2...)
@@ -146,6 +148,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   const [filterQuery, setFilterQuery] = useState("");
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState(playlist.title);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -1290,6 +1293,43 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 </p>
               )}
 
+              {/* Playlist Tags */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {playlist.primaryTag && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTagsModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 cursor-pointer hover:opacity-90 transition shadow-2xs"
+                    title={t("tags.primary_tag_tooltip", "Primary category (click to edit)")}
+                  >
+                    <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+                    <span>#{playlist.primaryTag}</span>
+                  </button>
+                )}
+                {Array.isArray(playlist.tags) && playlist.tags.filter((t) => t.toLowerCase() !== playlist.primaryTag?.toLowerCase()).map((tag) => {
+                  const col = getTagColor(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setIsTagsModalOpen(true)}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold border ${col.lightBg} ${col.border} ${col.text} cursor-pointer hover:opacity-90 transition`}
+                    >
+                      <span>#{tag}</span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setIsTagsModalOpen(true)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                  title={t("tags.edit_tags", "Edit tags")}
+                >
+                  <Tag className="w-3 h-3" />
+                  <span>{!playlist.primaryTag && (!playlist.tags || playlist.tags.length === 0) ? `+ ${t("tags.add_tag", "Add Tag")}` : t("common.edit", "Edit")}</span>
+                </button>
+              </div>
+
               {/* Aggregate Meta Stats */}
               <div className="text-xs text-zinc-500 dark:text-zinc-400 font-normal flex items-center gap-2">
                 <span>{items.length} {t("playlist.videos_count", "videos")}</span>
@@ -2191,6 +2231,24 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
           playlist={playlist}
           lessons={lessons}
           onUpdatePlaylist={onUpdatePlaylist}
+        />
+      )}
+
+      {/* Playlist Tags Modal */}
+      {isTagsModalOpen && (
+        <PlaylistTagsModal
+          isOpen={isTagsModalOpen}
+          onClose={() => setIsTagsModalOpen(false)}
+          playlist={playlist}
+          availableTags={getAllKnownTags(lessons, playlists, history)}
+          onSave={(pTag, tgs) => {
+            onUpdatePlaylist({
+              ...playlist,
+              primaryTag: pTag,
+              tags: tgs,
+              updatedAt: new Date().toISOString(),
+            });
+          }}
         />
       )}
     </div>

@@ -676,6 +676,16 @@ export default function App() {
       const targetTitleClean = targetLesson.title ? targetLesson.title.trim().toLowerCase() : "";
       const todayDateStr = new Date().toLocaleDateString("en-CA");
 
+      // Resolve primary tag and additional tags with inheritance: targetLesson -> parent playlist
+      const matchingPlaylist = targetLesson.playlistId ? playlists.find((p) => p.id === targetLesson.playlistId) : null;
+      const resolvedPrimaryTag = targetLesson.primaryTag || matchingPlaylist?.primaryTag || (targetLesson.tags && targetLesson.tags.length > 0 ? targetLesson.tags[0] : null);
+      const resolvedTags = Array.from(new Set([
+        ...(targetLesson.tags || []),
+        ...(matchingPlaylist?.tags || []),
+        ...(matchingPlaylist?.primaryTag ? [matchingPlaylist.primaryTag] : []),
+        ...(targetLesson.primaryTag ? [targetLesson.primaryTag] : [])
+      ])).filter(Boolean);
+
       const targetIndex = prev.findIndex((h) => {
         // 1. Direct ID / LessonID / GUID match
         const matchesId =
@@ -756,6 +766,8 @@ export default function App() {
             guid: item.guid || targetGuid || targetLesson.id,
             channelName: item.channelName || targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
             channelAvatarUrl: item.channelAvatarUrl || targetLesson.channelAvatarUrl || null,
+            primaryTag: item.primaryTag || resolvedPrimaryTag || undefined,
+            tags: (item.tags && item.tags.length > 0) ? item.tags : (resolvedTags.length > 0 ? resolvedTags : undefined),
           };
         });
       } else {
@@ -792,6 +804,8 @@ export default function App() {
           guid: (targetLesson as any).guid || targetLesson.id,
           channelName: targetLesson.channelName || (targetLesson as any).podcastTitle || (targetLesson as any).bookTitle || null,
           channelAvatarUrl: targetLesson.channelAvatarUrl || null,
+          primaryTag: resolvedPrimaryTag || undefined,
+          tags: resolvedTags.length > 0 ? resolvedTags : undefined,
         };
 
         updated = [newEntry, ...prev];
@@ -3900,6 +3914,7 @@ export default function App() {
               editingLesson={editingLesson}
               playlists={playlists}
               lessons={lessons}
+              history={history}
               onAddPlaylist={handleAddPlaylist}
               onUpdatePlaylist={handleUpdatePlaylist}
               lessonTypes={lessonTypes}
@@ -3913,6 +3928,8 @@ export default function App() {
                 if (editingLesson) {
                   const nextLessons = lessons.map((l) => (l.id === editingLesson.id ? newOrUpdated : l));
                   setLessons(nextLessons);
+                  lessonsRef.current = nextLessons;
+                  lessonsStore.setItem("lessons", nextLessons).catch(() => {});
                   setHistory((prev) => {
                     const updatedHist = prev.map((h) => {
                       if (h.lessonId === editingLesson.id) {
@@ -4103,6 +4120,7 @@ export default function App() {
             <HistoryPage
               history={history}
               lessons={lessons}
+              playlists={playlists}
               onOpenLesson={(lessonId) => {
                 setActiveLessonId(lessonId);
                 setSelectedWord(null);

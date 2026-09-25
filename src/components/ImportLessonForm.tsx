@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Lesson, LessonType, ReaderSettings, Playlist } from "../types";
+import { Lesson, LessonType, ReaderSettings, Playlist, HistoryEntry } from "../types";
 import { safeJsonParse, safeLocalStorageSetItem, normalizeLanguage } from "../utils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
 import { getLocalizedLanguageName } from "../utils/stringUtils";
@@ -41,7 +41,8 @@ import {
   Search,
   CheckSquare,
   Square,
-  Film
+  Film,
+  Tag
 } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
@@ -49,6 +50,8 @@ import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 import { whisperQueueService } from "../services/whisperQueueService";
+import { getTagColor, getAllKnownTags } from "../utils/tagColors";
+import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
 
 export const ICON_MAP: Record<string, React.ComponentType<any>> = {
   youtube: Youtube,
@@ -128,6 +131,7 @@ interface ImportLessonFormProps {
   defaultTargetLanguage?: string;
   playlists?: Playlist[];
   lessons?: Lesson[];
+  history?: HistoryEntry[];
   onAddPlaylist?: (playlist: Playlist) => void;
   onUpdatePlaylist?: (playlist: Playlist) => void;
 }
@@ -145,6 +149,7 @@ export default function ImportLessonForm({
   defaultTargetLanguage,
   playlists = [],
   lessons = [],
+  history = [],
   onAddPlaylist,
   onUpdatePlaylist
 }: ImportLessonFormProps) {
@@ -396,6 +401,25 @@ export default function ImportLessonForm({
     editingLesson?.lessonType ||
     (activeTab === "youtube" ? "youtube" :
       (editingLesson?.audioUrl || editingLesson?.audioBase64 ? "podcast" : "book"))
+  );
+
+  const isVideoLesson = Boolean(
+    youtubeId ||
+    editingLesson?.youtubeId ||
+    (editingLesson as any)?.localVideoUrl ||
+    selectedType === "youtube" ||
+    selectedType === "video" ||
+    editingLesson?.lessonType === "youtube" ||
+    editingLesson?.lessonType === "video" ||
+    editingLesson?.sourceType === "youtube" ||
+    activeTab === "youtube"
+  );
+
+  const isPodcastLesson = Boolean(
+    activeTab === ("podcast" as any) ||
+    selectedType === "podcast" ||
+    editingLesson?.lessonType === "podcast" ||
+    editingLesson?.sourceType === "podcast"
   );
 
   const [difficulty, setDifficulty] = useState<string>(editingLesson?.difficulty || "");
@@ -787,6 +811,105 @@ export default function ImportLessonForm({
       }
     }
   }, [matchingPlaylists, selectedPlaylistId]);
+
+  // Categories & Tags
+  const [tagsList, setTagsList] = useState<string[]>(() => {
+    return Array.isArray(editingLesson?.tags) ? [...editingLesson.tags] : [];
+  });
+  const [primaryTag, setPrimaryTag] = useState<string | null>(() => {
+    return editingLesson?.primaryTag || null;
+  });
+  const [newTagInput, setNewTagInput] = useState("");
+
+  useEffect(() => {
+    if (editingLesson) {
+      setTagsList(Array.isArray(editingLesson.tags) ? [...editingLesson.tags] : []);
+      setPrimaryTag(editingLesson.primaryTag || null);
+    }
+  }, [editingLesson]);
+
+  const handleAddTag = (rawName: string) => {
+    let clean = rawName.trim().replace(/^#+/, "").trim();
+    if (!clean) return;
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    if (tagsList.some((t) => t.toLowerCase() === clean.toLowerCase())) {
+      showToast(t('tags.already_added', 'This tag has already been added'), 'info');
+      setNewTagInput("");
+      return;
+    }
+    const nextTags = [...tagsList, clean];
+    setTagsList(nextTags);
+    if (!primaryTag) {
+      setPrimaryTag(clean);
+    }
+    setNewTagInput("");
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const nextTags = tagsList.filter((t) => t.toLowerCase() !== tagToRemove.toLowerCase());
+    setTagsList(nextTags);
+    if (primaryTag && primaryTag.toLowerCase() === tagToRemove.toLowerCase()) {
+      setPrimaryTag(nextTags.length > 0 ? nextTags[0] : null);
+    }
+  };
+
+  const handleTogglePrimary = (tagName: string) => {
+    if (primaryTag && primaryTag.toLowerCase() === tagName.toLowerCase()) {
+      setPrimaryTag(null);
+    } else {
+      setPrimaryTag(tagName);
+      if (!tagsList.some((t) => t.toLowerCase() === tagName.toLowerCase())) {
+        setTagsList([...tagsList, tagName]);
+      }
+    }
+  };
+
+  const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null);
+  const [editingTagValue, setEditingTagValue] = useState<string>("");
+
+  const handleStartEditTag = (index: number, currentTag: string) => {
+    setEditingTagIndex(index);
+    setEditingTagValue(currentTag);
+  };
+
+  const handleSaveTagEdit = (index: number) => {
+    let clean = editingTagValue.trim().replace(/^#+/, "").trim();
+    if (!clean) {
+      setEditingTagIndex(null);
+      return;
+    }
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    const oldTag = tagsList[index];
+    if (oldTag && oldTag.toLowerCase() === clean.toLowerCase()) {
+      setEditingTagIndex(null);
+      return;
+    }
+
+    if (tagsList.some((t, idx) => idx !== index && t.toLowerCase() === clean.toLowerCase())) {
+      showToast(t('tags.already_added', 'This tag has already been added'), 'info');
+      setEditingTagIndex(null);
+      return;
+    }
+
+    const nextTags = [...tagsList];
+    nextTags[index] = clean;
+    setTagsList(nextTags);
+
+    if (primaryTag && oldTag && primaryTag.toLowerCase() === oldTag.toLowerCase()) {
+      setPrimaryTag(clean);
+    }
+    setEditingTagIndex(null);
+  };
+
+  const allAvailableLibraryTags = useMemo(() => {
+    return getAllKnownTags(lessons, playlists, history);
+  }, [lessons, playlists, history]);
+
+  const suggestedTags = useMemo(() => {
+    return allAvailableLibraryTags
+      .filter((t) => !tagsList.some((existing) => existing.toLowerCase() === t.toLowerCase()))
+      .slice(0, 10);
+  }, [allAvailableLibraryTags, tagsList]);
 
   const isYoutubePlaylistUrl = /[?&]list=([a-zA-Z0-9_-]+)/i.test(youtubeUrlInput.trim());
 
@@ -1339,6 +1462,8 @@ export default function ImportLessonForm({
       finalPlaylistId = null;
     }
 
+    const finalPrimaryTag = primaryTag ? primaryTag.trim() : (tagsList.length > 0 ? tagsList[0] : null);
+
     const lessonData: Lesson = {
       id: editingLesson?.id || Date.now().toString(),
       title: title.trim(),
@@ -1361,6 +1486,8 @@ export default function ImportLessonForm({
       difficultyExplanation: difficultyExplanation || null,
       createdAt: editingLesson?.createdAt || Date.now(),
       playlistId: finalPlaylistId,
+      primaryTag: finalPrimaryTag,
+      tags: tagsList,
     };
 
     onAddLesson(lessonData, Object.keys(pendingImages).length > 0 ? pendingImages : undefined);
@@ -2564,8 +2691,8 @@ export default function ImportLessonForm({
           </div>
         </div>
 
-        {/* Companion Audio Customizer — hidden in YouTube (already has YouTube player) */}
-        {activeTab !== "youtube" && (
+        {/* Companion Audio Customizer — hidden for video lessons (already has YouTube/video player) and podcasts */}
+        {!isVideoLesson && !isPodcastLesson && (
         <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-teal-600 dark:text-teal-400" />
@@ -2608,7 +2735,7 @@ export default function ImportLessonForm({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Option 1: AI TTS Generation — hidden in Podcast (already has real audio) */}
-              {activeTab !== ("podcast" as any) && (
+              {!isPodcastLesson && (
               <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3">
                 <div>
                   <h5 className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 tracking-tight uppercase">
@@ -2736,6 +2863,205 @@ export default function ImportLessonForm({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Categories & Tags */}
+        <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                {t('tags.video_tags_title', 'Categories & Tags')}
+              </span>
+            </div>
+            {primaryTag && (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                <span>{t('tags.primary_badge', 'Primary')}: #{primaryTag}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Playlist Inheritance notice (if assigned playlist has primaryTag) */}
+          {selectedPlaylistId !== "none" && selectedPlaylistId !== "new" && (() => {
+            const pl = matchingPlaylists.find((p) => p.id === selectedPlaylistId);
+            if (pl?.primaryTag) {
+              return (
+                <div className="p-2.5 bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200/60 dark:border-teal-900/40 rounded-xl text-xs flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-[11px] text-teal-800 dark:text-teal-300">
+                    <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+                    <span>
+                      {t('tags.inherited_from_playlist', 'Inherited from playlist')}: <strong className="font-bold">#{pl.primaryTag}</strong>
+                    </span>
+                  </div>
+                  {primaryTag !== pl.primaryTag && (
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePrimary(pl.primaryTag!)}
+                      className="text-[10px] font-bold text-teal-700 dark:text-teal-300 hover:underline px-2 py-0.5 rounded-lg bg-teal-100/60 dark:bg-teal-900/40 cursor-pointer"
+                    >
+                      {t('tags.use_as_primary', 'Use as Primary')}
+                    </button>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {/* Explanation hint */}
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal">
+            {t('tags.video_primary_tag_hint', 'Click ★ to set the Primary category (used for 100% History topic chart). Other tags act as secondary tags for search & filters.')}
+          </p>
+
+          {/* Current tags chips */}
+          <div className="flex flex-wrap gap-1.5 min-h-[32px] items-center">
+            {tagsList.length === 0 ? (
+              <span className="text-xs text-zinc-400 dark:text-zinc-500 italic">
+                {t('tags.no_tags_yet', 'No tags assigned yet. Add one below.')}
+              </span>
+            ) : (
+              tagsList.map((tag, idx) => {
+                const isPrimary = primaryTag && primaryTag.toLowerCase() === tag.toLowerCase();
+                const color = getTagColor(tag);
+                const isEditingThis = editingTagIndex === idx;
+
+                if (isEditingThis) {
+                  return (
+                    <div
+                      key={`edit-${idx}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-teal-400 bg-white dark:bg-zinc-800 shadow-sm animate-in fade-in zoom-in-95 duration-100"
+                    >
+                      <span className="text-teal-600 dark:text-teal-400 text-xs font-bold">#</span>
+                      <input
+                        type="text"
+                        value={editingTagValue}
+                        onChange={(e) => setEditingTagValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleSaveTagEdit(idx);
+                          } else if (e.key === "Escape") {
+                            setEditingTagIndex(null);
+                          }
+                        }}
+                        autoFocus
+                        className="w-24 sm:w-32 px-1 py-0.5 text-xs font-semibold bg-transparent text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveTagEdit(idx)}
+                        className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded cursor-pointer transition"
+                        title={t("common.save", "Save")}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTagIndex(null)}
+                        className="p-1 text-zinc-400 hover:text-zinc-600 rounded cursor-pointer transition"
+                        title={t("common.cancel", "Cancel")}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={tag}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-semibold transition-all ${
+                      isPrimary
+                        ? "ring-2 ring-amber-400 dark:ring-amber-500/70 border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200"
+                        : `${color.lightBg} ${color.border} ${color.text}`
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePrimary(tag)}
+                      className="cursor-pointer transition hover:scale-110 active:scale-95 text-amber-500"
+                      title={
+                        isPrimary
+                          ? t("tags.is_primary_click_to_unset", "Primary tag (click to unset)")
+                          : t("tags.click_to_make_primary", "Click to make Primary")
+                      }
+                    >
+                      <Star
+                        className={`w-3.5 h-3.5 ${
+                          isPrimary
+                            ? "fill-amber-500 text-amber-500"
+                            : "text-zinc-400 hover:text-amber-500"
+                        }`}
+                      />
+                    </button>
+                    <span
+                      onDoubleClick={() => handleStartEditTag(idx, tag)}
+                      className="cursor-text"
+                      title={t("tags.double_click_to_edit", "Double click to rename")}
+                    >
+                      #{tag}
+                    </span>
+                    {isPrimary && (
+                      <span className="text-[9px] uppercase font-bold tracking-wider px-1 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                        {t("tags.primary_badge", "Primary")}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleStartEditTag(idx, tag)}
+                      className="cursor-pointer p-0.5 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 rounded-md transition"
+                      title={t("common.edit", "Edit tag name")}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(tag)}
+                      className="cursor-pointer ml-0.5 p-0.5 text-zinc-400 hover:text-red-500 rounded-md transition"
+                      title={t("common.delete", "Delete")}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Add tag input & button with live search autocomplete */}
+          <TagInputWithAutocomplete
+            value={newTagInput}
+            onChange={setNewTagInput}
+            onAddTag={handleAddTag}
+            availableTags={allAvailableLibraryTags}
+            currentTags={tagsList}
+            placeholder={t("tags.input_placeholder", "e.g.: Gaming, Tech, Vocabulary...")}
+          />
+
+          {/* Quick suggestions */}
+          {suggestedTags.length > 0 && (
+            <div className="space-y-1 pt-1">
+              <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
+                {t("tags.quick_suggestions", "Quick suggestions")}:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestedTags.map((sug) => {
+                  const color = getTagColor(sug);
+                  return (
+                    <button
+                      key={sug}
+                      type="button"
+                      onClick={() => handleAddTag(sug)}
+                      className={`text-[10.5px] px-2 py-0.5 rounded-lg border font-medium transition cursor-pointer hover:scale-105 active:scale-95 ${color.lightBg} ${color.border} ${color.text}`}
+                    >
+                      + #{sug}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

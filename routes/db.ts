@@ -392,6 +392,8 @@ export function getLocalServerDb(userId: string = "default") {
           (l.lessonType || "article")
         ),
         wordCount: l.wordCount ?? null,
+        primaryTag: l.primaryTag || undefined,
+        tags: l.tags ? (typeof l.tags === "string" ? JSON.parse(l.tags) : l.tags) : [],
       };
     });
 
@@ -411,6 +413,8 @@ export function getLocalServerDb(userId: string = "default") {
       language: p.language || "en",
       items: p.items ? (typeof p.items === "string" ? JSON.parse(p.items) : p.items) : [],
       isArchived: p.isArchived === 1,
+      primaryTag: p.primaryTag || undefined,
+      tags: p.tags ? (typeof p.tags === "string" ? JSON.parse(p.tags) : p.tags) : [],
       createdAt: p.createdAt || new Date().toISOString(),
       updatedAt: p.updatedAt || new Date().toISOString(),
     }));
@@ -487,6 +491,7 @@ export function getLocalServerDb(userId: string = "default") {
         customTitle: h.customTitle || undefined,
         mode: h.mode || undefined,
         tags: h.tags ? (typeof h.tags === "string" ? JSON.parse(h.tags) : h.tags) : [],
+        primaryTag: h.primaryTag || undefined,
         lastPosition: h.lastPosition !== null && h.lastPosition !== undefined ? Number(h.lastPosition) : undefined,
         audioUrl: h.audioUrl || undefined,
         guid: h.guid || undefined,
@@ -590,14 +595,22 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertLesson = db.prepare(`
       INSERT OR REPLACE INTO lessons (
-        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, channelUrl, playlistId, images, audioProgress, sourceType
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, channelUrl, playlistId, images, audioProgress, sourceType, primaryTag, tags
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertPlaylist = db.prepare(`
       INSERT OR REPLACE INTO playlists (
-        id, user_id, title, description, thumbnailUrl, sourceType, externalUrl, channelTitle, itemCount, language, items, isArchived, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, description, thumbnailUrl, sourceType, externalUrl, channelTitle, itemCount, language, items, isArchived, createdAt, updatedAt, primaryTag, tags
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertTag = db.prepare(`
+      INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertItemTag = db.prepare(`
+      INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)
     `);
 
     const insertLessonType = db.prepare(`
@@ -747,6 +760,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           finalPinned = existingLesson.pinned || 0;
         }
 
+        const lessonPrimaryTag = l.primaryTag || null;
+        const lessonTagsJson = (l.tags && Array.isArray(l.tags) && l.tags.length > 0) ? JSON.stringify(l.tags) : null;
+
         insertLesson.run(
           l.id,
           userId,
@@ -782,8 +798,27 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             (l.lessonType === "article" || l.lessonType === "website" || l.lessonType === "news") ? "article" :
             (l.lessonType === "book" || l.epub || l.pdf) ? "book" :
             (l.lessonType || "article")
-          )
+          ),
+          lessonPrimaryTag,
+          lessonTagsJson
         );
+
+        if (lessonPrimaryTag && typeof lessonPrimaryTag === "string" && lessonPrimaryTag.trim()) {
+          const pTag = lessonPrimaryTag.trim();
+          const tagId = `${userId}_${pTag.toLowerCase()}`;
+          insertTag.run(tagId, userId, pTag, null, l.targetLanguage || null, Date.now());
+          insertItemTag.run(userId, l.id, tagId, 1);
+        }
+        if (Array.isArray(l.tags)) {
+          for (const t of l.tags) {
+            if (!t || typeof t !== "string" || !t.trim()) continue;
+            const tagName = t.trim();
+            const isPrim = lessonPrimaryTag && lessonPrimaryTag.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
+            const tagId = `${userId}_${tagName.toLowerCase()}`;
+            insertTag.run(tagId, userId, tagName, null, l.targetLanguage || null, Date.now());
+            insertItemTag.run(userId, l.id, tagId, isPrim);
+          }
+        }
       }
 
       if (data.deletedPlaylistIds && Array.isArray(data.deletedPlaylistIds) && data.deletedPlaylistIds.length > 0) {
@@ -803,6 +838,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           finalPlIsArchived = existingPlaylist.isArchived || 0;
         }
 
+        const playlistPrimaryTag = p.primaryTag || null;
+        const playlistTagsJson = (p.tags && Array.isArray(p.tags) && p.tags.length > 0) ? JSON.stringify(p.tags) : null;
+
         insertPlaylist.run(
           p.id,
           userId,
@@ -817,21 +855,40 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           p.items ? (typeof p.items === "string" ? p.items : JSON.stringify(p.items)) : "[]",
           finalPlIsArchived,
           p.createdAt || new Date().toISOString(),
-          p.updatedAt || new Date().toISOString()
+          p.updatedAt || new Date().toISOString(),
+          playlistPrimaryTag,
+          playlistTagsJson
         );
+
+        if (playlistPrimaryTag && typeof playlistPrimaryTag === "string" && playlistPrimaryTag.trim()) {
+          const pTag = playlistPrimaryTag.trim();
+          const tagId = `${userId}_${pTag.toLowerCase()}`;
+          insertTag.run(tagId, userId, pTag, null, p.language || null, Date.now());
+          insertItemTag.run(userId, p.id, tagId, 1);
+        }
+        if (Array.isArray(p.tags)) {
+          for (const t of p.tags) {
+            if (!t || typeof t !== "string" || !t.trim()) continue;
+            const tagName = t.trim();
+            const isPrim = playlistPrimaryTag && playlistPrimaryTag.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
+            const tagId = `${userId}_${tagName.toLowerCase()}`;
+            insertTag.run(tagId, userId, tagName, null, p.language || null, Date.now());
+            insertItemTag.run(userId, p.id, tagId, isPrim);
+          }
+        }
       }
 
-      // Ensure lessons belonging to playlists have their playlistId accurately updated in database
+      // Ensure lessons belonging to playlists have their playlistId accurately updated in database and inherit primaryTag if unset
       if (Array.isArray(playlists) && playlists.length > 0) {
         const updateLessonPlaylistStmt = db.prepare(
-          "UPDATE lessons SET playlistId = ? WHERE user_id = ? AND (id = ? OR (youtubeId IS NOT NULL AND length(youtubeId) > 2 AND youtubeId = ?))"
+          "UPDATE lessons SET playlistId = ?, primaryTag = COALESCE(primaryTag, ?) WHERE user_id = ? AND (id = ? OR (youtubeId IS NOT NULL AND length(youtubeId) > 2 AND youtubeId = ?))"
         );
         for (const p of playlists) {
           try {
             const items = Array.isArray(p.items) ? p.items : (typeof p.items === "string" ? JSON.parse(p.items || "[]") : []);
             for (const item of items) {
               if (item.lessonId || item.videoId) {
-                updateLessonPlaylistStmt.run(p.id, userId, item.lessonId || "", item.videoId || "");
+                updateLessonPlaylistStmt.run(p.id, p.primaryTag || null, userId, item.lessonId || "", item.videoId || "");
               }
             }
           } catch (_) {}
@@ -985,8 +1042,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       const insertHistory = db.prepare(`
         INSERT OR REPLACE INTO reading_history (
-          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, lastPosition, audioUrl, guid, podcastTitle
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, lastPosition, audioUrl, guid, podcastTitle, primaryTag
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
@@ -1007,6 +1064,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             continue;
           }
 
+          const historyPrimaryTag = h.primaryTag || null;
+          const historyTagsJson = h.tags && Array.isArray(h.tags) && h.tags.length > 0 ? JSON.stringify(h.tags) : null;
+
           insertHistory.run(
             h.id,
             userId,
@@ -1026,12 +1086,30 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             h.category || null,
             h.customTitle || null,
             h.mode || null,
-            h.tags && Array.isArray(h.tags) ? JSON.stringify(h.tags) : null,
+            historyTagsJson,
             h.lastPosition !== undefined && h.lastPosition !== null ? Number(h.lastPosition) : 0,
             h.audioUrl || null,
             h.guid || null,
-            h.podcastTitle || null
+            h.podcastTitle || null,
+            historyPrimaryTag
           );
+
+          if (historyPrimaryTag && typeof historyPrimaryTag === "string" && historyPrimaryTag.trim()) {
+            const pTag = historyPrimaryTag.trim();
+            const tagId = `${userId}_${pTag.toLowerCase()}`;
+            insertTag.run(tagId, userId, pTag, null, h.targetLanguage || null, Date.now());
+            insertItemTag.run(userId, h.id, tagId, 1);
+          }
+          if (Array.isArray(h.tags)) {
+            for (const t of h.tags) {
+              if (!t || typeof t !== "string" || !t.trim()) continue;
+              const tagName = t.trim();
+              const isPrim = historyPrimaryTag && historyPrimaryTag.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
+              const tagId = `${userId}_${tagName.toLowerCase()}`;
+              insertTag.run(tagId, userId, tagName, null, h.targetLanguage || null, Date.now());
+              insertItemTag.run(userId, h.id, tagId, isPrim);
+            }
+          }
         }
       }
     })();
@@ -1631,9 +1709,10 @@ router.patch("/history/:id", (req: Request, res: Response) => {
       if (!existing) {
         const insertStmt = db.prepare(`
           INSERT OR REPLACE INTO reading_history (
-            id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, primaryTag
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
+        const primaryTagVal = updates.primaryTag || null;
         insertStmt.run(
           id,
           userId,
@@ -1653,8 +1732,26 @@ router.patch("/history/:id", (req: Request, res: Response) => {
           updates.category || null,
           updates.customTitle || null,
           updates.mode || null,
-          updates.tags ? JSON.stringify(updates.tags) : null
+          updates.tags ? JSON.stringify(updates.tags) : null,
+          primaryTagVal
         );
+
+        if (primaryTagVal && typeof primaryTagVal === "string" && primaryTagVal.trim()) {
+          const pTag = primaryTagVal.trim();
+          const tagId = `${userId}_${pTag.toLowerCase()}`;
+          db.prepare("INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(tagId, userId, pTag, null, updates.targetLanguage || null, Date.now());
+          db.prepare("INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)").run(userId, id, tagId, 1);
+        }
+        if (Array.isArray(updates.tags)) {
+          for (const t of updates.tags) {
+            if (!t || typeof t !== "string" || !t.trim()) continue;
+            const tagName = t.trim();
+            const isPrim = primaryTagVal && primaryTagVal.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
+            const tagId = `${userId}_${tagName.toLowerCase()}`;
+            db.prepare("INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(tagId, userId, tagName, null, updates.targetLanguage || null, Date.now());
+            db.prepare("INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)").run(userId, id, tagId, isPrim);
+          }
+        }
       } else {
         const nextChannelName = updates.channelName !== undefined ? updates.channelName : existing.channelName;
         const nextChannelAvatar = updates.channelAvatarUrl !== undefined ? updates.channelAvatarUrl : existing.channelAvatarUrl;
@@ -1669,6 +1766,7 @@ router.patch("/history/:id", (req: Request, res: Response) => {
         const nextLessonType = updates.lessonType !== undefined ? updates.lessonType : existing.lessonType;
         const nextLessonId = (updates.lessonId && updates.lessonId !== "custom") ? updates.lessonId : existing.lessonId;
         const nextTags = updates.tags !== undefined ? (Array.isArray(updates.tags) ? JSON.stringify(updates.tags) : updates.tags) : existing.tags;
+        const nextPrimaryTag = updates.primaryTag !== undefined ? (updates.primaryTag || null) : (existing.primaryTag || null);
         const nextMode = updates.mode !== undefined ? updates.mode : existing.mode;
         const nextCategory = updates.category !== undefined ? updates.category : existing.category;
         const nextCustomTitle = updates.customTitle !== undefined ? updates.customTitle : existing.customTitle;
@@ -1677,14 +1775,35 @@ router.patch("/history/:id", (req: Request, res: Response) => {
           UPDATE reading_history SET
             lessonId = ?, lessonTitle = ?, lessonType = ?, coverUrl = ?, targetLanguage = ?,
             actionType = ?, status = ?, durationSeconds = ?, notes = ?, channelName = ?,
-            channelAvatarUrl = ?, channelUrl = ?, category = ?, customTitle = ?, mode = ?, tags = ?
+            channelAvatarUrl = ?, channelUrl = ?, category = ?, customTitle = ?, mode = ?, tags = ?, primaryTag = ?
           WHERE user_id = ? AND id = ?
         `).run(
           nextLessonId, nextTitle, nextLessonType, nextCoverUrl, nextTargetLang,
           nextActionType, nextStatus, nextDuration, nextNotes, nextChannelName,
-          nextChannelAvatar, nextChannelUrl, nextCategory, nextCustomTitle, nextMode, nextTags,
+          nextChannelAvatar, nextChannelUrl, nextCategory, nextCustomTitle, nextMode, nextTags, nextPrimaryTag,
           userId, id
         );
+
+        if (updates.primaryTag !== undefined || updates.tags !== undefined) {
+          db.prepare("DELETE FROM item_tags WHERE user_id = ? AND item_id = ?").run(userId, id);
+          if (nextPrimaryTag && typeof nextPrimaryTag === "string" && nextPrimaryTag.trim()) {
+            const pTag = nextPrimaryTag.trim();
+            const tagId = `${userId}_${pTag.toLowerCase()}`;
+            db.prepare("INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(tagId, userId, pTag, null, nextTargetLang || null, Date.now());
+            db.prepare("INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)").run(userId, id, tagId, 1);
+          }
+          const parsedTags = nextTags ? (typeof nextTags === "string" ? JSON.parse(nextTags) : nextTags) : [];
+          if (Array.isArray(parsedTags)) {
+            for (const t of parsedTags) {
+              if (!t || typeof t !== "string" || !t.trim()) continue;
+              const tagName = t.trim();
+              const isPrim = nextPrimaryTag && nextPrimaryTag.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
+              const tagId = `${userId}_${tagName.toLowerCase()}`;
+              db.prepare("INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(tagId, userId, tagName, null, nextTargetLang || null, Date.now());
+              db.prepare("INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)").run(userId, id, tagId, isPrim);
+            }
+          }
+        }
 
         if (updates.channelName !== undefined && nextLessonId && nextLessonId !== "custom") {
           db.prepare(`
@@ -2125,6 +2244,10 @@ const updateLessonHandler = (req: Request, res: Response) => {
     const channelTitle = updates.channelTitle || updates.channelName || null;
     const channelAvatar = updates.channelAvatar || updates.channelAvatarUrl || null;
     const channelUrl = updates.channelUrl || null;
+    const primaryTag = updates.primaryTag !== undefined ? (typeof updates.primaryTag === "string" ? updates.primaryTag.trim() : null) : null;
+    const tagsJson = updates.tags !== undefined
+      ? (Array.isArray(updates.tags) && updates.tags.length > 0 ? JSON.stringify(updates.tags) : null)
+      : null;
 
     db.transaction(() => {
       // 1. Update lessons table
@@ -2133,9 +2256,42 @@ const updateLessonHandler = (req: Request, res: Response) => {
           channelName = COALESCE(?, channelName),
           channelTitle = COALESCE(?, channelTitle),
           channelAvatarUrl = COALESCE(?, channelAvatarUrl),
-          channelUrl = COALESCE(?, channelUrl)
+          channelUrl = COALESCE(?, channelUrl),
+          primaryTag = CASE WHEN ? IS NOT NULL THEN ? ELSE primaryTag END,
+          tags = CASE WHEN ? IS NOT NULL THEN ? ELSE tags END
         WHERE user_id = ? AND id = ?
-      `).run(channelTitle, channelTitle, channelAvatar, channelUrl, userId, id);
+      `).run(
+        channelTitle, channelTitle, channelAvatar, channelUrl,
+        updates.primaryTag !== undefined ? primaryTag : null, primaryTag,
+        updates.tags !== undefined ? tagsJson : null, tagsJson,
+        userId, id
+      );
+
+      // Sync into relational tags and item_tags if provided
+      if (primaryTag || (Array.isArray(updates.tags) && updates.tags.length > 0)) {
+        const insertTag = db.prepare(`
+          INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        const insertItemTag = db.prepare(`
+          INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)
+        `);
+        if (primaryTag && typeof primaryTag === "string" && primaryTag.trim()) {
+          const pTag = primaryTag.trim();
+          const tagId = `${userId}_${pTag.toLowerCase()}`;
+          insertTag.run(tagId, userId, pTag, null, null, Date.now());
+          insertItemTag.run(userId, id, tagId, 1);
+        }
+        if (Array.isArray(updates.tags)) {
+          for (const t of updates.tags) {
+            if (!t || typeof t !== "string" || !t.trim()) continue;
+            const tagName = t.trim();
+            const isPrim = primaryTag && primaryTag.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
+            const tagId = `${userId}_${tagName.toLowerCase()}`;
+            insertTag.run(tagId, userId, tagName, null, null, Date.now());
+            insertItemTag.run(userId, id, tagId, isPrim);
+          }
+        }
+      }
 
       // 2. Also update all reading_history rows for this lessonId
       if (channelTitle) {

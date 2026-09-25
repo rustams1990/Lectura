@@ -1,10 +1,11 @@
 import React, { memo, useState, useEffect, useRef } from "react";
 import { Lesson, ReaderSettings, Playlist } from "../../types";
-import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore, Play } from "lucide-react";
+import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore, Play, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { getCategoryIcon, getCategoryDisplayName } from "../ImportLessonForm";
 import { isValidAudioUrl } from "../../store/playlistStore";
+import { getTagColor } from "../../utils/tagColors";
 
 export interface BookStats {
   knownPct: number;
@@ -453,6 +454,46 @@ export const BookCard: React.FC<BookCardProps> = memo(({
                 <span>📚 {wordCount} {t("library.words", "words")}</span>
               </span>
             </div>
+
+            {/* Tag Badges (Primary + Secondary) */}
+            {(() => {
+              const effectivePrimaryTag = lesson.primaryTag || (lesson.playlistId ? playlists.find(p => p.id === lesson.playlistId)?.primaryTag : null);
+              const secondaryTags = (lesson.tags || []).filter(t => t.toLowerCase() !== (effectivePrimaryTag || "").toLowerCase());
+              if (!effectivePrimaryTag && secondaryTags.length === 0) return null;
+
+              return (
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  {effectivePrimaryTag && (() => {
+                    const color = getTagColor(effectivePrimaryTag);
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1 text-[9.5px] font-bold leading-none px-2 py-0.5 rounded-full border shadow-3xs truncate select-none ${color.lightBg} ${color.border} ${color.text}`}
+                        title={`${t('tags.primary_badge', 'Primary')}: #${effectivePrimaryTag}`}
+                      >
+                        <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500 shrink-0" />
+                        <span className="truncate">#{effectivePrimaryTag}</span>
+                      </span>
+                    );
+                  })()}
+                  {secondaryTags.slice(0, 3).map((tag) => {
+                    const color = getTagColor(tag);
+                    return (
+                      <span
+                        key={tag}
+                        className={`inline-flex items-center gap-1 text-[9.5px] font-medium leading-none px-1.5 py-0.5 rounded-full border shadow-3xs truncate select-none opacity-85 ${color.lightBg} ${color.border} ${color.text}`}
+                      >
+                        #{tag}
+                      </span>
+                    );
+                  })}
+                  {secondaryTags.length > 3 && (
+                    <span className="text-[9px] font-bold text-zinc-400 select-none">
+                      +{secondaryTags.length - 3}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Prominent, Clean Title with High Contrast */}
             <h3

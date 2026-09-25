@@ -871,9 +871,19 @@ function LibraryHome({
         searchQuery.trim().length > 0 ||
         (selectedLessonType !== "All" && selectedLessonType !== "playlist");
 
+      const cleanQ = searchQuery.toLowerCase().trim().replace(/^#+/, "");
       const matchesSearch =
+        !searchQuery.trim() ||
         lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lesson.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (lesson.primaryTag && (
+          lesson.primaryTag.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          lesson.primaryTag.toLowerCase().includes(cleanQ)
+        )) ||
+        (Array.isArray(lesson.tags) && lesson.tags.some(t =>
+          t.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          t.toLowerCase().includes(cleanQ)
+        )) ||
         normalizeLanguage(lesson.targetLanguage).toLowerCase().includes(searchQuery.toLowerCase()) ||
         getLocalizedLanguageName(normalizeLanguage(lesson.targetLanguage), i18n.language).toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -980,10 +990,19 @@ function LibraryHome({
       if (!matchesArchive) return false;
 
       const q = searchQuery.toLowerCase().trim();
+      const cleanQ = q.replace(/^#+/, "");
       const matchesSearch =
         !q ||
         pl.title.toLowerCase().includes(q) ||
         (pl.channelTitle && pl.channelTitle.toLowerCase().includes(q)) ||
+        (pl.primaryTag && (
+          pl.primaryTag.toLowerCase().includes(q) ||
+          pl.primaryTag.toLowerCase().includes(cleanQ)
+        )) ||
+        (Array.isArray(pl.tags) && pl.tags.some(t =>
+          t.toLowerCase().includes(q) ||
+          t.toLowerCase().includes(cleanQ)
+        )) ||
         pl.language.toLowerCase().includes(q) ||
         getLocalizedLanguageName(pl.language, i18n.language).toLowerCase().includes(q);
 

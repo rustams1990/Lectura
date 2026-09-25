@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, memo } from "react";
-import { HistoryEntry, Lesson, ReaderSettings, ActivitySourceMode, CustomActivityCategory } from "../types";
+import { HistoryEntry, Lesson, Playlist, ReaderSettings, ActivitySourceMode, CustomActivityCategory } from "../types";
 import { 
   History, 
   Search, 
@@ -36,7 +36,8 @@ import {
   ChevronDown,
   PieChart,
   Activity,
-  Loader2
+  Loader2,
+  Star
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
@@ -48,6 +49,7 @@ import EditHistoryModal from "./EditHistoryModal";
 import { resolveApiUrl } from "../utils/apiConfig";
 import { useToast } from "../context/ToastContext";
 import { usePlaylistStore } from "../store/playlistStore";
+import { getTagColor, UNCATEGORIZED_COLOR } from "../utils/tagColors";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -109,6 +111,7 @@ import AssignChannelModal from "./AssignChannelModal";
 interface HistoryPageProps {
   history: HistoryEntry[];
   lessons: Lesson[];
+  playlists?: Playlist[];
   onOpenLesson: (lessonId: string) => void;
   onUpdateHistory: (updatedHistory: HistoryEntry[], deletedIds?: string[]) => void;
   onUpdateLessons?: (updatedLessons: Lesson[]) => void;
@@ -119,6 +122,7 @@ interface HistoryPageProps {
 function HistoryPage({
   history,
   lessons,
+  playlists = [],
   onOpenLesson,
   onUpdateHistory,
   onUpdateLessons,
@@ -139,6 +143,8 @@ function HistoryPage({
   const [assignModalInitialId, setAssignModalInitialId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [channelsLimit, setChannelsLimit] = useState<number | "all">(5);
+  const [topicSearchQuery, setTopicSearchQuery] = useState("");
+  const [showAllTopics, setShowAllTopics] = useState(false);
 
   // Server-first History Sync: pull fresh history upon opening HistoryPage
   useEffect(() => {
@@ -176,8 +182,21 @@ function HistoryPage({
   const availableTags = useMemo(() => {
     const tagsSet = new Set<string>();
     history.forEach((h) => {
-      if (h.tags) {
-        h.tags.forEach((t) => tagsSet.add(t));
+      if (h.primaryTag && h.primaryTag.trim()) {
+        const pClean = h.primaryTag.trim();
+        if (pClean.toLowerCase() !== "youtube" && pClean.toLowerCase() !== "extension") {
+          tagsSet.add(pClean);
+        }
+      }
+      if (h.tags && Array.isArray(h.tags)) {
+        h.tags.forEach((t) => {
+          if (t && t.trim()) {
+            const clean = t.trim();
+            if (clean.toLowerCase() !== "youtube" && clean.toLowerCase() !== "extension") {
+              tagsSet.add(clean);
+            }
+          }
+        });
       }
     });
     return Array.from(tagsSet).sort();
@@ -476,13 +495,6 @@ function HistoryPage({
         }
       }
 
-      // Filter by tag
-      if (selectedTag !== "all") {
-        if (!item.tags || !item.tags.includes(selectedTag)) {
-          return false;
-        }
-      }
-
       // Filter by month selector if set
       if (selectedMonth !== "all") {
         try {
@@ -517,7 +529,7 @@ function HistoryPage({
 
       return true;
     });
-  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, selectedTag, getItemLanguage]);
+  }, [deduplicatedHistory, selectedPeriod, customDate, selectedLanguage, selectedMonth, getItemLanguage]);
 
   // Goals and Streaks logic
   const isGlobalGoal = selectedLanguage === "all";
@@ -730,6 +742,139 @@ function HistoryPage({
     };
   }, [scopedHistory, lessons, t]);
 
+  // Primary Topics Stats (100% Balance Donut Chart, no duplication)
+  const primaryTopicStats = useMemo(() => {
+    let totalSec = 0;
+    const map = new Map<string, { id: string; label: string; seconds: number; count: number; colorHex: string }>();
+
+    scopedHistory.forEach((item) => {
+      const dur = item.durationSeconds || 0;
+      totalSec += dur;
+      const raw = item.primaryTag?.trim();
+      const id = raw ? raw.toLowerCase() : "uncategorized";
+      const label = raw || t("tags.uncategorized", "Uncategorized");
+      const color = raw ? getTagColor(raw).hex : UNCATEGORIZED_COLOR.hex;
+
+      const existing = map.get(id);
+      if (existing) {
+        existing.seconds += dur;
+        existing.count += 1;
+      } else {
+        map.set(id, { id, label, seconds: dur, count: 1, colorHex: color });
+      }
+    });
+
+    const items = Array.from(map.values()).map((entry) => ({
+      ...entry,
+      percent: totalSec > 0 ? (entry.seconds / totalSec) * 100 : 0,
+    })).sort((a, b) => b.seconds - a.seconds);
+
+    return { totalSeconds: totalSec, items };
+  }, [scopedHistory, t]);
+
+  // All Topics Breakdown (Cards with Primary vs Secondary breakdown)
+  const allTopicsBreakdown = useMemo(() => {
+    const map = new Map<string, {
+      id: string;
+      label: string;
+      totalSeconds: number;
+      primarySeconds: number;
+      secondarySeconds: number;
+      count: number;
+      color: ReturnType<typeof getTagColor>;
+      hasPrimary: boolean;
+    }>();
+
+    scopedHistory.forEach((item) => {
+      const dur = item.durationSeconds || 0;
+      const rawPTag = item.primaryTag?.trim();
+      const pTag = rawPTag && rawPTag.toLowerCase() !== "youtube" && rawPTag.toLowerCase() !== "extension" ? rawPTag : null;
+      const sTags = Array.isArray(item.tags)
+        ? item.tags.map((t) => t.trim()).filter((t) => Boolean(t) && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
+        : [];
+
+      if (!pTag && sTags.length === 0) {
+        // Uncategorized
+        const id = "uncategorized";
+        const label = t("tags.uncategorized", "Uncategorized");
+        const existing = map.get(id);
+        if (existing) {
+          existing.totalSeconds += dur;
+          existing.primarySeconds += dur;
+          existing.count += 1;
+        } else {
+          map.set(id, {
+            id,
+            label,
+            totalSeconds: dur,
+            primarySeconds: dur,
+            secondarySeconds: 0,
+            count: 1,
+            color: UNCATEGORIZED_COLOR,
+            hasPrimary: false,
+          });
+        }
+        return;
+      }
+
+      // 1. Process primary tag
+      if (pTag) {
+        const id = pTag.toLowerCase();
+        const existing = map.get(id);
+        if (existing) {
+          existing.totalSeconds += dur;
+          existing.primarySeconds += dur;
+          existing.count += 1;
+          existing.hasPrimary = true;
+        } else {
+          map.set(id, {
+            id,
+            label: pTag,
+            totalSeconds: dur,
+            primarySeconds: dur,
+            secondarySeconds: 0,
+            count: 1,
+            color: getTagColor(pTag),
+            hasPrimary: true,
+          });
+        }
+      }
+
+      // 2. Process secondary tags
+      sTags.forEach((sTag) => {
+        if (pTag && sTag.toLowerCase() === pTag.toLowerCase()) return; // Avoid duplication with primary
+        const id = sTag.toLowerCase();
+        const existing = map.get(id);
+        if (existing) {
+          existing.totalSeconds += dur;
+          existing.secondarySeconds += dur;
+          existing.count += 1;
+        } else {
+          map.set(id, {
+            id,
+            label: sTag,
+            totalSeconds: dur,
+            primarySeconds: 0,
+            secondarySeconds: dur,
+            count: 1,
+            color: getTagColor(sTag),
+            hasPrimary: false,
+          });
+        }
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.totalSeconds - a.totalSeconds);
+  }, [scopedHistory, t]);
+
+  const filteredTopicsBreakdown = useMemo(() => {
+    if (!topicSearchQuery.trim()) return allTopicsBreakdown;
+    const q = topicSearchQuery.toLowerCase().trim();
+    return allTopicsBreakdown.filter(
+      (t) => t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)
+    );
+  }, [allTopicsBreakdown, topicSearchQuery]);
+
   // Helper to determine if an activity item is a Channel source (YouTube / Podcast / explicit channel)
   const isChannelMedia = React.useCallback(
     (item: HistoryEntry, lesson?: Lesson | null): boolean => {
@@ -931,6 +1076,21 @@ function HistoryPage({
           return false;
         }
       }
+      if (selectedTag !== "all") {
+        const sel = selectedTag.toLowerCase().trim();
+        const rawPTag = item.primaryTag?.trim();
+        const pTag = rawPTag && rawPTag.toLowerCase() !== "youtube" && rawPTag.toLowerCase() !== "extension" ? rawPTag : null;
+        const validTags = Array.isArray(item.tags)
+          ? item.tags.filter((t) => t && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
+          : [];
+
+        const matchesPrimary = pTag && pTag.toLowerCase().trim() === sel;
+        const matchesSecondary = validTags.some((t) => t.toLowerCase().trim() === sel);
+        const matchesUncategorized = (sel === "uncategorized" || sel === "без категории") && !pTag && validTags.length === 0;
+        if (!matchesPrimary && !matchesSecondary && !matchesUncategorized) {
+          return false;
+        }
+      }
       return true;
     });
 
@@ -940,7 +1100,7 @@ function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [scopedHistory, filterType, searchQuery, selectedChannelFilter, getItemLanguage, lessons, resolveItemChannelName]);
+  }, [scopedHistory, filterType, searchQuery, selectedChannelFilter, selectedTag, getItemLanguage, lessons, resolveItemChannelName]);
 
   const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -1352,6 +1512,260 @@ function HistoryPage({
         </div>
       </div>
 
+      {/* Topic & Tag Analytics Section */}
+      {primaryTopicStats.totalSeconds > 0 && (
+        <div className="bg-white dark:bg-zinc-900/60 p-4 sm:p-5 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 space-y-4 shadow-3xs">
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800/80 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-lg">
+                <Tag className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <span>{t("tags.topic_analytics_title", "Topic & Category Distribution")}</span>
+                  <span className="text-[10px] uppercase font-black px-1.5 py-0.5 bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 rounded-md border border-teal-200/60 dark:border-teal-800">
+                    100% Balance
+                  </span>
+                </h3>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {t("tags.topic_analytics_subtitle", "Time split across primary study topics without duplication")}
+                </p>
+              </div>
+            </div>
+            {selectedTag !== "all" && (
+              <button
+                type="button"
+                onClick={() => setSelectedTag("all")}
+                className="self-start sm:self-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>{t("tags.reset_tag_filter", "Clear tag filter ({{tag}})", { tag: selectedTag })}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Primary Topics Distribution (Donut Chart + Legend) */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+            {/* Donut Chart */}
+            <div className="md:col-span-4 flex items-center justify-center py-2">
+              <div className="relative w-36 h-36 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                  {/* Background Ring */}
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="36"
+                    className="text-zinc-100 dark:text-zinc-800/80 stroke-current"
+                    strokeWidth="14"
+                    fill="transparent"
+                  />
+                  {/* Segments */}
+                  {primaryTopicStats.items.map((seg, idx) => {
+                    const prevPercent = primaryTopicStats.items.slice(0, idx).reduce((sum, p) => sum + p.percent, 0);
+                    const circumference = 2 * Math.PI * 36;
+                    const dashArray = `${(seg.percent * circumference) / 100} ${circumference}`;
+                    const dashOffset = -((prevPercent * circumference) / 100);
+
+                    const isSelected = selectedTag.toLowerCase() === seg.id;
+                    return (
+                      <circle
+                        key={seg.id}
+                        cx="50"
+                        cy="50"
+                        r="36"
+                        stroke={seg.colorHex}
+                        strokeWidth={isSelected ? 16 : 14}
+                        strokeDasharray={dashArray}
+                        strokeDashoffset={dashOffset}
+                        fill="transparent"
+                        className="transition-all duration-700 cursor-pointer hover:opacity-90"
+                        onClick={() => setSelectedTag(selectedTag.toLowerCase() === seg.id ? "all" : seg.id)}
+                      />
+                    );
+                  })}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-zinc-400">
+                    {t("tags.total", "Total")}
+                  </span>
+                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                    {formatDuration(primaryTopicStats.totalSeconds)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Primary Legend Grid */}
+            <div className="md:col-span-8 flex flex-col justify-center gap-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
+                {t("tags.primary_topics_balance", "Primary Topics Balance (100%)")}
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {primaryTopicStats.items.map((item) => {
+                  const isSelected = selectedTag.toLowerCase() === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedTag(isSelected ? "all" : item.id)}
+                      className={`flex items-center justify-between p-2 rounded-xl border text-left transition cursor-pointer ${
+                        isSelected
+                          ? "border-teal-500 bg-teal-50/70 dark:bg-teal-950/40 ring-1 ring-teal-500"
+                          : "border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-850/40 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.colorHex }} />
+                        <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">
+                          {item.id === "uncategorized" ? item.label : `#${item.label}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 text-right">
+                        <span className="text-xs font-mono font-semibold text-zinc-700 dark:text-zinc-300">
+                          {formatDuration(item.seconds)}
+                        </span>
+                        <span className="text-[11px] font-bold text-zinc-400 min-w-[34px] text-right">
+                          {Math.round(item.percent)}%
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed All Tags Breakdown Grid (Primary + Secondary) with Live Search & Show More */}
+          {allTopicsBreakdown.length > 0 && (
+            <div className="space-y-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+                    {t("tags.all_tags_breakdown", "Detailed Topics Breakdown (Primary + Secondary)")}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    {t("tags.click_card_to_filter", "Click card to filter history")}
+                  </span>
+                </div>
+
+                {allTopicsBreakdown.length > 4 && (
+                  <div className="relative w-full sm:w-56">
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={topicSearchQuery}
+                      onChange={(e) => setTopicSearchQuery(e.target.value)}
+                      placeholder={t("tags.search_topics_placeholder", "Search topics...")}
+                      className="w-full pl-8 pr-7 py-1 text-xs bg-zinc-50 dark:bg-zinc-950/60 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500/50 placeholder-zinc-400"
+                    />
+                    {topicSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setTopicSearchQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {filteredTopicsBreakdown.length === 0 ? (
+                <div className="p-4 text-center text-xs text-zinc-400 italic bg-zinc-50 dark:bg-zinc-950/40 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                  {t("common.no_results", "No topics found matching search query")}
+                </div>
+              ) : (
+                (() => {
+                  const maxVisible = !topicSearchQuery && !showAllTopics ? 8 : filteredTopicsBreakdown.length;
+                  const visibleTopics = filteredTopicsBreakdown.slice(0, maxVisible);
+
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                        {visibleTopics.map((tag) => {
+                          const isSelected = selectedTag.toLowerCase() === tag.id;
+                          const primaryRatio = tag.totalSeconds > 0 ? (tag.primarySeconds / tag.totalSeconds) * 100 : 0;
+                          return (
+                            <div
+                              key={tag.id}
+                              onClick={() => setSelectedTag(isSelected ? "all" : tag.id)}
+                              className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
+                                isSelected
+                                  ? "border-teal-500 bg-teal-50/70 dark:bg-teal-950/40 ring-2 ring-teal-500/50"
+                                  : `${tag.color.lightBg} ${tag.color.border} hover:opacity-90`
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  {tag.hasPrimary && (
+                                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" title={t("tags.primary_badge", "Primary")} />
+                                  )}
+                                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                    {tag.id === "uncategorized" ? tag.label : `#${tag.label}`}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 shrink-0">
+                                  {tag.count} {t("history_page.sessions", "sessions")}
+                                </span>
+                              </div>
+
+                              <div className="flex items-baseline justify-between text-xs">
+                                <span className="text-xs font-black text-zinc-900 dark:text-zinc-100 font-mono">
+                                  {formatDuration(tag.totalSeconds)}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                                  {tag.primarySeconds > 0 && tag.secondarySeconds > 0
+                                    ? `${formatDuration(tag.primarySeconds)} main / ${formatDuration(tag.secondarySeconds)} extra`
+                                    : tag.primarySeconds > 0
+                                    ? t("tags.only_primary", "100% main topic")
+                                    : t("tags.only_secondary", "Secondary topic")}
+                                </span>
+                              </div>
+
+                              {/* Mini Ratio Bar */}
+                              {tag.primarySeconds > 0 && tag.secondarySeconds > 0 && (
+                                <div className="w-full h-1.5 bg-zinc-200/80 dark:bg-zinc-800 rounded-full overflow-hidden flex">
+                                  <div
+                                    className="h-full bg-teal-500 transition-all"
+                                    style={{ width: `${primaryRatio}%` }}
+                                    title={`${Math.round(primaryRatio)}% Primary`}
+                                  />
+                                  <div
+                                    className="h-full bg-indigo-400 dark:bg-indigo-500 transition-all"
+                                    style={{ width: `${100 - primaryRatio}%` }}
+                                    title={`${Math.round(100 - primaryRatio)}% Secondary`}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {!topicSearchQuery && filteredTopicsBreakdown.length > 8 && (
+                        <div className="flex justify-center pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowAllTopics((v) => !v)}
+                            className="px-3 py-1.5 text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-xl transition cursor-pointer flex items-center gap-1.5 border border-teal-200 dark:border-teal-800/60"
+                          >
+                            {showAllTopics
+                              ? t("tags.show_less_topics", "Show less ▲")
+                              : t("tags.show_more_topics", "Show all topics ({{count}}) ▼", { count: filteredTopicsBreakdown.length })}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Compact Channels & Sources Analytics Section */}
       {channelStats.length > 0 && (
         <div className="bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 space-y-3 shadow-3xs">
@@ -1569,6 +1983,28 @@ function HistoryPage({
             type="button"
             onClick={() => setSelectedChannelFilter(null)}
             className="text-xs px-2.5 py-1 rounded-xl bg-amber-200/70 dark:bg-amber-900/60 hover:bg-amber-300 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-100 transition cursor-pointer"
+          >
+            ✕ {t('common.clear', 'Show all')}
+          </button>
+        </div>
+      )}
+
+      {/* Active Tag Filter Banner */}
+      {selectedTag !== "all" && (
+        <div className="flex items-center justify-between p-3 px-4 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 rounded-2xl text-xs font-bold text-teal-900 dark:text-teal-200 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <Tag className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <span>
+              {t('tags.active_filter_label', 'Filtered by topic:')}{' '}
+              <span className="underline font-black">
+                {selectedTag === "uncategorized" ? t('tags.uncategorized', 'Uncategorized') : `#${selectedTag}`}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedTag("all")}
+            className="text-xs px-2.5 py-1 rounded-xl bg-teal-200/70 dark:bg-teal-900/60 hover:bg-teal-300 dark:hover:bg-teal-800 text-teal-900 dark:text-teal-100 transition cursor-pointer"
           >
             ✕ {t('common.clear', 'Show all')}
           </button>
@@ -1822,12 +2258,37 @@ function HistoryPage({
                               </button>
                             ) : null}
                             
-                            {item.tags && item.tags.length > 0 && item.tags.map(t => (
-                              <span key={t} className="text-[9px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-400 px-1.5 py-0.5 rounded border border-teal-100 dark:border-teal-900/50 flex items-center gap-1">
-                                <Tag className="w-2 h-2" />
-                                {t}
-                              </span>
-                            ))}
+                            {item.primaryTag && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTag(item.primaryTag!);
+                                }}
+                                className="text-[9px] font-bold text-amber-900 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-200 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 flex items-center gap-1 cursor-pointer hover:opacity-80 transition"
+                                title={t('tags.primary_badge', 'Primary')}
+                              >
+                                <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0" />
+                                <span>#{item.primaryTag}</span>
+                              </button>
+                            )}
+                            {item.tags && item.tags.filter((t) => t.toLowerCase() !== item.primaryTag?.toLowerCase()).map((t) => {
+                              const col = getTagColor(t);
+                              return (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTag(t);
+                                  }}
+                                  className={`text-[9px] font-bold ${col.text} ${col.lightBg} px-1.5 py-0.5 rounded border ${col.border} flex items-center gap-1 cursor-pointer hover:opacity-80 transition`}
+                                >
+                                  <Tag className="w-2 h-2" />
+                                  <span>#{t}</span>
+                                </button>
+                              );
+                            })}
                           </div>
 
                           <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
@@ -2017,6 +2478,7 @@ function HistoryPage({
           setIsCreateModalOpen(false);
         }}
         lessons={lessons}
+        playlists={playlists}
         history={history}
         existingChannels={existingChannels}
         selectedLanguage={selectedLanguage}

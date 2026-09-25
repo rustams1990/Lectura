@@ -255,13 +255,46 @@ export function handleTrackActivity(req: Request, res: Response) {
       const initialDuration = addedSec;
       const initialLastPos = resolvedLastPosition !== undefined ? resolvedLastPosition : 0;
 
+      // Look up matching lesson or playlist in database to inherit real study topic tags
+      let autoPrimaryTag: string | null = null;
+      let autoTags: string[] = [];
+
+      if (cleanVideoId) {
+        try {
+          const lRow = db.prepare(`
+            SELECT id, primaryTag, tags, playlistId FROM lessons
+            WHERE user_id = ? AND (id = ? OR youtubeId = ?)
+            LIMIT 1
+          `).get(userId, recordedLessonId, cleanVideoId) as any;
+
+          if (lRow) {
+            autoPrimaryTag = lRow.primaryTag || null;
+            if (lRow.tags) {
+              const parsed = JSON.parse(lRow.tags);
+              if (Array.isArray(parsed)) autoTags = parsed;
+            }
+            if (!autoPrimaryTag && lRow.playlistId) {
+              const pRow = db.prepare(`
+                SELECT primaryTag FROM playlists WHERE user_id = ? AND id = ?
+              `).get(userId, lRow.playlistId) as any;
+              if (pRow?.primaryTag) autoPrimaryTag = pRow.primaryTag;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (req.body.primaryTag) autoPrimaryTag = req.body.primaryTag;
+      if (Array.isArray(req.body.tags)) autoTags = req.body.tags;
+
+      const finalTagsJson = autoTags.length > 0 ? JSON.stringify(autoTags) : null;
+
       const historyId = "hist_yt_" + (cleanVideoId || Date.now().toString(36)) + "_" + Date.now().toString(36);
       db.prepare(`
         INSERT INTO reading_history (
           id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage,
           timestamp, actionType, status, durationSeconds, channelName, channelAvatarUrl,
-          channelUrl, category, customTitle, mode, tags, lastPosition, duration
-        ) VALUES (?, ?, ?, ?, 'youtube', ?, ?, ?, 'listen', ?, ?, ?, ?, ?, 'video', ?, 'custom', ?, ?, ?)
+          channelUrl, category, customTitle, mode, tags, lastPosition, duration, primaryTag
+        ) VALUES (?, ?, ?, ?, 'youtube', ?, ?, ?, 'listen', ?, ?, ?, ?, ?, 'video', ?, 'custom', ?, ?, ?, ?)
       `).run(
         historyId,
         userId,
@@ -276,9 +309,10 @@ export function handleTrackActivity(req: Request, res: Response) {
         channelAvatarUrl || null,
         cleanChannelUrl || null,
         cleanTitle,
-        JSON.stringify(["youtube", "extension"]),
+        finalTagsJson,
         initialLastPos,
-        totalDuration
+        totalDuration,
+        autoPrimaryTag || null
       );
     }
 
