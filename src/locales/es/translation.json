@@ -551,7 +551,18 @@
     "welcome_title": "Welcome to your Library!",
     "welcome_desc": "Start by importing a YouTube video, adding a podcast, or creating your first reading lesson.",
     "import_content": "Import Content",
-    "change_tip": "Change tip"
+    "change_tip": "Change tip",
+    "all_tags": "Todas las etiquetas",
+    "filter_by_tag": "Filtrar por etiqueta",
+    "search_tags": "Buscar etiquetas...",
+    "no_tags_found": "No se encontraron etiquetas",
+    "all_levels": "Todos los niveles",
+    "filter_by_level": "Filtrar por nivel",
+    "level_beginner": "A1–A2 (Principiante)",
+    "level_intermediate": "B1–B2 (Intermedio)",
+    "level_advanced": "C1–C2 (Avanzado)",
+    "reset": "Restablecer",
+    "reset_all_filters": "Restablecer todos los filtros"
   },
   "match_pairs": {
     "title": "Match Pairs",

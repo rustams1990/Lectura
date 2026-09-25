@@ -551,7 +551,18 @@
     "welcome_title": "Добро пожаловать в вашу библиотеку!",
     "welcome_desc": "Начните с импорта YouTube-видео, добавления подкаста или создания первого урока для чтения.",
     "import_content": "Импортировать контент",
-    "change_tip": "Сменить совет"
+    "change_tip": "Сменить совет",
+    "all_tags": "Все теги",
+    "filter_by_tag": "Фильтр по тегам",
+    "search_tags": "Поиск тегов...",
+    "no_tags_found": "Теги не найдены",
+    "all_levels": "Все уровни",
+    "filter_by_level": "Фильтр по сложности",
+    "level_beginner": "A1–A2 (Начинающий)",
+    "level_intermediate": "B1–B2 (Средний)",
+    "level_advanced": "C1–C2 (Продвинутый)",
+    "reset": "Сброс",
+    "reset_all_filters": "Сбросить все фильтры"
   },
   "match_pairs": {
     "title": "Match Pairs",

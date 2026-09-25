@@ -14,12 +14,48 @@ import PlaylistCard from "./playlist/PlaylistCard";
 import AddToPlaylistModal from "./playlist/AddToPlaylistModal";
 import { BookCard, BookStats, CoverPreset } from "./library/BookCard";
 import SortDropdown from "./SortDropdown";
+import TagFilterDropdown from "./library/TagFilterDropdown";
+import LevelFilterDropdown, { DifficultyGroup } from "./library/LevelFilterDropdown";
 import { useLessonStore } from "../store/useLessonStore";
 import { getLessonEffectiveDuration } from "../utils/durationUtils";
 
 export function getDifficultyBadgeStyles(_level?: string) {
   // Clean, unified, high-contrast style matching the language pill
   return "bg-black/65 text-white font-black border border-white/10 shadow-xs";
+}
+
+export function matchesDifficultyGroup(difficulty: string | null | undefined, group: DifficultyGroup): boolean {
+  if (group === "all") return true;
+  if (!difficulty || typeof difficulty !== "string") return false;
+  const d = difficulty.toLowerCase().trim();
+
+  if (group === "a1-a2") {
+    return (
+      d.includes("a1") ||
+      d.includes("a2") ||
+      d.includes("beginner") ||
+      d.includes("elementary") ||
+      d.includes("pre-intermediate") ||
+      d.includes("начинающ")
+    );
+  }
+  if (group === "b1-b2") {
+    if (d.includes("b1") || d.includes("b2") || d.includes("средн")) return true;
+    if (d.includes("intermediate") && !d.includes("pre-intermediate")) return true;
+    return false;
+  }
+  if (group === "c1-c2") {
+    return (
+      d.includes("c1") ||
+      d.includes("c2") ||
+      d.includes("advanced") ||
+      d.includes("proficient") ||
+      d.includes("продвинут") ||
+      d.includes("носител") ||
+      d.includes("native")
+    );
+  }
+  return false;
 }
 
 const tokensCache = new Map<string, { tokens: ReturnType<typeof segmentSentenceTokens>; length: number; snippet: string }>();
@@ -693,6 +729,8 @@ function LibraryHome({
   }, [history, lessons]);
   const [filterType, setFilterType] = useState<"all" | "builtin" | "custom">("all");
   const [selectedLessonType, setSelectedLessonType] = useState<string>("All");
+  const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyGroup>("all");
   const [showArchived, setShowArchived] = useState<boolean>(false);
   const archivingIds = useLessonStore((state) => state.archivingIds);
   const [deletingLessonId, setDeletingLessonId] = useState<string | null>(null);
@@ -903,7 +941,14 @@ function LibraryHome({
         lesson.lessonType === selectedLessonType ||
         (selectedLessonType === "book" && !lesson.lessonType); // default undefined type to "book"
 
-      return matchesArchive && notHiddenByPlaylist && matchesSearch && matchesLanguage && matchesType && matchesLessonType;
+      const matchesTag =
+        selectedTag === "all" ||
+        (lesson.primaryTag && lesson.primaryTag.toLowerCase().trim() === selectedTag.toLowerCase().trim()) ||
+        (Array.isArray(lesson.tags) && lesson.tags.some(t => t.toLowerCase().trim() === selectedTag.toLowerCase().trim()));
+
+      const matchesDifficulty = matchesDifficultyGroup(lesson.difficulty, selectedDifficulty);
+
+      return matchesArchive && notHiddenByPlaylist && matchesSearch && matchesLanguage && matchesType && matchesLessonType && matchesTag && matchesDifficulty;
     });
 
     // Sort: pinned always float to top, then apply the chosen sort key.
@@ -976,7 +1021,7 @@ function LibraryHome({
       // default "pinned" / "newest": Newest first = higher timestamp first
       return getEffectiveTimestamp(b) - getEffectiveTimestamp(a);
     });
-  }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived, sortBy, vocab, wordLinks, archivingIds]);
+  }, [lessons, searchQuery, selectedLanguage, filterType, selectedLessonType, selectedTag, selectedDifficulty, showArchived, sortBy, vocab, wordLinks, archivingIds]);
 
   // Filter playlists
   const filteredPlaylists = useMemo(() => {
@@ -1014,9 +1059,23 @@ function LibraryHome({
         selectedLessonType === "playlist" ||
         (selectedLessonType === "youtube" && pl.sourceType === "youtube_playlist");
 
-      return matchesSearch && matchesLanguage && matchesLessonType;
+      const matchesTag =
+        selectedTag === "all" ||
+        (pl.primaryTag && pl.primaryTag.toLowerCase().trim() === selectedTag.toLowerCase().trim()) ||
+        (Array.isArray(pl.tags) && pl.tags.some(t => t.toLowerCase().trim() === selectedTag.toLowerCase().trim()));
+
+      let matchesDifficulty = true;
+      if (selectedDifficulty !== "all") {
+        matchesDifficulty = (pl.items || []).some((it) => {
+          if (!it.lessonId) return false;
+          const lesson = lessons.find((l) => l.id === it.lessonId);
+          return lesson ? matchesDifficultyGroup(lesson.difficulty, selectedDifficulty) : false;
+        });
+      }
+
+      return matchesSearch && matchesLanguage && matchesLessonType && matchesTag && matchesDifficulty;
     });
-  }, [playlists, searchQuery, selectedLanguage, selectedLessonType, showArchived, i18n.language]);
+  }, [playlists, lessons, searchQuery, selectedLanguage, selectedLessonType, selectedTag, selectedDifficulty, showArchived, i18n.language]);
 
   // Playlists matching the current language filter and archive state (regardless of category chip)
   const languagePlaylists = useMemo(() => {
@@ -1070,6 +1129,111 @@ function LibraryHome({
   const totalArchivedBooksCount = useMemo(() => {
     return lessons.filter((l) => isLessonWithContent(l) && (archivingIds.has(l.id) || l.isArchived)).length + (playlists || []).filter((p) => p.isArchived).length;
   }, [lessons, playlists, archivingIds]);
+
+  // Dynamically extract all unique user tags across lessons and playlists
+  const availableLibraryTags = useMemo(() => {
+    const map = new Map<string, string>();
+    const addTag = (raw?: string | null) => {
+      if (!raw || typeof raw !== "string") return;
+      const clean = raw.trim().replace(/^#+/, "").trim();
+      if (!clean) return;
+      const lower = clean.toLowerCase();
+      if (lower === "youtube" || lower === "extension") return;
+      if (!map.has(lower)) {
+        const canonical =
+          clean.length > 1 && clean[0] === clean[0].toLowerCase() && clean[1] === clean[1].toLowerCase()
+            ? clean.charAt(0).toUpperCase() + clean.slice(1)
+            : clean;
+        map.set(lower, canonical);
+      }
+    };
+
+    lessons.forEach((l) => {
+      addTag(l.primaryTag);
+      if (Array.isArray(l.tags)) l.tags.forEach(addTag);
+    });
+    (playlists || []).forEach((p) => {
+      addTag(p.primaryTag);
+      if (Array.isArray(p.tags)) p.tags.forEach(addTag);
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [lessons, playlists]);
+
+  // Count how many lessons or playlists have each tag (under current language & archive state)
+  const tagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    const processItem = (targetLang: string | undefined, isArchived: boolean, primaryTag?: string | null, tags?: string[]) => {
+      const isArch = showArchived ? !isArchived : isArchived;
+      if (isArch) return;
+      if (!matchesLanguageFilter(targetLang)) return;
+
+      const seen = new Set<string>();
+      const add = (raw?: string | null) => {
+        if (!raw || typeof raw !== "string") return;
+        const clean = raw.trim().replace(/^#+/, "").trim().toLowerCase();
+        if (!clean || clean === "youtube" || clean === "extension" || seen.has(clean)) return;
+        seen.add(clean);
+        counts.set(clean, (counts.get(clean) || 0) + 1);
+      };
+
+      add(primaryTag);
+      if (Array.isArray(tags)) tags.forEach(add);
+    };
+
+    lessons.forEach((l) => {
+      if (!isLessonWithContent(l)) return;
+      const isBookArchived = archivingIds.has(l.id) ? true : !!l.isArchived;
+      processItem(l.targetLanguage, isBookArchived, l.primaryTag, l.tags);
+    });
+
+    (playlists || []).forEach((p) => {
+      processItem(p.language, !!p.isArchived, p.primaryTag, p.tags);
+    });
+
+    return counts;
+  }, [lessons, playlists, showArchived, archivingIds, selectedLanguage]);
+
+  // Count how many lessons match each CEFR level
+  const levelCounts = useMemo<Record<DifficultyGroup, number>>(() => {
+    const counts: Record<DifficultyGroup, number> = {
+      all: 0,
+      "a1-a2": 0,
+      "b1-b2": 0,
+      "c1-c2": 0,
+    };
+
+    lessons.forEach((l) => {
+      if (!isLessonWithContent(l)) return;
+      const isBookArchived = archivingIds.has(l.id) ? true : !!l.isArchived;
+      if (showArchived ? !isBookArchived : isBookArchived) return;
+      if (!matchesLanguageFilter(l.targetLanguage)) return;
+
+      counts.all++;
+      if (matchesDifficultyGroup(l.difficulty, "a1-a2")) counts["a1-a2"]++;
+      if (matchesDifficultyGroup(l.difficulty, "b1-b2")) counts["b1-b2"]++;
+      if (matchesDifficultyGroup(l.difficulty, "c1-c2")) counts["c1-c2"]++;
+    });
+
+    return counts;
+  }, [lessons, showArchived, archivingIds, selectedLanguage]);
+
+  const isAnyFilterActive =
+    searchQuery.trim().length > 0 ||
+    selectedLessonType !== "All" ||
+    selectedTag !== "all" ||
+    selectedDifficulty !== "all" ||
+    filterType !== "all";
+
+  const handleResetAllFilters = () => {
+    setSearchQuery("");
+    setSelectedLessonType("All");
+    setSelectedTag("all");
+    setSelectedDifficulty("all");
+    setFilterType("all");
+    setCurrentPage(1);
+  };
 
   const preview = getUIPreviewCache();
   const isDataAvailable = lessons.length > 0 || (playlists && playlists.length > 0) || Object.keys(vocab || {}).length > 0;
@@ -1171,7 +1335,7 @@ function LibraryHome({
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedLanguage, filterType, selectedLessonType, showArchived]);
+  }, [searchQuery, selectedLanguage, filterType, selectedLessonType, selectedTag, selectedDifficulty, showArchived]);
 
   return (
     <div className="library-container w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -1307,6 +1471,23 @@ function LibraryHome({
 
         {/* Right: Actions, Sort, Grid Columns & Play All */}
         <div className="flex items-center gap-1.5 shrink-0 sm:ml-auto flex-wrap sm:flex-nowrap">
+          {/* Tag Filter dropdown */}
+          <TagFilterDropdown
+            selectedTag={selectedTag}
+            onSelectTag={(tag) => setSelectedTag(tag)}
+            availableTags={availableLibraryTags}
+            tagCounts={tagCounts}
+          />
+
+          {/* Level Filter dropdown */}
+          <LevelFilterDropdown
+            selectedDifficulty={selectedDifficulty}
+            onSelectDifficulty={(level) => setSelectedDifficulty(level)}
+            levelCounts={levelCounts}
+          />
+
+          <div className="hidden sm:block h-4 w-px bg-zinc-200 dark:bg-zinc-800 my-auto shrink-0" />
+
           {/* Source Filter dropdown */}
           <div className="relative flex items-center font-sans">
             <select
@@ -1376,6 +1557,19 @@ function LibraryHome({
             >
               <Headphones className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
               <span className="hidden sm:inline">{t('player.play_all', 'Play All')}</span>
+            </button>
+          )}
+
+          {/* Reset All Filters button */}
+          {isAnyFilterActive && (
+            <button
+              type="button"
+              onClick={handleResetAllFilters}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 border bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 dark:text-rose-300 dark:border-rose-900/60 shadow-3xs animate-in fade-in zoom-in-95 duration-150"
+              title={t("library.reset_all_filters", "Reset all filters")}
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{t("library.reset", "Reset")}</span>
             </button>
           )}
         </div>
@@ -1603,6 +1797,8 @@ function LibraryHome({
                 onSelectTargetLanguage?.("All");
                 setFilterType("all");
                 setSelectedLessonType("All");
+                setSelectedTag("all");
+                setSelectedDifficulty("all");
               }}
               className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold text-xs rounded-xl text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
             >
