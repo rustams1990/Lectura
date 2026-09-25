@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "AI транскрибує аудіо та повторно генерує речення за допомогою синхронізованих часових кодів.",
     "transcribing": "Транскрибування аудіо...",
     "create_subtitles_btn": "Створення субтитрів (Gemini AI)",
-    "generate_ai_voice": "Generate AI Voice Audio (Створення AI Audio)",
+    "generate_ai_voice": "Generate AI Voice Audio",
     "generate_ai_voice_desc": "ШІ (Близнюки) виразно читатиме весь текст уроку голосом носія мови.",
     "enter_text_first": "Спочатку введіть текст уроку, щоб створити аудіо",
     "generate_audio_title": "Створіть аудіо AI",

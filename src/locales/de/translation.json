@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "AI will transcribe audio and re-generate sentences with sync timecodes.",
     "transcribing": "Transcribing audio...",
     "create_subtitles_btn": "Generate subtitles (Gemini AI)",
-    "generate_ai_voice": "Generate AI Voice Audio (Generate AI Audio)",
+    "generate_ai_voice": "Generate AI Voice Audio",
     "generate_ai_voice_desc": "AI (Gemini) will read the entire lesson text expressively with a native speaker voice.",
     "enter_text_first": "Enter lesson text first to generate audio",
     "generate_audio_title": "Generate AI audio",

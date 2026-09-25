@@ -6,6 +6,11 @@ import { SelectPlaylistCoverModal } from "./SelectPlaylistCoverModal";
 import { FLAG_EMOJI_TO_CODE } from "../../utils";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { getItemEffectiveDuration } from "../../utils/durationUtils";
+import {
+  computePlaylistDifficultyRange,
+  getDifficultyRangeLabel,
+  getDifficultyRangeBadgeColor,
+} from "../../utils/playlistDifficultyUtils";
 
 export function renderCircularFlag(flagEmoji: string) {
   const code = FLAG_EMOJI_TO_CODE[flagEmoji];
@@ -176,6 +181,18 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     );
   }, [playlist.primaryItemId, playlist.thumbnailUrl, items, lessons]);
 
+  // Compute the difficulty range badge for this playlist
+  const difficultyRange = useMemo(() => {
+    return computePlaylistDifficultyRange(items, (lessonId, videoId) => {
+      if (lessonId) return lessons.find((l) => l.id === lessonId);
+      if (videoId) return lessons.find((l) => l.youtubeId === videoId);
+      return undefined;
+    });
+  }, [items, lessons]);
+
+  const difficultyRangeLabel = getDifficultyRangeLabel(difficultyRange);
+  const difficultyRangeColors = difficultyRangeLabel ? getDifficultyRangeBadgeColor(difficultyRange) : null;
+
   return (
     <div
       onClick={() => onSelectPlaylist(playlist.id)}
@@ -318,14 +335,27 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
           </div>
         </div>
 
-        {/* Bottom line in cover: Type Badge (left) & Videos Count Badge (right) */}
+        {/* Bottom line in cover: Type Badge (left) + Difficulty Range + Videos Count Badge (right) */}
         <div className="z-10 mt-auto flex items-center justify-between w-full">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-teal-600/95 backdrop-blur-md text-white rounded-md shadow-xs">
-            <ListVideo className="w-2.5 h-2.5" />
-            {playlist.sourceType === "youtube_playlist" ? "YouTube Playlist" : t("playlist.collection", "Collection")}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-teal-600/95 backdrop-blur-md text-white rounded-md shadow-xs shrink-0">
+              <ListVideo className="w-2.5 h-2.5" />
+              {playlist.sourceType === "youtube_playlist" ? "YouTube Playlist" : t("playlist.collection", "Collection")}
+            </span>
 
-          <div className="px-2 py-0.5 bg-black/75 backdrop-blur-md rounded-md text-white font-mono text-[10px] font-bold flex items-center gap-1 border border-white/10 shadow-xs">
+            {/* Dynamic difficulty range badge */}
+            {difficultyRangeLabel && difficultyRangeColors && (
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider backdrop-blur-md rounded-md shadow-xs shrink-0 ${difficultyRangeColors.bg} ${difficultyRangeColors.text}`}
+                title={`Difficulty range: ${difficultyRangeLabel} (${difficultyRange.classifiedCount}/${difficultyRange.totalCount} lessons classified)`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${difficultyRangeColors.dot} shrink-0`} />
+                {difficultyRangeLabel}
+              </span>
+            )}
+          </div>
+
+          <div className="px-2 py-0.5 bg-black/75 backdrop-blur-md rounded-md text-white font-mono text-[10px] font-bold flex items-center gap-1 border border-white/10 shadow-xs shrink-0">
             <ListVideo className="w-3 h-3 text-white/90" />
             <span>{itemCount}</span>
           </div>

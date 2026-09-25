@@ -1683,29 +1683,41 @@ function HistoryPage({
 
                   return (
                     <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                         {visibleTopics.map((tag) => {
                           const isSelected = selectedTag.toLowerCase() === tag.id;
                           const primaryRatio = tag.totalSeconds > 0 ? (tag.primarySeconds / tag.totalSeconds) * 100 : 0;
+                          const tagName = tag.id === "uncategorized" ? tag.label : `#${tag.label}`;
                           return (
                             <div
                               key={tag.id}
                               onClick={() => setSelectedTag(isSelected ? "all" : tag.id)}
                               className={`p-3 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
                                 isSelected
-                                  ? "border-teal-500 bg-teal-50/70 dark:bg-teal-950/40 ring-2 ring-teal-500/50"
-                                  : `${tag.color.lightBg} ${tag.color.border} hover:opacity-90`
+                                  ? "border-teal-500 bg-teal-50/80 dark:bg-teal-950/50 ring-2 ring-teal-500/50 shadow-xs"
+                                  : "border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 hover:border-teal-300 dark:hover:border-teal-700/60 shadow-3xs hover:shadow-xs"
                               }`}
                             >
-                              <div className="flex items-center justify-between gap-1.5">
-                                <div className="flex items-center gap-1.5 truncate">
-                                  {tag.hasPrimary && (
-                                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" title={t("tags.primary_badge", "Primary")} />
-                                  )}
-                                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                                    {tag.id === "uncategorized" ? tag.label : `#${tag.label}`}
+                              {/* Row 1: Full-width Tag Title with color dot */}
+                              <div className="flex items-center gap-2 min-w-0 w-full">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tag.color.hex }} />
+                                <span
+                                  className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate leading-[1.3] pb-0.5 inline-block"
+                                  title={tagName}
+                                >
+                                  {tagName}
+                                </span>
+                              </div>
+
+                              {/* Row 2: PRIMARY badge (left) & Session count (right) */}
+                              <div className="flex items-center justify-between gap-1.5 min-h-[20px]">
+                                {tag.hasPrimary ? (
+                                  <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-200/60 dark:border-teal-800/60 shrink-0 leading-tight">
+                                    {t("tags.primary_badge", "Primary")}
                                   </span>
-                                </div>
+                                ) : (
+                                  <span />
+                                )}
                                 <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 shrink-0">
                                   {tag.count} {t("history_page.sessions", "sessions")}
                                 </span>
@@ -2258,37 +2270,51 @@ function HistoryPage({
                               </button>
                             ) : null}
                             
-                            {item.primaryTag && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedTag(item.primaryTag!);
-                                }}
-                                className="text-[9px] font-bold text-amber-900 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-200 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 flex items-center gap-1 cursor-pointer hover:opacity-80 transition"
-                                title={t('tags.primary_badge', 'Primary')}
-                              >
-                                <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0" />
-                                <span>#{item.primaryTag}</span>
-                              </button>
-                            )}
-                            {item.tags && item.tags.filter((t) => t.toLowerCase() !== item.primaryTag?.toLowerCase()).map((t) => {
-                              const col = getTagColor(t);
+                            {(() => {
+                              const allTags: string[] = [];
+                              const seen = new Set<string>();
+                              const addTag = (t?: string | null) => {
+                                if (!t || typeof t !== "string") return;
+                                const clean = t.trim().replace(/^#+/, "").trim();
+                                if (!clean || seen.has(clean.toLowerCase())) return;
+                                seen.add(clean.toLowerCase());
+                                allTags.push(clean);
+                              };
+                              addTag(item.primaryTag);
+                              if (Array.isArray(item.tags)) item.tags.forEach(addTag);
+                              if (allTags.length === 0) return null;
+
+                              const maxVisible = allTags.length > 3 ? 2 : 3;
+                              const visibleTags = allTags.slice(0, maxVisible);
+                              const remainingTags = allTags.slice(maxVisible);
+
                               return (
-                                <button
-                                  key={t}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTag(t);
-                                  }}
-                                  className={`text-[9px] font-bold ${col.text} ${col.lightBg} px-1.5 py-0.5 rounded border ${col.border} flex items-center gap-1 cursor-pointer hover:opacity-80 transition`}
-                                >
-                                  <Tag className="w-2 h-2" />
-                                  <span>#{t}</span>
-                                </button>
+                                <>
+                                  {visibleTags.map((t) => (
+                                    <button
+                                      key={t}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTag(t);
+                                      }}
+                                      className="inline-flex items-center text-[9.5px] font-semibold leading-[1.3] px-2 py-0.5 pb-1 rounded-full border border-teal-200/70 dark:border-teal-800/60 bg-teal-50/80 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 shadow-3xs cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/50 transition max-w-[140px]"
+                                      title={`#${t}`}
+                                    >
+                                      <span className="truncate leading-[1.3] pb-0.5">#{t}</span>
+                                    </button>
+                                  ))}
+                                  {remainingTags.length > 0 && (
+                                    <span
+                                      className="inline-flex items-center text-[9.5px] font-bold leading-[1.3] px-1.5 py-0.5 pb-1 rounded-full border border-teal-200/60 dark:border-teal-800/50 bg-teal-50/60 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 select-none cursor-default"
+                                      title={remainingTags.map((t) => `#${t}`).join(", ")}
+                                    >
+                                      <span className="leading-[1.3] pb-0.5">+{remainingTags.length}</span>
+                                    </span>
+                                  )}
+                                </>
                               );
-                            })}
+                            })()}
                           </div>
 
                           <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">

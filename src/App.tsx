@@ -27,6 +27,7 @@ import { useToast } from "./context/ToastContext";
 import StatsWidget from "./components/StatsWidget";
 import ImportLessonForm from "./components/ImportLessonForm";
 import PlaylistDetailView from "./components/playlist/PlaylistDetailView";
+import { DifficultyGroup } from "./components/library/LevelFilterDropdown";
 import VocabularyPractice from "./components/practice/VocabularyPractice";
 import MatchPairsModal from "./components/MatchPairsModal";
 import LibraryHome from "./components/LibraryHome";
@@ -175,6 +176,8 @@ export default function App() {
     playlistsRef.current = playlists;
   }, [playlists]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
+  const [playlistInitialDifficulty, setPlaylistInitialDifficulty] = useState<DifficultyGroup | undefined>(undefined);
+  const [playlistInitialTag, setPlaylistInitialTag] = useState<string | undefined>(undefined);
 
   const [lessonTypes, setLessonTypes] = useState<LessonType[]>(DEFAULT_LESSON_TYPES);
   const lessonTypesRef = useRef<LessonType[]>(lessonTypes);
@@ -3972,7 +3975,13 @@ export default function App() {
               playlists={playlists}
               lessons={lessons}
               history={history}
-              onBack={() => setSelectedPlaylistId(null)}
+              initialDifficultyFilter={playlistInitialDifficulty}
+              initialTagFilter={playlistInitialTag}
+              onBack={() => {
+                setSelectedPlaylistId(null);
+                setPlaylistInitialDifficulty(undefined);
+                setPlaylistInitialTag(undefined);
+              }}
               onOpenLesson={(id) => {
                 setSelectedPlaylistId(null);
                 setActiveLessonId(id);
@@ -4015,6 +4024,7 @@ export default function App() {
               onAddLessonToLibrary={(newLesson) => {
                 handleAddLesson(newLesson);
               }}
+              onEditLesson={(lesson) => setEditingLesson(lesson)}
               onMovePlaylistItem={handleMovePlaylistItem}
               onAddPlaylist={handleAddPlaylist}
               vocab={vocab}
@@ -4029,7 +4039,11 @@ export default function App() {
             <LibraryHome
               lessons={lessons}
               playlists={playlists}
-              onSelectPlaylist={(id) => setSelectedPlaylistId(id)}
+              onSelectPlaylist={(id, filters) => {
+                setSelectedPlaylistId(id);
+                setPlaylistInitialDifficulty(filters?.difficulty);
+                setPlaylistInitialTag(filters?.tag);
+              }}
               onDeletePlaylist={(id, e) => {
                 e.stopPropagation();
                 handleDeletePlaylist(id);

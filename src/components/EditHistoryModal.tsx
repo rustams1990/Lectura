@@ -956,9 +956,8 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
                   {t('tags.modal_title', 'Categories & Tags')}
                 </label>
-                <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                  <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-                  {t('tags.star_primary_hint', 'Star = Primary Topic (100% donut balance)')}
+                <span className="text-[10px] text-zinc-400">
+                  {t('tags.primary_topic_hint', 'Primary topic sets 100% balance')}
                 </span>
               </div>
 
@@ -967,7 +966,6 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                 <div className="flex flex-wrap gap-1.5 p-2 bg-zinc-50 dark:bg-zinc-950/70 border border-zinc-200/70 dark:border-zinc-800 rounded-xl">
                   {formTagsList.map((tag, idx) => {
                     const isPrimary = formPrimaryTag && formPrimaryTag.toLowerCase() === tag.toLowerCase();
-                    const color = getTagColor(tag);
                     const isEditingThis = editingTagIndex === idx;
 
                     if (isEditingThis) {
@@ -1015,46 +1013,44 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                     return (
                       <div
                         key={tag}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 pt-1 pb-1.5 rounded-lg border text-xs font-semibold leading-[1.3] transition-all select-none ${
                           isPrimary
-                            ? "ring-2 ring-amber-400 dark:ring-amber-500/70 border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200"
-                            : `${color.lightBg} ${color.border} ${color.text}`
+                            ? "border-teal-500 dark:border-teal-500 bg-teal-50/90 dark:bg-teal-950/60 text-teal-900 dark:text-teal-200 ring-1 ring-teal-500/50 shadow-3xs"
+                            : "border-teal-200/70 dark:border-teal-800/60 bg-teal-50/60 dark:bg-teal-950/30 text-teal-800 dark:text-teal-300"
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePrimary(tag)}
-                          className="cursor-pointer hover:scale-110 active:scale-95 transition"
-                          title={
-                            isPrimary
-                              ? t("tags.is_primary_click_to_unset", "Primary tag (click to unset)")
-                              : t("tags.click_to_make_primary", "Click to make Primary")
-                          }
-                        >
-                          <Star
-                            className={`w-3.5 h-3.5 ${
-                              isPrimary
-                                ? "text-amber-500 fill-amber-500"
-                                : "text-zinc-400 hover:text-amber-500"
-                            }`}
-                          />
-                        </button>
                         <span
                           onDoubleClick={() => handleStartEditTag(idx, tag)}
-                          className="cursor-text"
+                          className="cursor-text leading-[1.3] pb-0.5 inline-block"
                           title={t("tags.double_click_to_edit", "Double click to rename")}
                         >
                           #{tag}
                         </span>
-                        {isPrimary && (
-                          <span className="text-[9px] uppercase tracking-wider font-black px-1 py-0.2 bg-amber-500 text-white rounded">
+
+                        {isPrimary ? (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePrimary(tag)}
+                            className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-teal-600 hover:bg-teal-700 text-white cursor-pointer transition shadow-3xs"
+                            title={t("tags.is_primary_click_to_unset", "Primary tag (click to unset)")}
+                          >
                             {t("tags.primary_badge", "Primary")}
-                          </span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePrimary(tag)}
+                            className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border border-dashed border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:bg-teal-100/70 dark:hover:bg-teal-900/50 cursor-pointer transition"
+                            title={t("tags.click_to_make_primary", "Click to make Primary")}
+                          >
+                            {t("tags.make_primary", "Primary?")}
+                          </button>
                         )}
+
                         <button
                           type="button"
                           onClick={() => handleStartEditTag(idx, tag)}
-                          className="text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 p-0.5 rounded transition cursor-pointer"
+                          className="text-teal-600/70 hover:text-teal-800 dark:text-teal-400/70 dark:hover:text-teal-200 p-0.5 rounded transition cursor-pointer"
                           title={t("common.edit", "Edit tag name")}
                         >
                           <Pencil className="w-3 h-3" />
@@ -1062,7 +1058,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveTag(tag)}
-                          className="text-zinc-400 hover:text-rose-500 p-0.5 rounded transition cursor-pointer"
+                          className="text-teal-600/70 hover:text-rose-500 dark:text-teal-400/70 dark:hover:text-rose-400 p-0.5 rounded transition cursor-pointer"
                           title={t("common.remove", "Remove")}
                         >
                           <X className="w-3.5 h-3.5" />

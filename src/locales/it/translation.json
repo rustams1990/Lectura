@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "L'intelligenza artificiale trascriverà l'audio e rigenererà le frasi con codici temporali di sincronizzazione.",
     "transcribing": "Trascrizione dell'audio...",
     "create_subtitles_btn": "Genera sottotitoli (Gemini AI)",
-    "generate_ai_voice": "Genera audio vocale AI (Genera audio AI)",
+    "generate_ai_voice": "Genera audio vocale AI",
     "generate_ai_voice_desc": "AI (Gemelli) leggerà l'intero testo della lezione espressamente con una voce madrelingua.",
     "enter_text_first": "Inserisci prima il testo della lezione per generare l'audio",
     "generate_audio_title": "Genera audio AI",

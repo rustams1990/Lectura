@@ -50,7 +50,7 @@ import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 import { whisperQueueService } from "../services/whisperQueueService";
-import { getTagColor, getAllKnownTags } from "../utils/tagColors";
+import { getAllKnownTags } from "../utils/tagColors";
 import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
 
 export const ICON_MAP: Record<string, React.ComponentType<any>> = {
@@ -2739,7 +2739,7 @@ export default function ImportLessonForm({
               <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 flex flex-col justify-between space-y-3">
                 <div>
                   <h5 className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 tracking-tight uppercase">
-                    {t('import.generate_ai_voice', 'Generate AI Voice Audio (Generate AI Audio)')}
+                    {t('import.generate_ai_voice', 'Generate AI Voice Audio')}
                   </h5>
                   <p className="text-[10px] text-zinc-500 mt-1 leading-normal">
                     {t('import.generate_ai_voice_desc', 'AI (Gemini) will read the entire lesson text expressively with a native speaker voice.')}
@@ -2875,9 +2875,11 @@ export default function ImportLessonForm({
               </span>
             </div>
             {primaryTag && (
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                <span>{t('tags.primary_badge', 'Primary')}: #{primaryTag}</span>
+              <span className="text-[10px] text-teal-700 dark:text-teal-300 font-semibold flex items-center gap-1.5">
+                <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-teal-600 text-white shadow-3xs">
+                  {t('tags.primary_badge', 'Primary')}
+                </span>
+                <span>#{primaryTag}</span>
               </span>
             )}
           </div>
@@ -2911,7 +2913,7 @@ export default function ImportLessonForm({
 
           {/* Explanation hint */}
           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-normal">
-            {t('tags.video_primary_tag_hint', 'Click ★ to set the Primary category (used for 100% History topic chart). Other tags act as secondary tags for search & filters.')}
+            {t('tags.video_primary_tag_hint', 'Click "PRIMARY?" to set the Primary category (used for 100% History topic chart). Other tags act as secondary tags for search & filters.')}
           </p>
 
           {/* Current tags chips */}
@@ -2923,7 +2925,6 @@ export default function ImportLessonForm({
             ) : (
               tagsList.map((tag, idx) => {
                 const isPrimary = primaryTag && primaryTag.toLowerCase() === tag.toLowerCase();
-                const color = getTagColor(tag);
                 const isEditingThis = editingTagIndex === idx;
 
                 if (isEditingThis) {
@@ -2971,42 +2972,40 @@ export default function ImportLessonForm({
                 return (
                   <div
                     key={tag}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-semibold transition-all ${
+                    className={`inline-flex items-center gap-1.5 px-2.5 pt-1 pb-1.5 rounded-lg border text-xs font-semibold leading-[1.3] transition-all select-none ${
                       isPrimary
-                        ? "ring-2 ring-amber-400 dark:ring-amber-500/70 border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200"
-                        : `${color.lightBg} ${color.border} ${color.text}`
+                        ? "border-teal-500 dark:border-teal-500 bg-teal-50/90 dark:bg-teal-950/60 text-teal-900 dark:text-teal-200 ring-1 ring-teal-500/50 shadow-3xs"
+                        : "border-teal-200/70 dark:border-teal-800/60 bg-teal-50/60 dark:bg-teal-950/30 text-teal-800 dark:text-teal-300"
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePrimary(tag)}
-                      className="cursor-pointer transition hover:scale-110 active:scale-95 text-amber-500"
-                      title={
-                        isPrimary
-                          ? t("tags.is_primary_click_to_unset", "Primary tag (click to unset)")
-                          : t("tags.click_to_make_primary", "Click to make Primary")
-                      }
-                    >
-                      <Star
-                        className={`w-3.5 h-3.5 ${
-                          isPrimary
-                            ? "fill-amber-500 text-amber-500"
-                            : "text-zinc-400 hover:text-amber-500"
-                        }`}
-                      />
-                    </button>
                     <span
                       onDoubleClick={() => handleStartEditTag(idx, tag)}
-                      className="cursor-text"
+                      className="cursor-text leading-[1.3] pb-0.5 inline-block"
                       title={t("tags.double_click_to_edit", "Double click to rename")}
                     >
                       #{tag}
                     </span>
-                    {isPrimary && (
-                      <span className="text-[9px] uppercase font-bold tracking-wider px-1 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+
+                    {isPrimary ? (
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePrimary(tag)}
+                        className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-teal-600 hover:bg-teal-700 text-white cursor-pointer transition shadow-3xs"
+                        title={t("tags.is_primary_click_to_unset", "Primary tag (click to unset)")}
+                      >
                         {t("tags.primary_badge", "Primary")}
-                      </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePrimary(tag)}
+                        className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border border-dashed border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:bg-teal-100/70 dark:hover:bg-teal-900/50 cursor-pointer transition"
+                        title={t("tags.click_to_make_primary", "Click to make Primary")}
+                      >
+                        {t("tags.make_primary_btn", "PRIMARY?")}
+                      </button>
                     )}
+
                     <button
                       type="button"
                       onClick={() => handleStartEditTag(idx, tag)}
@@ -3041,21 +3040,20 @@ export default function ImportLessonForm({
 
           {/* Quick suggestions */}
           {suggestedTags.length > 0 && (
-            <div className="space-y-1 pt-1">
+            <div className="space-y-1.5 pt-1">
               <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
                 {t("tags.quick_suggestions", "Quick suggestions")}:
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {suggestedTags.map((sug) => {
-                  const color = getTagColor(sug);
                   return (
                     <button
                       key={sug}
                       type="button"
                       onClick={() => handleAddTag(sug)}
-                      className={`text-[10.5px] px-2 py-0.5 rounded-lg border font-medium transition cursor-pointer hover:scale-105 active:scale-95 ${color.lightBg} ${color.border} ${color.text}`}
+                      className="text-[11px] font-medium px-2.5 pt-0.5 pb-1 rounded-lg border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 hover:border-teal-400 dark:hover:border-teal-600 hover:bg-teal-50/70 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 transition-all cursor-pointer shadow-3xs leading-[1.3]"
                     >
-                      + #{sug}
+                      <span className="leading-[1.3] pb-0.5 inline-block">+ #{sug}</span>
                     </button>
                   );
                 })}

@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "Sztuczna inteligencja dokona transkrypcji dźwięku i ponownie wygeneruje zdania z synchronizacją kodów czasowych.",
     "transcribing": "Transkrypcja dźwięku...",
     "create_subtitles_btn": "Generuj napisy (Gemini AI)",
-    "generate_ai_voice": "Generuj dźwięk głosowy AI (Generuj dźwięk AI)",
+    "generate_ai_voice": "Generuj dźwięk głosowy AI",
     "generate_ai_voice_desc": "AI (Gemini) ekspresyjnie przeczyta cały tekst lekcji głosem native speakera.",
     "enter_text_first": "Najpierw wprowadź tekst lekcji, aby wygenerować dźwięk",
     "generate_audio_title": "Generuj dźwięk AI",

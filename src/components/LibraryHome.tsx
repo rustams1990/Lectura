@@ -18,6 +18,8 @@ import TagFilterDropdown from "./library/TagFilterDropdown";
 import LevelFilterDropdown, { DifficultyGroup } from "./library/LevelFilterDropdown";
 import { useLessonStore } from "../store/useLessonStore";
 import { getLessonEffectiveDuration } from "../utils/durationUtils";
+import { computePlaylistDifficultyRange, playlistMatchesDifficultyFilter } from "../utils/playlistDifficultyUtils";
+
 
 export function getDifficultyBadgeStyles(_level?: string) {
   // Clean, unified, high-contrast style matching the language pill
@@ -127,12 +129,17 @@ export function getCachedBookStats(lesson: Lesson, vocab: Record<string, VocabIt
   return computed;
 }
 
+export interface PlaylistNavigationFilters {
+  difficulty?: DifficultyGroup;
+  tag?: string;
+}
+
 interface LibraryHomeProps {
   lessons: Lesson[];
   playlists?: Playlist[];
   lessonTypes: LessonType[];
   onSelectLesson: (id: string) => void;
-  onSelectPlaylist?: (id: string) => void;
+  onSelectPlaylist?: (id: string, filters?: PlaylistNavigationFilters) => void;
   onDeletePlaylist?: (id: string, e: React.MouseEvent) => void;
   onToggleArchivePlaylist?: (id: string, e: React.MouseEvent) => void;
   onPlayAllPlaylist?: (playlist: Playlist, e: React.MouseEvent) => void;
@@ -904,10 +911,8 @@ function LibraryHome({
           (lesson.youtubeId ? playlistLessonKeys.has(`yt_${lesson.youtubeId}`) : false);
       }
 
-      const notHiddenByPlaylist =
-        !isInActivePlaylist ||
-        searchQuery.trim().length > 0 ||
-        (selectedLessonType !== "All" && selectedLessonType !== "playlist");
+      // Lessons that belong to a playlist are rendered exclusively inside their playlist container
+      const notHiddenByPlaylist = !isInActivePlaylist;
 
       const cleanQ = searchQuery.toLowerCase().trim().replace(/^#+/, "");
       const matchesSearch =
@@ -941,10 +946,11 @@ function LibraryHome({
         lesson.lessonType === selectedLessonType ||
         (selectedLessonType === "book" && !lesson.lessonType); // default undefined type to "book"
 
+      const cleanSelectedTag = selectedTag.trim().replace(/^#+/, "").toLowerCase();
       const matchesTag =
         selectedTag === "all" ||
-        (lesson.primaryTag && lesson.primaryTag.toLowerCase().trim() === selectedTag.toLowerCase().trim()) ||
-        (Array.isArray(lesson.tags) && lesson.tags.some(t => t.toLowerCase().trim() === selectedTag.toLowerCase().trim()));
+        (lesson.primaryTag && lesson.primaryTag.trim().replace(/^#+/, "").toLowerCase() === cleanSelectedTag) ||
+        (Array.isArray(lesson.tags) && lesson.tags.some(t => t.trim().replace(/^#+/, "").toLowerCase() === cleanSelectedTag));
 
       const matchesDifficulty = matchesDifficultyGroup(lesson.difficulty, selectedDifficulty);
 
@@ -1059,18 +1065,29 @@ function LibraryHome({
         selectedLessonType === "playlist" ||
         (selectedLessonType === "youtube" && pl.sourceType === "youtube_playlist");
 
+      const cleanSelectedTag = selectedTag.trim().replace(/^#+/, "").toLowerCase();
       const matchesTag =
         selectedTag === "all" ||
-        (pl.primaryTag && pl.primaryTag.toLowerCase().trim() === selectedTag.toLowerCase().trim()) ||
-        (Array.isArray(pl.tags) && pl.tags.some(t => t.toLowerCase().trim() === selectedTag.toLowerCase().trim()));
+        (pl.primaryTag && pl.primaryTag.trim().replace(/^#+/, "").toLowerCase() === cleanSelectedTag) ||
+        (Array.isArray(pl.tags) && pl.tags.some(t => t.trim().replace(/^#+/, "").toLowerCase() === cleanSelectedTag)) ||
+        (pl.items || []).some((it) => {
+          const l = (it.lessonId ? lessons.find((les) => les.id === it.lessonId) : undefined) ||
+                    (it.videoId ? lessons.find((les) => les.youtubeId === it.videoId) : undefined);
+          if (!l) return false;
+          return (
+            (l.primaryTag && l.primaryTag.trim().replace(/^#+/, "").toLowerCase() === cleanSelectedTag) ||
+            (Array.isArray(l.tags) && l.tags.some(t => t.trim().replace(/^#+/, "").toLowerCase() === cleanSelectedTag))
+          );
+        });
 
       let matchesDifficulty = true;
       if (selectedDifficulty !== "all") {
-        matchesDifficulty = (pl.items || []).some((it) => {
-          if (!it.lessonId) return false;
-          const lesson = lessons.find((l) => l.id === it.lessonId);
-          return lesson ? matchesDifficultyGroup(lesson.difficulty, selectedDifficulty) : false;
+        const range = computePlaylistDifficultyRange(pl.items || [], (lessonId, videoId) => {
+          if (lessonId) return lessons.find((l) => l.id === lessonId);
+          if (videoId) return lessons.find((l) => l.youtubeId === videoId);
+          return undefined;
         });
+        matchesDifficulty = playlistMatchesDifficultyFilter(range, selectedDifficulty);
       }
 
       return matchesSearch && matchesLanguage && matchesLessonType && matchesTag && matchesDifficulty;
@@ -1600,7 +1617,10 @@ function LibraryHome({
                 playlist={playlist}
                 lessons={lessons}
                 history={history}
-                onSelectPlaylist={(id) => onSelectPlaylist ? onSelectPlaylist(id) : undefined}
+                onSelectPlaylist={(id) => onSelectPlaylist ? onSelectPlaylist(id, {
+                  difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
+                  tag: selectedTag !== "all" ? selectedTag : undefined,
+                }) : undefined}
                 onDeletePlaylist={onDeletePlaylist}
                 onToggleArchive={onToggleArchivePlaylist}
                 onPlayAllPlaylist={onPlayAllPlaylist}

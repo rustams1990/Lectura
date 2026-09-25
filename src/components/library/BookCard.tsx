@@ -1,11 +1,10 @@
 import React, { memo, useState, useEffect, useRef } from "react";
 import { Lesson, ReaderSettings, Playlist } from "../../types";
-import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore, Play, Star } from "lucide-react";
+import { Trash2, Pin, Headphones, BookOpen, MoreVertical, Pencil, ListVideo, Archive, ArchiveRestore, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
 import { getCategoryIcon, getCategoryDisplayName } from "../ImportLessonForm";
 import { isValidAudioUrl } from "../../store/playlistStore";
-import { getTagColor } from "../../utils/tagColors";
 
 export interface BookStats {
   knownPct: number;
@@ -431,64 +430,78 @@ export const BookCard: React.FC<BookCardProps> = memo(({
           <div className="space-y-1.5">
             {/* Badges row: Language, Difficulty, Source, Word Count */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold leading-none bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 rounded-md border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs truncate">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold leading-[1.3] bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 px-2 py-1 pb-1.5 rounded-md border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs max-w-full">
                 {renderCircularFlag(getLanguageFlagEmoji(lesson.targetLanguage, languageFlags))}
-                <span className="truncate">{getLocalizedLanguageName(lesson.targetLanguage, i18n.language)}</span>
+                <span className="truncate max-w-[100px] leading-[1.3] pb-0.5">{getLocalizedLanguageName(lesson.targetLanguage, i18n.language)}</span>
               </span>
 
               {lesson.difficulty && (
                 <span 
-                  className="text-[9.5px] font-bold leading-none px-1.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs cursor-default select-none shrink-0"
+                  className="inline-flex items-center text-[9.5px] font-bold leading-[1.3] px-1.5 py-1 pb-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs cursor-default select-none shrink-0"
                   title={lesson.difficultyExplanation || `${t("library.difficulty_prefix", "Difficulty:")} ${lesson.difficulty}`}
                 >
-                  {lesson.difficulty}
+                  <span className="leading-[1.3] pb-0.5">{lesson.difficulty}</span>
                 </span>
               )}
 
-              <span className="text-[10px] font-bold leading-none bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-md flex items-center gap-1 select-none text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
-                <IconComponent className="w-3 h-3 text-teal-600 dark:text-teal-400" />
-                <span>{catLabel}</span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold leading-[1.3] bg-zinc-100 dark:bg-zinc-800 px-2 py-1 pb-1.5 rounded-md select-none text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
+                <IconComponent className="w-3 h-3 text-teal-600 dark:text-teal-400 shrink-0" />
+                <span className="leading-[1.3] pb-0.5">{catLabel}</span>
               </span>
 
-              <span className="text-[10px] font-bold leading-none bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-1 rounded-md flex items-center gap-1 select-none border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
-                <span>📚 {wordCount} {t("library.words", "words")}</span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold leading-[1.3] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2 py-1 pb-1.5 rounded-md select-none border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs">
+                <span className="leading-[1.3] pb-0.5">📚 {wordCount} {t("library.words", "words")}</span>
               </span>
             </div>
 
-            {/* Tag Badges (Primary + Secondary) */}
+            {/* Tag Badges (Unified Styling & Strict Overflow Limits) */}
             {(() => {
               const effectivePrimaryTag = lesson.primaryTag || (lesson.playlistId ? playlists.find(p => p.id === lesson.playlistId)?.primaryTag : null);
-              const secondaryTags = (lesson.tags || []).filter(t => t.toLowerCase() !== (effectivePrimaryTag || "").toLowerCase());
-              if (!effectivePrimaryTag && secondaryTags.length === 0) return null;
+              
+              const allTags: string[] = [];
+              const seen = new Set<string>();
+              const addTag = (t?: string | null) => {
+                if (!t || typeof t !== "string") return;
+                const clean = t.trim().replace(/^#+/, "").trim();
+                if (!clean) return;
+                const lower = clean.toLowerCase();
+                if (lower === "youtube" || lower === "extension") return;
+                if (!seen.has(lower)) {
+                  seen.add(lower);
+                  allTags.push(clean);
+                }
+              };
+
+              addTag(effectivePrimaryTag);
+              if (Array.isArray(lesson.tags)) {
+                lesson.tags.forEach(addTag);
+              }
+
+              if (allTags.length === 0) return null;
+
+              // Show at most 2-3 tags: if > 3, show 2 tags + indicator (+N)
+              const maxVisible = allTags.length > 3 ? 2 : 3;
+              const visibleTags = allTags.slice(0, maxVisible);
+              const remainingTags = allTags.slice(maxVisible);
+              const hiddenCount = remainingTags.length;
 
               return (
                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  {effectivePrimaryTag && (() => {
-                    const color = getTagColor(effectivePrimaryTag);
-                    return (
-                      <span
-                        className={`inline-flex items-center gap-1 text-[9.5px] font-bold leading-none px-2 py-0.5 rounded-full border shadow-3xs truncate select-none ${color.lightBg} ${color.border} ${color.text}`}
-                        title={`${t('tags.primary_badge', 'Primary')}: #${effectivePrimaryTag}`}
-                      >
-                        <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500 shrink-0" />
-                        <span className="truncate">#{effectivePrimaryTag}</span>
-                      </span>
-                    );
-                  })()}
-                  {secondaryTags.slice(0, 3).map((tag) => {
-                    const color = getTagColor(tag);
-                    return (
-                      <span
-                        key={tag}
-                        className={`inline-flex items-center gap-1 text-[9.5px] font-medium leading-none px-1.5 py-0.5 rounded-full border shadow-3xs truncate select-none opacity-85 ${color.lightBg} ${color.border} ${color.text}`}
-                      >
-                        #{tag}
-                      </span>
-                    );
-                  })}
-                  {secondaryTags.length > 3 && (
-                    <span className="text-[9px] font-bold text-zinc-400 select-none">
-                      +{secondaryTags.length - 3}
+                  {visibleTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center text-[10px] font-semibold leading-[1.3] px-2 py-0.5 pb-1 rounded-full border border-teal-200/70 dark:border-teal-800/60 bg-teal-50/80 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 shadow-3xs select-none max-w-[140px]"
+                      title={`#${tag}`}
+                    >
+                      <span className="truncate leading-[1.3] pb-0.5">#{tag}</span>
+                    </span>
+                  ))}
+                  {hiddenCount > 0 && (
+                    <span
+                      className="inline-flex items-center text-[9.5px] font-bold leading-[1.3] px-1.5 py-0.5 pb-1 rounded-full border border-teal-200/60 dark:border-teal-800/50 bg-teal-50/60 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 select-none cursor-default"
+                      title={remainingTags.map((t) => `#${t}`).join(", ")}
+                    >
+                      <span className="leading-[1.3] pb-0.5">+{hiddenCount}</span>
                     </span>
                   )}
                 </div>

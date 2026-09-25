@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "Yapay zeka, sesi yazıya dökecek ve cümleleri senkronizasyon zaman kodlarıyla yeniden oluşturacaktır.",
     "transcribing": "Ses yazıya aktarılıyor...",
     "create_subtitles_btn": "Altyazı oluştur (Gemini AI)",
-    "generate_ai_voice": "Yapay Zeka Sesi Oluştur (Yapay Zeka Sesi Oluştur)",
+    "generate_ai_voice": "Yapay Zeka Sesi Oluştur",
     "generate_ai_voice_desc": "AI (Gemini), ders metninin tamamını anadil konuşmacısının sesiyle anlamlı bir şekilde okuyacaktır.",
     "enter_text_first": "Ses oluşturmak için önce ders metnini girin",
     "generate_audio_title": "Yapay zeka sesi oluştur",

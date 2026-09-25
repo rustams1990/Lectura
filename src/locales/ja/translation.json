@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "AI が音声を文字起こしし、タイムコードを同期して文章を再生成します。",
     "transcribing": "音声を文字に起こしています...",
     "create_subtitles_btn": "字幕生成（Gemini AI）",
-    "generate_ai_voice": "AI 音声オーディオの生成 (AI 音声の生成)",
+    "generate_ai_voice": "AI 音声オーディオの生成",
     "generate_ai_voice_desc": "AI（Gemini）がネイティブスピーカーの音声でレッスンテキスト全体を表情豊かに読み上げます。",
     "enter_text_first": "最初にレッスンテキストを入力して音声を生成します",
     "generate_audio_title": "AIオーディオを生成する",

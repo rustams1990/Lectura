@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "人工智能将转录音频并使用同步时间码重新生成句子。",
     "transcribing": "正在转录音频...",
     "create_subtitles_btn": "生成字幕（Gemini AI）",
-    "generate_ai_voice": "生成AI语音音频（Generate AI Audio）",
+    "generate_ai_voice": "生成AI语音音频",
     "generate_ai_voice_desc": "AI（双子座）将用母语人士的声音富有表现力地朗读整个课程文本。",
     "enter_text_first": "首先输入课程文本以生成音频",
     "generate_audio_title": "生成人工智能音频",

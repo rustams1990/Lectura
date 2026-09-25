@@ -950,7 +950,7 @@
     "ai_subtitles_desc_existing": "A IA transcreverá o áudio e gerará novamente frases com códigos de tempo sincronizados.",
     "transcribing": "Transcrevendo áudio...",
     "create_subtitles_btn": "Gerar legendas (Gemini AI)",
-    "generate_ai_voice": "Gerar áudio de voz AI (gerar áudio AI)",
+    "generate_ai_voice": "Gerar áudio de voz AI",
     "generate_ai_voice_desc": "AI (Gêmeos) lerá todo o texto da lição de forma expressiva com a voz de um falante nativo.",
     "enter_text_first": "Insira o texto da lição primeiro para gerar o áudio",
     "generate_audio_title": "Gere áudio de IA",
