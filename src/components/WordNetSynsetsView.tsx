@@ -121,7 +121,7 @@ export default function WordNetSynsetsView({
             <Network className="w-3.5 h-3.5" />
           </div>
           <span className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">
-            {t("wordnet.title", "WordNet Смыслы и Сеть")}
+            {t("wordnet.title", "WordNet Senses & Network")}
           </span>
           <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-teal-100/70 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300">
             {data.synsetsCount} {data.synsetsCount === 1 ? "sense" : "senses"}
@@ -132,7 +132,7 @@ export default function WordNetSynsetsView({
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition cursor-pointer"
-          title={isExpanded ? t("common.collapse", "Свернуть") : t("common.expand", "Развернуть")}
+          title={isExpanded ? t("common.collapse", "Collapse") : t("common.expand", "Expand")}
         >
           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
@@ -152,7 +152,7 @@ export default function WordNetSynsetsView({
                     : "bg-white/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100"
                 }`}
               >
-                {t("common.all", "Все")} ({data.synsets.length})
+                {t("common.all", "All")} ({data.synsets.length})
               </button>
               {availablePos.map((pos) => (
                 <button
@@ -201,7 +201,7 @@ export default function WordNetSynsetsView({
                             ? "bg-emerald-500 text-white border-emerald-500"
                             : "bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:text-teal-600 hover:border-teal-500"
                         }`}
-                        title={t("wordnet.apply_definition", "Скопировать это определение в карточку")}
+                        title={t("wordnet.apply_definition", "Copy this definition to card")}
                       >
                         {copiedDefIdx === idx ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                       </button>
@@ -234,7 +234,7 @@ export default function WordNetSynsetsView({
                                 if (onWordClick) onWordClick(syn);
                               }}
                               className="px-1.5 py-0.2 rounded-md bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-800/40 font-semibold cursor-pointer transition"
-                              title={t("wordnet.click_synonym", "Клик: открыть или добавить")}
+                              title={t("wordnet.click_synonym", "Click: open or add")}
                             >
                               {syn}
                             </button>
@@ -263,7 +263,7 @@ export default function WordNetSynsetsView({
                   {/* Hypernym Category ("Is a type of...") */}
                   {synset.hypernyms.length > 0 && (
                     <div className="flex items-center gap-1 text-[9.5px] text-zinc-400 pt-0.5">
-                      <span className="font-semibold">⬆ {t("wordnet.category", "Категория")}:</span>
+                      <span className="font-semibold">⬆ {t("wordnet.category", "Category")}:</span>
                       {synset.hypernyms.map((hyp, hIdx) => (
                         <button
                           key={hIdx}
@@ -281,7 +281,7 @@ export default function WordNetSynsetsView({
                   {/* Derivations (Related forms from other parts of speech) */}
                   {synset.derivations && synset.derivations.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1 text-[9.5px] text-zinc-400 pt-0.5">
-                      <span className="font-semibold">🌱 {t("wordnet.derivations", "Однокоренные")}:</span>
+                      <span className="font-semibold">🌱 {t("wordnet.derivations", "Related forms")}:</span>
                       {synset.derivations.map((der, dIdx) => (
                         <button
                           key={dIdx}

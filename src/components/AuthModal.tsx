@@ -335,7 +335,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
             <form onSubmit={handleForgotSubmit} className="space-y-3.5 text-left">
               <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100/40 dark:border-zinc-800/80 space-y-3">
                 <label className="block text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                  {t('auth.forgot_input_label', 'Ваш логин или email:')}
+                  {t('auth.forgot_input_label', 'Your login or email:')}
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -345,7 +345,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                       setForgotUsername(e.target.value);
                       setHintResult(null);
                     }}
-                    placeholder={t('auth.placeholder_email', 'Email адрес или логин')}
+                    placeholder={t('auth.placeholder_email', 'Email or username')}
                     disabled={isHintLoading}
                     autoFocus
                     className="flex-1 text-xs px-3.5 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 dark:text-zinc-100 disabled:opacity-50"
@@ -358,7 +358,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                     {isHintLoading ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
-                      <span>{t('auth.btn_find_hint', 'Найти')}</span>
+                      <span>{t('auth.btn_find_hint', 'Find')}</span>
                     )}
                   </button>
                 </div>
@@ -616,7 +616,7 @@ export function AuthModalComponent({ isOpen, onClose, onLocalServerLogin, initia
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{t('common.processing', 'Обработка...')}</span>
+                    <span>{t('common.processing', 'Processing...')}</span>
                   </>
                 ) : (
                   <span>{isRegister ? t('auth.btn_register', 'Create Account') : t('auth.signInButton', t('auth.btn_login', 'Sign In'))}</span>

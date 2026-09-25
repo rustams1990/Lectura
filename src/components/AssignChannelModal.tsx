@@ -196,7 +196,7 @@ export default function AssignChannelModal({
   const handleResolveChannel = async (overrideUrl?: string) => {
     const url = (overrideUrl !== undefined ? overrideUrl : newChannelUrl).trim();
     if (!url) {
-      showToast(t('import.channel_url_required', 'Пожалуйста, введите ссылку на YouTube канал'), 'error');
+      showToast(t('import.channel_url_required', 'Please enter YouTube channel link'), 'error');
       return;
     }
     setIsResolving(true);
@@ -222,19 +222,19 @@ export default function AssignChannelModal({
         if (cleanUrl) setNewChannelUrl(cleanUrl);
 
         showToast(
-          t('import.channel_found', 'Канал успешно найден: {{name}}', { name: title || 'YouTube' }),
+          t('import.channel_found', 'Channel found successfully: {{name}}', { name: title || 'YouTube' }),
           'success'
         );
       } else {
         showToast(
-          data.error || t('import.channel_not_found', 'Не удалось найти информацию о YouTube канале. Проверьте ссылку.'),
+          data.error || t('import.channel_not_found', 'Could not find YouTube channel information. Check the link.'),
           'error'
         );
       }
     } catch (e: any) {
       console.error('Failed to resolve channel:', e);
       showToast(
-        t('import.channel_resolve_error', 'Ошибка при обращении к серверу для поиска канала.'),
+        t('import.channel_resolve_error', 'Error contacting server to search for channel.'),
         'error'
       );
     } finally {
@@ -322,11 +322,11 @@ export default function AssignChannelModal({
       });
 
       onUpdateHistory?.(updatedHistory);
-      showToast(t('history_page.batch_saved', 'Канал успешно назначен выбранным видео'), 'success');
+      showToast(t('history_page.batch_saved', 'Channel successfully assigned to selected videos'), 'success');
       onClose();
     } catch (err: any) {
       console.error("Batch save error:", err);
-      showToast(t('history_page.batch_save_error', 'Ошибка сохранения на сервере: ') + (err.message || ''), 'error');
+      showToast(t('history_page.batch_save_error', 'Error saving to server: ') + (err.message || ''), 'error');
     } finally {
       setIsSavingBatch(false);
     }
@@ -550,7 +550,7 @@ export default function AssignChannelModal({
             {isSavingBatch ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{t('app.saving', 'Сохранение...')}</span>
+                <span>{t('app.saving', 'Saving...')}</span>
               </>
             ) : (
               <>

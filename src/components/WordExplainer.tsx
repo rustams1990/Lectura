@@ -2411,8 +2411,8 @@ function WordExplainer({
             }`}
             title={
               frequencyData.found && frequencyData.rank
-                ? t("frequency.rank_tooltip", `Частотный ранг: #${frequencyData.rank.toLocaleString()} из 50,000 (Уровень ${frequencyData.cefr})`, { rank: frequencyData.rank.toLocaleString(), cefr: frequencyData.cefr })
-                : t("frequency.rare_tooltip", "Редкое слово / Имя собственное / Термин")
+                ? t("frequency.rank_tooltip", `Frequency Rank: #${frequencyData.rank.toLocaleString()} of 50,000 (Level ${frequencyData.cefr})`, { rank: frequencyData.rank.toLocaleString(), cefr: frequencyData.cefr })
+                : t("frequency.rare_tooltip", "Rare word / Proper name / Technical term")
             }
           >
             <span>{frequencyData.cefr === "A1" ? "🔥" : frequencyData.cefr === "A2" ? "⚡" : frequencyData.cefr === "B1" ? "📊" : frequencyData.cefr === "B2" ? "🎯" : frequencyData.cefr === "C1" ? "💎" : frequencyData.cefr === "C2" ? "👑" : "⚪"}</span>

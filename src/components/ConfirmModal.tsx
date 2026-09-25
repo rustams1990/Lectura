@@ -64,7 +64,7 @@ export default function ConfirmModal({
                 {title}
               </h3>
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block font-mono">
-                {t('explainer.confirmation_required', 'Требуется подтверждение')}
+                {t('explainer.confirmation_required', 'Confirmation required')}
               </span>
             </div>
           </div>
@@ -90,7 +90,7 @@ export default function ConfirmModal({
             onClick={onClose}
             className="flex-1 py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold text-xs rounded-xl transition-all cursor-pointer"
           >
-            {cancelText || t('explainer.cancel_btn', 'Отмена')}
+            {cancelText || t('explainer.cancel_btn', 'Cancel')}
           </button>
           <button
             type="button"
@@ -104,7 +104,7 @@ export default function ConfirmModal({
                 : "bg-teal-600 hover:bg-teal-700 shadow-teal-600/20"
             }`}
           >
-            {confirmText || t('explainer.confirm_btn', 'Подтвердить')}
+            {confirmText || t('explainer.confirm_btn', 'Confirm')}
           </button>
         </div>
       </div>

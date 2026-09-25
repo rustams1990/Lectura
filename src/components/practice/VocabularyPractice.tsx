@@ -333,8 +333,8 @@ export default function VocabularyPractice({
   const handleExportAnki = () => {
     if (!learningList || learningList.length === 0) return;
 
-    // Специфичный формат для Anki: Слово ; Перевод ; Контекст
-    const header = [t('practice.anki_word', 'Слово'), t('practice.anki_translation', 'Перевод'), t('practice.anki_context', 'Контекст')].join(";");
+    // Specific format for Anki: Word ; Translation ; Context
+    const header = [t('practice.anki_word', 'Word'), t('practice.anki_translation', 'Translation'), t('practice.anki_context', 'Context')].join(";");
     const rows = learningList.map((item) => {
       const cleanWord = (item.word || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
       const cleanTranslation = (item.translation || "").replace(/;/g, ",").replace(/\n/g, " ").trim();
@@ -514,7 +514,7 @@ export default function VocabularyPractice({
 
         if (!response.ok) {
           const errData = await safeJsonParse(response);
-          throw new Error(errData?.error || t('practice.server_error', `Ошибка сервера (${response.status})`, { status: response.status }));
+          throw new Error(errData?.error || t('practice.server_error', `Server error (${response.status})`, { status: response.status }));
         }
 
         const data = await safeJsonParse(response);
@@ -903,7 +903,7 @@ export default function VocabularyPractice({
   if (learningList.length > 0 && !currentLq) {
     return (
       <div className="flex items-center justify-center p-8 text-zinc-500 font-sans">
-        {t('practice.loading_flashcard', 'Загрузка карточки... / Loading flashcard...')}
+        {t('practice.loading_flashcard', 'Loading flashcard...')}
       </div>
     );
   }

@@ -207,11 +207,11 @@ export default function BottomAudioBar({
 
         // 3. Show Success Toast with interactive "Open" button
         showToast(
-          t("podcasts.episode_imported_toast", 'Эпизод "{{title}}" успешно добавлен в библиотеку', { title: currentTrack.title }),
+          t("podcasts.episode_imported_toast", 'Episode "{{title}}" added to library', { title: currentTrack.title }),
           "success",
           6000,
           onOpenLesson ? {
-            label: t("podcasts.open_lesson", "Открыть"),
+            label: t("podcasts.open_lesson", "Open lesson"),
             onClick: () => onOpenLesson(newLessonId),
           } : undefined
         );
@@ -224,7 +224,7 @@ export default function BottomAudioBar({
       const errorMsg = err?.message || t("podcasts.import_error", "Failed to import episode");
       whisperQueueService.failCustomTask(taskId, errorMsg);
       showToast(
-        t("podcasts.episode_import_failed_toast", 'Ошибка при добавлении выпуска "{{title}}": {{error}}', {
+        t("podcasts.episode_import_failed_toast", 'Failed to add episode "{{title}}": {{error}}', {
           title: currentTrack.title,
           error: errorMsg,
         }),

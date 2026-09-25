@@ -175,7 +175,7 @@ export default function YoutubePlayerWindow({
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || t('explainer.yt_download_error', 'Не удалось скачать медиафайл'));
+        throw new Error(data.error || t('explainer.yt_download_error', 'Failed to download media file'));
       }
       setDownloadProgress({ percent: 100, speed: "", eta: "" });
       setLocalMediaUrl(data.url);
@@ -183,7 +183,7 @@ export default function YoutubePlayerWindow({
       setIsEmbedBlocked(false);
     } catch (err: any) {
       console.error("Failed to download media with yt-dlp:", err);
-      setDownloadError(err.message || t('explainer.yt_download_error', 'Ошибка загрузки'));
+      setDownloadError(err.message || t('explainer.yt_download_error', 'Download error'));
     } finally {
       if (progressPollIntervalRef.current) {
         clearInterval(progressPollIntervalRef.current);
@@ -830,7 +830,7 @@ export default function YoutubePlayerWindow({
         className={`h-11 px-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between select-none shrink-0 touch-none ${
           isDragging ? "cursor-grabbing" : "cursor-grab"
         }`}
-        title={t('explainer.yt_drag', 'Перетащите плеер удерживая левую кнопку мыши')}
+        title={t('explainer.yt_drag', 'Drag player holding left mouse button')}
       >
         <div className="flex items-center gap-2 max-w-[45%]">
           <GripHorizontal className="w-4 h-4 text-zinc-400 dark:text-zinc-600" />
@@ -855,7 +855,7 @@ export default function YoutubePlayerWindow({
                   ? "bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-300 dark:border-teal-800"
                   : "bg-zinc-200/60 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:text-zinc-800"
               }`}
-              title={useLocalMedia ? t('explainer.yt_source_local', 'Локальное видео') : t('explainer.yt_source_youtube', 'YouTube онлайн')}
+              title={useLocalMedia ? t('explainer.yt_source_local', 'Local video') : t('explainer.yt_source_youtube', 'YouTube online')}
             >
               {useLocalMedia ? (
                 <>
@@ -876,7 +876,7 @@ export default function YoutubePlayerWindow({
             isDownloading ? (
               <div
                 className="relative flex items-center px-2 py-0.5 rounded-md bg-teal-500/10 dark:bg-teal-950/40 border border-teal-500/30 text-teal-600 dark:text-teal-400 text-[10px] font-bold select-none overflow-hidden cursor-wait"
-                title={`${downloadProgress.percent}% • ${downloadProgress.eta ? `${t('explainer.yt_eta', 'Осталось')}: ${downloadProgress.eta}` : t('explainer.yt_downloading', 'Загрузка...')} ${downloadProgress.speed ? `(${downloadProgress.speed})` : ''}`}
+                title={`${downloadProgress.percent}% • ${downloadProgress.eta ? `${t('explainer.yt_eta', 'Remaining')}: ${downloadProgress.eta}` : t('explainer.yt_downloading', 'Downloading...')} ${downloadProgress.speed ? `(${downloadProgress.speed})` : ''}`}
               >
                 <div className="flex items-center gap-1.5 z-10">
                   <Loader2 className="w-3 h-3 animate-spin text-teal-500 shrink-0" />
@@ -898,7 +898,7 @@ export default function YoutubePlayerWindow({
                 type="button"
                 onClick={() => handleDownloadMedia(false)}
                 className="p-1 rounded-md text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                title={t('explainer.yt_download_tooltip', 'Скачать видео на сервер для офлайн-просмотра')}
+                title={t('explainer.yt_download_tooltip', 'Download video to server for offline viewing')}
               >
                 <Download className="w-3 h-3" />
               </button>
@@ -912,7 +912,7 @@ export default function YoutubePlayerWindow({
                 type="button"
                 onClick={() => applyPresetSize("small")}
                 className="px-1.5 py-0.5 rounded-sm hover:bg-white dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all cursor-pointer"
-                title={t('explainer.yt_small', 'Маленький масштаб (16:9)')}
+                title={t('explainer.yt_small', 'Small scale (16:9)')}
               >
                 S
               </button>
@@ -920,7 +920,7 @@ export default function YoutubePlayerWindow({
                 type="button"
                 onClick={() => applyPresetSize("medium")}
                 className="px-1.5 py-0.5 rounded-sm hover:bg-white dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all cursor-pointer"
-                title={t('explainer.yt_medium', 'Средний масштаб (16:9)')}
+                title={t('explainer.yt_medium', 'Medium scale (16:9)')}
               >
                 M
               </button>
@@ -928,7 +928,7 @@ export default function YoutubePlayerWindow({
                 type="button"
                 onClick={() => applyPresetSize("large")}
                 className="px-1.5 py-0.5 rounded-sm hover:bg-white dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all cursor-pointer"
-                title={t('explainer.yt_large', 'Большой масштаб (16:9)')}
+                title={t('explainer.yt_large', 'Large scale (16:9)')}
               >
                 L
               </button>
@@ -943,7 +943,7 @@ export default function YoutubePlayerWindow({
               setIframeKey((prev) => prev + 1);
             }}
             className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-            title={t('explainer.yt_refresh', 'Обновить видео')}
+            title={t('explainer.yt_refresh', 'Refresh video')}
           >
             <RefreshCw className="w-3 h-3" />
           </button>
@@ -953,7 +953,7 @@ export default function YoutubePlayerWindow({
             type="button"
             onClick={() => setIsMinimized((prev) => !prev)}
             className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-            title={isMinimized ? t('explainer.yt_expand', 'Развернуть') : t('explainer.yt_collapse', 'Свернуть в панель')}
+            title={isMinimized ? t('explainer.yt_expand', 'Expand') : t('explainer.yt_collapse', 'Collapse to panel')}
           >
             {isMinimized ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
@@ -963,7 +963,7 @@ export default function YoutubePlayerWindow({
             type="button"
             onClick={onClose}
             className="p-1 rounded-md text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer"
-            title={t('explainer.yt_close', 'Закрыть плеер')}
+            title={t('explainer.yt_close', 'Close player')}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -1068,11 +1068,11 @@ export default function YoutubePlayerWindow({
             </div>
 
             <h4 className="text-xs font-bold text-amber-200 mb-1 max-w-[90%]">
-              {t('explainer.yt_embed_blocked_title', 'Владелец видео ограничил его просмотр на других сайтах')}
+              {t('explainer.yt_embed_blocked_title', 'Video owner restricted playback on other websites')}
             </h4>
 
             <p className="text-[10px] text-zinc-400 max-w-[85%] mb-3 leading-relaxed">
-              {t('explainer.yt_embed_blocked_desc', 'Вы можете скачать медиафайл локально на сервер для бесшовного воспроизведения без ограничений.')}
+              {t('explainer.yt_embed_blocked_desc', 'You can download the media file locally to the server for seamless playback without restrictions.')}
             </p>
 
             {isDownloading ? (
@@ -1081,7 +1081,7 @@ export default function YoutubePlayerWindow({
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-teal-400" />
                     <span className="text-[11px] font-bold text-teal-200">
-                      {t('explainer.yt_downloading_msg', 'Загрузка с YouTube...')}
+                      {t('explainer.yt_downloading_msg', 'Downloading from YouTube...')}
                     </span>
                   </div>
                   <span className="text-[12px] font-black text-teal-400 font-mono">
@@ -1099,7 +1099,7 @@ export default function YoutubePlayerWindow({
 
                 {/* Speed & ETA */}
                 <div className="flex items-center justify-between text-[9px] text-zinc-400 font-mono w-full px-0.5">
-                  <span>{downloadProgress.speed || t('explainer.yt_download_wait', 'Подготовка файла...')}</span>
+                  <span>{downloadProgress.speed || t('explainer.yt_download_wait', 'Preparing file...')}</span>
                   {downloadProgress.eta ? <span>ETA: {downloadProgress.eta}</span> : null}
                 </div>
               </div>
@@ -1112,29 +1112,29 @@ export default function YoutubePlayerWindow({
                     className="flex-1 py-1.5 px-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[10px] font-bold shadow-md shadow-teal-900/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <Download className="w-3 h-3" />
-                    <span>{t('explainer.yt_download_video', 'Скачать видео (720p)')}</span>
+                    <span>{t('explainer.yt_download_video', 'Download video (720p)')}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleDownloadMedia(true)}
                     className="py-1.5 px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-[10px] font-bold border border-zinc-700 transition-all cursor-pointer active:scale-95"
-                    title={t('explainer.yt_download_audio', 'Только аудио (M4A)')}
+                    title={t('explainer.yt_download_audio', 'Audio only (M4A)')}
                   >
-                    <span>{t('explainer.yt_download_audio', 'Аудио (M4A)')}</span>
+                    <span>{t('explainer.yt_download_audio', 'Audio (M4A)')}</span>
                   </button>
                 </div>
 
                 {downloadError && (
                   <div className="p-2 bg-red-950/40 border border-red-800/60 rounded-lg text-[9px] text-red-300 text-left">
-                    <p className="font-semibold">{t('explainer.yt_download_error', 'Не удалось скачать видео')}:</p>
+                    <p className="font-semibold">{t('explainer.yt_download_error', 'Failed to download video')}:</p>
                     <p className="text-red-400 mt-0.5 truncate">{downloadError}</p>
                     <button
                       type="button"
                       onClick={() => handleDownloadMedia(false)}
                       className="mt-1 text-teal-400 hover:underline text-[9px] font-bold cursor-pointer"
                     >
-                      {t('explainer.yt_retry', 'Повторить попытку')}
+                      {t('explainer.yt_retry', 'Retry')}
                     </button>
                   </div>
                 )}
@@ -1219,7 +1219,7 @@ export default function YoutubePlayerWindow({
             onMouseDown={handleResizeStart("se")}
             onTouchStart={handleResizeStart("se")}
             className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize z-30 flex items-end justify-end p-0.5 text-zinc-400 hover:text-white group bg-transparent select-none touch-none"
-            title={t('explainer.yt_resize', 'Потяните для изменения размера (сохраняет 16:9)')}
+            title={t('explainer.yt_resize', 'Drag to resize (maintains 16:9)')}
           >
             <svg
               width="10"

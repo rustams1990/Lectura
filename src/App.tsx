@@ -1794,9 +1794,9 @@ export default function App() {
             for (const [lessonId, val] of Object.entries(d.videoProgress)) {
               if (val !== undefined && val !== null) {
                 const isLessonCompleted =
-                  cleanHistory.some(
+                  historyRef.current.some(
                     (h) =>
-                      (h.lessonId === lessonId || h.id === lessonId || h.guid === lessonId) &&
+                      (h.lessonId === lessonId || h.id === lessonId || (h as any).guid === lessonId) &&
                       (h.status === "completed" || h.actionType === "complete" || (h.progressPercent !== undefined && h.progressPercent >= 95))
                   ) ||
                   localStorage.getItem(`vocab_progress_${lessonId}`) === "100" ||
@@ -3172,11 +3172,11 @@ export default function App() {
             lessons.map((l) => (l.id === activeLesson.id ? updatedLesson : l))
           ).catch((err) => console.error(err));
         }
-        showToast(t('app.lemmatize_success', "✓ AI предразбор лемм завершён успешно!"), "success");
+        showToast(t('app.lemmatize_success', "✓ AI lemma analysis completed successfully!"), "success");
       }
     } catch (e: any) {
       console.error("AI Lemmatize Text failed:", e);
-      showToast(t('app.lemmatize_error', "Ошибка предразбора лемм: ") + (e.message || String(e)), "error");
+      showToast(t('app.lemmatize_error', "Lemma analysis error: ") + (e.message || String(e)), "error");
     } finally {
       setIsLemmatizingText(false);
     }

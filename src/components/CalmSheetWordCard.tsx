@@ -722,7 +722,7 @@ export default function CalmSheetWordCard({
               ? "bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-400 font-extrabold"
               : "text-slate-500 dark:text-zinc-400 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
           }`}
-          title="Игнорировать (0)"
+          title={t('reader.mark_ignored', 'Ignore (0)')}
         >
           🚫
         </button>
@@ -806,7 +806,7 @@ export default function CalmSheetWordCard({
               ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-200 font-extrabold shadow-xs"
               : "text-slate-600 dark:text-zinc-400 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/40"
           }`}
-          title="Знаю (K)"
+          title={t('reader.mark_known_shortcut', 'Known (K)')}
         >
           ✓
         </button>

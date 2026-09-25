@@ -275,7 +275,7 @@ export const SelectPlaylistCoverModal: React.FC<SelectPlaylistCoverModalProps> =
             onClick={onClose}
             className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
           >
-            {t("common.close", "Закрыть")}
+            {t("common.close", "Close")}
           </button>
         </div>
       </div>

@@ -22,9 +22,9 @@ export default function PwaInstallBanner({ showIosInstallBanner, setShowIosInsta
         </svg>
       </div>
       <div className="flex-1">
-        <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">{t('explainer.install_lectura', 'Установить Lectura')}</h4>
+        <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-wider">{t('explainer.install_lectura', 'Install Lectura')}</h4>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
-          <Trans i18nKey="explainer.install_ios_instruction">Нажмите кнопку <span className="font-bold">«Поделиться»</span> (Share) в меню браузера Safari, затем выберите <span className="font-bold">«На экран "Домой"»</span> (Add to Home Screen) для установки приложения.</Trans>
+          <Trans i18nKey="explainer.install_ios_instruction">Tap the <span className="font-bold">«Share»</span> (Share) button in Safari, then select <span className="font-bold">«Add to Home Screen»</span> (Add to Home Screen) to install the application.</Trans>
         </p>
       </div>
       <button 
@@ -33,7 +33,7 @@ export default function PwaInstallBanner({ showIosInstallBanner, setShowIosInsta
           safeLocalStorageSetItem('ios_pwa_banner_dismissed', 'true');
         }}
         className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
-        title={t('explainer.close_banner', 'Закрыть')}
+        title={t('explainer.close_banner', 'Close')}
       >
         <X className="w-4 h-4" />
       </button>

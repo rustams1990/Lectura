@@ -109,6 +109,12 @@ export default function AccountSwitcherDropdown({
     if (msg === "В сети" || msg === "Online") {
       return t('sync.online', 'Online');
     }
+    if (msg.includes("Ошибка доступа") || msg.includes("Access error")) {
+      return t('sync.access_error', 'Access error (401/403)');
+    }
+    if (msg.includes("Ошибка отправки") || msg.includes("Send error")) {
+      return t('sync.send_error', 'Send error');
+    }
     return msg;
   };
 

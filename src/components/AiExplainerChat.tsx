@@ -80,7 +80,7 @@ export default function AiExplainerChat({
       onExplanationReceived(data, questionText);
     } catch (err: any) {
       console.error(err);
-      setCustomAiError(err.message || t('explainer.connection_error', "Ошибка соединения."));
+      setCustomAiError(err.message || t('explainer.connection_error', "Connection error."));
     } finally {
       setCustomAiLoading(false);
     }

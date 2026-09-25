@@ -1704,11 +1704,11 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                   {playlistAggregateStats.lessonsWithTextCount === items.length ? (
                     <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium text-[10.5px]">
                       <CheckCircle2 className="w-3 h-3 shrink-0" />
-                      <span>{t("playlist.all_subtitles_analyzed", "Все {{count}} видео проанализированы", { count: items.length })}</span>
+                      <span>{t("playlist.all_subtitles_analyzed", "All {{count}} videos analyzed", { count: items.length })}</span>
                     </span>
                   ) : (
                     <span className="text-[10.5px] text-zinc-500 dark:text-zinc-400">
-                      {t("playlist.based_on_subtitles", "На основе {{current}} из {{total}} видео с субтитрами", {
+                      {t("playlist.based_on_subtitles", "Based on {{current}} of {{total}} videos with subtitles", {
                         current: playlistAggregateStats.lessonsWithTextCount,
                         total: items.length,
                       })}

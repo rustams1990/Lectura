@@ -240,20 +240,20 @@ export default function FullscreenAudioPlayerModal({
     // 1. Register Background Task in Whisper Notification Manager
     whisperQueueService.registerCustomTask({
       id: taskId,
-      title: `${t("podcasts.transcribing_prefix", "Транскрибация:")} ${currentTrack.title}`,
+      title: `${t("podcasts.transcribing_prefix", "Transcribing:")} ${currentTrack.title}`,
       sourceType: "podcast",
       status: "transcribing",
       thumbnail: currentTrack.coverUrl || '',
       channelName: currentTrack.bookTitle || currentTrack.channelName || 'Podcast',
       stageText: isWhisperNeeded
-        ? t("podcasts.stage_transcribing_whisper", "Распознавание речи через Whisper...")
-        : t("podcasts.stage_importing", "Скачивание и обработка эпизода..."),
+        ? t("podcasts.stage_transcribing_whisper", "Speech recognition via Whisper...")
+        : t("podcasts.stage_importing", "Downloading & processing episode..."),
     });
 
     showToast(
       isWhisperNeeded
-        ? t("podcasts.import_whisper_started", "Скачивание и распознавание через Whisper...")
-        : t("podcasts.import_in_progress", "Импорт выпуска..."),
+        ? t("podcasts.import_whisper_started", "Downloading & transcribing with Whisper...")
+        : t("podcasts.import_in_progress", "Importing…"),
       "info"
     );
 
@@ -291,11 +291,11 @@ export default function FullscreenAudioPlayerModal({
 
         // 3. Show Success Toast with interactive "Open" button
         showToast(
-          t("podcasts.episode_imported_toast", 'Эпизод "{{title}}" успешно добавлен в библиотеку', { title: currentTrack.title }),
+          t("podcasts.episode_imported_toast", 'Episode "{{title}}" added to library', { title: currentTrack.title }),
           "success",
           6000,
           onOpenLesson ? {
-            label: t("podcasts.open_lesson", "Открыть"),
+            label: t("podcasts.open_lesson", "Open lesson"),
             onClick: () => onOpenLesson(newLessonId),
           } : undefined
         );
@@ -310,7 +310,7 @@ export default function FullscreenAudioPlayerModal({
       const errorMsg = err?.message || t("podcasts.import_error", "Failed to import episode");
       whisperQueueService.failCustomTask(taskId, errorMsg);
       showToast(
-        t("podcasts.episode_import_failed_toast", 'Ошибка при добавлении выпуска "{{title}}": {{error}}', {
+        t("podcasts.episode_import_failed_toast", 'Failed to add episode "{{title}}": {{error}}', {
           title: currentTrack.title,
           error: errorMsg,
         }),

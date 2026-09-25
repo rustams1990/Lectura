@@ -674,7 +674,7 @@ function SettingsModal({
           throw new Error(t("settings.err_invalid_structure", "Invalid backup file structure. Must contain at least one list: lessons, words, or links."));
         }
 
-        let dateFormatted = "Не указана";
+        let dateFormatted = t("settings.not_specified", "Not specified");
         if (parsed.exportDate) {
           try {
             const d = new Date(parsed.exportDate);
@@ -2640,7 +2640,7 @@ function SettingsModal({
                 <span className="font-bold font-mono text-teal-600 dark:text-teal-400">{formatBackupDateTime(confirmRestoreBackup.createdAt)}</span>
               </div>
               <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
-                <span className="font-medium text-zinc-500">Файл:</span>
+                <span className="font-medium text-zinc-500">{t('settings.backup_filename', 'File:')}</span>
                 <span className="font-bold font-mono text-zinc-900 dark:text-white truncate max-w-[200px]">{confirmRestoreBackup.filename}</span>
               </div>
               {confirmRestoreBackup.lessonsCount !== undefined && (

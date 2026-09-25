@@ -109,15 +109,15 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
     if (mode === "move") {
       showToast(
         isSingle
-          ? t("playlist.move_success_single", 'Видео перемещено в «{{title}}»', { title: targetTitle })
-          : t("playlist.move_success_multi", '{{count}} видео перемещено в «{{title}}»', { count: items.length, title: targetTitle }),
+          ? t("playlist.move_success_single", 'Video moved to "{{title}}"', { title: targetTitle })
+          : t("playlist.move_success_multi", '{{count}} videos moved to "{{title}}"', { count: items.length, title: targetTitle }),
         "success"
       );
     } else {
       showToast(
         isSingle
-          ? t("playlist.copy_success_single", 'Видео скопировано в «{{title}}»', { title: targetTitle })
-          : t("playlist.copy_success_multi", '{{count}} видео скопировано в «{{title}}»', { count: items.length, title: targetTitle }),
+          ? t("playlist.copy_success_single", 'Video copied to "{{title}}"', { title: targetTitle })
+          : t("playlist.copy_success_multi", '{{count}} videos copied to "{{title}}"', { count: items.length, title: targetTitle }),
         "success"
       );
     }
@@ -156,8 +156,8 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
 
     showToast(
       mode === "move"
-        ? t("playlist.created_and_moved", 'Плейлист «{{title}}» создан, видео перемещено!', { title: trimmed })
-        : t("playlist.created_and_copied", 'Плейлист «{{title}}» создан, видео скопировано!', { title: trimmed }),
+        ? t("playlist.created_and_moved", 'Playlist "{{title}}" created, video moved!', { title: trimmed })
+        : t("playlist.created_and_copied", 'Playlist "{{title}}" created, video copied!', { title: trimmed }),
       "success"
     );
     onClose();
@@ -182,8 +182,8 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100 truncate">
                   {isSingle
-                    ? t("playlist.move_video_title", "Переместить видео")
-                    : t("playlist.move_videos_title", "Переместить видео ({{count}})", { count: items.length })}
+                    ? t("playlist.move_video_title", "Move video")
+                    : t("playlist.move_videos_title", "Move videos ({{count}})", { count: items.length })}
                 </h3>
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 shrink-0">
                   {renderCircularFlag(getLanguageFlagEmoji(sourcePlaylist.language || "en", languageFlags))}
@@ -191,7 +191,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate max-w-[240px]">
-                {t("playlist.from_playlist", "Из:")} <span className="font-semibold text-zinc-700 dark:text-zinc-300">{sourcePlaylist.title}</span>
+                {t("playlist.from_playlist", "From:")} <span className="font-semibold text-zinc-700 dark:text-zinc-300">{sourcePlaylist.title}</span>
               </p>
             </div>
           </div>
@@ -229,7 +229,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                  {t("playlist.selected_count", "Выбрано: {{count}} видео", { count: items.length })}
+                  {t("playlist.selected_count", "Selected: {{count}} videos", { count: items.length })}
                 </span>
               </div>
               <span className="text-[10px] font-mono text-zinc-500">
@@ -253,7 +253,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
               }`}
             >
               <MoveRight className="w-3.5 h-3.5" />
-              <span>{t("playlist.mode_move", "Переместить")}</span>
+              <span>{t("playlist.mode_move", "Move")}</span>
             </button>
             <button
               type="button"
@@ -265,13 +265,13 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
               }`}
             >
               <Copy className="w-3.5 h-3.5" />
-              <span>{t("playlist.mode_copy", "Копировать")}</span>
+              <span>{t("playlist.mode_copy", "Copy")}</span>
             </button>
           </div>
           <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1.5 px-1 text-center">
             {mode === "move"
-              ? t("playlist.mode_move_hint", "Видео будет удалено из «{{title}}» и перенесено в выбранный плейлист.", { title: sourcePlaylist.title })
-              : t("playlist.mode_copy_hint", "Видео останется в «{{title}}» и будет добавлено в выбранный плейлист.", { title: sourcePlaylist.title })}
+              ? t("playlist.mode_move_hint", 'Video will be removed from "{{title}}" and moved to the selected playlist.', { title: sourcePlaylist.title })
+              : t("playlist.mode_copy_hint", 'Video will remain in "{{title}}" and added to the selected playlist.', { title: sourcePlaylist.title })}
           </p>
         </div>
 
@@ -284,7 +284,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t("playlist.search_playlist", "Поиск плейлиста...")}
+                placeholder={t("playlist.search_playlist", "Search playlist...")}
                 className="w-full pl-8 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/60 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400"
               />
             </div>
@@ -306,7 +306,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
           ) : filteredPlaylists.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-xs text-zinc-400">
-                {t("playlist.no_filter_matches", "Ничего не найдено.")}
+                {t("playlist.no_filter_matches", "No matches found.")}
               </p>
             </div>
           ) : (
@@ -352,7 +352,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                         {renderCircularFlag(flagEmoji)}
                         <span className="capitalize">{pl.language}</span>
                         <span>•</span>
-                        <span>{pl.itemCount || (pl.items ? pl.items.length : 0)} {t("playlist.videos_count", "видео")}</span>
+                        <span>{pl.itemCount || (pl.items ? pl.items.length : 0)} {t("playlist.videos_count", "videos")}</span>
                       </div>
                     </div>
                   </div>
@@ -362,7 +362,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                     {alreadyHasAll ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-700">
                         <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>{t("playlist.already_has_video", "Уже добавлен")}</span>
+                        <span>{t("playlist.already_has_video", "Already added")}</span>
                       </span>
                     ) : (
                       <div className="w-7 h-7 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center group-hover/item:bg-teal-600 group-hover/item:text-white transition-all shadow-xs">
@@ -385,7 +385,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                 type="text"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder={t("playlist.new_playlist_name", "Название нового плейлиста...")}
+                placeholder={t("playlist.new_playlist_name", "New playlist name...")}
                 className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-800 border border-teal-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-zinc-900 dark:text-zinc-100 font-bold"
               />
               <div className="flex items-center justify-end gap-2">
@@ -394,7 +394,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                   onClick={() => setIsCreatingNew(false)}
                   className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
                 >
-                  {t("common.cancel", "Отмена")}
+                  {t("common.cancel", "Cancel")}
                 </button>
                 <button
                   type="submit"
@@ -402,8 +402,8 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
                   className="px-4 py-1.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-xs transition cursor-pointer"
                 >
                   {mode === "move"
-                    ? t("playlist.create_and_move", "Создать и переместить")
-                    : t("playlist.create_and_copy", "Создать и скопировать")}
+                    ? t("playlist.create_and_move", "Create and move")
+                    : t("playlist.create_and_copy", "Create and copy")}
                 </button>
               </div>
             </form>
@@ -414,7 +414,7 @@ export const MoveToPlaylistModal: React.FC<MoveToPlaylistModalProps> = ({
               className="w-full py-2.5 px-3 border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-teal-500 dark:hover:border-teal-400 rounded-2xl text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 flex items-center justify-center gap-2 transition cursor-pointer bg-white/50 dark:bg-zinc-800/40"
             >
               <Plus className="w-4 h-4" />
-              <span>{t("playlist.create_new_and_move_btn", "Создать новый плейлист...")}</span>
+              <span>{t("playlist.create_new_and_move_btn", "Create new playlist...")}</span>
             </button>
           )}
         </div>

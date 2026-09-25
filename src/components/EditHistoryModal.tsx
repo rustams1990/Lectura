@@ -297,19 +297,19 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
         if (cleanUrl) setFormChannelUrl(cleanUrl);
 
         showToast(
-          t('import.channel_found', 'Канал успешно найден: {{name}}', { name: title || 'YouTube' }),
+          t('import.channel_found', 'Channel found: {{name}}', { name: title || 'YouTube' }),
           'success'
         );
       } else {
         showToast(
-          data.error || t('import.channel_not_found', 'Не удалось найти информацию о YouTube канале. Проверьте ссылку.'),
+          data.error || t('import.channel_not_found', 'Could not find YouTube channel information. Check the link.'),
           'error'
         );
       }
     } catch (err: any) {
       console.error('Failed to resolve channel:', err);
       showToast(
-        t('import.channel_resolve_error', 'Ошибка при обращении к серверу для поиска канала.'),
+        t('import.channel_resolve_error', 'Error connecting to server to resolve channel.'),
         'error'
       );
     } finally {
@@ -494,7 +494,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
           onUpdateLessons(updatedLessons);
         }
 
-        showToast(t('history_page.entry_saved', 'Запись успешно сохранена'), 'success');
+        showToast(t('history_page.entry_saved', 'Record saved successfully'), 'success');
         onClose();
       } else {
         const generatedId = generateHistoryId({
@@ -504,7 +504,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
         });
 
         if (!generatedId) {
-          showToast(t('history_page.invalid_duration', 'Время активности должно быть больше 0'), 'error');
+          showToast(t('history_page.invalid_duration', 'Activity duration must be greater than 0'), 'error');
           setIsSavingEntry(false);
           return;
         }
@@ -563,12 +563,12 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
           onUpdateLessons(updatedLessons);
         }
 
-        showToast(t('history_page.entry_created', 'Новая запись добавлена'), 'success');
+        showToast(t('history_page.entry_created', 'New entry added'), 'success');
         onClose();
       }
     } catch (err: any) {
       console.error("Failed to save history entry:", err);
-      showToast(t('history_page.save_error', 'Не удалось сохранить запись'), 'error');
+      showToast(t('history_page.save_error', 'Failed to save entry'), 'error');
     } finally {
       setIsSavingEntry(false);
     }
@@ -1115,7 +1115,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
               {isSavingEntry ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{t('app.saving', 'Сохранение...')}</span>
+                  <span>{t('app.saving', 'Saving...')}</span>
                 </>
               ) : (
                 <>
