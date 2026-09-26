@@ -51,6 +51,11 @@ import { useToast } from "../context/ToastContext";
 import { usePlaylistStore } from "../store/playlistStore";
 import { getTagColor, UNCATEGORIZED_COLOR } from "../utils/tagColors";
 
+export const formatTopicName = (name: string): string => {
+  if (!name) return "";
+  return name.replace(/^#+/, "").trim();
+};
+
 const ITEMS_PER_PAGE = 10;
 
 const getPageNumbers = (current: number, total: number) => {
@@ -183,23 +188,23 @@ function HistoryPage({
     const tagsSet = new Set<string>();
     history.forEach((h) => {
       if (h.primaryTag && h.primaryTag.trim()) {
-        const pClean = h.primaryTag.trim();
-        if (pClean.toLowerCase() !== "youtube" && pClean.toLowerCase() !== "extension") {
+        const pClean = formatTopicName(h.primaryTag);
+        if (pClean && pClean.toLowerCase() !== "youtube" && pClean.toLowerCase() !== "extension") {
           tagsSet.add(pClean);
         }
       }
       if (h.tags && Array.isArray(h.tags)) {
         h.tags.forEach((t) => {
           if (t && t.trim()) {
-            const clean = t.trim();
-            if (clean.toLowerCase() !== "youtube" && clean.toLowerCase() !== "extension") {
+            const clean = formatTopicName(t);
+            if (clean && clean.toLowerCase() !== "youtube" && clean.toLowerCase() !== "extension") {
               tagsSet.add(clean);
             }
           }
         });
       }
     });
-    return Array.from(tagsSet).sort();
+    return Array.from(tagsSet).sort((a, b) => a.localeCompare(b));
   }, [history]);
 
   // Helper to reliably resolve a history item's target language
@@ -751,9 +756,10 @@ function HistoryPage({
       const dur = item.durationSeconds || 0;
       totalSec += dur;
       const raw = item.primaryTag?.trim();
-      const id = raw ? raw.toLowerCase() : "uncategorized";
-      const label = raw || t("tags.uncategorized", "Uncategorized");
-      const color = raw ? getTagColor(raw).hex : UNCATEGORIZED_COLOR.hex;
+      const clean = formatTopicName(raw || "");
+      const id = clean ? clean.toLowerCase() : "uncategorized";
+      const label = clean || t("tags.uncategorized", "Uncategorized");
+      const color = clean ? getTagColor(clean).hex : UNCATEGORIZED_COLOR.hex;
 
       const existing = map.get(id);
       if (existing) {
@@ -788,9 +794,10 @@ function HistoryPage({
     scopedHistory.forEach((item) => {
       const dur = item.durationSeconds || 0;
       const rawPTag = item.primaryTag?.trim();
-      const pTag = rawPTag && rawPTag.toLowerCase() !== "youtube" && rawPTag.toLowerCase() !== "extension" ? rawPTag : null;
+      const cleanPTag = formatTopicName(rawPTag || "");
+      const pTag = cleanPTag && cleanPTag.toLowerCase() !== "youtube" && cleanPTag.toLowerCase() !== "extension" ? cleanPTag : null;
       const sTags = Array.isArray(item.tags)
-        ? item.tags.map((t) => t.trim()).filter((t) => Boolean(t) && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
+        ? item.tags.map((t) => formatTopicName(t)).filter((t) => Boolean(t) && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
         : [];
 
       if (!pTag && sTags.length === 0) {
@@ -869,7 +876,7 @@ function HistoryPage({
 
   const filteredTopicsBreakdown = useMemo(() => {
     if (!topicSearchQuery.trim()) return allTopicsBreakdown;
-    const q = topicSearchQuery.toLowerCase().trim();
+    const q = formatTopicName(topicSearchQuery).toLowerCase().trim();
     return allTopicsBreakdown.filter(
       (t) => t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)
     );
@@ -1077,15 +1084,15 @@ function HistoryPage({
         }
       }
       if (selectedTag !== "all") {
-        const sel = selectedTag.toLowerCase().trim();
+        const sel = formatTopicName(selectedTag).toLowerCase().trim();
         const rawPTag = item.primaryTag?.trim();
         const pTag = rawPTag && rawPTag.toLowerCase() !== "youtube" && rawPTag.toLowerCase() !== "extension" ? rawPTag : null;
         const validTags = Array.isArray(item.tags)
           ? item.tags.filter((t) => t && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
           : [];
 
-        const matchesPrimary = pTag && pTag.toLowerCase().trim() === sel;
-        const matchesSecondary = validTags.some((t) => t.toLowerCase().trim() === sel);
+        const matchesPrimary = pTag && formatTopicName(pTag).toLowerCase().trim() === sel;
+        const matchesSecondary = validTags.some((t) => formatTopicName(t).toLowerCase().trim() === sel);
         const matchesUncategorized = (sel === "uncategorized" || sel === "без категории") && !pTag && validTags.length === 0;
         if (!matchesPrimary && !matchesSecondary && !matchesUncategorized) {
           return false;
@@ -1297,7 +1304,7 @@ function HistoryPage({
                 <option value="all">{t('history_page.all_tags', '🏷️ All Tags')}</option>
                 {availableTags.map((tag) => (
                   <option key={tag} value={tag}>
-                    {tag}
+                    {formatTopicName(tag)}
                   </option>
                 ))}
               </select>
@@ -1540,7 +1547,7 @@ function HistoryPage({
                 className="self-start sm:self-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
-                <span>{t("tags.reset_tag_filter", "Clear tag filter ({{tag}})", { tag: selectedTag })}</span>
+                <span>{t("tags.reset_tag_filter", "Clear tag filter ({{tag}})", { tag: selectedTag === "uncategorized" ? t('tags.uncategorized', 'Uncategorized') : formatTopicName(selectedTag) })}</span>
               </button>
             )}
           </div>
@@ -1618,7 +1625,7 @@ function HistoryPage({
                       <div className="flex items-center gap-2 truncate">
                         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.colorHex }} />
                         <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">
-                          {item.id === "uncategorized" ? item.label : `#${item.label}`}
+                          {item.id === "uncategorized" ? item.label : formatTopicName(item.label)}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0 text-right">
@@ -1687,7 +1694,7 @@ function HistoryPage({
                         {visibleTopics.map((tag) => {
                           const isSelected = selectedTag.toLowerCase() === tag.id;
                           const primaryRatio = tag.totalSeconds > 0 ? (tag.primarySeconds / tag.totalSeconds) * 100 : 0;
-                          const tagName = tag.id === "uncategorized" ? tag.label : `#${tag.label}`;
+                          const tagName = tag.id === "uncategorized" ? tag.label : formatTopicName(tag.label);
                           return (
                             <div
                               key={tag.id}
@@ -2009,7 +2016,7 @@ function HistoryPage({
             <span>
               {t('tags.active_filter_label', 'Filtered by topic:')}{' '}
               <span className="underline font-black">
-                {selectedTag === "uncategorized" ? t('tags.uncategorized', 'Uncategorized') : `#${selectedTag}`}
+                {selectedTag === "uncategorized" ? t('tags.uncategorized', 'Uncategorized') : formatTopicName(selectedTag)}
               </span>
             </span>
           </div>
@@ -2299,15 +2306,15 @@ function HistoryPage({
                                         setSelectedTag(t);
                                       }}
                                       className="inline-flex items-center text-[9.5px] font-semibold leading-[1.3] px-2 py-0.5 pb-1 rounded-full border border-teal-200/70 dark:border-teal-800/60 bg-teal-50/80 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 shadow-3xs cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/50 transition max-w-[140px]"
-                                      title={`#${t}`}
+                                      title={formatTopicName(t)}
                                     >
-                                      <span className="truncate leading-[1.3] pb-0.5">#{t}</span>
+                                      <span className="truncate leading-[1.3] pb-0.5">{formatTopicName(t)}</span>
                                     </button>
                                   ))}
                                   {remainingTags.length > 0 && (
                                     <span
                                       className="inline-flex items-center text-[9.5px] font-bold leading-[1.3] px-1.5 py-0.5 pb-1 rounded-full border border-teal-200/60 dark:border-teal-800/50 bg-teal-50/60 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 select-none cursor-default"
-                                      title={remainingTags.map((t) => `#${t}`).join(", ")}
+                                      title={remainingTags.map((t) => formatTopicName(t)).join(", ")}
                                     >
                                       <span className="leading-[1.3] pb-0.5">+{remainingTags.length}</span>
                                     </span>
