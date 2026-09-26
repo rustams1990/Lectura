@@ -5,9 +5,9 @@ import { getSuggestedLemmas } from '../services/morphology';
 import { t } from '../services/i18n';
 import { isWordToken, cleanWordForLookup, isNumericOrSymbolToken, generateUUID, normalizeContraction, normalizeApostrophes } from '../services/text-utils';
 import { ignoreListManager, getLocalizedIgnoreBadge, type AutoIgnoreResult } from '../services/ignore';
-import { initYouTubeTracker } from './youtube-tracker';
+import { initYouTubeTracker, extractPrimaryYouTubeChannel } from './youtube-tracker';
 
-export { generateUUID };
+export { generateUUID, extractPrimaryYouTubeChannel };
 
 // 0) Initialize dedicated YouTube Lifecycle & Watch Time Tracker
 initYouTubeTracker();

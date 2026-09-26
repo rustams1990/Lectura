@@ -38116,6 +38116,14 @@
     }
     return "en";
   }
+  function normalizePossessiveSuffix(token) {
+    if (!token) return "";
+    const trimmed = token.trim();
+    if (trimmed === "'s" || trimmed === "\u2019s") return trimmed;
+    const cleanTrail = trimmed.replace(/[.,;:!?”"')»\]]+$/g, "");
+    const stripped = cleanTrail.replace(/['’]s$/i, "");
+    return stripped.trim() ? stripped.trim() : trimmed;
+  }
   function migrateLocalStorage() {
     if (typeof window === "undefined" || !window.localStorage) return;
     const keys = [
@@ -38406,7 +38414,8 @@
         if (!categorySettings[catId]) continue;
         const cacheKey = `${langCode}_${catId}`;
         const set = this.cache.get(cacheKey);
-        if (set && set.has(lower)) {
+        const baseLower = normalizePossessiveSuffix(lower);
+        if (set && (set.has(lower) || set.has(baseLower))) {
           const meta = IGNORE_CATEGORIES_CONFIG[catId];
           return {
             isIgnored: true,

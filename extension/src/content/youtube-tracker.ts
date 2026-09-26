@@ -123,6 +123,47 @@ function handleYouTubePageChange() {
   }
 }
 
+/**
+ * Extracts strictly the primary (first) YouTube channel/author for both standard and collaboration videos,
+ * ignoring secondary co-authors so statistics and channel groupings remain clean.
+ */
+export const extractPrimaryYouTubeChannel = (playerAuthorFallback?: string): string => {
+  // 1. Ищем первого автора в блоке (работает и для обычных видео, и для Collaborators)
+  const firstAuthorEl = document.querySelector(
+    '#upload-info #channel-name a, ytd-video-owner-renderer #channel-name a, #owner #channel-name a, #owner-name a'
+  );
+  const firstAuthorName = firstAuthorEl?.textContent?.replace(/\u00a0/g, ' ')?.trim();
+  if (firstAuthorName && firstAuthorName.toLowerCase() !== 'youtube') {
+    return firstAuthorName;
+  }
+
+  // 2. Стандартный селектор одного канала (фоллбек)
+  const singleChannelEl = document.querySelector('ytd-channel-name #text, ytd-channel-name a');
+  const singleName = singleChannelEl?.textContent?.replace(/\u00a0/g, ' ')?.trim();
+  if (singleName && singleName.toLowerCase() !== 'youtube') {
+    return singleName;
+  }
+
+  // 3. Фоллбек на meta itemprop="name" (или meta author)
+  const metaAuthor = (
+    document.querySelector('meta[itemprop="name"]')?.getAttribute('content') ||
+    document.querySelector('meta[name="author"]')?.getAttribute('content')
+  )?.replace(/\u00a0/g, ' ')?.trim();
+  if (metaAuthor && metaAuthor.toLowerCase() !== 'youtube') {
+    return metaAuthor;
+  }
+
+  // 4. Фоллбек на данные плеера (отсекая соавторов при наличии нескольких)
+  if (playerAuthorFallback && playerAuthorFallback.trim() && playerAuthorFallback.trim().toLowerCase() !== 'youtube') {
+    const primary = playerAuthorFallback.split(/\s+and\s+|\s*,\s*|\s*&\s*/i)[0].replace(/\u00a0/g, ' ').trim();
+    if (primary && primary.toLowerCase() !== 'youtube') {
+      return primary;
+    }
+  }
+
+  return 'YouTube';
+};
+
 async function initNewVideoSession(videoId: string, retryCount = 0) {
   // If navigated away while waiting, abort
   const currentUrlVideoId = extractVideoId();
@@ -153,14 +194,14 @@ async function initNewVideoSession(videoId: string, retryCount = 0) {
 
   // Extract accurate metadata from player or DOM
   let title = '';
-  let channelName = '';
   let duration = 0;
+  let playerAuthor = '';
 
   if (ytPlayer && typeof ytPlayer.getVideoData === 'function') {
     const data = ytPlayer.getVideoData();
     if (data && data.video_id === videoId) {
       title = data.title || '';
-      channelName = data.author || '';
+      playerAuthor = data.author || '';
       duration = Math.round(ytPlayer.getDuration?.() || 0);
     }
   }
@@ -172,12 +213,7 @@ async function initNewVideoSession(videoId: string, retryCount = 0) {
     title = titleElement?.textContent?.trim() || document.title.replace(/ - YouTube$/, '').trim() || `YouTube Video (${videoId})`;
   }
 
-  if (!channelName) {
-    const channelElement = document.querySelector(
-      'ytd-channel-name a, #channel-name a, #upload-info #channel-name a'
-    ) as HTMLAnchorElement;
-    channelName = channelElement?.textContent?.trim() || 'YouTube';
-  }
+  const channelName = extractPrimaryYouTubeChannel(playerAuthor);
 
   if (!duration && videoElement && !isNaN(videoElement.duration)) {
     duration = Math.round(videoElement.duration);
@@ -326,6 +362,13 @@ async function syncOpenSession(session: VideoSession) {
     const settings = await StorageService.getSettings();
     if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
 
+    if (!session.channelName || session.channelName === 'YouTube') {
+      const refreshedChannel = extractPrimaryYouTubeChannel();
+      if (refreshedChannel && refreshedChannel !== 'YouTube') {
+        session.channelName = refreshedChannel;
+      }
+    }
+
     const currentPos = Math.round(session.videoElement?.currentTime ?? session.currentPosition ?? 0);
 
     sendPayload(
@@ -356,6 +399,13 @@ async function syncOpenSession(session: VideoSession) {
 
 async function flushCurrentSession(session: VideoSession, isFinal: boolean = false, isCompleted: boolean = false) {
   if (!session) return;
+
+  if (!session.channelName || session.channelName === 'YouTube') {
+    const refreshedChannel = extractPrimaryYouTubeChannel();
+    if (refreshedChannel && refreshedChannel !== 'YouTube') {
+      session.channelName = refreshedChannel;
+    }
+  }
 
   const currentDuration = Math.round(
     session.videoElement?.duration || session.duration || 0
