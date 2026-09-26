@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { getTopicColor } from "./colorUtils";
+
 // Curated palette of visually balanced colors for tags
 const TAG_PALETTE = [
   { hex: "#0D9488", bg: "bg-teal-500", text: "text-teal-600 dark:text-teal-400", lightBg: "bg-teal-50 dark:bg-teal-950/40", border: "border-teal-200 dark:border-teal-800" },
@@ -19,7 +21,7 @@ const TAG_PALETTE = [
   { hex: "#C026D3", bg: "bg-fuchsia-500", text: "text-fuchsia-600 dark:text-fuchsia-400", lightBg: "bg-fuchsia-50 dark:bg-fuchsia-950/40", border: "border-fuchsia-200 dark:border-fuchsia-800" },
 ];
 
-export { getTopicColor } from "./colorUtils";
+export { getTopicColor };
 
 export const UNCATEGORIZED_COLOR = {
   hex: "#9CA3AF",
