@@ -20,7 +20,7 @@ import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFail
 import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
-import { useWordStore, extractSelectedWordText } from "../store/useWordStore";
+import { useWordStore, extractSelectedWordText, normalizePossessiveSuffix } from "../store/useWordStore";
 
 const sanitizeGrammarTag = (tag: string) => {
   if (!tag) return "";
@@ -632,7 +632,8 @@ function WordExplainer({
 }: WordExplainerProps) {
   const storeSelectedWord = useWordStore((state) => state.selectedWord);
   const storeWord = extractSelectedWordText(storeSelectedWord);
-  const word = propWord || storeWord || null;
+  const rawWord = propWord || storeWord || null;
+  const word = rawWord ? normalizePossessiveSuffix(rawWord) : null;
   const sentence = propSentence || storeSelectedWord?.contextSentence || null;
 
   const { t, i18n } = useTranslation();
@@ -1937,16 +1938,17 @@ function WordExplainer({
 
   const handleUpdateStatus = (newStatus: WordStatus) => {
     if (!word) return;
+    const baseWord = normalizePossessiveSuffix(word).toLowerCase();
     // Mark that this status change was initiated by the user,
     // so the useEffect won't overwrite it with stale data
     internalStatusUpdateRef.current = true;
     setStatus(newStatus);
     
     if (newStatus === "new") {
-      onDeleteVocab(word.toLowerCase());
+      onDeleteVocab(baseWord);
     } else {
       const updatedVocab: VocabItem = {
-        word: word.toLowerCase(),
+        word: baseWord,
         translation: translationValue.trim() || (existingVocab?.translation && existingVocab.translation !== "Pending translation" ? existingVocab.translation : "") || (newStatus === "ignored" ? "[Ignored]" : newStatus === "known" ? "[Known]" : ""),
         definition: definitionValue.trim(),
         ipa: ipaValue || "",

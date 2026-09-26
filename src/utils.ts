@@ -628,6 +628,21 @@ export function normalizeContraction(w: string, targetLanguage: string): string 
   return lower;
 }
 
+/**
+ * Normalizes English possessive suffix ('s / ’s) at the end of a word/token.
+ * E.g. "Oz's" -> "Oz", "Rapz’s" -> "Rapz".
+ * If the token consists only of the apostrophe and 's' (e.g. "'s" or "’s"),
+ * ensures it does not become an empty string.
+ */
+export function normalizePossessiveSuffix(token: string): string {
+  if (!token) return "";
+  const trimmed = token.trim();
+  if (trimmed === "'s" || trimmed === "’s") return trimmed;
+  const cleanTrail = trimmed.replace(/[.,;:!?”"')»\]]+$/g, "");
+  const stripped = cleanTrail.replace(/['’]s$/i, "");
+  return stripped.trim() ? stripped.trim() : trimmed;
+}
+
 export function normalizeLanguagePrefixedKey(key: string): string {
   let k = key;
   while (k.match(/^([a-zA-Z]+)_\1_/i)) {

@@ -83,7 +83,7 @@ import ptMisc from "../data/ignoreLists/pt/misc.json";
 import ptTypos from "../data/ignoreLists/pt/typos.json";
 
 import { IgnoreCategorySettings, ReaderSettings } from "../types";
-import { getLanguageCode } from "../utils";
+import { getLanguageCode, normalizePossessiveSuffix } from "../utils";
 
 export { PROTECTED_WORDS_BLACKLIST, getActiveIgnoreSet };
 
@@ -375,7 +375,8 @@ class IgnoreListManager {
       const cacheKey = `${langCode}_${catId}`;
       const set = this.cache.get(cacheKey);
 
-      if (set && set.has(lower)) {
+      const baseLower = normalizePossessiveSuffix(lower);
+      if (set && (set.has(lower) || set.has(baseLower))) {
         const meta = IGNORE_CATEGORIES_CONFIG[catId];
         return {
           isIgnored: true,

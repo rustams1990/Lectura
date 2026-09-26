@@ -4,7 +4,7 @@ import { useVocab } from "../context/VocabContext";
 import ReaderPanel from "./ReaderPanel";
 import { HistoryEntry, ReaderSettings, isVideoLesson } from "../types";
 import { useUIStore } from "../store/uiStore";
-import { useWordStore, extractSelectedWordText, sanitizePhraseText } from "../store/useWordStore";
+import { useWordStore, extractSelectedWordText, sanitizePhraseText, normalizePossessiveSuffix } from "../store/useWordStore";
 
 interface ReaderViewProps {
   key?: string;
@@ -63,9 +63,9 @@ export default function ReaderView({
   }, [activeLesson?.id]);
 
   const handleWordSelect = (word: string, context: string, targetEl?: HTMLElement | null) => {
-    const cleanWord = sanitizePhraseText(word) || word.trim();
+    const cleanWord = normalizePossessiveSuffix(sanitizePhraseText(word) || word.trim());
     useWordStore.getState().setSelectedWord({
-      text: word.trim(),
+      text: cleanWord,
       cleanText: cleanWord,
       contextSentence: context,
     });

@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useState, useEffect, useRef, memo } from "react";
-import { formatTime, normalizeContraction, safeLocalStorageSetItem } from "../utils";
+import { formatTime, normalizeContraction, normalizePossessiveSuffix, safeLocalStorageSetItem } from "../utils";
 import {
   Sparkles,
   Loader2,
@@ -826,6 +826,16 @@ function ReaderPanel({
       }
     }
 
+    // Also check possessive suffix stripped base (e.g. Rapz's / Rapz’s -> Rapz)
+    const possessiveBase = normalizePossessiveSuffix(key);
+    if (possessiveBase !== key) {
+      const posLangKey = `${lang}_${possessiveBase.toLowerCase()}`;
+      const posLq = vocab[posLangKey];
+      if (posLq) {
+        return posLq.status;
+      }
+    }
+
     // Check system auto-ignore lists (Gaming, Tech Brands, Names/Cities, Anglicisms)
     const autoIgnore = ignoreListManager.checkAutoIgnore(key, settings, lesson.targetLanguage);
     if (autoIgnore.isIgnored) {
@@ -944,9 +954,14 @@ function ReaderPanel({
     }
 
     const isMultiWord = cleanWord.trim().includes(" ");
-    const resolvedClean = isMultiWord
+    let resolvedClean = isMultiWord
       ? (sanitizePhraseText(cleanWord) || cleanWord.trim())
       : (cleanWordForLookup(cleanWord) || cleanWord);
+
+    // Normalize English possessive suffix ('s / ’s) when transferring token from reader to word card
+    if (!isMultiWord) {
+      resolvedClean = normalizePossessiveSuffix(resolvedClean);
+    }
     const key = resolveWord(resolvedClean);
     const sentences = splitIntoSentences(fullPara, isCjk);
     const associatedSentence = sentences.find((s) => s.includes(rawToken)) || fullPara;
@@ -954,8 +969,9 @@ function ReaderPanel({
     setHoveredWordId(null, isCjk);
     const targetEl = (e?.currentTarget as HTMLElement) || null;
 
+    const baseRawText = normalizePossessiveSuffix(rawToken);
     const wordPayload: SelectedWordData = {
-      text: rawToken,
+      text: baseRawText,
       cleanText: resolvedClean,
       contextSentence: associatedSentence.trim() || rawToken,
       status: getWordInfo(cleanWord),
@@ -2167,7 +2183,7 @@ function ReaderPanel({
 
               const status = getWordInfo(cleanWord);
               const resolvedCleanWord = resolveWord(cleanWord);
-              const isSingleActive = currentActiveWord?.toLowerCase() === cleanWord.toLowerCase() || currentActiveWord?.toLowerCase() === resolvedCleanWord.toLowerCase();
+              const isSingleActive = currentActiveWord?.toLowerCase() === cleanWord.toLowerCase() || currentActiveWord?.toLowerCase() === resolvedCleanWord.toLowerCase() || currentActiveWord?.toLowerCase() === normalizePossessiveSuffix(cleanWord).toLowerCase();
               const isInSelectedPhrase = activePhraseTokenRange !== null && tIdx >= activePhraseTokenRange.start && tIdx <= activePhraseTokenRange.end;
               const isActive = isSingleActive || isInSelectedPhrase;
 

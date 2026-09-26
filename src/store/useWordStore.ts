@@ -10,20 +10,42 @@ export interface SelectedWordData {
   timestamp?: string;
 }
 
+/**
+ * Normalizes English possessive suffix ('s / ’s) at the end of a word/token.
+ * E.g. "Oz's" -> "Oz", "Rapz’s" -> "Rapz".
+ * If the token consists only of the apostrophe and 's' (e.g. "'s" or "’s"),
+ * ensures it does not become an empty string.
+ */
+export function normalizePossessiveSuffix(token: string): string {
+  if (!token) return "";
+  const trimmed = token.trim();
+  if (trimmed === "'s" || trimmed === "’s") return trimmed;
+  const cleanTrail = trimmed.replace(/[.,;:!?”"')»\]]+$/g, "");
+  const stripped = cleanTrail.replace(/['’]s$/i, "");
+  return stripped.trim() ? stripped.trim() : trimmed;
+}
+
 export function sanitizePhraseText(text: string): string {
   if (!text) return "";
-  // Удаляем знаки препинания по краям и внутри, но СОХРАНЯЕМ одиночные пробелы между словами
-  return text
-    .replace(/[^\p{L}\p{N}\s'-]/gu, "") // Оставляем буквы, цифры, дефисы и ПРОБЕЛЫ
-    .replace(/\s+/g, " ")               // Схлопываем множественные пробелы в один
+  const trimmed = text.trim();
+  if (trimmed === "'s" || trimmed === "’s") return trimmed;
+
+  // 1. Strip trailing English possessive suffix 's / ’s first if present
+  let sanitized = normalizePossessiveSuffix(trimmed);
+  // 2. Remove non-letter/digit punctuation while preserving spaces, hyphens and both straight & curly apostrophes
+  sanitized = sanitized
+    .replace(/[^\p{L}\p{N}\s'-’]/gu, "") // Keep letters, numbers, spaces, hyphens, and apostrophes
+    .replace(/\s+/g, " ")                // Collapse multiple whitespace
     .trim();
+  sanitized = sanitized.replace(/^['’"-]+|['’"-]+$/g, "").trim();
+  return sanitized || trimmed;
 }
 
 export function extractSelectedWordText(data: SelectedWordData | string | null | undefined): string | null {
   if (!data) return null;
-  if (typeof data === "string") return sanitizePhraseText(data) || data.trim() || null;
+  if (typeof data === "string") return normalizePossessiveSuffix(sanitizePhraseText(data) || data.trim()) || null;
   const raw = data.cleanText || data.text || null;
-  return raw ? sanitizePhraseText(raw) || raw.trim() : null;
+  return raw ? normalizePossessiveSuffix(sanitizePhraseText(raw) || raw.trim()) || null : null;
 }
 
 interface WordStoreState {
@@ -40,21 +62,23 @@ export const useWordStore = create<WordStoreState>((set) => ({
       return;
     }
     if (typeof word === "string") {
-      const clean = sanitizePhraseText(word) || word.trim();
+      const clean = normalizePossessiveSuffix(sanitizePhraseText(word) || word.trim());
       set({
         selectedWord: {
-          text: word.trim(),
+          text: clean,
           cleanText: clean,
           contextSentence: contextSentence || "",
         },
       });
       return;
     }
-    const clean = sanitizePhraseText(word.cleanText || word.text || "") || (word.cleanText || word.text || "").trim();
+    const clean = normalizePossessiveSuffix(
+      sanitizePhraseText(word.cleanText || word.text || "") || (word.cleanText || word.text || "").trim()
+    );
     set({
       selectedWord: {
         ...word,
-        text: word.text ? word.text.trim() : clean,
+        text: clean,
         cleanText: clean,
         contextSentence: word.contextSentence || contextSentence || "",
       },
@@ -65,7 +89,7 @@ export const useWordStore = create<WordStoreState>((set) => ({
       set({ selectedWord: null });
       return;
     }
-    const clean = sanitizePhraseText(phrase) || phrase.trim();
+    const clean = normalizePossessiveSuffix(sanitizePhraseText(phrase) || phrase.trim());
     set({
       selectedWord: {
         text: phrase.trim(),

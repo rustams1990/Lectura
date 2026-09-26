@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { VocabItem, WordStatus, ReaderSettings, Lesson } from "../types";
 import { useTranslation } from "react-i18next";
 import { Volume2, X, Link2 } from "lucide-react";
-import { playGoogleTTS, fetchWordMeaning } from "../utils";
+import { playGoogleTTS, fetchWordMeaning, normalizePossessiveSuffix } from "../utils";
 import { getSuggestedLemmas } from "../morphology";
 
 export interface CalmSheetWordCardProps {
@@ -69,7 +69,7 @@ export default function CalmSheetWordCard({
   const [baseRootInput, setBaseRootInput] = useState("");
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
-  const cleanWord = useMemo(() => (word ? word.trim().toLowerCase() : ""), [word]);
+  const cleanWord = useMemo(() => (word ? normalizePossessiveSuffix(word.trim()).toLowerCase() : ""), [word]);
 
   // Current status
   const currentStatus: WordStatus = useMemo(() => {
@@ -495,7 +495,7 @@ export default function CalmSheetWordCard({
       {/* 2. Main Word Row (Word + Language Badge + TTS button) */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <h2 className="font-serif font-extrabold text-2xl sm:text-3xl text-slate-950 dark:text-white tracking-tight">
-          {word}
+          {word ? normalizePossessiveSuffix(word) : ""}
         </h2>
         <div className="flex items-center gap-2 shrink-0">
           <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300">

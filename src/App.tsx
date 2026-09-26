@@ -56,7 +56,7 @@ import { usePlaylistStore } from "./store/playlistStore";
 import { useBingeQueueStore } from "./store/useBingeQueueStore";
 import { calculateNextBingeLesson } from "./utils/bingeQueueUtils";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History, Mic2 } from "lucide-react";
-import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem, getUIPreviewCache, saveUIPreviewCache, normalizeLanguage, getActiveMediaCurrentTime, generateHistoryId } from "./utils";
+import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizePossessiveSuffix, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem, getUIPreviewCache, saveUIPreviewCache, normalizeLanguage, getActiveMediaCurrentTime, generateHistoryId } from "./utils";
 import { resolveApiUrl } from "./utils/apiConfig";
 import { lessonsStore, vocabStore, settingsStore, playlistsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { whisperQueueService } from "./services/whisperQueueService";
@@ -2734,7 +2734,11 @@ export default function App() {
     }
     lastLocalChangeTime.current = Date.now();
     const activeLang = (lang || activeLesson?.targetLanguage || "spanish").toLowerCase();
-    const cleanWord = newVocabItem.word.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+    const rawClean = newVocabItem.word.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+    const cleanWord = (activeLang.startsWith("en") || !lang)
+      ? normalizePossessiveSuffix(rawClean)
+      : rawClean;
+    newVocabItem.word = cleanWord;
     
     // Find all linked words (forms of the same word)
     const linkedWords = getLinkedWordsFor(cleanWord, activeLang);
@@ -2808,7 +2812,11 @@ export default function App() {
 
       newVocabItems.forEach((newVocabItem) => {
         if (!newVocabItem || !newVocabItem.word) return;
-        const cleanWord = newVocabItem.word.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+        const rawClean = newVocabItem.word.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+        const cleanWord = (activeLang.startsWith("en") || !lang)
+          ? normalizePossessiveSuffix(rawClean)
+          : rawClean;
+        newVocabItem.word = cleanWord;
         const linkedWords = getLinkedWordsFor(cleanWord, activeLang);
 
         // Inherit existing family definition ONLY if this update didn't specify one and wasn't explicitly cleared ("")
@@ -2872,7 +2880,10 @@ export default function App() {
     lastLocalChangeTime.current = Date.now();
     if (!word || !word.trim()) return;
     const activeLang = (lang || activeLesson?.targetLanguage || "spanish").toLowerCase();
-    const cleanWord = word.trim().toLowerCase().replace(/^[a-zA-Z]+_/, "");
+    const rawClean = word.trim().toLowerCase().replace(/^[a-zA-Z]+_/, "");
+    const cleanWord = (activeLang.startsWith("en") || !lang)
+      ? normalizePossessiveSuffix(rawClean)
+      : rawClean;
     if (!cleanWord) return;
 
     setVocab((prev) => {
