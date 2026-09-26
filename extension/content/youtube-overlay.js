@@ -38710,14 +38710,18 @@
     }
   }
   var extractPrimaryYouTubeChannel = (playerAuthorFallback) => {
-    const firstAuthorEl = document.querySelector(
-      "#upload-info #channel-name a, ytd-video-owner-renderer #channel-name a, #owner #channel-name a, #owner-name a"
+    const authorLinks = document.querySelectorAll(
+      "#upload-info #channel-name a, ytd-video-owner-renderer #channel-name a, #owner #channel-name a, #owner-name a, ytd-channel-name a"
     );
-    const firstAuthorName = firstAuthorEl?.textContent?.replace(/\u00a0/g, " ")?.trim();
-    if (firstAuthorName && firstAuthorName.toLowerCase() !== "youtube") {
-      return firstAuthorName;
+    if (authorLinks.length > 0) {
+      for (let i3 = 0; i3 < authorLinks.length; i3++) {
+        const linkText = authorLinks[i3].textContent?.replace(/\u00a0/g, " ")?.trim();
+        if (linkText && linkText.toLowerCase() !== "youtube") {
+          return linkText;
+        }
+      }
     }
-    const singleChannelEl = document.querySelector("ytd-channel-name #text, ytd-channel-name a");
+    const singleChannelEl = document.querySelector("ytd-channel-name #text");
     const singleName = singleChannelEl?.textContent?.replace(/\u00a0/g, " ")?.trim();
     if (singleName && singleName.toLowerCase() !== "youtube") {
       return singleName;

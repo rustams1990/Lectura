@@ -124,27 +124,34 @@ function handleYouTubePageChange() {
 }
 
 /**
- * Extracts strictly the primary (first) YouTube channel/author for both standard and collaboration videos,
- * ignoring secondary co-authors so statistics and channel groupings remain clean.
+ * Extracts strictly the primary (first) YouTube channel/author for both standard and collaboration videos
+ * relying strictly on DOM link elements (<a> tags) without any string splitting (split/regex),
+ * ensuring channel names containing 'and', 'y', '&', or commas are never damaged.
  */
 export const extractPrimaryYouTubeChannel = (playerAuthorFallback?: string): string => {
-  // 1. Ищем первого автора в блоке (работает и для обычных видео, и для Collaborators)
-  const firstAuthorEl = document.querySelector(
-    '#upload-info #channel-name a, ytd-video-owner-renderer #channel-name a, #owner #channel-name a, #owner-name a'
+  // 1. Ищем ВСЕ ссылки на каналы в блоке владельца видео
+  const authorLinks = document.querySelectorAll<HTMLAnchorElement>(
+    '#upload-info #channel-name a, ytd-video-owner-renderer #channel-name a, #owner #channel-name a, #owner-name a, ytd-channel-name a'
   );
-  const firstAuthorName = firstAuthorEl?.textContent?.replace(/\u00a0/g, ' ')?.trim();
-  if (firstAuthorName && firstAuthorName.toLowerCase() !== 'youtube') {
-    return firstAuthorName;
+
+  // Если нашли хотя бы одну ссылку, берем ТЕКСТ ПЕРВОЙ ССЫЛКИ целиком
+  if (authorLinks.length > 0) {
+    for (let i = 0; i < authorLinks.length; i++) {
+      const linkText = authorLinks[i].textContent?.replace(/\u00a0/g, ' ')?.trim();
+      if (linkText && linkText.toLowerCase() !== 'youtube') {
+        return linkText; // Для "Perla y Aless" вернет "Perla y Aless". Для коллабы вернет только первого автора.
+      }
+    }
   }
 
-  // 2. Стандартный селектор одного канала (фоллбек)
-  const singleChannelEl = document.querySelector('ytd-channel-name #text, ytd-channel-name a');
+  // 2. Фоллбек на одиночный текстовый контейнер канала (если тег 'a' вдруг не определен)
+  const singleChannelEl = document.querySelector('ytd-channel-name #text');
   const singleName = singleChannelEl?.textContent?.replace(/\u00a0/g, ' ')?.trim();
   if (singleName && singleName.toLowerCase() !== 'youtube') {
     return singleName;
   }
 
-  // 3. Фоллбек на meta itemprop="name" (или meta author)
+  // 3. Фоллбек на метатег автора (целиком как есть, без обрезки)
   const metaAuthor = (
     document.querySelector('meta[itemprop="name"]')?.getAttribute('content') ||
     document.querySelector('meta[name="author"]')?.getAttribute('content')
@@ -153,7 +160,7 @@ export const extractPrimaryYouTubeChannel = (playerAuthorFallback?: string): str
     return metaAuthor;
   }
 
-  // 4. Фоллбек на данные плеера (без обрезки символов, чтобы не повредить каналы вроде Simon & Garfunkel)
+  // 4. Фоллбек на данные плеера (целиком как есть, без обрезки)
   if (playerAuthorFallback && playerAuthorFallback.trim() && playerAuthorFallback.trim().toLowerCase() !== 'youtube') {
     return playerAuthorFallback.trim();
   }
