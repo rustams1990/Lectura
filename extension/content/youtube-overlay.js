@@ -38727,10 +38727,7 @@
       return metaAuthor;
     }
     if (playerAuthorFallback && playerAuthorFallback.trim() && playerAuthorFallback.trim().toLowerCase() !== "youtube") {
-      const primary = playerAuthorFallback.split(/\s+and\s+|\s*,\s*|\s*&\s*/i)[0].replace(/\u00a0/g, " ").trim();
-      if (primary && primary.toLowerCase() !== "youtube") {
-        return primary;
-      }
+      return playerAuthorFallback.trim();
     }
     return "YouTube";
   };

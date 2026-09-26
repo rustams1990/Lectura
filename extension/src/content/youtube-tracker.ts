@@ -153,12 +153,9 @@ export const extractPrimaryYouTubeChannel = (playerAuthorFallback?: string): str
     return metaAuthor;
   }
 
-  // 4. Фоллбек на данные плеера (отсекая соавторов при наличии нескольких)
+  // 4. Фоллбек на данные плеера (без обрезки символов, чтобы не повредить каналы вроде Simon & Garfunkel)
   if (playerAuthorFallback && playerAuthorFallback.trim() && playerAuthorFallback.trim().toLowerCase() !== 'youtube') {
-    const primary = playerAuthorFallback.split(/\s+and\s+|\s*,\s*|\s*&\s*/i)[0].replace(/\u00a0/g, ' ').trim();
-    if (primary && primary.toLowerCase() !== 'youtube') {
-      return primary;
-    }
+    return playerAuthorFallback.trim();
   }
 
   return 'YouTube';
