@@ -40,7 +40,11 @@ export function getTagColor(tagName: string | null | undefined) {
     hash |= 0;
   }
   const index = Math.abs(hash) % TAG_PALETTE.length;
-  return TAG_PALETTE[index];
+  const paletteColor = TAG_PALETTE[index];
+  return {
+    ...paletteColor,
+    hex: getTopicColor(clean),
+  };
 }
 
 export const DEFAULT_SUGGESTED_TAGS = [

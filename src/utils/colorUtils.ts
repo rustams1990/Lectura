@@ -25,8 +25,9 @@ export const getTopicColor = (topicName: string): string => {
     hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
   }
 
-  const hue = Math.abs(hash) % 360;
+  // Распределяем по кольцу 0-360 с использованием золотого сечения (137.5°) для максимального контраста
+  const hue = Math.abs(hash * 137.5) % 360;
 
-  // HSL с 70% насыщенности и 45% светлоты для гармоничных и контрастных цветов
-  return `hsl(${hue}, 70%, 45%)`;
+  // HSL с 70% насыщенности и 50% светлоты для гармоничных и контрастных цветов
+  return `hsl(${Math.round(hue)}, 70%, 50%)`;
 };
