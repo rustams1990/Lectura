@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   X,
   History,
@@ -116,9 +116,20 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   const [isResolvingFormChannel, setIsResolvingFormChannel] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
 
+  const initializedKeyRef = useRef<string | null>(null);
+
   // Sync form state whenever modal opens or entry changes
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      initializedKeyRef.current = null;
+      return;
+    }
+
+    const currentKey = entry ? `edit_${entry.id}` : "new_entry";
+    if (initializedKeyRef.current === currentKey) {
+      return; // Already initialized for this modal session, do not wipe user inputs
+    }
+    initializedKeyRef.current = currentKey;
 
     if (entry) {
       const matchedLesson = findMatchingLesson(entry, lessons);
