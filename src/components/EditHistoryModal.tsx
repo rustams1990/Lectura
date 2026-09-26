@@ -25,6 +25,7 @@ import { AppDatePicker } from "./common/AppDatePicker";
 import { AppTimePicker } from "./common/AppTimePicker";
 import { getTagColor, getAllKnownTags } from "../utils/tagColors";
 import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
+import { findMatchingLesson, getHistoryEffectiveTags } from "../utils/historyLessonMatcher";
 
 export const ACTIVITY_LANGUAGES = [
   { code: "es", name: "Spanish", native: "Español", flag: "🇪🇸" },
@@ -120,8 +121,8 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
     if (!isOpen) return;
 
     if (entry) {
-      const isCustom = entry.mode === "custom" || entry.lessonId === "custom" || !lessons.some((l) => l.id === entry.lessonId);
-      const matchedLesson = lessons.find((l) => l.id === entry.lessonId);
+      const matchedLesson = findMatchingLesson(entry, lessons);
+      const isCustom = entry.mode === "custom" || entry.lessonId === "custom" || !matchedLesson;
       setFormMode(isCustom ? "custom" : "library");
       setFormCategory(entry.category || "video");
       setFormLessonId(entry.lessonId);
@@ -131,10 +132,12 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormStatus((entry.status === "completed" || entry.actionType === "complete") ? "completed" : "in_progress");
       setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
       setFormNotes(entry.notes || "");
-      setFormTags(entry.tags ? entry.tags.join(", ") : "");
 
-      const initialTags = entry.tags && Array.isArray(entry.tags) ? [...entry.tags] : [];
-      const initialPrimary = entry.primaryTag || (initialTags.length > 0 ? initialTags[0] : null);
+      const effTags = getHistoryEffectiveTags(entry, matchedLesson, playlists);
+      setFormTags(effTags.tags ? effTags.tags.join(", ") : "");
+
+      const initialTags = effTags.tags && Array.isArray(effTags.tags) ? [...effTags.tags] : [];
+      const initialPrimary = effTags.primaryTag || (initialTags.length > 0 ? initialTags[0] : null);
       if (initialPrimary && !initialTags.includes(initialPrimary)) {
         initialTags.unshift(initialPrimary);
       }

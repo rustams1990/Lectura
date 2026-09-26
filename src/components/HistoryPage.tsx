@@ -113,6 +113,7 @@ const ACTIVITY_CATEGORIES: Array<{
 ];
 
 import AssignChannelModal from "./AssignChannelModal";
+import { findMatchingLesson, getHistoryEffectiveTags } from "../utils/historyLessonMatcher";
 
 interface HistoryPageProps {
   history: HistoryEntry[];
@@ -188,14 +189,16 @@ function HistoryPage({
   const availableTags = useMemo(() => {
     const tagsSet = new Set<string>();
     history.forEach((h) => {
-      if (h.primaryTag && h.primaryTag.trim()) {
-        const pClean = formatTopicName(h.primaryTag);
+      const matched = findMatchingLesson(h, lessons);
+      const eff = getHistoryEffectiveTags(h, matched, playlists);
+      if (eff.primaryTag && eff.primaryTag.trim()) {
+        const pClean = formatTopicName(eff.primaryTag);
         if (pClean && pClean.toLowerCase() !== "youtube" && pClean.toLowerCase() !== "extension") {
           tagsSet.add(pClean);
         }
       }
-      if (h.tags && Array.isArray(h.tags)) {
-        h.tags.forEach((t) => {
+      if (eff.tags && Array.isArray(eff.tags)) {
+        eff.tags.forEach((t) => {
           if (t && t.trim()) {
             const clean = formatTopicName(t);
             if (clean && clean.toLowerCase() !== "youtube" && clean.toLowerCase() !== "extension") {
@@ -206,12 +209,12 @@ function HistoryPage({
       }
     });
     return Array.from(tagsSet).sort((a, b) => a.localeCompare(b));
-  }, [history]);
+  }, [history, lessons, playlists]);
 
   // Helper to reliably resolve a history item's target language
   const getItemLanguage = React.useCallback((item: HistoryEntry): string => {
     if (!item) return "Spanish";
-    const lesson = lessons.find((l) => l.id === item.lessonId);
+    const lesson = findMatchingLesson(item, lessons);
     if (lesson && lesson.targetLanguage && lesson.targetLanguage.trim()) {
       return normalizeLanguage(lesson.targetLanguage.trim());
     }
@@ -364,7 +367,7 @@ function HistoryPage({
         calendarDay = item.timestamp || "unknown";
       }
 
-      const lesson = lessons.find((l) => l.id === item.lessonId);
+      const lesson = findMatchingLesson(item, lessons);
       const isCustomActivity = item.mode === "custom" || item.lessonId === "custom" || !lesson;
       const lessonKey = (!isCustomActivity && item.lessonId)
         ? item.lessonId
@@ -393,7 +396,7 @@ function HistoryPage({
       });
 
       const latest = sortedSessions[0];
-      const lesson = lessons.find((l) => l.id === latest.lessonId);
+      const lesson = findMatchingLesson(latest, lessons);
 
       const savedProg = latest.lessonId ? localStorage.getItem(`vocab_progress_${latest.lessonId}`) : null;
       let isProg100 = false;
@@ -433,8 +436,12 @@ function HistoryPage({
       );
       const totalDurationSeconds = summedDuration;
 
+      const lessonEffectiveTags = getHistoryEffectiveTags(latest, lesson, playlists);
+      const bestPrimaryTag = latest.primaryTag || sortedSessions.find((s) => s.primaryTag)?.primaryTag || lessonEffectiveTags.primaryTag || null;
       const bestNotes = sortedSessions.find((s) => s.notes && s.notes.trim())?.notes || latest.notes || "";
-      const bestTags = sortedSessions.find((s) => s.tags && s.tags.length > 0)?.tags || latest.tags || [];
+      const bestTags = (latest.tags && latest.tags.length > 0)
+        ? latest.tags
+        : (sortedSessions.find((s) => s.tags && s.tags.length > 0)?.tags || lessonEffectiveTags.tags || []);
       const bestCoverUrl = latest.coverUrl || sortedSessions.find((s) => s.coverUrl)?.coverUrl || lesson?.coverUrl || null;
       const bestChannelName = latest.channelName || sortedSessions.find((s) => s.channelName)?.channelName || lesson?.channelName || (lesson as any)?.channelTitle || null;
       const bestChannelAvatarUrl = latest.channelAvatarUrl || sortedSessions.find((s) => s.channelAvatarUrl)?.channelAvatarUrl || lesson?.channelAvatarUrl || null;
@@ -461,6 +468,7 @@ function HistoryPage({
         actionType: latest.actionType || (isAudioOrVideoLesson ? "listen" : "read"),
         status: isLessonDone ? "completed" : (latest.status || "in_progress"),
         notes: bestNotes,
+        primaryTag: bestPrimaryTag,
         tags: bestTags,
         coverUrl: bestCoverUrl,
         channelName: bestChannelName,
@@ -482,7 +490,7 @@ function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [history, lessons]);
+  }, [history, lessons, playlists]);
 
   // Aggregate stats scoped to selected period, language & month
   const scopedHistory = useMemo(() => {
@@ -677,7 +685,7 @@ function HistoryPage({
       const dur = item.durationSeconds || 0;
       const actionType = (item.actionType || "").toLowerCase();
       const category = (item.category || "").toLowerCase();
-      const lesson = lessons.find((l) => l.id === item.lessonId);
+      const lesson = findMatchingLesson(item, lessons);
       const lessonType = (item.lessonType || lesson?.lessonType || "").toLowerCase();
 
       if (actionType === "study" || actionType === "grammar" || category === "grammar") {
@@ -756,7 +764,9 @@ function HistoryPage({
     scopedHistory.forEach((item) => {
       const dur = item.durationSeconds || 0;
       totalSec += dur;
-      const raw = item.primaryTag?.trim();
+      const matched = findMatchingLesson(item, lessons);
+      const eff = getHistoryEffectiveTags(item, matched, playlists);
+      const raw = eff.primaryTag?.trim();
       const clean = formatTopicName(raw || "");
       const id = clean ? clean.toLowerCase() : "uncategorized";
       const label = clean || t("tags.uncategorized", "Uncategorized");
@@ -777,7 +787,7 @@ function HistoryPage({
     })).sort((a, b) => b.seconds - a.seconds);
 
     return { totalSeconds: totalSec, items };
-  }, [scopedHistory, t]);
+  }, [scopedHistory, lessons, playlists, t]);
 
   // All Topics Breakdown (Cards with Primary vs Secondary breakdown)
   const allTopicsBreakdown = useMemo(() => {
@@ -795,11 +805,13 @@ function HistoryPage({
 
     scopedHistory.forEach((item) => {
       const dur = item.durationSeconds || 0;
-      const rawPTag = item.primaryTag?.trim();
+      const matched = findMatchingLesson(item, lessons);
+      const eff = getHistoryEffectiveTags(item, matched, playlists);
+      const rawPTag = eff.primaryTag?.trim();
       const cleanPTag = formatTopicName(rawPTag || "");
       const pTag = cleanPTag && cleanPTag.toLowerCase() !== "youtube" && cleanPTag.toLowerCase() !== "extension" ? cleanPTag : null;
-      const sTags = Array.isArray(item.tags)
-        ? item.tags.map((t) => formatTopicName(t)).filter((t) => Boolean(t) && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
+      const sTags = Array.isArray(eff.tags)
+        ? eff.tags.map((t) => formatTopicName(t)).filter((t) => Boolean(t) && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
         : [];
 
       if (!pTag && sTags.length === 0) {
@@ -880,7 +892,7 @@ function HistoryPage({
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalSeconds - a.totalSeconds);
-  }, [scopedHistory, t]);
+  }, [scopedHistory, lessons, playlists, t]);
 
   const filteredTopicsBreakdown = useMemo(() => {
     if (!topicSearchQuery.trim()) return allTopicsBreakdown;
@@ -929,7 +941,7 @@ function HistoryPage({
   // Helper to reliably resolve a history item's channel/author name (ONLY for media / video / audio / podcast)
   const resolveItemChannelName = React.useCallback(
     (item: HistoryEntry): string | null => {
-      const lesson = lessons.find((l) => l.id === item.lessonId);
+      const lesson = findMatchingLesson(item, lessons);
       if (!isChannelMedia(item, lesson)) return null;
 
       let rawName: string | null =
@@ -985,7 +997,7 @@ function HistoryPage({
       const trimmedName = resolveItemChannelName(item);
       if (!trimmedName) return; // Skip non-media books/articles
 
-      const lesson = lessons.find((l) => l.id === item.lessonId);
+      const lesson = findMatchingLesson(item, lessons);
       const normKey = trimmedName.toLowerCase();
 
       // Prioritize round author portrait from YouTube directory
@@ -1079,7 +1091,7 @@ function HistoryPage({
         const matchesTitle = item.lessonTitle.toLowerCase().includes(q);
         const matchesNote = (item.notes || "").toLowerCase().includes(q);
         const matchesLang = getItemLanguage(item).toLowerCase().includes(q);
-        const matchedLesson = lessons.find((l) => l.id === item.lessonId);
+        const matchedLesson = findMatchingLesson(item, lessons);
         const matchesChannel =
           (item.channelName || "").toLowerCase().includes(q) ||
           (matchedLesson?.channelName || "").toLowerCase().includes(q);
@@ -1093,10 +1105,12 @@ function HistoryPage({
       }
       if (selectedTag !== "all") {
         const sel = formatTopicName(selectedTag).toLowerCase().trim();
-        const rawPTag = item.primaryTag?.trim();
+        const matchedLesson = findMatchingLesson(item, lessons);
+        const eff = getHistoryEffectiveTags(item, matchedLesson, playlists);
+        const rawPTag = eff.primaryTag?.trim();
         const pTag = rawPTag && rawPTag.toLowerCase() !== "youtube" && rawPTag.toLowerCase() !== "extension" ? rawPTag : null;
-        const validTags = Array.isArray(item.tags)
-          ? item.tags.filter((t) => t && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
+        const validTags = Array.isArray(eff.tags)
+          ? eff.tags.filter((t) => t && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension")
           : [];
 
         const matchesPrimary = pTag && formatTopicName(pTag).toLowerCase().trim() === sel;
@@ -1115,7 +1129,7 @@ function HistoryPage({
       const timeB = new Date(b.timestamp).getTime() || 0;
       return timeB - timeA;
     });
-  }, [scopedHistory, filterType, searchQuery, selectedChannelFilter, selectedTag, getItemLanguage, lessons, resolveItemChannelName]);
+  }, [scopedHistory, filterType, searchQuery, selectedChannelFilter, selectedTag, getItemLanguage, lessons, playlists, resolveItemChannelName]);
 
   const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -2069,7 +2083,7 @@ function HistoryPage({
               {/* Entries in group */}
               <div className="space-y-2.5">
                 {group.items.map((item) => {
-                  const matchedLesson = lessons.find((l) => l.id === item.lessonId);
+                  const matchedLesson = findMatchingLesson(item, lessons);
                   const isCustom = item.mode === "custom" || item.lessonId === "custom" || !matchedLesson;
                   const isCompleted = item.status === "completed" || item.actionType === "complete";
                   const displayTitle = item.customTitle || item.lessonTitle;
@@ -2295,8 +2309,9 @@ function HistoryPage({
                                 seen.add(clean.toLowerCase());
                                 allTags.push(clean);
                               };
-                              addTag(item.primaryTag);
-                              if (Array.isArray(item.tags)) item.tags.forEach(addTag);
+                              const eff = getHistoryEffectiveTags(item, matchedLesson, playlists);
+                              addTag(eff.primaryTag);
+                              if (Array.isArray(eff.tags)) eff.tags.forEach(addTag);
                               if (allTags.length === 0) return null;
 
                               const maxVisible = allTags.length > 3 ? 2 : 3;

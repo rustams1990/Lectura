@@ -2299,16 +2299,33 @@ const updateLessonHandler = (req: Request, res: Response) => {
         }
       }
 
-      // 2. Also update all reading_history rows for this lessonId
-      if (channelTitle) {
-        db.prepare(`
-          UPDATE reading_history SET
-            channelName = ?,
-            channelAvatarUrl = COALESCE(?, channelAvatarUrl),
-            channelUrl = COALESCE(?, channelUrl)
-          WHERE user_id = ? AND lessonId = ?
-        `).run(channelTitle, channelAvatar, channelUrl, userId, id);
-      }
+      // 2. Also update all reading_history rows for this lessonId / videoId
+      const existingLesson = db.prepare("SELECT youtubeId FROM lessons WHERE user_id = ? AND id = ?").get(userId, id) as any;
+      const ytId = updates.youtubeId || existingLesson?.youtubeId || null;
+
+      db.prepare(`
+        UPDATE reading_history SET
+          channelName = COALESCE(?, channelName),
+          channelAvatarUrl = COALESCE(?, channelAvatarUrl),
+          channelUrl = COALESCE(?, channelUrl),
+          primaryTag = CASE WHEN ? IS NOT NULL THEN ? ELSE primaryTag END,
+          tags = CASE WHEN ? IS NOT NULL THEN ? ELSE tags END
+        WHERE user_id = ? AND (
+          lessonId = ? 
+          OR (? IS NOT NULL AND (
+            lessonId = ? 
+            OR lessonId = ('lesson-yt_' || ?) 
+            OR lessonId = ('youtube_' || ?) 
+            OR coverUrl LIKE ('%' || ? || '%')
+          ))
+        )
+      `).run(
+        channelTitle, channelAvatar, channelUrl,
+        updates.primaryTag !== undefined ? primaryTag : null, primaryTag,
+        updates.tags !== undefined ? tagsJson : null, tagsJson,
+        userId, id,
+        ytId, ytId, ytId, ytId, ytId
+      );
     })();
 
     console.log(`[SAVED TO DB] Lesson ${id} updated with channel: ${channelTitle}`);

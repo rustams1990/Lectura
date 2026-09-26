@@ -3987,24 +3987,41 @@ export default function App() {
                   setLessons(nextLessons);
                   lessonsRef.current = nextLessons;
                   lessonsStore.setItem("lessons", nextLessons).catch(() => {});
+                  let updatedHist: HistoryEntry[] = [];
                   setHistory((prev) => {
-                    const updatedHist = prev.map((h) => {
-                      if (h.lessonId === editingLesson.id) {
+                    const ytId = newOrUpdated.youtubeId || editingLesson.youtubeId || null;
+                    updatedHist = prev.map((h) => {
+                      const matches = (
+                        h.lessonId === editingLesson.id ||
+                        h.lessonId === newOrUpdated.id ||
+                        (ytId && (
+                          h.youtubeId === ytId ||
+                          h.lessonId === ytId ||
+                          h.lessonId === `lesson-yt_${ytId}` ||
+                          h.lessonId === `youtube_${ytId}` ||
+                          (h.coverUrl && h.coverUrl.includes(ytId))
+                        ))
+                      );
+                      if (matches) {
                         return {
                           ...h,
                           lessonTitle: newOrUpdated.title,
-                          channelName: newOrUpdated.channelName || null,
-                          channelAvatarUrl: newOrUpdated.channelAvatarUrl || null,
+                          channelName: newOrUpdated.channelName || h.channelName || null,
+                          channelAvatarUrl: newOrUpdated.channelAvatarUrl || h.channelAvatarUrl || null,
+                          primaryTag: newOrUpdated.primaryTag || null,
+                          tags: Array.isArray(newOrUpdated.tags) ? newOrUpdated.tags : [],
+                          coverUrl: newOrUpdated.coverUrl || h.coverUrl,
                         };
                       }
                       return h;
                     });
+                    historyRef.current = updatedHist;
                     safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(updatedHist));
                     settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(updatedHist)).catch(() => {});
                     return updatedHist;
                   });
                   if (storageMode === "server") {
-                    syncDataToLocalServer(nextLessons).catch((err) => console.error(err));
+                    syncDataToLocalServer(nextLessons, undefined, undefined, undefined, undefined, undefined, updatedHist).catch((err) => console.error(err));
                   }
                   setEditingLesson(null);
                 } else {
