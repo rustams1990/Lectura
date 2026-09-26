@@ -142,7 +142,7 @@ export const BatchTagModal: React.FC<BatchTagModalProps> = ({
                           : "border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 hover:border-teal-400 dark:hover:border-teal-600 hover:bg-teal-50/70 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300"
                       }`}
                     >
-                      <span className="leading-[1.3] pb-0.5 inline-block">#{tag}</span>
+                      <span className="leading-[1.3] pb-0.5 inline-block">{tag.replace(/^#+/, "")}</span>
                     </button>
                   );
                 })}

@@ -1024,7 +1024,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                           className="cursor-text leading-[1.3] pb-0.5 inline-block"
                           title={t("tags.double_click_to_edit", "Double click to rename")}
                         >
-                          #{tag}
+                          {tag.replace(/^#+/, "")}
                         </span>
 
                         {isPrimary ? (

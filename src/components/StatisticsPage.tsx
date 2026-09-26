@@ -2736,7 +2736,7 @@ function StatisticsPage({
                     >
                       <option value="all">🏷️ {t('stats_page.all_tags', 'All Tags ({{count}} types)', { count: uniqueTags.length })}</option>
                       {uniqueTags.map((t, tIdx) => (
-                        <option key={`${t}-${tIdx}`} value={t}>#{t}</option>
+                        <option key={`${t}-${tIdx}`} value={t}>{t.replace(/^#+/, "")}</option>
                       ))}
                     </select>
                     <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-zinc-400">
@@ -2840,7 +2840,7 @@ function StatisticsPage({
                                         key={`${tag}-${tagIdx}`}
                                         className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-[8px] px-1.5 py-0.5 rounded-full font-sans lowercase font-extrabold"
                                       >
-                                        #{tag}
+                                        {tag.replace(/^#+/, "")}
                                       </span>
                                     ))}
                                   </div>

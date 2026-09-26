@@ -16,6 +16,11 @@ export interface TagFilterDropdownProps {
   className?: string;
 }
 
+const formatTopicName = (name: string): string => {
+  if (!name) return "";
+  return name.replace(/^#+/, "").trim();
+};
+
 export const TagFilterDropdown: React.FC<TagFilterDropdownProps> = ({
   selectedTag,
   onSelectTag,
@@ -59,7 +64,7 @@ export const TagFilterDropdown: React.FC<TagFilterDropdownProps> = ({
   const filteredTags = useMemo(() => {
     if (!searchQuery.trim()) return availableTags;
     const q = searchQuery.toLowerCase().trim().replace(/^#+/, "");
-    return availableTags.filter((tag) => tag.toLowerCase().includes(q));
+    return availableTags.filter((tag) => tag.toLowerCase().replace(/^#+/, "").includes(q));
   }, [availableTags, searchQuery]);
 
   const selectedColor = isSelected ? getTagColor(selectedTag) : null;
@@ -82,7 +87,7 @@ export const TagFilterDropdown: React.FC<TagFilterDropdownProps> = ({
           <Tag className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400 shrink-0" />
         )}
         <span className="truncate max-w-[120px]">
-          {isSelected ? `#${selectedTag}` : t("library.all_tags", "All Tags")}
+          {isSelected ? formatTopicName(selectedTag) : t("library.all_tags", "All Tags")}
         </span>
         <ChevronDown
           className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 shrink-0 ${
@@ -167,7 +172,7 @@ export const TagFilterDropdown: React.FC<TagFilterDropdownProps> = ({
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`w-2 h-2 rounded-full ${color.bg} shrink-0`} />
-                      <span className="truncate">#{tag}</span>
+                      <span className="truncate">{formatTopicName(tag)}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0 ml-2">

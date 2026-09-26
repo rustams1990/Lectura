@@ -544,15 +544,15 @@ export const BookCard: React.FC<BookCardProps> = memo(({
                     <span
                       key={tag}
                       className="inline-flex items-center text-[10px] font-semibold leading-[1.3] px-2 py-0.5 pb-1 rounded-full border border-teal-200/70 dark:border-teal-800/60 bg-teal-50/80 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 shadow-3xs select-none max-w-[140px]"
-                      title={`#${tag}`}
+                      title={tag}
                     >
-                      <span className="truncate leading-[1.3] pb-0.5">#{tag}</span>
+                      <span className="truncate leading-[1.3] pb-0.5">{tag}</span>
                     </span>
                   ))}
                   {hiddenCount > 0 && (
                     <span
                       className="inline-flex items-center text-[9.5px] font-bold leading-[1.3] px-1.5 py-0.5 pb-1 rounded-full border border-teal-200/60 dark:border-teal-800/50 bg-teal-50/60 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 select-none cursor-default"
-                      title={remainingTags.map((t) => `#${t}`).join(", ")}
+                      title={remainingTags.join(", ")}
                     >
                       <span className="leading-[1.3] pb-0.5">+{hiddenCount}</span>
                     </span>
