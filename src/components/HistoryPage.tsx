@@ -50,6 +50,7 @@ import { resolveApiUrl } from "../utils/apiConfig";
 import { useToast } from "../context/ToastContext";
 import { usePlaylistStore } from "../store/playlistStore";
 import { getTagColor, UNCATEGORIZED_COLOR } from "../utils/tagColors";
+import { getTopicColor } from "../utils/colorUtils";
 
 export const formatTopicName = (name: string): string => {
   if (!name) return "";
@@ -759,14 +760,14 @@ function HistoryPage({
       const clean = formatTopicName(raw || "");
       const id = clean ? clean.toLowerCase() : "uncategorized";
       const label = clean || t("tags.uncategorized", "Uncategorized");
-      const color = clean ? getTagColor(clean).hex : UNCATEGORIZED_COLOR.hex;
+      const colorHex = getTopicColor(clean);
 
       const existing = map.get(id);
       if (existing) {
         existing.seconds += dur;
         existing.count += 1;
       } else {
-        map.set(id, { id, label, seconds: dur, count: 1, colorHex: color });
+        map.set(id, { id, label, seconds: dur, count: 1, colorHex });
       }
     });
 
@@ -787,7 +788,8 @@ function HistoryPage({
       primarySeconds: number;
       secondarySeconds: number;
       count: number;
-      color: ReturnType<typeof getTagColor>;
+      colorHex: string;
+      color: { hex: string };
       hasPrimary: boolean;
     }>();
 
@@ -810,6 +812,7 @@ function HistoryPage({
           existing.primarySeconds += dur;
           existing.count += 1;
         } else {
+          const colorHex = getTopicColor("uncategorized");
           map.set(id, {
             id,
             label,
@@ -817,7 +820,8 @@ function HistoryPage({
             primarySeconds: dur,
             secondarySeconds: 0,
             count: 1,
-            color: UNCATEGORIZED_COLOR,
+            colorHex,
+            color: { hex: colorHex },
             hasPrimary: false,
           });
         }
@@ -834,6 +838,7 @@ function HistoryPage({
           existing.count += 1;
           existing.hasPrimary = true;
         } else {
+          const colorHex = getTopicColor(pTag);
           map.set(id, {
             id,
             label: pTag,
@@ -841,7 +846,8 @@ function HistoryPage({
             primarySeconds: dur,
             secondarySeconds: 0,
             count: 1,
-            color: getTagColor(pTag),
+            colorHex,
+            color: { hex: colorHex },
             hasPrimary: true,
           });
         }
@@ -857,6 +863,7 @@ function HistoryPage({
           existing.secondarySeconds += dur;
           existing.count += 1;
         } else {
+          const colorHex = getTopicColor(sTag);
           map.set(id, {
             id,
             label: sTag,
@@ -864,7 +871,8 @@ function HistoryPage({
             primarySeconds: 0,
             secondarySeconds: dur,
             count: 1,
-            color: getTagColor(sTag),
+            colorHex,
+            color: { hex: colorHex },
             hasPrimary: false,
           });
         }
@@ -1707,7 +1715,7 @@ function HistoryPage({
                             >
                               {/* Row 1: Full-width Tag Title with color dot */}
                               <div className="flex items-center gap-2 min-w-0 w-full">
-                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tag.color.hex }} />
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tag.colorHex }} />
                                 <span
                                   className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate leading-[1.3] pb-0.5 inline-block"
                                   title={tagName}

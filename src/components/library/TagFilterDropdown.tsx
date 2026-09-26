@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Tag, ChevronDown, Check, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getTagColor } from "../../utils/tagColors";
+import { getTopicColor } from "../../utils/colorUtils";
 
 export interface TagFilterDropdownProps {
   selectedTag: string;
@@ -81,8 +82,8 @@ export const TagFilterDropdown: React.FC<TagFilterDropdownProps> = ({
         }`}
         title={t("library.filter_by_tag", "Filter by tag")}
       >
-        {isSelected && selectedColor ? (
-          <span className={`w-2 h-2 rounded-full ${selectedColor.bg} shrink-0`} />
+        {isSelected ? (
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getTopicColor(selectedTag) }} />
         ) : (
           <Tag className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400 shrink-0" />
         )}
@@ -171,7 +172,7 @@ export const TagFilterDropdown: React.FC<TagFilterDropdownProps> = ({
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`w-2 h-2 rounded-full ${color.bg} shrink-0`} />
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getTopicColor(tag) }} />
                       <span className="truncate">{formatTopicName(tag)}</span>
                     </div>
 

@@ -19,6 +19,8 @@ const TAG_PALETTE = [
   { hex: "#C026D3", bg: "bg-fuchsia-500", text: "text-fuchsia-600 dark:text-fuchsia-400", lightBg: "bg-fuchsia-50 dark:bg-fuchsia-950/40", border: "border-fuchsia-200 dark:border-fuchsia-800" },
 ];
 
+export { getTopicColor } from "./colorUtils";
+
 export const UNCATEGORIZED_COLOR = {
   hex: "#9CA3AF",
   bg: "bg-zinc-400",
