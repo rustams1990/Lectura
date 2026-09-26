@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # ==============================================================================
 # Lectura — Fast Production Update Script for Ubuntu Server
 # Conforms to Lectura Dogmas: Mandatory DB backup before every server update
@@ -45,15 +45,17 @@ fi
 
 # 2. Pull pre-built image from GitHub Packages (ghcr.io)
 echo "Step 2/3: Pulling pre-built Docker image..."
-docker compose -f "$COMPOSE_FILE" pull
+docker compose -f "$COMPOSE_FILE" pull lectura || docker pull ghcr.io/rustams1990/lectura:latest
 
 # 3. Start or restart container
 echo "Step 3/3: Starting Lectura container..."
-docker compose -f "$COMPOSE_FILE" up -d || {
+docker compose -f "$COMPOSE_FILE" up -d lectura || {
   echo "Container state settling, retrying in 3 seconds..."
   sleep 3
-  docker compose -f "$COMPOSE_FILE" up -d
+  docker compose -f "$COMPOSE_FILE" up -d lectura
 }
+# Optionally ensure watchtower is running
+docker compose -f "$COMPOSE_FILE" up -d watchtower 2>/dev/null || true
 
 # 4. Clean dangling images to save disk space
 docker image prune -f > /dev/null 2>&1 || true
