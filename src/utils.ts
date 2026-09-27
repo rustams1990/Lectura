@@ -1,4 +1,4 @@
-import { HistoryEntry } from "./types";
+﻿import { HistoryEntry } from "./types";
 
 /**
  * @license
@@ -773,26 +773,40 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
         );
       }
 
-      // Check if both entries represent the same item within the same 24-hour day window
-      const sameDay = Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 24 * 60 * 60 * 1000;
-      if (!sameDay) return false;
+      // Exact ID match
+      if (m.id === item.id) return true;
 
-      const sameLessonId = m.lessonId === item.lessonId;
-      const sameGuid = Boolean(
+      // youtubeId is a stable cross-device identifier — no time window needed
+      if (m.youtubeId && item.youtubeId && m.youtubeId === item.youtubeId) return true;
+
+      // lessonId match (same lesson in library) — no time window needed
+      if (
+        m.lessonId === item.lessonId &&
+        item.lessonId !== "imported_record" &&
+        !item.lessonId.startsWith("podcast_ep_") &&
+        !item.lessonId.startsWith("http")
+      ) return true;
+
+      // guid-based match (podcasts) — no time window needed
+      if (
         (m.guid && item.guid && m.guid === item.guid) ||
         (m.guid && (m.guid === item.lessonId || (item as any).podcastGuid === m.guid)) ||
         (item.guid && (item.guid === m.lessonId || (m as any).podcastGuid === item.guid))
-      );
-      const sameAudioUrl = Boolean(
+      ) return true;
+
+      // audioUrl match — no time window needed
+      if (
         m.audioUrl && item.audioUrl &&
         (m.audioUrl === item.audioUrl || m.audioUrl.includes(item.audioUrl) || item.audioUrl.includes(m.audioUrl))
-      );
-      const sameTitle = Boolean(
+      ) return true;
+
+      // Title-based match only within 24h (most ambiguous, time-window guarded)
+      const sameDay = Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 24 * 60 * 60 * 1000;
+      return Boolean(
+        sameDay &&
         m.lessonTitle && item.lessonTitle &&
         m.lessonTitle.trim().toLowerCase() === item.lessonTitle.trim().toLowerCase()
       );
-
-      return sameLessonId || sameGuid || sameAudioUrl || sameTitle;
     });
 
     if (existingIdx !== -1) {
@@ -811,10 +825,14 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
         return aTrimmed;
       };
 
-      // Same media item within 24h: take highest progress/duration to avoid duplicate cross-device summing
+      // Take maximum watched duration (avoid cross-device summing)
       const durationSeconds = Math.max(existing.durationSeconds || 0, item.durationSeconds || 0);
+      // Take maximum total video length (real duration of the video)
+      const totalDuration = Math.max(existing.duration || 0, item.duration || 0);
+      // Take maximum playback position
+      const lastPosition = Math.max(existing.lastPosition || 0, item.lastPosition || 0);
 
-      // Prefer real library lessonId (e.g. podcast_uuid) over temporary streaming ID
+      // Prefer real library lessonId over temporary streaming ID
       const preferredLessonId = (item.lessonId && !item.lessonId.startsWith("podcast_ep_") && !item.lessonId.startsWith("http"))
         ? item.lessonId
         : (existing.lessonId && !existing.lessonId.startsWith("podcast_ep_") && !existing.lessonId.startsWith("http"))
@@ -830,11 +848,17 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
         actionType: (existing.actionType === "listen" || item.actionType === "listen") ? "listen" : (existing.actionType || item.actionType),
         status: isCompleted ? "completed" : (existing.status || item.status || "in_progress"),
         durationSeconds,
+        duration: totalDuration > 0 ? totalDuration : undefined,
+        lastPosition: lastPosition > 0 ? lastPosition : undefined,
+        youtubeId: existing.youtubeId || item.youtubeId || undefined,
         audioUrl: (item.audioUrl && item.audioUrl.startsWith("/api/")) ? item.audioUrl : (existing.audioUrl || item.audioUrl),
         tags: item.tags && item.tags.length > 0 ? item.tags : existing.tags,
+        primaryTag: existing.primaryTag || item.primaryTag,
         customTitle: item.customTitle || existing.customTitle,
         category: item.category || existing.category,
         mode: item.mode || existing.mode,
+        channelName: existing.channelName || item.channelName,
+        channelAvatarUrl: existing.channelAvatarUrl || item.channelAvatarUrl,
       };
     } else {
       merged.push({

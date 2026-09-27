@@ -593,7 +593,12 @@ export default function App() {
       listeningBufferRef.current = 0;
     }
 
-    const deduped = dedupeHistory(newHistory).filter(h => (h.durationSeconds || 0) > 0);
+    const deduped = dedupeHistory(newHistory).filter(h =>
+      (h.durationSeconds || 0) > 0 ||
+      (h.lastPosition || 0) > 0 ||
+      h.status === "completed" ||
+      h.actionType === "complete"
+    );
     setHistory(deduped);
     historyRef.current = deduped;
     // Mark immediately so loadDataFromLocalServer won't overwrite for 30s

@@ -562,6 +562,9 @@ function setupSchema(db: Database.Database) {
   if (!historyCols.includes("duration")) {
     try { db.exec(`ALTER TABLE reading_history ADD COLUMN duration REAL DEFAULT 0;`); } catch (_) {}
   }
+  if (!historyCols.includes("youtubeId")) {
+    try { db.exec(`ALTER TABLE reading_history ADD COLUMN youtubeId TEXT;`); } catch (_) {}
+  }
 
   // Clean up auto-generated ["youtube", "extension"] mock tags from reading_history
   try {

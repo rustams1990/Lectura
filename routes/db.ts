@@ -532,6 +532,7 @@ function deduplicateDbPlaylistItems(rawItems: any[]): any[] {
         actionType: h.actionType,
         status: h.status || "in_progress",
         durationSeconds: h.durationSeconds || 0,
+        duration: h.duration !== null && h.duration !== undefined ? Number(h.duration) : undefined,
         notes: h.notes || undefined,
         channelName: h.channelName || null,
         channelAvatarUrl: h.channelAvatarUrl || null,
@@ -545,6 +546,7 @@ function deduplicateDbPlaylistItems(rawItems: any[]): any[] {
         audioUrl: h.audioUrl || undefined,
         guid: h.guid || undefined,
         podcastTitle: h.podcastTitle || undefined,
+        youtubeId: h.youtubeId || undefined,
       }));
     } catch (_) {}
 
@@ -1093,8 +1095,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       const insertHistory = db.prepare(`
         INSERT OR REPLACE INTO reading_history (
-          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, lastPosition, audioUrl, guid, podcastTitle, primaryTag
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, lastPosition, audioUrl, guid, podcastTitle, primaryTag, youtubeId, duration
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       if (Array.isArray(data.deletedHistoryIds) && data.deletedHistoryIds.length > 0) {
@@ -1105,21 +1107,63 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       if (Array.isArray(data.history)) {
         const historyList = data.history;
+        // Prepared statement to find existing row by youtubeId for the same user
+        const findByYoutubeId = db.prepare(
+          `SELECT id, durationSeconds, lastPosition, status, actionType, timestamp FROM reading_history WHERE user_id = ? AND youtubeId = ? AND id != ? LIMIT 1`
+        );
+        // Prepared statement to delete a duplicate row after merging into the canonical one
+        const deleteById = db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id = ?`);
+
         for (const h of historyList) {
           if (!h || !h.id) continue;
           
           const incomingDuration = h.durationSeconds || 0;
           const incomingPosition = h.lastPosition || 0;
-          if (incomingDuration <= 0 && incomingPosition <= 0) {
-            // Strict reject: zero duration and zero position records are illegal
+          const isCompleted = h.status === "completed" || h.actionType === "complete";
+
+          // Allow completed-status entries through even if durationSeconds=0
+          if (incomingDuration <= 0 && incomingPosition <= 0 && !isCompleted) {
+            // Strict reject: zero duration and zero position records with no completion signal are illegal
             continue;
+          }
+
+          // youtubeId deduplication: if there's already a row for the same YouTube video,
+          // merge into it instead of creating a second row with a different ID.
+          let canonicalId = h.id;
+          if (h.youtubeId) {
+            const existing: any = findByYoutubeId.get(userId, h.youtubeId, h.id);
+            if (existing) {
+              // Merge: keep max duration, max position, prefer completed, keep most recent timestamp
+              const mergedDuration = Math.max(incomingDuration, existing.durationSeconds || 0);
+              const mergedPosition = Math.max(incomingPosition, existing.lastPosition || 0);
+              const mergedStatus = isCompleted || existing.status === "completed" || existing.actionType === "complete"
+                ? "completed" : (h.status || existing.status || "in_progress");
+              const mergedActionType = isCompleted || existing.actionType === "complete"
+                ? "complete" : (h.actionType || existing.actionType || "listen");
+              const mergedTimestamp = new Date(h.timestamp || 0).getTime() >= new Date(existing.timestamp || 0).getTime()
+                ? (h.timestamp || new Date().toISOString())
+                : existing.timestamp;
+
+              // We'll upsert the incoming entry with the canonical (existing) id, then delete the duplicate
+              canonicalId = existing.id;
+              h.durationSeconds = mergedDuration;
+              h.lastPosition = mergedPosition;
+              h.status = mergedStatus;
+              h.actionType = mergedActionType;
+              h.timestamp = mergedTimestamp;
+
+              // Remove the incoming duplicate entry (the one with h.id != existing.id)
+              if (h.id !== existing.id) {
+                deleteById.run(userId, h.id);
+              }
+            }
           }
 
           const historyPrimaryTag = h.primaryTag || null;
           const historyTagsJson = h.tags && Array.isArray(h.tags) && h.tags.length > 0 ? JSON.stringify(h.tags) : null;
 
           insertHistory.run(
-            h.id,
+            canonicalId,
             userId,
             h.lessonId || 'imported_record',
             h.lessonTitle || "Занятие",
@@ -1129,7 +1173,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             h.timestamp || new Date().toISOString(),
             h.actionType || "read",
             h.status || "in_progress",
-            incomingDuration,
+            h.durationSeconds || 0,
             h.notes || null,
             h.channelName || null,
             h.channelAvatarUrl || null,
@@ -1142,14 +1186,16 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             h.audioUrl || null,
             h.guid || null,
             h.podcastTitle || null,
-            historyPrimaryTag
+            historyPrimaryTag,
+            h.youtubeId || null,
+            h.duration !== undefined && h.duration !== null ? Number(h.duration) : null
           );
 
           if (historyPrimaryTag && typeof historyPrimaryTag === "string" && historyPrimaryTag.trim()) {
             const pTag = historyPrimaryTag.trim();
             const tagId = `${userId}_${pTag.toLowerCase()}`;
             insertTag.run(tagId, userId, pTag, null, h.targetLanguage || null, Date.now());
-            insertItemTag.run(userId, h.id, tagId, 1);
+            insertItemTag.run(userId, canonicalId, tagId, 1);
           }
           if (Array.isArray(h.tags)) {
             for (const t of h.tags) {
@@ -1158,7 +1204,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
               const isPrim = historyPrimaryTag && historyPrimaryTag.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
               const tagId = `${userId}_${tagName.toLowerCase()}`;
               insertTag.run(tagId, userId, tagName, null, h.targetLanguage || null, Date.now());
-              insertItemTag.run(userId, h.id, tagId, isPrim);
+              insertItemTag.run(userId, canonicalId, tagId, isPrim);
             }
           }
         }
