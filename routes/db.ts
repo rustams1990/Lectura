@@ -1107,9 +1107,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       if (Array.isArray(data.history)) {
         const historyList = data.history;
-        // Prepared statement to find existing row by youtubeId for the same user
+        // Prepared statement to find existing row by youtubeId for the same user within 24h window.
+        // Watching the same video on different days = separate history entries (intentional re-watch).
         const findByYoutubeId = db.prepare(
-          `SELECT id, durationSeconds, lastPosition, status, actionType, timestamp FROM reading_history WHERE user_id = ? AND youtubeId = ? AND id != ? LIMIT 1`
+          `SELECT id, durationSeconds, lastPosition, status, actionType, timestamp FROM reading_history WHERE user_id = ? AND youtubeId = ? AND id != ? AND ABS(JULIANDAY(timestamp) - JULIANDAY(?)) < 1.0 LIMIT 1`
         );
         // Prepared statement to delete a duplicate row after merging into the canonical one
         const deleteById = db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id = ?`);
@@ -1131,7 +1132,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           // merge into it instead of creating a second row with a different ID.
           let canonicalId = h.id;
           if (h.youtubeId) {
-            const existing: any = findByYoutubeId.get(userId, h.youtubeId, h.id);
+            const existing: any = findByYoutubeId.get(userId, h.youtubeId, h.id, h.timestamp || new Date().toISOString());
             if (existing) {
               // Merge: keep max duration, max position, prefer completed, keep most recent timestamp
               const mergedDuration = Math.max(incomingDuration, existing.durationSeconds || 0);
