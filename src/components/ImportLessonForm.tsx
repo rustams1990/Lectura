@@ -51,6 +51,7 @@ import { useAuth } from "../context/AuthContext";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 import { whisperQueueService } from "../services/whisperQueueService";
 import { getAllKnownTags } from "../utils/tagColors";
+import { deduplicatePlaylistItems } from "../utils/playlistUtils";
 import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
 
 export const ICON_MAP: Record<string, React.ComponentType<any>> = {
@@ -984,12 +985,14 @@ export default function ImportLessonForm({
       return;
     }
 
+    const cleanSelectedItems = deduplicatePlaylistItems(selectedItems, lessons);
+
     const finalPlaylist: Playlist = {
       ...ytPlaylistData,
       title: ytPlaylistTitle.trim() || ytPlaylistData.title,
-      items: selectedItems,
-      itemCount: selectedItems.length,
-      thumbnailUrl: selectedItems[0]?.thumbnailUrl || ytPlaylistData.thumbnailUrl,
+      items: cleanSelectedItems,
+      itemCount: cleanSelectedItems.length,
+      thumbnailUrl: cleanSelectedItems[0]?.thumbnailUrl || ytPlaylistData.thumbnailUrl,
       updatedAt: new Date().toISOString(),
     };
 
@@ -1437,7 +1440,28 @@ export default function ImportLessonForm({
         if (onUpdatePlaylist) {
           const existingItems = existingPl.items || [];
           const currentLessonId = editingLesson?.id || Date.now().toString();
-          if (!existingItems.some(it => it.lessonId === currentLessonId)) {
+
+          // Check if an item already exists in playlist by lessonId OR by videoId
+          const existingIdx = existingItems.findIndex(it =>
+            (it.lessonId && it.lessonId === currentLessonId) ||
+            (youtubeId && it.videoId && it.videoId === youtubeId)
+          );
+
+          let nextItems: PlaylistItem[];
+          if (existingIdx !== -1) {
+            // Update existing item in place
+            nextItems = [...existingItems];
+            nextItems[existingIdx] = {
+              ...nextItems[existingIdx],
+              lessonId: currentLessonId,
+              videoId: youtubeId || nextItems[existingIdx].videoId,
+              title: title.trim(),
+              durationSeconds: (youtubeDuration && youtubeDuration > 0) ? youtubeDuration : nextItems[existingIdx].durationSeconds,
+              thumbnailUrl: coverUrl || nextItems[existingIdx].thumbnailUrl,
+              transcriptLoaded: true,
+            };
+          } else {
+            // Add new item
             const newPlItem = {
               id: `pl_item_${selectedPlaylistId}_${currentLessonId}`,
               lessonId: currentLessonId,
@@ -1447,13 +1471,16 @@ export default function ImportLessonForm({
               thumbnailUrl: coverUrl || "",
               transcriptLoaded: true,
             };
-            onUpdatePlaylist({
-              ...existingPl,
-              itemCount: existingItems.length + 1,
-              items: [...existingItems, newPlItem],
-              updatedAt: new Date().toISOString(),
-            });
+            nextItems = [...existingItems, newPlItem];
           }
+
+          const cleanItems = deduplicatePlaylistItems(nextItems, lessons);
+          onUpdatePlaylist({
+            ...existingPl,
+            itemCount: cleanItems.length,
+            items: cleanItems,
+            updatedAt: new Date().toISOString(),
+          });
         }
       } else {
         finalPlaylistId = null;

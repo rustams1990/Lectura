@@ -6,6 +6,7 @@ import { useToast } from "../../context/ToastContext";
 import { resolveApiUrl } from "../../utils/apiConfig";
 import { getLessonEffectiveDuration } from "../../utils/durationUtils";
 import { normalizeLanguage } from "../../utils";
+import { deduplicatePlaylistItems } from "../../utils/playlistUtils";
 
 interface AddMediaToPlaylistModalProps {
   isOpen: boolean;
@@ -109,7 +110,7 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
         transcriptLoaded: !!(data.text && data.text.length > 20),
       };
 
-      const updatedItems = [...items, newItem];
+      const updatedItems = deduplicatePlaylistItems([...items, newItem], lessons);
       onUpdatePlaylist({
         ...playlist,
         items: updatedItems,
@@ -131,7 +132,7 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
         transcriptLoaded: false,
       };
 
-      const updatedItems = [...items, newItem];
+      const updatedItems = deduplicatePlaylistItems([...items, newItem], lessons);
       onUpdatePlaylist({
         ...playlist,
         items: updatedItems,
@@ -170,7 +171,7 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
         thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
         transcriptLoaded: !!(lesson.text && lesson.text.length > 20),
       };
-      updatedItems = [...items, newItem];
+      updatedItems = deduplicatePlaylistItems([...items, newItem], lessons);
       showToast(t("playlist.added_to_playlist", "Added to playlist!"), "success");
     }
 

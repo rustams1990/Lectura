@@ -25,6 +25,7 @@ import { BatchTagModal } from "./library/BatchTagModal";
 import { BatchPlaylistModal } from "./library/BatchPlaylistModal";
 import { useBingeQueueStore } from "../store/useBingeQueueStore";
 import { resolveApiUrl } from "../utils/apiConfig";
+import { deduplicatePlaylistItems } from "../utils/playlistUtils";
 
 
 export function getDifficultyBadgeStyles(_level?: string) {
@@ -1502,33 +1503,64 @@ function LibraryHome({
         (playlists || []).forEach((pl) => {
           let plItems = Array.isArray(pl.items) ? [...pl.items] : [];
           let changed = false;
-          const remaining = plItems.filter((it) => !selectedBookIds.includes(it.lessonId || ""));
-          if (remaining.length !== plItems.length) {
-            plItems = remaining;
-            changed = true;
-          }
-          if (pl.id === targetPlId) {
+
+          // Remove selected lessons from non-target playlists
+          if (pl.id !== targetPlId) {
+            const remaining = plItems.filter((it) => {
+              const matchedLessonId = it.lessonId;
+              const matchedVideoId = it.videoId;
+              const matchesSelected = selectedBookIds.some((id) => {
+                if (matchedLessonId === id) return true;
+                const l = lessons.find((item) => item.id === id);
+                return Boolean(l && l.youtubeId && matchedVideoId && l.youtubeId === matchedVideoId);
+              });
+              return !matchesSelected;
+            });
+            if (remaining.length !== plItems.length) {
+              plItems = remaining;
+              changed = true;
+            }
+          } else {
+            // Target playlist: update existing items or add missing items
             for (const id of selectedBookIds) {
               const lessonObj = lessons.find((l) => l.id === id);
               if (lessonObj) {
-                plItems.push({
-                  id: `item_${lessonObj.id}_${Date.now()}`,
+                const existingIdx = plItems.findIndex(
+                  (it) =>
+                    (it.lessonId && it.lessonId === lessonObj.id) ||
+                    (lessonObj.youtubeId && it.videoId && it.videoId === lessonObj.youtubeId)
+                );
+                const itemPayload = {
                   lessonId: lessonObj.id,
                   title: lessonObj.title,
                   videoId: lessonObj.youtubeId || null,
                   durationSeconds: getLessonEffectiveDuration(lessonObj),
                   thumbnailUrl: lessonObj.coverUrl || "",
                   transcriptLoaded: !!(lessonObj.text && lessonObj.text.length > 20),
-                });
-                changed = true;
+                };
+                if (existingIdx !== -1) {
+                  plItems[existingIdx] = {
+                    ...plItems[existingIdx],
+                    ...itemPayload,
+                  };
+                  changed = true;
+                } else {
+                  plItems.push({
+                    id: `item_${lessonObj.id}_${Date.now()}`,
+                    ...itemPayload,
+                  });
+                  changed = true;
+                }
               }
             }
           }
+
           if (changed) {
+            const cleanItems = deduplicatePlaylistItems(plItems, lessons);
             onUpdatePlaylist({
               ...pl,
-              items: plItems,
-              itemCount: plItems.length,
+              items: cleanItems,
+              itemCount: cleanItems.length,
               updatedAt: new Date().toISOString(),
             });
           }

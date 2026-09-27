@@ -75,7 +75,7 @@ export function getHistoryEffectiveTags(
     return { primaryTag: itemPrimary, tags: itemTags };
   }
 
-  // Otherwise, fallback to matched lesson tags and playlist tags
+  // Fallback to matched lesson tags
   let lessonPrimary: string | null = null;
   let lessonTags: string[] = [];
 
@@ -84,17 +84,42 @@ export function getHistoryEffectiveTags(
     if (Array.isArray(matchedLesson.tags)) {
       lessonTags = matchedLesson.tags.filter((t) => Boolean(t && typeof t === "string" && t.trim()));
     }
-    // Playlist fallback
-    if (!lessonPrimary && matchedLesson.playlistId && playlists && playlists.length > 0) {
-      const parentPlaylist = playlists.find((p) => p.id === matchedLesson.playlistId);
-      if (parentPlaylist?.primaryTag?.trim()) {
-        lessonPrimary = parentPlaylist.primaryTag.trim();
-      }
+  }
+
+  // Playlist fallback: find parent playlist either from lesson's playlistId OR by matching playlist items
+  let parentPlaylist: Playlist | undefined;
+  if (matchedLesson?.playlistId && playlists && playlists.length > 0) {
+    parentPlaylist = playlists.find((p) => p.id === matchedLesson.playlistId);
+  }
+  if (!parentPlaylist && playlists && playlists.length > 0) {
+    const rawYtId = item.youtubeId || (
+      item.lessonId?.startsWith("lesson-yt_")
+        ? item.lessonId.replace("lesson-yt_", "")
+        : (item.lessonId?.startsWith("youtube_") ? item.lessonId.replace("youtube_", "") : null)
+    );
+    parentPlaylist = playlists.find((p) =>
+      Array.isArray(p.items) && p.items.some((it) =>
+        (item.lessonId && it.lessonId === item.lessonId) ||
+        (rawYtId && it.videoId === rawYtId) ||
+        (matchedLesson?.id && it.lessonId === matchedLesson.id) ||
+        (matchedLesson?.youtubeId && it.videoId === matchedLesson.youtubeId)
+      )
+    );
+  }
+
+  let playlistPrimary: string | null = null;
+  let playlistTags: string[] = [];
+  if (parentPlaylist) {
+    if (parentPlaylist.primaryTag?.trim()) {
+      playlistPrimary = parentPlaylist.primaryTag.trim();
+    }
+    if (Array.isArray(parentPlaylist.tags)) {
+      playlistTags = parentPlaylist.tags.filter((t) => Boolean(t && typeof t === "string" && t.trim()));
     }
   }
 
-  const finalPrimary = itemPrimary || lessonPrimary || (itemTags.length > 0 ? itemTags[0] : (lessonTags.length > 0 ? lessonTags[0] : null));
-  const finalTags = itemTags.length > 0 ? itemTags : lessonTags;
+  const finalPrimary = itemPrimary || lessonPrimary || playlistPrimary || (itemTags.length > 0 ? itemTags[0] : (lessonTags.length > 0 ? lessonTags[0] : (playlistTags.length > 0 ? playlistTags[0] : null)));
+  const finalTags = itemTags.length > 0 ? itemTags : (lessonTags.length > 0 ? lessonTags : playlistTags);
 
   return {
     primaryTag: finalPrimary,

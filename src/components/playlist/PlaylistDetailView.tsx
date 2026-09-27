@@ -26,6 +26,7 @@ import LevelFilterDropdown, { DifficultyGroup } from "../library/LevelFilterDrop
 import TagFilterDropdown from "../library/TagFilterDropdown";
 import { classifyDifficulty } from "../../utils/playlistDifficultyUtils";
 import { getTagColor, getAllKnownTags } from "../../utils/tagColors";
+import { deduplicatePlaylistItems } from "../../utils/playlistUtils";
 
 export type PlaylistSortOption = 
   | 'default'       // Исходный порядок плейлиста (по порядку добавления / #1, #2...)
@@ -216,7 +217,23 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     setIsEditingTitle(false);
   };
 
-  const items = playlist.items || [];
+  const items = useMemo(() => {
+    return deduplicatePlaylistItems(playlist.items || [], lessons);
+  }, [playlist.items, lessons]);
+
+  // Auto-deduplicate and heal playlist items if duplicates exist in stored playlist
+  useEffect(() => {
+    if (!playlist.items || playlist.items.length <= 1) return;
+    const clean = deduplicatePlaylistItems(playlist.items, lessons);
+    if (clean.length !== playlist.items.length) {
+      onUpdatePlaylist({
+        ...playlist,
+        items: clean,
+        itemCount: clean.length,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }, [playlist.id, playlist.items?.length, lessons]);
   const localizedLang = getLocalizedLanguageName(playlist.language, i18n.language);
   const flag = getLanguageFlagEmoji(playlist.language, languageFlags);
 
@@ -930,7 +947,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
       return;
     }
 
-    const updatedItems = [...(playlist.items || []), ...selectedToAdd];
+    const updatedItems = deduplicatePlaylistItems([...(playlist.items || []), ...selectedToAdd], lessons);
     onUpdatePlaylist({
       ...playlist,
       items: updatedItems,

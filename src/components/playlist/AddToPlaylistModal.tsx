@@ -8,6 +8,7 @@ import { getLessonEffectiveDuration } from "../../utils/durationUtils";
 import { formatDuration } from "./PlaylistDetailView";
 import { normalizeLanguage } from "../../utils";
 import { getLocalizedLanguageName } from "../../utils/stringUtils";
+import { deduplicatePlaylistItems } from "../../utils/playlistUtils";
 
 interface AddToPlaylistModalProps {
   isOpen: boolean;
@@ -138,7 +139,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
         thumbnailUrl: lesson.coverUrl || (lesson.youtubeId ? `https://i.ytimg.com/vi/${lesson.youtubeId}/hqdefault.jpg` : ""),
         transcriptLoaded: !!(lesson.text && lesson.text.length > 20),
       };
-      updatedItems = [...(playlist.items || []), newItem];
+      updatedItems = deduplicatePlaylistItems([...(playlist.items || []), newItem], [lesson]);
       showToast(t("playlist.added_to_playlist", "Added to playlist!"), "success");
     }
 

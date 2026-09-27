@@ -398,27 +398,75 @@ export function getLocalServerDb(userId: string = "default") {
       };
     });
 
+function deduplicateDbPlaylistItems(rawItems: any[]): any[] {
+  if (!Array.isArray(rawItems) || rawItems.length <= 1) return Array.isArray(rawItems) ? rawItems : [];
+  const result: any[] = [];
+  for (const item of rawItems) {
+    if (!item) continue;
+    const existingIdx = result.findIndex((existing) => {
+      if (existing.id && item.id && existing.id === item.id) return true;
+      if (existing.videoId && item.videoId && existing.videoId === item.videoId) return true;
+      if (existing.lessonId && item.lessonId && existing.lessonId === item.lessonId) return true;
+      if (
+        item.title &&
+        existing.title &&
+        item.title.trim().toLowerCase() === existing.title.trim().toLowerCase() &&
+        item.durationSeconds &&
+        existing.durationSeconds &&
+        Math.abs(item.durationSeconds - existing.durationSeconds) <= 25
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingIdx === -1) {
+      result.push({ ...item });
+    } else {
+      const prev = result[existingIdx];
+      result[existingIdx] = {
+        ...prev,
+        lessonId: prev.lessonId || item.lessonId || undefined,
+        videoId: prev.videoId || item.videoId || undefined,
+        transcriptLoaded: Boolean(prev.transcriptLoaded || item.transcriptLoaded),
+        title: (prev.title && prev.title.trim().length >= (item.title || "").trim().length) ? prev.title : (item.title || prev.title),
+        durationSeconds: Math.max(prev.durationSeconds || 0, item.durationSeconds || 0),
+        thumbnailUrl: (
+          prev.thumbnailUrl?.includes("maxresdefault")
+            ? prev.thumbnailUrl
+            : (item.thumbnailUrl?.includes("maxresdefault") ? item.thumbnailUrl : (prev.thumbnailUrl || item.thumbnailUrl || ""))
+        ),
+      };
+    }
+  }
+  return result;
+}
+
     // Playlists — strictly this user's
     const playlistsRows = db.prepare(
       "SELECT * FROM playlists WHERE user_id = ? ORDER BY COALESCE(createdAt, rowid * 1000) DESC"
     ).all(userId) as any[];
-    const playlists = playlistsRows.map((p) => ({
-      id: p.id,
-      title: p.title,
-      description: p.description || undefined,
-      thumbnailUrl: p.thumbnailUrl || "",
-      sourceType: p.sourceType || "custom_collection",
-      externalUrl: p.externalUrl || undefined,
-      channelTitle: p.channelTitle || undefined,
-      itemCount: typeof p.itemCount === "number" ? p.itemCount : 0,
-      language: p.language || "en",
-      items: p.items ? (typeof p.items === "string" ? JSON.parse(p.items) : p.items) : [],
-      isArchived: p.isArchived === 1,
-      primaryTag: p.primaryTag || undefined,
-      tags: p.tags ? (typeof p.tags === "string" ? JSON.parse(p.tags) : p.tags) : [],
-      createdAt: p.createdAt || new Date().toISOString(),
-      updatedAt: p.updatedAt || new Date().toISOString(),
-    }));
+    const playlists = playlistsRows.map((p) => {
+      const parsedItems = p.items ? (typeof p.items === "string" ? JSON.parse(p.items) : p.items) : [];
+      const cleanItems = deduplicateDbPlaylistItems(parsedItems);
+      return {
+        id: p.id,
+        title: p.title,
+        description: p.description || undefined,
+        thumbnailUrl: p.thumbnailUrl || "",
+        sourceType: p.sourceType || "custom_collection",
+        externalUrl: p.externalUrl || undefined,
+        channelTitle: p.channelTitle || undefined,
+        itemCount: cleanItems.length,
+        language: p.language || "en",
+        items: cleanItems,
+        isArchived: p.isArchived === 1,
+        primaryTag: p.primaryTag || undefined,
+        tags: p.tags ? (typeof p.tags === "string" ? JSON.parse(p.tags) : p.tags) : [],
+        createdAt: p.createdAt || new Date().toISOString(),
+        updatedAt: p.updatedAt || new Date().toISOString(),
+      };
+    });
 
     // Lesson types — global (not per-user)
     const lessonTypes = db.prepare("SELECT * FROM lesson_types").all() as any[];
@@ -841,6 +889,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
         const playlistPrimaryTag = p.primaryTag || null;
         const playlistTagsJson = (p.tags && Array.isArray(p.tags) && p.tags.length > 0) ? JSON.stringify(p.tags) : null;
+        const rawPlItems = p.items ? (typeof p.items === "string" ? JSON.parse(p.items) : p.items) : [];
+        const cleanPlItems = deduplicateDbPlaylistItems(rawPlItems);
 
         insertPlaylist.run(
           p.id,
@@ -851,9 +901,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           p.sourceType || "custom_collection",
           p.externalUrl || null,
           p.channelTitle || null,
-          p.itemCount || (Array.isArray(p.items) ? p.items.length : 0),
+          cleanPlItems.length,
           p.language || "en",
-          p.items ? (typeof p.items === "string" ? p.items : JSON.stringify(p.items)) : "[]",
+          JSON.stringify(cleanPlItems),
           finalPlIsArchived,
           p.createdAt || new Date().toISOString(),
           p.updatedAt || new Date().toISOString(),

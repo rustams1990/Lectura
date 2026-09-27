@@ -294,35 +294,70 @@ export function handleBatchLessons(req: Request, res: Response) {
             } catch { plItems = []; }
 
             let changed = false;
-            // Remove lessonIds from this playlist
-            const filteredItems = plItems.filter((it: any) => !lessonIds.includes(it.lessonId));
-            if (filteredItems.length !== plItems.length) {
-              changed = true;
-            }
-
-            if (pl.id === targetPlaylist) {
-              // Add lessons to this playlist
+            // Remove lessonIds from non-target playlist
+            let filteredItems = plItems;
+            if (pl.id !== targetPlaylist) {
+              const beforeLen = filteredItems.length;
+              filteredItems = filteredItems.filter((it: any) => {
+                if (lessonIds.includes(it.lessonId)) return false;
+                for (const lid of lessonIds) {
+                  const lRow = getLessonStmt.get(lid, userId) as any;
+                  if (lRow && lRow.youtubeId && it.videoId === lRow.youtubeId) return false;
+                }
+                return true;
+              });
+              if (filteredItems.length !== beforeLen) changed = true;
+            } else {
+              // Add or update lessons in this target playlist
               for (const id of lessonIds) {
                 const lRow = getLessonStmt.get(id, userId) as any;
                 if (lRow) {
-                  filteredItems.push({
-                    id: `item_${lRow.id}_${Date.now()}`,
+                  const existingIdx = filteredItems.findIndex((it: any) =>
+                    (it.lessonId && it.lessonId === lRow.id) ||
+                    (lRow.youtubeId && it.videoId && it.videoId === lRow.youtubeId)
+                  );
+                  const itemPayload = {
                     lessonId: lRow.id,
                     title: lRow.title,
                     videoId: lRow.youtubeId || null,
                     durationSeconds: lRow.duration || 0,
                     thumbnailUrl: lRow.coverUrl || "",
                     transcriptLoaded: !!(lRow.text && lRow.text.length > 20),
-                  });
-                  changed = true;
+                  };
+                  if (existingIdx !== -1) {
+                    filteredItems[existingIdx] = {
+                      ...filteredItems[existingIdx],
+                      ...itemPayload,
+                    };
+                    changed = true;
+                  } else {
+                    filteredItems.push({
+                      id: `item_${lRow.id}_${Date.now()}`,
+                      ...itemPayload,
+                    });
+                    changed = true;
+                  }
                 }
               }
             }
 
+            // Deduplicate items
+            const seen = new Set<string>();
+            const deduped: any[] = [];
+            for (const it of filteredItems) {
+              const key = it.videoId || it.lessonId || it.id;
+              if (key && seen.has(key)) {
+                changed = true;
+                continue;
+              }
+              if (key) seen.add(key);
+              deduped.push(it);
+            }
+
             if (changed) {
               db.prepare("UPDATE playlists SET items = ?, itemCount = ?, updatedAt = ? WHERE id = ? AND user_id = ?").run(
-                JSON.stringify(filteredItems),
-                filteredItems.length,
+                JSON.stringify(deduped),
+                deduped.length,
                 new Date().toISOString(),
                 pl.id,
                 userId

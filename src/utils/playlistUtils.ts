@@ -7,6 +7,118 @@ import { Playlist, PlaylistItem, Lesson } from "../types";
 import { normalizeLanguage } from "../utils";
 
 /**
+ * Deduplicates playlist items based on videoId, lessonId, and item id.
+ * Merges duplicate entries to preserve the most complete metadata
+ * (lessonId, transcriptLoaded, duration, and thumbnail).
+ */
+export function deduplicatePlaylistItems(
+  items: PlaylistItem[] | null | undefined,
+  lessons?: Lesson[] | null
+): PlaylistItem[] {
+  if (!items || !Array.isArray(items) || items.length <= 1) {
+    return items ? [...items] : [];
+  }
+
+  const lessonById = new Map<string, Lesson>();
+  const lessonByVideoId = new Map<string, Lesson>();
+  if (lessons && Array.isArray(lessons)) {
+    lessons.forEach((l) => {
+      if (l.id) lessonById.set(l.id, l);
+      if (l.youtubeId) lessonByVideoId.set(l.youtubeId, l);
+    });
+  }
+
+  const result: PlaylistItem[] = [];
+
+  for (const item of items) {
+    if (!item) continue;
+
+    const itemVideoId = item.videoId || (item.lessonId ? lessonById.get(item.lessonId)?.youtubeId : null) || null;
+    const itemLessonId = item.lessonId || (item.videoId ? lessonByVideoId.get(item.videoId)?.id : null) || null;
+
+    const existingIndex = result.findIndex((existing) => {
+      // 1. Exact PlaylistItem id
+      if (existing.id && item.id && existing.id === item.id) return true;
+
+      // 2. Same YouTube video ID
+      const existingVideoId = existing.videoId || (existing.lessonId ? lessonById.get(existing.lessonId)?.youtubeId : null) || null;
+      if (itemVideoId && existingVideoId && itemVideoId === existingVideoId) return true;
+
+      // 3. Same Lesson ID
+      const existingLessonId = existing.lessonId || (existing.videoId ? lessonByVideoId.get(existing.videoId)?.id : null) || null;
+      if (itemLessonId && existingLessonId && itemLessonId === existingLessonId) return true;
+
+      // 4. Exact Title match with compatible duration or missing videoIds
+      if (
+        item.title &&
+        existing.title &&
+        item.title.trim().toLowerCase() === existing.title.trim().toLowerCase()
+      ) {
+        if (!itemVideoId && !existingVideoId) return true;
+        if (
+          item.durationSeconds &&
+          existing.durationSeconds &&
+          Math.abs(item.durationSeconds - existing.durationSeconds) <= 25
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (existingIndex === -1) {
+      result.push({ ...item });
+    } else {
+      const prev = result[existingIndex];
+      const merged: PlaylistItem = {
+        ...prev,
+        lessonId: prev.lessonId || item.lessonId || undefined,
+        videoId: prev.videoId || item.videoId || itemVideoId || undefined,
+        transcriptLoaded: Boolean(prev.transcriptLoaded || item.transcriptLoaded),
+        title: (prev.title && prev.title.trim().length >= (item.title || "").trim().length)
+          ? prev.title
+          : (item.title || prev.title),
+        durationSeconds: Math.max(prev.durationSeconds || 0, item.durationSeconds || 0),
+        thumbnailUrl: (
+          prev.thumbnailUrl?.includes("maxresdefault")
+            ? prev.thumbnailUrl
+            : (item.thumbnailUrl?.includes("maxresdefault") ? item.thumbnailUrl : (prev.thumbnailUrl || item.thumbnailUrl || ""))
+        ),
+        publishedAt: prev.publishedAt || item.publishedAt,
+      };
+      result[existingIndex] = merged;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Deduplicates items in a Playlist object and cleans up itemCount and primaryItemId.
+ */
+export function deduplicatePlaylist(
+  playlist: Playlist,
+  lessons?: Lesson[] | null
+): Playlist {
+  if (!playlist || !Array.isArray(playlist.items)) {
+    return playlist;
+  }
+  const cleanItems = deduplicatePlaylistItems(playlist.items, lessons);
+  const stillHasPrimary = playlist.primaryItemId
+    ? cleanItems.some((it) => it.id === playlist.primaryItemId)
+    : false;
+
+  return {
+    ...playlist,
+    items: cleanItems,
+    itemCount: cleanItems.length,
+    primaryItemId: stillHasPrimary ? playlist.primaryItemId : (cleanItems[0]?.id || undefined),
+    thumbnailUrl: stillHasPrimary ? playlist.thumbnailUrl : (cleanItems[0]?.thumbnailUrl || playlist.thumbnailUrl || ""),
+  };
+}
+
+/**
  * Ensures strict language segregation across playlists and lessons.
  * If any playlist contains items whose corresponding lesson belongs to a different target language,
  * this function cleanly extracts those items into a playlist of their matching language.
@@ -69,16 +181,18 @@ export function segregatePlaylistsByLanguage(
       }
     }
 
-    // Update original playlist with only matching items
-    if (matchingItems.length !== items.length) {
-      const stillHasPrimary = pl.primaryItemId ? matchingItems.some(it => it.id === pl.primaryItemId) : false;
+    // Deduplicate matching items
+    const cleanMatching = deduplicatePlaylistItems(matchingItems, lessons);
+    if (cleanMatching.length !== items.length) {
+      hasChanges = true;
+      const stillHasPrimary = pl.primaryItemId ? cleanMatching.some(it => it.id === pl.primaryItemId) : false;
       updatedPlaylists.push({
         ...pl,
-        items: matchingItems,
-        itemCount: matchingItems.length,
+        items: cleanMatching,
+        itemCount: cleanMatching.length,
         language: pl.language || plProperLang,
-        primaryItemId: stillHasPrimary ? pl.primaryItemId : (matchingItems[0]?.id || undefined),
-        thumbnailUrl: stillHasPrimary ? pl.thumbnailUrl : (matchingItems[0]?.thumbnailUrl || pl.thumbnailUrl || ""),
+        primaryItemId: stillHasPrimary ? pl.primaryItemId : (cleanMatching[0]?.id || undefined),
+        thumbnailUrl: stillHasPrimary ? pl.thumbnailUrl : (cleanMatching[0]?.thumbnailUrl || pl.thumbnailUrl || ""),
         updatedAt: new Date().toISOString(),
       });
     } else {
@@ -97,10 +211,7 @@ export function segregatePlaylistsByLanguage(
       ) || newPlaylistsByLangAndTitle.get(groupKey);
 
       if (targetPl) {
-        // Append items avoiding duplicates
-        const existingIds = new Set((targetPl.items || []).map((it) => it.lessonId || it.videoId));
-        const itemsToAdd = extractedItems.filter((it) => !existingIds.has(it.lessonId || it.videoId));
-        const mergedItems = [...(targetPl.items || []), ...itemsToAdd];
+        const mergedItems = deduplicatePlaylistItems([...(targetPl.items || []), ...extractedItems], lessons);
         targetPl = {
           ...targetPl,
           items: mergedItems,
