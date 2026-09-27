@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Lesson, LessonType, ReaderSettings, Playlist, HistoryEntry } from "../types";
+import { Lesson, LessonType, ReaderSettings, Playlist, PlaylistItem, HistoryEntry } from "../types";
 import { safeJsonParse, safeLocalStorageSetItem, normalizeLanguage } from "../utils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
 import { getLocalizedLanguageName } from "../utils/stringUtils";

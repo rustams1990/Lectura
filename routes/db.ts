@@ -277,6 +277,51 @@ export function normalizeLang(lang: string): string {
   return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
 }
 
+// Module-level helper — accessible from both getLocalServerDb and saveLocalServerDb
+function deduplicateDbPlaylistItems(rawItems: any[]): any[] {
+  if (!Array.isArray(rawItems) || rawItems.length <= 1) return Array.isArray(rawItems) ? rawItems : [];
+  const result: any[] = [];
+  for (const item of rawItems) {
+    if (!item) continue;
+    const existingIdx = result.findIndex((existing) => {
+      if (existing.id && item.id && existing.id === item.id) return true;
+      if (existing.videoId && item.videoId && existing.videoId === item.videoId) return true;
+      if (existing.lessonId && item.lessonId && existing.lessonId === item.lessonId) return true;
+      if (
+        item.title &&
+        existing.title &&
+        item.title.trim().toLowerCase() === existing.title.trim().toLowerCase() &&
+        item.durationSeconds &&
+        existing.durationSeconds &&
+        Math.abs(item.durationSeconds - existing.durationSeconds) <= 25
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingIdx === -1) {
+      result.push({ ...item });
+    } else {
+      const prev = result[existingIdx];
+      result[existingIdx] = {
+        ...prev,
+        lessonId: prev.lessonId || item.lessonId || undefined,
+        videoId: prev.videoId || item.videoId || undefined,
+        transcriptLoaded: Boolean(prev.transcriptLoaded || item.transcriptLoaded),
+        title: (prev.title && prev.title.trim().length >= (item.title || "").trim().length) ? prev.title : (item.title || prev.title),
+        durationSeconds: Math.max(prev.durationSeconds || 0, item.durationSeconds || 0),
+        thumbnailUrl: (
+          prev.thumbnailUrl?.includes("maxresdefault")
+            ? prev.thumbnailUrl
+            : (item.thumbnailUrl?.includes("maxresdefault") ? item.thumbnailUrl : (prev.thumbnailUrl || item.thumbnailUrl || ""))
+        ),
+      };
+    }
+  }
+  return result;
+}
+
 // Read helper safely — all queries scoped strictly to userId
 export function getLocalServerDb(userId: string = "default") {
   try {
@@ -398,49 +443,6 @@ export function getLocalServerDb(userId: string = "default") {
       };
     });
 
-function deduplicateDbPlaylistItems(rawItems: any[]): any[] {
-  if (!Array.isArray(rawItems) || rawItems.length <= 1) return Array.isArray(rawItems) ? rawItems : [];
-  const result: any[] = [];
-  for (const item of rawItems) {
-    if (!item) continue;
-    const existingIdx = result.findIndex((existing) => {
-      if (existing.id && item.id && existing.id === item.id) return true;
-      if (existing.videoId && item.videoId && existing.videoId === item.videoId) return true;
-      if (existing.lessonId && item.lessonId && existing.lessonId === item.lessonId) return true;
-      if (
-        item.title &&
-        existing.title &&
-        item.title.trim().toLowerCase() === existing.title.trim().toLowerCase() &&
-        item.durationSeconds &&
-        existing.durationSeconds &&
-        Math.abs(item.durationSeconds - existing.durationSeconds) <= 25
-      ) {
-        return true;
-      }
-      return false;
-    });
-
-    if (existingIdx === -1) {
-      result.push({ ...item });
-    } else {
-      const prev = result[existingIdx];
-      result[existingIdx] = {
-        ...prev,
-        lessonId: prev.lessonId || item.lessonId || undefined,
-        videoId: prev.videoId || item.videoId || undefined,
-        transcriptLoaded: Boolean(prev.transcriptLoaded || item.transcriptLoaded),
-        title: (prev.title && prev.title.trim().length >= (item.title || "").trim().length) ? prev.title : (item.title || prev.title),
-        durationSeconds: Math.max(prev.durationSeconds || 0, item.durationSeconds || 0),
-        thumbnailUrl: (
-          prev.thumbnailUrl?.includes("maxresdefault")
-            ? prev.thumbnailUrl
-            : (item.thumbnailUrl?.includes("maxresdefault") ? item.thumbnailUrl : (prev.thumbnailUrl || item.thumbnailUrl || ""))
-        ),
-      };
-    }
-  }
-  return result;
-}
 
     // Playlists — strictly this user's
     const playlistsRows = db.prepare(
