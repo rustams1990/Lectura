@@ -105,15 +105,30 @@ export function deduplicatePlaylist(
     return playlist;
   }
   const cleanItems = deduplicatePlaylistItems(playlist.items, lessons);
-  const stillHasPrimary = playlist.primaryItemId
-    ? cleanItems.some((it) => it.id === playlist.primaryItemId)
+  const primaryItem = playlist.items.find((it) => it.id === playlist.primaryItemId);
+  let resolvedPrimaryId = playlist.primaryItemId;
+
+  if (primaryItem) {
+    const matchedClean = cleanItems.find(
+      (it) =>
+        it.id === primaryItem.id ||
+        (primaryItem.videoId && it.videoId === primaryItem.videoId) ||
+        (primaryItem.lessonId && it.lessonId === primaryItem.lessonId)
+    );
+    if (matchedClean) {
+      resolvedPrimaryId = matchedClean.id;
+    }
+  }
+
+  const stillHasPrimary = resolvedPrimaryId
+    ? cleanItems.some((it) => it.id === resolvedPrimaryId)
     : false;
 
   return {
     ...playlist,
     items: cleanItems,
     itemCount: cleanItems.length,
-    primaryItemId: stillHasPrimary ? playlist.primaryItemId : (cleanItems[0]?.id || undefined),
+    primaryItemId: stillHasPrimary ? resolvedPrimaryId : (cleanItems[0]?.id || undefined),
     thumbnailUrl: stillHasPrimary ? playlist.thumbnailUrl : (cleanItems[0]?.thumbnailUrl || playlist.thumbnailUrl || ""),
   };
 }

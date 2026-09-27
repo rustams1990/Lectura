@@ -221,11 +221,20 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     return deduplicatePlaylistItems(playlist.items || [], lessons);
   }, [playlist.items, lessons]);
 
-  // Auto-deduplicate and heal playlist items if duplicates exist in stored playlist
+  const lastDeduplicatedKeyRef = useRef<string>("");
+
+  // Auto-deduplicate and heal playlist items strictly if duplicates exist in stored playlist
   useEffect(() => {
-    if (!playlist.items || playlist.items.length <= 1) return;
-    const clean = deduplicatePlaylistItems(playlist.items, lessons);
-    if (clean.length !== playlist.items.length) {
+    const rawItems = playlist.items || [];
+    if (rawItems.length <= 1) return;
+
+    const currentKey = `${playlist.id}_${rawItems.length}`;
+    if (lastDeduplicatedKeyRef.current === currentKey) return;
+    lastDeduplicatedKeyRef.current = currentKey;
+
+    const clean = deduplicatePlaylistItems(rawItems, lessons);
+    // Strict condition: only mutate if items count is actually reduced (duplicates purged)
+    if (clean.length < rawItems.length) {
       onUpdatePlaylist({
         ...playlist,
         items: clean,
@@ -233,7 +242,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
         updatedAt: new Date().toISOString(),
       });
     }
-  }, [playlist.id, playlist.items?.length, lessons]);
+  }, [playlist.id, playlist.items?.length]);
   const localizedLang = getLocalizedLanguageName(playlist.language, i18n.language);
   const flag = getLanguageFlagEmoji(playlist.language, languageFlags);
 
@@ -447,9 +456,19 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     }, 0);
   }, [items, lessons]);
 
+  const lastDurationHealedKeyRef = useRef<string>("");
+
   // Auto-heal missing durationSeconds for playlist items
   useEffect(() => {
     if (!playlist.items || playlist.items.length === 0 || !lessons || lessons.length === 0) return;
+
+    const hasMissingDurations = playlist.items.some((it) => !it.durationSeconds || it.durationSeconds <= 0);
+    if (!hasMissingDurations) return;
+
+    const currentKey = `${playlist.id}_${playlist.items.length}_${lessons.length}`;
+    if (lastDurationHealedKeyRef.current === currentKey) return;
+    lastDurationHealedKeyRef.current = currentKey;
+
     let hasChanges = false;
     const updatedItems = playlist.items.map((item) => {
       if (!item.durationSeconds || item.durationSeconds <= 0) {
@@ -469,7 +488,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
         updatedAt: new Date().toISOString(),
       });
     }
-  }, [playlist.id, lessons]);
+  }, [playlist.id, playlist.items?.length, lessons?.length]);
 
   // Helper to parse stored video progress safely
   const parseVideoProgress = (raw: string | null): number => {
