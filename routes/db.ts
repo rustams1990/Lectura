@@ -1966,6 +1966,145 @@ router.delete("/history/:id", (req: Request, res: Response) => {
   }
 });
 
+// 14b. Batch History Delete (POST /api/history/batch-delete)
+router.post("/history/batch-delete", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Missing or empty ids array" });
+  }
+
+  try {
+    const db = getDbConnection(userId);
+    let totalDeleted = 0;
+    db.transaction(() => {
+      const chunkSize = 500;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => "?").join(",");
+        db.prepare(`DELETE FROM item_tags WHERE user_id = ? AND item_id IN (${placeholders})`).run(userId, ...chunk);
+        const result = db.prepare(`DELETE FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).run(userId, ...chunk);
+        totalDeleted += result.changes;
+      }
+    })();
+    console.log('[Server SQL Batch Delete]', { count: ids.length, totalDeleted });
+    return res.json({ status: "success", count: ids.length, deletedCount: totalDeleted });
+  } catch (err: any) {
+    console.error("[POST /api/history/batch-delete] Error:", err);
+    return res.status(500).json({ error: "Failed to batch delete history entries" });
+  }
+});
+
+// 14c. Batch History Edit (POST /api/history/batch-edit)
+router.post("/history/batch-edit", (req: Request, res: Response) => {
+  let userId: string;
+  try {
+    userId = resolveUserId(req);
+  } catch (err: any) {
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+    }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+
+  const { ids, targetLanguage, primaryTag, tags, tagMode = "replace" } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Missing or empty ids array" });
+  }
+
+  try {
+    const db = getDbConnection(userId);
+    db.transaction(() => {
+      const chunkSize = 500;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => "?").join(",");
+        const rows = db.prepare(`SELECT id, lessonId, tags, primaryTag, targetLanguage FROM reading_history WHERE user_id = ? AND id IN (${placeholders})`).all(userId, ...chunk) as any[];
+
+        for (const row of rows) {
+          const nextLang = targetLanguage !== undefined ? targetLanguage : row.targetLanguage;
+          let nextPrimaryTag = primaryTag !== undefined ? (primaryTag && typeof primaryTag === "string" && primaryTag.trim() ? primaryTag.trim() : null) : row.primaryTag;
+          let nextTagsList: string[] = [];
+
+          if (tags !== undefined) {
+            if (tagMode === "append") {
+              let existingList: string[] = [];
+              try {
+                existingList = row.tags ? (typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags) : [];
+              } catch (_) {}
+              const seen = new Set(existingList.map((t: string) => t.toLowerCase()));
+              nextTagsList = [...existingList];
+              if (Array.isArray(tags)) {
+                for (const t of tags) {
+                  const clean = typeof t === "string" ? t.trim().replace(/^#+/, "").trim() : "";
+                  if (clean && !seen.has(clean.toLowerCase())) {
+                    seen.add(clean.toLowerCase());
+                    nextTagsList.push(clean);
+                  }
+                }
+              }
+            } else {
+              // replace
+              nextTagsList = Array.isArray(tags) ? tags.map(t => typeof t === "string" ? t.trim().replace(/^#+/, "").trim() : "").filter(Boolean) : [];
+            }
+          } else {
+            try {
+              nextTagsList = row.tags ? (typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags) : [];
+            } catch (_) {}
+          }
+
+          if (nextPrimaryTag && !nextTagsList.some(t => t.toLowerCase() === nextPrimaryTag!.toLowerCase())) {
+            nextTagsList.unshift(nextPrimaryTag);
+          }
+
+          const nextTagsJson = JSON.stringify(nextTagsList);
+
+          db.prepare(`
+            UPDATE reading_history
+            SET targetLanguage = ?, primaryTag = ?, tags = ?
+            WHERE user_id = ? AND id = ?
+          `).run(nextLang, nextPrimaryTag, nextTagsJson, userId, row.id);
+
+          if (tags !== undefined || primaryTag !== undefined || targetLanguage !== undefined) {
+            db.prepare("DELETE FROM item_tags WHERE user_id = ? AND item_id = ?").run(userId, row.id);
+            for (const t of nextTagsList) {
+              const tagName = t.trim();
+              const isPrim = nextPrimaryTag && nextPrimaryTag.trim().toLowerCase() === tagName.toLowerCase() ? 1 : 0;
+              const tagId = `${userId}_${tagName.toLowerCase()}`;
+              db.prepare("INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(tagId, userId, tagName, null, nextLang || null, Date.now());
+              db.prepare("INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)").run(userId, row.id, tagId, isPrim);
+            }
+          }
+
+          if (row.lessonId && row.lessonId !== "custom" && row.lessonId !== "imported_record") {
+            if (targetLanguage !== undefined && (tags !== undefined || primaryTag !== undefined)) {
+              db.prepare("UPDATE lessons SET targetLanguage = ?, primaryTag = ?, tags = ? WHERE user_id = ? AND id = ?").run(nextLang, nextPrimaryTag, nextTagsJson, userId, row.lessonId);
+            } else if (targetLanguage !== undefined) {
+              db.prepare("UPDATE lessons SET targetLanguage = ? WHERE user_id = ? AND id = ?").run(nextLang, userId, row.lessonId);
+            } else if (tags !== undefined || primaryTag !== undefined) {
+              db.prepare("UPDATE lessons SET primaryTag = ?, tags = ? WHERE user_id = ? AND id = ?").run(nextPrimaryTag, nextTagsJson, userId, row.lessonId);
+            }
+          }
+        }
+      }
+    })();
+    return res.json({ status: "success", count: ids.length });
+  } catch (err: any) {
+    console.error("[POST /api/history/batch-edit] Error:", err);
+    return res.status(500).json({ error: "Failed to batch edit history entries" });
+  }
+});
+
+
 // 15. Batch Assign Channel to Lessons & History (POST /api/history/assign-channel)
 router.post("/history/assign-channel", (req: Request, res: Response) => {
   let userId: string;

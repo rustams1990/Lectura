@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { VocabItem, WordStatus, ExampleSentence, Dictionary, DictionaryItem, TabDictionaryPreferences, UserDictionaryPreferences, ReaderSettings, Lesson } from "../types";
-import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getEffectiveLocalTtsVoice, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../utils";
+import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getEffectiveLocalTtsVoice, getLanguageNameWithDialect, safeLocalStorageSetItem, extractImageFromDataTransfer } from "../utils";
 import { getSuggestedLemmas } from "../morphology";
 import { searchWordInLessons } from "../contextSearch";
 import ContextSearchResults from "./ContextSearchResults";
@@ -714,22 +714,12 @@ function WordExplainer({
     }
   };
 
-  const handleClipboardPaste = (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items;
-    if (items) {
-      for (const item of Array.from(items) as DataTransferItem[]) {
-        if (item.type.indexOf("image") !== -1) {
-          const file = item.getAsFile();
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const base64 = event.target?.result as string;
-              handleSelectImage(base64);
-            };
-            reader.readAsDataURL(file);
-          }
-        }
-      }
+  const handleClipboardPaste = async (e: React.ClipboardEvent) => {
+    const img = await extractImageFromDataTransfer(e.clipboardData);
+    if (img) {
+      e.preventDefault();
+      handleSelectImage(img);
+      showToast(t("explainer.image_pasted", "Image pasted successfully!"), "success");
     }
   };
 

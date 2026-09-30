@@ -37,7 +37,9 @@ import {
   PieChart,
   Activity,
   Loader2,
-  Star
+  Star,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getCategoryIcon } from "./ImportLessonForm";
@@ -49,8 +51,10 @@ import EditHistoryModal from "./EditHistoryModal";
 import { resolveApiUrl } from "../utils/apiConfig";
 import { useToast } from "../context/ToastContext";
 import { usePlaylistStore } from "../store/playlistStore";
-import { getTagColor, UNCATEGORIZED_COLOR } from "../utils/tagColors";
+import { getTagColor, UNCATEGORIZED_COLOR, getAllKnownTags } from "../utils/tagColors";
 import { getTopicColor } from "../utils/colorUtils";
+import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
+import { PrimaryTagAutocompleteInput } from "./common/PrimaryTagAutocompleteInput";
 
 export const formatTopicName = (name: string): string => {
   if (!name) return "";
@@ -152,6 +156,24 @@ function HistoryPage({
   const [channelsLimit, setChannelsLimit] = useState<number | "all">(5);
   const [topicSearchQuery, setTopicSearchQuery] = useState("");
   const [showAllTopics, setShowAllTopics] = useState(false);
+
+  // Multi-selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
+  const [isBulkLanguageModalOpen, setIsBulkLanguageModalOpen] = useState<boolean>(false);
+  const [isBulkTagModalOpen, setIsBulkTagModalOpen] = useState<boolean>(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState<boolean>(false);
+
+  // Bulk Language modal state
+  const [bulkLanguageValue, setBulkLanguageValue] = useState<string>("Spanish");
+  const [bulkLanguageSearch, setBulkLanguageSearch] = useState<string>("");
+
+  // Bulk Tag modal state
+  const [bulkPrimaryTag, setBulkPrimaryTag] = useState<string | null>(null);
+  const [bulkTagsList, setBulkTagsList] = useState<string[]>([]);
+  const [bulkNewTagInput, setBulkNewTagInput] = useState<string>("");
+  const [bulkTagMode, setBulkTagMode] = useState<"append" | "replace">("append");
+
 
   // Server-first History Sync: pull fresh history upon opening HistoryPage
   useEffect(() => {
@@ -1209,6 +1231,261 @@ function HistoryPage({
     }
   };
 
+  const allAvailableHistoryTags = useMemo(() => {
+    return getAllKnownTags(lessons, playlists, history);
+  }, [lessons, playlists, history]);
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const isAllVisibleSelected = useMemo(() => {
+    if (paginatedHistory.length === 0) return false;
+    return paginatedHistory.every((item) => selectedIds.has(item.id));
+  }, [paginatedHistory, selectedIds]);
+
+  const toggleSelectAllVisible = () => {
+    if (isAllVisibleSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        paginatedHistory.forEach((item) => next.delete(item.id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        paginatedHistory.forEach((item) => next.add(item.id));
+        return next;
+      });
+    }
+  };
+
+  const resolveAllMatchingHistoryIds = (cardIds: string[]): string[] => {
+    const allIds = new Set<string>();
+    for (const cardId of cardIds) {
+      allIds.add(cardId);
+      const targetEntry = history.find((h) => h.id === cardId);
+      if (!targetEntry) continue;
+      const targetLessonId = targetEntry.lessonId;
+      const targetGuid = (targetEntry as any)?.guid;
+      const targetAudioUrl = (targetEntry as any)?.audioUrl;
+      const targetCustomTitle = targetEntry.customTitle?.trim().toLowerCase();
+
+      for (const h of history) {
+        if (h.id === cardId) {
+          allIds.add(h.id);
+        } else if (targetLessonId && targetLessonId !== "custom" && targetLessonId !== "imported_record" && h.lessonId === targetLessonId) {
+          allIds.add(h.id);
+        } else if (targetGuid && ((h as any).guid === targetGuid || h.lessonId === targetGuid || h.id === targetGuid)) {
+          allIds.add(h.id);
+        } else if (targetAudioUrl && (h as any).audioUrl === targetAudioUrl) {
+          allIds.add(h.id);
+        } else if (targetCustomTitle && h.customTitle?.trim().toLowerCase() === targetCustomTitle) {
+          allIds.add(h.id);
+        }
+      }
+    }
+    return Array.from(allIds);
+  };
+
+  const getAuthHeaders = () => {
+    const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+    const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+    const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+    const localKey = localStorage.getItem("vocab_clone_local_sync_key") || "4815a16a23a42a";
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-local-sync-key": localKey,
+      "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+    };
+    if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+    return headers;
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (!confirm(t('history_page.confirm_bulk_delete', 'Are you sure you want to delete {{count}} selected records from history?', { count }))) {
+      return;
+    }
+    setIsBulkProcessing(true);
+    try {
+      const allTargetIds = resolveAllMatchingHistoryIds(Array.from(selectedIds));
+      const res = await fetch(resolveApiUrl('/api/history/batch-delete'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ids: allTargetIds }),
+      });
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+      onUpdateHistory(history.filter((h) => !allTargetIds.includes(h.id)), allTargetIds);
+      showToast(t('history_page.bulk_delete_success', 'Successfully deleted {{count}} records', { count }), 'success');
+      clearSelection();
+    } catch (err: any) {
+      console.error('Batch delete failed:', err);
+      showToast(t('history_page.batch_save_error', 'Error saving to server: ') + (err?.message || ''), 'error');
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkSaveLanguage = async (newLang: string) => {
+    if (selectedIds.size === 0 || !newLang) return;
+    setIsBulkProcessing(true);
+    try {
+      const allTargetIds = resolveAllMatchingHistoryIds(Array.from(selectedIds));
+      const res = await fetch(resolveApiUrl('/api/history/batch-edit'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ids: allTargetIds, targetLanguage: newLang }),
+      });
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+      const targetSet = new Set(allTargetIds);
+      const updatedHistory = history.map((h) => (targetSet.has(h.id) ? { ...h, targetLanguage: newLang } : h));
+      onUpdateHistory(updatedHistory);
+
+      if (onUpdateLessons) {
+        const affectedLessonIds = new Set(
+          history
+            .filter((h) => targetSet.has(h.id) && h.lessonId && h.lessonId !== 'custom' && h.lessonId !== 'imported_record')
+            .map((h) => h.lessonId)
+        );
+        if (affectedLessonIds.size > 0) {
+          const updatedLessons = lessons.map((l) => (affectedLessonIds.has(l.id) ? { ...l, targetLanguage: newLang } : l));
+          onUpdateLessons(updatedLessons);
+        }
+      }
+
+      showToast(t('history_page.bulk_lang_success', 'Language updated for {{count}} records', { count: selectedIds.size }), 'success');
+      setIsBulkLanguageModalOpen(false);
+      clearSelection();
+    } catch (err: any) {
+      console.error('Batch edit language failed:', err);
+      showToast(t('history_page.batch_save_error', 'Error saving to server: ') + (err?.message || ''), 'error');
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkSaveTags = async (primaryTag: string | null, tags: string[], mode: "append" | "replace") => {
+    if (selectedIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      const allTargetIds = resolveAllMatchingHistoryIds(Array.from(selectedIds));
+      const cleanPrimary = primaryTag ? primaryTag.trim().replace(/^#+/, '').trim() : null;
+      const cleanTags = tags.map((t) => t.trim().replace(/^#+/, '').trim()).filter(Boolean);
+
+      const res = await fetch(resolveApiUrl('/api/history/batch-edit'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          ids: allTargetIds,
+          primaryTag: cleanPrimary,
+          tags: cleanTags,
+          tagMode: mode,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const targetSet = new Set(allTargetIds);
+      const updatedHistory = history.map((h) => {
+        if (!targetSet.has(h.id)) return h;
+        let nextTags: string[] = [];
+        if (mode === 'append') {
+          let existing: string[] = [];
+          try {
+            existing = h.tags ? (typeof h.tags === 'string' ? JSON.parse(h.tags) : h.tags) : [];
+          } catch (_) {}
+          const seen = new Set((existing || []).map((t: string) => t.toLowerCase()));
+          nextTags = [...(existing || [])];
+          for (const t of cleanTags) {
+            if (!seen.has(t.toLowerCase())) {
+              seen.add(t.toLowerCase());
+              nextTags.push(t);
+            }
+          }
+        } else {
+          nextTags = [...cleanTags];
+        }
+        if (cleanPrimary && !nextTags.some((t) => t.toLowerCase() === cleanPrimary.toLowerCase())) {
+          nextTags.unshift(cleanPrimary);
+        }
+        return {
+          ...h,
+          primaryTag: cleanPrimary !== null ? cleanPrimary : (mode === 'replace' ? null : h.primaryTag),
+          tags: nextTags,
+        };
+      });
+      onUpdateHistory(updatedHistory);
+
+      if (onUpdateLessons) {
+        const affectedLessonIds = new Set(
+          history
+            .filter((h) => targetSet.has(h.id) && h.lessonId && h.lessonId !== 'custom' && h.lessonId !== 'imported_record')
+            .map((h) => h.lessonId)
+        );
+        if (affectedLessonIds.size > 0) {
+          const updatedLessons = lessons.map((l) => {
+            if (!affectedLessonIds.has(l.id)) return l;
+            let nextTags: string[] = [];
+            if (mode === 'append') {
+              let existing: string[] = [];
+              try {
+                existing = l.tags ? (typeof l.tags === 'string' ? JSON.parse(l.tags) : l.tags) : [];
+              } catch (_) {}
+              const seen = new Set((existing || []).map((t: string) => t.toLowerCase()));
+              nextTags = [...(existing || [])];
+              for (const t of cleanTags) {
+                if (!seen.has(t.toLowerCase())) {
+                  seen.add(t.toLowerCase());
+                  nextTags.push(t);
+                }
+              }
+            } else {
+              nextTags = [...cleanTags];
+            }
+            if (cleanPrimary && !nextTags.some((t) => t.toLowerCase() === cleanPrimary.toLowerCase())) {
+              nextTags.unshift(cleanPrimary);
+            }
+            return {
+              ...l,
+              primaryTag: cleanPrimary !== null ? cleanPrimary : (mode === 'replace' ? null : l.primaryTag),
+              tags: nextTags,
+            };
+          });
+          onUpdateLessons(updatedLessons);
+        }
+      }
+
+      showToast(t('history_page.bulk_tag_success', 'Tags updated for {{count}} records', { count: selectedIds.size }), 'success');
+      setIsBulkTagModalOpen(false);
+      clearSelection();
+    } catch (err: any) {
+      console.error('Batch edit tags failed:', err);
+      showToast(t('history_page.batch_save_error', 'Error saving to server: ') + (err?.message || ''), 'error');
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-12 animate-in fade-in duration-200 font-sans">
       {/* Top Header with Compact Action Bar & Global Dashboard Filters */}
@@ -1988,25 +2265,51 @@ function HistoryPage({
           </button>
         </div>
 
-        {/* Search Input */}
-        <div className="relative w-full md:w-72">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('history_page.search_placeholder', 'Search history...')}
-            className="w-full pl-8 pr-8 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200/80 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+        {/* Right side: Select Mode button + Search Input */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={() => {
+              if (isSelectionMode || selectedIds.size > 0) {
+                clearSelection();
+              } else {
+                setIsSelectionMode(true);
+              }
+            }}
+            className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-3xs ${
+              isSelectionMode || selectedIds.size > 0
+                ? "bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700"
+                : "bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-300 border-zinc-200/80 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+            }`}
+          >
+            <CheckSquare className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <span>
+              {isSelectionMode || selectedIds.size > 0
+                ? t('common.cancel', 'Cancel')
+                : t('history_page.select', 'Select')}
+            </span>
+          </button>
+
+          {/* Search Input */}
+          <div className="relative w-full md:w-72">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('history_page.search_placeholder', 'Search history...')}
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200/80 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -2164,22 +2467,53 @@ function HistoryPage({
                   const BadgeIcon = badge.Icon;
                   const canClickCard = Boolean(matchedLesson || item.audioUrl || item.lessonType === "podcast");
 
+                  const isSelected = selectedIds.has(item.id);
+
                   return (
                     <div
                       key={item.id}
                       onClick={() => {
+                        if (isSelectionMode || selectedIds.size > 0) {
+                          toggleSelectItem(item.id);
+                          return;
+                        }
                         if (matchedLesson) {
                           onOpenLesson(matchedLesson.id);
                         } else if (item.audioUrl || item.lessonType === "podcast") {
                           handleResumeStreamingEpisode(item);
                         }
                       }}
-                      className={`group relative p-3 sm:p-3.5 bg-white dark:bg-zinc-900/70 hover:bg-teal-50/20 dark:hover:bg-zinc-800/60 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-3xs hover:shadow-xs hover:border-teal-300 dark:hover:border-teal-800 ${
-                        canClickCard ? "cursor-pointer" : ""
-                      }`}
+                      className={`group relative p-3 sm:p-3.5 bg-white dark:bg-zinc-900/70 hover:bg-teal-50/20 dark:hover:bg-zinc-800/60 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-3xs hover:shadow-xs ${
+                        isSelected
+                          ? "border-teal-500 dark:border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/30 dark:bg-teal-950/20"
+                          : "border-zinc-200/70 dark:border-zinc-800 hover:border-teal-300 dark:hover:border-teal-800"
+                      } ${canClickCard || isSelectionMode || selectedIds.size > 0 ? "cursor-pointer" : ""}`}
                     >
-                      {/* Left side: Cover + Title + Details */}
+                      {/* Left side: Checkbox + Cover + Title + Details */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {/* Selection Checkbox */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelectItem(item.id);
+                          }}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer shrink-0 ${
+                            isSelected
+                              ? "text-teal-600 dark:text-teal-400 bg-teal-100/60 dark:bg-teal-900/40"
+                              : isSelectionMode || selectedIds.size > 0
+                              ? "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                              : "opacity-80 sm:opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                          }`}
+                          title={isSelected ? t('history_page.deselect_item', 'Deselect') : t('history_page.select_item', 'Select')}
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 fill-teal-600/10 text-teal-600 dark:text-teal-400" />
+                          ) : (
+                            <Square className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
+                          )}
+                        </button>
+
                         {/* Thumbnail Cover / Category Icon */}
                         <div className="w-14 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-zinc-200/60 dark:border-zinc-700/60 shadow-3xs relative">
                           {item.coverUrl ? (
@@ -2522,6 +2856,390 @@ function HistoryPage({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Floating Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 sm:gap-3 bg-zinc-900/95 dark:bg-zinc-800/95 text-white backdrop-blur-md px-3.5 sm:px-4 py-2.5 rounded-2xl shadow-2xl border border-zinc-700/60 animate-in slide-in-from-bottom-5 max-w-[95vw] overflow-x-auto">
+          {/* Selected count */}
+          <div className="flex items-center gap-1.5 pr-2.5 sm:pr-3 border-r border-zinc-700/60 text-xs font-bold shrink-0">
+            <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
+            <span className="whitespace-nowrap">
+              {t('history_page.selected_count', 'Selected: {{count}}', { count: selectedIds.size })}
+            </span>
+          </div>
+
+          {/* Select all visible / Deselect */}
+          <button
+            type="button"
+            onClick={toggleSelectAllVisible}
+            className="px-2.5 py-1 text-xs font-medium rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition cursor-pointer shrink-0 whitespace-nowrap"
+          >
+            {isAllVisibleSelected
+              ? t('history_page.deselect_all', 'Deselect all')
+              : t('history_page.select_all_page', 'Select all')}
+          </button>
+
+          {/* Action: Change Language */}
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedLanguage !== "all") setBulkLanguageValue(selectedLanguage);
+              setIsBulkLanguageModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-teal-600 hover:bg-teal-500 text-white transition cursor-pointer shadow-sm shrink-0 whitespace-nowrap active:scale-97"
+            title={t('history_page.change_language', 'Change Language')}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>{t('history_page.change_language', 'Language')}</span>
+          </button>
+
+          {/* Action: Change Tags */}
+          <button
+            type="button"
+            onClick={() => {
+              setBulkPrimaryTag(null);
+              setBulkTagsList([]);
+              setBulkTagMode("append");
+              setIsBulkTagModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-teal-600 hover:bg-teal-500 text-white transition cursor-pointer shadow-sm shrink-0 whitespace-nowrap active:scale-97"
+            title={t('history_page.change_tags', 'Change Tags')}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>{t('history_page.change_tags', 'Tags')}</span>
+          </button>
+
+          {/* Action: Delete */}
+          <button
+            type="button"
+            disabled={isBulkProcessing}
+            onClick={handleBulkDelete}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-500 text-white transition cursor-pointer shadow-sm shrink-0 whitespace-nowrap active:scale-97 disabled:opacity-50"
+            title={t('history_page.delete_selected', 'Delete')}
+          >
+            {isBulkProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            <span>{t('history_page.delete_selected', 'Delete')}</span>
+          </button>
+
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition cursor-pointer shrink-0 ml-0.5"
+            title={t('common.cancel', 'Cancel')}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Modal: Bulk Change Language */}
+      {isBulkLanguageModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => {
+            if (!isBulkProcessing) setIsBulkLanguageModalOpen(false);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                    {t('history_page.bulk_lang_title', 'Change Language for Selected Entries ({{count}})', { count: selectedIds.size })}
+                  </h3>
+                  <p className="text-xs text-zinc-500">
+                    {t('history_page.selected_count', 'Selected: {{count}}', { count: selectedIds.size })}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isBulkProcessing}
+                onClick={() => setIsBulkLanguageModalOpen(false)}
+                className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Search filter for languages */}
+            <div className="p-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  value={bulkLanguageSearch}
+                  onChange={(e) => setBulkLanguageSearch(e.target.value)}
+                  placeholder={t('history_page.search_placeholder', 'Search history...')}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                />
+              </div>
+            </div>
+
+            {/* Language grid */}
+            <div className="p-3 overflow-y-auto space-y-1 max-h-[340px]">
+              {ACTIVITY_LANGUAGES.filter((l) => {
+                if (!bulkLanguageSearch.trim()) return true;
+                const q = bulkLanguageSearch.toLowerCase();
+                return (
+                  l.name.toLowerCase().includes(q) ||
+                  l.native.toLowerCase().includes(q) ||
+                  l.code.toLowerCase().includes(q)
+                );
+              }).map((lang) => {
+                const isSelected = bulkLanguageValue.toLowerCase() === lang.name.toLowerCase() || bulkLanguageValue.toLowerCase() === lang.code.toLowerCase();
+                return (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => setBulkLanguageValue(lang.name)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium transition cursor-pointer ${
+                      isSelected
+                        ? "bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-700 dark:text-teal-300 font-bold shadow-2xs"
+                        : "border-zinc-200/80 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg leading-none">{lang.flag}</span>
+                      <span className="font-semibold">{lang.name}</span>
+                      <span className="text-zinc-400 text-[11px]">({lang.native})</span>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-teal-600 dark:text-teal-400" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 p-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50">
+              <button
+                type="button"
+                disabled={isBulkProcessing}
+                onClick={() => setIsBulkLanguageModalOpen(false)}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+              >
+                {t('history_page.cancel', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={isBulkProcessing}
+                onClick={() => handleBulkSaveLanguage(bulkLanguageValue)}
+                className="px-4 py-1.5 text-xs font-bold rounded-xl bg-teal-600 hover:bg-teal-700 text-white transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-97 disabled:opacity-50"
+              >
+                {isBulkProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{t('history_page.save', 'Save')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Bulk Manage Tags */}
+      {isBulkTagModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => {
+            if (!isBulkProcessing) setIsBulkTagModalOpen(false);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400">
+                  <Tag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                    {t('history_page.bulk_tag_title', 'Manage Tags for Selected Entries ({{count}})', { count: selectedIds.size })}
+                  </h3>
+                  <p className="text-xs text-zinc-500">
+                    {t('history_page.selected_count', 'Selected: {{count}}', { count: selectedIds.size })}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isBulkProcessing}
+                onClick={() => setIsBulkTagModalOpen(false)}
+                className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 overflow-y-auto space-y-4">
+              {/* Mode: Append or Replace */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                  {t('history_page.tags_label', 'Tags mode')}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBulkTagMode("append")}
+                    className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
+                      bulkTagMode === "append"
+                        ? "bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-700 dark:text-teal-300 shadow-2xs"
+                        : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{t('history_page.tag_mode_append', 'Append to existing tags')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkTagMode("replace")}
+                    className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${
+                      bulkTagMode === "replace"
+                        ? "bg-teal-50 dark:bg-teal-950/50 border-teal-500 text-teal-700 dark:text-teal-300 shadow-2xs"
+                        : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>{t('history_page.tag_mode_replace', 'Replace existing tags')}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Primary Tag / Topic */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  <span>{t('history_page.primary_tag_label', 'Primary Tag / Topic')}</span>
+                </label>
+                <PrimaryTagAutocompleteInput
+                  value={bulkPrimaryTag}
+                  onChange={(tag) => {
+                    setBulkPrimaryTag(tag);
+                    if (tag && !bulkTagsList.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+                      setBulkTagsList([...bulkTagsList, tag]);
+                    }
+                  }}
+                  availableTags={allAvailableHistoryTags}
+                  placeholder={t('history_page.tags_placeholder', 'E.g.: Spanish, Grammar, Podcast')}
+                />
+              </div>
+
+              {/* Additional Tags */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                  <span>{t('history_page.additional_tags_label', 'Additional Tags')}</span>
+                </label>
+                <TagInputWithAutocomplete
+                  value={bulkNewTagInput}
+                  onChange={setBulkNewTagInput}
+                  onAddTag={(tagName) => {
+                    const clean = tagName.trim().replace(/^#+/, "").trim();
+                    if (clean && !bulkTagsList.some((t) => t.toLowerCase() === clean.toLowerCase())) {
+                      setBulkTagsList([...bulkTagsList, clean]);
+                    }
+                    setBulkNewTagInput("");
+                  }}
+                  availableTags={allAvailableHistoryTags}
+                  currentTags={bulkTagsList}
+                  placeholder={t('history_page.tags_placeholder', 'E.g.: Grammar, Podcast, Vocabulary')}
+                />
+
+                {/* Selected Tags Chips */}
+                {bulkTagsList.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {bulkTagsList.map((tag) => {
+                      const color = getTagColor(tag);
+                      const isPrimary = bulkPrimaryTag && bulkPrimaryTag.toLowerCase() === tag.toLowerCase();
+                      return (
+                        <span
+                          key={tag}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${color.lightBg} ${color.border} ${color.text}`}
+                        >
+                          {isPrimary && <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />}
+                          <span>{tag}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBulkTagsList(bulkTagsList.filter((t) => t !== tag));
+                              if (isPrimary) setBulkPrimaryTag(null);
+                            }}
+                            className="hover:opacity-75 transition ml-0.5 cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick suggestions cloud */}
+              {allAvailableHistoryTags.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-semibold text-zinc-400">
+                    {t('tags.suggested_label', 'Suggested topics:')}
+                  </span>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                    {allAvailableHistoryTags.slice(0, 15).map((tName) => {
+                      const isAdded = bulkTagsList.some((t) => t.toLowerCase() === tName.toLowerCase());
+                      if (isAdded) return null;
+                      return (
+                        <button
+                          key={tName}
+                          type="button"
+                          onClick={() => {
+                            setBulkTagsList([...bulkTagsList, tName]);
+                            if (!bulkPrimaryTag) setBulkPrimaryTag(tName);
+                          }}
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 hover:bg-teal-50 dark:bg-zinc-800 dark:hover:bg-teal-950/40 text-zinc-600 hover:text-teal-700 dark:text-zinc-300 dark:hover:text-teal-300 border border-zinc-200/60 dark:border-zinc-700 transition cursor-pointer"
+                        >
+                          + {tName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 p-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50">
+              <button
+                type="button"
+                disabled={isBulkProcessing}
+                onClick={() => setIsBulkTagModalOpen(false)}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+              >
+                {t('history_page.cancel', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={isBulkProcessing}
+                onClick={() => handleBulkSaveTags(bulkPrimaryTag, bulkTagsList, bulkTagMode)}
+                className="px-4 py-1.5 text-xs font-bold rounded-xl bg-teal-600 hover:bg-teal-700 text-white transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-97 disabled:opacity-50"
+              >
+                {isBulkProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{t('history_page.save', 'Save')}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -1781,16 +1781,24 @@ function ReaderPanel({
                     tIdx > activePhraseTokenRange.start && 
                     tIdx < activePhraseTokenRange.end;
 
+                  const isNewline = tok.raw.includes("\n");
+
                   elements.push(
                     <span 
                       key={`space-${tIdx}`} 
-                      className={`select-text transition-colors ${
+                      className={`reader-space-token select-text transition-colors ${
+                        isNewline
+                          ? "inline"
+                          : isTextMode
+                          ? "inline"
+                          : "inline-block my-0.5 py-0.5 align-middle leading-tight whitespace-pre-wrap"
+                      } ${
                         isInActivePhrase 
-                          ? `bg-emerald-300/80 dark:bg-emerald-500/40 text-neutral-900 dark:text-neutral-100 ${isTextMode ? "inline" : "inline-block my-0.5 py-0.5 align-middle leading-tight"}` 
-                          : "opacity-95 inline"
+                          ? "bg-emerald-300/80 dark:bg-emerald-500/40 text-neutral-900 dark:text-neutral-100 in-selected-phrase" 
+                          : "opacity-95"
                       }`}
                     >
-                      {tok.raw.includes("\n") ? tok.raw : tok.raw.replace(/[\u00a0\s]+/g, " ")}
+                      {isNewline ? tok.raw : tok.raw.replace(/[\u00a0\s]+/g, " ")}
                     </span>
                   );
                   tIdx++;
@@ -2465,7 +2473,19 @@ function ReaderPanel({
               const headingTokens = segmentSentenceTokens(headingInnerText, lesson.targetLanguage);
               const headingWordNodes = headingTokens.map((tok, tIdx) => {
                 if (!tok.isWord) {
-                  return <span key={tIdx} className={`${isUnknownOnlyText ? dimClass : "opacity-90"} select-text inline`}>{tok.raw}</span>;
+                  const isWs = /^\s+$/.test(tok.raw);
+                  return (
+                    <span 
+                      key={tIdx} 
+                      className={`${isWs ? "reader-space-token" : ""} ${isUnknownOnlyText ? dimClass : "opacity-90"} select-text ${
+                        isWs && !isTextMode
+                          ? "inline-block my-0.5 py-0.5 align-middle leading-tight whitespace-pre-wrap"
+                          : "inline"
+                      }`}
+                    >
+                      {tok.raw}
+                    </span>
+                  );
                 }
                 const wordKey = `${lesson.targetLanguage.toLowerCase()}_${tok.clean}`;
                 const vocabItem = tok.clean ? (vocab[wordKey] || vocab[tok.clean]) : undefined;

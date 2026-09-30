@@ -263,12 +263,32 @@ img + .book-paragraph,
   margin-bottom: 0.125rem;
 }
 
+.mode-badges .reader-space-token {
+  display: inline-block;
+  margin-top: 0.125rem;
+  margin-bottom: 0.125rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+  line-height: 1.25;
+  vertical-align: middle;
+  white-space: pre-wrap;
+}
+
 /* Book / Clean Text Mode */
 .mode-text .reader-word-token,
-.mode-book .reader-word-token {
+.mode-book .reader-word-token,
+.mode-text .reader-space-token,
+.mode-book .reader-space-token {
   display: inline !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: inherit !important;
+}
+
+.mode-text .reader-word-token,
+.mode-book .reader-word-token {
   border-bottom-width: 0 !important;
   box-shadow: none !important;
 }

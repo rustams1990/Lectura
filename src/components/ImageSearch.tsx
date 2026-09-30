@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { Trash2, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Trash2, Loader2, ClipboardPaste, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { safeJsonParse } from "../utils";
+import { safeJsonParse, extractImageFromDataTransfer, readImageFromClipboard } from "../utils";
+import { useToast } from "../context/ToastContext";
 
 interface ImageSearchProps {
   word: string | null;
   imageUrlValue: string | null;
   handleSelectImage: (url: string | null) => void;
-  handleClipboardPaste: (e: React.ClipboardEvent) => void;
+  handleClipboardPaste?: (e: React.ClipboardEvent) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -19,10 +20,88 @@ export default function ImageSearch({
   handleFileChange,
 }: ImageSearchProps) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
+  const pasteBtnRef = useRef<HTMLButtonElement>(null);
   const [imageSearchKeyword, setImageSearchKeyword] = useState(word || "");
   const [imagesList, setImagesList] = useState<{ id: string; url: string; thumb: string; author: string; description: string }[]>([]);
   const [imagesLoading, setImagesLoading] = useState(false);
   const [imageSearchError, setImageSearchError] = useState<string | null>(null);
+  const [isPasting, setIsPasting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handlePasteClick = async () => {
+    setIsPasting(true);
+    try {
+      const img = await readImageFromClipboard();
+      if (img) {
+        handleSelectImage(img);
+        showToast(t("explainer.image_pasted", "Image pasted successfully!"), "success");
+      } else {
+        showToast(
+          t("explainer.no_image_in_clipboard", "No image found in clipboard. Copy an image or URL first, or press Ctrl+V."),
+          "info"
+        );
+        pasteBtnRef.current?.focus();
+      }
+    } catch (err) {
+      console.error("Paste clipboard error:", err);
+      showToast(t("explainer.paste_failed", "Failed to access clipboard. Press Ctrl+V directly."), "error");
+    } finally {
+      setIsPasting(false);
+    }
+  };
+
+  const handlePasteEvent = async (e: React.ClipboardEvent) => {
+    const img = await extractImageFromDataTransfer(e.clipboardData);
+    if (img) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleSelectImage(img);
+      showToast(t("explainer.image_pasted", "Image pasted successfully!"), "success");
+    } else if (handleClipboardPaste) {
+      handleClipboardPaste(e);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const img = await extractImageFromDataTransfer(e.dataTransfer);
+    if (img) {
+      handleSelectImage(img);
+      showToast(t("explainer.image_pasted", "Image pasted successfully!"), "success");
+    }
+  };
+
+  // Global Ctrl+V listener while ImageSearch is open
+  useEffect(() => {
+    const handleGlobalPaste = async (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTextInput = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+
+      const hasImageFile =
+        Array.from(e.clipboardData?.items || []).some((item) => item.type.startsWith("image/")) ||
+        Array.from(e.clipboardData?.files || []).some((f) => f.type.startsWith("image/"));
+
+      // If user is focused on a text input and not pasting an image file, let normal text paste proceed
+      if (isTextInput && !hasImageFile) {
+        return;
+      }
+
+      const img = await extractImageFromDataTransfer(e.clipboardData);
+      if (img) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSelectImage(img);
+        showToast(t("explainer.image_pasted", "Image pasted successfully!"), "success");
+      }
+    };
+
+    window.addEventListener("paste", handleGlobalPaste);
+    return () => {
+      window.removeEventListener("paste", handleGlobalPaste);
+    };
+  }, [handleSelectImage, t, showToast]);
 
   const handleSearchImages = async (keyword: string) => {
     if (!keyword || !keyword.trim()) return;
@@ -85,19 +164,44 @@ export default function ImageSearch({
       )}
 
       {/* Paste from clipboard and custom upload action zone */}
-      <div className="grid grid-cols-2 gap-2 font-sans text-[10px]">
-        <div
-          onPaste={handleClipboardPaste}
-          tabIndex={0}
-          className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
-          title="Click here, then press Ctrl+V (or Command+V) to paste any copied image from your clipboard!"
+      <div
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        className={`grid grid-cols-2 gap-2 font-sans text-[10px] rounded-lg transition-all ${
+          isDragging ? "ring-2 ring-teal-500 bg-teal-50/50 dark:bg-teal-950/20 p-1" : ""
+        }`}
+      >
+        <button
+          ref={pasteBtnRef}
+          type="button"
+          onClick={handlePasteClick}
+          onPaste={handlePasteEvent}
+          disabled={isPasting}
+          className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12 focus:outline-none focus:ring-1 focus:ring-teal-500/50 group active:scale-98"
+          title={t('explainer.paste_image_tooltip', 'Click to paste from clipboard, or press Ctrl+V')}
         >
-          <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">Paste clipboard</span>
-          <span className="text-[9.5px] mt-0.5 font-bold">{t('explainer.paste_image', 'Click & Paste Ctrl+V')}</span>
-        </div>
+          {isPasting ? (
+            <div className="flex items-center gap-1.5 text-teal-600 dark:text-teal-400">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span className="text-[9.5px] font-bold">{t('explainer.pasting', 'Pasting...')}</span>
+            </div>
+          ) : (
+            <>
+              <span className="font-extrabold uppercase text-[7.5px] text-zinc-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors flex items-center gap-1">
+                <ClipboardPaste className="w-2.5 h-2.5" />
+                {t('explainer.paste_clipboard_badge', 'Paste clipboard')}
+              </span>
+              <span className="text-[9.5px] mt-0.5 font-bold">{t('explainer.paste_image', 'Click & Paste Ctrl+V')}</span>
+            </>
+          )}
+        </button>
 
-        <label className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12">
-          <span className="font-extrabold uppercase text-[7.5px] text-zinc-400">File upload</span>
+        <label className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12 group active:scale-98">
+          <span className="font-extrabold uppercase text-[7.5px] text-zinc-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors flex items-center gap-1">
+            <Upload className="w-2.5 h-2.5" />
+            {t('explainer.upload_file_badge', 'File upload')}
+          </span>
           <span className="text-[9.5px] mt-0.5 font-bold">{t('explainer.upload_image', 'Upload file')}</span>
           <input
             type="file"

@@ -1,4 +1,4 @@
-﻿import { HistoryEntry } from "./types";
+import { HistoryEntry } from "./types";
 
 /**
  * @license
@@ -1073,4 +1073,137 @@ export const isLocalHostname = (): boolean => {
 
 export { getUIPreviewCache, saveUIPreviewCache } from "./utils/uiPreviewCache";
 export type { UIPreviewCache } from "./utils/uiPreviewCache";
+
+/**
+ * Checks if a string looks like an image URL or data URI.
+ */
+export function isLikelyImageUrl(str: string): boolean {
+  if (!str || typeof str !== "string") return false;
+  const s = str.trim();
+  if (s.startsWith("data:image/")) return true;
+  if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(\?.*)?$/i.test(s)) return true;
+  if (/^https?:\/\/.+[?&](?:format|ext)=(?:png|jpe?g|webp|gif|avif)/i.test(s)) return true;
+  if (/^https?:\/\/(images\.unsplash\.com|images\.pexels\.com|upload\.wikimedia\.org|i\.imgur\.com|encrypted-tbn0\.gstatic\.com)\/.+/i.test(s)) return true;
+  if (/^https?:\/\/.+\/(image|images|photos|media|img)\/.+/i.test(s)) return true;
+  return false;
+}
+
+/**
+ * Extracts image src attribute from an HTML string.
+ */
+export function extractImageSrcFromHtml(html: string): string | null {
+  if (!html || typeof html !== "string") return null;
+  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Extracts image from DataTransfer (files, items, text, html).
+ */
+export async function extractImageFromDataTransfer(dataTransfer: DataTransfer | null): Promise<string | null> {
+  if (!dataTransfer) return null;
+
+  // 1. Check dataTransfer.files (e.g. copied image file from OS explorer or drag-and-dropped file)
+  if (dataTransfer.files && dataTransfer.files.length > 0) {
+    for (let i = 0; i < dataTransfer.files.length; i++) {
+      const file = dataTransfer.files[i];
+      if (file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(file.name)) {
+        return new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve((e.target?.result as string) || null);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        });
+      }
+    }
+  }
+
+  // 2. Check dataTransfer.items
+  if (dataTransfer.items && dataTransfer.items.length > 0) {
+    for (let i = 0; i < dataTransfer.items.length; i++) {
+      const item = dataTransfer.items[i];
+      if (item.type.startsWith("image/") || item.kind === "file") {
+        const file = item.getAsFile();
+        if (file && (file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(file.name))) {
+          return new Promise<string | null>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve((e.target?.result as string) || null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+          });
+        }
+      }
+    }
+  }
+
+  // 3. Check HTML content (e.g. copied image on a web page)
+  try {
+    const html = dataTransfer.getData("text/html");
+    if (html) {
+      const src = extractImageSrcFromHtml(html);
+      if (src) return src;
+    }
+  } catch {
+    // Ignore dataTransfer getData errors in restricted contexts
+  }
+
+  // 4. Check plain text (e.g. copied image URL or data URI)
+  try {
+    const text = dataTransfer.getData("text/plain")?.trim();
+    if (text && isLikelyImageUrl(text)) {
+      return text;
+    }
+  } catch {
+    // Ignore
+  }
+
+  return null;
+}
+
+/**
+ * Reads an image directly from system clipboard using Async Clipboard API.
+ */
+export async function readImageFromClipboard(): Promise<string | null> {
+  // 1. Try navigator.clipboard.read() for image Blobs
+  if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.read === "function") {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imgType = item.types.find((t) => t.startsWith("image/"));
+        if (imgType) {
+          const blob = await item.getType(imgType);
+          return new Promise<string | null>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve((e.target?.result as string) || null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.read() could not retrieve image:", err);
+    }
+  }
+
+  // 2. Try navigator.clipboard.readText() for image URLs / data URIs / HTML img tags
+  if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.readText === "function") {
+    try {
+      const text = (await navigator.clipboard.readText())?.trim();
+      if (text) {
+        if (isLikelyImageUrl(text)) {
+          return text;
+        }
+        const srcFromHtml = extractImageSrcFromHtml(text);
+        if (srcFromHtml) {
+          return srcFromHtml;
+        }
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText() failed:", err);
+    }
+  }
+
+  return null;
+}
+
 
