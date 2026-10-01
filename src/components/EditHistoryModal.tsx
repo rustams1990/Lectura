@@ -15,6 +15,8 @@ import {
   Tag,
   Plus,
   Pencil,
+  Youtube,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { HistoryEntry, Lesson, Playlist, ActivitySourceMode, CustomActivityCategory } from "../types";
@@ -114,6 +116,9 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   const [formChannelUrl, setFormChannelUrl] = useState("");
   const [formChannelAvatarUrl, setFormChannelAvatarUrl] = useState<string | null>(null);
   const [isResolvingFormChannel, setIsResolvingFormChannel] = useState(false);
+  const [formYoutubeUrl, setFormYoutubeUrl] = useState("");
+  const [formCoverUrl, setFormCoverUrl] = useState<string | null>(null);
+  const [isResolvingYoutube, setIsResolvingYoutube] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
 
   const initializedKeyRef = useRef<string | null>(null);
@@ -143,6 +148,8 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormStatus((entry.status === "completed" || entry.actionType === "complete") ? "completed" : "in_progress");
       setFormMinutes(Math.round((entry.durationSeconds || 0) / 60).toString());
       setFormNotes(entry.notes || "");
+      setFormCoverUrl(entry.coverUrl || matchedLesson?.coverUrl || null);
+      setFormYoutubeUrl("");
 
       const effTags = getHistoryEffectiveTags(entry, matchedLesson, playlists);
       setFormTags(effTags.tags ? effTags.tags.join(", ") : "");
@@ -189,6 +196,8 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormStatus("in_progress");
       setFormMinutes("15");
       setFormNotes("");
+      setFormCoverUrl(null);
+      setFormYoutubeUrl("");
       setFormTags("");
       setFormTagsList([]);
       setFormPrimaryTag(null);
@@ -282,12 +291,79 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
     return getAllKnownTags(lessons, playlists, history);
   }, [lessons, playlists, history]);
 
-  const handleResolveFormChannel = async () => {
-    const rawUrl = formChannelUrl.trim();
+  const handleResolveYoutubeVideo = async (explicitUrl?: string) => {
+    const rawUrl = (explicitUrl !== undefined ? explicitUrl : formYoutubeUrl).trim();
+    if (!rawUrl) {
+      showToast(t('history_page.youtube_url_required', 'Please enter a YouTube video link'), 'error');
+      return;
+    }
+    setIsResolvingYoutube(true);
+    try {
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-local-sync-key": "4815a16a23a42a",
+        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+      };
+      if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+
+      const res = await fetch(resolveApiUrl('/api/youtube/video-info'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ url: rawUrl }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        if (data.title) setFormCustomTitle(data.title);
+        if (data.channelName) setFormChannelName(data.channelName);
+        if (data.channelAvatarUrl) setFormChannelAvatarUrl(data.channelAvatarUrl);
+        if (data.channelUrl) setFormChannelUrl(data.channelUrl);
+        if (data.durationMinutes !== undefined && data.durationMinutes !== null) {
+          setFormMinutes(String(data.durationMinutes));
+        }
+        if (data.coverUrl) setFormCoverUrl(data.coverUrl);
+        setFormCategory("video");
+        setFormActionType("listen");
+
+        showToast(
+          t('history_page.youtube_imported', 'Video data imported: {{title}} ({{minutes}} min)', {
+            title: data.title || '',
+            minutes: data.durationMinutes || 0,
+          }),
+          'success'
+        );
+      } else {
+        showToast(
+          data.error || t('history_page.youtube_not_found', 'Could not find YouTube video. Check the link.'),
+          'error'
+        );
+      }
+    } catch (err: any) {
+      console.error('Failed to resolve YouTube video:', err);
+      showToast(
+        t('history_page.youtube_resolve_error', 'Error connecting to server to resolve video.'),
+        'error'
+      );
+    } finally {
+      setIsResolvingYoutube(false);
+    }
+  };
+
+  const handleResolveFormChannel = async (explicitUrl?: string) => {
+    const rawUrl = (explicitUrl !== undefined ? explicitUrl : formChannelUrl).trim();
     if (!rawUrl) {
       showToast(t('import.channel_url_required', 'Пожалуйста, введите ссылку на YouTube канал'), 'error');
       return;
     }
+
+    if (/(?:watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/i.test(rawUrl)) {
+      setFormYoutubeUrl(rawUrl);
+      return handleResolveYoutubeVideo(rawUrl);
+    }
+
     setIsResolvingFormChannel(true);
     try {
       const res = await fetch(resolveApiUrl('/api/youtube/channel-info'), {
@@ -358,7 +434,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       const selectedLesson = lessons.find((l) => l.id === formLessonId);
       title = selectedLesson ? selectedLesson.title : (formCustomTitle.trim() || t('history_page.lesson_default_short', "Lesson"));
       targetLang = selectedLesson ? selectedLesson.targetLanguage : (formLanguage || "Spanish");
-      coverUrl = selectedLesson ? selectedLesson.coverUrl : null;
+      coverUrl = selectedLesson ? (selectedLesson.coverUrl || formCoverUrl || null) : (formCoverUrl || null);
       lessonType = selectedLesson ? (selectedLesson.lessonType || "article") : "article";
       channelName = formChannelName.trim() || (selectedLesson ? selectedLesson.channelName || null : null);
       channelAvatarUrl = formChannelAvatarUrl || (selectedLesson ? selectedLesson.channelAvatarUrl || null : null);
@@ -387,9 +463,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       lessonType = formCategory;
       channelName = formChannelName.trim() || null;
       channelAvatarUrl = formChannelAvatarUrl || null;
-      if (entry && !coverUrl) {
-        coverUrl = entry.coverUrl || null;
-      }
+      coverUrl = formCoverUrl || (entry ? entry.coverUrl || null : null);
     }
 
     let timestamp = new Date().toISOString();
@@ -416,7 +490,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       if (entry) {
         const realLessonId = lessonId !== "custom" ? lessonId : entry.lessonId;
         const hasChannelChange = channelName !== null && channelName !== undefined && channelName.trim() !== "";
-        const preservedCoverUrl = coverUrl || entry.coverUrl || null;
+        const preservedCoverUrl = coverUrl || formCoverUrl || entry.coverUrl || null;
 
         const updated = history.map((h) => {
           if (h.id === entry.id) {
@@ -528,7 +602,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
           lessonId,
           lessonTitle: title,
           targetLanguage: targetLang,
-          coverUrl,
+          coverUrl: coverUrl || formCoverUrl || null,
           lessonType,
           actionType: formActionType,
           status: formStatus,
@@ -703,39 +777,6 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
             ) : (
               /* Mode: Custom External Activity */
               <div className="space-y-3">
-                {/* Custom Title Input */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.activity_title', 'Activity Title')} *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formCustomTitle}
-                    onChange={(e) => setFormCustomTitle(e.target.value)}
-                    placeholder={t('history_page.activity_title_placeholder', 'e.g. Netflix: Dark S01E01, Paper Book: El Quijote...')}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                  />
-                </div>
-
-                {/* Language Selector */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    {t('history_page.language_select', 'Target Language')}
-                  </label>
-                  <select
-                    value={formLanguage}
-                    onChange={(e) => setFormLanguage(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
-                  >
-                    {ACTIVITY_LANGUAGES.map((lang) => (
-                      <option key={lang.code} value={lang.name}>
-                        {lang.flag} {lang.name} ({lang.native})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 {/* Category / Source Selector */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
@@ -769,6 +810,135 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                       );
                     })}
                   </div>
+                </div>
+
+                {/* YouTube Video Link Auto-Detection Box */}
+                {(formCategory === "video" || formCoverUrl) && (
+                  <div className="p-3 bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400">
+                        <Youtube className="w-4 h-4 text-rose-600 dark:text-rose-500" />
+                        <span>{t('history_page.youtube_url_label', 'YouTube Video Link (Auto-fill)')}</span>
+                      </div>
+                      {formCoverUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setFormCoverUrl(null)}
+                          title={t('common.clear', 'Clear')}
+                          className="text-[10px] text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>{t('common.clear', 'Clear')}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex gap-1.5">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={formYoutubeUrl}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormYoutubeUrl(val);
+                            if (/(?:watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/i.test(val)) {
+                              handleResolveYoutubeVideo(val);
+                            }
+                          }}
+                          onPaste={(e) => {
+                            const text = e.clipboardData.getData('text');
+                            if (text && /(?:watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/i.test(text)) {
+                              setTimeout(() => handleResolveYoutubeVideo(text), 50);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleResolveYoutubeVideo();
+                            }
+                          }}
+                          placeholder={t('history_page.youtube_url_placeholder', 'https://www.youtube.com/watch?v=...')}
+                          className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 border border-rose-200 dark:border-rose-900/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleResolveYoutubeVideo()}
+                        disabled={isResolvingYoutube || !formYoutubeUrl.trim()}
+                        className="px-3.5 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+                      >
+                        {isResolvingYoutube ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>{t('history_page.fetch_info', 'Detect')}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                      {t('history_page.youtube_auto_hint', 'Paste a YouTube video link to automatically detect title, channel, avatar, duration, and thumbnail.')}
+                    </p>
+
+                    {/* Cover / Thumbnail Preview Card if resolved */}
+                    {formCoverUrl && (
+                      <div className="flex items-center gap-3 p-2 bg-white/80 dark:bg-zinc-900/80 rounded-xl border border-rose-200/50 dark:border-rose-900/30">
+                        <img
+                          src={formCoverUrl}
+                          alt="Cover preview"
+                          className="w-16 h-10 rounded-lg object-cover border border-zinc-200 dark:border-zinc-800 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 truncate">
+                            {formCustomTitle || 'YouTube Video'}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-zinc-500 dark:text-zinc-400">
+                            {formChannelName && (
+                              <span className="font-semibold text-rose-600 dark:text-rose-400 truncate max-w-[140px]">
+                                {formChannelName}
+                              </span>
+                            )}
+                            {formMinutes && <span>• {formMinutes} min</span>}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Custom Title Input */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    {t('history_page.activity_title', 'Activity Title')} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formCustomTitle}
+                    onChange={(e) => setFormCustomTitle(e.target.value)}
+                    placeholder={t('history_page.activity_title_placeholder', 'e.g. Netflix: Dark S01E01, Paper Book: El Quijote...')}
+                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                  />
+                </div>
+
+                {/* Language Selector */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    {t('history_page.language_select', 'Target Language')}
+                  </label>
+                  <select
+                    value={formLanguage}
+                    onChange={(e) => setFormLanguage(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 font-semibold"
+                  >
+                    {ACTIVITY_LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.name}>
+                        {lang.flag} {lang.name} ({lang.native})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )}

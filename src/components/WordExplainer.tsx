@@ -13,7 +13,7 @@ import ContextSearchResults from "./ContextSearchResults";
 import ImageSearch from "./ImageSearch";
 import AiExplainerChat from "./AiExplainerChat";
 import WordNetSynsetsView from "./WordNetSynsetsView";
-import { BookOpen, Check, HelpCircle, Loader2, Award, Volume2, Ban, Sparkles, Tag, Plus, X, ChevronDown, ChevronUp, Trash2, Edit, ExternalLink, AppWindow, Image, Upload, Languages, Save, Layers, Network } from "lucide-react";
+import { BookOpen, Check, HelpCircle, Loader2, Award, Volume2, Ban, Sparkles, Tag, Plus, X, ChevronDown, ChevronUp, Trash2, Edit, ExternalLink, AppWindow, Image, Upload, Languages, Save, Layers, Network, Clock } from "lucide-react";
 import { useTranslation, Trans } from "react-i18next";
 import { useToast } from "../context/ToastContext";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
@@ -21,6 +21,7 @@ import { ignoreListManager } from "../services/ignoreListService";
 import { compareWords } from "../utils/stringUtils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
 import { useWordStore, extractSelectedWordText, normalizePossessiveSuffix } from "../store/useWordStore";
+import { getLearningDurationInfo } from "../utils/dateUtils";
 
 const sanitizeGrammarTag = (tag: string) => {
   if (!tag) return "";
@@ -688,6 +689,11 @@ function WordExplainer({
     }
     return ignoreListManager.checkAutoIgnore(word, settings, targetLanguage);
   }, [word, existingVocab, settings, targetLanguage]);
+
+  const wordTimeInfo = useMemo(() => {
+    const rawCreated = existingVocab?.createdAt;
+    return getLearningDurationInfo(rawCreated, t, i18n?.language);
+  }, [existingVocab?.createdAt, t, i18n?.language]);
 
   const handleSelectImage = (url: string | null) => {
     setImageUrlValue(url);
@@ -2417,6 +2423,17 @@ function WordExplainer({
           </span>
         )}
 
+        {/* Learning duration / added date badge */}
+        {wordTimeInfo && (
+          <span
+            className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 flex items-center gap-1 shrink-0"
+            title={wordTimeInfo.fullTitle}
+          >
+            <Clock className="w-3 h-3 text-zinc-400" />
+            <span>{wordTimeInfo.durationLabel}</span>
+          </span>
+        )}
+
         {/* Tag+ button to expand/toggle custom categorization tags list */}
         <button
           onClick={() => {
@@ -3253,6 +3270,23 @@ function WordExplainer({
 
       {/* Solid horizontal thick grey divider before actions footer */}
       <hr className="border-t border-zinc-100 dark:border-zinc-800 my-1 shrink-0" />
+
+      {/* Word Added & In-learning Time info bar */}
+      {wordTimeInfo && (
+        <div className="flex items-center justify-between text-[11px] text-zinc-400 dark:text-zinc-500 px-1 pt-0.5 shrink-0">
+          <div className="flex items-center gap-1.5" title={wordTimeInfo.fullTitle}>
+            <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+            <span className="font-semibold text-zinc-600 dark:text-zinc-300">{wordTimeInfo.durationLabel}</span>
+            <span>•</span>
+            <span>{wordTimeInfo.dateLabel}</span>
+          </div>
+          {status && ["1", "2", "3", "4", "5"].includes(status) && (
+            <span className="text-[10px] font-bold font-mono text-amber-600 dark:text-amber-400">
+              {t('practice.stage', 'Stage {{status}}', { status })}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Sticky Bottom Actions Toolbar containing Trash, Ignore, 1, 2, 3, 4, Known */}
       <div className="flex items-center justify-between gap-1.5 pt-1 shrink-0 pb-1">

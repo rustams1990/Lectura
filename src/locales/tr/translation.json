@@ -622,7 +622,17 @@
     "anki_word": "Word",
     "anki_translation": "Translation",
     "anki_context": "Context",
-    "server_error": "Server error ({{status}})"
+    "server_error": "Server error ({{status}})",
+    "added_just_now": "Az önce",
+    "added_today_hours": "Bugün ({{hours}} sa)",
+    "added_one_day": "1 gün",
+    "added_days": "{{count}} gün",
+    "added_months_days": "{{months}} ay {{days}} gün",
+    "added_months": "{{count}} ay",
+    "added_on_tooltip": "Eklendi",
+    "learning_for": "{{duration}} öğreniliyor",
+    "status_tooltip": "Öğrenme aşaması: {{status}}",
+    "stage": "Aşama {{status}}"
   },
   "reader": {
     "no_translation_yet": "— Henüz çeviri yok",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "Birincil etiket / Konu",
     "additional_tags_label": "Ek etiketler",
     "select_item": "Seç",
-    "deselect_item": "Seçimi kaldır"
+    "deselect_item": "Seçimi kaldır",
+    "youtube_url_label": "YouTube Video Bağlantısı (Otomatik doldurma)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... veya https://youtu.be/...",
+    "youtube_auto_hint": "Başlık, kanal, avatar, süre ve küçük resmi otomatik algılamak için bir YouTube video bağlantısı yapıştırın.",
+    "fetch_info": "Algıla",
+    "youtube_url_required": "Lütfen bir YouTube video bağlantısı girin",
+    "youtube_imported": "Video verileri içe aktarıldı: {{title}} ({{minutes}} dk)",
+    "youtube_not_found": "YouTube videosu bulunamadı. Bağlantıyı kontrol edin.",
+    "youtube_resolve_error": "Videoyu çözümlemek için sunucuya bağlanırken hata oluştu."
   },
   "whisper": {
     "title": "Yerel Konuşma Tanıma (Daha Hızlı Fısıltı CPU)",

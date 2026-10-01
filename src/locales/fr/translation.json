@@ -622,7 +622,17 @@
     "anki_word": "Word",
     "anki_translation": "Translation",
     "anki_context": "Context",
-    "server_error": "Server error ({{status}})"
+    "server_error": "Server error ({{status}})",
+    "added_just_now": "À l'instant",
+    "added_today_hours": "Aujourd'hui ({{hours}} h)",
+    "added_one_day": "1 jour",
+    "added_days": "{{count}} jours",
+    "added_months_days": "{{months}} m {{days}} j",
+    "added_months": "{{count}} mois",
+    "added_on_tooltip": "Ajouté",
+    "learning_for": "{{duration}} en apprentissage",
+    "status_tooltip": "Niveau d'apprentissage: {{status}}",
+    "stage": "Étape {{status}}"
   },
   "reader": {
     "no_translation_yet": "— Pas encore de traduction",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "Tag principal / Sujet",
     "additional_tags_label": "Tags supplémentaires",
     "select_item": "Sélectionner",
-    "deselect_item": "Désélectionner"
+    "deselect_item": "Désélectionner",
+    "youtube_url_label": "Lien vidéo YouTube (remplissage auto)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... ou https://youtu.be/...",
+    "youtube_auto_hint": "Collez un lien vidéo YouTube pour détecter automatiquement le titre, la chaîne, l'avatar, la durée et la miniature.",
+    "fetch_info": "Détecter",
+    "youtube_url_required": "Veuillez saisir un lien vidéo YouTube",
+    "youtube_imported": "Données vidéo importées : {{title}} ({{minutes}} min)",
+    "youtube_not_found": "Impossible de trouver la vidéo YouTube. Vérifiez le lien.",
+    "youtube_resolve_error": "Erreur de connexion au serveur pour résoudre la vidéo."
   },
   "whisper": {
     "title": "Reconnaissance vocale locale (processeur plus rapide)",

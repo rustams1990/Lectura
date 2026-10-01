@@ -622,7 +622,17 @@
     "anki_word": "Word",
     "anki_translation": "Translation",
     "anki_context": "Context",
-    "server_error": "Server error ({{status}})"
+    "server_error": "Server error ({{status}})",
+    "added_just_now": "Щойно",
+    "added_today_hours": "Сьогодні ({{hours}} год)",
+    "added_one_day": "1 день",
+    "added_days": "{{count}} дн.",
+    "added_months_days": "{{months}} міс {{days}} дн",
+    "added_months": "{{count}} міс",
+    "added_on_tooltip": "Додано",
+    "learning_for": "{{duration}} у вивченні",
+    "status_tooltip": "Етап вивчення: {{status}}",
+    "stage": "Етап {{status}}"
   },
   "reader": {
     "no_translation_yet": "— Перекладу ще немає",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "Основний тег / Тема",
     "additional_tags_label": "Додаткові теги",
     "select_item": "Вибрати",
-    "deselect_item": "Зняти вибір"
+    "deselect_item": "Зняти вибір",
+    "youtube_url_label": "Посилання на відео YouTube (автозаповнення)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... або https://youtu.be/...",
+    "youtube_auto_hint": "Вставте посилання на відео YouTube, щоб автоматично визначити назву, канал, аватарку, час та обкладинку.",
+    "fetch_info": "Визначити",
+    "youtube_url_required": "Будь ласка, введіть посилання на відео YouTube",
+    "youtube_imported": "Дані відео визначено: {{title}} ({{minutes}} хв)",
+    "youtube_not_found": "Не вдалося знайти відео YouTube. Перевірте посилання.",
+    "youtube_resolve_error": "Помилка підключення до сервера для визначення відео."
   },
   "whisper": {
     "title": "Розпізнавання локального мовлення (процесор Faster-Whisper)",

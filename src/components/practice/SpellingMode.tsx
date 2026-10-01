@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { VocabItem } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
-import { Volume2, Edit3, ArrowRight, Sparkles, AlertCircle } from "lucide-react";
+import { Volume2, Edit3, ArrowRight, Sparkles, AlertCircle, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getLearningDurationInfo } from "../../utils/dateUtils";
 
 interface SpellingModeProps {
   item: VocabItem;
@@ -43,7 +44,11 @@ export default function SpellingMode({
   onExclude,
   onDontKnow
 }: SpellingModeProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const timeInfo = useMemo(() => {
+    return getLearningDurationInfo(item.createdAt, t, i18n.language);
+  }, [item.createdAt, t, i18n.language]);
 
   const getClozeSentence = (sentence: string, wordToHide: string) => {
     if (!sentence || !wordToHide) return sentence;
@@ -68,11 +73,42 @@ export default function SpellingMode({
             transition={{ duration: 0.25 }}
             className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-800 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[400px]"
           >
-            <div className="flex justify-between items-start">
-              <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                {t('practice.spelling_check', 'Spelling Check')}
-              </span>
-              <div className="flex items-center gap-2">
+            <div className="flex justify-between items-start gap-3">
+              <div className="flex flex-col items-start gap-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
+                    {t('practice.spelling_check', 'Spelling Check')}
+                  </span>
+                  {item.status && ["1", "2", "3", "4", "5"].includes(item.status) && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono border ${
+                        item.status === "1" ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50" :
+                        item.status === "2" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50" :
+                        item.status === "3" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50" :
+                        item.status === "4" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/50" :
+                        "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900/50"
+                      }`}
+                      title={t('practice.status_tooltip', 'Learning stage: {{status}}', { status: item.status })}
+                    >
+                      {t('practice.stage', 'Stage {{status}}', { status: item.status })}
+                    </span>
+                  )}
+                </div>
+
+                {timeInfo && (
+                  <div
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400"
+                    title={timeInfo.fullTitle}
+                  >
+                    <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+                    <span className="font-semibold text-zinc-700 dark:text-zinc-300">{timeInfo.durationLabel}</span>
+                    <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                    <span className="text-zinc-400 dark:text-zinc-500">{timeInfo.dateLabel}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={(e) => {

@@ -622,7 +622,17 @@
     "anki_word": "Word",
     "anki_translation": "Translation",
     "anki_context": "Context",
-    "server_error": "Server error ({{status}})"
+    "server_error": "Server error ({{status}})",
+    "added_just_now": "刚刚",
+    "added_today_hours": "今天 ({{hours}} 小时)",
+    "added_one_day": "1 天",
+    "added_days": "{{count}} 天",
+    "added_months_days": "{{months}} 个月 {{days}} 天",
+    "added_months": "{{count}} 个月",
+    "added_on_tooltip": "添加于",
+    "learning_for": "学习 {{duration}}",
+    "status_tooltip": "学习阶段: {{status}}",
+    "stage": "阶段 {{status}}"
   },
   "reader": {
     "no_translation_yet": "— 还没有翻译",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "主要标签 / 主题",
     "additional_tags_label": "其他标签",
     "select_item": "选择",
-    "deselect_item": "取消选择"
+    "deselect_item": "取消选择",
+    "youtube_url_label": "YouTube 视频链接 (自动填充)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... 或 https://youtu.be/...",
+    "youtube_auto_hint": "粘贴 YouTube 视频链接即可自动检测标题、频道、头像、时长和缩略图。",
+    "fetch_info": "检测",
+    "youtube_url_required": "请输入 YouTube 视频链接",
+    "youtube_imported": "已导入视频数据：{{title}} ({{minutes}} 分钟)",
+    "youtube_not_found": "未找到 YouTube 视频。请检查链接。",
+    "youtube_resolve_error": "连接服务器解析视频时出错。"
   },
   "whisper": {
     "title": "本地语音识别（Faster-Whisper CPU）",

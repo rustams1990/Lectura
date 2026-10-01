@@ -16,7 +16,7 @@ import FlashcardMode from "./FlashcardMode";
 import SpellingMode from "./SpellingMode";
 import { LANGUAGES_SUPPORTED } from "../../data";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../../services/aiFailoverService";
-import { resolveLocale, formatFriendlyDate } from "../../utils/dateUtils";
+import { resolveLocale, formatFriendlyDate, getLearningDurationInfo } from "../../utils/dateUtils";
 import { formatAppDate } from "../../utils/dateFormatter";
 import { getLanguageFlagEmoji } from "../LibraryHome";
 
@@ -1601,6 +1601,9 @@ export default function VocabularyPractice({
                     }
                   }
 
+                  const itemTimeInfo = getLearningDurationInfo(item.createdAt, t, i18n.language);
+                  const itemTitle = itemTimeInfo ? `${item.word} → ${item.translation}\n${itemTimeInfo.fullTitle}` : `${item.word} → ${item.translation}`;
+
                   return (
                     <button
                       key={item.word + "_" + idx}
@@ -1609,15 +1612,26 @@ export default function VocabularyPractice({
                         setCurrentIndex(idx);
                         setIsFlipped(false);
                       }}
+                      title={itemTitle}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${itemBgClass}`}
                     >
-                      <span className="capitalize truncate max-w-[160px] flex items-center">
-                        {displayLabel}
+                      <span className="capitalize truncate max-w-[160px] flex items-center gap-1.5">
+                        {item.imageUrl && (
+                          <span className="text-[11px] opacity-80 shrink-0" title={t('explainer.word_image', 'Word Image')}>🖼️</span>
+                        )}
+                        <span className="truncate">{displayLabel}</span>
                         {spellingStatusIcon}
                       </span>
-                      <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
-                        {idx + 1}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {itemTimeInfo && (
+                          <span className="text-[9px] text-zinc-400 font-mono hidden sm:inline" title={itemTimeInfo.fullTitle}>
+                            {itemTimeInfo.durationLabel}
+                          </span>
+                        )}
+                        <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+                          {idx + 1}
+                        </span>
+                      </div>
                     </button>
                   );
                 })}

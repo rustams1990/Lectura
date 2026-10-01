@@ -936,4 +936,166 @@ router.post("/channel-info", handleChannelInfo);
 router.post("/youtube/channel-info", handleChannelInfo);
 router.post("/resolve-channel", handleChannelInfo);
 
+// Handler for fast YouTube video metadata resolution (supports /video-info, /youtube/video-info, /resolve-video)
+const handleYoutubeVideoInfo = async (req: any, res: any) => {
+  try {
+    const rawUrl = req.body?.url || req.body?.videoUrl || req.body?.link || "";
+    if (!rawUrl || typeof rawUrl !== "string") {
+      return res.status(400).json({ ok: false, error: "Missing YouTube video URL" });
+    }
+
+    const trimmedUrl = rawUrl.trim();
+    const match = trimmedUrl.match(/(?:watch\?v=|youtu\.be\/|embed\/|shorts\/|^)([a-zA-Z0-9_-]{11})(?:[?&]|$)/);
+    if (!match || !match[1]) {
+      return res.status(400).json({ ok: false, error: "Could not find a valid YouTube video ID in the provided link" });
+    }
+
+    const videoId = match[1];
+    let title = "";
+    let channelName = "";
+    let channelUrl = "";
+    let channelAvatarUrl = "";
+    let durationSeconds = 0;
+    let coverUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+    // 1. Fetch official YouTube oEmbed (super fast, sub-100ms, never blocked)
+    try {
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (oembedRes.ok) {
+        const data: any = await oembedRes.json();
+        if (data.title) title = data.title;
+        if (data.author_name) channelName = data.author_name;
+        if (data.author_url) channelUrl = data.author_url;
+        if (data.thumbnail_url) coverUrl = data.thumbnail_url;
+      }
+    } catch (_) {}
+
+    // 2. Fetch YouTube watch page HTML to get video duration (lengthSeconds) and channel avatar
+    try {
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9"
+        },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (pageRes.ok) {
+        const html = await pageRes.text();
+
+        // Length in seconds
+        const lengthMatch = html.match(/"lengthSeconds"\s*:\s*"(\d+)"/i) 
+                         || html.match(/\\?"lengthSeconds\\?"\s*:\s*\\?"(\d+)\\?"/i);
+        if (lengthMatch && lengthMatch[1]) {
+          durationSeconds = parseInt(lengthMatch[1], 10);
+        }
+
+        // Title fallback
+        if (!title) {
+          const titleMatch = html.match(/<meta name="title" content="([^"]*)"/i) 
+                          || html.match(/<title>([^<]*)<\/title>/i);
+          if (titleMatch && titleMatch[1]) {
+            title = titleMatch[1].replace(" - YouTube", "").trim();
+          }
+        }
+
+        // Channel name fallback
+        if (!channelName) {
+          const authorMatch = html.match(/"author"\s*:\s*"([^"]+)"/i) 
+                           || html.match(/<link itemprop="name" content="([^"]+)">/i);
+          if (authorMatch && authorMatch[1]) {
+            channelName = authorMatch[1].trim();
+          }
+        }
+
+        // Channel avatar
+        const avatarMatch = html.match(/"avatar"\s*:\s*\{\s*"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/i)
+                         || html.match(/https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[a-zA-Z0-9_\-=]+/);
+        if (avatarMatch) {
+          channelAvatarUrl = avatarMatch[1] || avatarMatch[0];
+        }
+      }
+    } catch (_) {}
+
+    // 3. If channelUrl is available and channelAvatarUrl is still missing, fetch channel page for avatar
+    if (channelUrl && !channelAvatarUrl) {
+      try {
+        const chRes = await fetch(channelUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+          },
+          signal: AbortSignal.timeout(6000)
+        });
+        if (chRes.ok) {
+          const chHtml = await chRes.text();
+          const ogImgMatch = chHtml.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i)
+                          || chHtml.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i);
+          if (ogImgMatch && ogImgMatch[1]) {
+            channelAvatarUrl = ogImgMatch[1];
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 4. Fallback: if durationSeconds is still 0, try yt-dlp dump-json as last resort
+    if (!durationSeconds || !title) {
+      try {
+        const dlp = getYtDlp();
+        const dlpInfo = await (dlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
+          dumpSingleJson: true,
+          skipDownload: true,
+          noCheckCertificate: true,
+          addHeader: ['Accept-Language:en-US,en;q=0.9'],
+        });
+        if (dlpInfo) {
+          if (!title && dlpInfo.title) title = dlpInfo.title;
+          if (!durationSeconds && dlpInfo.duration) durationSeconds = Math.round(dlpInfo.duration);
+          if (!channelName && dlpInfo.uploader) channelName = dlpInfo.uploader;
+          if (!channelUrl && dlpInfo.uploader_url) channelUrl = dlpInfo.uploader_url;
+          if (dlpInfo.thumbnail) coverUrl = dlpInfo.thumbnail;
+        }
+      } catch (_) {}
+    }
+
+    // Clean up title HTML entities
+    if (title) {
+      title = title
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&#160;/g, " ");
+    }
+
+    const bestThumb = await resolveBestYoutubeThumbnail(videoId, coverUrl);
+    const durationMinutes = durationSeconds > 0 ? Math.max(1, Math.round(durationSeconds / 60)) : 10;
+
+    return res.json({
+      ok: true,
+      youtubeId: videoId,
+      title: title || "YouTube Video",
+      durationSeconds: durationSeconds || durationMinutes * 60,
+      durationMinutes,
+      channelName: channelName || "",
+      channelUrl: channelUrl || (channelName ? `https://www.youtube.com/@${encodeURIComponent(channelName)}` : ""),
+      channelAvatarUrl: channelAvatarUrl || "",
+      coverUrl: bestThumb || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    });
+  } catch (err: any) {
+    console.error("[handleYoutubeVideoInfo] Error:", err);
+    return res.status(500).json({ ok: false, error: err.message || "Failed to resolve video info" });
+  }
+};
+
+router.post("/video-info", handleYoutubeVideoInfo);
+router.post("/youtube/video-info", handleYoutubeVideoInfo);
+router.post("/resolve-video", handleYoutubeVideoInfo);
+
+
 export default router;

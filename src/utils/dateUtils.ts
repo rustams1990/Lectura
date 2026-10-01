@@ -194,3 +194,57 @@ export function getWeekDayLabels(
 
   return labels;
 }
+
+export interface LearningDurationInfo {
+  durationLabel: string;
+  dateLabel: string;
+  fullTitle: string;
+  diffDays: number;
+}
+
+/**
+ * Calculates human-readable learning duration and formatted date for vocabulary items.
+ */
+export function getLearningDurationInfo(
+  createdAt: number | undefined | null,
+  t: any,
+  locale?: string
+): LearningDurationInfo | null {
+  if (!createdAt || typeof createdAt !== "number" || isNaN(createdAt)) return null;
+  const now = Date.now();
+  const diffMs = Math.max(0, now - createdAt);
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  let durationLabel = "";
+  if (diffDays === 0) {
+    if (diffMinutes < 60) {
+      durationLabel = t('practice.added_just_now', 'Just now');
+    } else {
+      durationLabel = t('practice.added_today_hours', 'Today ({{hours}}h)', { hours: diffHours });
+    }
+  } else if (diffDays === 1) {
+    durationLabel = t('practice.added_one_day', '1 day');
+  } else if (diffDays < 30) {
+    durationLabel = t('practice.added_days', '{{count}} days', { count: diffDays });
+  } else {
+    const diffMonths = Math.floor(diffDays / 30);
+    const remDays = diffDays % 30;
+    if (remDays > 0) {
+      durationLabel = t('practice.added_months_days', '{{months}}mo {{days}}d', { months: diffMonths, days: remDays });
+    } else {
+      durationLabel = t('practice.added_months', '{{count}} months', { count: diffMonths });
+    }
+  }
+
+  const dateLabel = formatFriendlyDate(createdAt, { appLocale: locale });
+  const fullTitle = `${t('practice.added_on_tooltip', 'Added')}: ${formatDateTime(createdAt, { appLocale: locale })} • ${t('practice.learning_for', '{{duration}} in learning', { duration: durationLabel })}`;
+
+  return {
+    durationLabel,
+    dateLabel,
+    fullTitle,
+    diffDays,
+  };
+}

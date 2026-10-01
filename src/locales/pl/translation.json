@@ -622,7 +622,17 @@
     "anki_word": "Word",
     "anki_translation": "Translation",
     "anki_context": "Context",
-    "server_error": "Server error ({{status}})"
+    "server_error": "Server error ({{status}})",
+    "added_just_now": "Przed chwilą",
+    "added_today_hours": "Dzisiaj ({{hours}} godz.)",
+    "added_one_day": "1 dzień",
+    "added_days": "{{count}} dni",
+    "added_months_days": "{{months}} m {{days}} d",
+    "added_months": "{{count}} mies.",
+    "added_on_tooltip": "Dodano",
+    "learning_for": "{{duration}} w nauce",
+    "status_tooltip": "Etap nauki: {{status}}",
+    "stage": "Etap {{status}}"
   },
   "reader": {
     "no_translation_yet": "— Nie ma jeszcze tłumaczenia",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "Główny tag / Temat",
     "additional_tags_label": "Dodatkowe tagi",
     "select_item": "Wybierz",
-    "deselect_item": "Odznacz"
+    "deselect_item": "Odznacz",
+    "youtube_url_label": "Link do filmu na YouTube (autouzupełnianie)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... lub https://youtu.be/...",
+    "youtube_auto_hint": "Wklej link do filmu na YouTube, aby automatycznie wykryć tytuł, kanał, awatar, czas trwania i miniaturę.",
+    "fetch_info": "Wykryj",
+    "youtube_url_required": "Wprowadź link do filmu na YouTube",
+    "youtube_imported": "Zaimportowano dane wideo: {{title}} ({{minutes}} min)",
+    "youtube_not_found": "Nie znaleziono filmu na YouTube. Sprawdź link.",
+    "youtube_resolve_error": "Błąd połączenia z serwerem podczas rozpoznawania wideo."
   },
   "whisper": {
     "title": "Lokalne rozpoznawanie mowy (procesor z szybszym szeptem)",

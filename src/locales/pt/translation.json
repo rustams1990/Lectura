@@ -622,7 +622,17 @@
     "anki_word": "Word",
     "anki_translation": "Translation",
     "anki_context": "Context",
-    "server_error": "Server error ({{status}})"
+    "server_error": "Server error ({{status}})",
+    "added_just_now": "Agora mesmo",
+    "added_today_hours": "Hoje ({{hours}} h)",
+    "added_one_day": "1 dia",
+    "added_days": "{{count}} dias",
+    "added_months_days": "{{months}} m {{days}} d",
+    "added_months": "{{count}} meses",
+    "added_on_tooltip": "Adicionado",
+    "learning_for": "{{duration}} em estudo",
+    "status_tooltip": "Estágio de estudo: {{status}}",
+    "stage": "Estágio {{status}}"
   },
   "reader": {
     "no_translation_yet": "- Sem tradução ainda",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "Tag principal / Tópico",
     "additional_tags_label": "Tags adicionais",
     "select_item": "Selecionar",
-    "deselect_item": "Desmarcar"
+    "deselect_item": "Desmarcar",
+    "youtube_url_label": "Link do vídeo do YouTube (preenchimento automático)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... ou https://youtu.be/...",
+    "youtube_auto_hint": "Cole um link de vídeo do YouTube para detectar automaticamente título, canal, avatar, duração e miniatura.",
+    "fetch_info": "Detectar",
+    "youtube_url_required": "Insira um link de vídeo do YouTube",
+    "youtube_imported": "Dados do vídeo importados: {{title}} ({{minutes}} min)",
+    "youtube_not_found": "Não foi possível encontrar o vídeo do YouTube. Verifique o link.",
+    "youtube_resolve_error": "Erro ao conectar ao servidor para resolver o vídeo."
   },
   "whisper": {
     "title": "Reconhecimento de fala local (CPU Faster-Whisper)",

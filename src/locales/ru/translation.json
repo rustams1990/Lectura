@@ -622,7 +622,17 @@
     "anki_word": "Слово",
     "anki_translation": "Перевод",
     "anki_context": "Контекст",
-    "server_error": "Ошибка сервера ({{status}})"
+    "server_error": "Ошибка сервера ({{status}})",
+    "added_just_now": "Только что",
+    "added_today_hours": "Сегодня ({{hours}} ч)",
+    "added_one_day": "1 день",
+    "added_days": "{{count}} дн.",
+    "added_months_days": "{{months}} мес {{days}} дн",
+    "added_months": "{{count}} мес",
+    "added_on_tooltip": "Добавлено",
+    "learning_for": "{{duration}} в изучении",
+    "status_tooltip": "Этап изучения: {{status}}",
+    "stage": "Этап {{status}}"
   },
   "reader": {
     "no_translation_yet": "— Перевод ещё не добавлен",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "Основной тег / Тема",
     "additional_tags_label": "Дополнительные теги",
     "select_item": "Выбрать",
-    "deselect_item": "Отменить выбор"
+    "deselect_item": "Отменить выбор",
+    "youtube_url_label": "Ссылка на видео YouTube (автозаполнение)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... или https://youtu.be/...",
+    "youtube_auto_hint": "Вставьте ссылку на видео YouTube, чтобы автоматически определить название, канал, аватарку, время и обложку.",
+    "fetch_info": "Определить",
+    "youtube_url_required": "Пожалуйста, введите ссылку на видео YouTube",
+    "youtube_imported": "Данные видео определены: {{title}} ({{minutes}} мин)",
+    "youtube_not_found": "Не удалось найти видео YouTube. Проверьте ссылку.",
+    "youtube_resolve_error": "Ошибка подключения к серверу для определения видео."
   },
   "whisper": {
     "title": "Локальное распознавание речи (Faster-Whisper CPU)",

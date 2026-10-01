@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { VocabItem } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
-import { Volume2, Edit3, ArrowRight, CheckCircle, BrainCircuit, RefreshCw, Star, Sparkles } from "lucide-react";
+import { Volume2, Edit3, ArrowRight, CheckCircle, BrainCircuit, RefreshCw, Star, Sparkles, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getLearningDurationInfo } from "../../utils/dateUtils";
 
 interface FlashcardModeProps {
   item: VocabItem;
@@ -33,7 +34,11 @@ export default function FlashcardMode({
   onMarkKnown,
   studyDirection
 }: FlashcardModeProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const timeInfo = useMemo(() => {
+    return getLearningDurationInfo(item.createdAt, t, i18n.language);
+  }, [item.createdAt, t, i18n.language]);
 
   // Helper to highlight word in context
   const getClozeSentence = (sentence: string, wordToHide: string) => {
@@ -71,11 +76,42 @@ export default function FlashcardMode({
             transition={{ duration: 0.25 }}
             className="bg-gradient-to-br from-teal-50 to-white dark:from-zinc-900 dark:to-zinc-800 border border-teal-100/65 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-md h-full min-h-[400px]"
           >
-            <div className="flex justify-between items-start">
-              <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
-                {t('practice.flashcard', 'Flashcard')}
-              </span>
-              <div className="flex items-center gap-2">
+            <div className="flex justify-between items-start gap-3">
+              <div className="flex flex-col items-start gap-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold tracking-widest text-teal-600 dark:text-teal-400 uppercase">
+                    {t('practice.flashcard', 'Flashcard')}
+                  </span>
+                  {item.status && ["1", "2", "3", "4", "5"].includes(item.status) && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono border ${
+                        item.status === "1" ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50" :
+                        item.status === "2" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50" :
+                        item.status === "3" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50" :
+                        item.status === "4" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/50" :
+                        "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900/50"
+                      }`}
+                      title={t('practice.status_tooltip', 'Learning stage: {{status}}', { status: item.status })}
+                    >
+                      {t('practice.stage', 'Stage {{status}}', { status: item.status })}
+                    </span>
+                  )}
+                </div>
+
+                {timeInfo && (
+                  <div
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400"
+                    title={timeInfo.fullTitle}
+                  >
+                    <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+                    <span className="font-semibold text-zinc-700 dark:text-zinc-300">{timeInfo.durationLabel}</span>
+                    <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                    <span className="text-zinc-400 dark:text-zinc-500">{timeInfo.dateLabel}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -105,8 +141,28 @@ export default function FlashcardMode({
               </div>
             </div>
 
-            <div className="text-center py-10 flex-grow flex flex-col justify-center items-center">
-              <div className="mb-6 relative">
+            <div className="text-center py-6 flex-grow flex flex-col justify-center items-center">
+              {/* If in Translation -> Target Word mode and word has an image, display it prominently */}
+              {studyDirection === "reverse" && item.imageUrl && (
+                <div className="mb-4 max-h-48 max-w-full flex items-center justify-center">
+                  <img
+                    src={item.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(item.imageUrl)}` : item.imageUrl}
+                    alt={item.word}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (!e.currentTarget.dataset.fallback && item.imageUrl?.startsWith("http")) {
+                        e.currentTarget.dataset.fallback = "true";
+                        e.currentTarget.src = item.imageUrl;
+                      } else {
+                        e.currentTarget.style.display = "none";
+                      }
+                    }}
+                    className="max-h-40 sm:max-h-48 max-w-[280px] sm:max-w-xs object-contain rounded-2xl border border-teal-100 dark:border-zinc-800 shadow-md bg-white/80 dark:bg-zinc-900/80 p-1"
+                  />
+                </div>
+              )}
+
+              <div className="mb-4 relative">
                 <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-2">
                   {frontLabel}
                 </span>
@@ -145,12 +201,28 @@ export default function FlashcardMode({
             className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-8 flex flex-col justify-between shadow-xl h-full min-h-[400px]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex-grow space-y-6">
+            <div className="flex-grow space-y-4">
               <div className="flex justify-between items-start border-b border-zinc-100 dark:border-zinc-800 pb-4">
                 <div className="pr-4">
-                  <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-1">
-                    {studyDirection === "reverse" ? t('practice.study_word', "Target Word") : frontLabel}
-                  </span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
+                      {studyDirection === "reverse" ? t('practice.study_word', "Target Word") : frontLabel}
+                    </span>
+                    {item.status && ["1", "2", "3", "4", "5"].includes(item.status) && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono border ${
+                          item.status === "1" ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50" :
+                          item.status === "2" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50" :
+                          item.status === "3" ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50" :
+                          item.status === "4" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/50" :
+                          "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900/50"
+                        }`}
+                        title={t('practice.status_tooltip', 'Learning stage: {{status}}', { status: item.status })}
+                      >
+                        {t('practice.stage', 'Stage {{status}}', { status: item.status })}
+                      </span>
+                    )}
+                  </div>
                   <div>
                     <h3 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize inline-block mr-2">
                       {studyDirection === "reverse" ? item.word : frontText}
@@ -159,6 +231,18 @@ export default function FlashcardMode({
                       <p className="text-xs font-mono text-zinc-500 leading-none mt-0.5">{item.ipa}</p>
                     )}
                   </div>
+
+                  {timeInfo && (
+                    <div
+                      className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mt-1"
+                      title={timeInfo.fullTitle}
+                    >
+                      <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+                      <span className="font-semibold text-zinc-700 dark:text-zinc-300">{timeInfo.durationLabel}</span>
+                      <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                      <span className="text-zinc-400 dark:text-zinc-500">{timeInfo.dateLabel}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -186,6 +270,26 @@ export default function FlashcardMode({
                   </button>
                 </div>
               </div>
+
+              {/* Word Image on Back side as well */}
+              {item.imageUrl && (
+                <div className="my-2 flex items-center justify-center">
+                  <img
+                    src={item.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(item.imageUrl)}` : item.imageUrl}
+                    alt={item.word}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (!e.currentTarget.dataset.fallback && item.imageUrl?.startsWith("http")) {
+                        e.currentTarget.dataset.fallback = "true";
+                        e.currentTarget.src = item.imageUrl;
+                      } else {
+                        e.currentTarget.style.display = "none";
+                      }
+                    }}
+                    className="max-h-32 sm:max-h-40 max-w-[260px] sm:max-w-xs object-contain rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm bg-zinc-50/80 dark:bg-zinc-950/80 p-1"
+                  />
+                </div>
+              )}
 
               <div className="space-y-1">
                 <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">

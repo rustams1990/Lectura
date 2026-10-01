@@ -622,7 +622,17 @@
     "anki_word": "Word",
     "anki_translation": "Translation",
     "anki_context": "Context",
-    "server_error": "Server error ({{status}})"
+    "server_error": "Server error ({{status}})",
+    "added_just_now": "たった今",
+    "added_today_hours": "今日 ({{hours}} 時間)",
+    "added_one_day": "1日",
+    "added_days": "{{count}} 日",
+    "added_months_days": "{{months}}ヶ月 {{days}}日",
+    "added_months": "{{count}} ヶ月",
+    "added_on_tooltip": "追加日時",
+    "learning_for": "学習期間 {{duration}}",
+    "status_tooltip": "学習段階: {{status}}",
+    "stage": "ステージ {{status}}"
   },
   "reader": {
     "no_translation_yet": "— まだ翻訳されていません",
@@ -1431,7 +1441,15 @@
     "primary_tag_label": "メインタグ / トピック",
     "additional_tags_label": "追加タグ",
     "select_item": "選択",
-    "deselect_item": "選択解除"
+    "deselect_item": "選択解除",
+    "youtube_url_label": "YouTube動画リンク (自動入力)",
+    "youtube_url_placeholder": "https://www.youtube.com/watch?v=... または https://youtu.be/...",
+    "youtube_auto_hint": "YouTube動画リンクを貼り付けると、タイトル、チャンネル、アバター、時間、サムネイルが自動入力されます。",
+    "fetch_info": "検出",
+    "youtube_url_required": "YouTube動画リンクを入力してください",
+    "youtube_imported": "動画データをインポートしました: {{title}} ({{minutes}} 分)",
+    "youtube_not_found": "YouTube動画が見つかりませんでした。リンクを確認してください。",
+    "youtube_resolve_error": "動画の解決中にサーバーへの接続エラーが発生しました。"
   },
   "whisper": {
     "title": "ローカル音声認識 (Faster-Whisper CPU)",
