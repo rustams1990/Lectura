@@ -26,7 +26,7 @@ import LevelFilterDropdown, { DifficultyGroup } from "../library/LevelFilterDrop
 import TagFilterDropdown from "../library/TagFilterDropdown";
 import { classifyDifficulty } from "../../utils/playlistDifficultyUtils";
 import { getTagColor, getAllKnownTags } from "../../utils/tagColors";
-import { deduplicatePlaylistItems } from "../../utils/playlistUtils";
+import { deduplicatePlaylistItems, isPlaylistItemCompleted } from "../../utils/playlistUtils";
 
 export type PlaylistSortOption = 
   | 'default'       // Исходный порядок плейлиста (по порядку добавления / #1, #2...)
@@ -518,42 +518,9 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     return sec;
   };
 
-  // Check completion status from history and localStorage
+  // Check completion status from history and localStorage using unified utility
   const isItemCompleted = (item: PlaylistItem): boolean => {
-    const lesson = getItemLesson(item);
-    const targetLessonId = lesson?.id || item.lessonId;
-    const targetVideoId = lesson?.youtubeId || item.videoId;
-    const itemTitle = (item.title || lesson?.title || "").trim().toLowerCase();
-
-    // 1. Direct completion marker in localStorage (set by handleMediaEnded)
-    if (targetLessonId && localStorage.getItem(`vocab_progress_${targetLessonId}`) === "100") {
-      return true;
-    }
-    if (targetVideoId && localStorage.getItem(`vocab_progress_${targetVideoId}`) === "100") {
-      return true;
-    }
-
-    // 2. Playback progress >= 95% of duration
-    const durationSec = getItemEffectiveDuration(item, lesson);
-    const progSec = getItemVideoProgress(item, lesson);
-    if (durationSec > 10 && progSec > 0 && progSec >= durationSec * 0.95) {
-      return true;
-    }
-
-    // 3. Match against reading/listening history entries
-    return history.some((h) => {
-      const match =
-        (targetLessonId && (h.lessonId === targetLessonId || h.id === targetLessonId)) ||
-        (targetVideoId && (h.guid === targetVideoId || h.youtubeId === targetVideoId || h.lessonId === targetVideoId || h.lessonId === `youtube_${targetVideoId}`)) ||
-        (itemTitle && h.lessonTitle && h.lessonTitle.trim().toLowerCase() === itemTitle);
-
-      if (!match) return false;
-      return (
-        h.status === "completed" ||
-        h.actionType === "complete" ||
-        (h.progressPercent !== undefined && h.progressPercent >= 95)
-      );
-    });
+    return isPlaylistItemCompleted(item, lessons, history);
   };
 
   // Get item status (completed | in_progress | new)

@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Playlist, PlaylistItem, Lesson } from "../types";
+import { Playlist, PlaylistItem, Lesson, HistoryEntry } from "../types";
 import { normalizeLanguage } from "../utils";
+import { getItemEffectiveDuration } from "./durationUtils";
 
 /**
  * Deduplicates playlist items based on videoId, lessonId, and item id.
@@ -290,3 +291,120 @@ export function segregatePlaylistsByLanguage(
     hasChanges,
   };
 }
+
+/**
+ * Resolves the matching lesson from user's library for a playlist item.
+ */
+export function getPlaylistItemLesson(
+  item: PlaylistItem,
+  lessons?: Lesson[] | null
+): Lesson | undefined {
+  if (!lessons || !Array.isArray(lessons)) return undefined;
+  if (item.lessonId) {
+    const match = lessons.find((l) => l.id === item.lessonId);
+    if (match) return match;
+  }
+  if (item.videoId) {
+    const match = lessons.find((l) => l.youtubeId === item.videoId);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+/**
+ * Parses stored media playback progress in seconds from localStorage payload.
+ */
+export function parseStoredMediaProgress(raw: string | null): number {
+  if (!raw) return 0;
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "number") return parsed > 2 ? Math.floor(parsed) : 0;
+    if (parsed && typeof parsed === "object" && parsed.progress !== undefined) {
+      const p = parseFloat(parsed.progress);
+      return !isNaN(p) && p > 2 ? Math.floor(p) : 0;
+    }
+  } catch (_) {}
+  const num = parseFloat(raw);
+  return !isNaN(num) && num > 2 ? Math.floor(num) : 0;
+}
+
+/**
+ * Retrieves the stored media playback progress for a playlist item.
+ */
+export function getPlaylistItemMediaProgress(
+  item: PlaylistItem,
+  lesson?: Lesson | null
+): number {
+  if (typeof window === "undefined" || !window.localStorage) return 0;
+  const targetLessonId = lesson?.id || item.lessonId;
+  const targetVideoId = lesson?.youtubeId || item.videoId;
+  let sec = 0;
+  if (targetLessonId) {
+    sec = parseStoredMediaProgress(localStorage.getItem(`youtube_progress_${targetLessonId}`));
+  }
+  if (sec <= 0 && targetVideoId) {
+    sec = parseStoredMediaProgress(localStorage.getItem(`youtube_progress_${targetVideoId}`));
+  }
+  return sec;
+}
+
+/**
+ * Universal single source of truth for checking if a playlist item is completed.
+ * Considers localStorage completion markers, playback progress (>= 95%), and reading/listening history.
+ */
+export function isPlaylistItemCompleted(
+  item: PlaylistItem,
+  lessons?: Lesson[] | null,
+  history?: HistoryEntry[] | null
+): boolean {
+  const lesson = getPlaylistItemLesson(item, lessons);
+  const targetLessonId = lesson?.id || item.lessonId;
+  const targetVideoId = lesson?.youtubeId || item.videoId;
+  const itemTitle = (item.title || lesson?.title || "").trim().toLowerCase();
+
+  // 1. Direct completion marker in localStorage (set by handleMediaEnded on finishing playback)
+  if (typeof window !== "undefined" && window.localStorage) {
+    if (targetLessonId && localStorage.getItem(`vocab_progress_${targetLessonId}`) === "100") {
+      return true;
+    }
+    if (targetVideoId && localStorage.getItem(`vocab_progress_${targetVideoId}`) === "100") {
+      return true;
+    }
+  }
+
+  // 2. Playback progress >= 95% of duration
+  const durationSec = getItemEffectiveDuration(item, lesson);
+  const progSec = getPlaylistItemMediaProgress(item, lesson);
+  if (durationSec > 10 && progSec > 0 && progSec >= durationSec * 0.95) {
+    return true;
+  }
+
+  // 3. Match against reading/listening history entries
+  if (history && Array.isArray(history) && history.length > 0) {
+    return history.some((h) => {
+      const match =
+        (targetLessonId && (
+          h.lessonId === targetLessonId ||
+          h.id === targetLessonId ||
+          (h as any).guid === targetLessonId
+        )) ||
+        (targetVideoId && (
+          h.guid === targetVideoId ||
+          h.youtubeId === targetVideoId ||
+          h.lessonId === targetVideoId ||
+          h.lessonId === `youtube_${targetVideoId}`
+        )) ||
+        (itemTitle && h.lessonTitle && h.lessonTitle.trim().toLowerCase() === itemTitle);
+
+      if (!match) return false;
+      return (
+        h.status === "completed" ||
+        h.actionType === "complete" ||
+        (h.progressPercent !== undefined && h.progressPercent >= 95)
+      );
+    });
+  }
+
+  return false;
+}
+

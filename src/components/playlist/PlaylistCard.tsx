@@ -11,6 +11,7 @@ import {
   getDifficultyRangeLabel,
   getDifficultyRangeBadgeColor,
 } from "../../utils/playlistDifficultyUtils";
+import { deduplicatePlaylistItems, isPlaylistItemCompleted } from "../../utils/playlistUtils";
 
 export function renderCircularFlag(flagEmoji: string) {
   const code = FLAG_EMOJI_TO_CODE[flagEmoji];
@@ -131,8 +132,10 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     };
   }, [isMenuOpen]);
 
-  const items = playlist.items || [];
-  const itemCount = playlist.itemCount || items.length;
+  const items = useMemo(() => {
+    return deduplicatePlaylistItems(playlist.items || [], lessons);
+  }, [playlist.items, lessons]);
+  const itemCount = items.length;
   const flag = getLanguageFlagEmoji(playlist.language, languageFlags);
   const localizedLang = getLocalizedLanguageName(playlist.language, i18n.language);
 
@@ -145,19 +148,10 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     }, 0);
   }, [items, lessons]);
 
-  // Calculate completed count
+  // Calculate completed count using unified logic
   const completedCount = useMemo(() => {
     if (items.length === 0) return 0;
-    return items.filter((item) => {
-      let lesson = item.lessonId ? lessons.find((l) => l.id === item.lessonId) : undefined;
-      if (!lesson && item.videoId) {
-        lesson = lessons.find((l) => l.youtubeId === item.videoId);
-      }
-      if (!lesson) return false;
-      return history.some(
-        (h) => h.lessonId === lesson!.id && (h.status === "completed" || h.actionType === "complete" || h.progressPercent === 100)
-      );
-    }).length;
+    return items.filter((item) => isPlaylistItemCompleted(item, lessons, history)).length;
   }, [items, lessons, history]);
 
   const progressPercent = itemCount > 0 ? Math.round((completedCount / itemCount) * 100) : 0;
