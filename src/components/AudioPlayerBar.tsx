@@ -17,10 +17,12 @@ import {
   Gamepad2,
   Eye,
   EyeOff,
+  Video,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { parseTimestampToSeconds } from "../hooks/useReaderPagination";
 import { usePlaylistStore } from "../store/playlistStore";
+import { useUIStore } from "../store/uiStore";
 import { useToast } from "../context/ToastContext";
 import { useBingeQueueStore } from "../store/useBingeQueueStore";
 import { ReaderSettings } from "../types";
@@ -154,13 +156,16 @@ export default function AudioPlayerBar({
         activeLesson.audioUrl === currentTrack.audioUrl ||
         currentTrack.audioUrl.includes(activeLesson.audioUrl) ||
         activeLesson.audioUrl.includes(currentTrack.audioUrl)
-      ))
+      )) ||
+      Boolean(currentTrack.youtubeId && activeLesson.youtubeId && currentTrack.youtubeId === activeLesson.youtubeId)
     );
   }, [playlistQueue, playlistIndex, activeLesson]);
 
   const effectiveIsPlaying = isGlobalPlayingThisLesson ? playlistIsPlaying : isPlaying;
   const effectiveCurrentTime = isGlobalPlayingThisLesson ? playlistCurrentTime : currentTime;
-  const effectiveDuration = isGlobalPlayingThisLesson ? (playlistDuration || duration) : duration;
+  const effectiveDuration = isGlobalPlayingThisLesson
+    ? (playlistDuration || duration || activeLesson?.duration || (activeLesson as any)?.youtubeDuration || 0)
+    : (duration || activeLesson?.duration || (activeLesson as any)?.youtubeDuration || 0);
   const effectivePlaybackRate = isGlobalPlayingThisLesson ? playlistPlaybackRate : playbackRate;
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -175,6 +180,23 @@ export default function AudioPlayerBar({
   });
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState<boolean>(false);
+
+  const handleReturnToVideo = () => {
+    if (activeLesson) {
+      try {
+        localStorage.setItem(
+          `youtube_progress_${activeLesson.id}`,
+          JSON.stringify({
+            progress: Math.floor(effectiveCurrentTime || 0),
+            updatedAt: Date.now(),
+          })
+        );
+      } catch (_) {}
+    }
+    usePlaylistStore.getState().setIsPlaying(false);
+    usePlaylistStore.getState().setPreferAudioOnly(false);
+    useUIStore.getState().setShowYoutubePlayer(true);
+  };
 
   const isValidUrl = (url: any): boolean => {
     if (!url || typeof url !== "string") return false;
@@ -194,7 +216,7 @@ export default function AudioPlayerBar({
 
   const hasAudio = Boolean(
     activeLesson &&
-    (isValidUrl(activeLesson.audioUrl) || isValidUrl(activeLesson.audioBase64))
+    (isValidUrl(activeLesson.audioUrl) || isValidUrl(activeLesson.audioBase64) || isGlobalPlayingThisLesson)
   );
   const rawAudioSrc = activeLesson
     ? (isValidUrl(activeLesson.audioUrl)
@@ -620,7 +642,14 @@ export default function AudioPlayerBar({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  if (!activeLesson || !hasAudio) {
+  const showYoutubePlayer = useUIStore((s) => s.showYoutubePlayer);
+  const preferAudioOnly = usePlaylistStore((s) => s.preferAudioOnly);
+
+  const isVideoPlayerActive = Boolean(
+    activeLesson?.youtubeId && showYoutubePlayer && !preferAudioOnly
+  );
+
+  if (!activeLesson || !hasAudio || isVideoPlayerActive) {
     return null;
   }
 
@@ -708,6 +737,18 @@ export default function AudioPlayerBar({
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {/* Switch back to Video (if YouTube lesson) */}
+            {activeLesson.youtubeId && (
+              <button
+                type="button"
+                onClick={handleReturnToVideo}
+                className="p-1 shrink-0 rounded-md text-[10px] font-bold border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                title={t("player.watch_video", "Смотреть видео")}
+              >
+                <Video className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+              </button>
+            )}
+
             {/* Sentence Loop Toggle */}
             <button
               type="button"
@@ -793,11 +834,22 @@ export default function AudioPlayerBar({
           <div className={`w-7 h-7 ${themeStyles.badge} flex items-center justify-center shrink-0 ${effectiveIsPlaying ? "animate-pulse" : ""}`}>
             <Headphones className="w-4.5 h-4.5" />
           </div>
-          <div className="min-w-0 max-w-[180px] xl:max-w-[260px] overflow-hidden">
+          <div className="min-w-0 max-w-[160px] xl:max-w-[220px] overflow-hidden">
             <p className={`text-xs font-bold truncate ${themeStyles.titleText}`} title={activeLesson.title}>
               {activeLesson.title || t("reader.audio_player", "Audio Player")}
             </p>
           </div>
+          {activeLesson.youtubeId && (
+            <button
+              type="button"
+              onClick={handleReturnToVideo}
+              className="px-2 py-1 text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs shrink-0"
+              title={t("player.watch_video", "Смотреть видео")}
+            >
+              <Video className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="hidden xl:inline">{t("player.watch_video", "Смотреть видео")}</span>
+            </button>
+          )}
         </div>
 
         {/* ── Center: Transport + Progress Bar ───────────────────────────── */}

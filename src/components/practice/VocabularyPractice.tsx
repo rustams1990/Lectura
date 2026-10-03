@@ -1880,6 +1880,7 @@ export default function VocabularyPractice({
                 onClose={() => setIsEditingWord(null)}
                 settings={settings}
                 lessons={lessons}
+                showLearningTime={true}
               />
             </div>
           </div>

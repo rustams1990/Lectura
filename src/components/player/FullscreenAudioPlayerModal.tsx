@@ -12,9 +12,11 @@ import {
   Headphones,
   Download,
   Loader2,
+  Video,
 } from 'lucide-react';
 import { usePlaylistStore, RepeatMode } from '../../store/playlistStore';
 import { usePodcastStore } from '../../store/podcastStore';
+import { useUIStore } from '../../store/uiStore';
 import { whisperQueueService } from '../../services/whisperQueueService';
 import { useToast } from '../../context/ToastContext';
 import { Lesson, PodcastEpisode } from '../../types';
@@ -60,6 +62,9 @@ export default function FullscreenAudioPlayerModal({
     setPlaybackRate,
     setRepeatMode,
     setShowQueueModal,
+    preferAudioOnly,
+    setPreferAudioOnly,
+    togglePreferAudioOnly,
   } = usePlaylistStore();
 
   const [isSeeking, setIsSeeking] = useState(false);
@@ -322,6 +327,29 @@ export default function FullscreenAudioPlayerModal({
     }
   };
 
+  const handleToggleAudioVideo = () => {
+    if (preferAudioOnly) {
+      if (currentTrack?.id) {
+        try {
+          const payload = JSON.stringify({
+            progress: Math.floor(currentTime || 0),
+            updatedAt: Date.now(),
+          });
+          localStorage.setItem(`youtube_progress_${currentTrack.id}`, payload);
+        } catch (_) {}
+      }
+      usePlaylistStore.getState().setIsPlaying(false);
+      setPreferAudioOnly(false);
+      useUIStore.getState().setShowYoutubePlayer(true);
+      collapsePlayer();
+      showToast(t('player.video_mode', 'Режим видео'), 'info');
+    } else {
+      setPreferAudioOnly(true);
+      useUIStore.getState().setShowYoutubePlayer(false);
+      showToast(t('player.audio_mode_activated', 'Фоновый режим «Только аудио» включен'), 'info');
+    }
+  };
+
   // Touch swipe-down gesture to collapse
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -418,6 +446,36 @@ export default function FullscreenAudioPlayerModal({
             <div className="w-full h-full bg-gradient-to-br from-teal-950 to-zinc-900 flex flex-col items-center justify-center text-teal-400 gap-3">
               <Headphones className="w-20 h-20 opacity-80" />
             </div>
+          )}
+
+          {/* Audio / Video Switcher for YouTube tracks */}
+          {currentTrack && (currentTrack.youtubeId || currentTrack.lessonType === 'youtube') && (
+            <button
+              type="button"
+              onClick={handleToggleAudioVideo}
+              className={`absolute top-3 left-3 px-2.5 py-1 backdrop-blur-md rounded-full text-[11px] font-bold border shadow-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                preferAudioOnly
+                  ? 'bg-amber-500/85 border-amber-400/60 text-white'
+                  : 'bg-teal-600/85 border-teal-400/60 text-white'
+              }`}
+              title={
+                preferAudioOnly
+                  ? t('player.switch_to_video_tooltip', 'Вернуться к просмотру видео')
+                  : t('player.audio_only_tooltip', 'Фоновый режим YouTube: экономит трафик, батарею и воспроизводит при выключенном экране')
+              }
+            >
+              {preferAudioOnly ? (
+                <>
+                  <Video className="w-3.5 h-3.5" />
+                  <span>{t('player.watch_video', 'Смотреть видео')}</span>
+                </>
+              ) : (
+                <>
+                  <Headphones className="w-3.5 h-3.5" />
+                  <span>{t('player.audio_only', 'Только аудио')}</span>
+                </>
+              )}
+            </button>
           )}
 
           {/* Track counter badge in corner */}

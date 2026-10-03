@@ -4232,11 +4232,13 @@ export default function App() {
           <div className="animate-in fade-in duration-150 h-full">
             <PodcastsPage
               lessons={lessons}
+              playlists={playlists}
               history={history}
               vocab={vocab}
               wordLinks={wordLinks}
               selectedTargetLanguage={selectedTargetLanguage}
               onOpenLesson={handleOpenWhisperBook}
+              onAddPlaylist={handleAddPlaylist}
               onToggleCompleteLesson={(lessonId) => {
                 const target = lessons.find(l => l.id === lessonId);
                 if (target) {

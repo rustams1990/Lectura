@@ -4,7 +4,7 @@ import {
   ArrowLeft, Play, BookOpen, Headphones, Trash2, CheckCircle2,
   Clock, ExternalLink, Loader2, Sparkles, AlertCircle, Share2,
   ListVideo, RefreshCw, Archive, ArchiveRestore, ArrowUpDown, Search, ChevronDown, Plus, CheckSquare, Square, Check,
-  FolderInput, X, Pencil, Star, GripVertical, BarChart2, Tag, Filter
+  FolderInput, X, Pencil, Star, GripVertical, BarChart2, Tag, Filter, ListPlus
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
@@ -26,7 +26,7 @@ import LevelFilterDropdown, { DifficultyGroup } from "../library/LevelFilterDrop
 import TagFilterDropdown from "../library/TagFilterDropdown";
 import { classifyDifficulty } from "../../utils/playlistDifficultyUtils";
 import { getTagColor, getAllKnownTags } from "../../utils/tagColors";
-import { deduplicatePlaylistItems, isPlaylistItemCompleted } from "../../utils/playlistUtils";
+import { deduplicatePlaylistItems, isPlaylistItemCompleted, calculatePlaylistTimeRemaining } from "../../utils/playlistUtils";
 
 export type PlaylistSortOption = 
   | 'default'       // Исходный порядок плейлиста (по порядку добавления / #1, #2...)
@@ -141,6 +141,8 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
+  const preferAudioOnly = usePlaylistStore((s) => s.preferAudioOnly);
+  const togglePreferAudioOnly = usePlaylistStore((s) => s.togglePreferAudioOnly);
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddMediaModal, setShowAddMediaModal] = useState(false);
@@ -175,6 +177,26 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
       setSelectedTag("all");
     }
   }, [initialTagFilter]);
+
+  const [itemsPerPage, setItemsPerPage] = useState<number>(() => {
+    const saved = localStorage.getItem("lectura_playlist_items_per_page");
+    return saved !== null ? Number(saved) : 50;
+  });
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const episodesListTopRef = useRef<HTMLDivElement>(null);
+
+  // Reset to first page whenever search/filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, selectedDifficulty, selectedTag, sortOption, playlist.id]);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+    try {
+      localStorage.setItem("lectura_playlist_items_per_page", String(newSize));
+    } catch (_) {}
+  };
 
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
@@ -449,11 +471,34 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     showToast(t("playlist.order_updated", "Порядок видео обновлен!"), "success");
   };
 
-  const totalSeconds = useMemo(() => {
-    return items.reduce((acc, item) => {
+  const timeStats = useMemo(() => {
+    return calculatePlaylistTimeRemaining(items, lessons, history);
+  }, [items, lessons, history]);
+  const totalSeconds = timeStats.totalSeconds;
+
+  const mediaComposition = useMemo(() => {
+    let videos = 0;
+    let podcasts = 0;
+    let books = 0;
+
+    for (const item of items) {
       const lesson = getItemLesson(item);
-      return acc + getItemEffectiveDuration(item, lesson);
-    }, 0);
+      if (item.videoId || lesson?.youtubeId) {
+        videos++;
+      } else if (
+        lesson?.lessonType === "podcast" ||
+        item.lessonId?.startsWith("podcast_") ||
+        lesson?.audioUrl ||
+        (item as any).audioUrl
+      ) {
+        podcasts++;
+      } else {
+        books++;
+      }
+    }
+
+    const isMixed = (videos > 0 && podcasts > 0) || (videos > 0 && books > 0) || (podcasts > 0 && books > 0);
+    return { videos, podcasts, books, isMixed };
   }, [items, lessons]);
 
   const lastDurationHealedKeyRef = useRef<string>("");
@@ -746,6 +791,48 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     return result;
   }, [items, sortOption, statusFilter, selectedDifficulty, selectedTag, lessons, history, playlist]);
 
+  // Pagination calculations
+  const effectivePageSize = itemsPerPage === 0 ? sortedAndFilteredItems.length : itemsPerPage;
+  const totalPages = Math.max(1, Math.ceil(sortedAndFilteredItems.length / (effectivePageSize || 50)));
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, totalPages));
+
+  const startIndex = (safeCurrentPage - 1) * (itemsPerPage === 0 ? sortedAndFilteredItems.length : itemsPerPage);
+  const endIndex = itemsPerPage === 0 ? sortedAndFilteredItems.length : Math.min(startIndex + itemsPerPage, sortedAndFilteredItems.length);
+
+  const paginatedItems = useMemo(() => {
+    if (itemsPerPage === 0 || sortedAndFilteredItems.length <= itemsPerPage) {
+      return sortedAndFilteredItems;
+    }
+    return sortedAndFilteredItems.slice(startIndex, endIndex);
+  }, [sortedAndFilteredItems, startIndex, endIndex, itemsPerPage]);
+
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | 'ellipsis')[] = [];
+    pages.push(1);
+    if (safeCurrentPage > 3) {
+      pages.push('ellipsis');
+    }
+    const start = Math.max(2, safeCurrentPage - 1);
+    const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+    for (let p = start; p <= end; p++) {
+      pages.push(p);
+    }
+    if (safeCurrentPage < totalPages - 2) {
+      pages.push('ellipsis');
+    }
+    pages.push(totalPages);
+    return pages;
+  }, [totalPages, safeCurrentPage]);
+
+  const handlePageChange = (newPage: number) => {
+    const clamped = Math.max(1, Math.min(newPage, totalPages));
+    setCurrentPage(clamped);
+    episodesListTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   // Helper to open lesson
   const openLessonSafe = (lessonId: string) => {
     useBingeQueueStore.getState().setQueueContext({
@@ -1001,17 +1088,22 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
     const queueCandidates = items.map((it) => {
       const lesson = getItemLesson(it);
+      const isVideo = Boolean(it.videoId || lesson?.youtubeId);
+      const effectiveAudioUrl = lesson?.audioUrl || (it as any).audioUrl || "";
+      const resolvedLessonType = lesson?.lessonType || (isVideo ? "youtube" : "podcast");
+
       return {
-        id: lesson ? lesson.id : `yt_temp_${it.videoId || it.id}`,
+        id: lesson ? lesson.id : (isVideo ? `yt_temp_${it.videoId || it.id}` : `audio_temp_${it.id}`),
         title: it.title,
         bookTitle: playlist.title,
-        audioUrl: lesson?.audioUrl || "",
+        audioUrl: effectiveAudioUrl,
         youtubeId: it.videoId || lesson?.youtubeId || null,
-        duration: it.durationSeconds || lesson?.youtubeDuration || undefined,
+        duration: it.durationSeconds || lesson?.youtubeDuration || (lesson as any)?.duration || undefined,
         coverUrl: it.thumbnailUrl || playlist.thumbnailUrl,
         targetLanguage: playlist.language,
-        lessonType: "youtube",
-        channelName: playlist.channelTitle,
+        lessonType: resolvedLessonType,
+        channelName: playlist.channelTitle || lesson?.channelName,
+        guid: (lesson as any)?.guid || (it as any).guid || it.id,
       };
     });
 
@@ -1028,6 +1120,29 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
       usePlaylistStore.getState().setQueue(queueCandidates, startIndex, true);
     }
     showToast(t("player.started_playlist", "Playing {{count}} tracks in queue", { count: items.length }), "success");
+  };
+
+  // Add single item to audio queue
+  const handleAddToQueue = (item: PlaylistItem) => {
+    const lesson = getItemLesson(item);
+    const isVideo = Boolean(item.videoId || lesson?.youtubeId);
+    const effectiveAudioUrl = lesson?.audioUrl || (item as any).audioUrl || "";
+    const resolvedLessonType = lesson?.lessonType || (isVideo ? "youtube" : "podcast");
+
+    usePlaylistStore.getState().addToQueue({
+      id: lesson ? lesson.id : (isVideo ? `yt_temp_${item.videoId || item.id}` : `audio_temp_${item.id}`),
+      title: item.title,
+      bookTitle: playlist.title,
+      audioUrl: effectiveAudioUrl,
+      youtubeId: item.videoId || lesson?.youtubeId || null,
+      duration: item.durationSeconds || lesson?.youtubeDuration || (lesson as any)?.duration || undefined,
+      coverUrl: item.thumbnailUrl || playlist.thumbnailUrl,
+      targetLanguage: playlist.language,
+      lessonType: resolvedLessonType,
+      channelName: playlist.channelTitle || lesson?.channelName,
+      guid: (lesson as any)?.guid || (item as any).guid || item.id,
+    });
+    showToast(t("player.added_to_queue", "Добавлено в очередь воспроизведения"), "success");
   };
 
   // Remove individual episode from playlist
@@ -1567,11 +1682,52 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
 
               {/* Aggregate Meta Stats */}
               <div className="text-xs text-zinc-500 dark:text-zinc-400 font-normal flex items-center gap-2">
-                <span>{items.length} {t("playlist.videos_count", "videos")}</span>
+                {mediaComposition.isMixed ? (
+                  <span>
+                    {mediaComposition.videos > 0 && `${mediaComposition.videos} ${t("playlist.videos_short", "videos")}`}
+                    {mediaComposition.videos > 0 && mediaComposition.podcasts > 0 && " • "}
+                    {mediaComposition.podcasts > 0 && `${mediaComposition.podcasts} ${t("playlist.podcasts_short", "podcasts")}`}
+                    {mediaComposition.books > 0 && ` • ${mediaComposition.books} ${t("playlist.books_short", "texts")}`}
+                  </span>
+                ) : mediaComposition.podcasts > 0 && mediaComposition.videos === 0 ? (
+                  <span>{items.length} {t("playlist.podcasts_count", "podcasts")}</span>
+                ) : mediaComposition.books > 0 && mediaComposition.videos === 0 ? (
+                  <span>{items.length} {t("playlist.books_count", "books")}</span>
+                ) : (
+                  <span>{items.length} {t("playlist.videos_count", "videos")}</span>
+                )}
                 {totalSeconds > 0 && (
                   <>
                     <span>•</span>
-                    <span>{formatTotalDuration(totalSeconds, t)}</span>
+                    {timeStats.hasStarted && !timeStats.isAllCompleted && timeStats.remainingSeconds > 0 ? (
+                      <span
+                        className="text-teal-600 dark:text-teal-400 font-semibold cursor-help"
+                        title={t(
+                          "playlist.remaining_time_tooltip",
+                          "Осталось: {{remaining}} • Всего: {{total}}",
+                          {
+                            remaining: formatTotalDuration(timeStats.remainingSeconds, t),
+                            total: formatTotalDuration(totalSeconds, t),
+                          }
+                        )}
+                      >
+                        {t("playlist.detail_duration_with_left", "{{total}} (осталось {{remaining}})", {
+                          total: formatTotalDuration(totalSeconds, t),
+                          remaining: formatTotalDuration(timeStats.remainingSeconds, t),
+                        })}
+                      </span>
+                    ) : timeStats.isAllCompleted ? (
+                      <span
+                        className="text-emerald-600 dark:text-emerald-400 font-semibold"
+                        title={t("playlist.completed_total_time", "Коллекция пройдена! Всего: {{time}}", {
+                          time: formatTotalDuration(totalSeconds, t),
+                        })}
+                      >
+                        ✅ {formatTotalDuration(totalSeconds, t)}
+                      </span>
+                    ) : (
+                      <span>{formatTotalDuration(totalSeconds, t)}</span>
+                    )}
                   </>
                 )}
               </div>
@@ -1601,8 +1757,8 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
               )}
             </div>
 
-            {/* Actions: ▶ Play All */}
-            <div className="pt-2">
+            {/* Actions: ▶ Play All & Audio Only Toggle */}
+            <div className="pt-2 space-y-2">
               <button
                 type="button"
                 onClick={handlePlayAll}
@@ -1611,6 +1767,26 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 <Play className="w-4 h-4 fill-current" />
                 <span>{t("player.play_all", "Play All")}</span>
               </button>
+
+              {mediaComposition.videos > 0 && (
+                <button
+                  type="button"
+                  onClick={togglePreferAudioOnly}
+                  className={`w-full py-2 px-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-98 ${
+                    preferAudioOnly
+                      ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-300/80 dark:border-teal-700/80 shadow-3xs'
+                      : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700/80 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  }`}
+                  title={t('player.audio_only_tooltip', 'Фоновый режим YouTube: экономит трафик, батарею и воспроизводит при выключенном экране')}
+                >
+                  <Headphones className="w-3.5 h-3.5" />
+                  <span>
+                    {preferAudioOnly
+                      ? t('player.audio_only_active', '🎧 Режим «Только аудио» включен')
+                      : t('player.enable_audio_only', '🎧 Фоновый режим: только аудио')}
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Aggregate Vocabulary & Comprehension Analytics */}
@@ -1734,15 +1910,24 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
         </div>
 
         {/* Right Column (Videos / Episodes List with Sorting & Search) */}
-        <div className="flex-1 min-w-0 space-y-3">
+        <div ref={episodesListTopRef} className="flex-1 min-w-0 space-y-3">
           {/* Header toolbar with counter, search input, and sort dropdown */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-extrabold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 flex items-center gap-2 flex-wrap">
                 <span>{t("playlist.episodes_list", "Videos / Episodes")}</span>
                 <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700/60">
                   {sortedAndFilteredItems.length}{selectedDifficulty !== "all" || selectedTag !== "all" || statusFilter !== "all" ? ` / ${items.length}` : ""}
                 </span>
+                {totalPages > 1 && itemsPerPage > 0 && (
+                  <span className="text-[11px] text-zinc-400 font-mono font-medium hidden sm:inline">
+                    • {t("playlist.showing_range", "Показано {{start}}–{{end}} из {{total}}", {
+                      start: sortedAndFilteredItems.length > 0 ? startIndex + 1 : 0,
+                      end: endIndex,
+                      total: sortedAndFilteredItems.length,
+                    })}
+                  </span>
+                )}
               </h2>
             </div>
 
@@ -2041,7 +2226,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
-              {sortedAndFilteredItems.map((item) => {
+              {paginatedItems.map((item) => {
                 const originalIndex = items.findIndex((it) => it.id === item.id) + 1;
                 const lesson = getItemLesson(item);
                 const isCompleted = isItemCompleted(item);
@@ -2327,6 +2512,18 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                       {isLoading && (
                         <Loader2 className="w-4 h-4 animate-spin text-teal-600 dark:text-teal-400 mr-1" />
                       )}
+                      {/* Add to audio queue button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddToQueue(item);
+                        }}
+                        title={t("player.add_to_queue", "Добавить в очередь воспроизведения")}
+                        className="p-1.5 text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-teal-200 dark:hover:border-teal-800/50 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      >
+                        <ListPlus className="w-3.5 h-3.5" />
+                      </button>
                       {/* Set as Cover button */}
                       <button
                         type="button"
@@ -2384,6 +2581,114 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Pagination Controls Bar */}
+          {sortedAndFilteredItems.length > 25 && (
+            <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs mt-3">
+              {/* Left: Items Per Page & Range */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-zinc-500 font-medium">{t("playlist.page_size", "Show:")}</span>
+                <div className="flex items-center bg-white dark:bg-zinc-800 rounded-xl p-0.5 border border-zinc-200 dark:border-zinc-700">
+                  {[25, 50, 100, 200, 0].map((sz) => (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => handlePageSizeChange(sz)}
+                      className={`px-2.5 py-1 rounded-lg font-bold text-xs cursor-pointer transition-all ${
+                        itemsPerPage === sz
+                          ? "bg-teal-600 text-white shadow-3xs"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                      }`}
+                    >
+                      {sz === 0 ? t("playlist.all_items", "All") : sz}
+                    </button>
+                  ))}
+                </div>
+
+                <span className="text-zinc-400 font-mono hidden sm:inline ml-1">
+                  {t("playlist.showing_range", "Showing {{start}}–{{end}} of {{total}}", {
+                    start: sortedAndFilteredItems.length > 0 ? startIndex + 1 : 0,
+                    end: endIndex,
+                    total: sortedAndFilteredItems.length,
+                  })}
+                </span>
+              </div>
+
+              {/* Right: Page Buttons */}
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1 select-none flex-wrap">
+                  {/* First Page button */}
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === 1}
+                    onClick={() => handlePageChange(1)}
+                    className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                    title={t("playlist.first_page", "First page")}
+                  >
+                    «
+                  </button>
+
+                  {/* Prev Page button */}
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === 1}
+                    onClick={() => handlePageChange(safeCurrentPage - 1)}
+                    className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer font-bold"
+                    title={t("playlist.prev_page", "Previous")}
+                  >
+                    {t("playlist.prev_page", "Previous")}
+                  </button>
+
+                  {/* Page Numbers */}
+                  {pageNumbers.map((p, idx) => {
+                    if (p === "ellipsis") {
+                      return (
+                        <span key={`ell-${idx}`} className="px-1 text-zinc-400 font-mono">
+                          …
+                        </span>
+                      );
+                    }
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => handlePageChange(p)}
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg font-mono font-bold text-xs transition-all cursor-pointer flex items-center justify-center ${
+                          safeCurrentPage === p
+                            ? "bg-teal-600 text-white shadow-xs"
+                            : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+
+                  {/* Next Page button */}
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === totalPages}
+                    onClick={() => handlePageChange(safeCurrentPage + 1)}
+                    className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer font-bold"
+                    title={t("playlist.next_page", "Next")}
+                  >
+                    {t("playlist.next_page", "Next")}
+                  </button>
+
+                  {/* Last Page button */}
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === totalPages}
+                    onClick={() => handlePageChange(totalPages)}
+                    className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                    title={t("playlist.last_page", "Last page")}
+                  >
+                    »
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

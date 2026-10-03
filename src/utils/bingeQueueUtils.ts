@@ -25,7 +25,8 @@ export function calculateNextBingeLesson(
       const currentIndex = playlist.items.findIndex(
         (it) =>
           it.lessonId === currentLesson.id ||
-          (currentLesson.youtubeId && it.videoId === currentLesson.youtubeId)
+          (currentLesson.youtubeId && it.videoId === currentLesson.youtubeId) ||
+          (currentLesson.title && it.title && it.title.trim().toLowerCase() === currentLesson.title.trim().toLowerCase())
       );
 
       if (currentIndex !== -1) {
@@ -34,11 +35,33 @@ export function calculateNextBingeLesson(
           const nextLesson = lessons.find(
             (l) =>
               l.id === nextItem.lessonId ||
-              (nextItem.videoId && l.youtubeId === nextItem.videoId)
+              (nextItem.videoId && l.youtubeId === nextItem.videoId) ||
+              (nextItem.title && l.title && l.title.trim().toLowerCase() === nextItem.title.trim().toLowerCase())
           );
           if (nextLesson) {
             return {
               nextLesson,
+              isLastInPlaylist: false,
+              playlistTitle: playlist.title,
+            };
+          } else {
+            // Virtual lesson representation so playback does not stall if next item is an unimported stream
+            const isVideo = Boolean(nextItem.videoId);
+            const virtualLesson: Lesson = {
+              id: nextItem.lessonId || (isVideo ? `yt_temp_${nextItem.videoId}` : `podcast_temp_${nextItem.id}`),
+              title: nextItem.title,
+              youtubeId: nextItem.videoId || null,
+              audioUrl: (nextItem as any).audioUrl || null,
+              duration: nextItem.durationSeconds || 0,
+              coverUrl: nextItem.thumbnailUrl || playlist.thumbnailUrl,
+              targetLanguage: playlist.language,
+              translationLanguage: "English",
+              lessonType: isVideo ? "youtube" : "podcast",
+              playlistId: playlist.id,
+              text: "",
+            };
+            return {
+              nextLesson: virtualLesson,
               isLastInPlaylist: false,
               playlistTitle: playlist.title,
             };

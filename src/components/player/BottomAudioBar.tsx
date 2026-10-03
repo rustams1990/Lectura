@@ -10,9 +10,12 @@ import {
   BookOpen,
   Download,
   Loader2,
+  ListMusic,
+  Video,
 } from 'lucide-react';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { usePodcastStore } from '../../store/podcastStore';
+import { useUIStore } from '../../store/uiStore';
 import { whisperQueueService } from '../../services/whisperQueueService';
 import { Lesson, PodcastEpisode } from '../../types';
 import { useTranslation } from 'react-i18next';
@@ -60,7 +63,15 @@ export default function BottomAudioBar({
     expandPlayer,
     isOpen,
     closePlayer,
+    showQueueModal,
+    setShowQueueModal,
+    preferAudioOnly,
+    setPreferAudioOnly,
+    togglePreferAudioOnly,
   } = usePlaylistStore();
+
+  const showYoutubePlayer = useUIStore((s) => s.showYoutubePlayer);
+  const setShowYoutubePlayer = useUIStore((s) => s.setShowYoutubePlayer);
 
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
@@ -125,6 +136,28 @@ export default function BottomAudioBar({
   if (!isOpen || activeTab === 'read' || queue.length === 0 || !currentTrack) {
     return null;
   }
+
+  const handleToggleAudioVideo = () => {
+    if (preferAudioOnly) {
+      if (currentTrack?.id) {
+        try {
+          const payload = JSON.stringify({
+            progress: Math.floor(currentTime || 0),
+            updatedAt: Date.now(),
+          });
+          localStorage.setItem(`youtube_progress_${currentTrack.id}`, payload);
+        } catch (_) {}
+      }
+      usePlaylistStore.getState().setIsPlaying(false);
+      setPreferAudioOnly(false);
+      setShowYoutubePlayer(true);
+      showToast(t('player.video_mode', 'Режим видео'), 'info');
+    } else {
+      setPreferAudioOnly(true);
+      setShowYoutubePlayer(false);
+      showToast(t('player.audio_mode_activated', 'Фоновый режим «Только аудио» включен'), 'info');
+    }
+  };
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSeekValue(Number(e.target.value));
@@ -359,6 +392,51 @@ export default function BottomAudioBar({
                   ? t('podcasts.open', 'Open')
                   : t('podcasts.import', 'Import')}
               </span>
+            </button>
+
+            {/* Audio / Video Switcher for YouTube tracks */}
+            {currentTrack && (currentTrack.youtubeId || currentTrack.lessonType === 'youtube') && (
+              <button
+                type="button"
+                onClick={handleToggleAudioVideo}
+                className={`px-2 py-1 text-[11px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1.5 shrink-0 border ${
+                  preferAudioOnly
+                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/80 hover:bg-amber-100 dark:hover:bg-amber-900/60 shadow-3xs'
+                    : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700/80 hover:text-zinc-700 dark:hover:text-zinc-200'
+                }`}
+                title={
+                  preferAudioOnly
+                    ? t('player.switch_to_video_tooltip', 'Вернуться к просмотру видео')
+                    : t('player.audio_only_tooltip', 'Фоновый режим YouTube: экономит трафик, батарею и воспроизводит при выключенном экране')
+                }
+              >
+                {preferAudioOnly ? (
+                  <>
+                    <Video className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span className="hidden sm:inline">{t('player.watch_video', 'Смотреть видео')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Headphones className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{t('player.audio_only', 'Только аудио')}</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Up Next Queue Drawer Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowQueueModal(!showQueueModal)}
+              className="p-1.5 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition cursor-pointer relative"
+              title={t('player.up_next_queue', 'Очередь воспроизведения')}
+            >
+              <ListMusic className="w-4 h-4" />
+              {queue.length > 1 && (
+                <span className="absolute -top-1 -right-1 bg-teal-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center font-mono shadow-xs">
+                  {queue.length}
+                </span>
+              )}
             </button>
 
             {/* Volume */}

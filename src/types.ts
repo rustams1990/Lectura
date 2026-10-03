@@ -341,6 +341,7 @@ export interface HistoryEntry {
   status?: "in_progress" | "completed";
   durationSeconds?: number;
   duration?: number;
+  progressPercent?: number;
   notes?: string;
   tags?: string[];
   primaryTag?: string | null;

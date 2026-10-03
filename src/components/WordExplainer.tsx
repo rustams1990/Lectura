@@ -596,6 +596,7 @@ interface WordExplainerProps {
   currentLessonId?: string;
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
   className?: string;
+  showLearningTime?: boolean;
 }
 
 const normalizeTranslationSemicolons = (text: string): string => {
@@ -630,6 +631,7 @@ function WordExplainer({
   currentLessonId,
   onOpenLesson,
   className,
+  showLearningTime = false,
 }: WordExplainerProps) {
   const storeSelectedWord = useWordStore((state) => state.selectedWord);
   const storeWord = extractSelectedWordText(storeSelectedWord);
@@ -691,9 +693,10 @@ function WordExplainer({
   }, [word, existingVocab, settings, targetLanguage]);
 
   const wordTimeInfo = useMemo(() => {
+    if (!showLearningTime) return null;
     const rawCreated = existingVocab?.createdAt;
     return getLearningDurationInfo(rawCreated, t, i18n?.language);
-  }, [existingVocab?.createdAt, t, i18n?.language]);
+  }, [showLearningTime, existingVocab?.createdAt, t, i18n?.language]);
 
   const handleSelectImage = (url: string | null) => {
     setImageUrlValue(url);
@@ -2423,17 +2426,6 @@ function WordExplainer({
           </span>
         )}
 
-        {/* Learning duration / added date badge */}
-        {wordTimeInfo && (
-          <span
-            className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/60 flex items-center gap-1 shrink-0"
-            title={wordTimeInfo.fullTitle}
-          >
-            <Clock className="w-3 h-3 text-zinc-400" />
-            <span>{wordTimeInfo.durationLabel}</span>
-          </span>
-        )}
-
         {/* Tag+ button to expand/toggle custom categorization tags list */}
         <button
           onClick={() => {
@@ -3272,7 +3264,7 @@ function WordExplainer({
       <hr className="border-t border-zinc-100 dark:border-zinc-800 my-1 shrink-0" />
 
       {/* Word Added & In-learning Time info bar */}
-      {wordTimeInfo && (
+      {showLearningTime && wordTimeInfo && (
         <div className="flex items-center justify-between text-[11px] text-zinc-400 dark:text-zinc-500 px-1 pt-0.5 shrink-0">
           <div className="flex items-center gap-1.5" title={wordTimeInfo.fullTitle}>
             <Clock className="w-3 h-3 text-zinc-400 shrink-0" />

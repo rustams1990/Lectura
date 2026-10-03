@@ -10,6 +10,7 @@ import FloatingWordPopup from "./FloatingWordPopup";
 import AiHubModal from "./AiHubModal";
 import { NextLessonCountdownOverlay } from "./reader/NextLessonCountdownOverlay";
 import { useBingeQueueStore } from "../store/useBingeQueueStore";
+import { usePlaylistStore } from "../store/playlistStore";
 import { Lesson, HistoryEntry, ReaderSettings, VocabItem, DEFAULT_TOOLBAR_VISIBILITY, ReaderToolbarVisibility, WordCardViewType, normalizeWordCardView, isVideoLesson } from "../types";
 import { useTranslation } from "react-i18next";
 import { useVocab } from "../context/VocabContext";
@@ -104,6 +105,30 @@ export default function ReaderScreen({
   const countdownState = useBingeQueueStore((s) => s.countdownState);
   const triggerImmediate = useBingeQueueStore((s) => s.triggerImmediate);
   const cancelCountdown = useBingeQueueStore((s) => s.cancelCountdown);
+
+  const preferAudioOnly = usePlaylistStore((s) => s.preferAudioOnly);
+  const playlistQueue = usePlaylistStore((s) => s.queue);
+  const playlistIndex = usePlaylistStore((s) => s.currentIndex);
+  const currentPlaylistTrack = playlistQueue[playlistIndex] || null;
+
+  const isVideoPlayerActive = Boolean(
+    activeLesson?.youtubeId && showYoutubePlayer && !preferAudioOnly
+  );
+
+  const isAudioOnlyLessonPlaying = Boolean(
+    !isVideoPlayerActive &&
+    activeLesson &&
+    (
+      (activeLesson.youtubeId && (preferAudioOnly || !showYoutubePlayer) && currentPlaylistTrack && (
+        currentPlaylistTrack.id === activeLesson.id ||
+        currentPlaylistTrack.youtubeId === activeLesson.youtubeId
+      )) ||
+      (!activeLesson.youtubeId && currentPlaylistTrack && (
+        currentPlaylistTrack.id === activeLesson.id ||
+        Boolean(activeLesson.title && currentPlaylistTrack.title && activeLesson.title.trim().toLowerCase() === currentPlaylistTrack.title.trim().toLowerCase())
+      ))
+    )
+  );
 
   // Cancel countdown when leaving reader or unmounting
   useEffect(() => {
@@ -558,7 +583,8 @@ export default function ReaderScreen({
               )}
 
               {/* Interactive Audio Player */}
-              {Boolean(
+              {!isVideoPlayerActive && Boolean(
+                isAudioOnlyLessonPlaying ||
                 (activeLesson.audioBase64 && activeLesson.audioBase64.trim().length > 0) ||
                 (activeLesson.audioUrl && 
                  activeLesson.audioUrl.trim().length > 0 &&

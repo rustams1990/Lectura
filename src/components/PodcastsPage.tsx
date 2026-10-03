@@ -9,7 +9,7 @@ import { usePodcastStore } from "../store/podcastStore";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useToast } from "../context/ToastContext";
 import { useWhisperQueue } from "../services/whisperQueueService";
-import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastTimelineEpisode, VocabItem } from "../types";
+import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastTimelineEpisode, VocabItem, Playlist } from "../types";
 import PodcastChannelView, { EpisodeRow, getEpisodeLessonInfo, EpisodeLessonInfo, parseDurationToSeconds } from "./PodcastChannelView";
 import { normalizeLanguage } from "../utils";
 
@@ -155,22 +155,26 @@ const PodcastCard = React.memo<PodcastCardProps>(({
 
 interface PodcastsPageProps {
   lessons?: Lesson[];
+  playlists?: Playlist[];
   history?: HistoryEntry[];
   vocab?: Record<string, VocabItem>;
   wordLinks?: Record<string, string>;
   selectedTargetLanguage?: string;
   onOpenLesson?: (lessonId: string) => void;
   onToggleCompleteLesson?: (lessonId: string) => void;
+  onAddPlaylist?: (playlist: Playlist) => void;
 }
 
 export default function PodcastsPage({
   lessons = [],
+  playlists = [],
   history = [],
   vocab = {},
   wordLinks = {},
   selectedTargetLanguage,
   onOpenLesson,
   onToggleCompleteLesson,
+  onAddPlaylist,
 }: PodcastsPageProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -494,12 +498,14 @@ export default function PodcastsPage({
         podcast={currentPodcast}
         onBack={handleBack}
         lessons={lessons}
+        playlists={playlists}
         history={history}
         vocab={vocab}
         wordLinks={wordLinks}
         selectedTargetLanguage={selectedTargetLanguage}
         onOpenLesson={onOpenLesson}
         onToggleCompleteLesson={onToggleCompleteLesson}
+        onAddPlaylist={onAddPlaylist}
       />
     );
   }

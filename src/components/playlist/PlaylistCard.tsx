@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Playlist, Lesson, HistoryEntry, ReaderSettings } from "../../types";
-import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore, Pencil, Star } from "lucide-react";
+import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore, Pencil, Star, Layers, BookOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SelectPlaylistCoverModal } from "./SelectPlaylistCoverModal";
 import { FLAG_EMOJI_TO_CODE } from "../../utils";
@@ -11,7 +11,7 @@ import {
   getDifficultyRangeLabel,
   getDifficultyRangeBadgeColor,
 } from "../../utils/playlistDifficultyUtils";
-import { deduplicatePlaylistItems, isPlaylistItemCompleted } from "../../utils/playlistUtils";
+import { deduplicatePlaylistItems, calculatePlaylistTimeRemaining } from "../../utils/playlistUtils";
 
 export function renderCircularFlag(flagEmoji: string) {
   const code = FLAG_EMOJI_TO_CODE[flagEmoji];
@@ -90,6 +90,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   const [showCoverPicker, setShowCoverPicker] = useState(false);
   const [renameTitle, setRenameTitle] = useState(playlist.title);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [displayTimeMode, setDisplayTimeMode] = useState<"remaining" | "total">("remaining");
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -139,22 +140,40 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   const flag = getLanguageFlagEmoji(playlist.language, languageFlags);
   const localizedLang = getLocalizedLanguageName(playlist.language, i18n.language);
 
-  // Total duration calculation
-  const totalSeconds = useMemo(() => {
-    return items.reduce((acc, item) => {
-      const lesson = (item.lessonId ? lessons.find((l) => l.id === item.lessonId) : undefined) ||
-                     (item.videoId ? lessons.find((l) => l.youtubeId === item.videoId) : undefined);
-      return acc + getItemEffectiveDuration(item, lesson);
-    }, 0);
-  }, [items, lessons]);
-
-  // Calculate completed count using unified logic
-  const completedCount = useMemo(() => {
-    if (items.length === 0) return 0;
-    return items.filter((item) => isPlaylistItemCompleted(item, lessons, history)).length;
+  // Time remaining and total duration calculation
+  const timeStats = useMemo(() => {
+    return calculatePlaylistTimeRemaining(items, lessons, history);
   }, [items, lessons, history]);
+  const { totalSeconds, remainingSeconds, completedCount, hasStarted, isAllCompleted } = timeStats;
 
   const progressPercent = itemCount > 0 ? Math.round((completedCount / itemCount) * 100) : 0;
+
+  // Analyze media types across playlist items
+  const mediaComposition = useMemo(() => {
+    let videos = 0;
+    let podcasts = 0;
+    let books = 0;
+
+    for (const item of items) {
+      const lesson = (item.lessonId ? lessons.find((l) => l.id === item.lessonId) : undefined) ||
+                     (item.videoId ? lessons.find((l) => l.youtubeId === item.videoId) : undefined);
+      if (item.videoId || lesson?.youtubeId) {
+        videos++;
+      } else if (
+        lesson?.lessonType === "podcast" ||
+        item.lessonId?.startsWith("podcast_") ||
+        lesson?.audioUrl ||
+        (item as any).audioUrl
+      ) {
+        podcasts++;
+      } else {
+        books++;
+      }
+    }
+
+    const isMixed = (videos > 0 && podcasts > 0) || (videos > 0 && books > 0) || (podcasts > 0 && books > 0);
+    return { videos, podcasts, books, isMixed };
+  }, [items, lessons]);
 
   // Determine effective cover thumbnail
   const effectiveThumbnailUrl = useMemo(() => {
@@ -333,8 +352,27 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
         <div className="z-10 mt-auto flex items-center justify-between w-full">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-teal-600/95 backdrop-blur-md text-white rounded-md shadow-xs shrink-0">
-              <ListVideo className="w-2.5 h-2.5" />
-              {playlist.sourceType === "youtube_playlist" ? "YouTube Playlist" : t("playlist.collection", "Collection")}
+              {playlist.sourceType === "youtube_playlist" && !mediaComposition.isMixed ? (
+                <>
+                  <ListVideo className="w-2.5 h-2.5" />
+                  YouTube Playlist
+                </>
+              ) : playlist.sourceType === "podcast_show" || (mediaComposition.podcasts > 0 && mediaComposition.videos === 0) ? (
+                <>
+                  <Headphones className="w-2.5 h-2.5" />
+                  {t("playlist.podcast_collection", "Podcast")}
+                </>
+              ) : mediaComposition.isMixed ? (
+                <>
+                  <Layers className="w-2.5 h-2.5" />
+                  {t("playlist.mixed_collection", "Mixed Collection")}
+                </>
+              ) : (
+                <>
+                  <ListVideo className="w-2.5 h-2.5" />
+                  {t("playlist.collection", "Collection")}
+                </>
+              )}
             </span>
 
             {/* Dynamic difficulty range badge */}
@@ -350,7 +388,13 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
           </div>
 
           <div className="px-2 py-0.5 bg-black/75 backdrop-blur-md rounded-md text-white font-mono text-[10px] font-bold flex items-center gap-1 border border-white/10 shadow-xs shrink-0">
-            <ListVideo className="w-3 h-3 text-white/90" />
+            {mediaComposition.podcasts > 0 && mediaComposition.videos === 0 ? (
+              <Headphones className="w-3 h-3 text-white/90" />
+            ) : mediaComposition.isMixed ? (
+              <Layers className="w-3 h-3 text-white/90" />
+            ) : (
+              <ListVideo className="w-3 h-3 text-white/90" />
+            )}
             <span>{itemCount}</span>
           </div>
         </div>
@@ -391,14 +435,103 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
 
           {/* Meta line: Episodes count + Duration */}
           <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500">
-            <span className="flex items-center gap-1">
-              <ListVideo className="w-3 h-3 text-zinc-400" />
-              {itemCount} {t("playlist.videos_count", "videos")}
-            </span>
+            <div className="flex items-center gap-1.5 truncate max-w-[70%]">
+              {mediaComposition.isMixed ? (
+                <>
+                  {mediaComposition.videos > 0 && (
+                    <span className="flex items-center gap-0.5">
+                      <ListVideo className="w-3 h-3 text-zinc-400" />
+                      {mediaComposition.videos} {t("playlist.videos_short", "videos")}
+                    </span>
+                  )}
+                  {mediaComposition.videos > 0 && mediaComposition.podcasts > 0 && (
+                    <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                  )}
+                  {mediaComposition.podcasts > 0 && (
+                    <span className="flex items-center gap-0.5">
+                      <Headphones className="w-3 h-3 text-zinc-400" />
+                      {mediaComposition.podcasts} {t("playlist.podcasts_short", "podcasts")}
+                    </span>
+                  )}
+                  {mediaComposition.books > 0 && (
+                    <>
+                      <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                      <span className="flex items-center gap-0.5">
+                        <BookOpen className="w-3 h-3 text-zinc-400" />
+                        {mediaComposition.books} {t("playlist.books_short", "texts")}
+                      </span>
+                    </>
+                  )}
+                </>
+              ) : mediaComposition.podcasts > 0 && mediaComposition.videos === 0 ? (
+                <span className="flex items-center gap-1">
+                  <Headphones className="w-3 h-3 text-zinc-400" />
+                  {itemCount} {t("playlist.podcasts_count", "podcasts")}
+                </span>
+              ) : mediaComposition.books > 0 && mediaComposition.videos === 0 ? (
+                <span className="flex items-center gap-1">
+                  <BookOpen className="w-3 h-3 text-zinc-400" />
+                  {itemCount} {t("playlist.books_count", "books")}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <ListVideo className="w-3 h-3 text-zinc-400" />
+                  {itemCount} {t("playlist.videos_count", "videos")}
+                </span>
+              )}
+            </div>
             {totalSeconds > 0 && (
-              <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400">
-                ⏱️ {formatDuration(totalSeconds)}
-              </span>
+              isAllCompleted ? (
+                <span
+                  className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold shrink-0"
+                  title={t("playlist.completed_total_time", "Коллекция пройдена! Всего: {{time}}", {
+                    time: formatDuration(totalSeconds),
+                  })}
+                >
+                  <span className="text-xs">✅</span>
+                  <span>{formatDuration(totalSeconds)}</span>
+                </span>
+              ) : hasStarted && remainingSeconds > 0 ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDisplayTimeMode((prev) => (prev === "remaining" ? "total" : "remaining"));
+                  }}
+                  className="group/timer flex items-center gap-1 text-teal-600 dark:text-teal-400 font-bold shrink-0 hover:opacity-80 transition-opacity cursor-pointer select-none"
+                  title={t(
+                    "playlist.remaining_time_tooltip",
+                    "Осталось: {{remaining}} • Всего: {{total}} (нажмите для переключения)",
+                    {
+                      remaining: formatDuration(remainingSeconds),
+                      total: formatDuration(totalSeconds),
+                    }
+                  )}
+                >
+                  <span className="text-xs transition-transform group-hover/timer:scale-110">⏱️</span>
+                  {displayTimeMode === "remaining" ? (
+                    <span>
+                      {formatDuration(remainingSeconds)}{" "}
+                      <span className="font-medium text-[11px] opacity-90">{t("playlist.time_left", "осталось")}</span>
+                    </span>
+                  ) : (
+                    <span>
+                      {formatDuration(totalSeconds)}{" "}
+                      <span className="font-normal text-[11px] opacity-75">{t("playlist.time_total", "всего")}</span>
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <span
+                  className="flex items-center gap-1 text-teal-600/90 dark:text-teal-400/90 shrink-0"
+                  title={t("playlist.total_duration_tooltip", "Всего: {{time}}", {
+                    time: formatDuration(totalSeconds),
+                  })}
+                >
+                  <span className="text-xs">⏱️</span>
+                  <span>{formatDuration(totalSeconds)}</span>
+                </span>
+              )
             )}
           </div>
         </div>

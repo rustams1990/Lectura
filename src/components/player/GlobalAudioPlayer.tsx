@@ -45,12 +45,24 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     setIsPlaying: setLessonIsPlaying,
     setCurrentTime: setLessonCurrentTime,
     setDuration: setLessonDuration,
+    seekToTime,
+    setSeekToTime,
   } = useLesson();
+
+  const preferAudioOnly = usePlaylistStore((s) => s.preferAudioOnly);
+  const [audioStreamFailed, setAudioStreamFailed] = useState<boolean>(false);
 
   const currentTrack = queue[currentIndex] || null;
 
-  // Determine if current track is a YouTube video without local file
+  // Reset audio stream failure state on track change
+  useEffect(() => {
+    setAudioStreamFailed(false);
+  }, [currentTrack?.id, currentTrack?.youtubeId]);
+
+  // Determine if current track should play via off-screen YouTube iframe:
+  // If preferAudioOnly is active and audio stream hasn't failed, play as native HTML5 audio stream instead
   const isYouTubeTrack = Boolean(
+    (!preferAudioOnly || audioStreamFailed) &&
     currentTrack &&
       currentTrack.youtubeId &&
       !currentTrack.localVideoUrl &&
@@ -62,7 +74,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     ? resolveAudioSrc(
         currentTrack.audioUrl,
         currentTrack.audioBase64,
-        undefined,
+        currentTrack.youtubeId,
         currentTrack.localVideoUrl,
         currentTrack.id
       )
@@ -482,6 +494,7 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     targetSeekTimeRef.current = null;
     if (activeLesson && currentTrack && (activeLesson.id === currentTrack.id || (activeLesson as any).guid === currentTrack.guid)) {
       activeLesson.audioProgress = seekTarget;
+      setLessonCurrentTime(seekTarget);
     }
 
     if (isYouTubeTrack && ytPlayerRef.current && isYtReadyRef.current) {
@@ -494,7 +507,25 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
     }
 
     clearSeekTarget();
-  }, [seekTarget, activeLesson, currentTrack, clearSeekTarget, isYouTubeTrack, isPlaying]);
+  }, [seekTarget, activeLesson, currentTrack, clearSeekTarget, isYouTubeTrack, isPlaying, setLessonCurrentTime]);
+
+  // ---------------------------------------------------------------------------
+  // 5b. Reader Timestamp Click Synchronization (seekToTime from LessonContext)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (seekToTime !== null && seekToTime !== undefined) {
+      if (
+        currentTrack &&
+        activeLesson &&
+        (currentTrack.id === activeLesson.id ||
+          Boolean(currentTrack.youtubeId && currentTrack.youtubeId === activeLesson.youtubeId) ||
+          Boolean(currentTrack.guid && (currentTrack.guid === activeLesson.id || (activeLesson as any).podcastGuid === currentTrack.guid)))
+      ) {
+        seek(seekToTime);
+        setSeekToTime(null);
+      }
+    }
+  }, [seekToTime, currentTrack, activeLesson, seek, setSeekToTime]);
 
   // ---------------------------------------------------------------------------
   // 6. Playback Rate & Volume Controls
@@ -825,7 +856,12 @@ export default function GlobalAudioPlayer({ onListeningTick, onMediaEnded }: Glo
           }
         }}
         onError={(e) => {
-          if (!isYouTubeTrack) console.warn('[GlobalAudioPlayer HTML5 Error]', e);
+          if (!isYouTubeTrack && currentTrack?.youtubeId && !audioStreamFailed) {
+            console.warn('[GlobalAudioPlayer HTML5 stream error, falling back to YouTube iframe]', e);
+            setAudioStreamFailed(true);
+          } else if (!isYouTubeTrack) {
+            console.warn('[GlobalAudioPlayer HTML5 Error]', e);
+          }
         }}
         preload="metadata"
         playsInline

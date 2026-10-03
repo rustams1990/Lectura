@@ -408,3 +408,109 @@ export function isPlaylistItemCompleted(
   return false;
 }
 
+export interface PlaylistTimeRemainingResult {
+  totalSeconds: number;
+  watchedSeconds: number;
+  remainingSeconds: number;
+  completedCount: number;
+  hasStarted: boolean;
+  isAllCompleted: boolean;
+}
+
+/**
+ * Calculates remaining and total duration for a playlist based on completed items
+ * and in-progress video/audio playback progress.
+ */
+export function calculatePlaylistTimeRemaining(
+  items: PlaylistItem[] | null | undefined,
+  lessons?: Lesson[] | null,
+  history?: HistoryEntry[] | null
+): PlaylistTimeRemainingResult {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return {
+      totalSeconds: 0,
+      watchedSeconds: 0,
+      remainingSeconds: 0,
+      completedCount: 0,
+      hasStarted: false,
+      isAllCompleted: false,
+    };
+  }
+
+  let totalSeconds = 0;
+  let watchedSeconds = 0;
+  let completedCount = 0;
+
+  for (const item of items) {
+    if (!item) continue;
+    const lesson = getPlaylistItemLesson(item, lessons);
+    const duration = getItemEffectiveDuration(item, lesson);
+    totalSeconds += duration;
+
+    const completed = isPlaylistItemCompleted(item, lessons, history);
+    if (completed) {
+      completedCount++;
+      watchedSeconds += duration;
+    } else {
+      let itemProgress = getPlaylistItemMediaProgress(item, lesson);
+
+      if (itemProgress <= 0 && lesson) {
+        if (typeof (lesson as any).audioProgress === "number" && (lesson as any).audioProgress > 2) {
+          itemProgress = Math.floor((lesson as any).audioProgress);
+        } else if (typeof (lesson as any).videoProgress === "number" && (lesson as any).videoProgress > 2) {
+          itemProgress = Math.floor((lesson as any).videoProgress);
+        }
+      }
+
+      if (itemProgress <= 0 && history && Array.isArray(history) && history.length > 0) {
+        const targetLessonId = lesson?.id || item.lessonId;
+        const targetVideoId = lesson?.youtubeId || item.videoId;
+        const itemTitle = (item.title || lesson?.title || "").trim().toLowerCase();
+
+        const match = history.find((h) => {
+          return (
+            (targetLessonId && (
+              h.lessonId === targetLessonId ||
+              h.id === targetLessonId ||
+              (h as any).guid === targetLessonId
+            )) ||
+            (targetVideoId && (
+              h.guid === targetVideoId ||
+              h.youtubeId === targetVideoId ||
+              h.lessonId === targetVideoId ||
+              h.lessonId === `youtube_${targetVideoId}`
+            )) ||
+            (itemTitle && h.lessonTitle && h.lessonTitle.trim().toLowerCase() === itemTitle)
+          );
+        });
+
+        if (match) {
+          if (match.lastPosition && match.lastPosition > 2) {
+            itemProgress = Math.floor(match.lastPosition);
+          } else if (match.progressPercent && match.progressPercent > 2 && duration > 0) {
+            itemProgress = Math.floor((match.progressPercent / 100) * duration);
+          }
+        }
+      }
+
+      if (itemProgress > 0) {
+        const clampedProgress = duration > 0 ? Math.min(duration, itemProgress) : itemProgress;
+        watchedSeconds += clampedProgress;
+      }
+    }
+  }
+
+  const isAllCompleted = items.length > 0 && completedCount === items.length;
+  const remainingSeconds = isAllCompleted ? 0 : Math.max(0, totalSeconds - watchedSeconds);
+  const hasStarted = watchedSeconds > 0 || completedCount > 0;
+
+  return {
+    totalSeconds,
+    watchedSeconds,
+    remainingSeconds,
+    completedCount,
+    hasStarted,
+    isAllCompleted,
+  };
+}
+

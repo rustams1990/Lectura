@@ -4,11 +4,11 @@ import {
   ArrowLeft, Play, Plus, Check, Loader2, Rss, Clock, Calendar,
   FileText, AlertCircle, RefreshCw, Bell, BellOff, Mic, Search,
   ArrowUpDown, MoreVertical, Copy, ExternalLink, X, Filter, CheckCircle2,
-  BookOpen, CheckCheck, RotateCcw, ChevronLeft,
+  BookOpen, CheckCheck, RotateCcw, ChevronLeft, FolderPlus, FolderCheck,
 } from "lucide-react";
 import { usePodcastStore } from "../store/podcastStore";
 import { usePlaylistStore } from "../store/playlistStore";
-import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastEpisode, VocabItem } from "../types";
+import { Lesson, HistoryEntry, PodcastSubscription, PodcastSearchResult, PodcastEpisode, VocabItem, Playlist, PlaylistItem } from "../types";
 import { getCachedBookStats } from "./LibraryHome";
 import { useToast } from "../context/ToastContext";
 import { whisperQueueService } from "../services/whisperQueueService";
@@ -582,6 +582,7 @@ export const EpisodeRow = React.memo<EpisodeRowProps>(({
 interface PodcastChannelViewProps {
   podcast: PodcastSubscription | PodcastSearchResult;
   lessons?: Lesson[];
+  playlists?: Playlist[];
   history?: HistoryEntry[];
   vocab?: Record<string, VocabItem>;
   wordLinks?: Record<string, string>;
@@ -589,10 +590,11 @@ interface PodcastChannelViewProps {
   onBack: () => void;
   onOpenLesson?: (lessonId: string) => void;
   onToggleCompleteLesson?: (lessonId: string) => void;
+  onAddPlaylist?: (playlist: Playlist) => void;
 }
 
 export default function PodcastChannelView({
-  podcast, lessons = [], history = [], vocab = {}, wordLinks = {}, selectedTargetLanguage, onBack, onOpenLesson, onToggleCompleteLesson,
+  podcast, lessons = [], playlists = [], history = [], vocab = {}, wordLinks = {}, selectedTargetLanguage, onBack, onOpenLesson, onToggleCompleteLesson, onAddPlaylist,
 }: PodcastChannelViewProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -637,6 +639,62 @@ export default function PodcastChannelView({
   useEffect(() => {
     setVisibleCount(25);
   }, [searchQuery, sortBy, filterStatus]);
+
+  // Check if podcast is already saved as a playlist in library
+  const existingPlaylist = useMemo(() => {
+    return (playlists || []).find(
+      (p) =>
+        (p.externalUrl && feedUrl && p.externalUrl === feedUrl) ||
+        p.title.trim().toLowerCase() === title.trim().toLowerCase()
+    );
+  }, [playlists, feedUrl, title]);
+
+  const handleAddPodcastAsPlaylist = () => {
+    if (existingPlaylist) {
+      showToast(t("podcasts.already_collection", "Подкаст уже добавлен в коллекции на книжную полку"), "info");
+      return;
+    }
+
+    const episodesToUse = currentFeedEpisodes || [];
+    if (episodesToUse.length === 0) {
+      showToast(t("podcasts.feed_loading_wait", "Подождите загрузку выпусков подкаста..."), "warning");
+      return;
+    }
+
+    const playlistItems: PlaylistItem[] = episodesToUse.map((ep, idx) => {
+      const matched = lessons.find(l => (ep.guid && (l as any).guid === ep.guid) || l.title === ep.title);
+      return {
+        id: `pod_item_${Date.now()}_${idx}`,
+        lessonId: matched?.id,
+        title: ep.title,
+        durationSeconds: parseDurationToSeconds(ep.duration) || 0,
+        thumbnailUrl: ep.artworkUrl || artworkUrl || "",
+        transcriptLoaded: Boolean(ep.hasTranscript || (matched && matched.text && matched.text.length > 20)),
+        publishedAt: ep.pubDate,
+      };
+    });
+
+    const newPl: Playlist = {
+      id: `pl_podcast_${Date.now()}`,
+      title: title.trim(),
+      description: currentFeedMeta?.description || undefined,
+      thumbnailUrl: artworkUrl || "",
+      sourceType: "podcast_show",
+      externalUrl: feedUrl || undefined,
+      channelTitle: author || title,
+      itemCount: playlistItems.length,
+      language: selectedTargetLanguage || (podcast as any).language || "es",
+      items: playlistItems,
+      primaryItemId: playlistItems[0]?.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (onAddPlaylist) {
+      onAddPlaylist(newPl);
+      showToast(t("podcasts.collection_created", "Подкаст добавлен как коллекция на книжную полку!"), "success");
+    }
+  };
 
   // Client-side filtering & sorting via useMemo
   const filteredEpisodes = useMemo(() => {
@@ -838,26 +896,53 @@ export default function PodcastChannelView({
               <h1 className="font-black text-lg sm:text-xl text-zinc-900 dark:text-white leading-tight">
                 {title}
               </h1>
-              <button
-                onClick={handleSubscribeToggle}
-                disabled={isSubscribing}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-3xs active:scale-95 shrink-0 ${
-                  isSubscribed
-                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 border border-zinc-200 dark:border-zinc-700"
-                    : "bg-teal-600 hover:bg-teal-700 text-white"
-                }`}
-              >
-                {isSubscribing ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : isSubscribed ? (
-                  <BellOff className="w-3.5 h-3.5" />
-                ) : (
-                  <Bell className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSubscribeToggle}
+                  disabled={isSubscribing}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-3xs active:scale-95 shrink-0 ${
+                    isSubscribed
+                      ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 border border-zinc-200 dark:border-zinc-700"
+                      : "bg-teal-600 hover:bg-teal-700 text-white"
+                  }`}
+                >
+                  {isSubscribing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : isSubscribed ? (
+                    <BellOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Bell className="w-3.5 h-3.5" />
+                  )}
+                  {isSubscribed
+                    ? t("podcasts.unsubscribe", "Unsubscribe")
+                    : t("podcasts.subscribe", "Subscribe")}
+                </button>
+
+                {onAddPlaylist && (
+                  <button
+                    type="button"
+                    onClick={handleAddPodcastAsPlaylist}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-3xs active:scale-95 shrink-0 ${
+                      existingPlaylist
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                        : "bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700/80"
+                    }`}
+                    title={existingPlaylist ? t("podcasts.already_collection", "Уже в библиотеке") : t("podcasts.add_as_collection", "Добавить на книжную полку")}
+                  >
+                    {existingPlaylist ? (
+                      <>
+                        <FolderCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>{t("podcasts.already_collection", "В библиотеке")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <FolderPlus className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                        <span>{t("podcasts.add_as_collection", "Добавить на полку")}</span>
+                      </>
+                    )}
+                  </button>
                 )}
-                {isSubscribed
-                  ? t("podcasts.unsubscribe", "Unsubscribe")
-                  : t("podcasts.subscribe", "Subscribe")}
-              </button>
+              </div>
             </div>
             {author && (
               <p className="text-xs font-bold text-teal-600 dark:text-teal-400 mt-1">{author}</p>

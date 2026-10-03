@@ -87,6 +87,7 @@ interface PlaylistState {
   isExpanded: boolean;
   isOpen: boolean;
   seekTarget: number | null;
+  preferAudioOnly: boolean;
 
   // Actions
   setQueue: (items: PlaylistItem[], startIndex?: number, autoPlay?: boolean) => { count: number; started: boolean };
@@ -114,6 +115,8 @@ interface PlaylistState {
   setDuration: (duration: number) => void;
   setShowQueueModal: (show: boolean) => void;
   reorderQueue: (startIndex: number, endIndex: number) => void;
+  setPreferAudioOnly: (prefer: boolean) => void;
+  togglePreferAudioOnly: () => void;
 }
 
 export const usePlaylistStore = create<PlaylistState>()(
@@ -132,6 +135,7 @@ export const usePlaylistStore = create<PlaylistState>()(
       isExpanded: false,
       isOpen: false,
       seekTarget: null,
+      preferAudioOnly: false,
 
       expandPlayer: () => set({ isExpanded: true, isOpen: true }),
       collapsePlayer: () => set({ isExpanded: false }),
@@ -324,15 +328,24 @@ export const usePlaylistStore = create<PlaylistState>()(
         set({ showQueueModal: show });
       },
 
+      setPreferAudioOnly: (prefer: boolean) => {
+        set({ preferAudioOnly: prefer });
+      },
+
+      togglePreferAudioOnly: () => {
+        set((state) => ({ preferAudioOnly: !state.preferAudioOnly }));
+      },
+
       reorderQueue: (startIndex: number, endIndex: number) => {
         const { queue, currentIndex } = get();
         if (startIndex === endIndex) return;
+        if (startIndex < 0 || startIndex >= queue.length || endIndex < 0 || endIndex >= queue.length) return;
         const currentItem = queue[currentIndex];
         const nextQueue = Array.from(queue);
         const [removed] = nextQueue.splice(startIndex, 1);
         nextQueue.splice(endIndex, 0, removed);
 
-        const newCurrentIndex = nextQueue.findIndex((i) => i.id === currentItem?.id);
+        const newCurrentIndex = currentItem ? nextQueue.indexOf(currentItem) : -1;
         set({
           queue: nextQueue,
           currentIndex: newCurrentIndex >= 0 ? newCurrentIndex : currentIndex,
@@ -345,6 +358,7 @@ export const usePlaylistStore = create<PlaylistState>()(
         playbackRate: state.playbackRate,
         repeatMode: state.repeatMode,
         volume: state.volume,
+        preferAudioOnly: state.preferAudioOnly,
       }),
       // Guarantee that on initial page load / refresh isPlaying and player UI start as closed/false
       onRehydrateStorage: () => (state) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw, Download, AlertTriangle, Loader2, HardDrive, Globe } from "lucide-react";
+import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw, Download, AlertTriangle, Loader2, HardDrive, Globe, Headphones } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
@@ -110,6 +110,52 @@ export default function YoutubePlayerWindow({
         })
       }).catch(() => {});
     } catch (e) {}
+  };
+
+  const handleSwitchToAudioOnly = () => {
+    let currentSec = 0;
+    if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+      try {
+        currentSec = Math.floor(playerRef.current.getCurrentTime() || 0);
+      } catch (_) {}
+    } else if (videoElRef.current) {
+      currentSec = Math.floor(videoElRef.current.currentTime || 0);
+    }
+
+    const store = usePlaylistStore.getState();
+    const existingIdx = store.queue.findIndex(
+      (item) => item.id === lesson.id || (lesson.youtubeId && item.youtubeId === lesson.youtubeId)
+    );
+    store.setPreferAudioOnly(true);
+    if (existingIdx !== -1) {
+      store.playTrackAtIndex(existingIdx);
+    } else {
+      store.setQueue(
+        [
+          {
+            id: lesson.id,
+            title: lesson.title,
+            audioUrl: lesson.audioUrl || "",
+            youtubeId: lesson.youtubeId,
+            duration: typeof lesson.duration === 'number' ? lesson.duration : (lesson.youtubeDuration || undefined),
+            coverUrl: lesson.coverUrl,
+            targetLanguage: lesson.targetLanguage,
+            lessonType: "youtube",
+            channelName: lesson.channelName,
+          },
+        ],
+        0,
+        true
+      );
+    }
+
+    if (currentSec > 0) {
+      setTimeout(() => {
+        usePlaylistStore.getState().seek(currentSec);
+      }, 50);
+    }
+    showToast(t('player.audio_mode_activated', 'Фоновый режим «Только аудио» включен'), 'info');
+    onClose();
   };
 
   // Check if media is already downloaded on backend
@@ -934,6 +980,16 @@ export default function YoutubePlayerWindow({
               </button>
             </div>
           )}
+
+          {/* Switch to Background Audio Only */}
+          <button
+            type="button"
+            onClick={handleSwitchToAudioOnly}
+            className="p-1 rounded-md text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            title={t('player.switch_to_audio_only', 'Слушать только аудио в фоне (экономия трафика и батареи)')}
+          >
+            <Headphones className="w-3.5 h-3.5" />
+          </button>
 
           {/* Refresh player */}
           <button
