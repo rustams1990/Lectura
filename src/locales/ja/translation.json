@@ -1900,7 +1900,13 @@
     "first_page": "最初のページ",
     "last_page": "最後のページ",
     "prev_page": "前へ",
-    "next_page": "次へ"
+    "next_page": "次へ",
+    "hide_completed": "完了済みを非表示",
+    "completed_hidden": "完了済み非表示中",
+    "hide_completed_tooltip": "リストから完了したエピソードを非表示にする",
+    "show_completed_tooltip": "完了したエピソードを表示する",
+    "all_completed_hidden": "完了したすべてのエピソードが非表示になっています。",
+    "show_completed": "完了済みを表示"
   },
   "tags": {
     "modal_title": "Playlist Categories & Tags",

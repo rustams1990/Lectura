@@ -1900,7 +1900,13 @@
     "first_page": "첫 페이지",
     "last_page": "마지막 페이지",
     "prev_page": "이전",
-    "next_page": "다음"
+    "next_page": "다음",
+    "hide_completed": "완료된 항목 숨기기",
+    "completed_hidden": "완료 항목 숨김",
+    "hide_completed_tooltip": "목록에서 완료된 에피소드 숨기기",
+    "show_completed_tooltip": "완료된 에피소드 표시",
+    "all_completed_hidden": "완료된 모든 에피소드가 숨겨져 있습니다.",
+    "show_completed": "완료된 항목 보기"
   },
   "tags": {
     "modal_title": "Playlist Categories & Tags",

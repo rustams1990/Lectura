@@ -1900,7 +1900,13 @@
     "first_page": "第一页",
     "last_page": "最后一页",
     "prev_page": "上一页",
-    "next_page": "下一页"
+    "next_page": "下一页",
+    "hide_completed": "隐藏已完成",
+    "completed_hidden": "已隐藏完成项",
+    "hide_completed_tooltip": "从列表中隐藏已完成的剧集",
+    "show_completed_tooltip": "显示已完成剧集",
+    "all_completed_hidden": "所有已完成的剧集已被隐藏。",
+    "show_completed": "显示已完成"
   },
   "tags": {
     "modal_title": "Playlist Categories & Tags",

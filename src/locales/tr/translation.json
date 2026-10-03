@@ -1900,7 +1900,13 @@
     "first_page": "İlk sayfa",
     "last_page": "Son sayfa",
     "prev_page": "Önceki",
-    "next_page": "Sonraki"
+    "next_page": "Sonraki",
+    "hide_completed": "Tamamlananları gizle",
+    "completed_hidden": "Tamamlananlar gizlendi",
+    "hide_completed_tooltip": "Tamamlanan bölümleri listeden gizle",
+    "show_completed_tooltip": "Tamamlanan bölümleri göster",
+    "all_completed_hidden": "Tüm tamamlanan bölümler gizlendi.",
+    "show_completed": "Tamamlananları göster"
   },
   "tags": {
     "modal_title": "Playlist Categories & Tags",

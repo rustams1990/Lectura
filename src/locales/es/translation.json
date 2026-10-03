@@ -1900,7 +1900,13 @@
     "first_page": "Primera página",
     "last_page": "Última página",
     "prev_page": "Anterior",
-    "next_page": "Siguiente"
+    "next_page": "Siguiente",
+    "hide_completed": "Ocultar completados",
+    "completed_hidden": "Completados ocultos",
+    "hide_completed_tooltip": "Ocultar episodios completados de la lista",
+    "show_completed_tooltip": "Mostrar episodios completados",
+    "all_completed_hidden": "Todos los episodios completados están ocultos.",
+    "show_completed": "Mostrar completados"
   },
   "tags": {
     "modal_title": "Categorías y Etiquetas",

@@ -1900,7 +1900,13 @@
     "first_page": "Первая страница",
     "last_page": "Последняя страница",
     "prev_page": "Назад",
-    "next_page": "Вперед"
+    "next_page": "Вперед",
+    "hide_completed": "Скрыть завершённые",
+    "completed_hidden": "Скрыто завершённых",
+    "hide_completed_tooltip": "Скрыть просмотренные эпизоды из списка",
+    "show_completed_tooltip": "Показать завершённые эпизоды",
+    "all_completed_hidden": "Все завершённые выпуски скрыты.",
+    "show_completed": "Показать завершённые"
   },
   "tags": {
     "modal_title": "Категории и теги плейлиста",

@@ -1900,7 +1900,13 @@
     "first_page": "Перша сторінка",
     "last_page": "Остання сторінка",
     "prev_page": "Назад",
-    "next_page": "Вперед"
+    "next_page": "Вперед",
+    "hide_completed": "Сховати завершені",
+    "completed_hidden": "Сховано завершені",
+    "hide_completed_tooltip": "Сховати переглянуті епізоди зі списку",
+    "show_completed_tooltip": "Показати завершені епізоди",
+    "all_completed_hidden": "Всі завершені випуски сховано.",
+    "show_completed": "Показати завершені"
   },
   "tags": {
     "modal_title": "Playlist Categories & Tags",

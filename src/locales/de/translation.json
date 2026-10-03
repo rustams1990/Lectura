@@ -1900,7 +1900,13 @@
     "first_page": "Erste Seite",
     "last_page": "Letzte Seite",
     "prev_page": "Zurück",
-    "next_page": "Weiter"
+    "next_page": "Weiter",
+    "hide_completed": "Abgeschlossene ausblenden",
+    "completed_hidden": "Abgeschlossene ausgeblendet",
+    "hide_completed_tooltip": "Abgeschlossene Folgen aus der Liste ausblenden",
+    "show_completed_tooltip": "Abgeschlossene Folgen anzeigen",
+    "all_completed_hidden": "Alle abgeschlossenen Folgen sind ausgeblendet.",
+    "show_completed": "Abgeschlossene anzeigen"
   },
   "tags": {
     "modal_title": "Playlist Categories & Tags",

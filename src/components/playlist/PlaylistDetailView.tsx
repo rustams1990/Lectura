@@ -4,7 +4,8 @@ import {
   ArrowLeft, Play, BookOpen, Headphones, Trash2, CheckCircle2,
   Clock, ExternalLink, Loader2, Sparkles, AlertCircle, Share2,
   ListVideo, RefreshCw, Archive, ArchiveRestore, ArrowUpDown, Search, ChevronDown, Plus, CheckSquare, Square, Check,
-  FolderInput, X, Pencil, Star, GripVertical, BarChart2, Tag, Filter, ListPlus
+  FolderInput, X, Pencil, Star, GripVertical, BarChart2, Tag, Filter, ListPlus,
+  Eye, EyeOff
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
@@ -183,12 +184,30 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     return saved !== null ? Number(saved) : 50;
   });
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hideCompleted, setHideCompleted] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("lectura_playlist_hide_completed") === "true";
+    } catch (_) {
+      return false;
+    }
+  });
   const episodesListTopRef = useRef<HTMLDivElement>(null);
+
+  const toggleHideCompleted = () => {
+    setHideCompleted((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("lectura_playlist_hide_completed", String(next));
+      } catch (_) {}
+      return next;
+    });
+    setCurrentPage(1);
+  };
 
   // Reset to first page whenever search/filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, selectedDifficulty, selectedTag, sortOption, playlist.id]);
+  }, [statusFilter, selectedDifficulty, selectedTag, sortOption, hideCompleted, playlist.id]);
 
   const handlePageSizeChange = (newSize: number) => {
     setItemsPerPage(newSize);
@@ -728,6 +747,8 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     // 1. Status filter
     if (statusFilter !== "all") {
       result = result.filter((it) => getItemStatus(it) === statusFilter);
+    } else if (hideCompleted) {
+      result = result.filter((it) => !isItemCompleted(it));
     }
 
     // 2. Difficulty level filter
@@ -789,7 +810,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
     }
 
     return result;
-  }, [items, sortOption, statusFilter, selectedDifficulty, selectedTag, lessons, history, playlist]);
+  }, [items, sortOption, statusFilter, hideCompleted, selectedDifficulty, selectedTag, lessons, history, playlist]);
 
   // Pagination calculations
   const effectivePageSize = itemsPerPage === 0 ? sortedAndFilteredItems.length : itemsPerPage;
@@ -2135,6 +2156,47 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                 </span>
               )}
             </button>
+
+            {/* Quick Hide Completed Toggle Button */}
+            {statusCounts.completed > 0 && (
+              <>
+                <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 shrink-0 mx-0.5" />
+                <button
+                  type="button"
+                  onClick={toggleHideCompleted}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap select-none border ${
+                    hideCompleted
+                      ? "bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700/80 shadow-3xs"
+                      : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800/80 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/50"
+                  }`}
+                  title={
+                    hideCompleted
+                      ? t("playlist.show_completed_tooltip", "Show completed episodes")
+                      : t("playlist.hide_completed_tooltip", "Hide completed episodes from the list")
+                  }
+                >
+                  {hideCompleted ? (
+                    <EyeOff className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+                  )}
+                  <span>
+                    {hideCompleted
+                      ? t("playlist.completed_hidden", "Hidden completed")
+                      : t("playlist.hide_completed", "Hide completed")}
+                  </span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                      hideCompleted
+                        ? "bg-teal-200/60 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200"
+                        : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+                    }`}
+                  >
+                    {statusCounts.completed}
+                  </span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Multi-selection Action Toolbar */}
@@ -2208,19 +2270,27 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
                   ? t("playlist.no_level_matches", "No videos match the selected difficulty level.")
                   : statusFilter !== "all"
                   ? t("playlist.no_status_matches", "No videos in this category.")
+                  : hideCompleted
+                  ? t("playlist.all_completed_hidden", "All completed episodes are hidden.")
                   : t("playlist.empty_playlist", "This playlist is empty.")}
               </p>
-              {(statusFilter !== "all" || selectedDifficulty !== "all" || selectedTag !== "all") && (
+              {(statusFilter !== "all" || selectedDifficulty !== "all" || selectedTag !== "all" || hideCompleted) && (
                 <button
                   type="button"
                   onClick={() => {
                     setStatusFilter("all");
                     setSelectedDifficulty("all");
                     setSelectedTag("all");
+                    setHideCompleted(false);
+                    try {
+                      localStorage.setItem("lectura_playlist_hide_completed", "false");
+                    } catch (_) {}
                   }}
                   className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
                 >
-                  {t("playlist.clear_filter", "Clear filter")}
+                  {hideCompleted && statusFilter === "all" && selectedDifficulty === "all" && selectedTag === "all"
+                    ? t("playlist.show_completed", "Show completed")
+                    : t("playlist.clear_filter", "Clear filter")}
                 </button>
               )}
             </div>

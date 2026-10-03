@@ -1900,7 +1900,13 @@
     "first_page": "Première page",
     "last_page": "Dernière page",
     "prev_page": "Précédent",
-    "next_page": "Suivant"
+    "next_page": "Suivant",
+    "hide_completed": "Masquer les terminés",
+    "completed_hidden": "Terminés masqués",
+    "hide_completed_tooltip": "Masquer les épisodes terminés de la liste",
+    "show_completed_tooltip": "Afficher les épisodes terminés",
+    "all_completed_hidden": "Tous les épisodes terminés sont masqués.",
+    "show_completed": "Afficher les terminés"
   },
   "tags": {
     "modal_title": "Playlist Categories & Tags",
