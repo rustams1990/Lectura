@@ -132,9 +132,15 @@ export function useReaderHistory({ lesson, history, onUpdateHistory }: UseReader
     const now = new Date().toISOString();
 
     if (onUpdateHistory) {
-      const existingIdx = (history || []).findIndex(
-        (h) => h.lessonId === lesson.id && Date.now() - new Date(h.timestamp).getTime() < 24 * 60 * 60 * 1000
-      );
+      const todayDateStr = new Date().toLocaleDateString("en-CA");
+      const existingIdx = (history || []).findIndex((h) => {
+        if (h.lessonId !== lesson.id) return false;
+        try {
+          return new Date(h.timestamp).toLocaleDateString("en-CA") === todayDateStr;
+        } catch {
+          return false;
+        }
+      });
 
       let updated: HistoryEntry[];
       if (existingIdx !== -1) {

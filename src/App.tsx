@@ -725,8 +725,7 @@ export default function App() {
         try {
           const entryDate = new Date(h.timestamp);
           const entryDateStr = entryDate.toLocaleDateString("en-CA");
-          if (entryDateStr === todayDateStr) return true;
-          return Date.now() - entryDate.getTime() < 24 * 60 * 60 * 1000;
+          return entryDateStr === todayDateStr;
         } catch {
           return false;
         }
