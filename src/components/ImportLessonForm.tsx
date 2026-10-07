@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Lesson, LessonType, ReaderSettings, Playlist, PlaylistItem, HistoryEntry } from "../types";
 import { safeJsonParse, safeLocalStorageSetItem, normalizeLanguage } from "../utils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
@@ -42,6 +42,9 @@ import {
   CheckSquare,
   Square,
   Film,
+  Volume2,
+  AlertTriangle,
+  Camera,
   Tag
 } from "lucide-react";
 
@@ -53,9 +56,12 @@ import { whisperQueueService } from "../services/whisperQueueService";
 import { getAllKnownTags } from "../utils/tagColors";
 import { deduplicatePlaylistItems } from "../utils/playlistUtils";
 import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
+import { parseSubtitleFile, formatSecondsToTimestamp } from "../utils/subtitleParser";
+import { setupVideoMediaSource } from "../utils/hlsPlayer";
 
 export const ICON_MAP: Record<string, React.ComponentType<any>> = {
   youtube: Youtube,
+  video: Film,
   podcast: Podcast,
   radio: Radio,
   headphones: Headphones,
@@ -157,9 +163,9 @@ export default function ImportLessonForm({
   const { t, i18n } = useTranslation();
   const { user: activeUser } = useAuth();
   const { showToast } = useToast();
-  // Navigation: standard, youtube or file
-  const [activeTab, setActiveTab] = useState<"standard" | "youtube" | "file" | "url">(
-    editingLesson ? "standard" : (initialWebUrl ? "url" : "file")
+  // Navigation: standard, youtube, video, podcast, file, url
+  const [activeTab, setActiveTab] = useState<"standard" | "youtube" | "video" | "file" | "url" | "podcast">(
+    editingLesson ? ((editingLesson.localVideoUrl || editingLesson.lessonType === "video") ? "video" : "standard") : (initialWebUrl ? "url" : "file")
   );
 
   const handleWhisperQueueSubmit = async () => {
@@ -332,6 +338,317 @@ export default function ImportLessonForm({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [lessons]);
 
+  // Local video + subtitles import states
+  const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(editingLesson?.localVideoUrl || null);
+  const [localVideoName, setLocalVideoName] = useState<string | null>(null);
+  const [localVideoSize, setLocalVideoSize] = useState<number | null>(null);
+  const [localVideoDuration, setLocalVideoDuration] = useState<number | null>(editingLesson?.duration || null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
+  const [subtitleStats, setSubtitleStats] = useState<{ cues: number; duration: number } | null>(null);
+  const [videoPreviewBlobUrl, setVideoPreviewBlobUrl] = useState<string | null>(null);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoSuccess, setVideoSuccess] = useState<string | null>(null);
+  const [videoDragActive, setVideoDragActive] = useState(false);
+  const [availableSubtitleTracks, setAvailableSubtitleTracks] = useState<any[]>([]);
+  const [selectedTrackIndex, setSelectedTrackIndex] = useState<number | null>(null);
+  const [availableAudioTracks, setAvailableAudioTracks] = useState<any[]>([]);
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number | null>(null);
+  const [isSwitchingAudio, setIsSwitchingAudio] = useState(false);
+  const [uploadedVideoFilename, setUploadedVideoFilename] = useState<string | null>(null);
+  const [videoCompatibilityWarning, setVideoCompatibilityWarning] = useState<string | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+
+  // Set up video preview media source (supports direct MP4/blob or On-Demand HLS via hls.js)
+  useEffect(() => {
+    const src = videoPreviewBlobUrl || localVideoUrl;
+    if (!videoPreviewRef.current || !src) return;
+    const cleanup = setupVideoMediaSource(videoPreviewRef.current, src, () => {
+      if (videoPreviewRef.current && videoPreviewRef.current.duration && !isNaN(videoPreviewRef.current.duration)) {
+        setLocalVideoDuration(Math.round(videoPreviewRef.current.duration));
+      }
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [videoPreviewBlobUrl, localVideoUrl]);
+
+  const handleCaptureVideoFrameAsCover = () => {
+    if (!videoPreviewRef.current) return;
+    const v = videoPreviewRef.current;
+    if (v.videoWidth === 0 || v.videoHeight === 0) {
+      showToast(t('import.capture_frame_not_ready', 'Play or pause the video first to select a frame'), 'warning');
+      return;
+    }
+    try {
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight));
+      canvas.width = Math.round(v.videoWidth * scale);
+      canvas.height = Math.round(v.videoHeight * scale);
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        setCoverUrl(dataUrl);
+        showToast(t('import.capture_frame_success', 'Video frame set as lesson cover'), 'success');
+      }
+    } catch (err: any) {
+      console.error("Frame capture error:", err);
+      showToast(t('import.capture_frame_err', 'Failed to capture frame from video'), 'error');
+    }
+  };
+
+  const handleSwitchAudioTrack = async (audioIdx: number) => {
+    if (!uploadedVideoFilename) return;
+    setIsSwitchingAudio(true);
+    try {
+      const resp = await fetch(resolveApiUrl("/api/media/switch-audio"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: uploadedVideoFilename,
+          audioIndex: audioIdx,
+        }),
+      });
+      const data = await safeJsonParse(resp);
+      if (data.url) {
+        setLocalVideoUrl(data.url);
+        setSelectedAudioIndex(audioIdx);
+        const tr = availableAudioTracks.find((a) => a.index === audioIdx);
+        showToast(
+          t('import.audio_track_switched', 'Audio track switched: {{title}}', {
+            title: tr?.title || `Track #${audioIdx}`,
+          }),
+          'success'
+        );
+      }
+    } catch (err: any) {
+      console.error("Failed to switch audio track:", err);
+      showToast(t('import.audio_switch_err', 'Failed to switch audio track'), 'error');
+    } finally {
+      setIsSwitchingAudio(false);
+    }
+  };
+
+  const uploadVideoToServer = (vFile: File, fallbackBlobUrl: string) => {
+    setIsUploadingVideo(true);
+    setVideoUploadProgress(0);
+    setVideoError(null);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", resolveApiUrl("/api/media/upload-video"));
+    xhr.setRequestHeader("x-filename", encodeURIComponent(vFile.name));
+    xhr.setRequestHeader("Content-Type", vFile.type || "video/mp4");
+    if (targetLanguage) {
+      xhr.setRequestHeader("x-target-language", targetLanguage);
+    }
+
+    xhr.upload.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        setVideoUploadProgress(pct);
+      }
+    };
+
+    xhr.onload = () => {
+      setIsUploadingVideo(false);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data.url) {
+            setLocalVideoUrl(data.url);
+          }
+          if (data.coverUrl) {
+            setCoverUrl(data.coverUrl);
+          }
+          if (data.filename) {
+            setUploadedVideoFilename(data.filename);
+          }
+          if (data.duration && data.duration > 0) {
+            setLocalVideoDuration(data.duration);
+          }
+
+          // Embedded subtitles extracted automatically from MKV/video!
+          if (data.selectedSubtitle && data.selectedSubtitle.text) {
+            setText(data.selectedSubtitle.text);
+            setSubtitleStats({
+              cues: data.selectedSubtitle.cueCount || 0,
+              duration: data.selectedSubtitle.duration || data.duration || 0,
+            });
+            setSelectedTrackIndex(data.selectedSubtitle.index);
+            setVideoSuccess(
+              t('import.embedded_subs_extracted', '✓ Extracted embedded subtitles: {{lang}} ({{count}} lines)', {
+                lang: data.selectedSubtitle.title || data.selectedSubtitle.language || "Track",
+                count: data.selectedSubtitle.cueCount || 0,
+              })
+            );
+          } else {
+            setVideoSuccess((prev) =>
+              prev
+                ? `${prev} • ${t('import.video_server_saved', 'Video saved to library')}`
+                : t('import.video_uploaded_ok', '✓ Video uploaded and ready to watch')
+            );
+          }
+
+          if (data.subtitleTracks && data.subtitleTracks.length > 0) {
+            setAvailableSubtitleTracks(data.subtitleTracks);
+          }
+          if (data.audioTracks && data.audioTracks.length > 0) {
+            setAvailableAudioTracks(data.audioTracks);
+          }
+          if (data.selectedAudio) {
+            setSelectedAudioIndex(data.selectedAudio.index);
+          }
+          if (data.videoWarning) {
+            setVideoCompatibilityWarning(data.videoWarning);
+          } else {
+            setVideoCompatibilityWarning(null);
+          }
+        } catch (_) {
+          setLocalVideoUrl(fallbackBlobUrl);
+        }
+      } else {
+        setLocalVideoUrl(fallbackBlobUrl);
+      }
+    };
+
+    xhr.onerror = () => {
+      setIsUploadingVideo(false);
+      setLocalVideoUrl(fallbackBlobUrl);
+    };
+
+    xhr.send(vFile);
+  };
+
+  const handleSubtitleParsed = (f: File, content: string) => {
+    try {
+      const parsed = parseSubtitleFile(content);
+      if (parsed.cueCount === 0) {
+        setVideoError(t('import.subs_no_cues', 'Could not extract lines from subtitles. Check .srt or .vtt file'));
+        return;
+      }
+      setSubtitleFile(f);
+      setText(parsed.text);
+      setSubtitleStats({ cues: parsed.cueCount, duration: parsed.duration });
+      if (!title.trim()) {
+        const cleanName = f.name
+          .replace(/\.(srt|vtt)$/i, '')
+          .replace(/\.(en|es|ru|fr|de|ja|ko|zh|pt|it|tr|uk|pl)$/i, '')
+          .replace(/[._]/g, ' ')
+          .trim();
+        setTitle(cleanName);
+      }
+      setSelectedType("video");
+      setVideoSuccess(
+        t('import.subs_success_parsed', '✓ Subtitles parsed: {{count}} lines ({{time}})', {
+          count: parsed.cueCount,
+          time: formatSecondsToTimestamp(parsed.duration),
+        })
+      );
+      setVideoError(null);
+    } catch (err: any) {
+      setVideoError(err.message || t('import.subs_parse_err', 'Failed to read subtitle file'));
+    }
+  };
+
+  const handleVideoFileSelected = (f: File) => {
+    try {
+      setVideoFile(f);
+      setLocalVideoName(f.name);
+      setLocalVideoSize(f.size);
+      setSelectedType("video");
+
+      if (!title.trim()) {
+        const cleanName = f.name
+          .replace(/\.(mp4|webm|mkv|mov|avi)$/i, '')
+          .replace(/[._]/g, ' ')
+          .trim();
+        setTitle(cleanName);
+      }
+
+      // Check if container is natively playable in Chrome / browsers (MP4 or WebM)
+      const ext = f.name.split('.').pop()?.toLowerCase() || '';
+      const isDirectlyPlayable = ['mp4', 'webm'].includes(ext);
+
+      if (isDirectlyPlayable) {
+        const blobUrl = URL.createObjectURL(f);
+        setVideoPreviewBlobUrl(blobUrl);
+
+        const tempVideo = document.createElement("video");
+        tempVideo.preload = "metadata";
+        tempVideo.src = blobUrl;
+        tempVideo.onloadedmetadata = () => {
+          if (tempVideo.duration && !isNaN(tempVideo.duration)) {
+            setLocalVideoDuration(Math.round(tempVideo.duration));
+          }
+        };
+        tempVideo.onloadeddata = () => {
+          if (tempVideo.videoWidth > 0) {
+            try {
+              const canvas = document.createElement("canvas");
+              const scale = Math.min(1, 640 / Math.max(tempVideo.videoWidth, tempVideo.videoHeight));
+              canvas.width = Math.round(tempVideo.videoWidth * scale);
+              canvas.height = Math.round(tempVideo.videoHeight * scale);
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+                setCoverUrl((prev) => prev || canvas.toDataURL("image/jpeg", 0.85));
+              }
+            } catch (_) {}
+          }
+        };
+        uploadVideoToServer(f, blobUrl);
+      } else {
+        // For MKV/AVI/MOV: Browser cannot decode AC3/MKV directly via blob.
+        // Wait for the server to remux to MP4 and extract embedded subtitles!
+        setVideoPreviewBlobUrl(null);
+        uploadVideoToServer(f, "");
+      }
+    } catch (err: any) {
+      setVideoError(err.message || t('import.video_load_err', 'Failed to load video file'));
+    }
+  };
+
+  const handleProcessVideoOrSubtitleFiles = (filesList: FileList | File[]) => {
+    const files = Array.from(filesList);
+    if (files.length === 0) return;
+
+    for (const f of files) {
+      const ext = f.name.split('.').pop()?.toLowerCase() || '';
+      if (['srt', 'vtt'].includes(ext)) {
+        const reader = new FileReader();
+        reader.onload = (re) => {
+          const content = re.target?.result as string;
+          if (content) handleSubtitleParsed(f, content);
+        };
+        reader.readAsText(f);
+      } else if (['mp4', 'webm', 'mkv', 'mov', 'avi'].includes(ext) || f.type.startsWith('video/')) {
+        handleVideoFileSelected(f);
+      }
+    }
+  };
+
+  const handleVideoDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setVideoDragActive(true);
+    } else if (e.type === "dragleave") {
+      setVideoDragActive(false);
+    }
+  };
+
+  const handleVideoDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setVideoDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleProcessVideoOrSubtitleFiles(e.dataTransfer.files);
+    }
+  };
+
   const handleResolveChannel = async (overrideUrl?: string) => {
     const targetUrl = (overrideUrl !== undefined ? overrideUrl : channelUrl).trim();
     if (!targetUrl) {
@@ -401,11 +718,14 @@ export default function ImportLessonForm({
   const [selectedType, setSelectedType] = useState<string>(
     editingLesson?.lessonType ||
     (activeTab === "youtube" ? "youtube" :
+      activeTab === "video" ? "video" :
       (editingLesson?.audioUrl || editingLesson?.audioBase64 ? "podcast" : "book"))
   );
 
   const isVideoLesson = Boolean(
     youtubeId ||
+    localVideoUrl ||
+    videoPreviewBlobUrl ||
     editingLesson?.youtubeId ||
     (editingLesson as any)?.localVideoUrl ||
     selectedType === "youtube" ||
@@ -413,7 +733,9 @@ export default function ImportLessonForm({
     editingLesson?.lessonType === "youtube" ||
     editingLesson?.lessonType === "video" ||
     editingLesson?.sourceType === "youtube" ||
-    activeTab === "youtube"
+    editingLesson?.sourceType === "video" ||
+    activeTab === "youtube" ||
+    activeTab === "video"
   );
 
   const isPodcastLesson = Boolean(
@@ -1491,6 +1813,11 @@ export default function ImportLessonForm({
 
     const finalPrimaryTag = primaryTag ? primaryTag.trim() : (tagsList.length > 0 ? tagsList[0] : null);
 
+    const effectiveLocalVideoUrl = localVideoUrl || videoPreviewBlobUrl || editingLesson?.localVideoUrl || null;
+    const effectiveDuration = localVideoDuration || subtitleStats?.duration || youtubeDuration || editingLesson?.duration || 0;
+    const effectiveSourceType = effectiveLocalVideoUrl ? "video" : (youtubeId ? "youtube" : (audioUrl ? "podcast" : (editingLesson?.sourceType || "book")));
+    const effectiveLessonType = effectiveLocalVideoUrl ? "video" : selectedType;
+
     const lessonData: Lesson = {
       id: editingLesson?.id || Date.now().toString(),
       title: title.trim(),
@@ -1499,14 +1826,17 @@ export default function ImportLessonForm({
       translationLanguage,
       audioUrl,
       audioBase64,
+      localVideoUrl: effectiveLocalVideoUrl,
+      duration: effectiveDuration,
+      sourceType: effectiveSourceType,
       coverUrl: coverUrl || null,
       youtubeId,
-      youtubeDuration,
+      youtubeDuration: effectiveDuration || youtubeDuration,
       channelName: channelName?.trim() || null,
       channelTitle: channelName?.trim() || null,
       channelAvatarUrl: channelAvatarUrl || null,
       channelUrl: channelUrl?.trim() || null,
-      lessonType: selectedType,
+      lessonType: effectiveLessonType,
       isBuiltIn: editingLesson?.isBuiltIn || false,
       isArchived: editingLesson?.isArchived || false,
       difficulty: difficulty || null,
@@ -1551,7 +1881,7 @@ export default function ImportLessonForm({
 
       {/* Mode Tabs Selector */}
       {!editingLesson && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl">
           {/* 1. YouTube */}
           <button
             type="button"
@@ -1559,16 +1889,32 @@ export default function ImportLessonForm({
               setActiveTab("youtube");
               setYtError(null);
             }}
-            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === "youtube"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
             }`}
           >
             <Youtube className="w-4 h-4 text-red-500" />
-            {t('import.tab_youtube', 'YouTube Import')}
+            {t('import.tab_youtube', 'YouTube')}
           </button>
-          {/* 2. Подкаст */}
+          {/* 2. Локальное видео + субтитры */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("video");
+              setYtError(null);
+            }}
+            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === "video"
+                ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
+                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+            }`}
+          >
+            <Film className="w-4 h-4 text-sky-500" />
+            {t('import.tab_video', 'Video + Subs')}
+          </button>
+          {/* 3. Подкаст */}
           <button
             type="button"
             onClick={() => {
@@ -1584,7 +1930,7 @@ export default function ImportLessonForm({
             <Podcast className="w-4 h-4 text-purple-500" />
             {t('import.tab_podcast', 'Podcast')}
           </button>
-          {/* 3. Книга PDF / EPUB */}
+          {/* 4. Книга PDF / EPUB */}
           <button
             type="button"
             onClick={() => {
@@ -1598,32 +1944,32 @@ export default function ImportLessonForm({
             }`}
           >
             <FileUp className="w-4 h-4 text-amber-500" />
-            {t('import.tab_file', 'Book PDF / EPUB')}
+            {t('import.tab_file', 'Book PDF/EPUB')}
           </button>
-          {/* 4. Импорт с Сайта */}
+          {/* 5. Импорт с Сайта */}
           <button
             type="button"
             onClick={() => {
               setActiveTab("url");
               setYtError(null);
             }}
-            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === "url"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
             }`}
           >
             <Globe className="w-4 h-4 text-emerald-500" />
-            {t('import.tab_url', 'Website Import')}
+            {t('import.tab_url', 'Website')}
           </button>
-          {/* 5. Обычный текст */}
+          {/* 6. Обычный текст */}
           <button
             type="button"
             onClick={() => {
               setActiveTab("standard");
               setYtError(null);
             }}
-            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            className={`py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === "standard"
                 ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-xs"
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
@@ -2223,6 +2569,307 @@ export default function ImportLessonForm({
           {ytSuccessMessage && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30">
               {ytSuccessMessage}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Video + Subtitles Import Pane */}
+      {activeTab === "video" && (
+        <div className="space-y-4 p-4 border border-sky-100 dark:border-sky-950/30 bg-sky-50/20 dark:bg-sky-950/10 rounded-2xl animate-in fade-in duration-150">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Film className="w-4.5 h-4.5 text-sky-500 animate-pulse" />
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 font-sans">
+                {t('import.video_tab_title', 'Import Local Video & Subtitles (Movies, Series, Anime)')}
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-normal font-sans">
+              {t('import.video_tab_desc', 'Drag & drop a video file (.mp4, .webm, .mkv) and subtitle file (.srt, .vtt) to create an interactive lesson with line-by-line sync.')}
+            </p>
+          </div>
+
+          {/* Unified Drag & Drop Box */}
+          <div
+            onDragEnter={handleVideoDrag}
+            onDragOver={handleVideoDrag}
+            onDragLeave={handleVideoDrag}
+            onDrop={handleVideoDrop}
+            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-3xl p-6 text-center transition-all min-h-[200px] relative ${
+              videoDragActive
+                ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 scale-[1.01]"
+                : "border-zinc-200 dark:border-zinc-800 hover:border-sky-400 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40"
+            }`}
+          >
+            {/* Hidden native file inputs */}
+            <input
+              id="local-video-file-input"
+              type="file"
+              accept=".mp4,.webm,.mkv,.mov,.avi,video/*"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleVideoFileSelected(e.target.files[0]);
+                }
+              }}
+              className="hidden"
+            />
+            <input
+              id="local-subtitle-file-input"
+              type="file"
+              accept=".srt,.vtt,text/vtt"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  const f = e.target.files[0];
+                  const reader = new FileReader();
+                  reader.onload = (re) => {
+                    const content = re.target?.result as string;
+                    if (content) handleSubtitleParsed(f, content);
+                  };
+                  reader.readAsText(f);
+                }
+              }}
+              className="hidden"
+            />
+
+            <div className="space-y-3 flex flex-col items-center max-w-lg">
+              <div className="p-3.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 rounded-2xl">
+                <UploadCloud className="w-7 h-7" />
+              </div>
+
+              <div>
+                <h4 className="text-xs font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">
+                  {t('import.video_drop_title', 'DRAG & DROP VIDEO AND SUBTITLES HERE')}
+                </h4>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  {t('import.video_drop_desc', 'Supports video (.mp4, .webm, .mkv) and subtitles (.srt, .vtt). You can drop both files together.')}
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("local-video-file-input")?.click()}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    videoFile || localVideoUrl
+                      ? "bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-300 dark:border-sky-800"
+                      : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-sky-400"
+                  }`}
+                >
+                  <Film className="w-3.5 h-3.5 text-sky-500" />
+                  {videoFile ? `✓ ${videoFile.name}` : t('import.select_video_btn', 'Select video (.mp4, .mkv)')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("local-subtitle-file-input")?.click()}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    subtitleStats
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                      : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-emerald-400"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 text-emerald-500" />
+                  {subtitleStats
+                    ? `✓ ${subtitleStats.cues} ${t('import.cues_count', 'lines')}`
+                    : t('import.select_subtitles_btn', 'Select Subtitles (.srt, .vtt)')}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Uploading progress bar */}
+          {isUploadingVideo && (
+            <div className="p-3.5 bg-sky-50 dark:bg-sky-950/40 rounded-xl border border-sky-200 dark:border-sky-900/40 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-sky-900 dark:text-sky-200">
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-sky-600 dark:text-sky-400" />
+                  {videoUploadProgress < 100
+                    ? t('import.uploading_video', 'Uploading video file to Lectura library...')
+                    : t('import.processing_video_progress', 'Processing: extracting embedded subtitles and preparing video...')}
+                </span>
+                <span className="font-mono text-xs font-bold">{videoUploadProgress}%</span>
+              </div>
+              <div className="w-full h-2 bg-sky-200/50 dark:bg-sky-900/40 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-sky-500 transition-all duration-300"
+                  style={{ width: `${Math.max(4, videoUploadProgress)}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-sky-700 dark:text-sky-300">
+                {videoUploadProgress === 100
+                  ? t('import.processing_video_desc', 'File uploaded to server. Extracting embedded subtitles and preparing compatible MP4 stream...')
+                  : t('import.upload_tip', 'File is being transferred to the local Lectura server. Please wait.')}
+              </p>
+            </div>
+          )}
+
+          {/* Video Preview Player if video attached */}
+          {(videoPreviewBlobUrl || localVideoUrl) && (
+            <div className="bg-zinc-950 rounded-2xl p-2 border border-zinc-800 overflow-hidden space-y-2">
+              <div className="flex items-center justify-between px-2 text-[11px] text-zinc-400 font-medium">
+                <span className="flex items-center gap-1.5 truncate">
+                  <Film className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span className="truncate">{localVideoName || t('import.video_preview_title', 'Video Preview')}</span>
+                  {localVideoSize && (
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      ({Math.round(localVideoSize / 1024 / 1024)} {t('common.mb', 'MB')})
+                    </span>
+                  )}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCaptureVideoFrameAsCover}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-zinc-800 hover:bg-sky-600 hover:text-white text-zinc-200 rounded-md flex items-center gap-1 transition-all cursor-pointer border border-zinc-700 shadow-xs active:scale-95"
+                    title={t('import.capture_frame_tooltip', 'Use current video frame as lesson cover')}
+                  >
+                    <Camera className="w-3 h-3 text-sky-400" />
+                    <span>{t('import.capture_frame_btn', 'Frame as cover')}</span>
+                  </button>
+                  {localVideoDuration && (
+                    <span className="text-zinc-400 font-mono text-[10px]">
+                      ⏱ {formatSecondsToTimestamp(localVideoDuration)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <video
+                ref={videoPreviewRef}
+                controls
+                playsInline
+                crossOrigin="anonymous"
+                className="w-full max-h-56 rounded-xl bg-black object-contain mx-auto"
+              />
+              {videoCompatibilityWarning && (
+                <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-bold block text-amber-300">{t('import.codec_warning_title', 'Codec HEVC / 10-bit:')}</span>
+                    <span className="text-zinc-300 text-[11px] leading-relaxed">{videoCompatibilityWarning}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Subtitle track selector (if embedded tracks detected from MKV/video) */}
+          {availableSubtitleTracks.length > 0 && (
+            <div className="p-3 bg-sky-50/70 dark:bg-sky-950/40 rounded-xl border border-sky-200 dark:border-sky-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-sky-900 dark:text-sky-200 flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-sky-500" />
+                  {t('import.embedded_tracks_found', 'Embedded Subtitle Tracks')}
+                </span>
+                <span className="text-[11px] text-sky-700 dark:text-sky-300">
+                  {availableSubtitleTracks.length > 1
+                    ? t('import.choose_track_tip', 'Multiple subtitle tracks found. Choose your preferred one:')
+                    : t('import.one_track_tip', '1 subtitle track found and extracted automatically.')}
+                </span>
+              </div>
+              {availableSubtitleTracks.length > 1 ? (
+                <select
+                  value={selectedTrackIndex ?? availableSubtitleTracks[0]?.index}
+                  onChange={(e) => {
+                    const idx = Number(e.target.value);
+                    setSelectedTrackIndex(idx);
+                    const tr = availableSubtitleTracks.find((t) => t.index === idx);
+                    if (tr && tr.text) {
+                      setText(tr.text);
+                      setSubtitleStats({ cues: tr.cueCount || 0, duration: tr.duration || 0 });
+                      showToast(t('import.track_switched', 'Track selected: {{title}}', { title: tr.title }), 'info');
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-sky-300 dark:border-sky-800 rounded-lg text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                >
+                  {availableSubtitleTracks.map((tr) => (
+                    <option key={tr.index} value={tr.index}>
+                      {tr.title} ({tr.cueCount || 0} {t('import.cues_count', 'lines')})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="px-2.5 py-1 text-xs font-bold bg-sky-200/60 dark:bg-sky-900/60 text-sky-800 dark:text-sky-200 rounded-lg">
+                  {availableSubtitleTracks[0]?.title} ({availableSubtitleTracks[0]?.cueCount || 0} {t('import.cues_count', 'lines')})
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Audio track selector (if embedded audio tracks detected from MKV/video) */}
+          {availableAudioTracks.length > 0 && (
+            <div className="p-3 bg-purple-50/70 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                  <Volume2 className="w-3.5 h-3.5 text-purple-500" />
+                  {t('import.audio_tracks_found', 'Audio Track / Dubbing')}
+                </span>
+                <span className="text-[11px] text-purple-700 dark:text-purple-300">
+                  {availableAudioTracks.length > 1
+                    ? t('import.choose_audio_tip', 'Multiple audio tracks found in file. Choose preferred dubbing:')
+                    : t('import.one_audio_tip', 'Audio track automatically matched to your study language.')}
+                </span>
+              </div>
+              {availableAudioTracks.length > 1 ? (
+                <div className="flex items-center gap-2">
+                  {isSwitchingAudio && (
+                    <span className="text-[11px] text-purple-600 dark:text-purple-300 animate-pulse font-medium">
+                      {t('import.switching_audio', 'Switching...')}
+                    </span>
+                  )}
+                  <select
+                    value={selectedAudioIndex ?? availableAudioTracks[0]?.index}
+                    disabled={isSwitchingAudio}
+                    onChange={(e) => handleSwitchAudioTrack(Number(e.target.value))}
+                    className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-purple-300 dark:border-purple-800 rounded-lg text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-purple-500/30 disabled:opacity-60 cursor-pointer"
+                  >
+                    {availableAudioTracks.map((a) => (
+                      <option key={a.index} value={a.index}>
+                        {a.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <span className="px-2.5 py-1 text-xs font-bold bg-purple-200/60 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 rounded-lg">
+                  {availableAudioTracks[0]?.title}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Fallback to Faster-Whisper only if video selected, upload finished, and no subtitles found */}
+          {videoFile && !isUploadingVideo && !subtitleStats && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="text-xs text-amber-900 dark:text-amber-200">
+                <span className="font-bold block">💡 {t('import.no_subs_tip_title', 'No subtitle file?')}</span>
+                <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                  {t('import.no_subs_tip_desc', 'You can send this video to Faster-Whisper for automatic speech recognition.')}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (videoFile) handleFileImport(videoFile);
+                }}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                {t('import.transcribe_with_whisper', 'Transcribe with Whisper')}
+              </button>
+            </div>
+          )}
+
+          {/* Success / Error banners */}
+          {videoError && (
+            <div className="p-3.5 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 rounded-xl text-xs font-semibold leading-normal border border-red-100 dark:border-red-900/30 font-sans">
+              ⚠️ {videoError}
+            </div>
+          )}
+
+          {videoSuccess && (
+            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold border border-emerald-100 dark:border-emerald-900/30">
+              {videoSuccess}
             </div>
           )}
         </div>

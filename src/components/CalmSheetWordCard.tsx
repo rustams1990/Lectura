@@ -6,9 +6,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { VocabItem, WordStatus, ReaderSettings, Lesson } from "../types";
 import { useTranslation } from "react-i18next";
-import { Volume2, X, Link2 } from "lucide-react";
-import { playGoogleTTS, fetchWordMeaning, normalizePossessiveSuffix } from "../utils";
+import { Volume2, X, Link2, Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { playGoogleTTS, fetchWordMeaning, fetchSentenceTranslation, normalizePossessiveSuffix, normalizeLanguage } from "../utils";
 import { getSuggestedLemmas } from "../morphology";
+import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 
 export interface CalmSheetWordCardProps {
   word: string | null;
@@ -34,7 +35,7 @@ export interface CalmSheetWordCardProps {
   onOpenLesson?: (lessonId: string, word: string, sentence: string) => void;
 }
 
-type TabType = "meaning" | "definition" | "usage" | "dictionaries" | "baseroot";
+type TabType = "meaning" | "ai" | "definition" | "usage" | "dictionaries" | "baseroot";
 
 export default function CalmSheetWordCard({
   word,
@@ -69,20 +70,32 @@ export default function CalmSheetWordCard({
   const [baseRootInput, setBaseRootInput] = useState("");
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
+  // AI Explanation State
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [aiContextRelation, setAiContextRelation] = useState("");
+  const [aiGrammar, setAiGrammar] = useState("");
+  const [aiExamples, setAiExamples] = useState<Array<{ text: string; translation: string }>>([]);
+  const [aiError, setAiError] = useState("");
+
   const cleanWord = useMemo(() => (word ? normalizePossessiveSuffix(word.trim()).toLowerCase() : ""), [word]);
 
   // Current status
   const currentStatus: WordStatus = useMemo(() => {
     if (existingVocab?.status) return existingVocab.status;
-    if (cleanWord && vocab && vocab[cleanWord]?.status) return vocab[cleanWord].status;
+    const activeLang = normalizeLanguage(targetLanguage || "english").toLowerCase();
+    if (cleanWord && vocab) {
+      const match = vocab[`${activeLang}_${cleanWord}`] || vocab[cleanWord];
+      if (match?.status) return match.status;
+    }
     return "new";
-  }, [existingVocab, cleanWord, vocab]);
+  }, [existingVocab, cleanWord, vocab, targetLanguage]);
 
   // Current parent / base root
   const currentParent = useMemo(() => {
     if (!cleanWord) return "";
-    return wordLinks[cleanWord] || "";
-  }, [cleanWord, wordLinks]);
+    const activeLang = normalizeLanguage(targetLanguage || "english").toLowerCase();
+    return wordLinks[`${activeLang}_${cleanWord}`] || wordLinks[cleanWord] || "";
+  }, [cleanWord, wordLinks, targetLanguage]);
 
   useEffect(() => {
     setBaseRootInput(currentParent);
@@ -103,6 +116,9 @@ export default function CalmSheetWordCard({
   useEffect(() => {
     if (!cleanWord) return;
 
+    const activeLang = normalizeLanguage(targetLanguage || "english").toLowerCase();
+    const vocabMatch = vocab?.[`${activeLang}_${cleanWord}`] || vocab?.[cleanWord];
+
     // Check existing vocab first
     if (existingVocab) {
       if (existingVocab.translation) {
@@ -114,16 +130,41 @@ export default function CalmSheetWordCard({
       if (existingVocab.ipa) {
         setIpaText(existingVocab.ipa);
       }
-    } else if (vocab && vocab[cleanWord]) {
-      if (vocab[cleanWord].translation) {
-        setCurrentMeaning(vocab[cleanWord].translation);
+    } else if (vocabMatch) {
+      if (vocabMatch.translation) {
+        setCurrentMeaning(vocabMatch.translation);
       }
-      if (vocab[cleanWord].definition) {
-        setDictionaryDefinition(vocab[cleanWord].definition);
+      if (vocabMatch.definition) {
+        setDictionaryDefinition(vocabMatch.definition);
       }
-      if (vocab[cleanWord].ipa) {
-        setIpaText(vocab[cleanWord].ipa);
+      if (vocabMatch.ipa) {
+        setIpaText(vocabMatch.ipa);
       }
+    }
+
+    // Sync AI fields from existing item
+    if (existingVocab?.contextRelation) {
+      setAiContextRelation(existingVocab.contextRelation);
+    } else if (vocabMatch?.contextRelation) {
+      setAiContextRelation(vocabMatch.contextRelation);
+    } else {
+      setAiContextRelation("");
+    }
+
+    if (existingVocab?.grammar) {
+      setAiGrammar(existingVocab.grammar);
+    } else if (vocabMatch?.grammar) {
+      setAiGrammar(vocabMatch.grammar);
+    } else {
+      setAiGrammar("");
+    }
+
+    if (existingVocab?.examples && existingVocab.examples.length > 0) {
+      setAiExamples(existingVocab.examples);
+    } else if (vocabMatch?.examples && vocabMatch.examples.length > 0) {
+      setAiExamples(vocabMatch.examples);
+    } else {
+      setAiExamples([]);
     }
 
     let isCancelled = false;
@@ -136,7 +177,7 @@ export default function CalmSheetWordCard({
         const meaning = await fetchWordMeaning(cleanWord, targetLanguage, targetTransLang);
         if (!isCancelled && meaning) {
           const formatted = formatSynonymsLine(meaning);
-          if (!existingVocab?.translation && (!vocab || !vocab[cleanWord]?.translation)) {
+          if (!existingVocab?.translation && !vocabMatch?.translation) {
             setCurrentMeaning(formatted);
           }
 
@@ -147,8 +188,8 @@ export default function CalmSheetWordCard({
               translation: formatted,
               definition: dictionaryDefinition,
               ipa: ipaText || "",
-              grammar: "",
-              contextRelation: "",
+              grammar: aiGrammar || "",
+              contextRelation: aiContextRelation || "",
               status: currentStatus,
               examples: existingVocab?.examples || [],
               createdAt: Date.now(),
@@ -168,7 +209,7 @@ export default function CalmSheetWordCard({
       }
     };
 
-    // 2. Fetch monolingual definition (Wiktionary / Free Dictionary)
+    // 2. Fetch definition (Wiktionary / Free Dictionary) localized to translationLanguage
     const fetchDefinition = async () => {
       setLoadingDefinition(true);
       try {
@@ -187,8 +228,24 @@ export default function CalmSheetWordCard({
         if (!res.ok) throw new Error("Definition lookup failed");
         const data = await res.json();
         if (!isCancelled && data.translation) {
-          setDictionaryDefinition(data.translation);
+          const rawDef = data.translation;
           if (data.ipa && !ipaText) setIpaText(data.ipa);
+
+          // If target study language differs from target translation language, translate the definition
+          const normTarget = normalizeLanguage(targetLanguage || "english").toLowerCase();
+          const normTrans = normalizeLanguage(translationLanguage || "russian").toLowerCase();
+
+          if (normTarget !== normTrans && rawDef) {
+            try {
+              const translatedDef = await fetchSentenceTranslation(rawDef, normTarget, normTrans);
+              if (!isCancelled && translatedDef) {
+                setDictionaryDefinition(translatedDef);
+                return;
+              }
+            } catch (_) {}
+          }
+
+          setDictionaryDefinition(rawDef);
         }
       } catch (err) {
         if (!isCancelled && !dictionaryDefinition) {
@@ -209,9 +266,106 @@ export default function CalmSheetWordCard({
     };
   }, [cleanWord, existingVocab, vocab, targetLanguage, translationLanguage, sentence, formatSynonymsLine, currentStatus, onSaveVocab]);
 
+  // Fetch AI explanation function with Failover
+  const handleFetchAi = useCallback(async (force = false) => {
+    if (!word || (!force && (loadingAi || aiContextRelation))) return;
+    setLoadingAi(true);
+    setAiError("");
+
+    try {
+      const profiles = getOrCreateAiProfiles(settings);
+      const data = await executeAiWithFailover(
+        profiles,
+        async (profile) => {
+          const res = await fetch("/api/explain", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              word,
+              context: sentence || word,
+              targetLanguage,
+              translationLanguage: translationLanguage || "Russian",
+              aiProfile: profile,
+            }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const err: any = new Error(errData.error || "Failed to fetch AI explanation");
+            err.status = res.status;
+            throw err;
+          }
+          return res.json();
+        }
+      );
+
+      if (data) {
+        if (data.contextRelation) setAiContextRelation(data.contextRelation);
+        if (data.grammar) setAiGrammar(data.grammar);
+        if (data.examples && Array.isArray(data.examples)) setAiExamples(data.examples);
+        if (data.translation && (!currentMeaning || currentMeaning === cleanWord)) {
+          setCurrentMeaning(data.translation);
+        }
+        if (data.ipa && !ipaText) setIpaText(data.ipa);
+
+        // Auto-save AI data into vocab
+        const activeLang = normalizeLanguage(targetLanguage || "english").toLowerCase();
+        const vocabMatch = vocab?.[`${activeLang}_${cleanWord}`] || vocab?.[cleanWord];
+        const updatedItem: VocabItem = {
+          ...(existingVocab || {
+            word: cleanWord,
+            translation: data.translation || currentMeaning || "",
+            definition: dictionaryDefinition,
+            ipa: data.ipa || ipaText || "",
+            grammar: data.grammar || "",
+            contextRelation: data.contextRelation || "",
+            examples: data.examples || [],
+            createdAt: Date.now(),
+          }),
+          grammar: data.grammar || aiGrammar || "",
+          contextRelation: data.contextRelation || "",
+          examples: data.examples && data.examples.length > 0 ? data.examples : (existingVocab?.examples || []),
+          status: currentStatus === "new" ? "2" : currentStatus,
+          imageUrl: existingVocab?.imageUrl ?? (vocabMatch?.imageUrl || null),
+        };
+        onSaveVocab(updatedItem);
+      }
+    } catch (err: any) {
+      console.error("[CalmSheetWordCard] AI explanation failed:", err);
+      setAiError(err.message || "Failed to load AI explanation");
+    } finally {
+      setLoadingAi(false);
+    }
+  }, [
+    word,
+    sentence,
+    targetLanguage,
+    translationLanguage,
+    settings,
+    loadingAi,
+    aiContextRelation,
+    cleanWord,
+    currentMeaning,
+    dictionaryDefinition,
+    ipaText,
+    aiGrammar,
+    existingVocab,
+    vocab,
+    currentStatus,
+    onSaveVocab,
+  ]);
+
+  // Auto-fetch AI if tab is opened and not yet loaded
+  useEffect(() => {
+    if (activeTab === "ai" && !aiContextRelation && !loadingAi && !aiError) {
+      handleFetchAi();
+    }
+  }, [activeTab, aiContextRelation, loadingAi, aiError, handleFetchAi]);
+
   // Handle saving meaning edits
   const handleMeaningBlur = () => {
     if (!cleanWord || !currentMeaning.trim()) return;
+    const activeLang = normalizeLanguage(targetLanguage || "english").toLowerCase();
+    const vocabMatch = vocab?.[`${activeLang}_${cleanWord}`] || vocab?.[cleanWord];
     const updatedItem: VocabItem = {
       ...(existingVocab || {
         word: cleanWord,
@@ -226,7 +380,7 @@ export default function CalmSheetWordCard({
       translation: currentMeaning.trim(),
       definition: dictionaryDefinition,
       status: currentStatus === "new" ? "2" : currentStatus,
-      imageUrl: existingVocab?.imageUrl ?? (vocab?.[cleanWord]?.imageUrl || null),
+      imageUrl: existingVocab?.imageUrl ?? (vocabMatch?.imageUrl || null),
     };
     onSaveVocab(updatedItem);
   };
@@ -234,6 +388,8 @@ export default function CalmSheetWordCard({
   // Handle status click
   const handleStatusChange = (newStatus: WordStatus) => {
     if (!cleanWord) return;
+    const activeLang = normalizeLanguage(targetLanguage || "english").toLowerCase();
+    const vocabMatch = vocab?.[`${activeLang}_${cleanWord}`] || vocab?.[cleanWord];
 
     if (newStatus === "ignored") {
       const updatedItem: VocabItem = {
@@ -248,7 +404,7 @@ export default function CalmSheetWordCard({
           createdAt: Date.now(),
         }),
         status: "ignored",
-        imageUrl: existingVocab?.imageUrl ?? (vocab?.[cleanWord]?.imageUrl || null),
+        imageUrl: existingVocab?.imageUrl ?? (vocabMatch?.imageUrl || null),
       };
       onSaveVocab(updatedItem);
       return;
@@ -268,7 +424,7 @@ export default function CalmSheetWordCard({
       translation: currentMeaning || existingVocab?.translation || "",
       definition: dictionaryDefinition,
       status: newStatus,
-      imageUrl: existingVocab?.imageUrl ?? (vocab?.[cleanWord]?.imageUrl || null),
+      imageUrl: existingVocab?.imageUrl ?? (vocabMatch?.imageUrl || null),
     };
     onSaveVocab(updatedItem);
   };
@@ -421,6 +577,18 @@ export default function CalmSheetWordCard({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("ai")}
+            className={`px-2 py-1 text-[11.5px] font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+              activeTab === "ai"
+                ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold shadow-3xs"
+                : "text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+            }`}
+          >
+            <Sparkles className="w-3 h-3 shrink-0" />
+            <span>AI</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("definition")}
             className={`px-2 py-1 text-[11.5px] font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               activeTab === "definition"
@@ -553,12 +721,101 @@ export default function CalmSheetWordCard({
         </div>
       )}
 
-      {/* Tab: Definition (Monolingual Explanatory Dictionary) */}
+      {/* Tab: AI Explanation (Language Reactor style context & grammar breakdown) */}
+      {activeTab === "ai" && (
+        <div className="space-y-3 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-zinc-950 border border-slate-200/90 dark:border-zinc-700/80 rounded-xl p-3.5 shadow-2xs min-h-[100px]">
+            <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-100 dark:border-zinc-800">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-sky-600 dark:text-sky-400">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI Context & Grammar Breakdown</span>
+                {aiGrammar && (
+                  <span className="ml-1.5 px-2 py-0.5 text-[10.5px] font-bold rounded-md bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300">
+                    {aiGrammar}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleFetchAi(true)}
+                disabled={loadingAi}
+                className="text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 p-1 rounded-md transition-colors cursor-pointer"
+                title="Regenerate AI explanation"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingAi ? "animate-spin text-sky-500" : ""}`} />
+              </button>
+            </div>
+
+            {loadingAi ? (
+              <div className="space-y-2 py-2">
+                <div className="flex items-center gap-2 text-xs text-sky-600 dark:text-sky-400 font-medium">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{t("explainer.ai_analyzing", "AI is analyzing context & grammar...")}</span>
+                </div>
+                <div className="h-3 bg-slate-200 dark:bg-zinc-800 rounded w-full animate-pulse" />
+                <div className="h-3 bg-slate-200 dark:bg-zinc-800 rounded w-5/6 animate-pulse" />
+                <div className="h-3 bg-slate-200 dark:bg-zinc-800 rounded w-4/6 animate-pulse" />
+              </div>
+            ) : aiError ? (
+              <div className="py-2 text-center">
+                <p className="text-xs text-rose-500 font-medium mb-2">{aiError}</p>
+                <button
+                  type="button"
+                  onClick={() => handleFetchAi(true)}
+                  className="px-3 py-1 text-xs font-semibold rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : aiContextRelation ? (
+              <div className="space-y-3">
+                <p className="text-[13.5px] leading-relaxed text-slate-800 dark:text-zinc-200 m-0 whitespace-pre-line font-normal">
+                  {aiContextRelation}
+                </p>
+
+                {aiExamples && aiExamples.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 block">
+                      📚 Context Examples:
+                    </span>
+                    {aiExamples.map((ex, idx) => (
+                      <div key={idx} className="text-xs text-slate-700 dark:text-zinc-300 border-l-2 border-sky-500 pl-2 py-0.5">
+                        <div className="font-medium text-slate-900 dark:text-white">{ex.text}</div>
+                        {ex.translation && (
+                          <div className="text-slate-500 dark:text-zinc-400 text-[11px] mt-0.5">
+                            {ex.translation}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="py-3 text-center">
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mb-2">
+                  Get in-depth grammatical nuances, idiom origins, and contextual meaning from AI.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleFetchAi(true)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-xs hover:from-sky-600 hover:to-indigo-700 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Explain with AI</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Definition (Explanatory Dictionary) */}
       {activeTab === "definition" && (
         <div className="space-y-3 animate-in fade-in duration-150">
           <div className="bg-white dark:bg-zinc-950 border border-slate-200/90 dark:border-zinc-700/80 rounded-xl p-3.5 shadow-2xs min-h-[72px]">
             <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 block mb-1.5">
-              📖 Monolingual Definition ({targetLanguage}):
+              📖 {t("explainer.tab_definition", "Definition")} ({translationLanguage || targetLanguage}):
             </span>
             {loadingDefinition && !dictionaryDefinition ? (
               <div className="space-y-1.5 animate-pulse pt-1">
@@ -775,8 +1032,8 @@ export default function CalmSheetWordCard({
           onClick={() => handleStatusChange("4")}
           className={`flex-1 h-8 rounded-full text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
             currentStatus === "4"
-              ? "bg-sky-100 text-sky-700 dark:bg-sky-950/80 dark:text-sky-300 font-extrabold"
-              : "text-slate-600 dark:text-zinc-400 hover:bg-sky-50 hover:text-sky-700 dark:hover:bg-sky-950/40"
+              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 font-extrabold shadow-xs"
+              : "text-slate-600 dark:text-zinc-400 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40"
           }`}
           title="Advanced (4)"
         >

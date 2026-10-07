@@ -149,8 +149,10 @@ interface LibraryHomeProps {
   onSelectPlaylist?: (id: string, filters?: PlaylistNavigationFilters) => void;
   onDeletePlaylist?: (id: string, e: React.MouseEvent) => void;
   onToggleArchivePlaylist?: (id: string, e: React.MouseEvent) => void;
+  onTogglePinPlaylist?: (id: string, e?: React.MouseEvent) => void;
   onPlayAllPlaylist?: (playlist: Playlist, e: React.MouseEvent) => void;
   onUpdatePlaylist?: (updated: Playlist) => void;
+  onReorderPlaylists?: (reorderedPlaylists: Playlist[]) => void;
   onAddPlaylist?: (playlist: Playlist) => void;
   onAddOrUpdateLesson?: (lesson: Lesson) => void;
   onOpenImportForm: () => void;
@@ -514,8 +516,10 @@ function LibraryHome({
   onSelectPlaylist,
   onDeletePlaylist,
   onToggleArchivePlaylist,
+  onTogglePinPlaylist,
   onPlayAllPlaylist,
   onUpdatePlaylist,
+  onReorderPlaylists,
   onAddPlaylist,
   onAddOrUpdateLesson,
   onOpenImportForm,
@@ -759,6 +763,63 @@ function LibraryHome({
   };
 
 
+
+  // Playlist reordering state & handlers
+  const [draggedPlaylistId, setDraggedPlaylistId] = useState<string | null>(null);
+  const [dragOverPlaylistId, setDragOverPlaylistId] = useState<string | null>(null);
+  const [dropPlaylistPosition, setDropPlaylistPosition] = useState<"before" | "after" | null>(null);
+
+  const handleReorderPlaylistCards = (sourceId: string, targetId: string, position: "before" | "after") => {
+    if (!onReorderPlaylists || sourceId === targetId) return;
+
+    const sourceIndex = filteredPlaylists.findIndex((p) => p.id === sourceId);
+    const targetIndex = filteredPlaylists.findIndex((p) => p.id === targetId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const reordered = [...filteredPlaylists];
+    const [moved] = reordered.splice(sourceIndex, 1);
+
+    let newTargetIndex = reordered.findIndex((p) => p.id === targetId);
+    if (position === "after") {
+      newTargetIndex += 1;
+    }
+    reordered.splice(newTargetIndex, 0, moved);
+
+    if (sortBy !== "pinned") {
+      setSortBy("pinned");
+      safeLocalStorageSetItem("vocab_library_sort", "pinned");
+    }
+
+    onReorderPlaylists(reordered);
+    showToast(t("playlist.order_updated", "Порядок видео обновлен!"), "success");
+  };
+
+  const handleMovePlaylistStep = (playlistId: string, direction: "left" | "right" | "first") => {
+    if (!onReorderPlaylists) return;
+    const currentIndex = filteredPlaylists.findIndex((p) => p.id === playlistId);
+    if (currentIndex === -1) return;
+
+    const reordered = [...filteredPlaylists];
+    const [moved] = reordered.splice(currentIndex, 1);
+
+    if (direction === "first") {
+      reordered.unshift(moved);
+    } else if (direction === "left") {
+      const newIdx = Math.max(0, currentIndex - 1);
+      reordered.splice(newIdx, 0, moved);
+    } else if (direction === "right") {
+      const newIdx = Math.min(reordered.length, currentIndex + 1);
+      reordered.splice(newIdx, 0, moved);
+    }
+
+    if (sortBy !== "pinned") {
+      setSortBy("pinned");
+      safeLocalStorageSetItem("vocab_library_sort", "pinned");
+    }
+
+    onReorderPlaylists(reordered);
+    showToast(t("playlist.order_updated", "Порядок видео обновлен!"), "success");
+  };
 
   const [booksPerRow, setBooksPerRow] = useState<number>(() => {
     const saved = localStorage.getItem("vocab_books_per_row");
@@ -1098,8 +1159,22 @@ function LibraryHome({
       }
 
       return matchesSearch && matchesLanguage && matchesLessonType && matchesTag && matchesDifficulty;
+    }).sort((a, b) => {
+      // Pinned playlists always come first regardless of sort
+      const aPinned = !!a.pinned;
+      const bPinned = !!b.pinned;
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "title_desc") return b.title.localeCompare(a.title);
+      if (sortBy === "newest") return (b.createdAt || "").localeCompare(a.createdAt || "");
+      if (sortBy === "oldest") return (a.createdAt || "").localeCompare(b.createdAt || "");
+      const orderA = typeof a.order === "number" ? a.order : Infinity;
+      const orderB = typeof b.order === "number" ? b.order : Infinity;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.createdAt || "").localeCompare(b.createdAt || "");
     });
-  }, [playlists, lessons, searchQuery, selectedLanguage, selectedLessonType, selectedTag, selectedDifficulty, showArchived, i18n.language]);
+  }, [playlists, lessons, searchQuery, selectedLanguage, selectedLessonType, selectedTag, selectedDifficulty, showArchived, sortBy, i18n.language]);
 
   // Playlists matching the current language filter and archive state (regardless of category chip)
   const languagePlaylists = useMemo(() => {
@@ -1856,10 +1931,12 @@ function LibraryHome({
         <>
           <div className={`grid ${gridColsClass} gap-3 sm:gap-6 md:gap-8`}>
             {/* Playlists Cards */}
-            {currentPage === 1 && filteredPlaylists.map((playlist) => (
+            {currentPage === 1 && filteredPlaylists.map((playlist, plIdx) => (
               <PlaylistCard
                 key={playlist.id}
                 playlist={playlist}
+                index={plIdx}
+                totalCount={filteredPlaylists.length}
                 lessons={lessons}
                 history={history}
                 onSelectPlaylist={(id) => onSelectPlaylist ? onSelectPlaylist(id, {
@@ -1868,10 +1945,36 @@ function LibraryHome({
                 }) : undefined}
                 onDeletePlaylist={onDeletePlaylist}
                 onToggleArchive={onToggleArchivePlaylist}
+                onTogglePin={onTogglePinPlaylist}
                 onPlayAllPlaylist={onPlayAllPlaylist}
                 onUpdatePlaylist={onUpdatePlaylist}
                 languageFlags={languageFlags}
                 settings={settings}
+                isDraggable={Boolean(onReorderPlaylists && filteredPlaylists.length > 1)}
+                isDragging={draggedPlaylistId === playlist.id}
+                isDragOver={dragOverPlaylistId === playlist.id}
+                dropPosition={dragOverPlaylistId === playlist.id ? dropPlaylistPosition : null}
+                onDragStartItem={(id) => setDraggedPlaylistId(id)}
+                onDragOverItem={(id, pos) => {
+                  setDragOverPlaylistId(id);
+                  setDropPlaylistPosition(pos);
+                }}
+                onDragLeaveItem={() => {
+                  setDragOverPlaylistId(null);
+                  setDropPlaylistPosition(null);
+                }}
+                onDropOnItem={(sourceId, targetId, pos) => {
+                  handleReorderPlaylistCards(sourceId, targetId, pos);
+                  setDraggedPlaylistId(null);
+                  setDragOverPlaylistId(null);
+                  setDropPlaylistPosition(null);
+                }}
+                onDragEndItem={() => {
+                  setDraggedPlaylistId(null);
+                  setDragOverPlaylistId(null);
+                  setDropPlaylistPosition(null);
+                }}
+                onMovePlaylist={onReorderPlaylists ? handleMovePlaylistStep : undefined}
               />
             ))}
 

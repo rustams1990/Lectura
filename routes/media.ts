@@ -13,6 +13,9 @@ import { getYtDlp } from "./ytdlpWrapper.ts";
 import { getDbConnection } from "./dbConnection.ts";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
+import { execFile } from "child_process";
+import util from "util";
+const execFilePromise = util.promisify(execFile);
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
@@ -24,6 +27,11 @@ if (!fs.existsSync(IMAGE_CACHE_DIR)) {
 const VIDEO_STORAGE_DIR = path.join(DATA_DIR, "media", "videos");
 if (!fs.existsSync(VIDEO_STORAGE_DIR)) {
   fs.mkdirSync(VIDEO_STORAGE_DIR, { recursive: true });
+}
+
+const CLIPS_STORAGE_DIR = path.join(DATA_DIR, "media", "clips");
+if (!fs.existsSync(CLIPS_STORAGE_DIR)) {
+  fs.mkdirSync(CLIPS_STORAGE_DIR, { recursive: true });
 }
 
 // EPUB Parser Helpers
@@ -2159,10 +2167,11 @@ function streamFile(filePath: string, req: Request, res: Response, defaultConten
   const range = req.headers.range;
 
   const ext = path.extname(filePath).toLowerCase();
-  let contentType = defaultContentType || "video/mp4";
+  let contentType = defaultContentType || (ext === ".mkv" ? "video/x-matroska" : "video/mp4");
   if (ext === ".m4a" || ext === ".aac") contentType = "audio/mp4";
   else if (ext === ".mp3") contentType = "audio/mpeg";
   else if (ext === ".webm") contentType = "video/webm";
+  else if (ext === ".mkv") contentType = "video/x-matroska";
 
   res.setHeader("Accept-Ranges", "bytes");
 
@@ -2201,6 +2210,16 @@ function streamFile(filePath: string, req: Request, res: Response, defaultConten
 router.get("/media/stream/:filename", (req: Request, res: Response) => {
   const filename = path.basename(req.params.filename);
   const filePath = path.join(VIDEO_STORAGE_DIR, filename);
+
+  // If MKV is requested, check if a browser-friendly MP4 exists and stream that instead
+  if (filename.toLowerCase().endsWith(".mkv")) {
+    const mp4Name = filename.replace(/\.mkv$/i, ".mp4");
+    const mp4Path = path.join(VIDEO_STORAGE_DIR, mp4Name);
+    if (fs.existsSync(mp4Path)) {
+      return streamFile(mp4Path, req, res, "video/mp4");
+    }
+  }
+
   return streamFile(filePath, req, res);
 });
 
@@ -2327,6 +2346,232 @@ router.get("/media/youtube-stream/:videoId", async (req: Request, res: Response)
   } catch (err: any) {
     console.error("[YouTube Audio Stream Error]:", err?.message || err);
     return res.status(500).json({ error: err?.message || "Error resolving YouTube stream" });
+  }
+});
+
+/**
+ * GET /api/media/clips/:filename
+ * Stream card clip media (mp3, jpg, webp) with range support.
+ */
+router.get("/media/clips/:filename", (req: Request, res: Response) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(CLIPS_STORAGE_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "Clip not found" });
+  }
+  const ext = path.extname(filename).toLowerCase();
+  const contentType = ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : ext === ".webp" ? "image/webp" : "image/jpeg";
+  return streamFile(filePath, req, res, contentType);
+});
+
+/**
+ * POST /api/media/create-card-clip
+ * Generates audio clip (mp3) and image snapshot (jpg) from video/audio lesson.
+ */
+router.post("/media/create-card-clip", async (req: Request, res: Response) => {
+  try {
+    const {
+      lessonId,
+      videoId,
+      audioUrl,
+      localVideoUrl,
+      startTime = 0,
+      endTime = 0,
+      imageSnapshot,
+      word = "word",
+    } = req.body;
+
+    const startNum = Math.max(0, parseFloat(startTime) || 0);
+    let endNum = parseFloat(endTime) || (startNum + 3.0);
+    if (endNum <= startNum) {
+      endNum = startNum + 3.0;
+    }
+    // Limit clip length to 15 seconds to prevent oversized clips
+    if (endNum - startNum > 15) {
+      endNum = startNum + 15;
+    }
+
+    // Add gentle padding (150ms before, 250ms after)
+    const paddedStart = Math.max(0, startNum - 0.15);
+    const paddedEnd = endNum + 0.25;
+
+    const clipId = `clip_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const targetMp3Path = path.join(CLIPS_STORAGE_DIR, `${clipId}.mp3`);
+    const targetJpgPath = path.join(CLIPS_STORAGE_DIR, `${clipId}.jpg`);
+
+    let finalImageUrl: string | null = null;
+    let finalAudioUrl: string | null = null;
+
+    // 1. Process client image snapshot if provided (canvas dataUrl)
+    if (imageSnapshot && typeof imageSnapshot === "string" && imageSnapshot.startsWith("data:image")) {
+      try {
+        const base64Data = imageSnapshot.replace(/^data:image\/\w+;base64,/, "");
+        fs.writeFileSync(targetJpgPath, Buffer.from(base64Data, "base64"));
+        finalImageUrl = `/api/media/clips/${clipId}.jpg`;
+      } catch (imgErr) {
+        console.warn("[CardClip] Failed to write image snapshot:", imgErr);
+      }
+    }
+
+    // 2. Find local media source
+    let sourcePath: string | null = null;
+    const candidates = [
+      lessonId ? path.join(VIDEO_STORAGE_DIR, `${lessonId}.m4a`) : null,
+      lessonId ? path.join(VIDEO_STORAGE_DIR, `${lessonId}.mp4`) : null,
+      videoId ? path.join(VIDEO_STORAGE_DIR, `${videoId}.m4a`) : null,
+      videoId ? path.join(VIDEO_STORAGE_DIR, `${videoId}.mp4`) : null,
+      localVideoUrl ? path.join(VIDEO_STORAGE_DIR, path.basename(localVideoUrl)) : null,
+    ].filter(Boolean) as string[];
+
+    for (const c of candidates) {
+      if (fs.existsSync(c)) {
+        sourcePath = c;
+        break;
+      }
+    }
+
+    // If sourcePath found on disk, extract audio clip and optionally frame
+    if (sourcePath) {
+      try {
+        // Cut audio clip with ffmpeg
+        await execFilePromise("ffmpeg", [
+          "-y",
+          "-ss", paddedStart.toFixed(2),
+          "-to", paddedEnd.toFixed(2),
+          "-i", sourcePath,
+          "-vn",
+          "-c:a", "libmp3lame",
+          "-b:a", "96k",
+          "-ac", "2",
+          targetMp3Path,
+        ]);
+        if (fs.existsSync(targetMp3Path)) {
+          finalAudioUrl = `/api/media/clips/${clipId}.mp3`;
+        }
+      } catch (audioErr: any) {
+        console.warn("[CardClip] ffmpeg audio cut error:", audioErr?.message);
+      }
+
+      // If no image snapshot was provided, extract frame using ffmpeg
+      if (!finalImageUrl && sourcePath.endsWith(".mp4")) {
+        try {
+          await execFilePromise("ffmpeg", [
+            "-y",
+            "-ss", startNum.toFixed(2),
+            "-i", sourcePath,
+            "-vframes", "1",
+            "-q:v", "3",
+            targetJpgPath,
+          ]);
+          if (fs.existsSync(targetJpgPath)) {
+            finalImageUrl = `/api/media/clips/${clipId}.jpg`;
+          }
+        } catch (frameErr: any) {
+          console.warn("[CardClip] ffmpeg frame extraction error:", frameErr?.message);
+        }
+      }
+    } else if (audioUrl && typeof audioUrl === "string" && audioUrl.startsWith("http")) {
+      // Direct remote audio URL
+      try {
+        await execFilePromise("ffmpeg", [
+          "-y",
+          "-ss", paddedStart.toFixed(2),
+          "-to", paddedEnd.toFixed(2),
+          "-i", audioUrl,
+          "-vn",
+          "-c:a", "libmp3lame",
+          "-b:a", "96k",
+          "-ac", "2",
+          targetMp3Path,
+        ]);
+        if (fs.existsSync(targetMp3Path)) {
+          finalAudioUrl = `/api/media/clips/${clipId}.mp3`;
+        }
+      } catch (remoteErr: any) {
+        console.warn("[CardClip] Remote audio stream ffmpeg cut error:", remoteErr?.message);
+      }
+    } else if (videoId) {
+      // YouTube video: download short 360p mp4 section using yt-dlp with android player client
+      const tempSectionMp4 = path.join(CLIPS_STORAGE_DIR, `temp_${clipId}.mp4`);
+      try {
+        const ytDlp = getYtDlp();
+        await Promise.race([
+          ytDlp(`https://www.youtube.com/watch?v=${videoId}`, {
+            format: "18/best[height<=360]/best",
+            extractorArgs: "youtube:player_client=android",
+            downloadSections: `*${paddedStart.toFixed(2)}-${paddedEnd.toFixed(2)}`,
+            output: tempSectionMp4,
+            socketTimeout: 8,
+            retries: 2,
+            fragmentRetries: 2,
+            noCheckCertificates: true,
+            preferFreeFormats: true,
+          } as any),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("yt-dlp section cut timed out after 12s")), 12000)
+          ),
+        ]);
+
+        if (fs.existsSync(tempSectionMp4)) {
+          // 1. Extract exact scene frame from the section clip
+          if (!finalImageUrl) {
+            try {
+              await execFilePromise("ffmpeg", [
+                "-y",
+                "-ss", "0.3",
+                "-i", tempSectionMp4,
+                "-vframes", "1",
+                "-q:v", "2",
+                targetJpgPath,
+              ]);
+              if (fs.existsSync(targetJpgPath)) {
+                finalImageUrl = `/api/media/clips/${clipId}.jpg`;
+              }
+            } catch (fErr: any) {
+              console.warn("[CardClip] Failed to extract frame from section mp4:", fErr?.message);
+            }
+          }
+
+          // 2. Extract exact audio clip
+          try {
+            await execFilePromise("ffmpeg", [
+              "-y",
+              "-i", tempSectionMp4,
+              "-vn",
+              "-c:a", "libmp3lame",
+              "-b:a", "96k",
+              "-ac", "2",
+              targetMp3Path,
+            ]);
+            if (fs.existsSync(targetMp3Path)) {
+              finalAudioUrl = `/api/media/clips/${clipId}.mp3`;
+            }
+          } catch (aErr: any) {
+            console.warn("[CardClip] Failed to extract audio from section mp4:", aErr?.message);
+          }
+
+          try { fs.unlinkSync(tempSectionMp4); } catch (_) {}
+        }
+      } catch (ytdlpErr: any) {
+        console.warn("[CardClip] yt-dlp section cut error:", ytdlpErr?.message);
+        try { if (fs.existsSync(tempSectionMp4)) fs.unlinkSync(tempSectionMp4); } catch (_) {}
+      }
+    }
+
+    // If still no image and videoId is known, fallback to YouTube video thumbnail
+    if (!finalImageUrl && videoId) {
+      finalImageUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    }
+
+    return res.json({
+      success: true,
+      clipId,
+      audioClipUrl: finalAudioUrl,
+      imageUrl: finalImageUrl,
+    });
+  } catch (err: any) {
+    console.error("[CardClip Error]:", err?.message || err);
+    return res.status(500).json({ error: err?.message || "Failed to create card clip" });
   }
 });
 

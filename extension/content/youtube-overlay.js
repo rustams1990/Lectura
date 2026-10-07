@@ -2894,6 +2894,95 @@
       }
       return { success: false };
     }
+    /**
+     * Generates AI breakdown and context explanation for word or phrase
+     */
+    async explainWithAi(payload) {
+      if (this.isContentScript()) {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ type: "EXPLAIN_WITH_AI", payload }, (response) => {
+            if (chrome.runtime.lastError) {
+              return reject(new Error(chrome.runtime.lastError.message));
+            }
+            if (response?.success && response.data) {
+              resolve(response.data);
+            } else {
+              reject(new Error(response?.error || "Failed to explain with AI"));
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const targetLanguage = payload.targetLanguage || settings.targetLanguage || "English";
+      const translationLanguage = payload.translationLanguage || settings.nativeLanguage || "Russian";
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/explain");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: this.buildHeaders(settings),
+          body: JSON.stringify({
+            word: payload.word,
+            context: payload.context || payload.word,
+            targetLanguage,
+            translationLanguage,
+            customQuestion: payload.customQuestion
+          }),
+          signal: AbortSignal.timeout(18e3)
+        });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        return await response.json();
+      } catch (err) {
+        console.warn("[Lectura API] explainWithAi failed:", err?.message || err);
+        throw err;
+      }
+    }
+    /**
+     * Fetches explanatory dictionary definition from Free Dictionary & Wiktionary
+     */
+    async getDictionaryExplain(payload) {
+      if (this.isContentScript()) {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ type: "GET_DICTIONARY_EXPLAIN", payload }, (response) => {
+            if (chrome.runtime.lastError) {
+              return reject(new Error(chrome.runtime.lastError.message));
+            }
+            if (response?.success && response.data) {
+              resolve(response.data);
+            } else {
+              reject(new Error(response?.error || "Failed to fetch dictionary definition"));
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const targetLanguage = payload.targetLanguage || settings.targetLanguage || "English";
+      const translationLanguage = payload.translationLanguage || settings.nativeLanguage || "Russian";
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/dictionary-explain");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: this.buildHeaders(settings),
+          body: JSON.stringify({
+            word: payload.word,
+            targetLanguage,
+            translationLanguage,
+            context: payload.context || payload.word,
+            source: payload.source || "hybrid"
+          }),
+          signal: AbortSignal.timeout(8e3)
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return await response.json();
+      } catch (err) {
+        console.warn("[Lectura API] getDictionaryExplain failed:", err?.message || err);
+        throw err;
+      }
+    }
   };
 
   // node_modules/compromise/src/API/world.js
@@ -40197,11 +40286,13 @@
       .sub-mode--color .lectura-token.status-4,
       .sub-mode--color .lectura-word-token.status-4,
       .lectura-token.status-4 {
-        color: #60a5fa !important; /* \u0421\u0438\u043D\u0438\u0439 (Stage 4) */
+        color: #204bf4 !important; /* \u041D\u0430\u0441\u044B\u0449\u0435\u043D\u043D\u044B\u0439 \u0441\u0438\u043D\u0438\u0439 (Stage 4) */
       }
       .sub-mode--color .lectura-token.status-5,
       .sub-mode--color .lectura-word-token.status-5,
-      .lectura-token.status-5,
+      .lectura-token.status-5 {
+        color: #c084fc !important; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u044B\u0439 (Stage 5) */
+      }
       .sub-mode--color .lectura-token.status-known,
       .sub-mode--color .lectura-word-token.status-known,
       .lectura-token.status-known,
@@ -40258,10 +40349,13 @@
       .sub-mode--underline .lectura-token.status-4,
       .sub-mode--underline .lectura-word-token.status-4 {
         text-decoration: underline !important;
-        text-decoration-color: #60a5fa !important; /* \u0421\u0438\u043D\u044F\u044F \u043B\u0438\u043D\u0438\u044F (4) */
+        text-decoration-color: #204bf4 !important; /* \u041D\u0430\u0441\u044B\u0449\u0435\u043D\u043D\u0430\u044F \u0441\u0438\u043D\u044F\u044F \u043B\u0438\u043D\u0438\u044F (4) */
       }
       .sub-mode--underline .lectura-token.status-5,
-      .sub-mode--underline .lectura-word-token.status-5,
+      .sub-mode--underline .lectura-word-token.status-5 {
+        text-decoration: underline !important;
+        text-decoration-color: #c084fc !important; /* \u0424\u0438\u043E\u043B\u0435\u0442\u043E\u0432\u0430\u044F \u043B\u0438\u043D\u0438\u044F (5) */
+      }
       .sub-mode--underline .lectura-token.status-known,
       .sub-mode--underline .lectura-word-token.status-known,
       .sub-mode--underline .lectura-token.status-ignored,
@@ -40646,6 +40740,71 @@
       .glass-tab-pane.active {
         display: block;
         animation: cardFadeIn 0.15s ease-out;
+      }
+      .glass-tab[data-tab="ai"], .lectura-tab-btn[data-tab="ai"] {
+        color: #38bdf8 !important;
+      }
+      .glass-tab[data-tab="ai"]:hover, .lectura-tab-btn[data-tab="ai"]:hover {
+        color: #7dd3fc !important;
+      }
+      .glass-tab[data-tab="ai"].active, .lectura-tab-btn[data-tab="ai"].active {
+        color: #38bdf8 !important;
+        border-bottom-color: #38bdf8 !important;
+        font-weight: 700;
+      }
+      .theme-calm-light .glass-tab[data-tab="ai"] {
+        color: #0284c7 !important;
+      }
+      .theme-calm-light .glass-tab[data-tab="ai"]:hover {
+        color: #0369a1 !important;
+      }
+      .theme-calm-light .glass-tab[data-tab="ai"].active {
+        color: #0284c7 !important;
+        border-bottom-color: #0284c7 !important;
+        font-weight: 700;
+      }
+      .ai-explainer-card {
+        padding: 12px 14px;
+        border-radius: 12px;
+      }
+      .theme-glass-v2 .ai-explainer-card {
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        color: #f1f5f9;
+      }
+      .theme-calm-light .ai-explainer-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        color: #0f172a;
+      }
+      .ai-relation-text {
+        font-size: 13px;
+        line-height: 1.55;
+        margin: 0 0 10px 0;
+        white-space: pre-line;
+      }
+      .theme-glass-v2 .ai-relation-text {
+        color: #e2e8f0;
+      }
+      .theme-calm-light .ai-relation-text {
+        color: #1e293b;
+      }
+      .theme-glass-v2 .ai-explainer-header {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+      }
+      .theme-calm-light .ai-explainer-header {
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
+      }
+      .theme-glass-v2 .ai-examples-container {
+        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      }
+      .theme-calm-light .ai-examples-container {
+        border-top: 1px solid rgba(226, 232, 240, 0.8) !important;
+      }
+      .theme-glass-v2 .ai-grammar-badge {
+        background: rgba(56, 189, 248, 0.15) !important;
+        border: 1px solid rgba(56, 189, 248, 0.4) !important;
+        color: #38bdf8 !important;
       }
       .glass-btn-close {
         background: rgba(255, 255, 255, 0.08);
@@ -41525,8 +41684,8 @@
       .status-btn.st-1, .lectura-btn-stage[data-status="1"] { border-color: #f87171; color: #f87171; }
       .status-btn.st-2, .lectura-btn-stage[data-status="2"] { border-color: #fbbf24; color: #fbbf24; }
       .status-btn.st-3, .lectura-btn-stage[data-status="3"] { border-color: #34d399; color: #34d399; }
-      .status-btn.st-4, .lectura-btn-stage[data-status="4"] { border-color: #60a5fa; color: #60a5fa; }
-      .status-btn.st-5, .lectura-btn-stage[data-status="5"] { border-color: #a78bfa; color: #a78bfa; }
+      .status-btn.st-4, .lectura-btn-stage[data-status="4"] { border-color: #204bf4; color: #204bf4; }
+      .status-btn.st-5, .lectura-btn-stage[data-status="5"] { border-color: #c084fc; color: #c084fc; }
       .status-btn.st-known, .lectura-btn-known { background: #059669; border-color: #10b981; color: white; }
 
       .status-btn.active, .lectura-btn.active {
@@ -41536,8 +41695,8 @@
       .status-btn.st-1.active, .lectura-btn-stage[data-status="1"].active { background: rgba(248, 113, 113, 0.25); box-shadow: 0 0 10px #f87171; }
       .status-btn.st-2.active, .lectura-btn-stage[data-status="2"].active { background: rgba(251, 191, 36, 0.25); box-shadow: 0 0 10px #fbbf24; }
       .status-btn.st-3.active, .lectura-btn-stage[data-status="3"].active { background: rgba(52, 211, 153, 0.25); box-shadow: 0 0 10px #34d399; }
-      .status-btn.st-4.active, .lectura-btn-stage[data-status="4"].active { background: rgba(96, 165, 250, 0.25); box-shadow: 0 0 10px #60a5fa; }
-      .status-btn.st-5.active, .lectura-btn-stage[data-status="5"].active { background: rgba(167, 139, 250, 0.25); box-shadow: 0 0 10px #a78bfa; }
+      .status-btn.st-4.active, .lectura-btn-stage[data-status="4"].active { background: rgba(32, 75, 244, 0.25); box-shadow: 0 0 10px #204bf4; }
+      .status-btn.st-5.active, .lectura-btn-stage[data-status="5"].active { background: rgba(192, 132, 252, 0.25); box-shadow: 0 0 10px #c084fc; }
       .status-btn.st-known.active, .lectura-btn-known.active { background: #059669; box-shadow: 0 0 12px #10b981; }
       .status-btn.st-0.active, .lectura-btn-ignore.active { background: rgba(239, 68, 68, 0.25); box-shadow: 0 0 10px #ef4444; }
 
@@ -42413,8 +42572,8 @@
           span.classList.add(`status-${wordInfo.status}`);
           if (wordInfo.status === "ignored" || wordInfo.status === "0") {
             span.classList.add("status-ignored", "status-0");
-          } else if (wordInfo.status === "known" || wordInfo.status === "5") {
-            span.classList.add("status-known", "status-5");
+          } else if (wordInfo.status === "known") {
+            span.classList.add("status-known");
           }
           span.addEventListener("mouseenter", () => {
             this.showHoverTooltip(span, coreWord);
@@ -42593,6 +42752,12 @@
       }
       this.showToast(`Dual Subtitles: ${this.enableDualSubtitles ? "ON" : "OFF"}`);
     }
+    static {
+      this.aiExplanationCache = /* @__PURE__ */ new Map();
+    }
+    static {
+      this.localDefinitionCache = /* @__PURE__ */ new Map();
+    }
     /**
      * Closes the active word/phrase card and unlocks subtitles
      */
@@ -42637,7 +42802,7 @@
           case "3":
             return "#34d399";
           case "4":
-            return "#60a5fa";
+            return "#204bf4";
           case "5":
             return "#c084fc";
           case "known":
@@ -42837,6 +43002,158 @@
       }
       return { translationText: "\u2014", baseRoot: detectedBaseRoot };
     }
+    escapeHtml(str) {
+      if (!str) return "";
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    /**
+     * Fetches localized explanatory definition in target translation language
+     */
+    async fetchLocalizedDefinition(word, targetLanguage, translationLanguage, context) {
+      const langCode = this.getEffectiveLang();
+      const cleanLower = cleanWordForTranslation(word);
+      const cacheKey = `${langCode}:${cleanLower}:${translationLanguage}`;
+      if (_YouTubeLecturaOverlay.localDefinitionCache.has(cacheKey)) {
+        const cached = _YouTubeLecturaOverlay.localDefinitionCache.get(cacheKey);
+        const defEl = this.popupCard?.querySelector(".mono-def-text");
+        if (defEl) defEl.textContent = cached;
+        return cached;
+      }
+      try {
+        let defText = "";
+        try {
+          const dictRes = await this.apiClient.getDictionaryExplain({
+            word: cleanLower,
+            targetLanguage,
+            translationLanguage,
+            context
+          });
+          if (dictRes?.translation) {
+            defText = dictRes.translation;
+          }
+        } catch (_2) {
+        }
+        if (!defText) {
+          const cachedWord = (this.cachedWordsByLang[langCode] || {})[cleanLower];
+          if (cachedWord?.translation) {
+            const lines = cachedWord.translation.split("\n").map((l2) => l2.trim()).filter(Boolean);
+            if (lines.length > 1) {
+              defText = lines.slice(1).join("\n");
+            }
+          }
+        }
+        if (defText && targetLanguage.toLowerCase() !== translationLanguage.toLowerCase()) {
+          try {
+            const trans = await this.apiClient.translateText(defText, langCode, translationLanguage);
+            if (trans?.translation) {
+              defText = trans.translation;
+            }
+          } catch (_2) {
+          }
+        }
+        if (defText) {
+          _YouTubeLecturaOverlay.localDefinitionCache.set(cacheKey, defText);
+          const defEl = this.popupCard?.querySelector(".mono-def-text");
+          if (defEl && this.activeWordData?.word.toLowerCase() === word.toLowerCase()) {
+            defEl.textContent = defText;
+          }
+        }
+        return defText;
+      } catch (err) {
+        console.warn("[Lectura Overlay] fetchLocalizedDefinition failed:", err);
+        return "";
+      }
+    }
+    /**
+     * Fetches context and grammatical breakdown from AI (/api/explain)
+     */
+    async fetchAiBreakdown(word, contextSentence, force = false) {
+      if (!this.popupCard) return;
+      const cleanWord = word.trim();
+      if (!cleanWord) return;
+      const langCode = this.getEffectiveLang();
+      const activeLang = getLanguageDisplayName(langCode);
+      const nativeLang = this.settings?.nativeLanguage || "Russian";
+      const cacheKey = `${langCode}:${cleanWord.toLowerCase()}:${(contextSentence || "").toLowerCase().trim()}`;
+      const loadingBox = this.popupCard.querySelector(".ai-loading-box");
+      const emptyBox = this.popupCard.querySelector(".ai-empty-box");
+      const errorBox = this.popupCard.querySelector(".ai-error-box");
+      const contentBox = this.popupCard.querySelector(".ai-content-box");
+      const errorText = this.popupCard.querySelector(".ai-error-text");
+      const grammarBadge = this.popupCard.querySelector(".ai-grammar-badge");
+      const relationText = this.popupCard.querySelector(".ai-relation-text");
+      const examplesContainer = this.popupCard.querySelector(".ai-examples-container");
+      const examplesList = this.popupCard.querySelector(".ai-examples-list");
+      const renderAiData = (data) => {
+        if (emptyBox) emptyBox.style.display = "none";
+        if (loadingBox) loadingBox.style.display = "none";
+        if (errorBox) errorBox.style.display = "none";
+        if (contentBox) contentBox.style.display = "block";
+        if (grammarBadge) {
+          if (data.grammar) {
+            grammarBadge.textContent = data.grammar;
+            grammarBadge.style.display = "inline-block";
+          } else {
+            grammarBadge.style.display = "none";
+          }
+        }
+        if (relationText) {
+          relationText.textContent = data.contextRelation || data.translation || "No context explanation available.";
+        }
+        if (this.activeWordData) {
+          this.activeWordData.grammar = data.grammar;
+          this.activeWordData.contextRelation = data.contextRelation;
+        }
+        if (examplesContainer && examplesList) {
+          if (Array.isArray(data.examples) && data.examples.length > 0) {
+            examplesList.innerHTML = data.examples.map((ex) => `
+            <div style="font-size: 12px; color: #334155; border-left: 2px solid #0284c7; padding-left: 8px; margin-bottom: 4px;">
+              <div style="font-weight: 600; color: #0f172a;">${this.escapeHtml(ex.text || "")}</div>
+              ${ex.translation ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">${this.escapeHtml(ex.translation)}</div>` : ""}
+            </div>
+          `).join("");
+            examplesContainer.style.display = "block";
+          } else {
+            examplesContainer.style.display = "none";
+          }
+        }
+        if (data.translation) {
+          const meaningInput = this.popupCard?.querySelector(".calm-meaning-input, .lectura-meaning-input");
+          if (meaningInput && (!meaningInput.value || meaningInput.value.toLowerCase().includes("translating") || meaningInput.value === "\u2014")) {
+            meaningInput.value = data.translation;
+          }
+        }
+      };
+      if (!force && _YouTubeLecturaOverlay.aiExplanationCache.has(cacheKey)) {
+        renderAiData(_YouTubeLecturaOverlay.aiExplanationCache.get(cacheKey));
+        return;
+      }
+      if (emptyBox) emptyBox.style.display = "none";
+      if (errorBox) errorBox.style.display = "none";
+      if (contentBox) contentBox.style.display = "none";
+      if (loadingBox) loadingBox.style.display = "block";
+      try {
+        const result = await this.apiClient.explainWithAi({
+          word: cleanWord,
+          context: contextSentence || cleanWord,
+          targetLanguage: activeLang,
+          translationLanguage: nativeLang
+        });
+        if (result && (result.contextRelation || result.translation || result.grammar)) {
+          _YouTubeLecturaOverlay.aiExplanationCache.set(cacheKey, result);
+          renderAiData(result);
+        } else {
+          throw new Error(result?.error || "No AI explanation returned");
+        }
+      } catch (err) {
+        if (loadingBox) loadingBox.style.display = "none";
+        if (contentBox) contentBox.style.display = "none";
+        if (errorBox) {
+          errorBox.style.display = "block";
+          if (errorText) errorText.textContent = err?.message || "Failed to fetch AI breakdown. Check server connection.";
+        }
+      }
+    }
     static {
       this.tatoebaCache = /* @__PURE__ */ new Map();
     }
@@ -42994,6 +43311,7 @@
         const langCode = this.getEffectiveLang();
         const activeLang = getLanguageDisplayName(langCode);
         const nativeLang = this.settings?.nativeLanguage || "Russian";
+        const destLangName = getLanguageDisplayName(nativeLang);
         const wordInfo = this.lookupWordInfo(word);
         const lemmaDisplay = wordInfo.lemma && wordInfo.lemma !== word.toLowerCase() ? `(${wordInfo.lemma})` : "";
         const dialects = getDialectsForLanguage(langCode);
@@ -43004,6 +43322,7 @@
         const cachedLinks = this.cachedWordLinksByLang[langCode] || {};
         const cachedWords = this.cachedWordsByLang[langCode] || {};
         const cleanLower = cleanWordForTranslation(word);
+        const cachedLocalizedDef = _YouTubeLecturaOverlay.localDefinitionCache.get(`${langCode}:${cleanLower}:${nativeLang}`);
         const baseWord = normalizeContraction(cleanLower, langCode);
         const existingParent = cachedLinks[cleanLower] || (baseWord && cachedLinks[baseWord] ? cachedLinks[baseWord] : wordInfo.lemma && wordInfo.lemma !== cleanLower ? wordInfo.lemma : "");
         let rawTranslation = _YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${cleanLower}`) || (cachedWords[cleanLower]?.translation?.trim() || "");
@@ -43065,6 +43384,7 @@
         <div class="glass-tabs-header">
           <div class="glass-tabs-list">
             <button type="button" class="glass-tab active" data-tab="meaning">${t3("tab_meaning", uiLang)}</button>
+            <button type="button" class="glass-tab" data-tab="ai">\u2728 AI</button>
             <button type="button" class="glass-tab" data-tab="definition">${t3("tab_definition", uiLang)}</button>
             <button type="button" class="glass-tab" data-tab="usage">${t3("tab_usage", uiLang)}</button>
             <button type="button" class="glass-tab" data-tab="dictionaries">${t3("tab_dicts", uiLang)}</button>
@@ -43108,11 +43428,62 @@
           </div>
         </div>
 
+        <!-- Tab Pane: AI Breakdown -->
+        <div class="glass-tab-pane" data-pane="ai">
+          <div class="glass-example-card-full ai-explainer-card">
+            <div class="ai-explainer-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px;">
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #0284c7;">
+                <span>\u2728</span>
+                <span>AI Context & Grammar Breakdown</span>
+                <span class="ai-grammar-badge" style="display: none; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1;"></span>
+              </div>
+              <button type="button" class="ai-btn-refresh" title="Regenerate AI explanation" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #64748b; padding: 2px 4px; border-radius: 4px;">\u{1F504}</button>
+            </div>
+
+            <!-- AI Loading State -->
+            <div class="ai-loading-box" style="display: none; padding: 12px 4px;">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #0284c7; font-weight: 600;">
+                <span class="ai-spinner" style="display: inline-block;">\u23F3</span>
+                <span>AI is analyzing context & grammar...</span>
+              </div>
+              <div style="margin-top: 8px; height: 8px; border-radius: 4px; background: rgba(226, 232, 240, 0.8); width: 90%;"></div>
+              <div style="margin-top: 6px; height: 8px; border-radius: 4px; background: rgba(226, 232, 240, 0.6); width: 70%;"></div>
+            </div>
+
+            <!-- AI Error State -->
+            <div class="ai-error-box" style="display: none; padding: 8px 0; text-align: center;">
+              <p class="ai-error-text" style="font-size: 12px; color: #ef4444; margin-bottom: 6px;"></p>
+              <button type="button" class="ai-btn-retry" style="background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; border-radius: 6px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">Retry</button>
+            </div>
+
+            <!-- AI Content View -->
+            <div class="ai-content-box" style="display: none;">
+              <p class="ai-relation-text" style="font-size: 13px; line-height: 1.55; margin: 0 0 8px 0; white-space: pre-line;"></p>
+              
+              <div class="ai-examples-container" style="display: none; padding-top: 6px;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 4px;">\u{1F4DA} Context Examples:</span>
+                <div class="ai-examples-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+              </div>
+            </div>
+
+            <!-- AI Initial Empty State -->
+            <div class="ai-empty-box" style="text-align: center; padding: 12px 6px;">
+              <p style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
+                Get in-depth grammatical nuances, idiom origins, and contextual meaning from AI.
+              </p>
+              <button type="button" class="ai-btn-fetch" style="background: linear-gradient(135deg, #0284c7, #4f46e5); color: white; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);">
+                <span>\u2728</span>
+                <span>Explain with AI</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Tab Pane: Definition -->
         <div class="glass-tab-pane" data-pane="definition">
           <div class="glass-example-card-full">
-            <span class="glass-example-caption">\u{1F4D6} Monolingual Definition (${activeLang}):</span>
-            <p class="mono-def-text" style="margin: 4px 0 0 0; font-size: 13.5px; line-height: 1.5; color: #334155;">${glassSubDefinition || glassMainTranslation || "No definition available."}</p>
+            <span class="glass-example-caption">\u{1F4D6} ${uiLang === "ru" ? "\u041E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u0435" : "Definition"} (${destLangName}):</span>
+            <p class="mono-def-text" style="margin: 4px 0 0 0; font-size: 13.5px; line-height: 1.5; color: #334155;">${cachedLocalizedDef || glassSubDefinition || glassMainTranslation || "No definition available."}</p>
           </div>
         </div>
 
@@ -43193,7 +43564,8 @@
         <!-- Top Tab Navigation Bar -->
         <div class="lectura-extended-tabs">
           <div class="lectura-tab-nav">
-            <button type="button" class="lectura-tab-btn active" data-tab="definition">[ Definition ]</button>
+            <button type="button" class="lectura-tab-btn active" data-tab="definition">[ Definition (${destLangName}) ]</button>
+            <button type="button" class="lectura-tab-btn" data-tab="ai">[ \u2728 AI ]</button>
             <button type="button" class="lectura-tab-btn" data-tab="usage">[ Usage ]</button>
             <button type="button" class="lectura-tab-btn" data-tab="etymology">[ Etymology ]</button>
             <button type="button" class="lectura-tab-btn" data-tab="pronunciation">[ Pronunciation ]</button>
@@ -43236,6 +43608,57 @@
                   <button class="status-btn st-5 ${wordInfo.status === "5" ? "active" : ""}" data-status="5" title="Stage 5">5</button>
                   <button class="status-btn st-known ${wordInfo.status === "known" ? "active" : ""}" data-status="known" title="Known (K)">\u2714\uFE0F</button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab Pane: AI Explanation -->
+          <div class="lectura-tab-pane" data-pane="ai">
+            <div class="ai-explainer-card">
+              <div class="ai-explainer-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38bdf8;">
+                  <span>\u2728</span>
+                  <span>AI Context & Grammar Breakdown</span>
+                  <span class="ai-grammar-badge" style="display: none; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;"></span>
+                </div>
+                <button type="button" class="ai-btn-refresh" title="Regenerate AI explanation" style="background: none; border: none; cursor: pointer; font-size: 13px; color: #94a3b8; padding: 2px 4px; border-radius: 4px;">\u{1F504}</button>
+              </div>
+
+              <!-- AI Loading State -->
+              <div class="ai-loading-box" style="display: none; padding: 12px 4px;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #38bdf8; font-weight: 600;">
+                  <span class="ai-spinner" style="display: inline-block;">\u23F3</span>
+                  <span>AI is analyzing context & grammar...</span>
+                </div>
+                <div style="margin-top: 8px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); width: 90%;"></div>
+                <div style="margin-top: 6px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); width: 70%;"></div>
+              </div>
+
+              <!-- AI Error State -->
+              <div class="ai-error-box" style="display: none; padding: 8px 0; text-align: center;">
+                <p class="ai-error-text" style="font-size: 12px; color: #f87171; margin-bottom: 6px;"></p>
+                <button type="button" class="ai-btn-retry" style="background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 6px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">Retry</button>
+              </div>
+
+              <!-- AI Content View -->
+              <div class="ai-content-box" style="display: none;">
+                <p class="ai-relation-text" style="font-size: 13px; line-height: 1.55; color: #e2e8f0; margin: 0 0 8px 0; white-space: pre-line;"></p>
+                
+                <div class="ai-examples-container" style="display: none; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                  <span style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">\u{1F4DA} Context Examples:</span>
+                  <div class="ai-examples-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </div>
+              </div>
+
+              <!-- AI Initial Empty State -->
+              <div class="ai-empty-box" style="text-align: center; padding: 12px 6px;">
+                <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                  Get in-depth grammatical nuances, idiom origins, and contextual meaning from AI.
+                </p>
+                <button type="button" class="ai-btn-fetch" style="background: linear-gradient(135deg, #0284c7, #4f46e5); color: white; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);">
+                  <span>\u2728</span>
+                  <span>Explain with AI</span>
+                </button>
               </div>
             </div>
           </div>
@@ -43308,6 +43731,7 @@
           <div class="lectura-card-header-left">
             <span class="lectura-card-word">${word}</span>
             <button class="lectura-card-tts" title="Pronounce">\u{1F50A}</button>
+            <button type="button" class="lectura-card-ai-btn" title="Explain with AI" style="background: linear-gradient(135deg, #0284c7, #4f46e5); color: white; border: none; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; cursor: pointer; margin-left: 4px;">\u2728 AI</button>
             <button class="lectura-card-dialect-badge" title="Dialect: ${currentDialect.name} (${currentDialect.code})">${dialectLabel}</button>
             ${wordInfo.isAutoIgnored ? `
               <span class="lectura-ignore-badge" title="${wordInfo.ignoreBadge || "Ignored"}" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.5); color: #f59e0b; margin-left: 4px;">
@@ -43322,6 +43746,36 @@
           <button class="lectura-card-close" title="Close (Esc)">\u2715</button>
         </div>
         <div class="lectura-card-translation">${initialTranslationHtml}</div>
+
+        <!-- Compact AI Breakdown Drawer -->
+        <div class="compact-ai-box" style="display: none; margin: 8px 0;">
+          <div class="ai-explainer-card" style="padding: 10px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px;">
+            <div class="ai-explainer-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #38bdf8;">
+                <span>\u2728 AI Breakdown</span>
+                <span class="ai-grammar-badge" style="display: none; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;"></span>
+              </div>
+              <button type="button" class="ai-btn-refresh" title="Regenerate" style="background: none; border: none; cursor: pointer; font-size: 12px; color: #94a3b8;">\u{1F504}</button>
+            </div>
+            <div class="ai-loading-box" style="display: none; padding: 8px 2px; font-size: 11px; color: #38bdf8;">
+              <span class="ai-spinner">\u23F3</span> AI is analyzing context & grammar...
+            </div>
+            <div class="ai-error-box" style="display: none; padding: 6px 0; text-align: center;">
+              <p class="ai-error-text" style="font-size: 11px; color: #f87171; margin-bottom: 4px;"></p>
+              <button type="button" class="ai-btn-retry" style="background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 4px; padding: 2px 8px; font-size: 10.5px;">Retry</button>
+            </div>
+            <div class="ai-content-box" style="display: none;">
+              <p class="ai-relation-text" style="font-size: 12px; line-height: 1.45; color: #e2e8f0; margin: 0 0 6px 0; white-space: pre-line;"></p>
+              <div class="ai-examples-container" style="display: none; padding-top: 4px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <div class="ai-examples-list" style="display: flex; flex-direction: column; gap: 4px;"></div>
+              </div>
+            </div>
+            <div class="ai-empty-box" style="text-align: center; padding: 6px 2px;">
+              <button type="button" class="ai-btn-fetch" style="background: linear-gradient(135deg, #0284c7, #4f46e5); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer;">\u2728 Explain with AI</button>
+            </div>
+          </div>
+        </div>
+
         <div class="lectura-card-context">\u201C${highlightedContext}\u201D</div>
 
         <!-- Tatoeba Examples Section (Language Reactor Style) -->
@@ -43373,8 +43827,39 @@
             tabBtn.classList.add("active");
             const targetPane = this.popupCard?.querySelector(`.lectura-tab-pane[data-pane="${tabName}"], .glass-tab-pane[data-pane="${tabName}"]`);
             targetPane?.classList.add("active");
+            if (tabName === "ai") {
+              this.fetchAiBreakdown(word, contextSentence);
+            } else if (tabName === "definition") {
+              this.fetchLocalizedDefinition(word, activeLang, nativeLang, contextSentence);
+            }
           });
         });
+        this.popupCard.querySelectorAll(".ai-btn-fetch, .ai-btn-retry").forEach((btn) => {
+          btn.addEventListener("click", (e2) => {
+            e2.stopPropagation();
+            this.fetchAiBreakdown(word, contextSentence, true);
+          });
+        });
+        this.popupCard.querySelectorAll(".ai-btn-refresh").forEach((btn) => {
+          btn.addEventListener("click", (e2) => {
+            e2.stopPropagation();
+            this.fetchAiBreakdown(word, contextSentence, true);
+          });
+        });
+        const compactAiBtn = this.popupCard.querySelector(".lectura-card-ai-btn");
+        compactAiBtn?.addEventListener("click", (e2) => {
+          e2.stopPropagation();
+          const compactAiBox = this.popupCard?.querySelector(".compact-ai-box");
+          if (compactAiBox) {
+            compactAiBox.style.display = compactAiBox.style.display === "none" ? "block" : "none";
+            if (compactAiBox.style.display === "block") {
+              this.fetchAiBreakdown(word, contextSentence);
+            }
+          }
+        });
+        if (word.trim().includes(" ") || this.isPhraseSelecting) {
+          this.fetchAiBreakdown(word, contextSentence);
+        }
         const slider = this.popupCard.querySelector(".lectura-proficiency-slider, .glass-neon-slider");
         slider?.addEventListener("input", (e2) => {
           e2.stopPropagation();
@@ -43698,6 +44183,8 @@
           word,
           lemma: cleanLower,
           translation: translationToSave,
+          grammar: this.activeWordData?.grammar,
+          contextRelation: this.activeWordData?.contextRelation,
           status,
           contextSentence,
           sentence: contextSentence,

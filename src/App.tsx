@@ -1330,6 +1330,15 @@ export default function App() {
           if (val && val.id) loadedPlaylists.push(val);
         });
         if (loadedPlaylists.length > 0) {
+          loadedPlaylists.sort((a, b) => {
+            const aPinned = !!a.pinned;
+            const bPinned = !!b.pinned;
+            if (aPinned !== bPinned) return aPinned ? -1 : 1;
+            const orderA = typeof a.order === "number" ? a.order : Infinity;
+            const orderB = typeof b.order === "number" ? b.order : Infinity;
+            if (orderA !== orderB) return orderA - orderB;
+            return (a.createdAt || "").localeCompare(b.createdAt || "");
+          });
           const currentLessons = (savedLessons as Lesson[]) || [];
           const segregated = segregatePlaylistsByLanguage(loadedPlaylists, currentLessons);
           setPlaylists(segregated.playlists);
@@ -1653,7 +1662,16 @@ export default function App() {
           }
           if (d.playlists && Array.isArray(d.playlists)) {
             const currentLessons = loadedSafeLessons || lessonsRef.current || [];
-            const segregated = segregatePlaylistsByLanguage(d.playlists, currentLessons);
+            const sortedServerPlaylists = [...d.playlists].sort((a: Playlist, b: Playlist) => {
+              const aPinned = !!a.pinned;
+              const bPinned = !!b.pinned;
+              if (aPinned !== bPinned) return aPinned ? -1 : 1;
+              const orderA = typeof a.order === "number" ? a.order : Infinity;
+              const orderB = typeof b.order === "number" ? b.order : Infinity;
+              if (orderA !== orderB) return orderA - orderB;
+              return (a.createdAt || "").localeCompare(b.createdAt || "");
+            });
+            const segregated = segregatePlaylistsByLanguage(sortedServerPlaylists, currentLessons);
             setPlaylists(segregated.playlists);
             playlistsRef.current = segregated.playlists;
             segregated.playlists.forEach((pl: Playlist) => {
@@ -3380,6 +3398,54 @@ export default function App() {
     }
   };
 
+  const handleReorderPlaylists = (reorderedSubset: Playlist[]) => {
+    lastLocalChangeTime.current = Date.now();
+    const currentList = [...(playlistsRef.current || playlists)];
+
+    // Replace the subset items in currentList in the exact order of reorderedSubset
+    const subsetIds = new Set(reorderedSubset.map((p) => p.id));
+    let subsetIdx = 0;
+    const nextPlaylists = currentList.map((pl) => {
+      if (subsetIds.has(pl.id)) {
+        return reorderedSubset[subsetIdx++];
+      }
+      return pl;
+    });
+
+    // Assign sequential order index (0, 1, 2, ...) to ALL playlists
+    const updatedPlaylists = nextPlaylists.map((pl, idx) => ({
+      ...pl,
+      order: idx,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    setPlaylists(updatedPlaylists);
+    playlistsRef.current = updatedPlaylists;
+
+    updatedPlaylists.forEach((pl) => {
+      playlistsStore.setItem(pl.id, pl).catch(() => {});
+    });
+
+    if (storageMode === "server") {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        nextPlaylists
+      ).catch((err) => console.error(err));
+    }
+  };
+
   const handleMovePlaylistItem = (
     itemsToMove: PlaylistItem[],
     sourcePlaylistId: string,
@@ -3541,6 +3607,55 @@ export default function App() {
         : t("library.unarchived_toast", "Restored from archive"),
       "info"
     );
+    if (storageMode === "server") {
+      syncDataToLocalServer(
+        lessonsRef.current,
+        lessonTypes,
+        vocabRef.current,
+        wordLinksRef.current,
+        listeningSeconds,
+        languageFlags,
+        historyRef.current,
+        undefined,
+        readerSettings,
+        pinnedLanguages,
+        hiddenLanguages,
+        selectedTargetLanguage,
+        undefined,
+        next
+      ).catch((err) => console.error(err));
+    }
+  };
+
+  const handleTogglePinPlaylist = (playlistId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    lastLocalChangeTime.current = Date.now();
+    let isNowPinned = false;
+    const currentList = playlistsRef.current || playlists;
+    const next = currentList.map((p) => {
+      if (p.id === playlistId) {
+        isNowPinned = !p.pinned;
+        const updated = {
+          ...p,
+          pinned: !p.pinned,
+          updatedAt: new Date().toISOString(),
+        };
+        playlistsStore.setItem(p.id, updated).catch(() => {});
+        return updated;
+      }
+      return p;
+    });
+
+    setPlaylists(next);
+    playlistsRef.current = next;
+
+    showToast(
+      isNowPinned
+        ? t("playlist.pinned_toast", "Плейлист закреплен в начале списка")
+        : t("playlist.unpinned_toast", "Плейлист откреплен"),
+      "info"
+    );
+
     if (storageMode === "server") {
       syncDataToLocalServer(
         lessonsRef.current,
@@ -4127,7 +4242,9 @@ export default function App() {
                 if (e) e.stopPropagation();
                 handleToggleArchivePlaylist(id, e);
               }}
+              onTogglePinPlaylist={handleTogglePinPlaylist}
               onUpdatePlaylist={handleUpdatePlaylist}
+              onReorderPlaylists={handleReorderPlaylists}
               onAddPlaylist={handleAddPlaylist}
               onAddOrUpdateLesson={(newLesson) => {
                 handleAddLesson(newLesson);
@@ -4528,8 +4645,8 @@ export default function App() {
         onClose={() => setShowProfileModal(false)}
       />
 
-      {/* Floating draggable/resizable YouTube player window (Desktop >= 1024px, both standard and Focus Mode) */}
-      {activeLesson && activeLesson.youtubeId && showYoutubePlayer && activeTab === "read" && !isMobileTablet && (
+      {/* Floating draggable/resizable video player window (Desktop >= 1024px, both standard and Focus Mode) */}
+      {activeLesson && (activeLesson.youtubeId || Boolean((activeLesson as any).localVideoUrl)) && showYoutubePlayer && activeTab === "read" && !isMobileTablet && (
         <YoutubePlayerWindow
           lesson={activeLesson}
           onClose={() => setShowYoutubePlayer(false)}

@@ -413,6 +413,22 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
     return true;
   }
 
+  if (message.type === 'EXPLAIN_WITH_AI') {
+    apiClient
+      .explainWithAi(message.payload)
+      .then((res) => sendResponse({ success: true, data: res }))
+      .catch((err) => sendResponse({ success: false, error: err?.message || 'AI breakdown failed' }));
+    return true;
+  }
+
+  if (message.type === 'GET_DICTIONARY_EXPLAIN') {
+    apiClient
+      .getDictionaryExplain(message.payload)
+      .then((res) => sendResponse({ success: true, data: res }))
+      .catch((err) => sendResponse({ success: false, error: err?.message || 'Dictionary lookup failed' }));
+    return true;
+  }
+
   if (message.type === 'OPEN_OPTIONS') {
     chrome.runtime.openOptionsPage();
     sendResponse({ success: true });

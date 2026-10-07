@@ -40,6 +40,7 @@ function setupSchema(db: Database.Database) {
       createdAt INTEGER,
       tags TEXT,
       imageUrl TEXT,
+      audioClipUrl TEXT,
       examples TEXT,
       spellingCorrectCount INTEGER DEFAULT 0,
       spellingIncorrectCount INTEGER DEFAULT 0,
@@ -172,6 +173,8 @@ function setupSchema(db: Database.Database) {
       isArchived INTEGER DEFAULT 0,
       primaryTag TEXT,
       tags TEXT,
+      orderIndex INTEGER DEFAULT 0,
+      pinned INTEGER DEFAULT 0,
       createdAt TEXT,
       updatedAt TEXT
     );
@@ -411,6 +414,18 @@ function setupSchema(db: Database.Database) {
   }
   if (!playlistsCols.includes("tags")) {
     try { db.exec(`ALTER TABLE playlists ADD COLUMN tags TEXT;`); } catch (_) {}
+  }
+  if (!playlistsCols.includes("orderIndex")) {
+    try { db.exec(`ALTER TABLE playlists ADD COLUMN orderIndex INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+  if (!playlistsCols.includes("pinned")) {
+    try { db.exec(`ALTER TABLE playlists ADD COLUMN pinned INTEGER DEFAULT 0;`); } catch (_) {}
+  }
+
+  // words: audioClipUrl column migration
+  const currentWordsCols = (db.prepare("PRAGMA table_info(words)").all() as any[]).map(c => c.name);
+  if (!currentWordsCols.includes("audioClipUrl")) {
+    try { db.exec(`ALTER TABLE words ADD COLUMN audioClipUrl TEXT;`); } catch (_) {}
   }
 
   // Purge any empty phantom lessons created by background activity tracking

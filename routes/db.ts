@@ -446,7 +446,7 @@ export function getLocalServerDb(userId: string = "default") {
 
     // Playlists — strictly this user's
     const playlistsRows = db.prepare(
-      "SELECT * FROM playlists WHERE user_id = ? ORDER BY COALESCE(createdAt, rowid * 1000) DESC"
+      "SELECT * FROM playlists WHERE user_id = ? ORDER BY COALESCE(pinned, 0) DESC, COALESCE(orderIndex, 0) ASC, COALESCE(createdAt, rowid * 1000) DESC"
     ).all(userId) as any[];
     const playlists = playlistsRows.map((p) => {
       const parsedItems = p.items ? (typeof p.items === "string" ? JSON.parse(p.items) : p.items) : [];
@@ -465,6 +465,8 @@ export function getLocalServerDb(userId: string = "default") {
         isArchived: p.isArchived === 1,
         primaryTag: p.primaryTag || undefined,
         tags: p.tags ? (typeof p.tags === "string" ? JSON.parse(p.tags) : p.tags) : [],
+        order: typeof p.orderIndex === "number" ? p.orderIndex : 0,
+        pinned: p.pinned === 1,
         createdAt: p.createdAt || new Date().toISOString(),
         updatedAt: p.updatedAt || new Date().toISOString(),
       };
@@ -491,6 +493,7 @@ export function getLocalServerDb(userId: string = "default") {
         createdAt: w.createdAt,
         tags: w.tags ? JSON.parse(w.tags) : [],
         imageUrl: w.imageUrl,
+        audioClipUrl: w.audioClipUrl,
         examples: w.examples ? JSON.parse(w.examples) : [],
         spellingCorrectCount: w.spellingCorrectCount || 0,
         spellingIncorrectCount: w.spellingIncorrectCount || 0,
@@ -636,10 +639,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertWord = db.prepare(`
       INSERT OR REPLACE INTO words (
-        id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+        id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, audioClipUrl, examples,
         spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
         srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertWordLink = db.prepare(`
@@ -654,8 +657,8 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
     const insertPlaylist = db.prepare(`
       INSERT OR REPLACE INTO playlists (
-        id, user_id, title, description, thumbnailUrl, sourceType, externalUrl, channelTitle, itemCount, language, items, isArchived, createdAt, updatedAt, primaryTag, tags
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, description, thumbnailUrl, sourceType, externalUrl, channelTitle, itemCount, language, items, isArchived, createdAt, updatedAt, primaryTag, tags, orderIndex, pinned
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertTag = db.prepare(`
@@ -721,6 +724,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             val.createdAt || Date.now(),
             tagsJson,
             val.imageUrl || null,
+            val.audioClipUrl || null,
             examplesJson,
             val.spellingCorrectCount || 0,
             val.spellingIncorrectCount || 0,
@@ -885,11 +889,14 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
       const playlists = data.playlists || [];
       for (const p of playlists) {
-        const existingPlaylist = db.prepare("SELECT isArchived FROM playlists WHERE id = ?").get(p.id) as any;
+        const existingPlaylist = db.prepare("SELECT isArchived, orderIndex, pinned FROM playlists WHERE id = ?").get(p.id) as any;
         let finalPlIsArchived = p.isArchived ? 1 : 0;
         if (p.isArchived === undefined && existingPlaylist) {
           finalPlIsArchived = existingPlaylist.isArchived || 0;
         }
+
+        let finalOrder = typeof p.order === "number" ? p.order : (typeof p.orderIndex === "number" ? p.orderIndex : (existingPlaylist?.orderIndex ?? 0));
+        let finalPinned = p.pinned !== undefined ? (p.pinned ? 1 : 0) : (existingPlaylist?.pinned || 0);
 
         const playlistPrimaryTag = p.primaryTag || null;
         const playlistTagsJson = (p.tags && Array.isArray(p.tags) && p.tags.length > 0) ? JSON.stringify(p.tags) : null;
@@ -912,7 +919,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           p.createdAt || new Date().toISOString(),
           p.updatedAt || new Date().toISOString(),
           playlistPrimaryTag,
-          playlistTagsJson
+          playlistTagsJson,
+          finalOrder,
+          finalPinned
         );
 
         if (playlistPrimaryTag && typeof playlistPrimaryTag === "string" && playlistPrimaryTag.trim()) {

@@ -19,6 +19,8 @@ import translateRouter from "./routes/translate.ts";
 import historyRouter from "./routes/history.ts";
 import lessonsRouter from "./routes/lessons.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
+import { processVideoFile, switchVideoAudioTrack } from "./server/videoProcessor.ts";
+import { handleHlsPlaylist, handleHlsSegment } from "./server/hlsStreamer.ts";
 import { APP_VERSION } from "./src/version.ts";
 
 // Lectura Server Entry v1.0.1
@@ -52,9 +54,129 @@ async function startServer() {
     next();
   });
 
+  // Streaming video upload endpoint (streams directly to disk with zero RAM buffering for large video files)
+  app.post("/api/media/upload-video", (req, res) => {
+    try {
+      const VIDEO_STORAGE_DIR = path.join(DATA_DIR, "media", "videos");
+      if (!fs.existsSync(VIDEO_STORAGE_DIR)) {
+        fs.mkdirSync(VIDEO_STORAGE_DIR, { recursive: true });
+      }
+      const rawFilename = req.headers["x-filename"] ? decodeURIComponent(String(req.headers["x-filename"])) : `video_${Date.now()}.mp4`;
+      const cleanBasename = path.basename(rawFilename).replace(/[^a-zA-Z0-9._-]/g, "_");
+      const uniqueFilename = `${Date.now()}_${cleanBasename}`;
+      const targetFilePath = path.join(VIDEO_STORAGE_DIR, uniqueFilename);
+      const writeStream = fs.createWriteStream(targetFilePath);
+
+      req.pipe(writeStream);
+
+      writeStream.on("finish", async () => {
+        if (!fs.existsSync(targetFilePath)) {
+          return res.status(500).json({ error: "Failed to save video file" });
+        }
+        try {
+          const targetLang = req.headers["x-target-language"] ? String(req.headers["x-target-language"]) : undefined;
+          const result = await processVideoFile(targetFilePath, uniqueFilename, targetLang);
+          return res.json({
+            success: true,
+            url: result.finalUrl,
+            filename: result.finalFilename,
+            sizeBytes: result.sizeBytes,
+            duration: result.duration,
+            subtitleTracks: result.subtitleTracks,
+            selectedSubtitle: result.selectedSubtitle,
+            audioTracks: result.audioTracks,
+            selectedAudio: result.selectedAudio,
+            videoCodec: result.videoCodec,
+            pixelFormat: result.pixelFormat,
+            isBrowserCompatibleVideo: result.isBrowserCompatibleVideo,
+            videoWarning: result.videoWarning,
+            coverUrl: result.coverUrl,
+          });
+        } catch (procErr: any) {
+          console.warn("[upload-video] Post-processing fallback:", procErr?.message);
+          const stat = fs.statSync(targetFilePath);
+          return res.json({
+            success: true,
+            url: `/api/media/stream/${uniqueFilename}`,
+            filename: uniqueFilename,
+            sizeBytes: stat.size,
+            duration: 0,
+            subtitleTracks: [],
+            selectedSubtitle: null,
+            audioTracks: [],
+            selectedAudio: null,
+            videoCodec: undefined,
+            isBrowserCompatibleVideo: true,
+            videoWarning: undefined,
+          });
+        }
+      });
+
+      writeStream.on("error", (err) => {
+        console.error("[upload-video error]:", err);
+        try { if (fs.existsSync(targetFilePath)) fs.unlinkSync(targetFilePath); } catch (_) {}
+        return res.status(500).json({ error: err.message || "File upload failed" });
+      });
+    } catch (err: any) {
+      console.error("[upload-video exception]:", err);
+      return res.status(500).json({ error: err.message || "Failed to initiate file upload" });
+    }
+  });
+
   app.use(express.json({ limit: "200mb" }));
   app.use(express.urlencoded({ limit: "200mb", extended: true }));
   app.use(express.raw({ type: ["audio/*", "application/octet-stream"], limit: "200mb" }));
+
+  // On-demand HLS streaming endpoints (instant playback of MKV / HEVC / 10-bit)
+  app.get("/api/media/hls/:filename/index.m3u8", handleHlsPlaylist);
+  app.get("/api/media/hls/:filename/master.m3u8", handleHlsPlaylist);
+  app.get("/api/media/hls/:filename/segment_:segIndex.ts", handleHlsSegment);
+
+  // Switch audio track for a video
+  app.post("/api/media/switch-audio", async (req, res) => {
+    try {
+      const { filename, audioIndex } = req.body;
+      if (!filename || typeof audioIndex !== "number") {
+        return res.status(400).json({ error: "Missing filename or audioIndex" });
+      }
+      const VIDEO_STORAGE_DIR = path.join(DATA_DIR, "media", "videos");
+      const cleanFileName = path.basename(filename);
+      const baseClean = cleanFileName.replace(/(_a\d+)?\.(mp4|mkv)$/i, "");
+      const mkvCandidate = path.join(VIDEO_STORAGE_DIR, `${baseClean}.mkv`);
+      const sourceFile = fs.existsSync(mkvCandidate) ? mkvCandidate : path.join(VIDEO_STORAGE_DIR, cleanFileName);
+
+      if (!fs.existsSync(sourceFile)) {
+        return res.status(404).json({ error: "Source video file not found" });
+      }
+
+      // If source is MKV, serve instantly via on-demand HLS with the new audioIndex (0 sec delay)
+      if (sourceFile.endsWith(".mkv")) {
+        const sourceBase = path.basename(sourceFile);
+        return res.json({
+          success: true,
+          url: `/api/media/hls/${sourceBase}/index.m3u8?audioIndex=${audioIndex}`,
+          filename: sourceBase,
+        });
+      }
+
+      const targetMp4Name = `${baseClean}_a${audioIndex}.mp4`;
+      const targetMp4Path = path.join(VIDEO_STORAGE_DIR, targetMp4Name);
+      const h264Candidate = path.join(VIDEO_STORAGE_DIR, `${baseClean}.mp4`);
+
+      if (!fs.existsSync(targetMp4Path) || fs.statSync(targetMp4Path).size < 1000) {
+        await switchVideoAudioTrack(sourceFile, targetMp4Path, audioIndex, fs.existsSync(h264Candidate) ? h264Candidate : undefined);
+      }
+
+      return res.json({
+        success: true,
+        url: `/api/media/stream/${targetMp4Name}`,
+        filename: targetMp4Name,
+      });
+    } catch (err: any) {
+      console.error("[switch-audio error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to switch audio track" });
+    }
+  });
 
   app.post("/api/log", (req, res) => {
     console.log("BROWSER ERROR:", req.body);

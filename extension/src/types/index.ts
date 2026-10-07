@@ -109,6 +109,23 @@ export interface YouTubeActivityPayload {
   timestamp?: number | string;
 }
 
+export interface AiExplainResponse {
+  translation?: string;
+  ipa?: string;
+  grammar?: string;
+  contextRelation?: string;
+  examples?: Array<{ text: string; translation: string }>;
+  error?: string;
+}
+
+export interface AiExplainPayload {
+  word: string;
+  context?: string;
+  targetLanguage?: string;
+  translationLanguage?: string;
+  customQuestion?: string;
+}
+
 export interface ExtMessage {
   type:
     | 'CHECK_HEALTH'
@@ -117,6 +134,17 @@ export interface ExtMessage {
     | 'GET_WORD_STATUS'
     | 'GET_CACHED_WORDS'
     | 'TRANSLATE_TEXT'
+    | 'TRANSLATE_WORD'
+    | 'GET_WORDS'
+    | 'BATCH_WORD_STATUS'
+    | 'GET_PROFILES'
+    | 'SAVE_WORD_LINK'
+    | 'GET_WORD_LINKS'
+    | 'LEMMATIZE_WORD'
+    | 'GET_LEMMA_SUGGESTIONS'
+    | 'LINK_WORD_ROOT'
+    | 'EXPLAIN_WITH_AI'
+    | 'GET_DICTIONARY_EXPLAIN'
     | 'EXTRACT_ARTICLE'
     | 'LOG_YOUTUBE_ACTIVITY'
     | 'OPEN_OPTIONS';

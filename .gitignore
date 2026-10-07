@@ -11,6 +11,7 @@ coverage/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.db
 /data/
 audio_cache/
 image_cache/

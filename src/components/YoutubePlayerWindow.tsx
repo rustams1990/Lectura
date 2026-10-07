@@ -1,5 +1,29 @@
-import React, { useState, useEffect, useRef } from "react";
-import { GripHorizontal, X, ChevronDown, ChevronUp, Tv, RefreshCw, Download, AlertTriangle, Loader2, HardDrive, Globe, Headphones } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  GripHorizontal,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Tv,
+  RefreshCw,
+  Download,
+  AlertTriangle,
+  Loader2,
+  HardDrive,
+  Globe,
+  Headphones,
+  Maximize2,
+  Minimize2,
+  Play,
+  Pause,
+  RotateCcw,
+  RotateCw,
+  Volume1,
+  Volume2,
+  VolumeX,
+  Subtitles,
+  Languages,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
@@ -7,6 +31,9 @@ import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useToast } from "../context/ToastContext";
 import { useBingeQueueStore } from "../store/useBingeQueueStore";
+import { setupVideoMediaSource } from "../utils/hlsPlayer";
+import { parseCuesFromLessonText, formatSecondsToTimestamp } from "../utils/subtitleParser";
+import VideoSubtitleOverlay from "./video/VideoSubtitleOverlay";
 
 interface YoutubePlayerWindowProps {
   lesson: Lesson;
@@ -23,10 +50,10 @@ export default function YoutubePlayerWindow({
 }: YoutubePlayerWindowProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const { setCurrentTime, seekToTime, playbackRate } = useLesson();
+  const { setCurrentTime, seekToTime, setSeekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
   const lastTickTimeRef = useRef<number | null>(null);
-  if (!youtubeId) return null;
+  if (!youtubeId && !lesson.localVideoUrl) return null;
 
   // Track minimized (rolled up) state
   const [isMinimized, setIsMinimized] = useState(false);
@@ -52,34 +79,138 @@ export default function YoutubePlayerWindow({
   const playerRef = useRef<any>(null);
   const videoElRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const initTimeoutRef = useRef<any>(null);
-  const trackingIntervalRef = useRef<any>(null);
-  const progressPollIntervalRef = useRef<any>(null);
-  const lastContextTimeRef = useRef<number>(0);
-  const lastStorageSaveTimeRef = useRef<number>(0);
-  const hasRestoredPositionRef = useRef<boolean>(false);
-  const initialSeekTargetRef = useRef<number>(0);
-  const isEndedRef = useRef<boolean>(false);
+  const fullscreenContainerRef = useRef<HTMLDivElement>(null);
 
-  // Parse saved progress
-  const parseSavedVideoProgress = (raw: string | null): number => {
-    if (!raw) return 0;
-    try {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed === "number") return parsed > 2 ? Math.floor(parsed) : 0;
-      if (parsed && typeof parsed === "object" && parsed.progress !== undefined) {
-        const sec = parseFloat(parsed.progress);
-        return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+  // Fullscreen, Subtitles & Custom Controls states
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showSubtitles, setShowSubtitles] = useState(true);
+  const [showDualSubtitles, setShowDualSubtitles] = useState<boolean>(() => {
+    return localStorage.getItem("lectura_dual_subtitles") === "true";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("lectura_dual_subtitles", String(showDualSubtitles));
+  }, [showDualSubtitles]);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setVideoCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const controlsTimerRef = useRef<any>(null);
+
+  // Parse subtitle cues from lesson.text
+  const cues = useMemo(() => parseCuesFromLessonText(lesson.text), [lesson.text]);
+
+  const clickTimeoutRef = useRef<any>(null);
+
+  const toggleFullscreen = useCallback(() => {
+    const container = fullscreenContainerRef.current;
+    if (!container) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      container.requestFullscreen().catch((err) => {
+        console.warn("Fullscreen request error:", err);
+      });
+    }
+  }, []);
+
+  // Listen to fullscreen changes across browser and native elements
+  useEffect(() => {
+    const handleFsChange = () => {
+      const isFs = !!document.fullscreenElement;
+      setIsFullscreen(isFs);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
+
+  // Intercept double-click on video in capture phase to prevent Chrome's native video fullscreen
+  useEffect(() => {
+    const video = videoElRef.current;
+    if (!video) return;
+
+    const handleDblClick = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
       }
-      const sec = parseFloat(raw);
-      return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
-    } catch (_) {
-      const sec = parseFloat(raw);
-      return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+      toggleFullscreen();
+    };
+
+    video.addEventListener("dblclick", handleDblClick, { capture: true });
+    return () => {
+      video.removeEventListener("dblclick", handleDblClick, { capture: true });
+    };
+  }, [toggleFullscreen, localMediaUrl, useLocalMedia]);
+
+  // Auto-hide controls in fullscreen after 3s of inactivity while playing
+  const handleUserActivity = useCallback(() => {
+    setIsControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    if (videoElRef.current && !videoElRef.current.paused) {
+      controlsTimerRef.current = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 3000);
+    }
+  }, []);
+
+  // Hotkeys: Space (play/pause), F (fullscreen), Left/Right (-5s/+5s), C (subtitles)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (videoElRef.current) {
+          if (videoElRef.current.paused) {
+            videoElRef.current.play().catch(() => {});
+          } else {
+            videoElRef.current.pause();
+          }
+        }
+      } else if (e.key === "f" || e.key === "F" || e.key === "а" || e.key === "А") {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (videoElRef.current) {
+          videoElRef.current.currentTime = Math.max(0, videoElRef.current.currentTime - 5);
+        }
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (videoElRef.current) {
+          videoElRef.current.currentTime = Math.min(
+            videoElRef.current.duration || 99999,
+            videoElRef.current.currentTime + 5
+          );
+        }
+      } else if (e.key === "c" || e.key === "C" || e.key === "с" || e.key === "С") {
+        setShowSubtitles((prev) => !prev);
+      } else if (e.key === "b" || e.key === "B" || e.key === "и" || e.key === "И") {
+        setShowDualSubtitles((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleFullscreen]);
+
+  const togglePlayPause = () => {
+    if (videoElRef.current) {
+      if (videoElRef.current.paused) {
+        videoElRef.current.play().catch(() => {});
+      } else {
+        videoElRef.current.pause();
+      }
     }
   };
 
-  const saveProgressNow = (time: number) => {
+  const saveProgressNow = useCallback((time: number) => {
     if (isEndedRef.current || time === undefined || isNaN(time) || time <= 2) return;
     const dur = Math.round(playerRef.current?.getDuration?.() || videoElRef.current?.duration || lesson.duration || 0);
     if (dur > 0 && time >= dur - 2) return;
@@ -110,7 +241,148 @@ export default function YoutubePlayerWindow({
         })
       }).catch(() => {});
     } catch (e) {}
+  }, [lesson.id, lesson.duration]);
+
+  const handleSeekRelative = (seconds: number) => {
+    if (videoElRef.current) {
+      const targetTime = Math.max(
+        0,
+        Math.min(videoElRef.current.duration || 99999, videoElRef.current.currentTime + seconds)
+      );
+      videoElRef.current.currentTime = targetTime;
+      setCurrentTime(targetTime);
+      saveProgressNow(targetTime);
+    }
   };
+
+  const toggleMute = () => {
+    if (videoElRef.current) {
+      videoElRef.current.muted = !videoElRef.current.muted;
+      setIsMuted(videoElRef.current.muted);
+    }
+  };
+
+  const handleVolumeChange = (newVol: number) => {
+    if (videoElRef.current) {
+      videoElRef.current.volume = newVol;
+      videoElRef.current.muted = newVol === 0;
+      setVolume(newVol);
+      setIsMuted(newVol === 0);
+    }
+  };
+
+  const [scrubberHover, setScrubberHover] = useState<{ time: number; percent: number } | null>(null);
+
+  const handleScrubberMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width) return;
+    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const dur = Math.round(videoElRef.current?.duration || lesson.duration || 0);
+    setScrubberHover({
+      time: pos * dur,
+      percent: pos * 100,
+    });
+  };
+
+  const handleScrubberMouseLeave = () => {
+    setScrubberHover(null);
+  };
+
+  const handleScrubberClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!videoElRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const dur = videoElRef.current.duration || lesson.duration || 0;
+    if (dur > 0) {
+      const targetTime = pos * dur;
+      videoElRef.current.currentTime = targetTime;
+      setCurrentTime(targetTime);
+      saveProgressNow(targetTime);
+    }
+  };
+
+  const initTimeoutRef = useRef<any>(null);
+  const trackingIntervalRef = useRef<any>(null);
+  const progressPollIntervalRef = useRef<any>(null);
+  const lastContextTimeRef = useRef<number>(0);
+  const lastStorageSaveTimeRef = useRef<number>(0);
+  const hasRestoredPositionRef = useRef<boolean>(false);
+  const initialSeekTargetRef = useRef<number>(0);
+  const isEndedRef = useRef<boolean>(false);
+
+  // Parse saved progress
+  const parseSavedVideoProgress = (raw: string | null): number => {
+    if (!raw) return 0;
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "number") return parsed > 2 ? Math.floor(parsed) : 0;
+      if (parsed && typeof parsed === "object" && parsed.progress !== undefined) {
+        const sec = parseFloat(parsed.progress);
+        return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+      }
+      const sec = parseFloat(raw);
+      return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+    } catch (_) {
+      const sec = parseFloat(raw);
+      return !isNaN(sec) && sec > 2 ? Math.floor(sec) : 0;
+    }
+  };
+
+  const getInitialSeekTarget = useCallback((): number => {
+    let startSeconds = 0;
+    try {
+      const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
+      startSeconds = parseSavedVideoProgress(savedProgress);
+      
+      if (!startSeconds) {
+        const histRaw = localStorage.getItem("vocab_clone_reading_history");
+        if (histRaw) {
+          const histArr = JSON.parse(histRaw);
+          histArr.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          const match = histArr.find((h: any) => h.lessonId === lesson.id || h.guid === youtubeId);
+          if (match && match.lastPosition > 0) {
+            startSeconds = Math.floor(match.lastPosition);
+          }
+        }
+      }
+    } catch (e) {}
+    return startSeconds;
+  }, [lesson.id, youtubeId]);
+
+  // Initialize initial seek target on mount or when lesson changes
+  useEffect(() => {
+    const target = getInitialSeekTarget();
+    initialSeekTargetRef.current = target;
+    if (target > 0) {
+      setCurrentTime(target);
+      setVideoCurrentTime(target);
+    }
+  }, [lesson.id, getInitialSeekTarget, setCurrentTime]);
+
+  // Flush latest video progress when tab is closed, hidden, or component unmounts
+  useEffect(() => {
+    const handleFlush = () => {
+      if (videoElRef.current) {
+        saveProgressNow(videoElRef.current.currentTime);
+      } else if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+        try {
+          const t = playerRef.current.getCurrentTime();
+          if (t > 2) saveProgressNow(t);
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener("visibilitychange", handleFlush);
+    window.addEventListener("pagehide", handleFlush);
+    window.addEventListener("beforeunload", handleFlush);
+
+    return () => {
+      window.removeEventListener("visibilitychange", handleFlush);
+      window.removeEventListener("pagehide", handleFlush);
+      window.removeEventListener("beforeunload", handleFlush);
+      handleFlush();
+    };
+  }, [lesson.id, saveProgressNow]);
 
   const handleSwitchToAudioOnly = () => {
     let currentSec = 0;
@@ -184,6 +456,29 @@ export default function YoutubePlayerWindow({
       isSubscribed = false;
     };
   }, [lesson.id, lesson.localVideoUrl, youtubeId]);
+
+  // Set up video media source (supports direct MP4 or On-Demand HLS via hls.js)
+  useEffect(() => {
+    if (!useLocalMedia || !localMediaUrl || !videoElRef.current) return;
+    const cleanup = setupVideoMediaSource(videoElRef.current, localMediaUrl, () => {
+      if (videoElRef.current) {
+        videoElRef.current.playbackRate = playbackRate || 1;
+        let startSec = initialSeekTargetRef.current || 0;
+        if (!startSec) {
+          startSec = getInitialSeekTarget();
+          initialSeekTargetRef.current = startSec;
+        }
+        if (startSec > 2) {
+          videoElRef.current.currentTime = startSec;
+          setVideoCurrentTime(startSec);
+          setCurrentTime(startSec);
+        }
+      }
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [useLocalMedia, localMediaUrl, playbackRate, getInitialSeekTarget, setCurrentTime]);
 
   // Handler for downloading media via yt-dlp with live progress polling
   const handleDownloadMedia = async (onlyAudio: boolean = false) => {
@@ -349,35 +644,16 @@ export default function YoutubePlayerWindow({
       }
     };
 
-    const getInitialSeekTarget = (): number => {
-      let startSeconds = 0;
-      try {
-        const savedProgress = localStorage.getItem(`youtube_progress_${lesson.id}`);
-        startSeconds = parseSavedVideoProgress(savedProgress);
-        
-        if (!startSeconds) {
-           const histRaw = localStorage.getItem("vocab_clone_reading_history");
-           if (histRaw) {
-             const histArr = JSON.parse(histRaw);
-             histArr.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-             const match = histArr.find((h: any) => h.lessonId === lesson.id || h.guid === youtubeId);
-             if (match && match.lastPosition > 0) {
-               startSeconds = Math.floor(match.lastPosition);
-             }
-           }
-        }
-      } catch (e) {}
-      return startSeconds;
-    };
-
     const initPlayer = () => {
       if (isUnmounted) return;
 
       const YT = (window as any).YT;
 
-      const startSeconds = getInitialSeekTarget();
-      
-      initialSeekTargetRef.current = startSeconds;
+      let startSeconds = initialSeekTargetRef.current || 0;
+      if (!startSeconds) {
+        startSeconds = getInitialSeekTarget();
+        initialSeekTargetRef.current = startSeconds;
+      }
       if (startSeconds > 0) {
         setCurrentTime(startSeconds);
       }
@@ -593,8 +869,12 @@ export default function YoutubePlayerWindow({
           console.error("Seeking YouTube video failed:", e);
         }
       }
+      // Save progress immediately on external seek
+      saveProgressNow(effectiveSeek);
+      // Reset seekToTime in context so it is never re-applied on subsequent renders/mounts/refreshes
+      setSeekToTime(null);
     }
-  }, [effectiveSeek, useLocalMedia]);
+  }, [effectiveSeek, useLocalMedia, saveProgressNow, setSeekToTime, showToast, t]);
 
   // Synchronize playbackRate (speed) across HTML5 video and YouTube iframe
   useEffect(() => {
@@ -889,7 +1169,7 @@ export default function YoutubePlayerWindow({
         {/* Control toolbar */}
         <div className="flex items-center gap-1">
           {/* Toggle between Local Video and YouTube Stream if local is ready */}
-          {!isMinimized && localMediaUrl && (
+          {!isMinimized && localMediaUrl && Boolean(youtubeId) && (
             <button
               type="button"
               onClick={() => {
@@ -918,7 +1198,7 @@ export default function YoutubePlayerWindow({
           )}
 
           {/* Quick download button if not yet downloaded and not blocked */}
-          {!isMinimized && !localMediaUrl && !isEmbedBlocked && (
+          {!isMinimized && !localMediaUrl && !isEmbedBlocked && Boolean(youtubeId) && (
             isDownloading ? (
               <div
                 className="relative flex items-center px-2 py-0.5 rounded-md bg-teal-500/10 dark:bg-teal-950/40 border border-teal-500/30 text-teal-600 dark:text-teal-400 text-[10px] font-bold select-none overflow-hidden cursor-wait"
@@ -981,6 +1261,18 @@ export default function YoutubePlayerWindow({
             </div>
           )}
 
+          {/* Fullscreen with subtitles (F) */}
+          {!isMinimized && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="p-1 rounded-md text-zinc-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer mr-0.5"
+              title={isFullscreen ? t('player.exit_fullscreen', 'Exit full screen (F)') : t('player.fullscreen', 'Full screen with subtitles (F)')}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
           {/* Switch to Background Audio Only */}
           <button
             type="button"
@@ -1037,19 +1329,66 @@ export default function YoutubePlayerWindow({
       >
         {/* Case 1: Playing Local HTML5 Video */}
         {useLocalMedia && localMediaUrl ? (
-          <div className="w-full h-full flex items-center justify-center bg-black relative">
+          <div
+            ref={fullscreenContainerRef}
+            className={`w-full h-full flex items-center justify-center bg-black relative select-none ${
+              isFullscreen ? "fixed inset-0 z-[999999] w-screen h-screen overflow-hidden" : ""
+            }`}
+            onMouseMove={handleUserActivity}
+            onMouseEnter={handleUserActivity}
+            onMouseLeave={() => {
+              if (videoElRef.current && !videoElRef.current.paused) {
+                setIsControlsVisible(false);
+              }
+            }}
+            onDoubleClick={(e) => {
+              if (e.target === fullscreenContainerRef.current) {
+                toggleFullscreen();
+              }
+            }}
+          >
+            <style>{`
+              video::-webkit-media-controls-fullscreen-button {
+                display: none !important;
+              }
+            `}</style>
+
             <video
               ref={videoElRef}
-              src={localMediaUrl}
-              controls
+              controls={false}
               playsInline
-              className="w-full h-full object-contain bg-black"
+              className="w-full h-full object-contain bg-black cursor-pointer"
+              onClick={() => {
+                if (clickTimeoutRef.current) {
+                  clearTimeout(clickTimeoutRef.current);
+                  clickTimeoutRef.current = null;
+                  return;
+                }
+                clickTimeoutRef.current = setTimeout(() => {
+                  clickTimeoutRef.current = null;
+                  togglePlayPause();
+                }, 220);
+              }}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (clickTimeoutRef.current) {
+                  clearTimeout(clickTimeoutRef.current);
+                  clickTimeoutRef.current = null;
+                }
+                toggleFullscreen();
+              }}
               onLoadedMetadata={() => {
                 if (videoElRef.current) {
                   videoElRef.current.playbackRate = playbackRate || 1;
-                  const startSec = initialSeekTargetRef.current || 0;
+                  let startSec = initialSeekTargetRef.current || 0;
+                  if (!startSec) {
+                    startSec = getInitialSeekTarget();
+                    initialSeekTargetRef.current = startSec;
+                  }
                   if (startSec > 2) {
                     videoElRef.current.currentTime = startSec;
+                    setVideoCurrentTime(startSec);
                     setCurrentTime(startSec);
                   }
                 }
@@ -1057,6 +1396,7 @@ export default function YoutubePlayerWindow({
               onTimeUpdate={() => {
                 if (videoElRef.current) {
                   const time = videoElRef.current.currentTime;
+                  setVideoCurrentTime(time);
                   if (Math.abs(time - lastContextTimeRef.current) >= 0.5) {
                     lastContextTimeRef.current = time;
                     setCurrentTime(time);
@@ -1078,9 +1418,11 @@ export default function YoutubePlayerWindow({
                 }
               }}
               onPlay={() => {
+                setIsPlaying(true);
                 lastTickTimeRef.current = Date.now();
               }}
               onPause={() => {
+                setIsPlaying(false);
                 lastTickTimeRef.current = null;
                 if (videoElRef.current) {
                   saveProgressNow(videoElRef.current.currentTime);
@@ -1090,6 +1432,7 @@ export default function YoutubePlayerWindow({
                 }
               }}
               onEnded={() => {
+                setIsPlaying(false);
                 isEndedRef.current = true;
                 try {
                   const total = Math.round(videoElRef.current?.duration || lesson.duration || 0);
@@ -1115,6 +1458,188 @@ export default function YoutubePlayerWindow({
                 if (onVideoEnded) onVideoEnded();
               }}
             />
+
+            {/* Subtitle & Word Status Overlay (Underline mode + Language Reactor tooltip + CalmSheetWordCard) */}
+            <VideoSubtitleOverlay
+              cues={cues}
+              currentTime={currentTime}
+              lesson={lesson}
+              videoElement={videoElRef.current}
+              isFullscreen={isFullscreen}
+              showSubtitles={showSubtitles}
+              showDualSubtitles={showDualSubtitles}
+            />
+
+            {/* Custom Overlay Controls Bar (Auto-hides on inactivity while playing) */}
+            <div
+              onDoubleClick={(e) => e.stopPropagation()}
+              className={`absolute bottom-0 left-0 right-0 ${
+                isFullscreen ? "p-4 pb-6 gap-2.5" : "p-2 pb-2.5 gap-1.5"
+              } bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col z-40 transition-opacity duration-300 ${
+                isControlsVisible || !isPlaying ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+              }`}
+            >
+              {/* Timeline Progress Scrubber */}
+              <div className="flex items-center gap-3 w-full px-2">
+                <span className="text-xs font-mono font-bold text-zinc-300 shrink-0">
+                  {formatSecondsToTimestamp(currentTime)}
+                </span>
+                <div
+                  className="relative flex-1 py-3 flex items-center cursor-pointer group"
+                  onClick={handleScrubberClick}
+                  onMouseMove={handleScrubberMouseMove}
+                  onMouseLeave={handleScrubberMouseLeave}
+                >
+                  {/* Background track */}
+                  <div className="w-full h-1.5 group-hover:h-2 bg-white/20 rounded-full relative transition-all overflow-visible">
+                    {/* Hover ghost preview highlight */}
+                    {scrubberHover !== null && (
+                      <div
+                        className="absolute top-0 bottom-0 left-0 bg-white/30 rounded-full pointer-events-none"
+                        style={{ width: `${scrubberHover.percent}%` }}
+                      />
+                    )}
+
+                    {/* Active played progress (bright sky-500 blue) */}
+                    <div
+                      className="absolute top-0 bottom-0 left-0 bg-sky-500 rounded-full pointer-events-none flex items-center justify-end"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(0, (currentTime / Math.round(videoElRef.current?.duration || lesson.duration || 1)) * 100)
+                        )}%`,
+                      }}
+                    >
+                      {/* Scrubber thumb knob (always visible!) */}
+                      <div className="w-3.5 h-3.5 bg-white rounded-full shadow-md translate-x-1/2 scale-100 group-hover:scale-125 transition-transform" />
+                    </div>
+                  </div>
+
+                  {/* Hover Timestamp Badge (e.g. 10:50 (50%)) */}
+                  {scrubberHover !== null && (
+                    <div
+                      className="absolute -top-7 -translate-x-1/2 px-2 py-0.5 bg-zinc-950/95 text-white border border-white/20 text-[11px] font-mono font-bold rounded-md shadow-xl pointer-events-none select-none z-50 whitespace-nowrap flex items-center gap-1 backdrop-blur-xs"
+                      style={{ left: `${Math.max(3, Math.min(97, scrubberHover.percent))}%` }}
+                    >
+                      <span>{formatSecondsToTimestamp(scrubberHover.time)}</span>
+                      <span className="text-[10px] text-zinc-400 font-normal">({Math.round(scrubberHover.percent)}%)</span>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-950/95" />
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs font-mono text-zinc-400 shrink-0">
+                  {formatSecondsToTimestamp(Math.round(videoElRef.current?.duration || lesson.duration || 0))}
+                </span>
+              </div>
+
+              {/* Bottom Controls Buttons */}
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-3">
+                  {/* Play/Pause */}
+                  <button
+                    type="button"
+                    onClick={togglePlayPause}
+                    className="p-1.5 text-white hover:text-sky-400 transition-colors cursor-pointer"
+                    title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                  >
+                    {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
+                  </button>
+
+                  {/* Rewind 5s */}
+                  <button
+                    type="button"
+                    onClick={() => handleSeekRelative(-5)}
+                    className="p-1.5 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                    title="-5s"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+
+                  {/* Forward 5s */}
+                  <button
+                    type="button"
+                    onClick={() => handleSeekRelative(5)}
+                    className="p-1.5 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                    title="+5s"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </button>
+
+                  {/* Volume & Mute */}
+                  <div className="flex items-center gap-1.5 group/vol ml-2">
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className="p-1.5 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                      title={isMuted ? "Unmute" : "Mute"}
+                    >
+                      {isMuted || volume === 0 ? (
+                        <VolumeX className="w-5 h-5 text-red-400" />
+                      ) : volume < 0.5 ? (
+                        <Volume1 className="w-5 h-5" />
+                      ) : (
+                        <Volume2 className="w-5 h-5" />
+                      )}
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={isMuted ? 0 : volume}
+                      onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                      className="w-18 h-1 accent-sky-500 cursor-pointer opacity-70 group-hover/vol:opacity-100 transition-opacity"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Subtitles CC Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setShowSubtitles((s) => !s)}
+                    className={`px-2.5 py-1 rounded-md transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                      showSubtitles
+                        ? "bg-sky-600 text-white shadow-xs"
+                        : "text-zinc-400 hover:text-white hover:bg-white/10"
+                    }`}
+                    title={showSubtitles ? t("player.hide_subtitles", "Hide subtitles (C)") : t("player.show_subtitles", "Show subtitles (C)")}
+                  >
+                    <Subtitles className="w-3.5 h-3.5" />
+                    <span>CC</span>
+                  </button>
+
+                  {/* Dual Subtitles Toggle (B / Alt+T) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowDualSubtitles((d) => !d)}
+                    className={`px-2.5 py-1 rounded-md transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                      showDualSubtitles
+                        ? "bg-indigo-600 text-white shadow-xs"
+                        : "text-zinc-400 hover:text-white hover:bg-white/10"
+                    }`}
+                    title={
+                      showDualSubtitles
+                        ? t("player.dual_subs_on", "Выключить двойные субтитры (B)")
+                        : t("player.dual_subs_off", "Включить двойные субтитры (перевод строки) (B)")
+                    }
+                  >
+                    <Languages className="w-3.5 h-3.5" />
+                    <span>Dual</span>
+                  </button>
+
+                  {/* Fullscreen Toggle */}
+                  <button
+                    type="button"
+                    onClick={toggleFullscreen}
+                    className="p-1.5 text-white hover:text-sky-400 transition-colors cursor-pointer"
+                    title={isFullscreen ? t('player.exit_fullscreen', 'Exit full screen (F / Esc)') : t('player.fullscreen', 'Full screen with subtitles (F)')}
+                  >
+                    {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         ) : isEmbedBlocked ? (
           /* Case 2: YouTube Embedding Restricted (Errors 101/150) -> Informative Card & Local Download Action */

@@ -7,9 +7,17 @@ const COOLDOWN_DURATION_MS = 60000; // 60 seconds cooldown for 429 quota exhaust
  * Migration helper: creates default or migrated profiles from legacy settings
  */
 export function getOrCreateAiProfiles(settings?: ReaderSettings): AIProfile[] {
-  if (settings?.aiProfiles && Array.isArray(settings.aiProfiles) && settings.aiProfiles.length > 0) {
+  let effectiveSettings = settings;
+  if (!effectiveSettings) {
+    try {
+      const raw = localStorage.getItem("vocab_clone_reader_settings");
+      if (raw) effectiveSettings = JSON.parse(raw);
+    } catch (_) {}
+  }
+
+  if (effectiveSettings?.aiProfiles && Array.isArray(effectiveSettings.aiProfiles) && effectiveSettings.aiProfiles.length > 0) {
     // Migrate any legacy gemini-2.0-flash to gemini-2.5-flash
-    return settings.aiProfiles.map(p => {
+    return effectiveSettings.aiProfiles.map(p => {
       if (p.provider === 'gemini' && (p.model === undefined || p.model === 'gemini-2.0-flash')) {
         return { ...p, model: 'gemini-2.5-flash' };
       }
@@ -18,9 +26,9 @@ export function getOrCreateAiProfiles(settings?: ReaderSettings): AIProfile[] {
   }
 
   const profiles: AIProfile[] = [];
-  const legacyGeminiKey = settings?.geminiApiKey || localStorage.getItem("vocab_clone_gemini_key") || "";
-  const legacyLocalUrl = settings?.localAiUrl || "http://localhost:11434/api/generate";
-  const legacyLocalModel = settings?.localAiModel || "phi3.5";
+  const legacyGeminiKey = effectiveSettings?.geminiApiKey || localStorage.getItem("vocab_clone_gemini_key") || "";
+  const legacyLocalUrl = effectiveSettings?.localAiUrl || "http://localhost:11434/api/generate";
+  const legacyLocalModel = effectiveSettings?.localAiModel || "phi3.5";
 
   if (legacyGeminiKey) {
     profiles.push({

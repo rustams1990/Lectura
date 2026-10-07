@@ -23,6 +23,7 @@ export interface VocabItem {
   updatedAt?: number;
   tags?: string[];
   imageUrl?: string | null;
+  audioClipUrl?: string | null;
   spellingCorrectCount?: number;
   spellingIncorrectCount?: number;
   spellingAccentCount?: number;
@@ -115,6 +116,8 @@ export interface Playlist {
   isArchived?: boolean;
   primaryTag?: string | null;
   tags?: string[];
+  order?: number;
+  pinned?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -242,9 +245,11 @@ export interface ReaderSettings {
   readerLayoutWidth?: "standard" | "wide" | "full";
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
   autoPlayNextLesson?: boolean; // When true, automatically transitions to next lesson upon completion (default: true)
+  enableVideoCardClips?: boolean; // When true, enables saving and practicing with video snapshot frames and audio clips
 }
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
+  enableVideoCardClips: false,
   fontSize: "base",
   lineHeight: "relaxed",
   fontFamily: "sans",

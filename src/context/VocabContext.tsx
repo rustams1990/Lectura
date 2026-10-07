@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { VocabItem, WordStatus } from "../types";
-import { normalizeVocabRecord, normalizeWordLinksRecord } from "../utils";
+import { normalizeVocabRecord, normalizeWordLinksRecord, buildVocabItem, normalizeLanguage } from "../utils";
 import { vocabStore } from "../db";
 import { useWordStore, sanitizePhraseText, normalizePossessiveSuffix } from "../store/useWordStore";
 /**
@@ -58,6 +58,10 @@ interface VocabContextType {
   selectedWordRect: DOMRect | null;
   setSelectedWordRect: (rect: DOMRect | null) => void;
   getLinkedWordsFor: (word: string, lang?: string) => string[];
+  handleSaveVocab: (item: VocabItem, lang?: string) => void;
+  handleDeleteVocab: (word: string, lang?: string) => void;
+  handleSaveWordLink: (from: string, to: string, lang?: string) => void;
+  handleDeleteWordLink: (from: string, lang?: string) => void;
   handleUpdateStatusDirect: (word: string, newStatus: WordStatus, lang?: string) => void;
   handleDeleteMultipleVocabItems: (words: string[], lang?: string) => void;
   handleWordClick: (word: string, context: string, target?: HTMLElement | DOMRect | null) => void;
@@ -304,6 +308,97 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const handleSaveVocab = (newItem: VocabItem, lang = "spanish") => {
+    if (!newItem || !newItem.word) return;
+    const activeLang = normalizeLanguage(lang || "spanish").toLowerCase();
+    const rawClean = newItem.word.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+    const cleanWord = (activeLang.startsWith("en") || !lang)
+      ? normalizePossessiveSuffix(rawClean)
+      : rawClean;
+    const effectiveItem = { ...newItem, word: cleanWord };
+
+    const linkedWords = getLinkedWordsFor(cleanWord, activeLang);
+
+    setVocab((prev) => {
+      const nextVocab = { ...prev };
+
+      // Inherit existing family definition ONLY if this update didn't specify one
+      if (effectiveItem.definition === undefined) {
+        for (const lw of linkedWords) {
+          if (lw === cleanWord) continue;
+          const k = `${activeLang}_${lw}`;
+          const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
+          if (ex?.definition && ex.definition.trim() !== "") {
+            effectiveItem.definition = ex.definition.trim();
+            break;
+          }
+        }
+      }
+
+      linkedWords.forEach((linkedWord) => {
+        const targetLangKey = `${activeLang}_${linkedWord}`.toLowerCase();
+        markWordLocallyMutated(targetLangKey);
+        markWordLocallyMutated(linkedWord);
+        const existing = prev[targetLangKey] || prev[`english_${linkedWord}`] || prev[`spanish_${linkedWord}`] || prev[`french_${linkedWord}`] || prev[`german_${linkedWord}`] || prev[linkedWord];
+
+        const updatedVocabItem: VocabItem = buildVocabItem(effectiveItem, linkedWord, existing);
+
+        // Clean up legacy non-prefixed key or case variations from local state
+        Object.keys(nextVocab).forEach((k) => {
+          const kLower = k.trim().toLowerCase();
+          if (kLower === linkedWord.toLowerCase() && k !== targetLangKey) {
+            delete nextVocab[k];
+          }
+        });
+
+        nextVocab[targetLangKey] = updatedVocabItem;
+      });
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: nextVocab }));
+      }
+
+      return nextVocab;
+    });
+  };
+
+  const handleDeleteVocab = (word: string, lang = "spanish") => {
+    handleDeleteMultipleVocabItems([word], lang);
+  };
+
+  const handleSaveWordLink = (from: string, to: string, lang = "spanish") => {
+    const lowerFrom = from.toLowerCase();
+    const lowerTo = to.toLowerCase();
+    if (lowerFrom === lowerTo) return;
+    const activeLang = normalizeLanguage(lang || "spanish").toLowerCase();
+    const sourceKey = `${activeLang}_${lowerFrom}`;
+    const targetKey = `${activeLang}_${lowerTo}`;
+
+    setWordLinks((prev) => {
+      const nextWordLinks = {
+        ...prev,
+        [sourceKey]: targetKey,
+      };
+      return nextWordLinks;
+    });
+  };
+
+  const handleDeleteWordLink = (from: string, lang = "spanish") => {
+    const hasUnderscore = from.includes("_");
+    const rawWord = hasUnderscore ? from.substring(from.indexOf("_") + 1) : from;
+    const activeLang = hasUnderscore ? from.substring(0, from.indexOf("_")) : normalizeLanguage(lang || "spanish").toLowerCase();
+
+    const sourceKey = `${activeLang}_${rawWord.toLowerCase()}`;
+    const lowerFrom = rawWord.toLowerCase();
+
+    setWordLinks((prev) => {
+      const copy = { ...prev };
+      delete copy[sourceKey];
+      delete copy[lowerFrom];
+      return copy;
+    });
+  };
+
   const handleMassImportIgnoredWords = (words: string[], lang = "spanish"): number => {
     if (!words || words.length === 0) return 0;
     const activeLang = lang.toLowerCase();
@@ -416,6 +511,10 @@ export function VocabProvider({ children }: { children: ReactNode }) {
         selectedWordRect,
         setSelectedWordRect,
         getLinkedWordsFor,
+        handleSaveVocab,
+        handleDeleteVocab,
+        handleSaveWordLink,
+        handleDeleteWordLink,
         handleUpdateStatusDirect,
         handleDeleteMultipleVocabItems,
         handleMassImportIgnoredWords,

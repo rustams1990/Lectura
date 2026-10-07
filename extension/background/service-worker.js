@@ -716,6 +716,95 @@ var LecturaApiClient = class {
     }
     return { success: false };
   }
+  /**
+   * Generates AI breakdown and context explanation for word or phrase
+   */
+  async explainWithAi(payload) {
+    if (this.isContentScript()) {
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "EXPLAIN_WITH_AI", payload }, (response) => {
+          if (chrome.runtime.lastError) {
+            return reject(new Error(chrome.runtime.lastError.message));
+          }
+          if (response?.success && response.data) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response?.error || "Failed to explain with AI"));
+          }
+        });
+      });
+    }
+    const settings = await this.getActiveSettings();
+    const targetLanguage = payload.targetLanguage || settings.targetLanguage || "English";
+    const translationLanguage = payload.translationLanguage || settings.nativeLanguage || "Russian";
+    const url = this.sanitizeUrl(settings.serverUrl, "/api/explain");
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: this.buildHeaders(settings),
+        body: JSON.stringify({
+          word: payload.word,
+          context: payload.context || payload.word,
+          targetLanguage,
+          translationLanguage,
+          customQuestion: payload.customQuestion
+        }),
+        signal: AbortSignal.timeout(18e3)
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      return await response.json();
+    } catch (err) {
+      console.warn("[Lectura API] explainWithAi failed:", err?.message || err);
+      throw err;
+    }
+  }
+  /**
+   * Fetches explanatory dictionary definition from Free Dictionary & Wiktionary
+   */
+  async getDictionaryExplain(payload) {
+    if (this.isContentScript()) {
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "GET_DICTIONARY_EXPLAIN", payload }, (response) => {
+          if (chrome.runtime.lastError) {
+            return reject(new Error(chrome.runtime.lastError.message));
+          }
+          if (response?.success && response.data) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response?.error || "Failed to fetch dictionary definition"));
+          }
+        });
+      });
+    }
+    const settings = await this.getActiveSettings();
+    const targetLanguage = payload.targetLanguage || settings.targetLanguage || "English";
+    const translationLanguage = payload.translationLanguage || settings.nativeLanguage || "Russian";
+    const url = this.sanitizeUrl(settings.serverUrl, "/api/dictionary-explain");
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: this.buildHeaders(settings),
+        body: JSON.stringify({
+          word: payload.word,
+          targetLanguage,
+          translationLanguage,
+          context: payload.context || payload.word,
+          source: payload.source || "hybrid"
+        }),
+        signal: AbortSignal.timeout(8e3)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return await response.json();
+    } catch (err) {
+      console.warn("[Lectura API] getDictionaryExplain failed:", err?.message || err);
+      throw err;
+    }
+  }
 };
 
 // node_modules/compromise/src/API/world.js
@@ -30166,6 +30255,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.type === "LOG_YOUTUBE_ACTIVITY") {
     apiClient.logActivity(message.payload).then((res) => sendResponse({ success: true, data: res })).catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+  if (message.type === "EXPLAIN_WITH_AI") {
+    apiClient.explainWithAi(message.payload).then((res) => sendResponse({ success: true, data: res })).catch((err) => sendResponse({ success: false, error: err?.message || "AI breakdown failed" }));
+    return true;
+  }
+  if (message.type === "GET_DICTIONARY_EXPLAIN") {
+    apiClient.getDictionaryExplain(message.payload).then((res) => sendResponse({ success: true, data: res })).catch((err) => sendResponse({ success: false, error: err?.message || "Dictionary lookup failed" }));
     return true;
   }
   if (message.type === "OPEN_OPTIONS") {

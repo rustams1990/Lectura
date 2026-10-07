@@ -1,5 +1,29 @@
-import React, { useState, useEffect, useRef } from "react";
-import { X, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, Tv, Download, AlertTriangle, Loader2, HardDrive, Globe, Headphones } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  X,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  Tv,
+  Download,
+  AlertTriangle,
+  Loader2,
+  HardDrive,
+  Globe,
+  Headphones,
+  Maximize2,
+  Minimize2,
+  Play,
+  Pause,
+  RotateCcw,
+  RotateCw,
+  Volume1,
+  Volume2,
+  VolumeX,
+  Subtitles,
+  Languages,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Lesson } from "../types";
 import { useLesson } from "../context/LessonContext";
@@ -7,6 +31,9 @@ import { settingsStore } from "../db";
 import { usePlaylistStore } from "../store/playlistStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { useToast } from "../context/ToastContext";
+import { setupVideoMediaSource } from "../utils/hlsPlayer";
+import { parseCuesFromLessonText, formatSecondsToTimestamp } from "../utils/subtitleParser";
+import VideoSubtitleOverlay from "./video/VideoSubtitleOverlay";
 
 type SizePreset = "small" | "medium" | "large";
 
@@ -38,7 +65,7 @@ export default function FocusPinnedPlayer({
 }: FocusPinnedPlayerProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const { setCurrentTime, seekToTime, playbackRate } = useLesson();
+  const { setCurrentTime, seekToTime, setSeekToTime, playbackRate } = useLesson();
   const { youtubeId } = lesson;
   const settings = useSettingsStore((s) => s.settings);
   const setSettings = useSettingsStore((s) => s.setSettings);
@@ -60,7 +87,146 @@ export default function FocusPinnedPlayer({
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoElRef = useRef<HTMLVideoElement>(null);
+  const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
+
+  // Fullscreen, Subtitles & Custom Controls states
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showSubtitles, setShowSubtitles] = useState(true);
+  const [showDualSubtitles, setShowDualSubtitles] = useState<boolean>(() => {
+    return localStorage.getItem("lectura_dual_subtitles") === "true";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("lectura_dual_subtitles", String(showDualSubtitles));
+  }, [showDualSubtitles]);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setVideoCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const controlsTimerRef = useRef<any>(null);
+
+  const cues = useMemo(() => parseCuesFromLessonText(lesson.text), [lesson.text]);
+
+  const clickTimeoutRef = useRef<any>(null);
+
+  const toggleFullscreen = useCallback(() => {
+    const container = fullscreenContainerRef.current;
+    if (!container) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      container.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      const isFs = !!document.fullscreenElement;
+      setIsFullscreen(isFs);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
+
+  // Intercept double-click on video in capture phase to prevent Chrome's native video fullscreen
+  useEffect(() => {
+    const video = videoElRef.current;
+    if (!video) return;
+
+    const handleDblClick = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      toggleFullscreen();
+    };
+
+    video.addEventListener("dblclick", handleDblClick, { capture: true });
+    return () => {
+      video.removeEventListener("dblclick", handleDblClick, { capture: true });
+    };
+  }, [toggleFullscreen, localMediaUrl, useLocalMedia]);
+
+  const handleUserActivity = useCallback(() => {
+    setIsControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    if (videoElRef.current && !videoElRef.current.paused) {
+      controlsTimerRef.current = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 3000);
+    }
+  }, []);
+
+  const togglePlayPause = () => {
+    if (videoElRef.current) {
+      if (videoElRef.current.paused) {
+        videoElRef.current.play().catch(() => {});
+      } else {
+        videoElRef.current.pause();
+      }
+    }
+  };
+
+  const handleSeekRelative = (seconds: number) => {
+    if (videoElRef.current) {
+      videoElRef.current.currentTime = Math.max(
+        0,
+        Math.min(videoElRef.current.duration || 99999, videoElRef.current.currentTime + seconds)
+      );
+    }
+  };
+
+  const toggleMute = () => {
+    if (videoElRef.current) {
+      videoElRef.current.muted = !videoElRef.current.muted;
+      setIsMuted(videoElRef.current.muted);
+    }
+  };
+
+  const handleVolumeChange = (newVol: number) => {
+    if (videoElRef.current) {
+      videoElRef.current.volume = newVol;
+      videoElRef.current.muted = newVol === 0;
+      setVolume(newVol);
+      setIsMuted(newVol === 0);
+    }
+  };
+
+  const [scrubberHover, setScrubberHover] = useState<{ time: number; percent: number } | null>(null);
+
+  const handleScrubberMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width) return;
+    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const dur = Math.round(videoElRef.current?.duration || lesson.duration || 0);
+    setScrubberHover({
+      time: pos * dur,
+      percent: pos * 100,
+    });
+  };
+
+  const handleScrubberMouseLeave = () => {
+    setScrubberHover(null);
+  };
+
+  const handleScrubberClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!videoElRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const dur = videoElRef.current.duration || lesson.duration || 0;
+    if (dur > 0) {
+      videoElRef.current.currentTime = pos * dur;
+      setVideoCurrentTime(pos * dur);
+      setCurrentTime(pos * dur);
+    }
+  };
+
   const initTimeoutRef = useRef<any>(null);
   const trackingIntervalRef = useRef<any>(null);
   const progressPollIntervalRef = useRef<any>(null);
@@ -69,7 +235,7 @@ export default function FocusPinnedPlayer({
   const lastStorageSaveRef = useRef<number>(0);
   const isEndedRef = useRef<boolean>(false);
 
-  if (!youtubeId) return null;
+  if (!youtubeId && !lesson.localVideoUrl) return null;
 
   // Track sticky player height
   useEffect(() => {
@@ -132,6 +298,31 @@ export default function FocusPinnedPlayer({
       }).catch(() => {});
     } catch {}
   };
+
+  // Flush latest video progress when tab is closed, hidden, or component unmounts
+  useEffect(() => {
+    const handleFlush = () => {
+      if (videoElRef.current) {
+        saveNow(videoElRef.current.currentTime);
+      } else if (playerRef.current && typeof playerRef.current.getCurrentTime === "function") {
+        try {
+          const t = playerRef.current.getCurrentTime();
+          if (t > 2) saveNow(t);
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener("visibilitychange", handleFlush);
+    window.addEventListener("pagehide", handleFlush);
+    window.addEventListener("beforeunload", handleFlush);
+
+    return () => {
+      window.removeEventListener("visibilitychange", handleFlush);
+      window.removeEventListener("pagehide", handleFlush);
+      window.removeEventListener("beforeunload", handleFlush);
+      handleFlush();
+    };
+  }, [lesson.id]);
 
   const handleSwitchToAudioOnly = () => {
     let currentSec = 0;
@@ -205,6 +396,28 @@ export default function FocusPinnedPlayer({
       isSubscribed = false;
     };
   }, [lesson.id, lesson.localVideoUrl, youtubeId]);
+
+  // Set up video media source (direct MP4 or on-demand HLS)
+  useEffect(() => {
+    if (!useLocalMedia || !localMediaUrl || !videoElRef.current) return;
+    const cleanup = setupVideoMediaSource(videoElRef.current, localMediaUrl, () => {
+      if (videoElRef.current) {
+        videoElRef.current.playbackRate = playbackRate || 1;
+        let startSec = 0;
+        try {
+          const raw = localStorage.getItem(`youtube_progress_${lesson.id}`);
+          startSec = parseSavedVideoProgress(raw);
+        } catch (e) {}
+        if (startSec > 2) {
+          videoElRef.current.currentTime = startSec;
+          setVideoCurrentTime(startSec);
+        }
+      }
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [useLocalMedia, localMediaUrl, playbackRate, lesson.id]);
 
   // Handler for downloading media via yt-dlp with live progress polling
   const handleDownloadMedia = async (onlyAudio: boolean = false) => {
@@ -472,18 +685,21 @@ export default function FocusPinnedPlayer({
       if (useLocalMedia && videoElRef.current) {
         try {
           videoElRef.current.currentTime = seekToTime;
+          saveNow(seekToTime);
           videoElRef.current.play().catch(() => {});
         } catch {}
       } else if (playerRef.current?.seekTo) {
         try {
           playerRef.current.seekTo(seekToTime, true);
+          saveNow(seekToTime);
           playerRef.current.playVideo?.();
         } catch (e) {
           console.error("FocusPinnedPlayer: seek failed:", e);
         }
       }
+      setSeekToTime(null);
     }
-  }, [seekToTime, useLocalMedia]);
+  }, [seekToTime, useLocalMedia, setSeekToTime]);
 
   // Playback Rate Sync
   useEffect(() => {
@@ -536,7 +752,7 @@ export default function FocusPinnedPlayer({
         {/* Right: Toggle Source + Download + S/M/L + refresh + collapse + close */}
         <div className="flex items-center gap-1.5">
           {/* Toggle between Local Video and YouTube Stream if local is ready */}
-          {!collapsed && localMediaUrl && (
+          {!collapsed && localMediaUrl && Boolean(youtubeId) && (
             <button
               type="button"
               onClick={() => {
@@ -565,7 +781,7 @@ export default function FocusPinnedPlayer({
           )}
 
           {/* Quick download button if not yet downloaded and not blocked */}
-          {!collapsed && !localMediaUrl && !isEmbedBlocked && (
+          {!collapsed && !localMediaUrl && !isEmbedBlocked && Boolean(youtubeId) && (
             isDownloading ? (
               <div
                 className="relative flex items-center px-2 py-0.5 rounded-md bg-teal-500/10 dark:bg-teal-950/40 border border-teal-500/30 text-teal-600 dark:text-teal-400 text-[10px] font-bold select-none overflow-hidden cursor-wait"
@@ -618,6 +834,17 @@ export default function FocusPinnedPlayer({
             </div>
           )}
 
+          {/* Fullscreen with subtitles (F) */}
+          {!collapsed && (
+            <button
+              onClick={toggleFullscreen}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-sky-400 hover:bg-zinc-800 transition-colors cursor-pointer"
+              title={isFullscreen ? t("player.exit_fullscreen", "Exit full screen (F)") : t("player.fullscreen", "Full screen with subtitles (F)")}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
           {/* Refresh */}
           <button
             onClick={() => {
@@ -668,80 +895,312 @@ export default function FocusPinnedPlayer({
       >
         <div style={{ width: "100%", maxWidth: MAX_WIDTHS[size], aspectRatio: "16 / 9" }} className="bg-black relative max-h-[35vh] sm:max-h-[40vh] pointer-events-auto">
           {useLocalMedia && localMediaUrl ? (
-            <video
-              ref={videoElRef}
-              src={localMediaUrl}
-              controls
-              playsInline
-              className="w-full h-full object-contain bg-black"
-              onLoadedMetadata={() => {
-                if (videoElRef.current) {
-                  videoElRef.current.playbackRate = playbackRate || 1;
-                  let startSec = 0;
-                  try {
-                    const raw = localStorage.getItem(`youtube_progress_${lesson.id}`);
-                    startSec = parseSavedVideoProgress(raw);
-                  } catch (e) {}
-                  if (startSec > 2) {
-                    videoElRef.current.currentTime = startSec;
-                  }
+            <div
+              ref={fullscreenContainerRef}
+              className={`w-full h-full flex items-center justify-center bg-black relative select-none ${
+                isFullscreen ? "fixed inset-0 z-[999999] w-screen h-screen overflow-hidden" : ""
+              }`}
+              onMouseMove={handleUserActivity}
+              onMouseEnter={handleUserActivity}
+              onMouseLeave={() => {
+                if (videoElRef.current && !videoElRef.current.paused) {
+                  setIsControlsVisible(false);
                 }
               }}
-              onTimeUpdate={() => {
-                if (videoElRef.current) {
-                  const time = videoElRef.current.currentTime;
-                  if (Math.abs(time - lastContextTimeRef.current) >= 0.5) {
-                    lastContextTimeRef.current = time;
-                    setCurrentTime(time);
-                  }
-                  if (Date.now() - lastStorageSaveRef.current >= 3000) {
-                    saveNow(time);
-                  }
-                }
-                if (lastTickRef.current) {
-                  const now = Date.now();
-                  const delta = (now - lastTickRef.current) / 1000;
-                  if (delta > 0 && delta <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
-                    onListeningTick(delta);
-                  }
-                  lastTickRef.current = now;
+              onDoubleClick={(e) => {
+                if (e.target === fullscreenContainerRef.current) {
+                  toggleFullscreen();
                 }
               }}
-              onPlay={() => {
-                lastTickRef.current = Date.now();
-              }}
-              onPause={() => {
-                lastTickRef.current = null;
-                if (videoElRef.current) {
-                  saveNow(videoElRef.current.currentTime);
+            >
+              <style>{`
+                video::-webkit-media-controls-fullscreen-button {
+                  display: none !important;
                 }
-              }}
-              onEnded={() => {
-                isEndedRef.current = true;
-                try {
-                  const total = Math.round(videoElRef.current?.duration || lesson.duration || 0);
-                  if (onListeningTick && total > 0) {
-                    onListeningTick(0, true, total);
-                  }
-                  localStorage.removeItem(`youtube_progress_${lesson.id}`);
-                  settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
-                  window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));
+              `}</style>
 
-                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
-                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
-                  const headers: Record<string, string> = { "Content-Type": "application/json" };
-                  if (token) headers["Authorization"] = `Bearer ${token}`;
-                  if (syncKey) headers["x-sync-key"] = syncKey;
-                  fetch("/api/progress", {
-                    method: "POST",
-                    headers,
-                    keepalive: true,
-                    body: JSON.stringify({ type: "video", lessonId: lesson.id, progress: 0, updatedAt: Date.now() }),
-                  }).catch(() => {});
-                } catch (e) {}
-                if (onVideoEnded) onVideoEnded();
-              }}
-            />
+              <video
+                ref={videoElRef}
+                controls={false}
+                playsInline
+                className="w-full h-full object-contain bg-black cursor-pointer"
+                onClick={() => {
+                  if (clickTimeoutRef.current) {
+                    clearTimeout(clickTimeoutRef.current);
+                    clickTimeoutRef.current = null;
+                    return;
+                  }
+                  clickTimeoutRef.current = setTimeout(() => {
+                    clickTimeoutRef.current = null;
+                    togglePlayPause();
+                  }, 220);
+                }}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (clickTimeoutRef.current) {
+                    clearTimeout(clickTimeoutRef.current);
+                    clickTimeoutRef.current = null;
+                  }
+                  toggleFullscreen();
+                }}
+                onLoadedMetadata={() => {
+                  if (videoElRef.current) {
+                    videoElRef.current.playbackRate = playbackRate || 1;
+                    let startSec = 0;
+                    try {
+                      const raw = localStorage.getItem(`youtube_progress_${lesson.id}`);
+                      startSec = parseSavedVideoProgress(raw);
+                    } catch (e) {}
+                    if (startSec > 2) {
+                      videoElRef.current.currentTime = startSec;
+                      setVideoCurrentTime(startSec);
+                      setCurrentTime(startSec);
+                    }
+                  }
+                }}
+                onTimeUpdate={() => {
+                  if (videoElRef.current) {
+                    const time = videoElRef.current.currentTime;
+                    setVideoCurrentTime(time);
+                    if (Math.abs(time - lastContextTimeRef.current) >= 0.5) {
+                      lastContextTimeRef.current = time;
+                      setCurrentTime(time);
+                    }
+                    if (Date.now() - lastStorageSaveRef.current >= 3000) {
+                      saveNow(time);
+                    }
+                  }
+                  if (lastTickRef.current) {
+                    const now = Date.now();
+                    const delta = (now - lastTickRef.current) / 1000;
+                    if (delta > 0 && delta <= 3 && onListeningTick && !usePlaylistStore.getState().isPlaying) {
+                      onListeningTick(delta);
+                    }
+                    lastTickRef.current = now;
+                  }
+                }}
+                onPlay={() => {
+                  setIsPlaying(true);
+                  lastTickRef.current = Date.now();
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                  lastTickRef.current = null;
+                  if (videoElRef.current) {
+                    saveNow(videoElRef.current.currentTime);
+                  }
+                }}
+                onEnded={() => {
+                  setIsPlaying(false);
+                  isEndedRef.current = true;
+                  try {
+                    const total = Math.round(videoElRef.current?.duration || lesson.duration || 0);
+                    if (onListeningTick && total > 0) {
+                      onListeningTick(0, true, total);
+                    }
+                    localStorage.removeItem(`youtube_progress_${lesson.id}`);
+                    settingsStore.removeItem(`youtube_progress_${lesson.id}`).catch(() => {});
+                    window.dispatchEvent(new CustomEvent("lectura:save_progress", { detail: { lessonId: lesson.id, videoProgress: "0" } }));
+
+                    const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
+                    const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
+                    const headers: Record<string, string> = { "Content-Type": "application/json" };
+                    if (token) headers["Authorization"] = `Bearer ${token}`;
+                    if (syncKey) headers["x-sync-key"] = syncKey;
+                    fetch("/api/progress", {
+                      method: "POST",
+                      headers,
+                      keepalive: true,
+                      body: JSON.stringify({ type: "video", lessonId: lesson.id, progress: 0, updatedAt: Date.now() }),
+                    }).catch(() => {});
+                  } catch (e) {}
+                  if (onVideoEnded) onVideoEnded();
+                }}
+              />
+
+              {/* Subtitle & Word Status Overlay (Underline mode + Language Reactor tooltip + CalmSheetWordCard) */}
+              <VideoSubtitleOverlay
+                cues={cues}
+                currentTime={currentTime}
+                lesson={lesson}
+                videoElement={videoElRef.current}
+                isFullscreen={isFullscreen}
+                showSubtitles={showSubtitles}
+                showDualSubtitles={showDualSubtitles}
+              />
+
+              {/* Custom Overlay Controls Bar (Auto-hides on inactivity while playing) */}
+              <div
+                onDoubleClick={(e) => e.stopPropagation()}
+                className={`absolute bottom-0 left-0 right-0 ${
+                  isFullscreen ? "p-4 pb-6 gap-2.5" : "p-2 pb-2.5 gap-1.5"
+                } bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col z-40 transition-opacity duration-300 ${
+                  isControlsVisible || !isPlaying ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                }`}
+              >
+                {/* Timeline Progress Scrubber */}
+                <div className="flex items-center gap-3 w-full px-2">
+                  <span className="text-xs font-mono font-bold text-zinc-300 shrink-0">
+                    {formatSecondsToTimestamp(currentTime)}
+                  </span>
+                  <div
+                    className="relative flex-1 py-3 flex items-center cursor-pointer group"
+                    onClick={handleScrubberClick}
+                    onMouseMove={handleScrubberMouseMove}
+                    onMouseLeave={handleScrubberMouseLeave}
+                  >
+                    {/* Background track */}
+                    <div className="w-full h-1.5 group-hover:h-2 bg-white/20 rounded-full relative transition-all overflow-visible">
+                      {/* Hover ghost preview highlight */}
+                      {scrubberHover !== null && (
+                        <div
+                          className="absolute top-0 bottom-0 left-0 bg-white/30 rounded-full pointer-events-none"
+                          style={{ width: `${scrubberHover.percent}%` }}
+                        />
+                      )}
+
+                      {/* Active played progress (bright sky-500 blue) */}
+                      <div
+                        className="absolute top-0 bottom-0 left-0 bg-sky-500 rounded-full pointer-events-none flex items-center justify-end"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(0, (currentTime / Math.round(videoElRef.current?.duration || lesson.duration || 1)) * 100)
+                          )}%`,
+                        }}
+                      >
+                        {/* Scrubber thumb knob (always visible!) */}
+                        <div className="w-3.5 h-3.5 bg-white rounded-full shadow-md translate-x-1/2 scale-100 group-hover:scale-125 transition-transform" />
+                      </div>
+                    </div>
+
+                    {/* Hover Timestamp Badge (e.g. 10:50 (50%)) */}
+                    {scrubberHover !== null && (
+                      <div
+                        className="absolute -top-7 -translate-x-1/2 px-2 py-0.5 bg-zinc-950/95 text-white border border-white/20 text-[11px] font-mono font-bold rounded-md shadow-xl pointer-events-none select-none z-50 whitespace-nowrap flex items-center gap-1 backdrop-blur-xs"
+                        style={{ left: `${Math.max(3, Math.min(97, scrubberHover.percent))}%` }}
+                      >
+                        <span>{formatSecondsToTimestamp(scrubberHover.time)}</span>
+                        <span className="text-[10px] text-zinc-400 font-normal">({Math.round(scrubberHover.percent)}%)</span>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-950/95" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs font-mono text-zinc-400 shrink-0">
+                    {formatSecondsToTimestamp(Math.round(videoElRef.current?.duration || lesson.duration || 0))}
+                  </span>
+                </div>
+
+                {/* Bottom Controls Buttons */}
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-3">
+                    {/* Play/Pause */}
+                    <button
+                      type="button"
+                      onClick={togglePlayPause}
+                      className="p-1.5 text-white hover:text-sky-400 transition-colors cursor-pointer"
+                      title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                    >
+                      {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
+                    </button>
+
+                    {/* Rewind 5s */}
+                    <button
+                      type="button"
+                      onClick={() => handleSeekRelative(-5)}
+                      className="p-1.5 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                      title="-5s"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+
+                    {/* Forward 5s */}
+                    <button
+                      type="button"
+                      onClick={() => handleSeekRelative(5)}
+                      className="p-1.5 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                      title="+5s"
+                    >
+                      <RotateCw className="w-4 h-4" />
+                    </button>
+
+                    {/* Volume & Mute */}
+                    <div className="flex items-center gap-1.5 group/vol ml-2">
+                      <button
+                        type="button"
+                        onClick={toggleMute}
+                        className="p-1.5 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                        title={isMuted ? "Unmute" : "Mute"}
+                      >
+                        {isMuted || volume === 0 ? (
+                          <VolumeX className="w-5 h-5 text-red-400" />
+                        ) : volume < 0.5 ? (
+                          <Volume1 className="w-5 h-5" />
+                        ) : (
+                          <Volume2 className="w-5 h-5" />
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={isMuted ? 0 : volume}
+                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                        className="w-18 h-1 accent-sky-500 cursor-pointer opacity-70 group-hover/vol:opacity-100 transition-opacity"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Subtitles CC Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowSubtitles((s) => !s)}
+                      className={`px-2.5 py-1 rounded-md transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                        showSubtitles
+                          ? "bg-sky-600 text-white shadow-xs"
+                          : "text-zinc-400 hover:text-white hover:bg-white/10"
+                      }`}
+                      title={showSubtitles ? t("player.hide_subtitles", "Hide subtitles (C)") : t("player.show_subtitles", "Show subtitles (C)")}
+                    >
+                      <Subtitles className="w-3.5 h-3.5" />
+                      <span>CC</span>
+                    </button>
+
+                    {/* Dual Subtitles Toggle (B / Alt+T) */}
+                    <button
+                      type="button"
+                      onClick={() => setShowDualSubtitles((d) => !d)}
+                      className={`px-2.5 py-1 rounded-md transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                        showDualSubtitles
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "text-zinc-400 hover:text-white hover:bg-white/10"
+                      }`}
+                      title={
+                        showDualSubtitles
+                          ? t("player.dual_subs_on", "Выключить двойные субтитры (B)")
+                          : t("player.dual_subs_off", "Включить двойные субтитры (перевод строки) (B)")
+                      }
+                    >
+                      <Languages className="w-3.5 h-3.5" />
+                      <span>Dual</span>
+                    </button>
+
+                    {/* Fullscreen Toggle */}
+                    <button
+                      type="button"
+                      onClick={toggleFullscreen}
+                      className="p-1.5 text-white hover:text-sky-400 transition-colors cursor-pointer"
+                      title={isFullscreen ? t('player.exit_fullscreen', 'Exit full screen (F / Esc)') : t('player.fullscreen', 'Full screen with subtitles (F)')}
+                    >
+                      {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : isEmbedBlocked ? (
             <div className="absolute inset-0 z-50 w-full h-full flex flex-col items-center justify-center p-4 text-center bg-zinc-950 text-white select-none overflow-y-auto">
               <div className="w-9 h-9 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-2 text-amber-400">

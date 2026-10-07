@@ -480,6 +480,102 @@ export async function fetchWordMeaning(word: string, sourceLang: string, targetL
   return null;
 }
 
+const sentenceTransCache = new Map<string, string>();
+
+/**
+ * Fetches full sentence translation for Dual Subtitles mode.
+ * Uses Google Translate GTX with fallback to backend /api/translate.
+ */
+export async function fetchSentenceTranslation(
+  text: string,
+  sourceLang: string,
+  targetLang: string = "ru"
+): Promise<string> {
+  const clean = text.trim();
+  if (!clean) return "";
+  const sLang = getLanguageCode(sourceLang) || "auto";
+  const tLang = getLanguageCode(targetLang) || "ru";
+  const cacheKey = `${sLang}:${tLang}:${clean}`;
+
+  if (sentenceTransCache.has(cacheKey)) {
+    return sentenceTransCache.get(cacheKey)!;
+  }
+
+  // 1. Direct Google Translate GTX (fastest, no server hop)
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sLang}&tl=${tLang}&dt=t&q=${encodeURIComponent(clean)}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data[0] && Array.isArray(data[0])) {
+        const translated = data[0].map((item: any) => item[0]).filter(Boolean).join(" ").trim();
+        if (translated) {
+          sentenceTransCache.set(cacheKey, translated);
+          return translated;
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 2. Server API fallback
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: clean, sourceLanguage: sourceLang, targetLanguage: targetLang }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.translation) {
+        sentenceTransCache.set(cacheKey, data.translation);
+        return data.translation;
+      }
+    }
+  } catch (_) {}
+
+  return "";
+}
+
+/**
+ * Prefetches sentence translations for upcoming subtitle cues.
+ */
+export async function prefetchSentenceTranslations(
+  texts: string[],
+  sourceLang: string,
+  targetLang: string = "ru"
+): Promise<void> {
+  const sLang = getLanguageCode(sourceLang) || "auto";
+  const tLang = getLanguageCode(targetLang) || "ru";
+
+  const missing = texts
+    .map((t) => t.trim())
+    .filter((t) => t && !sentenceTransCache.has(`${sLang}:${tLang}:${t}`));
+
+  if (missing.length === 0) return;
+
+  try {
+    const res = await fetch("/api/translate-sentences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sentences: missing.slice(0, 20),
+        sourceLanguage: sourceLang,
+        targetLanguage: targetLang,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.translations && typeof data.translations === "object") {
+        for (const [orig, trans] of Object.entries(data.translations)) {
+          if (trans && typeof trans === "string") {
+            sentenceTransCache.set(`${sLang}:${tLang}:${orig}`, trans);
+          }
+        }
+      }
+    }
+  } catch (_) {}
+}
+
 export function getEffectiveLocalTtsVoice(languageName: string, settings?: any): string {
   const baseLangCode = getLanguageCode(languageName); // e.g. "es", "en", "fr"
 

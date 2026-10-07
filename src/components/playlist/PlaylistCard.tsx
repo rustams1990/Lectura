@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Playlist, Lesson, HistoryEntry, ReaderSettings } from "../../types";
-import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore, Pencil, Star, Layers, BookOpen } from "lucide-react";
+import { ListVideo, Trash2, Headphones, MoreVertical, Play, Archive, ArchiveRestore, Pencil, Star, Layers, BookOpen, ArrowLeft, ArrowRight, ChevronsLeft, GripVertical, Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SelectPlaylistCoverModal } from "./SelectPlaylistCoverModal";
 import { FLAG_EMOJI_TO_CODE } from "../../utils";
@@ -61,6 +61,8 @@ function formatDuration(seconds?: number | null): string {
 
 interface PlaylistCardProps {
   playlist: Playlist;
+  index?: number;
+  totalCount?: number;
   lessons?: Lesson[];
   history?: HistoryEntry[];
   onSelectPlaylist: (id: string) => void;
@@ -68,12 +70,25 @@ interface PlaylistCardProps {
   onToggleArchive?: (id: string, e: React.MouseEvent) => void;
   onPlayAllPlaylist?: (playlist: Playlist, e: React.MouseEvent) => void;
   onUpdatePlaylist?: (updated: Playlist) => void;
+  onTogglePin?: (id: string, e?: React.MouseEvent) => void;
   languageFlags?: Record<string, string>;
   settings?: ReaderSettings;
+  isDraggable?: boolean;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  dropPosition?: "before" | "after" | null;
+  onDragStartItem?: (id: string) => void;
+  onDragOverItem?: (id: string, position: "before" | "after") => void;
+  onDragLeaveItem?: () => void;
+  onDropOnItem?: (sourceId: string, targetId: string, position: "before" | "after") => void;
+  onDragEndItem?: () => void;
+  onMovePlaylist?: (id: string, direction: "left" | "right" | "first") => void;
 }
 
 export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   playlist,
+  index,
+  totalCount,
   lessons = [],
   history = [],
   onSelectPlaylist,
@@ -81,8 +96,19 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   onToggleArchive,
   onPlayAllPlaylist,
   onUpdatePlaylist,
+  onTogglePin,
   languageFlags = {},
   settings,
+  isDraggable = false,
+  isDragging = false,
+  isDragOver = false,
+  dropPosition = null,
+  onDragStartItem,
+  onDragOverItem,
+  onDragLeaveItem,
+  onDropOnItem,
+  onDragEndItem,
+  onMovePlaylist,
 }) => {
   const { t, i18n } = useTranslation();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -208,9 +234,59 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
 
   return (
     <div
+      draggable={isDraggable}
+      onDragStart={(e) => {
+        if (!isDraggable) return;
+        e.dataTransfer.setData("text/plain", playlist.id);
+        e.dataTransfer.effectAllowed = "move";
+        if (onDragStartItem) onDragStartItem(playlist.id);
+      }}
+      onDragOver={(e) => {
+        if (!isDraggable || !onDragOverItem) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseX = e.clientX;
+        const pos: "before" | "after" = mouseX < rect.left + rect.width / 2 ? "before" : "after";
+        onDragOverItem(playlist.id, pos);
+      }}
+      onDragLeave={(e) => {
+        if (!isDraggable || !onDragLeaveItem) return;
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        onDragLeaveItem();
+      }}
+      onDrop={(e) => {
+        if (!isDraggable || !onDropOnItem) return;
+        e.preventDefault();
+        const sourceId = e.dataTransfer.getData("text/plain");
+        if (sourceId && sourceId !== playlist.id) {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const mouseX = e.clientX;
+          const pos: "before" | "after" = mouseX < rect.left + rect.width / 2 ? "before" : "after";
+          onDropOnItem(sourceId, playlist.id, pos);
+        }
+      }}
+      onDragEnd={() => {
+        if (onDragEndItem) onDragEndItem();
+      }}
       onClick={() => onSelectPlaylist(playlist.id)}
-      className="group relative bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-500/50 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden select-none"
+      className={`group relative bg-white dark:bg-zinc-900 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-visible select-none ${
+        isDragging
+          ? "opacity-35 scale-[0.98] border-dashed border-teal-500 bg-teal-50/20 dark:bg-teal-950/20 shadow-none"
+          : "border-zinc-200 dark:border-zinc-800 hover:border-teal-400 dark:hover:border-teal-500/50 shadow-xs hover:shadow-xl dark:shadow-none hover:-translate-y-1"
+      }`}
     >
+      {/* Drop Insertion Indicators */}
+      {isDragOver && dropPosition === "before" && (
+        <div className="absolute -left-2.5 sm:-left-3.5 inset-y-2 w-1.5 bg-teal-500 rounded-full z-40 shadow-lg shadow-teal-500/50 pointer-events-none flex items-center justify-center animate-in fade-in duration-100">
+          <div className="w-3 h-3 rounded-full bg-teal-500 ring-2 ring-white dark:ring-zinc-900" />
+        </div>
+      )}
+      {isDragOver && dropPosition === "after" && (
+        <div className="absolute -right-2.5 sm:-right-3.5 inset-y-2 w-1.5 bg-teal-500 rounded-full z-40 shadow-lg shadow-teal-500/50 pointer-events-none flex items-center justify-center animate-in fade-in duration-100">
+          <div className="w-3 h-3 rounded-full bg-teal-500 ring-2 ring-white dark:ring-zinc-900" />
+        </div>
+      )}
       {/* Visual multi-layered stacked card shadow header */}
       <div className="absolute -top-1.5 inset-x-3 h-2 bg-zinc-300 dark:bg-zinc-700/60 rounded-t-xl opacity-60 group-hover:opacity-100 transition-opacity z-0 pointer-events-none" />
       <div className="absolute -top-3 inset-x-6 h-2 bg-zinc-200 dark:bg-zinc-800/80 rounded-t-xl opacity-40 group-hover:opacity-80 transition-opacity z-0 pointer-events-none" />
@@ -333,7 +409,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
           <div className="absolute inset-0 bg-black/40 z-[1] pointer-events-none" />
         )}
 
-        {/* Top line: Language Pill & Badges */}
+        {/* Top line: Language Pill & Badges (left) + Pin & Drag Handle (right) */}
         <div className="flex items-center justify-between z-10 w-full">
           <div className="flex items-center gap-1.5">
             <span className="flex items-center gap-1.5 text-[10px] font-black leading-none bg-black/60 backdrop-blur-md pl-1.5 pr-2.5 py-1 rounded-full border border-white/10 text-white shadow-xs">
@@ -344,6 +420,46 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
               <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-amber-500/90 backdrop-blur-md text-white rounded shadow-xs">
                 {t("common.archived", "Archived")}
               </span>
+            )}
+            {playlist.pinned && (
+              <span
+                className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-amber-500/90 backdrop-blur-md text-white rounded shadow-xs flex items-center gap-1"
+                title={t("playlist.unpin", "Открепить плейлист")}
+              >
+                <Pin className="w-2.5 h-2.5 fill-white" />
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* Quick Pin Toggle Button */}
+            {onTogglePin && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePin(playlist.id, e);
+                }}
+                className={`p-1.5 rounded-full transition-all border leading-none cursor-pointer flex items-center justify-center ${
+                  playlist.pinned
+                    ? "bg-amber-500 text-white border-amber-400 font-extrabold shadow-sm scale-105 opacity-100"
+                    : "bg-black/50 text-zinc-300 border-white/10 hover:bg-black/80 hover:text-white hover:scale-105 opacity-0 group-hover:opacity-100"
+                }`}
+                title={playlist.pinned ? t("playlist.unpin", "Открепить плейлист") : t("playlist.pin", "Закрепить плейлист")}
+              >
+                <Pin className={`w-3 h-3 ${playlist.pinned ? "fill-white" : ""}`} />
+              </button>
+            )}
+
+            {/* Drag Handle Indicator */}
+            {isDraggable && (
+              <div
+                className="p-1 rounded-full bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white cursor-grab active:cursor-grabbing transition-all flex items-center justify-center shadow-xs opacity-70 group-hover:opacity-100"
+                title={t("playlist.drag_to_reorder", "Перетащите, чтобы изменить порядок")}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-3.5 h-3.5" />
+              </div>
             )}
           </div>
         </div>
@@ -584,6 +700,75 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                     <Headphones className="w-3.5 h-3.5" />
                     <span>{t("player.play_all", "Play All")}</span>
                   </button>
+                )}
+
+                {/* Pin / Unpin */}
+                {onTogglePin && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      onTogglePin(playlist.id, e);
+                    }}
+                    className={`w-full px-2.5 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-2 cursor-pointer ${
+                      playlist.pinned
+                        ? "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                        : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <Pin className={`w-3.5 h-3.5 ${playlist.pinned ? "fill-current text-amber-500" : "text-zinc-400"}`} />
+                    <span>{playlist.pinned ? t("playlist.unpin", "Открепить") : t("playlist.pin", "Закрепить")}</span>
+                  </button>
+                )}
+
+                {/* Move Playlist actions */}
+                {onMovePlaylist && typeof index === "number" && typeof totalCount === "number" && totalCount > 1 && (
+                  <>
+                    {index > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsMenuOpen(false);
+                          onMovePlaylist(playlist.id, "left");
+                        }}
+                        className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
+                        <span>{t("playlist.move_left", "Переместить влево")}</span>
+                      </button>
+                    )}
+                    {index < totalCount - 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsMenuOpen(false);
+                          onMovePlaylist(playlist.id, "right");
+                        }}
+                        className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
+                        <span>{t("playlist.move_right", "Переместить вправо")}</span>
+                      </button>
+                    )}
+                    {index > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsMenuOpen(false);
+                          onMovePlaylist(playlist.id, "first");
+                        }}
+                        className="w-full px-2.5 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                      >
+                        <ChevronsLeft className="w-3.5 h-3.5 text-zinc-400" />
+                        <span>{t("playlist.move_to_start", "В начало списка")}</span>
+                      </button>
+                    )}
+                    <div className="border-t border-zinc-100 dark:border-zinc-800 my-1" />
+                  </>
                 )}
 
                 {/* Archive / Restore */}
