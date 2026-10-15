@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Lesson, LessonType, ReaderSettings, Playlist, PlaylistItem, HistoryEntry } from "../types";
+import { Lesson, LessonType, ReaderSettings, Playlist, PlaylistItem, HistoryEntry, ChannelPreset } from "../types";
 import { safeJsonParse, safeLocalStorageSetItem, normalizeLanguage } from "../utils";
 import { resolveTargetLanguage } from "../utils/languageUtils";
 import { getLocalizedLanguageName } from "../utils/stringUtils";
 import { LANGUAGES_SUPPORTED } from "../data";
 import { resolveApiUrl } from "../utils/apiConfig";
+import { useSettingsStore } from "../store/settingsStore";
 import {
   PlusCircle,
   FileText,
@@ -53,7 +54,7 @@ import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
 import { whisperQueueService } from "../services/whisperQueueService";
-import { getAllKnownTags } from "../utils/tagColors";
+import { getAllKnownTags, getFrequentlyUsedTags } from "../utils/tagColors";
 import { deduplicatePlaylistItems } from "../utils/playlistUtils";
 import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
 import { parseSubtitleFile, formatSecondsToTimestamp } from "../utils/subtitleParser";
@@ -135,6 +136,7 @@ interface ImportLessonFormProps {
   onUpdateLessonType?: (updatedType: LessonType) => void;
   initialWebUrl?: string | null;
   settings?: ReaderSettings;
+  onUpdateSettings?: (newSettingsOrFn: React.SetStateAction<ReaderSettings> | ReaderSettings) => void;
   defaultTargetLanguage?: string;
   playlists?: Playlist[];
   lessons?: Lesson[];
@@ -153,6 +155,7 @@ export default function ImportLessonForm({
   onUpdateLessonType,
   initialWebUrl,
   settings,
+  onUpdateSettings,
   defaultTargetLanguage,
   playlists = [],
   lessons = [],
@@ -1151,6 +1154,73 @@ export default function ImportLessonForm({
     }
   }, [editingLesson]);
 
+  // Channel Default Presets (Auto-apply & save per channel)
+  const [saveAsChannelPreset, setSaveAsChannelPreset] = useState<boolean>(false);
+  const [presetAutoAppliedChannel, setPresetAutoAppliedChannel] = useState<string | null>(null);
+  const lastAppliedChannelRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (editingLesson) return;
+    const trimmed = channelName?.trim();
+    if (!trimmed) {
+      setPresetAutoAppliedChannel(null);
+      lastAppliedChannelRef.current = null;
+      return;
+    }
+
+    const chKey = trimmed.toLowerCase();
+    if (lastAppliedChannelRef.current === chKey) return;
+    lastAppliedChannelRef.current = chKey;
+
+    const preset = settings?.channelPresets?.[chKey];
+    if (preset) {
+      let applied = false;
+      if (preset.defaultPlaylistId) {
+        const exists = (playlists || []).some((p) => p.id === preset.defaultPlaylistId);
+        if (exists) {
+          setSelectedPlaylistId(preset.defaultPlaylistId);
+          applied = true;
+        }
+      }
+      if (Array.isArray(preset.defaultTags) && preset.defaultTags.length > 0) {
+        setTagsList([...preset.defaultTags]);
+        applied = true;
+      }
+      if (preset.defaultPrimaryTag) {
+        setPrimaryTag(preset.defaultPrimaryTag);
+        applied = true;
+      }
+      if (applied) {
+        setPresetAutoAppliedChannel(preset.channelName || trimmed);
+        setSaveAsChannelPreset(true);
+      }
+    } else {
+      setPresetAutoAppliedChannel(null);
+      setSaveAsChannelPreset(false);
+    }
+  }, [channelName, settings?.channelPresets, editingLesson, playlists]);
+
+  const handleResetPresetDefaults = () => {
+    setSelectedPlaylistId("none");
+    setTagsList([]);
+    setPrimaryTag(null);
+    setPresetAutoAppliedChannel(null);
+  };
+
+  const persistChannelPreset = (preset: ChannelPreset) => {
+    const chKey = preset.channelName.trim().toLowerCase();
+    const current = settings?.channelPresets || {};
+    const updated = {
+      ...current,
+      [chKey]: preset,
+    };
+    if (onUpdateSettings) {
+      onUpdateSettings((prev) => ({ ...prev, channelPresets: updated }));
+    } else {
+      useSettingsStore.getState().setSettings({ channelPresets: updated });
+    }
+  };
+
   const handleAddTag = (rawName: string) => {
     let clean = rawName.trim().replace(/^#+/, "").trim();
     if (!clean) return;
@@ -1229,10 +1299,10 @@ export default function ImportLessonForm({
   }, [lessons, playlists, history]);
 
   const suggestedTags = useMemo(() => {
-    return allAvailableLibraryTags
+    return getFrequentlyUsedTags(lessons, playlists, history, 25, targetLanguage)
       .filter((t) => !tagsList.some((existing) => existing.toLowerCase() === t.toLowerCase()))
       .slice(0, 10);
-  }, [allAvailableLibraryTags, tagsList]);
+  }, [lessons, playlists, history, tagsList, targetLanguage]);
 
   const isYoutubePlaylistUrl = /[?&]list=([a-zA-Z0-9_-]+)/i.test(youtubeUrlInput.trim());
 
@@ -1402,9 +1472,27 @@ export default function ImportLessonForm({
       clearInterval(progressInterval);
       setYtProgress(100);
 
+      const isUrlOrGeneric = (t?: string | null) => {
+        if (!t || typeof t !== "string" || !t.trim()) return true;
+        const s = t.trim().toLowerCase();
+        return (
+          s.startsWith("http://") ||
+          s.startsWith("https://") ||
+          s.startsWith("www.") ||
+          s.includes("youtube.com") ||
+          s.includes("youtu.be") ||
+          s === "youtube video" ||
+          s === "youtube video lesson" ||
+          s === "- youtube"
+        );
+      };
+
       if (!response.ok) {
         if (data.videoTitle) {
-          setTitle(data.videoTitle);
+          const fallbackResolvedTitle = !isUrlOrGeneric(data.videoTitle)
+            ? data.videoTitle.trim()
+            : (data.channelName ? `${data.channelName} Video` : "YouTube Video");
+          setTitle(fallbackResolvedTitle);
           if (data.coverUrl) {
             setCoverUrl(data.coverUrl);
           }
@@ -1417,7 +1505,7 @@ export default function ImportLessonForm({
           if (data.channelName) setChannelName(data.channelName);
           if (data.channelAvatarUrl) setChannelAvatarUrl(data.channelAvatarUrl);
           setFallbackData({
-            title: data.videoTitle,
+            title: fallbackResolvedTitle,
             coverUrl: data.coverUrl || "",
             youtubeId: data.youtubeId || null,
             youtubeDuration: data.youtubeDuration || null
@@ -1427,8 +1515,34 @@ export default function ImportLessonForm({
         throw new Error(data.error || t('import.no_subtitles_found_err', 'Subtitles not found for this YouTube video. However, we retrieved the title and cover! You can paste text manually below or generate text using Gemini AI.'));
       }
 
-      setTitle(data.title || "YouTube Video Lesson");
+      let cleanTitle = !isUrlOrGeneric(data.title) ? data.title.trim() : "";
+      if (!cleanTitle && data.channelName) {
+        cleanTitle = `${data.channelName} Video`;
+      }
+      if (!cleanTitle) {
+        cleanTitle = "YouTube Video Lesson";
+      }
+
+      setTitle(cleanTitle);
       setText(data.text || "");
+
+      // If data.title was missing or was a URL/placeholder, asynchronously fetch official video info
+      if (isUrlOrGeneric(data.title)) {
+        fetch(resolveApiUrl('/api/youtube/video-info'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: youtubeUrlInput.trim() }),
+        })
+          .then(async (r) => {
+            if (r.ok) {
+              const info = await r.json();
+              if (info?.title && !isUrlOrGeneric(info.title)) {
+                setTitle(info.title.trim());
+              }
+            }
+          })
+          .catch(() => {});
+      }
 
       if (data.coverUrl) {
         setCoverUrl(data.coverUrl);
@@ -1445,7 +1559,7 @@ export default function ImportLessonForm({
       
       if (data.isFallback) {
         setFallbackData({
-          title: data.title,
+          title: cleanTitle,
           coverUrl: data.coverUrl || "",
           youtubeId: data.youtubeId || null,
           youtubeDuration: data.youtubeDuration || null
@@ -1813,6 +1927,19 @@ export default function ImportLessonForm({
 
     const finalPrimaryTag = primaryTag ? primaryTag.trim() : (tagsList.length > 0 ? tagsList[0] : null);
 
+    if (saveAsChannelPreset && channelName?.trim()) {
+      const chPreset: ChannelPreset = {
+        channelName: channelName.trim(),
+        channelUrl: channelUrl?.trim() || null,
+        channelAvatarUrl: channelAvatarUrl || null,
+        defaultPlaylistId: (finalPlaylistId && finalPlaylistId !== "none" && finalPlaylistId !== "new") ? finalPlaylistId : null,
+        defaultPrimaryTag: finalPrimaryTag || null,
+        defaultTags: tagsList.length > 0 ? [...tagsList] : [],
+        updatedAt: Date.now(),
+      };
+      persistChannelPreset(chPreset);
+    }
+
     const effectiveLocalVideoUrl = localVideoUrl || videoPreviewBlobUrl || editingLesson?.localVideoUrl || null;
     const effectiveDuration = localVideoDuration || subtitleStats?.duration || youtubeDuration || editingLesson?.duration || 0;
     const effectiveSourceType = effectiveLocalVideoUrl ? "video" : (youtubeId ? "youtube" : (audioUrl ? "podcast" : (editingLesson?.sourceType || "book")));
@@ -2018,7 +2145,7 @@ export default function ImportLessonForm({
 
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block md:h-8 md:flex md:items-end">
-            {t('import.trans_lang', 'Translation Language (Translate to)')}
+            {t('import.trans_lang', 'Translate to')}
           </label>
           <div className="flex gap-2">
             <select
@@ -3235,7 +3362,7 @@ export default function ImportLessonForm({
           <div className="flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-teal-555" />
             <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-              {t('import.cover_label', 'Book Cover')}
+              {t('import.cover_label', 'Cover')}
             </span>
           </div>
 
@@ -3494,6 +3621,27 @@ export default function ImportLessonForm({
         </div>
         )}
 
+        {/* Channel Preset Notification Banner */}
+        {presetAutoAppliedChannel && (
+          <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 min-w-0">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="truncate">
+                {t('channel_preset.auto_applied_banner', 'Автоматически подставлены настройки для канала «{{name}}»', {
+                  name: presetAutoAppliedChannel,
+                })}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetPresetDefaults}
+              className="text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 hover:underline shrink-0 cursor-pointer px-2 py-0.5 rounded-lg hover:bg-amber-100/60 dark:hover:bg-amber-900/40 transition"
+            >
+              {t('channel_preset.reset_btn', 'Сбросить')}
+            </button>
+          </div>
+        )}
+
         {/* Playlist / Collection Assignment */}
         <div className="space-y-2.5 p-4 bg-zinc-50 dark:bg-zinc-950/65 rounded-2xl border border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
@@ -3735,6 +3883,28 @@ export default function ImportLessonForm({
             </div>
           )}
         </div>
+
+        {/* Save as Channel Defaults Checkbox */}
+        {channelName?.trim() && (
+          <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-teal-50/40 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/30 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer select-none transition hover:bg-teal-50/70 dark:hover:bg-teal-950/30">
+            <input
+              type="checkbox"
+              checked={saveAsChannelPreset}
+              onChange={(e) => setSaveAsChannelPreset(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-teal-600 focus:ring-teal-500 cursor-pointer"
+            />
+            <div className="space-y-0.5">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100 block">
+                {settings?.channelPresets?.[channelName.trim().toLowerCase()]
+                  ? t('channel_preset.update_checkbox_label', 'Обновить дефолтный плейлист и теги для канала «{{name}}»', { name: channelName.trim() })
+                  : t('channel_preset.save_checkbox_label', 'Сохранить этот плейлист и теги как дефолтные для канала «{{name}}»', { name: channelName.trim() })}
+              </span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block">
+                {t('channel_preset.checkbox_hint', 'Lectura будет автоматически подставлять их при импорте новых видео с этого канала.')}
+              </span>
+            </div>
+          </label>
+        )}
       </div>
 
       {/* Buttons panel */}

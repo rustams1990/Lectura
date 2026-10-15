@@ -25,7 +25,7 @@ import { generateHistoryId } from "../utils";
 import { useToast } from "../context/ToastContext";
 import { AppDatePicker } from "./common/AppDatePicker";
 import { AppTimePicker } from "./common/AppTimePicker";
-import { getTagColor, getAllKnownTags } from "../utils/tagColors";
+import { getTagColor, getAllKnownTags, getFrequentlyUsedTags } from "../utils/tagColors";
 import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
 import { findMatchingLesson, getHistoryEffectiveTags } from "../utils/historyLessonMatcher";
 
@@ -290,6 +290,12 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   const allAvailableHistoryTags = useMemo(() => {
     return getAllKnownTags(lessons, playlists, history);
   }, [lessons, playlists, history]);
+
+  const suggestedTags = useMemo(() => {
+    return getFrequentlyUsedTags(lessons, playlists, history, 20, formLanguage)
+      .filter((s) => !formTagsList.some((t) => t.toLowerCase() === s.toLowerCase()))
+      .slice(0, 8);
+  }, [lessons, playlists, history, formTagsList, formLanguage]);
 
   const handleResolveYoutubeVideo = async (explicitUrl?: string) => {
     const rawUrl = (explicitUrl !== undefined ? explicitUrl : formYoutubeUrl).trim();
@@ -1263,22 +1269,26 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                 placeholder={t('tags.input_placeholder', 'e.g. Grammar, Podcast, Tech...')}
               />
 
-              {/* Suggestions */}
-              <div className="flex flex-wrap gap-1 pt-0.5">
-                {["Gaming", "Tech", "Podcast", "Grammar", "Vocabulary", "Stories", "News", "Travel"]
-                  .filter((s) => !formTagsList.some((t) => t.toLowerCase() === s.toLowerCase()))
-                  .slice(0, 6)
-                  .map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => handleAddTag(s)}
-                      className="text-[10px] px-2 py-0.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-md transition cursor-pointer"
-                    >
-                      +{s}
-                    </button>
-                  ))}
-              </div>
+              {/* Quick suggestions */}
+              {suggestedTags.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block">
+                    {t("tags.quick_suggestions", "Quick suggestions")}:
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {suggestedTags.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => handleAddTag(s)}
+                        className="text-[10px] px-2 py-0.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-md transition cursor-pointer"
+                      >
+                        +{s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

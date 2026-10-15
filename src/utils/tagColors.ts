@@ -92,33 +92,154 @@ export function getAllKnownTags(
     }
   };
 
+  const processItem = (primaryTag: string | null | undefined, tags: any) => {
+    addTag(primaryTag);
+    if (Array.isArray(tags)) {
+      tags.forEach(addTag);
+    } else if (typeof tags === "string") {
+      try {
+        const parsed = JSON.parse(tags);
+        if (Array.isArray(parsed)) parsed.forEach(addTag);
+      } catch {}
+    }
+  };
+
   // 1. Scan default suggestions
   extraDefaults.forEach(addTag);
 
   // 2. Scan lessons
   (lessons || []).forEach((l) => {
-    if (l) {
-      addTag(l.primaryTag);
-      if (Array.isArray(l.tags)) l.tags.forEach(addTag);
-    }
+    if (l) processItem(l.primaryTag, l.tags);
   });
 
   // 3. Scan playlists
   (playlists || []).forEach((p) => {
-    if (p) {
-      addTag(p.primaryTag);
-      if (Array.isArray(p.tags)) p.tags.forEach(addTag);
-    }
+    if (p) processItem(p.primaryTag, p.tags);
   });
 
   // 4. Scan history entries
   (history || []).forEach((h) => {
-    if (h) {
-      addTag(h.primaryTag);
-      if (Array.isArray(h.tags)) h.tags.forEach(addTag);
-    }
+    if (h) processItem(h.primaryTag, h.tags);
   });
 
   return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
 }
+
+/**
+ * Returns tags ranked by how frequently they are used by the user across lessons,
+ * playlists, and history. If targetLanguage is specified, tags used with that language
+ * receive higher priority. If fewer than `limit` used tags exist, remaining slots
+ * are filled from extraDefaults.
+ */
+export function getFrequentlyUsedTags(
+  lessons?: any[] | null,
+  playlists?: any[] | null,
+  history?: any[] | null,
+  limit: number = 10,
+  targetLanguage?: string | null,
+  extraDefaults: string[] = DEFAULT_SUGGESTED_TAGS
+): string[] {
+  const map = new Map<string, { canonical: string; count: number; langMatchCount: number }>();
+
+  const targetLangLower = (targetLanguage || "").trim().toLowerCase();
+
+  const processItem = (
+    primaryTag: string | null | undefined,
+    tags: any,
+    itemLang?: string | null
+  ) => {
+    const itemUnique = new Set<string>();
+    const itemLangLower = (itemLang || "").trim().toLowerCase();
+    const isLangMatch = !!targetLangLower && !!itemLangLower && (
+      itemLangLower === targetLangLower ||
+      itemLangLower.startsWith(targetLangLower) ||
+      targetLangLower.startsWith(itemLangLower)
+    );
+
+    const cleanAndCollect = (raw: string | null | undefined) => {
+      if (!raw || typeof raw !== "string") return;
+      const clean = raw.trim().replace(/^#+/, "").trim();
+      if (!clean) return;
+      const lower = clean.toLowerCase();
+      if (lower === "youtube" || lower === "extension") return;
+
+      const canonical =
+        clean.length > 1 && clean[0] === clean[0].toLowerCase() && clean[1] === clean[1].toLowerCase()
+          ? clean.charAt(0).toUpperCase() + clean.slice(1)
+          : clean;
+
+      itemUnique.add(lower);
+
+      if (!map.has(lower)) {
+        map.set(lower, { canonical, count: 0, langMatchCount: 0 });
+      } else {
+        const entry = map.get(lower)!;
+        if (entry.canonical[0] === entry.canonical[0].toLowerCase() && canonical[0] !== canonical[0].toLowerCase()) {
+          entry.canonical = canonical;
+        }
+      }
+    };
+
+    cleanAndCollect(primaryTag);
+    if (Array.isArray(tags)) {
+      tags.forEach(cleanAndCollect);
+    } else if (typeof tags === "string") {
+      try {
+        const parsed = JSON.parse(tags);
+        if (Array.isArray(parsed)) parsed.forEach(cleanAndCollect);
+      } catch {}
+    }
+
+    for (const lower of itemUnique) {
+      const entry = map.get(lower);
+      if (entry) {
+        entry.count += 1;
+        if (isLangMatch) {
+          entry.langMatchCount += 1;
+        }
+      }
+    }
+  };
+
+  (lessons || []).forEach((l) => {
+    if (l) processItem(l.primaryTag, l.tags, l.targetLanguage);
+  });
+  (playlists || []).forEach((p) => {
+    if (p) processItem(p.primaryTag, p.tags, p.targetLanguage || (p as any).language);
+  });
+  (history || []).forEach((h) => {
+    if (h) processItem(h.primaryTag, h.tags, h.targetLanguage);
+  });
+
+  // Sort used tags by score descending (lang match bonus + total frequency)
+  const usedTags = Array.from(map.values())
+    .filter((e) => e.count > 0)
+    .sort((a, b) => {
+      const scoreA = a.count + (a.langMatchCount * 2);
+      const scoreB = b.count + (b.langMatchCount * 2);
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      return a.canonical.localeCompare(b.canonical);
+    })
+    .map((e) => e.canonical);
+
+  if (usedTags.length >= limit) {
+    return usedTags.slice(0, limit);
+  }
+
+  // Fill up to limit with extraDefaults that haven't been used yet
+  const lowerUsed = new Set(usedTags.map((t) => t.toLowerCase()));
+  const fallbackDefaults = extraDefaults
+    .map((raw) => {
+      const clean = raw.trim().replace(/^#+/, "").trim();
+      return clean.length > 1 && clean[0] === clean[0].toLowerCase() && clean[1] === clean[1].toLowerCase()
+        ? clean.charAt(0).toUpperCase() + clean.slice(1)
+        : clean;
+    })
+    .filter((t) => t && !lowerUsed.has(t.toLowerCase()) && t.toLowerCase() !== "youtube" && t.toLowerCase() !== "extension");
+
+  return [...usedTags, ...fallbackDefaults].slice(0, limit);
+}
+
 

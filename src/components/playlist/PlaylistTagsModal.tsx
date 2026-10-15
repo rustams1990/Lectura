@@ -16,6 +16,7 @@ interface PlaylistTagsModalProps {
   onClose: () => void;
   playlist: Playlist;
   availableTags?: string[];
+  frequentlyUsedTags?: string[];
   onSave: (primaryTag: string | null, tags: string[]) => void;
 }
 
@@ -29,6 +30,7 @@ export const PlaylistTagsModal: React.FC<PlaylistTagsModalProps> = ({
   onClose,
   playlist,
   availableTags,
+  frequentlyUsedTags,
   onSave,
 }) => {
   const { t } = useTranslation();
@@ -315,7 +317,7 @@ export const PlaylistTagsModal: React.FC<PlaylistTagsModalProps> = ({
               {t("tags.quick_suggestions", "Quick Suggestions")}
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {(availableTags && availableTags.length > 0 ? availableTags : QUICK_SUGGESTIONS).filter(
+              {((frequentlyUsedTags && frequentlyUsedTags.length > 0) ? frequentlyUsedTags : (availableTags && availableTags.length > 0 ? availableTags : QUICK_SUGGESTIONS)).filter(
                 (s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase())
               ).slice(0, 8).map((s) => (
                 <button

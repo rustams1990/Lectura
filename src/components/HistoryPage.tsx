@@ -51,7 +51,7 @@ import EditHistoryModal from "./EditHistoryModal";
 import { resolveApiUrl } from "../utils/apiConfig";
 import { useToast } from "../context/ToastContext";
 import { usePlaylistStore } from "../store/playlistStore";
-import { getTagColor, UNCATEGORIZED_COLOR, getAllKnownTags } from "../utils/tagColors";
+import { getTagColor, UNCATEGORIZED_COLOR, getAllKnownTags, getFrequentlyUsedTags } from "../utils/tagColors";
 import { getTopicColor } from "../utils/colorUtils";
 import { TagInputWithAutocomplete } from "./common/TagInputWithAutocomplete";
 import { PrimaryTagAutocompleteInput } from "./common/PrimaryTagAutocompleteInput";
@@ -1234,6 +1234,10 @@ function HistoryPage({
   const allAvailableHistoryTags = useMemo(() => {
     return getAllKnownTags(lessons, playlists, history);
   }, [lessons, playlists, history]);
+
+  const frequentlyUsedHistoryTags = useMemo(() => {
+    return getFrequentlyUsedTags(lessons, playlists, history, 25, selectedLanguage !== "all" ? selectedLanguage : null);
+  }, [lessons, playlists, history, selectedLanguage]);
 
   const toggleSelectItem = (id: string) => {
     setSelectedIds((prev) => {
@@ -3191,13 +3195,13 @@ function HistoryPage({
               </div>
 
               {/* Quick suggestions cloud */}
-              {allAvailableHistoryTags.length > 0 && (
+              {frequentlyUsedHistoryTags.length > 0 && (
                 <div className="space-y-1.5 pt-1">
                   <span className="text-[11px] font-semibold text-zinc-400">
                     {t('tags.suggested_label', 'Suggested topics:')}
                   </span>
                   <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                    {allAvailableHistoryTags.slice(0, 15).map((tName) => {
+                    {frequentlyUsedHistoryTags.slice(0, 15).map((tName) => {
                       const isAdded = bulkTagsList.some((t) => t.toLowerCase() === tName.toLowerCase());
                       if (isAdded) return null;
                       return (
@@ -3272,6 +3276,9 @@ function HistoryPage({
           initialSelectedId={assignModalInitialId}
           lessons={lessons}
           history={history}
+          playlists={playlists}
+          settings={readerSettings}
+          onUpdateSettings={onUpdateSettings}
           onUpdateLessons={onUpdateLessons}
           onUpdateHistory={onUpdateHistory}
         />

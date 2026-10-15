@@ -106,6 +106,43 @@ export async function resolveBestYoutubeThumbnail(videoId: string, oembedThumbna
   return oembedThumbnailUrl || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 }
 
+export function isValidVideoTitle(val: string | null | undefined): boolean {
+  if (!val || typeof val !== "string") return false;
+  const clean = val.trim();
+  if (clean.length === 0) return false;
+  const lower = clean.toLowerCase();
+  if (
+    lower.startsWith("http://") ||
+    lower.startsWith("https://") ||
+    lower.startsWith("www.") ||
+    lower.includes("youtube.com") ||
+    lower.includes("youtu.be") ||
+    lower === "youtube" ||
+    lower === "- youtube" ||
+    lower === "youtube video" ||
+    lower === "youtube video lesson" ||
+    lower === "video"
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function cleanHtmlTitle(raw: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/\s*-\s*YouTube$/i, "")
+    .trim();
+}
+
 router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
   const { url } = req.body;
   const targetLanguage = sanitizeLang(req.body.targetLanguage, "English");
@@ -119,64 +156,25 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
     return res.status(400).json({ error: "Invalid YouTube URL format" });
   }
   const videoId = match[1];
-  let title = "YouTube Video";
+  let title = "";
   let thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
   let videoLengthSeconds: number | null = null;
+  let channelName: string | null = null;
+  let channelAvatarUrl: string | null = null;
 
   const mode = req.body.mode || "auto"; // "auto" | "force_ai"
   const doChunkSentences = req.body.chunkSentences !== false;
 
   try {
-    const resPage = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9"
-      }
-    });
-    const html = await resPage.text();
-
-    const playerResponseMatch = html.match(/ytInitialPlayerResponse\s*=\s*(.*?);<\/script>/);
-    if (playerResponseMatch) {
-      try {
-        const parsed = JSON.parse(playerResponseMatch[1]);
-        if (parsed?.videoDetails?.lengthSeconds) {
-          videoLengthSeconds = parseInt(parsed.videoDetails.lengthSeconds, 10);
-        }
-      } catch (e) {
-        console.error("Failed to parse ytInitialPlayerResponse", e);
-      }
-    }
-    if (!videoLengthSeconds) {
-      const lengthMatch = html.match(/"lengthSeconds"\s*:\s*"(\d+)"/i) || html.match(/\\?"lengthSeconds\\?"\s*:\s*\\?"(\d+)\\?"/i);
-      if (lengthMatch) {
-        videoLengthSeconds = parseInt(lengthMatch[1], 10);
-      }
-    }
-
-    // Title parsing
-    const titleMatch = html.match(/<meta name="title" content="([^"]*)"/i) || html.match(/<title>([^<]*)<\/title>/i);
-    if (titleMatch) {
-      title = titleMatch[1].replace(" - YouTube", "");
-      // HTML entity decode title simple
-      title = title
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&apos;/g, "'")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&#160;/g, " ");
-    }
-
-    let channelName: string | null = null;
-    let channelAvatarUrl: string | null = null;
-
-    // Fetch official oEmbed data (100% reliable, never blocked)
     let oembedThumbUrl: string | null = null;
+    let oembedAuthorUrl: string | null = null;
+
+    // 1. Fetch official YouTube oEmbed FIRST (official JSON API, never blocked, no HTML scraping)
     try {
-      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        signal: AbortSignal.timeout(6000)
+      });
       if (oembedRes.ok) {
         const oembedData: any = await oembedRes.json();
         if (oembedData.thumbnail_url) {
@@ -185,50 +183,134 @@ router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
         if (oembedData.author_name) {
           channelName = oembedData.author_name;
         }
-        if (oembedData.title && (title === "YouTube Video" || !title)) {
-          title = oembedData.title;
+        if (isValidVideoTitle(oembedData.title)) {
+          title = cleanHtmlTitle(oembedData.title);
         }
         if (oembedData.author_url) {
-          try {
-            const cRes = await fetch(oembedData.author_url, {
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept-Language": "en-US,en;q=0.9"
-              }
-            });
-            if (cRes.ok) {
-              const cHtml = await cRes.text();
-              const ogImgMatch = cHtml.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i)
-                              || cHtml.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i);
-              if (ogImgMatch) channelAvatarUrl = ogImgMatch[1];
-            }
-          } catch (_) {}
+          oembedAuthorUrl = oembedData.author_url;
         }
       }
     } catch (_) {}
 
+    // 2. Fetch watch page HTML (for video duration, playerResponse, channel avatar, fallback title)
+    try {
+      const resPage = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9"
+        },
+        signal: AbortSignal.timeout(8000)
+      });
+      const html = await resPage.text();
+
+      const playerResponseMatch = html.match(/ytInitialPlayerResponse\s*=\s*(.*?);<\/script>/);
+      if (playerResponseMatch) {
+        try {
+          const parsed = JSON.parse(playerResponseMatch[1]);
+          if (parsed?.videoDetails?.lengthSeconds) {
+            videoLengthSeconds = parseInt(parsed.videoDetails.lengthSeconds, 10);
+          }
+          if (!isValidVideoTitle(title) && isValidVideoTitle(parsed?.videoDetails?.title)) {
+            title = cleanHtmlTitle(parsed.videoDetails.title);
+          }
+          if (!channelName && parsed?.videoDetails?.author) {
+            channelName = parsed.videoDetails.author;
+          }
+        } catch (e) {
+          console.error("Failed to parse ytInitialPlayerResponse", e);
+        }
+      }
+
+      if (!videoLengthSeconds) {
+        const lengthMatch = html.match(/"lengthSeconds"\s*:\s*"(\d+)"/i) || html.match(/\\?"lengthSeconds\\?"\s*:\s*\\?"(\d+)\\?"/i);
+        if (lengthMatch) {
+          videoLengthSeconds = parseInt(lengthMatch[1], 10);
+        }
+      }
+
+      // Title fallback from HTML meta tags if oEmbed and playerResponse didn't provide it
+      if (!isValidVideoTitle(title)) {
+        const ogTitleMatch = html.match(/<meta\s+(?:property|name)=["']og:title["']\s+content=["']([^"']*)["']/i)
+                          || html.match(/<meta\s+content=["']([^"']*)["']\s+(?:property|name)=["']og:title["']/i);
+        const metaTitleMatch = html.match(/<meta\s+(?:property|name)=["']title["']\s+content=["']([^"']*)["']/i)
+                            || html.match(/<meta\s+content=["']([^"']*)["']\s+(?:property|name)=["']title["']/i);
+        const pageTitleMatch = html.match(/<title>([^<]*)<\/title>/i);
+
+        const candidate = (ogTitleMatch && ogTitleMatch[1])
+                       || (metaTitleMatch && metaTitleMatch[1])
+                       || (pageTitleMatch && pageTitleMatch[1]);
+        if (candidate) {
+          const cleaned = cleanHtmlTitle(candidate);
+          if (isValidVideoTitle(cleaned)) {
+            title = cleaned;
+          }
+        }
+      }
+
+      if (!channelName) {
+        const channelMatch = html.match(/"author"\s*:\s*"([^"]+)"/) || html.match(/<link itemprop="name" content="([^"]+)">/i);
+        if (channelMatch) channelName = channelMatch[1];
+      }
+
+      if (!channelAvatarUrl) {
+        const avatarMatch = html.match(/"avatar"\s*:\s*\{\s*"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/)
+                         || html.match(/https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[a-zA-Z0-9_\-=]+/);
+        if (avatarMatch) {
+          channelAvatarUrl = avatarMatch[1] || avatarMatch[0];
+        }
+      }
+    } catch (_) {}
+
+    // 3. Fetch author channel avatar from author_url if available
+    if (oembedAuthorUrl && !channelAvatarUrl) {
+      try {
+        const cRes = await fetch(oembedAuthorUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+          },
+          signal: AbortSignal.timeout(6000)
+        });
+        if (cRes.ok) {
+          const cHtml = await cRes.text();
+          const ogImgMatch = cHtml.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i)
+                          || cHtml.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i);
+          if (ogImgMatch) channelAvatarUrl = ogImgMatch[1];
+        }
+      } catch (_) {}
+    }
+
+    // 4. Fallback via yt-dlp dump-json if title or duration still missing
+    if (!isValidVideoTitle(title) || !videoLengthSeconds) {
+      try {
+        const dlp = getYtDlp();
+        const dlpInfo = await (dlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
+          dumpSingleJson: true,
+          skipDownload: true,
+          noCheckCertificate: true,
+          addHeader: ['Accept-Language:en-US,en;q=0.9'],
+        });
+        if (dlpInfo) {
+          if (!isValidVideoTitle(title) && isValidVideoTitle(dlpInfo.title)) {
+            title = cleanHtmlTitle(dlpInfo.title);
+          }
+          if (!videoLengthSeconds && dlpInfo.duration) {
+            videoLengthSeconds = Math.round(dlpInfo.duration);
+          }
+          if (!channelName && dlpInfo.uploader) {
+            channelName = dlpInfo.uploader;
+          }
+        }
+      } catch (_) {}
+    }
+
     // Resolve best accessible thumbnail (HD maxres -> SD sddefault -> HQ hqdefault)
     thumbnail = await resolveBestYoutubeThumbnail(videoId, oembedThumbUrl);
 
-    // Fallback parsing from HTML if oEmbed didn't provide it
-    if (!channelName && playerResponseMatch) {
-      try {
-        const parsed = JSON.parse(playerResponseMatch[1]);
-        if (parsed?.videoDetails?.author) {
-          channelName = parsed.videoDetails.author;
-        }
-      } catch (e) {}
-    }
-    if (!channelName) {
-      const channelMatch = html.match(/"author"\s*:\s*"([^"]+)"/) || html.match(/<link itemprop="name" content="([^"]+)">/i);
-      if (channelMatch) channelName = channelMatch[1];
-    }
-    
-    if (!channelAvatarUrl) {
-      const avatarMatch = html.match(/"avatar"\s*:\s*\{\s*"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/);
-      if (avatarMatch) {
-        channelAvatarUrl = avatarMatch[1];
-      }
+    // Final title normalization — NEVER return URL or placeholder as title
+    if (!isValidVideoTitle(title)) {
+      title = channelName ? `${channelName} Video` : "YouTube Video Lesson";
     }
 
     let langCode = "es";
@@ -966,7 +1048,7 @@ const handleYoutubeVideoInfo = async (req: any, res: any) => {
       });
       if (oembedRes.ok) {
         const data: any = await oembedRes.json();
-        if (data.title) title = data.title;
+        if (isValidVideoTitle(data.title)) title = cleanHtmlTitle(data.title);
         if (data.author_name) channelName = data.author_name;
         if (data.author_url) channelUrl = data.author_url;
         if (data.thumbnail_url) coverUrl = data.thumbnail_url;
@@ -993,11 +1075,21 @@ const handleYoutubeVideoInfo = async (req: any, res: any) => {
         }
 
         // Title fallback
-        if (!title) {
-          const titleMatch = html.match(/<meta name="title" content="([^"]*)"/i) 
-                          || html.match(/<title>([^<]*)<\/title>/i);
-          if (titleMatch && titleMatch[1]) {
-            title = titleMatch[1].replace(" - YouTube", "").trim();
+        if (!isValidVideoTitle(title)) {
+          const ogTitleMatch = html.match(/<meta\s+(?:property|name)=["']og:title["']\s+content=["']([^"']*)["']/i)
+                            || html.match(/<meta\s+content=["']([^"']*)["']\s+(?:property|name)=["']og:title["']/i);
+          const metaTitleMatch = html.match(/<meta\s+(?:property|name)=["']title["']\s+content=["']([^"']*)["']/i)
+                              || html.match(/<meta\s+content=["']([^"']*)["']\s+(?:property|name)=["']title["']/i);
+          const pageTitleMatch = html.match(/<title>([^<]*)<\/title>/i);
+
+          const candidate = (ogTitleMatch && ogTitleMatch[1])
+                         || (metaTitleMatch && metaTitleMatch[1])
+                         || (pageTitleMatch && pageTitleMatch[1]);
+          if (candidate) {
+            const cleaned = cleanHtmlTitle(candidate);
+            if (isValidVideoTitle(cleaned)) {
+              title = cleaned;
+            }
           }
         }
 
@@ -1041,7 +1133,7 @@ const handleYoutubeVideoInfo = async (req: any, res: any) => {
     }
 
     // 4. Fallback: if durationSeconds is still 0, try yt-dlp dump-json as last resort
-    if (!durationSeconds || !title) {
+    if (!durationSeconds || !isValidVideoTitle(title)) {
       try {
         const dlp = getYtDlp();
         const dlpInfo = await (dlp as any)(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -1051,7 +1143,9 @@ const handleYoutubeVideoInfo = async (req: any, res: any) => {
           addHeader: ['Accept-Language:en-US,en;q=0.9'],
         });
         if (dlpInfo) {
-          if (!title && dlpInfo.title) title = dlpInfo.title;
+          if (!isValidVideoTitle(title) && isValidVideoTitle(dlpInfo.title)) {
+            title = cleanHtmlTitle(dlpInfo.title);
+          }
           if (!durationSeconds && dlpInfo.duration) durationSeconds = Math.round(dlpInfo.duration);
           if (!channelName && dlpInfo.uploader) channelName = dlpInfo.uploader;
           if (!channelUrl && dlpInfo.uploader_url) channelUrl = dlpInfo.uploader_url;
@@ -1062,15 +1156,11 @@ const handleYoutubeVideoInfo = async (req: any, res: any) => {
 
     // Clean up title HTML entities
     if (title) {
-      title = title
-        .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&apos;/g, "'")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&#160;/g, " ");
+      title = cleanHtmlTitle(title);
+    }
+
+    if (!isValidVideoTitle(title)) {
+      title = channelName ? `${channelName} Video` : "YouTube Video Lesson";
     }
 
     const bestThumb = await resolveBestYoutubeThumbnail(videoId, coverUrl);
@@ -1079,7 +1169,7 @@ const handleYoutubeVideoInfo = async (req: any, res: any) => {
     return res.json({
       ok: true,
       youtubeId: videoId,
-      title: title || "YouTube Video",
+      title,
       durationSeconds: durationSeconds || durationMinutes * 60,
       durationMinutes,
       channelName: channelName || "",
@@ -1096,6 +1186,6 @@ const handleYoutubeVideoInfo = async (req: any, res: any) => {
 router.post("/video-info", handleYoutubeVideoInfo);
 router.post("/youtube/video-info", handleYoutubeVideoInfo);
 router.post("/resolve-video", handleYoutubeVideoInfo);
-
+router.post("/youtube-video-metadata", handleYoutubeVideoInfo);
 
 export default router;

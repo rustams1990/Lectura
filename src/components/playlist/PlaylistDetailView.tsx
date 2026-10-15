@@ -26,7 +26,7 @@ import PlaylistTagsModal from "./PlaylistTagsModal";
 import LevelFilterDropdown, { DifficultyGroup } from "../library/LevelFilterDropdown";
 import TagFilterDropdown from "../library/TagFilterDropdown";
 import { classifyDifficulty } from "../../utils/playlistDifficultyUtils";
-import { getTagColor, getAllKnownTags } from "../../utils/tagColors";
+import { getTagColor, getAllKnownTags, getFrequentlyUsedTags } from "../../utils/tagColors";
 import { deduplicatePlaylistItems, isPlaylistItemCompleted, calculatePlaylistTimeRemaining } from "../../utils/playlistUtils";
 
 export type PlaylistSortOption = 
@@ -2804,6 +2804,7 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
           onClose={() => setIsTagsModalOpen(false)}
           playlist={playlist}
           availableTags={getAllKnownTags(lessons, playlists, history)}
+          frequentlyUsedTags={getFrequentlyUsedTags(lessons, playlists, history, 20, playlist.language || (playlist as any).targetLanguage)}
           onSave={(pTag, tgs) => {
             onUpdatePlaylist({
               ...playlist,

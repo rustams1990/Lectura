@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lesson, HistoryEntry } from '../types';
+import { Lesson, HistoryEntry, Playlist, ReaderSettings, ChannelPreset } from '../types';
 import { resolveApiUrl } from '../utils/apiConfig';
 import { useToast } from '../context/ToastContext';
-import { X, Search, Check, CheckSquare, Square, Loader2, Tv } from 'lucide-react';
+import { useSettingsStore } from '../store/settingsStore';
+import { getFrequentlyUsedTags } from '../utils/tagColors';
+import { X, Search, Check, CheckSquare, Square, Loader2, Tv, ListVideo, Tag, Trash2, Sparkles, Plus } from 'lucide-react';
 
 interface AssignChannelModalProps {
   isOpen: boolean;
@@ -12,6 +14,9 @@ interface AssignChannelModalProps {
   initialSelectedId?: string | null;
   lessons: Lesson[];
   history: HistoryEntry[];
+  playlists?: Playlist[];
+  settings?: ReaderSettings;
+  onUpdateSettings?: (newSettingsOrFn: React.SetStateAction<ReaderSettings> | ReaderSettings) => void;
   onUpdateLessons?: (updatedLessons: Lesson[]) => void;
   onUpdateHistory?: (updatedHistory: HistoryEntry[]) => void;
 }
@@ -23,6 +28,9 @@ export default function AssignChannelModal({
   initialSelectedId,
   lessons,
   history,
+  playlists = [],
+  settings,
+  onUpdateSettings,
   onUpdateLessons,
   onUpdateHistory,
 }: AssignChannelModalProps) {
@@ -51,6 +59,111 @@ export default function AssignChannelModal({
   });
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [showOnlyUnassigned, setShowOnlyUnassigned] = useState<boolean>(isUnknownTarget);
+
+  const channelKey = newChannelName.trim().toLowerCase();
+  const activeSettings = settings || useSettingsStore((s) => s.settings);
+  const currentPreset = channelKey ? activeSettings?.channelPresets?.[channelKey] : undefined;
+
+  const [presetPlaylistId, setPresetPlaylistId] = useState<string>('none');
+  const [presetPrimaryTag, setPresetPrimaryTag] = useState<string | null>(null);
+  const [presetTags, setPresetTags] = useState<string[]>([]);
+  const [newPresetTagInput, setNewPresetTagInput] = useState<string>('');
+  const [isPresetModified, setIsPresetModified] = useState<boolean>(false);
+  const [showPresetSection, setShowPresetSection] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (currentPreset) {
+      setPresetPlaylistId(currentPreset.defaultPlaylistId || 'none');
+      setPresetPrimaryTag(currentPreset.defaultPrimaryTag || null);
+      setPresetTags(Array.isArray(currentPreset.defaultTags) ? [...currentPreset.defaultTags] : []);
+      setIsPresetModified(false);
+      setShowPresetSection(true);
+    } else {
+      setPresetPlaylistId('none');
+      setPresetPrimaryTag(null);
+      setPresetTags([]);
+      setIsPresetModified(false);
+      setShowPresetSection(false);
+    }
+  }, [channelKey, activeSettings?.channelPresets]);
+
+  const availableTags = useMemo(() => {
+    return getFrequentlyUsedTags(lessons, playlists, history, 30);
+  }, [lessons, playlists, history]);
+
+  const handleSaveChannelPreset = () => {
+    if (!newChannelName.trim()) return;
+    const chKey = newChannelName.trim().toLowerCase();
+    const newPreset: ChannelPreset = {
+      channelName: newChannelName.trim(),
+      channelUrl: newChannelUrl.trim() || null,
+      channelAvatarUrl: newChannelAvatarUrl || null,
+      defaultPlaylistId: presetPlaylistId !== 'none' ? presetPlaylistId : null,
+      defaultPrimaryTag: presetPrimaryTag,
+      defaultTags: presetTags,
+      updatedAt: Date.now(),
+    };
+    const updatedPresets = {
+      ...(activeSettings?.channelPresets || {}),
+      [chKey]: newPreset,
+    };
+    if (onUpdateSettings) {
+      onUpdateSettings((prev) => ({ ...prev, channelPresets: updatedPresets }));
+    } else {
+      useSettingsStore.getState().setSettings({ channelPresets: updatedPresets });
+    }
+    setIsPresetModified(false);
+    setShowPresetSection(true);
+    showToast(t('channel_preset.saved_toast', 'Настройки по умолчанию для канала сохранены'), 'success');
+  };
+
+  const handleDeleteChannelPreset = () => {
+    if (!newChannelName.trim()) return;
+    const chKey = newChannelName.trim().toLowerCase();
+    const updatedPresets = { ...(activeSettings?.channelPresets || {}) };
+    delete updatedPresets[chKey];
+    if (onUpdateSettings) {
+      onUpdateSettings((prev) => ({ ...prev, channelPresets: updatedPresets }));
+    } else {
+      useSettingsStore.getState().setSettings({ channelPresets: updatedPresets });
+    }
+    setPresetPlaylistId('none');
+    setPresetPrimaryTag(null);
+    setPresetTags([]);
+    setIsPresetModified(false);
+    setShowPresetSection(false);
+    showToast(t('channel_preset.deleted_toast', 'Правило по умолчанию для канала удалено'), 'info');
+  };
+
+  const handleAddPresetTag = (tagToAdd?: string) => {
+    const raw = (tagToAdd !== undefined ? tagToAdd : newPresetTagInput).trim().replace(/^#+/, '');
+    if (!raw) return;
+    if (!presetTags.some((t) => t.toLowerCase() === raw.toLowerCase())) {
+      const next = [...presetTags, raw];
+      setPresetTags(next);
+      if (!presetPrimaryTag) setPresetPrimaryTag(raw);
+      setIsPresetModified(true);
+    }
+    setNewPresetTagInput('');
+  };
+
+  const handleRemovePresetTag = (tagToRemove: string) => {
+    const next = presetTags.filter((t) => t.toLowerCase() !== tagToRemove.toLowerCase());
+    setPresetTags(next);
+    if (presetPrimaryTag?.toLowerCase() === tagToRemove.toLowerCase()) {
+      setPresetPrimaryTag(next.length > 0 ? next[0] : null);
+    }
+    setIsPresetModified(true);
+  };
+
+  const handleTogglePrimaryPresetTag = (tag: string) => {
+    if (presetPrimaryTag?.toLowerCase() === tag.toLowerCase()) {
+      setPresetPrimaryTag(null);
+    } else {
+      setPresetPrimaryTag(tag);
+    }
+    setIsPresetModified(true);
+  };
 
   // Existing channels from the entire library & history for quick suggestions
   const existingChannels = useMemo(() => {
@@ -322,6 +435,11 @@ export default function AssignChannelModal({
       });
 
       onUpdateHistory?.(updatedHistory);
+
+      if (isPresetModified && trimmedName) {
+        handleSaveChannelPreset();
+      }
+
       showToast(t('history_page.batch_saved', 'Channel successfully assigned to selected videos'), 'success');
       onClose();
     } catch (err: any) {
@@ -428,6 +546,174 @@ export default function AssignChannelModal({
               </div>
             </div>
           </div>
+
+          {/* Channel Default Preset Section */}
+          {newChannelName.trim() && (
+            <div className="pt-2 border-t border-zinc-200/60 dark:border-zinc-800/80">
+              {!showPresetSection && !currentPreset ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPresetSection(true)}
+                  className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{t('channel_preset.configure_btn', 'Настроить дефолтный плейлист и теги для канала')}</span>
+                </button>
+              ) : (
+                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-3 border border-zinc-200/80 dark:border-zinc-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span className="text-[11px] font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wider">
+                        {t('channel_preset.section_title', 'Плейлист и теги по умолчанию')}
+                      </span>
+                      {currentPreset && (
+                        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                          {t('common.active', 'Активно')}
+                        </span>
+                      )}
+                    </div>
+                    {currentPreset && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteChannelPreset}
+                        className="text-[10px] font-bold text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1 cursor-pointer transition"
+                        title={t('channel_preset.remove_preset_btn', 'Удалить правило')}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>{t('channel_preset.remove_preset_btn', 'Удалить правило')}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Playlist selector */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <ListVideo className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        {t('channel_preset.default_playlist', 'Плейлист по умолчанию')}
+                      </label>
+                      <select
+                        value={presetPlaylistId}
+                        onChange={(e) => {
+                          setPresetPlaylistId(e.target.value);
+                          setIsPresetModified(true);
+                        }}
+                        className="w-full px-2.5 py-1.5 text-xs font-semibold bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:border-amber-500 cursor-pointer"
+                      >
+                        <option value="none">{t('channel_preset.none_playlist', 'Без плейлиста (напрямую в библиотеку)')}</option>
+                        {(playlists || []).map((pl) => (
+                          <option key={pl.id} value={pl.id}>
+                            📁 {pl.title} ({pl.itemCount || pl.items?.length || 0})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Add tag input */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        {t('channel_preset.default_tags', 'Теги по умолчанию')}
+                      </label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={newPresetTagInput}
+                          onChange={(e) => setNewPresetTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddPresetTag();
+                            }
+                          }}
+                          placeholder="e.g. LanguageLearning"
+                          className="flex-1 px-2.5 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddPresetTag()}
+                          disabled={!newPresetTagInput.trim()}
+                          className="px-2.5 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl transition cursor-pointer shrink-0"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preset tag chips */}
+                  {presetTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {presetTags.map((t) => {
+                        const isPrimary = presetPrimaryTag?.toLowerCase() === t.toLowerCase();
+                        return (
+                          <span
+                            key={t}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold border ${
+                              isPrimary
+                                ? 'bg-amber-500/15 border-amber-500 text-amber-700 dark:text-amber-300'
+                                : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300'
+                            }`}
+                          >
+                            <span>#{t}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePrimaryPresetTag(t)}
+                              className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                              title={isPrimary ? 'Primary (click to unset)' : 'Click to make Primary'}
+                            >
+                              {isPrimary ? '★' : '☆'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePresetTag(t)}
+                              className="text-zinc-400 hover:text-red-500 cursor-pointer text-xs leading-none"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Quick tag suggestions if preset has no tags */}
+                  {presetTags.length === 0 && availableTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                      <span className="text-[10px] text-zinc-400">Частые:</span>
+                      {availableTags.slice(0, 5).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => handleAddPresetTag(t)}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-600 transition cursor-pointer"
+                        >
+                          #{t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Save Preset Button */}
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSaveChannelPreset}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
+                        isPresetModified
+                          ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{t('channel_preset.save_preset_btn', 'Сохранить настройки канала')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Video Filter & Selection Bar */}

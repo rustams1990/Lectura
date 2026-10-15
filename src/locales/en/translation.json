@@ -850,7 +850,7 @@
     "tab_standard": "Plain Text",
     "tab_video": "Video & Subtitles",
     "study_lang": "Study Language (Study)",
-    "trans_lang": "Translation Language (Translate to)",
+    "trans_lang": "Translate to",
     "remember_target_title": "Remember default study language",
     "remember_trans_lang": "Remember default translation language",
     "remembered": "Remembered",
@@ -937,7 +937,7 @@
     "words_count": "words",
     "empty": "empty",
     "content_placeholder": "Paste original foreign text, fairy tale or article to read here...",
-    "cover_label": "Book Cover",
+    "cover_label": "Cover",
     "no_cover": "No cover",
     "cover_url_placeholder": "Paste image URL",
     "compressing": "Compressing...",
@@ -2056,5 +2056,23 @@
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
     "of": "of"
+  },
+  "channel_preset": {
+    "auto_applied_banner": "Automatically applied default settings for channel \"{{name}}\"",
+    "reset_btn": "Reset",
+    "save_checkbox_label": "Save this playlist and tags as defaults for channel \"{{name}}\"",
+    "update_checkbox_label": "Update default playlist and tags for channel \"{{name}}\"",
+    "checkbox_hint": "Lectura will automatically populate these when importing new videos from this channel.",
+    "section_title": "Default Playlist & Tags",
+    "section_desc": "Automatically applied in the import form when adding videos from this channel.",
+    "default_playlist": "Default playlist",
+    "default_tags": "Default tags",
+    "no_preset_configured": "No default playlist or tags configured for this channel yet.",
+    "configure_btn": "Configure defaults for this channel",
+    "save_preset_btn": "Save channel defaults",
+    "remove_preset_btn": "Remove default rule",
+    "saved_toast": "Channel default settings saved",
+    "deleted_toast": "Channel default rule removed",
+    "none_playlist": "None (Direct to Library)"
   }
 }

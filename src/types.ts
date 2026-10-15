@@ -246,9 +246,21 @@ export interface ReaderSettings {
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
   autoPlayNextLesson?: boolean; // When true, automatically transitions to next lesson upon completion (default: true)
   enableVideoCardClips?: boolean; // When true, enables saving and practicing with video snapshot frames and audio clips
+  channelPresets?: Record<string, ChannelPreset>;
+}
+
+export interface ChannelPreset {
+  channelName: string;
+  channelUrl?: string | null;
+  channelAvatarUrl?: string | null;
+  defaultPlaylistId?: string | null;
+  defaultPrimaryTag?: string | null;
+  defaultTags?: string[];
+  updatedAt?: number;
 }
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
+  channelPresets: {},
   enableVideoCardClips: false,
   fontSize: "base",
   lineHeight: "relaxed",

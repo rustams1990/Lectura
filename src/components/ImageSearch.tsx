@@ -29,7 +29,26 @@ export default function ImageSearch({
   const [isPasting, setIsPasting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
+  const isSecureClipboardAvailable =
+    typeof window !== "undefined" &&
+    (window.isSecureContext ?? false) &&
+    typeof navigator !== "undefined" &&
+    !!navigator.clipboard &&
+    typeof navigator.clipboard.read === "function";
+
   const handlePasteClick = async () => {
+    if (!isSecureClipboardAvailable) {
+      pasteBtnRef.current?.focus();
+      showToast(
+        t(
+          "explainer.clipboard_http_notice",
+          "Browser blocks clipboard access over HTTP without HTTPS. Please press Ctrl+V on your keyboard directly."
+        ),
+        "warning"
+      );
+      return;
+    }
+
     setIsPasting(true);
     try {
       const img = await readImageFromClipboard();
@@ -179,7 +198,11 @@ export default function ImageSearch({
           onPaste={handlePasteEvent}
           disabled={isPasting}
           className="p-1 px-1.5 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg text-center text-zinc-500 cursor-pointer hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-800 dark:hover:text-teal-400 transition-all font-medium flex flex-col justify-center items-center h-12 focus:outline-none focus:ring-1 focus:ring-teal-500/50 group active:scale-98"
-          title={t('explainer.paste_image_tooltip', 'Click to paste from clipboard, or press Ctrl+V')}
+          title={
+            isSecureClipboardAvailable
+              ? t('explainer.paste_image_tooltip', 'Click to paste from clipboard, or press Ctrl+V')
+              : t('explainer.paste_image_tooltip_http', 'Press Ctrl+V to paste image (browser blocks click over HTTP)')
+          }
         >
           {isPasting ? (
             <div className="flex items-center gap-1.5 text-teal-600 dark:text-teal-400">
@@ -192,7 +215,11 @@ export default function ImageSearch({
                 <ClipboardPaste className="w-2.5 h-2.5" />
                 {t('explainer.paste_clipboard_badge', 'Paste clipboard')}
               </span>
-              <span className="text-[9.5px] mt-0.5 font-bold">{t('explainer.paste_image', 'Click & Paste Ctrl+V')}</span>
+              <span className="text-[9.5px] mt-0.5 font-bold">
+                {isSecureClipboardAvailable
+                  ? t('explainer.paste_image', 'Click & Paste Ctrl+V')
+                  : t('explainer.paste_image_http', 'Press Ctrl+V')}
+              </span>
             </>
           )}
         </button>

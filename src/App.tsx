@@ -4155,6 +4155,7 @@ export default function App() {
                 setInitialImportUrl(null);
               }}
               settings={readerSettings}
+              onUpdateSettings={updateSettingsAndSync}
             />
           </div>
         ) : activeTab === "library" && selectedPlaylistId && playlists.find(p => p.id === selectedPlaylistId) ? (

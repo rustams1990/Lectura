@@ -75,7 +75,8 @@ export const AddMediaToPlaylistModal: React.FC<AddMediaToPlaylistModalProps> = (
       });
 
       const data = await res.json().catch(() => ({}));
-      const title = data.title || `YouTube Video (${videoId})`;
+      const rawTitle = data.title && typeof data.title === "string" && !data.title.startsWith("http") && !data.title.includes("youtube.com") ? data.title.trim() : "";
+      const title = rawTitle || (data.channelName ? `${data.channelName} Video` : `YouTube Video (${videoId})`);
       const durationSeconds = data.youtubeDuration || 0;
       const thumbnailUrl = data.coverUrl || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
       const lessonId = `yt_${videoId}_${Date.now()}`;
