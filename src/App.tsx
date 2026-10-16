@@ -206,13 +206,11 @@ export default function App() {
   const vocabRef = useRef<Record<string, VocabItem>>(vocab);
   useEffect(() => {
     vocabRef.current = vocab;
-    vocabStore.setItem("words", vocab).catch(() => {});
   }, [vocab]);
 
   const wordLinksRef = useRef<Record<string, string>>(wordLinks);
   useEffect(() => {
     wordLinksRef.current = wordLinks;
-    vocabStore.setItem("aliases", wordLinks).catch(() => {});
   }, [wordLinks]);
 
   const { showToast } = useToast();
@@ -1709,10 +1707,15 @@ export default function App() {
           setVocab((prevVocab) => {
             const merged = mergeCloudVocabWithLocal(normalizedCloudVocab, prevVocab);
             vocabRef.current = merged;
+            lastSyncedVocabRef.current = merged;
             return merged;
           });
           setWordLinks(normalizedCloudWordLinks);
           wordLinksRef.current = normalizedCloudWordLinks;
+          lastSyncedLinksRef.current = normalizedCloudWordLinks;
+          if (loadedSafeLessons) {
+            lastSyncedLessonsMapRef.current = new Map(loadedSafeLessons.map((l) => [l.id, l]));
+          }
 
           if (d.listeningSeconds !== undefined) {
             setListeningSeconds(prev => Math.max(prev, d.listeningSeconds));
@@ -1800,15 +1803,14 @@ export default function App() {
               .filter((h) => !activeDeletedIds.has(h.id));
             setHistory(cleanHistory);
             historyRef.current = cleanHistory;
+            lastSyncedHistoryMapRef.current = new Map(cleanHistory.map((h) => [h.id, h]));
             safeLocalStorageSetItem("vocab_clone_reading_history", JSON.stringify(cleanHistory));
             settingsStore.setItem("vocab_clone_reading_history", JSON.stringify(cleanHistory)).catch(() => {});
           }
 
-          // Sync into local stores
+          // Sync into local stores (vocab & aliases are persisted via debounced VocabContext effect)
           if (d.lessons) lessonsStore.setItem("lessons", d.lessons);
           if (d.lessonTypes) lessonsStore.setItem("lessontypes", d.lessonTypes);
-          vocabStore.setItem("words", normalizedCloudVocab).catch(() => {});
-          vocabStore.setItem("aliases", normalizedCloudWordLinks).catch(() => {});
           if (d.listeningSeconds !== undefined) safeLocalStorageSetItem("vocab_clone_listening", d.listeningSeconds.toString());
           if (d.languageFlags) safeLocalStorageSetItem("vocab_clone_language_flags", JSON.stringify(d.languageFlags));
 
@@ -1963,8 +1965,13 @@ export default function App() {
     const unsub = whisperQueueService.subscribe(() => {
       const state = whisperQueueService.getState();
       if (state.completedTasks.length > lastCompletedCount) {
+        const newestTask = state.completedTasks[0] as any;
         lastCompletedCount = state.completedTasks.length;
-        loadDataFromLocalServer();
+        if (newestTask?.bookId) {
+          handleOpenWhisperBook(newestTask.bookId, false);
+        } else {
+          loadDataFromLocalServer();
+        }
       }
     });
     return () => unsub();
@@ -1976,6 +1983,10 @@ export default function App() {
   const pendingSyncDeletedWordKeysRef = useRef<string[]>([]);
   const pendingSyncDeletedHistoryRef = useRef<string[]>([]);
   const syncDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSyncedVocabRef = useRef<Record<string, VocabItem> | null>(null);
+  const lastSyncedLinksRef = useRef<Record<string, string> | null>(null);
+  const lastSyncedLessonsMapRef = useRef<Map<string, Lesson> | null>(null);
+  const lastSyncedHistoryMapRef = useRef<Map<string, HistoryEntry> | null>(null);
 
   const syncDataToLocalServer = async (
     currentLessons = lessonsRef.current,
@@ -2030,7 +2041,7 @@ export default function App() {
       const postHeaders: Record<string, string> = {
         "Content-Type": "application/json",
         "x-local-sync-key": localSyncKey,
-        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
+        "x-local-sync-user": savedUser ? (savedUser.id || savedUser.uid || savedUser.email || "default") : "default"
       };
       if (savedToken) {
         postHeaders["Authorization"] = `Bearer ${savedToken}`;
@@ -2071,12 +2082,13 @@ export default function App() {
       const dailyWordGoal = rawGoal ? parseInt(rawGoal, 10) : undefined;
       const lastActiveLessonId = localStorage.getItem("vocab_clone_last_active_lesson_id") || undefined;
 
-      // (finalDeletedHistoryIds calculated above in debounce wrapper)
-
       if (finalDeletedHistoryIds.length > 0) {
         console.log('[Sync Delete Request]', { deletedHistoryIds: finalDeletedHistoryIds });
       }
 
+      const fullVocab: Record<string, VocabItem> = vocabRef.current || currentVocab || {};
+      const fullLinks: Record<string, string> = wordLinksRef.current || currentLinks || {};
+      const fullLessons: Lesson[] = currentLessons || [];
       const safeHistory = (currentHistory || []).filter(h => {
         if (!h || !h.id) return false;
         if (finalDeletedHistoryIds.includes(h.id)) return false;
@@ -2084,19 +2096,51 @@ export default function App() {
         return true;
       });
 
+      // Compute delta payload if baseline snapshot exists from initial load
+      const canUseDelta = Boolean(lastSyncedVocabRef.current && lastSyncedLessonsMapRef.current);
+      let payloadVocab: Record<string, VocabItem> = fullVocab;
+      let payloadLinks: Record<string, string> = fullLinks;
+      let payloadLessons: Lesson[] = fullLessons;
+      let payloadHistory: HistoryEntry[] = safeHistory;
+
+      if (canUseDelta && lastSyncedVocabRef.current && lastSyncedLessonsMapRef.current) {
+        payloadVocab = {};
+        const prevV = lastSyncedVocabRef.current;
+        for (const [k, v] of Object.entries(fullVocab)) {
+          if (prevV[k] !== v) {
+            payloadVocab[k] = v;
+          }
+        }
+        payloadLinks = {};
+        const prevL = lastSyncedLinksRef.current || {};
+        for (const [k, v] of Object.entries(fullLinks)) {
+          if (prevL[k] !== v) {
+            payloadLinks[k] = v;
+          }
+        }
+        const prevLessonsMap = lastSyncedLessonsMapRef.current;
+        payloadLessons = fullLessons.filter((l) => prevLessonsMap.get(l.id) !== l);
+
+        if (lastSyncedHistoryMapRef.current) {
+          const prevHistMap = lastSyncedHistoryMapRef.current;
+          payloadHistory = safeHistory.filter((h) => prevHistMap.get(h.id) !== h);
+        }
+      }
+
       const res = await fetch(resolveApiUrl("/api/server-db"), {
         method: "POST",
         headers: postHeaders,
         body: JSON.stringify({
           data: {
-            lessons: currentLessons,
+            isDelta: canUseDelta,
+            lessons: payloadLessons,
             playlists: currentPlaylists,
             lessonTypes: currentTypes,
-            vocab: vocabRef.current || currentVocab,
-            wordLinks: wordLinksRef.current || currentLinks,
+            vocab: payloadVocab,
+            wordLinks: payloadLinks,
             listeningSeconds: listeningSecondsRef.current || currentListening,
             languageFlags: languageFlagsRef.current || currentFlags,
-            history: safeHistory,
+            history: payloadHistory,
             readerSettings: readerSettingsRef.current || currentSettings,
             pinnedLanguages: currentPinned,
             hiddenLanguages: currentHidden,
@@ -2130,6 +2174,10 @@ export default function App() {
         return;
       }
       if (res.ok) {
+        lastSyncedVocabRef.current = fullVocab;
+        lastSyncedLinksRef.current = fullLinks;
+        lastSyncedLessonsMapRef.current = new Map(fullLessons.map((l) => [l.id, l]));
+        lastSyncedHistoryMapRef.current = new Map(safeHistory.map((h) => [h.id, h]));
         lastLocalChangeTime.current = Date.now();
         lastSyncSuccessTime.current = Date.now();
         setSyncProgress(prev => ({
@@ -2331,16 +2379,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    vocabStore.setItem("words", vocab);
-  }, [vocab]);
-
-  useEffect(() => {
     settingsStore.setItem("vocab_clone_listening", listeningSeconds.toString());
   }, [listeningSeconds]);
-
-  useEffect(() => {
-    vocabStore.setItem("aliases", wordLinks);
-  }, [wordLinks]);
 
   useEffect(() => {
     useSettingsStore.getState().setSettings(readerSettings);
@@ -2399,17 +2439,27 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  const activeLessonWords = useMemo(() => {
-    if (!activeLesson || typeof activeLesson.text !== "string") return [];
+  // Pre-tokenize active lesson text ONLY when the lesson text changes (not on every word status click)
+  const activeLessonTextTokens = useMemo(() => {
+    if (!activeLesson || typeof activeLesson.text !== "string") {
+      return { textLower: "", tokenSet: new Set<string>() };
+    }
     const textLower = activeLesson.text.toLowerCase();
     const regex = /[\p{L}\p{M}'’]+/gu;
     const tokens = textLower.match(regex) || [];
-    const tokenSet = new Set(tokens);
+    return { textLower, tokenSet: new Set(tokens) };
+  }, [activeLesson?.id, activeLesson?.text]);
+
+  const activeLessonWords = useMemo(() => {
+    if (!activeLesson || !activeLessonTextTokens.textLower) return [];
+    const { textLower, tokenSet } = activeLessonTextTokens;
     const lang = (activeLesson.targetLanguage || "spanish").toLowerCase();
+    const langPrefix = `${lang}_`;
     const bookVocabItemsMap = new Map<string, VocabItem>();
 
-    // Fast check over vocab items
+    // Fast check over vocab items scoped to the lesson's target language
     for (const key of Object.keys(vocab)) {
+      if (key.includes("_") && !key.startsWith(langPrefix)) continue;
       const item = vocab[key];
       if (!item || !["1", "2", "3", "4", "5", "learning"].includes(item.status)) continue;
       
@@ -2446,7 +2496,7 @@ export default function App() {
     }
 
     return Array.from(bookVocabItemsMap.values());
-  }, [activeLesson?.id, activeLesson?.text, activeLesson?.targetLanguage, activeLesson?.detectedPhrases, vocab, wordLinks]);
+  }, [activeLesson?.id, activeLesson?.targetLanguage, activeLesson?.detectedPhrases, activeLessonTextTokens, vocab, wordLinks]);
 
   const activeLessonImagesMap = useMemo(() => {
     if (!activeLesson?.id) return {};
@@ -2495,8 +2545,8 @@ export default function App() {
     return null;
   }, [selectedWord, vocab, wordLinks, activeLesson]);
 
-  // Dynamic statistics computing
-  const calculatedStats = useMemo<AppStats>(() => {
+  // Separate vocabulary count calculation so listeningSeconds/history ticks don't re-scan 115k words
+  const vocabCounts = useMemo(() => {
     const onlyParents = readerSettings?.onlyPatterns !== false;
 
     let known = 0;
@@ -2563,6 +2613,11 @@ export default function App() {
       ).length;
     }
 
+    return { known, learning };
+  }, [vocab, readerSettings?.onlyPatterns, wordLinks]);
+
+  // Dynamic statistics computing
+  const calculatedStats = useMemo<AppStats>(() => {
     const isToday = (isoDateStr?: string) => {
       if (!isoDateStr) return false;
       try {
@@ -2594,10 +2649,10 @@ export default function App() {
     return {
       listeningSeconds: Math.round(historyListeningSeconds),
       todayListeningSeconds: Math.round(todayListeningSeconds),
-      wordsKnownCount: known,
-      wordsLearningCount: learning,
+      wordsKnownCount: vocabCounts.known,
+      wordsLearningCount: vocabCounts.learning,
     };
-  }, [vocab, listeningSeconds, history, readerSettings?.onlyPatterns, wordLinks]);
+  }, [vocabCounts, listeningSeconds, history]);
 
   const handleOpenLesson = (lessonId: string, word: string, sentence: string) => {
     const normalizedWord = word.replace(/\s+/g, " ").trim();
@@ -2608,35 +2663,48 @@ export default function App() {
     setActiveTab("read");
   };
 
-  const handleOpenWhisperBook = async (bookId: string) => {
+  const handleOpenWhisperBook = async (bookId: string, navigateToRead = true) => {
     try {
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || localStorage.getItem("local_sync_key") || "";
-      const localSyncKey = localStorage.getItem("local_sync_key") || "";
+      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+      const localSyncKeyVal = localStorage.getItem("vocab_clone_local_sync_key") || localStorage.getItem("local_sync_key") || "";
       const savedUserStr = localStorage.getItem("vocab_clone_local_user");
       const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-      const syncUser = savedUser ? (savedUser.uid || savedUser.email || "default") : (activeUser ? (activeUser.id || activeUser.email || "default") : "default");
+      const syncUser = savedUser
+        ? (savedUser.id || savedUser.uid || savedUser.email || "default")
+        : (activeUser ? (activeUser.id || activeUser.email || "default") : "default");
 
       const fetchHeaders: Record<string, string> = {
-        "x-local-sync-key": localSyncKey,
+        "x-local-sync-key": localSyncKeyVal,
         "x-local-sync-user": syncUser
       };
       if (savedToken) {
         fetchHeaders["Authorization"] = `Bearer ${savedToken}`;
       }
-      const res = await fetch("/api/server-db", {
+      // Fetch only the newly transcribed lesson (~50 KB) instead of the entire 40 MB /api/server-db
+      const res = await fetch(resolveApiUrl(`/api/lessons/${encodeURIComponent(bookId)}`), {
         headers: fetchHeaders
       });
       if (res.ok) {
-        const body = await safeJsonParse(res);
-        if (body.status === "ok" && body.data?.lessons) {
-          setLessons(body.data.lessons);
-          lessonsStore.setItem("lessons", body.data.lessons).catch(() => {});
+        const singleLesson = await safeJsonParse(res);
+        if (singleLesson && singleLesson.id) {
+          setLessons((prev) => {
+            const exists = prev.some((l) => l.id === singleLesson.id);
+            const next = exists
+              ? prev.map((l) => (l.id === singleLesson.id ? singleLesson : l))
+              : [singleLesson, ...prev];
+            lessonsRef.current = next;
+            lastSyncedLessonsMapRef.current?.set(singleLesson.id, singleLesson);
+            lessonsStore.setItem("lessons", next).catch(() => {});
+            return next;
+          });
         }
       }
     } catch (_) {}
 
-    setActiveLessonId(bookId);
-    setActiveTab("read");
+    if (navigateToRead) {
+      setActiveLessonId(bookId);
+      setActiveTab("read");
+    }
   };
 
   const handleSaveWordLink = (from: string, to: string, lang?: string) => {

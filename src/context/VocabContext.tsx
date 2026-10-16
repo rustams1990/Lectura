@@ -147,19 +147,55 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Auto-save vocab changes to IndexedDB safely
+  const latestVocabForIdbRef = useRef<Record<string, VocabItem>>(vocab);
+  const latestLinksForIdbRef = useRef<Record<string, string>>(wordLinks);
+  const vocabIdbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linksIdbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-save vocab changes to IndexedDB with debounce to avoid 30MB structured-clone stalls on rapid clicks
   useEffect(() => {
-    if (isLoaded) {
-      vocabStore.setItem('words', vocab).catch(console.error);
-    }
+    latestVocabForIdbRef.current = vocab;
+    if (!isLoaded) return;
+    if (vocabIdbTimerRef.current) clearTimeout(vocabIdbTimerRef.current);
+    vocabIdbTimerRef.current = setTimeout(() => {
+      vocabIdbTimerRef.current = null;
+      vocabStore.setItem('words', latestVocabForIdbRef.current).catch(console.error);
+    }, 1200);
   }, [vocab, isLoaded]);
 
-  // Auto-save wordLinks changes to IndexedDB safely
+  // Auto-save wordLinks changes to IndexedDB with debounce
   useEffect(() => {
-    if (isLoaded) {
-      vocabStore.setItem('aliases', wordLinks).catch(console.error);
-    }
+    latestLinksForIdbRef.current = wordLinks;
+    if (!isLoaded) return;
+    if (linksIdbTimerRef.current) clearTimeout(linksIdbTimerRef.current);
+    linksIdbTimerRef.current = setTimeout(() => {
+      linksIdbTimerRef.current = null;
+      vocabStore.setItem('aliases', latestLinksForIdbRef.current).catch(console.error);
+    }, 1200);
   }, [wordLinks, isLoaded]);
+
+  // Flush pending IndexedDB writes when tab is hidden or unloading
+  useEffect(() => {
+    const flushPendingIdbWrites = () => {
+      if (vocabIdbTimerRef.current) {
+        clearTimeout(vocabIdbTimerRef.current);
+        vocabIdbTimerRef.current = null;
+        vocabStore.setItem('words', latestVocabForIdbRef.current).catch(() => {});
+      }
+      if (linksIdbTimerRef.current) {
+        clearTimeout(linksIdbTimerRef.current);
+        linksIdbTimerRef.current = null;
+        vocabStore.setItem('aliases', latestLinksForIdbRef.current).catch(() => {});
+      }
+    };
+    window.addEventListener('visibilitychange', flushPendingIdbWrites);
+    window.addEventListener('beforeunload', flushPendingIdbWrites);
+    return () => {
+      window.removeEventListener('visibilitychange', flushPendingIdbWrites);
+      window.removeEventListener('beforeunload', flushPendingIdbWrites);
+      flushPendingIdbWrites();
+    };
+  }, []);
 
   const getLinkedWordsFor = (word: string, lang = "spanish", customLinks?: Record<string, string>): string[] => {
     if (!word) return [];

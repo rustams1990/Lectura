@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import zlib from "zlib";
 import { JSDOM } from "jsdom";
 import Database from "better-sqlite3";
 import { getDbConnection, SQLITE_DB_PATH } from "./dbConnection.ts";
@@ -652,9 +653,38 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
     `);
 
     const insertLesson = db.prepare(`
-      INSERT OR REPLACE INTO lessons (
+      INSERT INTO lessons (
         id, user_id, title, text, audioUrl, audioBase64, targetLanguage, translationLanguage, isBuiltIn, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, difficultyExplanation, createdAt, wordTimestamps, channelName, channelAvatarUrl, channelUrl, playlistId, images, audioProgress, sourceType, primaryTag, tags
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, id) DO UPDATE SET
+        title = excluded.title,
+        text = excluded.text,
+        audioUrl = excluded.audioUrl,
+        audioBase64 = excluded.audioBase64,
+        targetLanguage = excluded.targetLanguage,
+        translationLanguage = excluded.translationLanguage,
+        isBuiltIn = excluded.isBuiltIn,
+        isArchived = excluded.isArchived,
+        coverUrl = excluded.coverUrl,
+        youtubeId = excluded.youtubeId,
+        localVideoUrl = excluded.localVideoUrl,
+        lessonType = excluded.lessonType,
+        pinned = excluded.pinned,
+        translationText = excluded.translationText,
+        detectedPhrases = excluded.detectedPhrases,
+        difficulty = COALESCE(excluded.difficulty, lessons.difficulty),
+        difficultyExplanation = COALESCE(excluded.difficultyExplanation, lessons.difficultyExplanation),
+        createdAt = COALESCE(lessons.createdAt, excluded.createdAt),
+        wordTimestamps = excluded.wordTimestamps,
+        channelName = COALESCE(excluded.channelName, lessons.channelName),
+        channelAvatarUrl = COALESCE(excluded.channelAvatarUrl, lessons.channelAvatarUrl),
+        channelUrl = COALESCE(excluded.channelUrl, lessons.channelUrl),
+        playlistId = excluded.playlistId,
+        images = excluded.images,
+        audioProgress = excluded.audioProgress,
+        sourceType = excluded.sourceType,
+        primaryTag = excluded.primaryTag,
+        tags = excluded.tags
     `);
 
     const insertPlaylist = db.prepare(`
@@ -679,26 +709,68 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, ?, ?)
     `);
 
+    let writtenWordsCount = 0;
+    let writtenLessonsCount = 0;
+
     db.transaction(() => {
+      const ensuredLangs = new Set<string>();
+      const ensureLangCached = (lang: string) => {
+        if (!lang || ensuredLangs.has(lang)) return;
+        ensuredLangs.add(lang);
+        ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
+      };
+
       const flags = data.languageFlags || {};
       for (const [lang, flag] of Object.entries(flags)) {
         const name = lang.charAt(0).toUpperCase() + lang.slice(1);
         insertLanguage.run(lang, name, flag as string);
+        ensuredLangs.add(lang);
       }
       if (data.languageFlags && typeof data.languageFlags === "object") {
         insertMetadata.run(userId, "languageFlags", JSON.stringify(data.languageFlags));
       }
 
+      // Process explicit word deletions if provided
+      if (Array.isArray(data.deletedWordKeys) && data.deletedWordKeys.length > 0) {
+        const delWordByIdStmt = db.prepare("DELETE FROM words WHERE user_id = ? AND id = ?");
+        const delWordByLangWordStmt = db.prepare("DELETE FROM words WHERE user_id = ? AND lower(language_code) = ? AND lower(word) = ?");
+        for (const rawKey of data.deletedWordKeys) {
+          if (!rawKey || typeof rawKey !== "string") continue;
+          delWordByIdStmt.run(userId, `${userId}_${rawKey.toLowerCase()}`);
+          const m = rawKey.match(/^([a-zA-Z]+)_(.*)$/);
+          if (m) {
+            delWordByLangWordStmt.run(userId, m[1].toLowerCase(), m[2].toLowerCase());
+          }
+        }
+      }
+
       const vocabWords = data.vocab || {};
       const incomingVocabKeys = Object.keys(vocabWords);
-      const existingWordCount = (db.prepare("SELECT COUNT(*) as count FROM words WHERE user_id = ?").get(userId) as any)?.count || 0;
+      const isDeltaSync = Boolean(data.isDelta);
+      const existingWordCount = !isDeltaSync
+        ? ((db.prepare("SELECT COUNT(*) as count FROM words WHERE user_id = ?").get(userId) as any)?.count || 0)
+        : 0;
 
-      if (existingWordCount > 0 && incomingVocabKeys.length === 0) {
+      if (!isDeltaSync && existingWordCount > 0 && incomingVocabKeys.length === 0) {
         console.warn(`[SAFETY GUARD] Blocked attempt to overwrite ${existingWordCount} words with 0 words for user ${userId}`);
       } else if (incomingVocabKeys.length > 0) {
+        // When receiving a large vocabulary batch, load existing rows once to skip identical records and avoid massive WAL disk writes
+        const existingWordsMap = new Map<string, any>();
+        if (incomingVocabKeys.length > 25) {
+          const existingRows = db.prepare(
+            `SELECT id, translation, definition, ipa, grammar, contextRelation, status, tags, imageUrl, audioClipUrl, examples,
+                    spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
+                    srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
+             FROM words WHERE user_id = ?`
+          ).all(userId) as any[];
+          for (const row of existingRows) {
+            existingWordsMap.set(row.id, row);
+          }
+        }
+
         for (const [key, value] of Object.entries(vocabWords)) {
           const match = key.match(/^([a-zA-Z]+)_(.*)$/);
-          const lang = match ? match[1] : "english";
+          const lang = (match ? match[1] : "english").toLowerCase();
           const val = value as any;
           const wordVal = cleanWordPrefix(val.word || (match ? match[2] : key));
 
@@ -711,44 +783,101 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
           const wordKey = `${lang}_${wordVal.toLowerCase()}`;
           const wordId = `${userId}_${wordKey}`;
-          ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
+
+          const nextTranslation = val.translation || "";
+          const nextDefinition = (val.definition && typeof val.definition === "string" && val.definition.trim() !== "") ? val.definition.trim() : null;
+          const nextIpa = val.ipa || "";
+          const nextGrammar = val.grammar || "";
+          const nextContextRelation = val.contextRelation || "";
+          const nextStatus = val.status || "new";
+          const nextImageUrl = val.imageUrl || null;
+          const nextAudioClipUrl = val.audioClipUrl || null;
+          const nextSpellCorrect = val.spellingCorrectCount || 0;
+          const nextSpellIncorrect = val.spellingIncorrectCount || 0;
+          const nextSpellAccent = val.spellingAccentCount || 0;
+          const nextLastSpelled = val.lastSpelledCorrectly === true ? 1 : val.lastSpelledCorrectly === false ? 0 : null;
+          const nextLastAccentErr = val.lastSpelledWithAccentError ? 1 : 0;
+          const nextSpellExclude = val.spellingExclude ? 1 : 0;
+          const nextSrsReview = val.srsNextReview || null;
+          const nextSrsInterval = val.srsInterval || null;
+          const nextSrsEase = val.srsEaseFactor || null;
+          const nextSrsReps = val.srsRepetitions || null;
+
+          const existingW = existingWordsMap.get(wordId);
+          if (
+            existingW &&
+            existingW.status === nextStatus &&
+            existingW.translation === nextTranslation &&
+            existingW.definition === nextDefinition &&
+            existingW.ipa === nextIpa &&
+            existingW.grammar === nextGrammar &&
+            existingW.contextRelation === nextContextRelation &&
+            existingW.tags === tagsJson &&
+            existingW.imageUrl === nextImageUrl &&
+            existingW.audioClipUrl === nextAudioClipUrl &&
+            existingW.examples === examplesJson &&
+            (existingW.spellingCorrectCount || 0) === nextSpellCorrect &&
+            (existingW.spellingIncorrectCount || 0) === nextSpellIncorrect &&
+            (existingW.spellingAccentCount || 0) === nextSpellAccent &&
+            existingW.lastSpelledCorrectly === nextLastSpelled &&
+            (existingW.lastSpelledWithAccentError || 0) === nextLastAccentErr &&
+            (existingW.spellingExclude || 0) === nextSpellExclude &&
+            existingW.srsNextReview === nextSrsReview &&
+            existingW.srsInterval === nextSrsInterval &&
+            existingW.srsEaseFactor === nextSrsEase &&
+            existingW.srsRepetitions === nextSrsReps
+          ) {
+            continue;
+          }
+
+          ensureLangCached(lang);
           insertWord.run(
             wordId,
             userId,
             lang,
             wordVal,
-            val.translation || "",
-            (val.definition && typeof val.definition === "string" && val.definition.trim() !== "") ? val.definition.trim() : null,
-            val.ipa || "",
-            val.grammar || "",
-            val.contextRelation || "",
-            val.status || "new",
+            nextTranslation,
+            nextDefinition,
+            nextIpa,
+            nextGrammar,
+            nextContextRelation,
+            nextStatus,
             val.createdAt || Date.now(),
             tagsJson,
-            val.imageUrl || null,
-            val.audioClipUrl || null,
+            nextImageUrl,
+            nextAudioClipUrl,
             examplesJson,
-            val.spellingCorrectCount || 0,
-            val.spellingIncorrectCount || 0,
-            val.spellingAccentCount || 0,
-            val.lastSpelledCorrectly === true ? 1 : val.lastSpelledCorrectly === false ? 0 : null,
-            val.lastSpelledWithAccentError ? 1 : 0,
-            val.spellingExclude ? 1 : 0,
-            val.srsNextReview || null,
-            val.srsInterval || null,
-            val.srsEaseFactor || null,
-            val.srsRepetitions || null
+            nextSpellCorrect,
+            nextSpellIncorrect,
+            nextSpellAccent,
+            nextLastSpelled,
+            nextLastAccentErr,
+            nextSpellExclude,
+            nextSrsReview,
+            nextSrsInterval,
+            nextSrsEase,
+            nextSrsReps
           );
+          writtenWordsCount++;
         }
       }
 
       const links = data.wordLinks || {};
       const incomingLinkKeys = Object.keys(links);
-      const existingLinksCount = (db.prepare("SELECT COUNT(*) as count FROM word_links WHERE user_id = ?").get(userId) as any)?.count || 0;
+      const existingLinksCount = !isDeltaSync
+        ? ((db.prepare("SELECT COUNT(*) as count FROM word_links WHERE user_id = ?").get(userId) as any)?.count || 0)
+        : 0;
 
-      if (existingLinksCount > 0 && incomingLinkKeys.length === 0) {
+      if (!isDeltaSync && existingLinksCount > 0 && incomingLinkKeys.length === 0) {
         console.warn(`[SAFETY GUARD] Blocked attempt to overwrite ${existingLinksCount} word_links with 0 links for user ${userId}`);
       } else if (incomingLinkKeys.length > 0) {
+        const existingLinksSet = new Set<string>();
+        if (incomingLinkKeys.length > 10) {
+          const existingLinkRows = db.prepare("SELECT language_code, word_from, word_to FROM word_links WHERE user_id = ?").all(userId) as any[];
+          for (const r of existingLinkRows) {
+            existingLinksSet.add(`${r.language_code}|${r.word_from}|${r.word_to}`);
+          }
+        }
         for (const [key, val] of Object.entries(links)) {
           if (!val || typeof val !== "string") continue;
           const matchKey = key.match(/^([a-zA-Z]+)_(.*)$/);
@@ -758,11 +887,14 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             continue;
           }
 
-          const lang = matchKey ? matchKey[1] : matchVal![1];
+          const lang = (matchKey ? matchKey[1] : matchVal![1]).toLowerCase();
           const cleanFrom = cleanWordPrefix(key);
           const cleanTo = cleanWordPrefix(val as string);
+          if (existingLinksSet.has(`${lang}|${cleanFrom}|${cleanTo}`)) {
+            continue;
+          }
 
-          ensureLanguage.run(lang, lang.charAt(0).toUpperCase() + lang.slice(1));
+          ensureLangCached(lang);
           insertWordLink.run(userId, lang, cleanFrom, cleanTo);
         }
       }
@@ -809,7 +941,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       const lessons = data.lessons || [];
-      const selectExistingLessonStmt = db.prepare("SELECT isArchived, pinned, audioProgress FROM lessons WHERE id = ? AND user_id = ?");
+      const selectExistingLessonStmt = db.prepare(
+        "SELECT title, text, audioUrl, targetLanguage, translationLanguage, isArchived, coverUrl, youtubeId, localVideoUrl, lessonType, pinned, translationText, detectedPhrases, difficulty, playlistId, audioProgress, primaryTag, tags FROM lessons WHERE id = ? AND user_id = ?"
+      );
 
       for (const l of lessons) {
         let finalAudioUrl = l.audioUrl || null;
@@ -834,6 +968,31 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
         const lessonPrimaryTag = l.primaryTag || null;
         const lessonTagsJson = (l.tags && Array.isArray(l.tags) && l.tags.length > 0) ? JSON.stringify(l.tags) : null;
+        const nextDetectedPhrasesJson = JSON.stringify(l.detectedPhrases || {});
+        const nextAudioProgress = l.audioProgress !== undefined ? Math.floor(Number(l.audioProgress) || 0) : (existingLesson?.audioProgress || 0);
+
+        if (
+          existingLesson &&
+          existingLesson.title === l.title &&
+          existingLesson.text === l.text &&
+          existingLesson.audioUrl === finalAudioUrl &&
+          existingLesson.targetLanguage === (l.targetLanguage || "english") &&
+          existingLesson.translationLanguage === (l.translationLanguage || "russian") &&
+          existingLesson.isArchived === finalIsArchived &&
+          existingLesson.pinned === finalPinned &&
+          existingLesson.coverUrl === (l.coverUrl || null) &&
+          existingLesson.youtubeId === (l.youtubeId || null) &&
+          existingLesson.localVideoUrl === (l.localVideoUrl || null) &&
+          existingLesson.lessonType === (l.lessonType || null) &&
+          existingLesson.translationText === (l.translationText || null) &&
+          existingLesson.detectedPhrases === nextDetectedPhrasesJson &&
+          existingLesson.playlistId === (l.playlistId || null) &&
+          (existingLesson.audioProgress || 0) === nextAudioProgress &&
+          existingLesson.primaryTag === lessonPrimaryTag &&
+          existingLesson.tags === lessonTagsJson
+        ) {
+          continue;
+        }
 
         insertLesson.run(
           l.id,
@@ -852,7 +1011,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           l.lessonType || null,
           finalPinned,
           l.translationText || null,
-          JSON.stringify(l.detectedPhrases || {}),
+          nextDetectedPhrasesJson,
           l.difficulty || null,
           l.difficultyExplanation || null,
           // Preserve existing createdAt if present, else use current time
@@ -863,7 +1022,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           l.channelUrl || null,
           l.playlistId || null,
           l.images ? (typeof l.images === "string" ? l.images : JSON.stringify(l.images)) : null,
-          l.audioProgress !== undefined ? Math.floor(Number(l.audioProgress) || 0) : (existingLesson?.audioProgress || 0),
+          nextAudioProgress,
           l.sourceType || (
             l.lessonType === "youtube" ? "youtube" :
             (l.lessonType === "podcast" || l.lessonType === "audio") ? "podcast" :
@@ -874,6 +1033,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           lessonPrimaryTag,
           lessonTagsJson
         );
+        writtenLessonsCount++;
 
         if (lessonPrimaryTag && typeof lessonPrimaryTag === "string" && lessonPrimaryTag.trim()) {
           const pTag = lessonPrimaryTag.trim();
@@ -1124,8 +1284,19 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
         console.log('[Server SQL Delete Bulk]', { deletedIds: data.deletedHistoryIds, changes: result.changes });
       }
 
-      if (Array.isArray(data.history)) {
+      let writtenHistoryCount = 0;
+      if (Array.isArray(data.history) && data.history.length > 0) {
         const historyList = data.history;
+        const existingHistoryMap = new Map<string, any>();
+        if (historyList.length > 10) {
+          const existingHistRows = db.prepare(
+            "SELECT id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage, timestamp, actionType, status, durationSeconds, notes, channelName, channelAvatarUrl, channelUrl, category, customTitle, mode, tags, lastPosition, audioUrl, guid, podcastTitle, primaryTag, youtubeId, duration FROM reading_history WHERE user_id = ?"
+          ).all(userId) as any[];
+          for (const r of existingHistRows) {
+            existingHistoryMap.set(r.id, r);
+          }
+        }
+
         // Prepared statement to find existing row by youtubeId for the same user within 24h window.
         // Watching the same video on different days = separate history entries (intentional re-watch).
         const findByYoutubeId = db.prepare(
@@ -1181,6 +1352,27 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
 
           const historyPrimaryTag = h.primaryTag || null;
           const historyTagsJson = h.tags && Array.isArray(h.tags) && h.tags.length > 0 ? JSON.stringify(h.tags) : null;
+          const nextLastPos = h.lastPosition !== undefined && h.lastPosition !== null ? Number(h.lastPosition) : 0;
+          const nextDuration = h.duration !== undefined && h.duration !== null ? Number(h.duration) : null;
+
+          const existingH = existingHistoryMap.get(canonicalId);
+          if (
+            existingH &&
+            existingH.lessonId === (h.lessonId || 'imported_record') &&
+            existingH.lessonTitle === (h.lessonTitle || "Занятие") &&
+            existingH.status === (h.status || "in_progress") &&
+            (existingH.durationSeconds || 0) === (h.durationSeconds || 0) &&
+            (existingH.lastPosition || 0) === nextLastPos &&
+            existingH.timestamp === h.timestamp &&
+            existingH.notes === (h.notes || null) &&
+            existingH.channelName === (h.channelName || null) &&
+            existingH.channelAvatarUrl === (h.channelAvatarUrl || null) &&
+            existingH.customTitle === (h.customTitle || null) &&
+            existingH.primaryTag === historyPrimaryTag &&
+            existingH.tags === historyTagsJson
+          ) {
+            continue;
+          }
 
           insertHistory.run(
             canonicalId,
@@ -1202,14 +1394,15 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             h.customTitle || null,
             h.mode || null,
             historyTagsJson,
-            h.lastPosition !== undefined && h.lastPosition !== null ? Number(h.lastPosition) : 0,
+            nextLastPos,
             h.audioUrl || null,
             h.guid || null,
             h.podcastTitle || null,
             historyPrimaryTag,
             h.youtubeId || null,
-            h.duration !== undefined && h.duration !== null ? Number(h.duration) : null
+            nextDuration
           );
+          writtenHistoryCount++;
 
           if (historyPrimaryTag && typeof historyPrimaryTag === "string" && historyPrimaryTag.trim()) {
             const pTag = historyPrimaryTag.trim();
@@ -1229,9 +1422,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           }
         }
       }
+      console.log(`[saveLocalServerDb] Committed for "${userId}" (written: ${writtenWordsCount} words, ${writtenLessonsCount} lessons, ${writtenHistoryCount} history)`);
     })();
 
-    console.log(`[saveLocalServerDb] Transaction successfully committed for userId: "${userId}"`);
     return true;
   } catch (e) {
     console.error(`[saveLocalServerDb] Error saving SQLite database for "${userId}":`, e);
@@ -1477,6 +1670,21 @@ router.get("/server-db", (req: Request, res: Response) => {
   const dbData = getLocalServerDb(userId);
   if (!dbData) {
     return res.json({ status: "empty" });
+  }
+  const acceptEncoding = String(req.headers["accept-encoding"] || "");
+  if (acceptEncoding.includes("gzip")) {
+    const jsonBuffer = Buffer.from(JSON.stringify({ status: "ok", data: dbData }), "utf8");
+    zlib.gzip(jsonBuffer, { level: zlib.constants.Z_BEST_SPEED }, (err, compressed) => {
+      if (err) {
+        return res.json({ status: "ok", data: dbData });
+      }
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Vary", "Accept-Encoding");
+      res.setHeader("Content-Length", String(compressed.length));
+      return res.send(compressed);
+    });
+    return;
   }
   return res.json({ status: "ok", data: dbData });
 });
@@ -2727,6 +2935,21 @@ router.get("/lessons/:id", (req: Request, res: Response) => {
       }
       return res.status(404).json({ error: "Lesson not found" });
     }
+    if (typeof lesson.wordTimestamps === "string") {
+      try { lesson.wordTimestamps = JSON.parse(lesson.wordTimestamps); } catch (_) { lesson.wordTimestamps = null; }
+    }
+    if (typeof lesson.detectedPhrases === "string") {
+      try { lesson.detectedPhrases = JSON.parse(lesson.detectedPhrases); } catch (_) { lesson.detectedPhrases = {}; }
+    }
+    if (typeof lesson.images === "string") {
+      try { lesson.images = JSON.parse(lesson.images); } catch (_) { lesson.images = undefined; }
+    }
+    if (typeof lesson.tags === "string") {
+      try { lesson.tags = JSON.parse(lesson.tags); } catch (_) { lesson.tags = []; }
+    }
+    lesson.isBuiltIn = lesson.isBuiltIn === 1 || lesson.isBuiltIn === true;
+    lesson.isArchived = lesson.isArchived === 1 || lesson.isArchived === true;
+    lesson.pinned = lesson.pinned === 1 || lesson.pinned === true;
     return res.json(lesson);
   } catch (err: any) {
     console.error("[GET /api/lessons/:id] Error:", err);

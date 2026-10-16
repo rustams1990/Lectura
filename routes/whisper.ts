@@ -13,6 +13,20 @@ const router = Router();
 const uploadDir = path.join(os.tmpdir(), "lectura_whisper_uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+} else {
+  // Clean up orphaned temporary Whisper uploads older than 24 hours on startup
+  try {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const file of fs.readdirSync(uploadDir)) {
+      const fullPath = path.join(uploadDir, file);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.isFile() && stat.mtimeMs < cutoff) {
+          fs.unlinkSync(fullPath);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
 }
 
 export interface WhisperQueueItem {
@@ -698,6 +712,9 @@ router.post("/cancel", (req: Request, res: Response) => {
     if (currentChildProcess) {
       try { currentChildProcess.kill(); } catch (_) {}
     }
+    if (activeItem.filePath && activeItem.filePath.startsWith(uploadDir)) {
+      try { if (fs.existsSync(activeItem.filePath)) fs.unlinkSync(activeItem.filePath); } catch (_) {}
+    }
     broadcastSse("queue_update", { queue, activeItem });
     return res.json({ success: true, message: "Active task cancelled" });
   }
@@ -705,6 +722,9 @@ router.post("/cancel", (req: Request, res: Response) => {
   const idx = queue.findIndex(q => q.id === id);
   if (idx !== -1) {
     const removed = queue.splice(idx, 1)[0];
+    if (removed.filePath && removed.filePath.startsWith(uploadDir)) {
+      try { if (fs.existsSync(removed.filePath)) fs.unlinkSync(removed.filePath); } catch (_) {}
+    }
     broadcastSse("queue_update", { queue, activeItem });
     return res.json({ success: true, message: "Queued task removed", item: removed });
   }

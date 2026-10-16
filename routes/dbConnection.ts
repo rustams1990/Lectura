@@ -1137,6 +1137,11 @@ export function getDbConnection(_rawUserId: string = "default"): Database.Databa
 
   _sharedDb = new Database(SQLITE_DB_PATH);
   _sharedDb.pragma("journal_mode = WAL");
+  _sharedDb.pragma("synchronous = NORMAL");
+  _sharedDb.pragma("temp_store = MEMORY");
+  _sharedDb.pragma("cache_size = -32000"); // 32 MB in-memory page cache
+  _sharedDb.pragma("mmap_size = 268435456"); // 256 MB memory-mapped I/O
+  _sharedDb.pragma("wal_autocheckpoint = 1000");
 
   // 1. Create / migrate schema
   setupSchema(_sharedDb);
