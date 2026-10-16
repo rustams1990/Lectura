@@ -60,7 +60,7 @@ function setupSchema(db: Database.Database) {
     WHERE lower(translation) IN ('translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден');
 
     CREATE TABLE IF NOT EXISTS lessons (
-      id TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
       user_id TEXT NOT NULL DEFAULT 'default',
       title TEXT NOT NULL,
       text TEXT NOT NULL,
@@ -90,7 +90,16 @@ function setupSchema(db: Database.Database) {
       images TEXT,
       audioProgress INTEGER DEFAULT 0,
       audio_progress REAL DEFAULT 0,
-      audio_progress_updated_at INTEGER DEFAULT 0
+      audio_progress_updated_at INTEGER DEFAULT 0,
+      duration INTEGER DEFAULT 0,
+      timeSpentSeconds INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'IN_PROGRESS',
+      updatedAt TEXT,
+      sourceType TEXT,
+      primaryTag TEXT,
+      tags TEXT,
+      wordCount INTEGER DEFAULT 0,
+      PRIMARY KEY (user_id, id)
     );
 
     CREATE TABLE IF NOT EXISTS lesson_types (
@@ -100,7 +109,7 @@ function setupSchema(db: Database.Database) {
     );
 
     CREATE TABLE IF NOT EXISTS reading_history (
-      id TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
       user_id TEXT NOT NULL DEFAULT 'default',
       lessonId TEXT NOT NULL,
       lessonTitle TEXT NOT NULL,
@@ -120,7 +129,15 @@ function setupSchema(db: Database.Database) {
       category TEXT,
       customTitle TEXT,
       mode TEXT,
-      tags TEXT
+      tags TEXT,
+      primaryTag TEXT,
+      lastPosition REAL DEFAULT 0,
+      audioUrl TEXT,
+      guid TEXT,
+      podcastTitle TEXT,
+      duration REAL DEFAULT 0,
+      youtubeId TEXT,
+      PRIMARY KEY (user_id, id)
     );
 
     CREATE TABLE IF NOT EXISTS server_users (
@@ -159,7 +176,7 @@ function setupSchema(db: Database.Database) {
     );
 
     CREATE TABLE IF NOT EXISTS playlists (
-      id TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
       user_id TEXT NOT NULL DEFAULT 'default',
       title TEXT NOT NULL,
       description TEXT,
@@ -176,7 +193,8 @@ function setupSchema(db: Database.Database) {
       orderIndex INTEGER DEFAULT 0,
       pinned INTEGER DEFAULT 0,
       createdAt TEXT,
-      updatedAt TEXT
+      updatedAt TEXT,
+      PRIMARY KEY (user_id, id)
     );
 
     CREATE TABLE IF NOT EXISTS tags (
@@ -386,6 +404,9 @@ function setupSchema(db: Database.Database) {
   if (!lessonsCols.includes("tags")) {
     try { db.exec(`ALTER TABLE lessons ADD COLUMN tags TEXT;`); } catch (_) {}
   }
+  if (!lessonsCols.includes("wordCount")) {
+    try { db.exec(`ALTER TABLE lessons ADD COLUMN wordCount INTEGER DEFAULT 0;`); } catch (_) {}
+  }
 
   // study_activity_logs table for daily study analytics and streaks
   try {
@@ -442,7 +463,7 @@ function setupSchema(db: Database.Database) {
   setTimeout(async () => {
     try {
       const unpopulated = db.prepare(`
-        SELECT id, youtubeId, title, coverUrl, audioUrl FROM lessons 
+        SELECT id, user_id, youtubeId, title, coverUrl, audioUrl FROM lessons 
         WHERE (channelName IS NULL OR TRIM(channelName) = '' OR title = 'YouTube Video')
       `).all() as any[];
 
@@ -515,11 +536,12 @@ function setupSchema(db: Database.Database) {
           }
 
           if (channelName) {
-            db.prepare("UPDATE lessons SET youtubeId = COALESCE(youtubeId, ?), channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl), title = ? WHERE id = ?")
-              .run(yId, channelName, avatarUrl, newTitle, row.id);
+            const rowUser = row.user_id || "default";
+            db.prepare("UPDATE lessons SET youtubeId = COALESCE(youtubeId, ?), channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl), title = ? WHERE id = ? AND user_id = ?")
+              .run(yId, channelName, avatarUrl, newTitle, row.id, rowUser);
             try {
-              db.prepare("UPDATE reading_history SET channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl) WHERE lessonId = ?")
-                .run(channelName, avatarUrl, row.id);
+              db.prepare("UPDATE reading_history SET channelName = ?, channelAvatarUrl = COALESCE(?, channelAvatarUrl) WHERE lessonId = ? AND user_id = ?")
+                .run(channelName, avatarUrl, row.id, rowUser);
             } catch (_) {}
           }
         } catch (_) {}
@@ -590,18 +612,182 @@ function setupSchema(db: Database.Database) {
     `).run();
   } catch (_) {}
 
+  // ── Migrate lessons, playlists, reading_history: single PK (id) → composite PK (user_id, id) ──
+  // This prevents cross-account overwrites when two accounts have identical lesson/playlist/history IDs (e.g. builtin-es or YouTube IDs).
+  try {
+    const lessonsPkCount = (db.prepare("SELECT COUNT(*) as c FROM pragma_table_info('lessons') WHERE pk > 0").get() as any)?.c || 0;
+    if (lessonsPkCount === 1) {
+      console.log("[DB] Migrating lessons table to composite PRIMARY KEY (user_id, id)...");
+      db.exec(`
+        DROP TABLE IF EXISTS lessons_new;
+        CREATE TABLE lessons_new (
+          id TEXT NOT NULL,
+          user_id TEXT NOT NULL DEFAULT 'default',
+          title TEXT NOT NULL,
+          text TEXT NOT NULL,
+          audioUrl TEXT,
+          audioBase64 TEXT,
+          targetLanguage TEXT NOT NULL,
+          translationLanguage TEXT NOT NULL,
+          isBuiltIn INTEGER DEFAULT 0,
+          isArchived INTEGER DEFAULT 0,
+          coverUrl TEXT,
+          youtubeId TEXT,
+          localVideoUrl TEXT,
+          lessonType TEXT,
+          pinned INTEGER DEFAULT 0,
+          translationText TEXT,
+          detectedPhrases TEXT,
+          difficulty TEXT,
+          difficultyExplanation TEXT,
+          createdAt INTEGER,
+          channelName TEXT,
+          channelTitle TEXT,
+          channelAvatarUrl TEXT,
+          channelAvatar TEXT,
+          channelUrl TEXT,
+          playlistId TEXT,
+          wordTimestamps TEXT,
+          images TEXT,
+          audioProgress INTEGER DEFAULT 0,
+          audio_progress REAL DEFAULT 0,
+          audio_progress_updated_at INTEGER DEFAULT 0,
+          duration INTEGER DEFAULT 0,
+          timeSpentSeconds INTEGER DEFAULT 0,
+          status TEXT DEFAULT 'IN_PROGRESS',
+          updatedAt TEXT,
+          sourceType TEXT,
+          primaryTag TEXT,
+          tags TEXT,
+          wordCount INTEGER DEFAULT 0,
+          PRIMARY KEY (user_id, id)
+        );
+      `);
+      const oldCols = (db.prepare("PRAGMA table_info(lessons)").all() as any[]).map(c => c.name);
+      const newCols = (db.prepare("PRAGMA table_info(lessons_new)").all() as any[]).map(c => c.name);
+      const sharedCols = oldCols.filter(c => newCols.includes(c));
+      const colList = sharedCols.join(", ");
+      db.exec(`
+        INSERT OR IGNORE INTO lessons_new (${colList}) SELECT ${colList} FROM lessons;
+        DROP TABLE lessons;
+        ALTER TABLE lessons_new RENAME TO lessons;
+      `);
+      console.log("[DB] lessons table successfully migrated to composite PK (user_id, id).");
+    }
+  } catch (err) {
+    console.error("[DB] Failed to migrate lessons composite PK:", err);
+  }
+
+  try {
+    const playlistsPkCount = (db.prepare("SELECT COUNT(*) as c FROM pragma_table_info('playlists') WHERE pk > 0").get() as any)?.c || 0;
+    if (playlistsPkCount === 1) {
+      console.log("[DB] Migrating playlists table to composite PRIMARY KEY (user_id, id)...");
+      db.exec(`
+        DROP TABLE IF EXISTS playlists_new;
+        CREATE TABLE playlists_new (
+          id TEXT NOT NULL,
+          user_id TEXT NOT NULL DEFAULT 'default',
+          title TEXT NOT NULL,
+          description TEXT,
+          thumbnailUrl TEXT,
+          sourceType TEXT NOT NULL,
+          externalUrl TEXT,
+          channelTitle TEXT,
+          itemCount INTEGER DEFAULT 0,
+          language TEXT NOT NULL DEFAULT 'en',
+          items TEXT,
+          isArchived INTEGER DEFAULT 0,
+          primaryTag TEXT,
+          tags TEXT,
+          orderIndex INTEGER DEFAULT 0,
+          pinned INTEGER DEFAULT 0,
+          createdAt TEXT,
+          updatedAt TEXT,
+          PRIMARY KEY (user_id, id)
+        );
+      `);
+      const oldCols = (db.prepare("PRAGMA table_info(playlists)").all() as any[]).map(c => c.name);
+      const newCols = (db.prepare("PRAGMA table_info(playlists_new)").all() as any[]).map(c => c.name);
+      const sharedCols = oldCols.filter(c => newCols.includes(c));
+      const colList = sharedCols.join(", ");
+      db.exec(`
+        INSERT OR IGNORE INTO playlists_new (${colList}) SELECT ${colList} FROM playlists;
+        DROP TABLE playlists;
+        ALTER TABLE playlists_new RENAME TO playlists;
+      `);
+      console.log("[DB] playlists table successfully migrated to composite PK (user_id, id).");
+    }
+  } catch (err) {
+    console.error("[DB] Failed to migrate playlists composite PK:", err);
+  }
+
+  try {
+    const historyPkCount = (db.prepare("SELECT COUNT(*) as c FROM pragma_table_info('reading_history') WHERE pk > 0").get() as any)?.c || 0;
+    if (historyPkCount === 1) {
+      console.log("[DB] Migrating reading_history table to composite PRIMARY KEY (user_id, id)...");
+      db.exec(`
+        DROP VIEW IF EXISTS activity_history;
+        DROP TABLE IF EXISTS reading_history_new;
+        CREATE TABLE reading_history_new (
+          id TEXT NOT NULL,
+          user_id TEXT NOT NULL DEFAULT 'default',
+          lessonId TEXT NOT NULL,
+          lessonTitle TEXT NOT NULL,
+          lessonType TEXT,
+          coverUrl TEXT,
+          targetLanguage TEXT NOT NULL,
+          timestamp TEXT NOT NULL,
+          actionType TEXT NOT NULL,
+          status TEXT,
+          durationSeconds INTEGER DEFAULT 0,
+          notes TEXT,
+          channelName TEXT,
+          channelTitle TEXT,
+          channelAvatarUrl TEXT,
+          channelAvatar TEXT,
+          channelUrl TEXT,
+          category TEXT,
+          customTitle TEXT,
+          mode TEXT,
+          tags TEXT,
+          primaryTag TEXT,
+          lastPosition REAL DEFAULT 0,
+          audioUrl TEXT,
+          guid TEXT,
+          podcastTitle TEXT,
+          duration REAL DEFAULT 0,
+          youtubeId TEXT,
+          PRIMARY KEY (user_id, id)
+        );
+      `);
+      const oldCols = (db.prepare("PRAGMA table_info(reading_history)").all() as any[]).map(c => c.name);
+      const newCols = (db.prepare("PRAGMA table_info(reading_history_new)").all() as any[]).map(c => c.name);
+      const sharedCols = oldCols.filter(c => newCols.includes(c));
+      const colList = sharedCols.join(", ");
+      db.exec(`
+        INSERT OR IGNORE INTO reading_history_new (${colList}) SELECT ${colList} FROM reading_history;
+        DROP TABLE reading_history;
+        ALTER TABLE reading_history_new RENAME TO reading_history;
+      `);
+      console.log("[DB] reading_history table successfully migrated to composite PK (user_id, id).");
+    }
+  } catch (err) {
+    console.error("[DB] Failed to migrate reading_history composite PK:", err);
+  }
+
   // Ensure activity_history view exists if any external service/query expects it
   try {
     db.exec(`CREATE VIEW IF NOT EXISTS activity_history AS SELECT * FROM reading_history;`);
   } catch (_) {}
 
-  // Auto-backfill reading_history channelName and channelAvatarUrl from lessons table
+  // Auto-backfill reading_history channelName and channelAvatarUrl from lessons table (strictly scoped by user_id)
   try {
     db.exec(`
       UPDATE reading_history
       SET channelName = (
             SELECT channelName FROM lessons 
             WHERE lessons.id = reading_history.lessonId 
+              AND lessons.user_id = reading_history.user_id
               AND lessons.channelName IS NOT NULL 
               AND TRIM(lessons.channelName) != ''
           ),
@@ -610,6 +796,7 @@ function setupSchema(db: Database.Database) {
             (
               SELECT channelAvatarUrl FROM lessons 
               WHERE lessons.id = reading_history.lessonId 
+                AND lessons.user_id = reading_history.user_id
                 AND lessons.channelAvatarUrl IS NOT NULL 
                 AND TRIM(lessons.channelAvatarUrl) != ''
             )
@@ -618,6 +805,7 @@ function setupSchema(db: Database.Database) {
         AND EXISTS (
           SELECT 1 FROM lessons 
           WHERE lessons.id = reading_history.lessonId 
+            AND lessons.user_id = reading_history.user_id
             AND lessons.channelName IS NOT NULL 
             AND TRIM(lessons.channelName) != ''
         );
@@ -669,6 +857,7 @@ function setupSchema(db: Database.Database) {
           createdAt INTEGER,
           tags TEXT,
           imageUrl TEXT,
+          audioClipUrl TEXT,
           examples TEXT,
           spellingCorrectCount INTEGER DEFAULT 0,
           spellingIncorrectCount INTEGER DEFAULT 0,
@@ -685,10 +874,10 @@ function setupSchema(db: Database.Database) {
       `);
       const stmtRestore = db.prepare(`
         INSERT OR IGNORE INTO words (
-          id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples,
+          id, user_id, language_code, word, translation, definition, ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, audioClipUrl, examples,
           spellingCorrectCount, spellingIncorrectCount, spellingAccentCount, lastSpelledCorrectly, lastSpelledWithAccentError, spellingExclude,
           srsNextReview, srsInterval, srsEaseFactor, srsRepetitions
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const restoreTx = db.transaction((words: any[]) => {
         for (const w of words) {
@@ -706,6 +895,7 @@ function setupSchema(db: Database.Database) {
             w.createdAt,
             w.tags,
             w.imageUrl,
+            w.audioClipUrl || null,
             w.examples,
             w.spellingCorrectCount || 0,
             w.spellingIncorrectCount || 0,
@@ -725,6 +915,23 @@ function setupSchema(db: Database.Database) {
     }
   } catch (err) {
     console.error("[DB] Failed to migrate words UNIQUE constraint:", err);
+  }
+
+  // ── Multi-Account Isolation & Performance Indexes ──
+  try {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_words_user_lang ON words(user_id, language_code);
+      CREATE INDEX IF NOT EXISTS idx_words_user_status ON words(user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_lessons_user_arch_lang ON lessons(user_id, isArchived, targetLanguage);
+      CREATE INDEX IF NOT EXISTS idx_lessons_user_yt ON lessons(user_id, youtubeId);
+      CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists(user_id, isArchived);
+      CREATE INDEX IF NOT EXISTS idx_history_user_ts ON reading_history(user_id, timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_history_user_lesson ON reading_history(user_id, lessonId);
+      CREATE INDEX IF NOT EXISTS idx_tags_user_lang ON tags(user_id, targetLanguage);
+      CREATE INDEX IF NOT EXISTS idx_activity_logs_user_date ON study_activity_logs(userId, date);
+    `);
+  } catch (err) {
+    console.error("[DB] Failed to create user_id indexes:", err);
   }
 
   db.pragma("foreign_keys = ON");
@@ -870,12 +1077,20 @@ function performLegacyFileMigration(db: Database.Database) {
 }
 
 // ============================================================
-// Auto-assign all 'default' orphan records to the primary user
-// This runs once at startup so default library appears for the first user
+// Auto-assign legacy orphan records to the primary user (one-time migration)
+// Runs only once so future 'default' (guest) scope data is never merged into registered accounts
 // ============================================================
 
 function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
   try {
+    const alreadyMigrated = db.prepare(
+      "SELECT value FROM metadata WHERE user_id = '__system__' AND key = 'orphan_migration_v1_done'"
+    ).get() as { value: string } | undefined;
+
+    if (alreadyMigrated?.value === "1") {
+      return;
+    }
+
     // Find primary user (first registered user in the database)
     let primaryUser = db.prepare(
       "SELECT id, email FROM server_users ORDER BY created_at ASC LIMIT 1"
@@ -899,13 +1114,14 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
         db.prepare("UPDATE OR IGNORE metadata SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users) AND user_id != '__system__'").run(uid).changes,
         db.prepare("UPDATE OR IGNORE playlists SET user_id = ? WHERE user_id NOT IN (SELECT id FROM server_users)").run(uid).changes,
       ];
+      db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES ('__system__', 'orphan_migration_v1_done', '1')").run();
       return lN + wN + pN;
     });
     const changed = orphaned();
     if (changed > 0) {
       console.log(`[AutoAssign] Assigned ${changed} orphaned records → "${email}" (${uid})`);
     } else {
-      console.log("[AutoAssign] All records properly assigned. Nothing to fix.");
+      console.log("[AutoAssign] All records properly assigned. Marked one-time migration complete.");
     }
   } catch (e) {
     console.error("[AutoAssign] Failed:", e);

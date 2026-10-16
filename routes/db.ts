@@ -16,7 +16,7 @@ const DATA_DIR = process.env.DATA_DIR || process.cwd();
 const AUDIO_STORAGE_DIR = path.join(DATA_DIR, "audio_files");
 
 // Helper to offload heavy base64 audio payload from DB/RAM into static MP3 files on disk
-function saveAudioBase64ToDisk(lessonId: string, base64OrDataUrl: string): string | null {
+function saveAudioBase64ToDisk(lessonId: string, base64OrDataUrl: string, userId: string = "default"): string | null {
   try {
     if (!fs.existsSync(AUDIO_STORAGE_DIR)) {
       fs.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
@@ -30,7 +30,9 @@ function saveAudioBase64ToDisk(lessonId: string, base64OrDataUrl: string): strin
     else if (base64OrDataUrl.startsWith("data:audio/ogg")) ext = "ogg";
     else if (base64OrDataUrl.startsWith("data:audio/m4a") || base64OrDataUrl.startsWith("data:audio/mp4")) ext = "m4a";
 
-    const fileName = `${lessonId}.${ext}`;
+    const safeUser = (userId || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeLessonId = String(lessonId).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const fileName = safeUser === "default" ? `${safeLessonId}.${ext}` : `${safeUser}_${safeLessonId}.${ext}`;
     const filePath = path.join(AUDIO_STORAGE_DIR, fileName);
     fs.writeFileSync(filePath, buffer);
 
@@ -365,7 +367,7 @@ export function getLocalServerDb(userId: string = "default") {
 
       // Automatic Migration: If SQLite contains legacy base64 string, offload to disk file and clear base64 from DB/RAM
       if (currentAudioBase64 && typeof currentAudioBase64 === "string" && currentAudioBase64.length > 50) {
-        const savedFileUrl = saveAudioBase64ToDisk(l.id, currentAudioBase64);
+        const savedFileUrl = saveAudioBase64ToDisk(l.id, currentAudioBase64, userId);
         if (savedFileUrl) {
           currentAudioUrl = savedFileUrl;
           currentAudioBase64 = null;
@@ -766,20 +768,32 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       if (data.deletedLessonIds && Array.isArray(data.deletedLessonIds) && data.deletedLessonIds.length > 0) {
-        // Cascade delete local media files (audio & videos)
+        // Cascade delete local media files (audio & videos) ONLY if no other user still references the same lesson ID
         const VIDEO_STORAGE_DIR = path.join(DATA_DIR, "media", "videos");
+        const checkOtherUsersLessonStmt = db.prepare("SELECT 1 FROM lessons WHERE id = ? AND user_id != ? LIMIT 1");
+        const safeUser = (userId || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
         for (const delId of data.deletedLessonIds) {
           try {
-            const audioPathMp3 = path.join(AUDIO_STORAGE_DIR, `audio_${delId}.mp3`);
-            if (fs.existsSync(audioPathMp3)) fs.unlinkSync(audioPathMp3);
-            const audioPathM4a = path.join(AUDIO_STORAGE_DIR, `audio_${delId}.m4a`);
-            if (fs.existsSync(audioPathM4a)) fs.unlinkSync(audioPathM4a);
+            const safeDelId = String(delId).replace(/[^a-zA-Z0-9_-]/g, "_");
+            // Always clean up user-prefixed audio files
+            for (const ext of ["mp3", "m4a", "wav", "ogg"]) {
+              const userScopedAudio = path.join(AUDIO_STORAGE_DIR, `${safeUser}_${safeDelId}.${ext}`);
+              if (fs.existsSync(userScopedAudio)) fs.unlinkSync(userScopedAudio);
+            }
 
-            if (fs.existsSync(VIDEO_STORAGE_DIR)) {
-              const videoMp4 = path.join(VIDEO_STORAGE_DIR, `${delId}.mp4`);
-              if (fs.existsSync(videoMp4)) fs.unlinkSync(videoMp4);
-              const videoM4a = path.join(VIDEO_STORAGE_DIR, `${delId}.m4a`);
-              if (fs.existsSync(videoM4a)) fs.unlinkSync(videoM4a);
+            const stillUsedByOther = checkOtherUsersLessonStmt.get(delId, userId);
+            if (!stillUsedByOther) {
+              const audioPathMp3 = path.join(AUDIO_STORAGE_DIR, `audio_${delId}.mp3`);
+              if (fs.existsSync(audioPathMp3)) fs.unlinkSync(audioPathMp3);
+              const audioPathM4a = path.join(AUDIO_STORAGE_DIR, `audio_${delId}.m4a`);
+              if (fs.existsSync(audioPathM4a)) fs.unlinkSync(audioPathM4a);
+
+              if (fs.existsSync(VIDEO_STORAGE_DIR)) {
+                const videoMp4 = path.join(VIDEO_STORAGE_DIR, `${delId}.mp4`);
+                if (fs.existsSync(videoMp4)) fs.unlinkSync(videoMp4);
+                const videoM4a = path.join(VIDEO_STORAGE_DIR, `${delId}.m4a`);
+                if (fs.existsSync(videoM4a)) fs.unlinkSync(videoM4a);
+              }
             }
           } catch (e) {
             console.error("Failed to delete local media files for lesson:", delId, e);
@@ -795,19 +809,20 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       const lessons = data.lessons || [];
+      const selectExistingLessonStmt = db.prepare("SELECT isArchived, pinned, audioProgress FROM lessons WHERE id = ? AND user_id = ?");
 
       for (const l of lessons) {
         let finalAudioUrl = l.audioUrl || null;
         let finalAudioBase64 = null; // Clear base64 from RAM & DB
 
         if (l.audioBase64 && typeof l.audioBase64 === "string" && l.audioBase64.length > 50) {
-          const savedUrl = saveAudioBase64ToDisk(l.id, l.audioBase64);
+          const savedUrl = saveAudioBase64ToDisk(l.id, l.audioBase64, userId);
           if (savedUrl) {
             finalAudioUrl = savedUrl;
           }
         }
 
-        const existingLesson = db.prepare("SELECT isArchived, pinned FROM lessons WHERE id = ?").get(l.id) as any;
+        const existingLesson = selectExistingLessonStmt.get(l.id, userId) as any;
         let finalIsArchived = l.isArchived ? 1 : 0;
         let finalPinned = l.pinned ? 1 : 0;
         if (l.isArchived === undefined && existingLesson) {
@@ -888,8 +903,9 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       const playlists = data.playlists || [];
+      const selectExistingPlaylistStmt = db.prepare("SELECT isArchived, orderIndex, pinned FROM playlists WHERE id = ? AND user_id = ?");
       for (const p of playlists) {
-        const existingPlaylist = db.prepare("SELECT isArchived, orderIndex, pinned FROM playlists WHERE id = ?").get(p.id) as any;
+        const existingPlaylist = selectExistingPlaylistStmt.get(p.id, userId) as any;
         let finalPlIsArchived = p.isArchived ? 1 : 0;
         if (p.isArchived === undefined && existingPlaylist) {
           finalPlIsArchived = existingPlaylist.isArchived || 0;
@@ -960,18 +976,10 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       const types = data.lessonTypes || [];
-      if (Array.isArray(data.lessonTypes)) {
-        const currentTypeIds = types.map((t: any) => t.id).filter(Boolean);
-        if (currentTypeIds.length > 0) {
-          const placeholders = currentTypeIds.map(() => "?").join(",");
-          db.prepare(`DELETE FROM lesson_types WHERE id NOT IN (${placeholders})`).run(...currentTypeIds);
-        } else {
-          db.prepare(`DELETE FROM lesson_types`).run();
-        }
-      }
-
       for (const t of types) {
-        insertLessonType.run(t.id, t.name, t.icon);
+        if (t && t.id && t.name) {
+          insertLessonType.run(t.id, t.name, t.icon);
+        }
       }
 
       if (data.listeningSeconds !== undefined) {
@@ -1498,7 +1506,7 @@ router.post("/server-db", (req: Request, res: Response) => {
   }
 });
 
-// 4. Wipe User Server DB
+// 4. Wipe User Server DB (strictly scoped to current userId)
 router.delete("/server-db", (req: Request, res: Response) => {
   let userId: string;
   try {
@@ -1510,29 +1518,26 @@ router.delete("/server-db", (req: Request, res: Response) => {
     return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
   }
 
-  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const userDbPath = safeUserId === "default"
-    ? SQLITE_DB_PATH
-    : path.join(DATA_DIR, `local_server_db_${safeUserId}.sqlite`);
-
   try {
-    const conn = getDbConnection(safeUserId);
-    if (conn) {
-      conn.close();
-    }
-    if (fs.existsSync(userDbPath)) {
-      fs.unlinkSync(userDbPath);
-    }
-    if (fs.existsSync(userDbPath + "-wal")) {
-      fs.unlinkSync(userDbPath + "-wal");
-    }
-    if (fs.existsSync(userDbPath + "-shm")) {
-      fs.unlinkSync(userDbPath + "-shm");
-    }
-    return res.json({ status: "success", message: "Database file deleted successfully" });
+    const db = getDbConnection(userId);
+    const wipeTransaction = db.transaction(() => {
+      db.prepare("DELETE FROM words WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM word_links WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM lessons WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM playlists WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM reading_history WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM metadata WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM user_settings WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM podcast_subscriptions WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM item_tags WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM tags WHERE user_id = ?").run(userId);
+      db.prepare("DELETE FROM study_activity_logs WHERE userId = ?").run(userId);
+    });
+    wipeTransaction();
+    return res.json({ status: "success", message: "User data wiped from server database successfully" });
   } catch (error) {
-    console.error("Failed to delete local server db file:", error);
-    return res.status(500).json({ error: "Failed to wipe local server database from computer disk" });
+    console.error("Failed to wipe user data from server db:", error);
+    return res.status(500).json({ error: "Failed to wipe user data from server database" });
   }
 });
 
@@ -2711,7 +2716,7 @@ router.get("/lessons/:id", (req: Request, res: Response) => {
 
   try {
     const db = getDbConnection(userId);
-    const lesson = db.prepare("SELECT * FROM lessons WHERE id = ? AND (user_id = ? OR user_id = 'default')").get(id, userId) as any;
+    const lesson = db.prepare("SELECT * FROM lessons WHERE id = ? AND user_id = ?").get(id, userId) as any;
     if (!lesson) {
       const meta = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = ?").get(userId, `audio_progress_${id}`) as { value: string } | undefined;
       if (meta?.value) {
@@ -2749,7 +2754,7 @@ router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
 
   try {
     const db = getDbConnection(userId);
-    const current = db.prepare("SELECT audio_progress_updated_at FROM lessons WHERE id = ? AND (user_id = ? OR user_id = 'default')").get(id, userId) as { audio_progress_updated_at?: number } | undefined;
+    const current = db.prepare("SELECT audio_progress_updated_at FROM lessons WHERE id = ? AND user_id = ?").get(id, userId) as { audio_progress_updated_at?: number } | undefined;
 
     // Если в базе уже есть более свежая запись — отклоняем устаревшие данные
     if (current?.audio_progress_updated_at && current.audio_progress_updated_at > incomingTime) {
@@ -2760,7 +2765,7 @@ router.patch("/lessons/:id/progress", (req: Request, res: Response) => {
       db.prepare(`
         UPDATE lessons 
         SET audio_progress = ?, audio_progress_updated_at = ? 
-        WHERE id = ? AND (user_id = ? OR user_id = 'default')
+        WHERE id = ? AND user_id = ?
       `).run(incomingProgress, incomingTime, id, userId);
     } catch (_) {
       // Fallback if lessons table column update encounters an issue
@@ -2974,7 +2979,7 @@ router.post("/lessons", (req: Request, res: Response) => {
           id, user_id, title, text, audioUrl, targetLanguage, translationLanguage,
           isBuiltIn, isArchived, coverUrl, lessonType, pinned, createdAt, channelTitle, channelUrl, sourceType
         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
+        ON CONFLICT(user_id, id) DO UPDATE SET
           title = excluded.title,
           text = excluded.text,
           audioUrl = excluded.audioUrl,

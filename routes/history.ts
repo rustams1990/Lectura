@@ -53,30 +53,10 @@ export function handleTrackActivity(req: Request, res: Response) {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    const fallbackUser = String(
-      req.body?.userId ||
-      req.body?.syncUser ||
-      req.body?.userEmail ||
-      req.headers["x-user-id"] ||
-      req.headers["x-user-email"] ||
-      req.headers["x-local-sync-user"] ||
-      req.query?.sync_user ||
-      req.query?.userId ||
-      req.query?.userEmail ||
-      ""
-    ).trim();
-
-    if (fallbackUser && fallbackUser !== "default") {
-      try {
-        const db = getDbConnection("default");
-        const userRow = db.prepare("SELECT id FROM server_users WHERE id = ? OR lower(email) = ? LIMIT 1").get(fallbackUser, fallbackUser.toLowerCase()) as { id: string } | undefined;
-        userId = userRow ? userRow.id : fallbackUser;
-      } catch (_) {
-        userId = fallbackUser;
-      }
-    } else {
-      userId = "default";
+    if (err.message === "UNAUTHORIZED_TOKEN") {
+      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
     }
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
   }
 
   const {

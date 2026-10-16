@@ -11,6 +11,7 @@ import { getGeminiClient, callLocalAi } from "./geminiClient.ts";
 import { formatGeminiTranscript } from "./youtube.ts";
 import { getYtDlp } from "./ytdlpWrapper.ts";
 import { getDbConnection } from "./dbConnection.ts";
+import { resolveUserId } from "./auth.ts";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { execFile } from "child_process";
@@ -1942,6 +1943,12 @@ router.get("/media/progress", (req: Request, res: Response) => {
  */
 router.post("/media/download", async (req: Request, res: Response) => {
   try {
+    let userId = "default";
+    try {
+      userId = resolveUserId(req);
+    } catch (_) {
+      userId = "default";
+    }
     const { videoId, lessonId, onlyAudio } = req.body;
     if (!videoId && !lessonId) {
       return res.status(400).json({ error: "Параметр videoId или lessonId обязателен" });
@@ -2042,14 +2049,14 @@ router.post("/media/download", async (req: Request, res: Response) => {
               }
               fs.renameSync(tempPath, targetFilePath);
 
-              // Update lesson record in SQLite if lessonId is given
+              // Update lesson record in SQLite if lessonId is given (scoped by user_id)
               if (lessonId) {
                 try {
-                  const db = getDbConnection("default");
+                  const db = getDbConnection(userId);
                   if (isAudio) {
-                    db.prepare("UPDATE lessons SET audioUrl = ? WHERE id = ?").run(`/api/media/stream/${filename}`, lessonId);
+                    db.prepare("UPDATE lessons SET audioUrl = ? WHERE id = ? AND user_id = ?").run(`/api/media/stream/${filename}`, lessonId, userId);
                   } else {
-                    db.prepare("UPDATE lessons SET localVideoUrl = ? WHERE id = ?").run(`/api/media/stream/${filename}`, lessonId);
+                    db.prepare("UPDATE lessons SET localVideoUrl = ? WHERE id = ? AND user_id = ?").run(`/api/media/stream/${filename}`, lessonId, userId);
                   }
                 } catch (dbErr) {
                   console.warn("Could not update lesson media URL in SQLite:", dbErr);
@@ -2231,6 +2238,12 @@ router.get("/media/stream/:filename", (req: Request, res: Response) => {
  */
 router.get("/media/youtube-stream/:videoId", async (req: Request, res: Response) => {
   try {
+    let userId = "default";
+    try {
+      userId = resolveUserId(req);
+    } catch (_) {
+      userId = "default";
+    }
     const cleanVideoId = (req.params.videoId || "").replace(/[^a-zA-Z0-9_-]/g, "");
     if (!cleanVideoId || cleanVideoId.length !== 11) {
       return res.status(400).json({ error: "Invalid video ID format" });
@@ -2314,8 +2327,8 @@ router.get("/media/youtube-stream/:videoId", async (req: Request, res: Response)
 
               if (lessonId) {
                 try {
-                  const db = getDbConnection("default");
-                  db.prepare("UPDATE lessons SET audioUrl = ? WHERE id = ?").run(`/api/media/stream/${filename}`, lessonId);
+                  const db = getDbConnection(userId);
+                  db.prepare("UPDATE lessons SET audioUrl = ? WHERE id = ? AND user_id = ?").run(`/api/media/stream/${filename}`, lessonId, userId);
                 } catch (_) {}
               }
 

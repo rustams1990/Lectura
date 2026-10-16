@@ -6,6 +6,7 @@ import { spawn, ChildProcess } from "child_process";
 import { getYtDlp } from "./ytdlpWrapper.ts";
 import { resolvePythonExecutable } from "../server/whisper/python_resolver.ts";
 import { getDbConnection } from "./dbConnection.ts";
+import { resolveUserId } from "./auth.ts";
 
 const router = Router();
 
@@ -509,15 +510,7 @@ async function persistWhisperBook(item: WhisperQueueItem, event: any): Promise<s
   const bookId = `lesson_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const formattedContent = formatWhisperToLecturaParagraphs(event.segments || []);
   const resolvedTargetLang = normalizeTargetLanguage(item.language && item.language !== "auto" ? item.language : event.language);
-  let user = item.userId || "default";
-  if (user === "default_user" || user === "default") {
-    try {
-      const primaryUser = db.prepare("SELECT id FROM server_users ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
-      user = primaryUser ? primaryUser.id : "default";
-    } catch (_) {
-      user = "default";
-    }
-  }
+  const user = (!item.userId || item.userId === "default_user") ? "default" : item.userId;
   const ytId = item.sourceType === "youtube" ? extractYouTubeId(item.sourceUrl) : null;
   const now = Date.now();
 
@@ -620,7 +613,16 @@ router.get("/events", (req: Request, res: Response) => {
 // 2. Queue Submission Endpoint (JSON supporting sourceUrl or fileBase64)
 router.post("/queue", async (req: Request, res: Response) => {
   try {
+    let resolvedAuthUser = "default";
+    try {
+      resolvedAuthUser = resolveUserId(req);
+    } catch (_) {
+      resolvedAuthUser = "default";
+    }
     const { title, sourceUrl, fileBase64, filename, model, language, threads, vad, userId, thumbnail, sourceType: explicitSourceType } = req.body;
+    const effectiveUserId = resolvedAuthUser !== "default"
+      ? resolvedAuthUser
+      : ((!userId || userId === "default_user") ? "default" : String(userId));
 
     let resolvedSourceType: "youtube" | "podcast" | "file" = "file";
     if (explicitSourceType === "podcast" || explicitSourceType === "youtube" || explicitSourceType === "file") {
@@ -649,7 +651,7 @@ router.post("/queue", async (req: Request, res: Response) => {
 
     const newItem: WhisperQueueItem = {
       id: `whisper_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId: userId || "default_user",
+      userId: effectiveUserId,
       title: itemTitle,
       sourceUrl: hasUrl ? sourceUrl : undefined,
       filePath: localFilePath,

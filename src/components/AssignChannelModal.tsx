@@ -374,12 +374,13 @@ export default function AssignChannelModal({
     setIsSavingBatch(true);
     try {
       const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
+      const savedSyncKey = localStorage.getItem("vocab_clone_local_sync_key") || "";
       const savedUserStr = localStorage.getItem("vocab_clone_local_user");
       const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-local-sync-key": "4815a16a23a42a",
-        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
+        "x-local-sync-key": savedSyncKey,
+        "x-local-sync-user": savedUser ? (savedUser.id || savedUser.uid || savedUser.email || "default") : "default",
       };
       if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
 

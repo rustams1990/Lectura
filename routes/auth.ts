@@ -65,14 +65,16 @@ export async function verifyPassword(password: string, storedHash: string): Prom
 export function resolveUserId(req: Request): string {
   const authHeader = req.headers["authorization"];
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.substring(7);
-    const db = getDbConnection("default");
-    const session = db.prepare("SELECT user_id, expires_at FROM server_sessions WHERE token = ?").get(token) as any;
-    if (session) {
-      if (session.expires_at && session.expires_at < Date.now()) {
-        db.prepare("DELETE FROM server_sessions WHERE token = ?").run(token);
-      } else {
-        return session.user_id;
+    const token = authHeader.substring(7).trim();
+    if (token) {
+      const db = getDbConnection("default");
+      const session = db.prepare("SELECT user_id, expires_at FROM server_sessions WHERE token = ?").get(token) as any;
+      if (session) {
+        if (session.expires_at && session.expires_at < Date.now()) {
+          db.prepare("DELETE FROM server_sessions WHERE token = ?").run(token);
+        } else {
+          return session.user_id;
+        }
       }
     }
   }
@@ -80,7 +82,7 @@ export function resolveUserId(req: Request): string {
   const expectedKey = process.env.LOCAL_SYNC_KEY;
   if (expectedKey) {
     const clientKey = (req.headers["x-local-sync-key"] as string) || (req.headers["x-sync-key"] as string) || (req.query.sync_key as string);
-    if (clientKey && clientKey !== expectedKey) {
+    if (!clientKey || clientKey !== expectedKey) {
       console.warn(`[resolveUserId] Fallback sync key check failed.`);
       throw new Error("UNAUTHORIZED_SYNC_KEY");
     }
