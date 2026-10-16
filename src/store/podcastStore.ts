@@ -1,24 +1,12 @@
 import { create } from "zustand";
 import { PodcastSubscription, PodcastSearchResult, PodcastEpisode, PodcastFeedMeta, PodcastTimelineEpisode } from "../types";
 import { resolveServerUrl } from "../utils/mobileServerBridge";
+import { buildSyncHeaders } from "../utils/syncAuth";
 
 export type { PodcastEpisode };
 
 function buildHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  try {
-    const token = localStorage.getItem("vocab_clone_server_token");
-    const syncKey = (window as any).__LOCAL_SYNC_KEY__ || "";
-    const userStr = localStorage.getItem("vocab_clone_local_user");
-    const user = userStr ? JSON.parse(userStr) : null;
-
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    if (syncKey) headers["x-local-sync-key"] = syncKey;
-    if (user?.uid || user?.email) {
-      headers["x-local-sync-user"] = user.uid || user.email || "default";
-    }
-  } catch {}
-  return headers;
+  return buildSyncHeaders();
 }
 
 let activeSearchAbortController: AbortController | null = null;

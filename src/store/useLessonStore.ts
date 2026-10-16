@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { Lesson } from "../types";
 import { resolveApiUrl } from "../utils/apiConfig";
+import { buildSyncHeaders } from "../utils/syncAuth";
 
 interface LessonStore {
   lessons: Lesson[];
@@ -24,24 +25,9 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
     });
 
     try {
-      // 2. Await server response
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-      const localSyncKey = localStorage.getItem("local_sync_key") || "";
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-local-sync-key": localSyncKey,
-        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
-      };
-      if (savedToken) {
-        headers["Authorization"] = `Bearer ${savedToken}`;
-      }
-
       await fetch(resolveApiUrl(`/api/lessons/${id}/archive`), {
         method: "POST",
-        headers,
+        headers: buildSyncHeaders(),
         body: JSON.stringify({ isArchived }),
       });
     } catch (err) {

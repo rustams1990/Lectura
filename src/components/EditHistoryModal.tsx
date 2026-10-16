@@ -21,6 +21,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { HistoryEntry, Lesson, Playlist, ActivitySourceMode, CustomActivityCategory } from "../types";
 import { resolveApiUrl } from "../utils/apiConfig";
+import { buildSyncHeaders } from "../utils/syncAuth";
 import { generateHistoryId } from "../utils";
 import { useToast } from "../context/ToastContext";
 import { AppDatePicker } from "./common/AppDatePicker";
@@ -305,16 +306,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
     }
     setIsResolvingYoutube(true);
     try {
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-      const savedSyncKey = localStorage.getItem("vocab_clone_local_sync_key") || "";
-      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-local-sync-key": savedSyncKey,
-        "x-local-sync-user": savedUser ? (savedUser.id || savedUser.uid || savedUser.email || "default") : "default",
-      };
-      if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+      const headers = buildSyncHeaders({ "Content-Type": "application/json" });
 
       const res = await fetch(resolveApiUrl('/api/youtube/video-info'), {
         method: 'POST',
@@ -484,16 +476,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
 
     setIsSavingEntry(true);
     try {
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-      const savedSyncKey = localStorage.getItem("vocab_clone_local_sync_key") || "";
-      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-local-sync-key": savedSyncKey,
-        "x-local-sync-user": savedUser ? (savedUser.id || savedUser.uid || savedUser.email || "default") : "default",
-      };
-      if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+      const headers = buildSyncHeaders({ "Content-Type": "application/json" });
 
       if (entry) {
         const realLessonId = lessonId !== "custom" ? lessonId : entry.lessonId;

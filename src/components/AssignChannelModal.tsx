@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lesson, HistoryEntry, Playlist, ReaderSettings, ChannelPreset } from '../types';
 import { resolveApiUrl } from '../utils/apiConfig';
+import { buildSyncHeaders } from '../utils/syncAuth';
 import { useToast } from '../context/ToastContext';
 import { useSettingsStore } from '../store/settingsStore';
 import { getFrequentlyUsedTags } from '../utils/tagColors';
@@ -373,16 +374,7 @@ export default function AssignChannelModal({
 
     setIsSavingBatch(true);
     try {
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-      const savedSyncKey = localStorage.getItem("vocab_clone_local_sync_key") || "";
-      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-local-sync-key": savedSyncKey,
-        "x-local-sync-user": savedUser ? (savedUser.id || savedUser.uid || savedUser.email || "default") : "default",
-      };
-      if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
+      const headers = buildSyncHeaders({ "Content-Type": "application/json" });
 
       // 1. Direct atomic write to SQLite on server for both lessons and history
       const res = await fetch(resolveApiUrl("/api/history/assign-channel"), {

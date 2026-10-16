@@ -58,6 +58,7 @@ import { calculateNextBingeLesson } from "./utils/bingeQueueUtils";
 import { BookOpen, PlusCircle, GraduationCap, Headphones, Languages, Trash2, HelpCircle, Sparkles, BookMarked, TrendingUp, Pencil, Settings, ChevronLeft, Menu, X, Tv, Maximize2, Trophy, Loader2, Moon, Sun, Eye, EyeOff, History, Mic2 } from "lucide-react";
 import { safeJsonParse, safeParse, normalizeLanguagePrefixedKey, isLocalHostname, safeLocalStorageSetItem, sanitizeLessonsForLocalStorage, normalizeContraction, normalizePossessiveSuffix, normalizeVocabRecord, normalizeWordLinksRecord, dedupeHistory, buildVocabItem, getUIPreviewCache, saveUIPreviewCache, normalizeLanguage, getActiveMediaCurrentTime, generateHistoryId } from "./utils";
 import { resolveApiUrl } from "./utils/apiConfig";
+import { buildSyncHeaders } from "./utils/syncAuth";
 import { lessonsStore, vocabStore, settingsStore, playlistsStore, migrateFromLocalStorage, clearLocalUserDataCache } from "./db";
 import { whisperQueueService } from "./services/whisperQueueService";
 import { checkIsBookLesson } from "./utils/readerSettingsUtils";
@@ -443,14 +444,9 @@ export default function App() {
       safeLocalStorageSetItem("vocab_clone_hidden_languages", JSON.stringify(next));
       settingsStore.setItem("vocab_clone_hidden_languages", JSON.stringify(next)).catch(() => {});
       try {
-        const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
-        const syncKey = localStorage.getItem("vocab_clone_local_sync_key") || localStorage.getItem("local_sync_key");
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        if (syncKey) headers["x-sync-key"] = syncKey;
         fetch(resolveApiUrl("/api/metadata"), {
           method: "POST",
-          headers,
+          headers: buildSyncHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ key: "hiddenLanguages", value: JSON.stringify(next) })
         }).catch(() => {});
       } catch (_) {}
@@ -990,18 +986,9 @@ export default function App() {
       }
       settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
       try {
-        const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-        const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          "x-local-sync-key": localSyncKey,
-          "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default",
-        };
-        if (savedToken) headers["Authorization"] = `Bearer ${savedToken}`;
         fetch(resolveApiUrl("/api/user/settings"), {
           method: "PATCH",
-          headers,
+          headers: buildSyncHeaders({ "Content-Type": "application/json" }, { syncKey: localSyncKey }),
           body: JSON.stringify({ settings: next }),
         }).catch(() => {});
       } catch (_) {}
@@ -1565,15 +1552,7 @@ export default function App() {
     const loadT0 = performance.now();
     console.log("[Load] loadDataFromLocalServer START", new Date().toISOString());
     try {
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-
-      const fetchHeaders: Record<string, string> = {
-        "x-local-sync-key": localSyncKey,
-        "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
-      };
-      if (savedToken) {
-        fetchHeaders["Authorization"] = `Bearer ${savedToken}`;
-      }
+      const fetchHeaders = buildSyncHeaders({}, { syncKey: localSyncKey });
       const fetchStart = performance.now();
       const res = await fetch(resolveApiUrl("/api/server-db"), {
         headers: fetchHeaders
@@ -2034,18 +2013,10 @@ export default function App() {
       pendingSyncDeletedHistoryRef.current = [];
 
       try {
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-
-      const postHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-local-sync-key": localSyncKey,
-        "x-local-sync-user": savedUser ? (savedUser.id || savedUser.uid || savedUser.email || "default") : "default"
-      };
-      if (savedToken) {
-        postHeaders["Authorization"] = `Bearer ${savedToken}`;
-      }
+      const postHeaders = buildSyncHeaders(
+        { "Content-Type": "application/json" },
+        { syncKey: localSyncKey }
+      );
 
       // Collect video & reading progress & dictionary preferences maps from localStorage
       const videoProgress: Record<string, string> = {};
@@ -2665,21 +2636,10 @@ export default function App() {
 
   const handleOpenWhisperBook = async (bookId: string, navigateToRead = true) => {
     try {
-      const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-      const localSyncKeyVal = localStorage.getItem("vocab_clone_local_sync_key") || localStorage.getItem("local_sync_key") || "";
-      const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-      const syncUser = savedUser
-        ? (savedUser.id || savedUser.uid || savedUser.email || "default")
-        : (activeUser ? (activeUser.id || activeUser.email || "default") : "default");
-
-      const fetchHeaders: Record<string, string> = {
-        "x-local-sync-key": localSyncKeyVal,
-        "x-local-sync-user": syncUser
-      };
-      if (savedToken) {
-        fetchHeaders["Authorization"] = `Bearer ${savedToken}`;
-      }
+      const fetchHeaders = buildSyncHeaders(
+        {},
+        { userId: activeUser ? (activeUser.id || activeUser.email || undefined) : undefined }
+      );
       // Fetch only the newly transcribed lesson (~50 KB) instead of the entire 40 MB /api/server-db
       const res = await fetch(resolveApiUrl(`/api/lessons/${encodeURIComponent(bookId)}`), {
         headers: fetchHeaders
@@ -3931,12 +3891,11 @@ export default function App() {
           setActiveTab("read");
           safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", nextLesson.id);
           try {
-            const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
-            const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
-            const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (token) headers["Authorization"] = `Bearer ${token}`;
-            if (syncKey) headers["x-sync-key"] = syncKey;
-            fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: nextLesson.id }) }).catch(() => {});
+            fetch(resolveApiUrl("/api/user-metadata"), {
+              method: "PUT",
+              headers: buildSyncHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ lastActiveLessonId: nextLesson.id }),
+            }).catch(() => {});
           } catch (_) {}
         });
       }
@@ -4248,12 +4207,11 @@ export default function App() {
                 setActiveTab("read");
                 safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", id);
                 try {
-                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
-                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
-                  const headers: Record<string, string> = { "Content-Type": "application/json" };
-                  if (token) headers["Authorization"] = `Bearer ${token}`;
-                  if (syncKey) headers["x-sync-key"] = syncKey;
-                  fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
+                  fetch(resolveApiUrl("/api/user-metadata"), {
+                    method: "PUT",
+                    headers: buildSyncHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ lastActiveLessonId: id }),
+                  }).catch(() => {});
                 } catch (_) {}
               }}
               onSelectLesson={(id) => {
@@ -4263,12 +4221,11 @@ export default function App() {
                 setActiveTab("read");
                 safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", id);
                 try {
-                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
-                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
-                  const headers: Record<string, string> = { "Content-Type": "application/json" };
-                  if (token) headers["Authorization"] = `Bearer ${token}`;
-                  if (syncKey) headers["x-sync-key"] = syncKey;
-                  fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
+                  fetch(resolveApiUrl("/api/user-metadata"), {
+                    method: "PUT",
+                    headers: buildSyncHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ lastActiveLessonId: id }),
+                  }).catch(() => {});
                 } catch (_) {}
               }}
               onPlayQueue={(items, startIndex) => {
@@ -4325,12 +4282,11 @@ export default function App() {
                 setActiveTab("read");
                 safeLocalStorageSetItem("vocab_clone_last_active_lesson_id", id);
                 try {
-                  const token = localStorage.getItem("vocab_clone_auth_token") || localStorage.getItem("vocab_clone_server_token");
-                  const syncKey = localStorage.getItem("vocab_clone_local_sync_key");
-                  const headers: Record<string, string> = { "Content-Type": "application/json" };
-                  if (token) headers["Authorization"] = `Bearer ${token}`;
-                  if (syncKey) headers["x-sync-key"] = syncKey;
-                  fetch(resolveApiUrl("/api/user-metadata"), { method: "PUT", headers, body: JSON.stringify({ lastActiveLessonId: id }) }).catch(() => {});
+                  fetch(resolveApiUrl("/api/user-metadata"), {
+                    method: "PUT",
+                    headers: buildSyncHeaders({ "Content-Type": "application/json" }),
+                    body: JSON.stringify({ lastActiveLessonId: id }),
+                  }).catch(() => {});
                 } catch (_) {}
               }}
               onOpenImportForm={() => setShowImportForm(true)}
@@ -4648,20 +4604,9 @@ export default function App() {
           if (storageMode === "server") {
             try {
               setIsSyncing(true);
-              const savedToken = localStorage.getItem("vocab_clone_server_token") || "";
-              const savedUserStr = localStorage.getItem("vocab_clone_local_user");
-              const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-
-              const deleteHeaders: Record<string, string> = {
-                "x-local-sync-key": localSyncKey,
-                "x-local-sync-user": savedUser ? (savedUser.uid || savedUser.email || "default") : "default"
-              };
-              if (savedToken) {
-                deleteHeaders["Authorization"] = `Bearer ${savedToken}`;
-              }
-              await fetch("/api/server-db", { 
+              await fetch(resolveApiUrl("/api/server-db"), { 
                 method: "DELETE",
-                headers: deleteHeaders
+                headers: buildSyncHeaders({}, { syncKey: localSyncKey })
               });
             } catch (err) {
               console.error("Failed to clear server-side database:", err);
