@@ -132,6 +132,8 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
     }
 
     let sawRestarting = false;
+    let sawActiveStep = false;
+    let idleCountAfterStart = 0;
     const targetTag = release.tag_name;
     const startTime = Date.now();
 
@@ -140,8 +142,8 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
     }
 
     pollTimerRef.current = window.setInterval(async () => {
-      // Safety timeout after 4 minutes
-      if (Date.now() - startTime > 4 * 60 * 1000) {
+      // Safety timeout after 2 minutes
+      if (Date.now() - startTime > 2 * 60 * 1000) {
         if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
         setIsUpdating(false);
         setServerUpdateError(t('updater.timeout_error', 'Update is taking longer than expected. Please refresh the page in a few seconds.'));
@@ -150,6 +152,17 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
 
       const prog = await fetchServerUpdateProgress();
       if (prog) {
+        // First check if server already reports the new version (e.g. finished restarting or updated via Watchtower)
+        if (prog.currentVersion && compareVersions(prog.currentVersion, targetTag) >= 0 && (prog.status === 'idle' || prog.status === 'completed' || prog.status === 'restarting')) {
+          if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
+          setServerUpdateStep('completed');
+          setServerUpdateProgress(100);
+          setTimeout(() => {
+            clearCacheAndReloadApp();
+          }, 600);
+          return;
+        }
+
         if (prog.status === 'error') {
           if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
           setIsUpdating(false);
@@ -159,23 +172,24 @@ export default function InAppUpdateModal({ release, isOpen, onClose }: InAppUpda
         }
 
         if (prog.status !== 'idle') {
+          sawActiveStep = true;
+          idleCountAfterStart = 0;
           setServerUpdateStep(prog.status);
           setServerUpdateProgress((prev) => Math.max(prev, prog.progress || 20));
+        } else if (sawActiveStep) {
+          // Server returned to 'idle' after an active step — means process restarted!
+          idleCountAfterStart++;
+          if (idleCountAfterStart >= 3) {
+            if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
+            setIsUpdating(false);
+            setServerUpdateError(t('updater.update_error', 'Server restarted before completing the update. Please refresh the page or try again.'));
+            setShowManualCommands(true);
+            return;
+          }
         }
 
         if (prog.status === 'restarting' || prog.status === 'completed') {
           sawRestarting = true;
-        }
-
-        // Check if server already reports the new version
-        if (prog.currentVersion && compareVersions(prog.currentVersion, targetTag) >= 0) {
-          if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
-          setServerUpdateStep('completed');
-          setServerUpdateProgress(100);
-          setTimeout(() => {
-            clearCacheAndReloadApp();
-          }, 700);
-          return;
         }
       } else {
         // When server briefly drops connection during restart

@@ -3,7 +3,7 @@
  * Reads the version from package.json and writes it to src/version.ts
  * Run automatically as a prebuild step.
  */
-import { readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -15,5 +15,13 @@ const version = `v${pkg.version}`;
 
 const content = `export const APP_VERSION = "${version}";\n`;
 writeFileSync(join(root, 'src', 'version.ts'), content, 'utf8');
+
+// Clean old dist/assets before build so stale hashed bundles don't accumulate
+const distAssets = join(root, 'dist', 'assets');
+if (existsSync(distAssets)) {
+  try {
+    rmSync(distAssets, { recursive: true, force: true });
+  } catch (_) {}
+}
 
 console.log(`[sync-version] APP_VERSION synced → ${version}`);

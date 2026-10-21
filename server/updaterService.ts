@@ -1,5 +1,8 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import { exec } from "child_process";
 import { promisify } from "util";
 import AdmZip from "adm-zip";
@@ -83,6 +86,9 @@ export function compareSemver(a: string, b: string): number {
  * Reads the live version from package.json on disk (fallback to APP_VERSION)
  */
 export function getLiveServerVersion(): string {
+  if (process.env.NODE_ENV === "production") {
+    return APP_VERSION;
+  }
   try {
     const pkgPath = path.join(process.cwd(), "package.json");
     if (fs.existsSync(pkgPath)) {
@@ -427,54 +433,93 @@ function isProtectedPath(relPath: string): boolean {
 async function downloadAndExtractGitHubZip(holdEntryFilesForDevWatch: boolean): Promise<{
   deferredFiles: { fullPath: string; content: Buffer }[];
   newPackageJson: any;
+  extractedPrebuiltDist: boolean;
 }> {
-  const res = await fetch(MAIN_ZIP_URL, {
-    headers: { "User-Agent": "Lectura-Updater" },
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to download update archive from GitHub (HTTP ${res.status})`);
+  const tmpZipPath = path.join(os.tmpdir(), `lectura_update_${Date.now()}.zip`);
+  try {
+    const res = await fetch(MAIN_ZIP_URL, {
+      headers: { "User-Agent": "Lectura-Updater" },
+      signal: AbortSignal.timeout(90000),
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`Failed to download update archive from GitHub (HTTP ${res.status})`);
+    }
+
+    // Stream ZIP directly to disk to keep RAM usage minimal inside 256MB Docker containers
+    const fileStream = fs.createWriteStream(tmpZipPath);
+    await pipeline(Readable.fromWeb(res.body as any), fileStream);
+
+    const zip = new AdmZip(tmpZipPath);
+    const entries = zip.getEntries();
+
+    const deferredFiles: { fullPath: string; content: Buffer }[] = [];
+    let newPackageJson: any = null;
+    let hasDistServer = false;
+    let hasDistIndex = false;
+    const rootDir = process.cwd();
+
+    // Check if the archive includes pre-built dist/ files
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      const parts = entry.entryName.split("/");
+      if (parts.length < 2) continue;
+      const relPath = parts.slice(1).join("/");
+      if (relPath === "dist/server.cjs") hasDistServer = true;
+      if (relPath === "dist/index.html") hasDistIndex = true;
+    }
+
+    // Clean old hashed assets in dist/assets before extracting new ones
+    if (hasDistServer && hasDistIndex) {
+      const distAssetsDir = path.join(rootDir, "dist", "assets");
+      if (fs.existsSync(distAssetsDir)) {
+        try {
+          fs.rmSync(distAssetsDir, { recursive: true, force: true });
+        } catch (_) {}
+      }
+    }
+
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+
+      // Strip top-level folder (e.g. "Lectura-main/")
+      const parts = entry.entryName.split("/");
+      if (parts.length < 2) continue;
+      const relPath = parts.slice(1).join("/");
+      if (!relPath || isProtectedPath(relPath)) continue;
+
+      const fullPath = path.join(rootDir, relPath);
+      const data = entry.getData();
+
+      if (relPath === "package.json") {
+        try {
+          newPackageJson = JSON.parse(data.toString("utf8"));
+        } catch (_) {}
+      }
+
+      if (holdEntryFilesForDevWatch && (relPath === "server.ts" || relPath === "src/version.ts")) {
+        deferredFiles.push({ fullPath, content: data });
+        continue;
+      }
+
+      const parentDir = path.dirname(fullPath);
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+      fs.writeFileSync(fullPath, data);
+    }
+
+    return {
+      deferredFiles,
+      newPackageJson,
+      extractedPrebuiltDist: hasDistServer && hasDistIndex,
+    };
+  } finally {
+    try {
+      if (fs.existsSync(tmpZipPath)) {
+        fs.unlinkSync(tmpZipPath);
+      }
+    } catch (_) {}
   }
-
-  const arrayBuffer = await res.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const zip = new AdmZip(buffer);
-  const entries = zip.getEntries();
-
-  const deferredFiles: { fullPath: string; content: Buffer }[] = [];
-  let newPackageJson: any = null;
-  const rootDir = process.cwd();
-
-  for (const entry of entries) {
-    if (entry.isDirectory) continue;
-
-    // Strip top-level folder (e.g. "Lectura-main/")
-    const parts = entry.entryName.split("/");
-    if (parts.length < 2) continue;
-    const relPath = parts.slice(1).join("/");
-    if (!relPath || isProtectedPath(relPath)) continue;
-
-    const fullPath = path.join(rootDir, relPath);
-    const data = entry.getData();
-
-    if (relPath === "package.json") {
-      try {
-        newPackageJson = JSON.parse(data.toString("utf8"));
-      } catch (_) {}
-    }
-
-    if (holdEntryFilesForDevWatch && (relPath === "server.ts" || relPath === "src/version.ts")) {
-      deferredFiles.push({ fullPath, content: data });
-      continue;
-    }
-
-    const parentDir = path.dirname(fullPath);
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true });
-    }
-    fs.writeFileSync(fullPath, data);
-  }
-
-  return { deferredFiles, newPackageJson };
 }
 
 /**
@@ -536,15 +581,16 @@ export async function startSystemUpdate(): Promise<{ started: boolean; message: 
 
       let deferredFiles: { fullPath: string; content: Buffer }[] = [];
       let usedGit = false;
+      let hasPrebuiltDist = false;
 
-      // In production (or Windows without Git), ZIP extraction is fast, clean, and avoids git conflicts.
-      // If .git exists in dev mode, try git pull only after checking if ZIP is safer for tsx watch.
-      // Actually, extracting via ZIP or git: if we use git, let's also update git index if .git exists!
       if (fs.existsSync(path.join(rootDir, ".git")) && !isDevWatch) {
         try {
           await execAsync("git fetch origin main", { cwd: rootDir, timeout: 45000 });
           await execAsync("git reset --hard origin/main", { cwd: rootDir, timeout: 30000 });
           usedGit = true;
+          hasPrebuiltDist =
+            fs.existsSync(path.join(rootDir, "dist", "server.cjs")) &&
+            fs.existsSync(path.join(rootDir, "dist", "index.html"));
         } catch (gitErr) {
           console.warn("[Updater] Git update fallback to ZIP archive:", gitErr);
         }
@@ -553,6 +599,7 @@ export async function startSystemUpdate(): Promise<{ started: boolean; message: 
       if (!usedGit) {
         const zipResult = await downloadAndExtractGitHubZip(isDevWatch);
         deferredFiles = zipResult.deferredFiles;
+        hasPrebuiltDist = zipResult.extractedPrebuiltDist;
       }
 
       // Check if dependencies changed
@@ -590,29 +637,32 @@ export async function startSystemUpdate(): Promise<{ started: boolean; message: 
       const versionTsPath = path.join(rootDir, "src", "version.ts");
 
       if (isProd) {
-        // Write src/version.ts and compile production bundle
+        // Write src/version.ts
         if (!fs.existsSync(path.dirname(versionTsPath))) {
           fs.mkdirSync(path.dirname(versionTsPath), { recursive: true });
         }
         fs.writeFileSync(versionTsPath, versionTsContent, "utf8");
 
-        updateProgress = {
-          ...updateProgress,
-          status: "building",
-          progress: 80,
-          stepKey: "building",
-          message: "Building updated application bundle...",
-        };
+        // Only run `npm run build` if pre-built dist/ files were NOT included in the release archive
+        if (!hasPrebuiltDist) {
+          updateProgress = {
+            ...updateProgress,
+            status: "building",
+            progress: 80,
+            stepKey: "building",
+            message: "Building updated application bundle...",
+          };
 
-        await execAsync("npm run build", {
-          cwd: rootDir,
-          timeout: 5 * 60 * 1000,
-          env: {
-            ...process.env,
-            NODE_ENV: "development", // Ensure Vite/esbuild build plugins run smoothly
-            NODE_OPTIONS: "--max-old-space-size=1024",
-          },
-        });
+          await execAsync("npm run build", {
+            cwd: rootDir,
+            timeout: 5 * 60 * 1000,
+            env: {
+              ...process.env,
+              NODE_ENV: "development",
+              NODE_OPTIONS: "--max-old-space-size=1024",
+            },
+          });
+        }
       }
 
       // Record updated version in .last_run_version so startup knows backup was already created
