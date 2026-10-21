@@ -1152,6 +1152,28 @@ export function getDbConnection(_rawUserId: string = "default"): Database.Databa
   // 3. Assign all 'default' orphan data to primary user
   autoAssignDefaultDataToPrimaryUser(_sharedDb);
 
+  // 4. Normalize any 2-letter ISO language codes in lessons & reading_history to canonical full names (e.g. 'en' -> 'English')
+  try {
+    const isoMap: Record<string, string> = {
+      en: "English", es: "Spanish", ru: "Russian", fr: "French", de: "German",
+      it: "Italian", pt: "Portuguese", zh: "Chinese", ja: "Japanese", ko: "Korean",
+      uk: "Ukrainian", ua: "Ukrainian", kk: "Kazakh", pl: "Polish", tr: "Turkish",
+      ar: "Arabic", nl: "Dutch", sv: "Swedish", he: "Hebrew", hi: "Hindi", fa: "Persian", el: "Greek"
+    };
+    const updateLessonTarget = _sharedDb.prepare("UPDATE lessons SET targetLanguage = ? WHERE lower(trim(targetLanguage)) = ?");
+    const updateLessonTrans = _sharedDb.prepare("UPDATE lessons SET translationLanguage = ? WHERE lower(trim(translationLanguage)) = ?");
+    const updateHistTarget = _sharedDb.prepare("UPDATE reading_history SET targetLanguage = ? WHERE lower(trim(targetLanguage)) = ?");
+    _sharedDb.transaction(() => {
+      for (const [code, fullName] of Object.entries(isoMap)) {
+        updateLessonTarget.run(fullName, code);
+        updateLessonTrans.run(fullName, code);
+        updateHistTarget.run(fullName, code);
+      }
+    })();
+  } catch (e) {
+    console.warn("[DB] ISO language normalization warning:", e);
+  }
+
   console.log("[DB] Shared database ready at:", SQLITE_DB_PATH);
   return _sharedDb;
 }

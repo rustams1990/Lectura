@@ -333,7 +333,7 @@
           method: "POST",
           headers: this.buildHeaders(settings),
           body: JSON.stringify(bodyData),
-          signal: AbortSignal.timeout(1e4)
+          signal: AbortSignal.timeout(6e4)
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -2737,7 +2737,35 @@
         if (!tab?.id) {
           throw new Error("No active browser tab found");
         }
+        const ytMatch = (tab.url || "").match(
+          /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/i
+        );
+        const fallbackYoutubeId = ytMatch ? ytMatch[1] : null;
         chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_ARTICLE" }, async (response) => {
+          const settings = await StorageService.getSettings();
+          if ((chrome.runtime.lastError || !response?.success) && fallbackYoutubeId) {
+            this.btnImportPage.innerHTML = `<span class="btn-icon">\u{1F4E4}</span> ${t("saving_to_lectura", this.currentUiLang)}`;
+            try {
+              const cleanTabTitle = (tab.title || "YouTube Video").replace(/\s*-\s*YouTube$/i, "").trim();
+              const res = await this.apiClient.saveLesson({
+                title: cleanTabTitle,
+                content: "",
+                sourceUrl: `https://www.youtube.com/watch?v=${fallbackYoutubeId}`,
+                coverUrl: `https://img.youtube.com/vi/${fallbackYoutubeId}/maxresdefault.jpg`,
+                targetLanguage: settings.targetLanguage,
+                lessonType: "youtube",
+                sourceType: "youtube",
+                youtubeId: fallbackYoutubeId
+              });
+              const savedTitle = res?.lesson?.title || cleanTabTitle;
+              this.showAlert(`Lesson "${savedTitle}" saved to Lectura!`, "success");
+              this.btnImportPage.innerHTML = `<span class="btn-icon">\u2705</span> ${t("imported", this.currentUiLang)}`;
+            } catch (err) {
+              this.showAlert(`Failed to import YouTube video: ${err.message || "Server error"}`, "error");
+              this.resetImportButton();
+            }
+            return;
+          }
           if (chrome.runtime.lastError || !response?.success) {
             this.showAlert(
               response?.error || "Could not extract content from this page. Try refreshing the tab.",
@@ -2747,28 +2775,31 @@
             return;
           }
           const article = response.article;
-          if (!article.content || article.content.trim().length < 20) {
+          const isYoutubeLesson = Boolean(article.youtubeId || fallbackYoutubeId || article.lessonType === "youtube");
+          if (!isYoutubeLesson && (!article.content || article.content.trim().length < 20)) {
             this.showAlert("Page content is too short or empty to import.", "error");
             this.resetImportButton();
             return;
           }
           this.btnImportPage.innerHTML = `<span class="btn-icon">\u{1F4E4}</span> ${t("saving_to_lectura", this.currentUiLang)}`;
           try {
-            const settings = await StorageService.getSettings();
-            await this.apiClient.saveLesson({
+            const res = await this.apiClient.saveLesson({
               title: article.title,
-              content: article.content,
+              content: article.content || "",
               sourceUrl: article.sourceUrl || tab.url,
               coverUrl: article.leadImageUrl || null,
               author: article.author,
-              targetLanguage: article.language !== "auto" ? article.language : settings.targetLanguage,
-              lessonType: article.lessonType || "article",
-              sourceType: article.sourceType || "article",
+              channelAvatarUrl: article.channelAvatarUrl,
+              duration: article.duration,
+              targetLanguage: article.language && article.language !== "auto" ? article.language : settings.targetLanguage,
+              lessonType: isYoutubeLesson ? "youtube" : article.lessonType || "article",
+              sourceType: isYoutubeLesson ? "youtube" : article.sourceType || "article",
               audioUrl: null,
               audioFile: null,
-              youtubeId: article.youtubeId || null
+              youtubeId: article.youtubeId || fallbackYoutubeId || null
             });
-            this.showAlert(`Lesson "${article.title}" saved to Lectura!`, "success");
+            const savedTitle = res?.lesson?.title || article.title;
+            this.showAlert(`Lesson "${savedTitle}" saved to Lectura!`, "success");
             this.btnImportPage.innerHTML = `<span class="btn-icon">\u2705</span> ${t("imported", this.currentUiLang)}`;
           } catch (err) {
             this.showAlert(`Failed to import lesson: ${err.message || "Server error"}`, "error");

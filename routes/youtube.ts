@@ -143,7 +143,91 @@ export function cleanHtmlTitle(raw: string): string {
     .trim();
 }
 
-router.post("/youtube-subtitles", aiRateLimit, async (req, res) => {
+let _ytSubtitlesHandler: ((req: any, res: any) => Promise<any>) | null = null;
+
+export async function fetchYoutubeVideoAndSubtitles(
+  urlOrVideoId: string,
+  targetLanguage: string = "English",
+  geminiApiKey?: string
+): Promise<{
+  ok: boolean;
+  title: string;
+  videoTitle: string;
+  text: string;
+  coverUrl: string;
+  youtubeId: string;
+  youtubeDuration: number | null;
+  channelName: string | null;
+  channelAvatarUrl: string | null;
+  isFallback?: boolean;
+  error?: string;
+}> {
+  const fullUrl = /^[a-zA-Z0-9_-]{11}$/.test(urlOrVideoId.trim())
+    ? `https://www.youtube.com/watch?v=${urlOrVideoId.trim()}`
+    : urlOrVideoId.trim();
+
+  let statusCode = 200;
+  let responseData: any = null;
+
+  const mockReq = {
+    body: {
+      url: fullUrl,
+      targetLanguage,
+      geminiApiKey,
+      mode: "auto",
+    },
+    headers: {},
+  };
+
+  const mockRes = {
+    status(code: number) {
+      statusCode = code;
+      return this;
+    },
+    json(data: any) {
+      responseData = data;
+      return this;
+    },
+  };
+
+  if (_ytSubtitlesHandler) {
+    await _ytSubtitlesHandler(mockReq, mockRes);
+  }
+
+  if (statusCode >= 200 && statusCode < 300 && responseData && responseData.text) {
+    return {
+      ok: true,
+      title: responseData.title || responseData.videoTitle || "YouTube Video",
+      videoTitle: responseData.videoTitle || responseData.title || "YouTube Video",
+      text: responseData.text,
+      coverUrl: responseData.coverUrl || "",
+      youtubeId: responseData.youtubeId || "",
+      youtubeDuration: responseData.youtubeDuration ?? null,
+      channelName: responseData.channelName ?? null,
+      channelAvatarUrl: responseData.channelAvatarUrl ?? null,
+      isFallback: responseData.isFallback,
+    };
+  }
+
+  return {
+    ok: false,
+    title: responseData?.title || responseData?.videoTitle || "",
+    videoTitle: responseData?.videoTitle || "",
+    text: responseData?.text || "",
+    coverUrl: responseData?.coverUrl || "",
+    youtubeId: responseData?.youtubeId || "",
+    youtubeDuration: responseData?.youtubeDuration ?? null,
+    channelName: responseData?.channelName ?? null,
+    channelAvatarUrl: responseData?.channelAvatarUrl ?? null,
+    error: responseData?.error || "Failed to fetch YouTube subtitles",
+  };
+}
+
+const registerYtSubtitles = (routePath: string, mw: any, fn: (req: any, res: any) => Promise<any>) => {
+  _ytSubtitlesHandler = fn;
+  router.post(routePath, mw, fn);
+};
+registerYtSubtitles("/youtube-subtitles", aiRateLimit, async (req, res) => {
   const { url } = req.body;
   const targetLanguage = sanitizeLang(req.body.targetLanguage, "English");
   if (!url) {

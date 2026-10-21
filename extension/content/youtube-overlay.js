@@ -2510,7 +2510,7 @@
           method: "POST",
           headers: this.buildHeaders(settings),
           body: JSON.stringify(bodyData),
-          signal: AbortSignal.timeout(1e4)
+          signal: AbortSignal.timeout(6e4)
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -39827,12 +39827,13 @@
               const rawTitle = (titleEl?.textContent || document.title || "").replace(/\s*-\s*YouTube$/i, "").trim() || "YouTube Video";
               const channelName = extractPrimaryYouTubeChannel() || "YouTube";
               const langCode = this.getEffectiveLang();
-              let transcriptText = (this.preparsedSentences || []).map((s3) => s3.text.trim()).filter(Boolean).join("\n\n");
-              if (!transcriptText) {
-                const descEl = document.querySelector("#description-inline-expander, #description");
-                transcriptText = descEl?.innerText?.trim() || rawTitle;
-              }
-              const words = transcriptText.split(/\s+/).filter(Boolean);
+              const transcriptText = (this.preparsedSentences || []).filter((s3) => s3.text && s3.text.trim()).map((s3) => `${Math.floor(s3.start || 0)}s	${s3.text.trim().replace(/\s+/g, " ")}`).join("\n");
+              const avatarImg = document.querySelector(
+                "ytd-watch-metadata #owner #avatar img, #upload-info #avatar img, ytd-video-owner-renderer #avatar img"
+              );
+              const channelAvatarUrl = avatarImg?.src || void 0;
+              const duration = this.videoElement?.duration && isFinite(this.videoElement.duration) && this.videoElement.duration > 0 ? Math.round(this.videoElement.duration) : void 0;
+              const words = transcriptText.replace(/^\d+s\t/gm, "").split(/\s+/).filter(Boolean);
               sendResponse({
                 success: true,
                 article: {
@@ -39840,8 +39841,10 @@
                   content: transcriptText,
                   excerpt: transcriptText.slice(0, 200),
                   author: channelName,
+                  channelAvatarUrl,
+                  duration,
                   sourceUrl: `https://www.youtube.com/watch?v=${videoId}`,
-                  leadImageUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                  leadImageUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
                   language: langCode,
                   wordCount: words.length,
                   lessonType: "youtube",
@@ -42923,6 +42926,43 @@
               const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
               if (matchingTrack?.baseUrl) {
                 trackUrl = matchingTrack.baseUrl;
+              }
+            }
+          } catch (_2) {
+          }
+        }
+        if (!trackUrl) {
+          try {
+            const scripts = Array.from(document.scripts);
+            for (const s3 of scripts) {
+              const txt = s3.textContent || "";
+              const idx = txt.indexOf('"captionTracks":');
+              if (idx !== -1) {
+                const arrStart = txt.indexOf("[", idx);
+                if (arrStart !== -1) {
+                  let depth = 0;
+                  let arrEnd = -1;
+                  for (let k2 = arrStart; k2 < Math.min(txt.length, arrStart + 25e3); k2++) {
+                    if (txt[k2] === "[") depth++;
+                    else if (txt[k2] === "]") {
+                      depth--;
+                      if (depth === 0) {
+                        arrEnd = k2 + 1;
+                        break;
+                      }
+                    }
+                  }
+                  if (arrEnd !== -1) {
+                    const tracks = JSON.parse(txt.slice(arrStart, arrEnd));
+                    if (Array.isArray(tracks) && tracks.length > 0) {
+                      const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
+                      if (matchingTrack?.baseUrl) {
+                        trackUrl = matchingTrack.baseUrl;
+                        break;
+                      }
+                    }
+                  }
+                }
               }
             }
           } catch (_2) {

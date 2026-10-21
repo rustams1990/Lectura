@@ -2510,7 +2510,7 @@
           method: "POST",
           headers: this.buildHeaders(settings),
           body: JSON.stringify(bodyData),
-          signal: AbortSignal.timeout(1e4)
+          signal: AbortSignal.timeout(6e4)
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));

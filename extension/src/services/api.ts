@@ -207,7 +207,7 @@ export class LecturaApiClient {
         method: 'POST',
         headers: this.buildHeaders(settings),
         body: JSON.stringify(bodyData),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(60000),
       });
 
       if (!response.ok) {

@@ -1,7 +1,9 @@
 import { Router, Request, Response } from "express";
 import { resolveUserId } from "./auth.ts";
 import { getDbConnection } from "./dbConnection.ts";
-import { htmlToPlainText } from "./htmlTextUtils.ts";
+import { htmlToPlainText, normalizeLang } from "./htmlTextUtils.ts";
+import { fetchYoutubeVideoAndSubtitles } from "./youtube.ts";
+import { analyzeTextComplexity } from "../server/frequency/frequencyService.ts";
 
 const router = Router();
 
@@ -384,8 +386,8 @@ export function handleBatchLessons(req: Request, res: Response) {
 
 router.post("/batch", handleBatchLessons);
 
-// POST /api/lessons: Create/Import Lesson (One-Click Article / Content Importer)
-router.post("/", (req: Request, res: Response) => {
+// POST /api/lessons: Create/Import Lesson (One-Click Article / YouTube / Content Importer)
+router.post("/", async (req: Request, res: Response) => {
   let userId: string;
   try {
     userId = resolveUserId(req);
@@ -408,64 +410,190 @@ router.post("/", (req: Request, res: Response) => {
     coverUrl,
     lessonType,
     author,
-    channelTitle
+    channelTitle,
+    channelName: bodyChannelName,
+    channelAvatarUrl: bodyChannelAvatarUrl,
+    youtubeId: bodyYoutubeId,
+    duration: bodyDuration,
+    geminiApiKey,
   } = req.body;
 
   const rawText = (text || content || "").trim();
-  const cleanText = htmlToPlainText(rawText);
-  const cleanTitle = (title || "Imported Article").replace(/<[^>]+>/g, "").trim();
-  const targetLang = (targetLanguage || language || "es").trim();
-  const transLang = (translationLanguage || "ru").trim();
+  const targetLang = normalizeLang((targetLanguage || language || "es").trim());
+  const transLang = normalizeLang((translationLanguage || "ru").trim());
 
-  const isVideoOrAudio = lessonType === "video" || lessonType === "podcast" || lessonType === "youtube";
+  // Check if this is a YouTube video import
+  const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/i;
+  const candidateUrl = String(sourceUrl || req.body.audioUrl || req.body.audio_url || "").trim();
+  const ytMatch = candidateUrl.match(ytRegex);
+  const extractedYoutubeId =
+    (typeof bodyYoutubeId === "string" && /^[a-zA-Z0-9_-]{11}$/.test(bodyYoutubeId.trim()) ? bodyYoutubeId.trim() : null) ||
+    (ytMatch ? ytMatch[1] : null);
+
+  let cleanTitle = (title || "Imported Article").replace(/<[^>]+>/g, "").replace(/\s*-\s*YouTube$/i, "").trim();
+  let finalText = "";
+  let resolvedYoutubeId: string | null = extractedYoutubeId;
+  let resolvedDuration: number | null = typeof bodyDuration === "number" && bodyDuration > 0 ? Math.round(bodyDuration) : null;
+  let resolvedCoverUrl: string | null = coverUrl || null;
+  let resolvedChannelName: string | null = author || channelTitle || bodyChannelName || null;
+  let resolvedChannelAvatarUrl: string | null = bodyChannelAvatarUrl || null;
+
+  if (resolvedYoutubeId) {
+    // Check if incoming text already has valid YouTube timestamped lines ("0s\t...")
+    const hasValidTimestampedSubtitles =
+      /(?:^|\n)\d+(?:\.\d+)?s\t/m.test(rawText) &&
+      rawText.split(/\r?\n/).filter((l: string) => l.trim().length > 0).length >= 3;
+
+    try {
+      const ytData = await fetchYoutubeVideoAndSubtitles(
+        resolvedYoutubeId,
+        targetLang,
+        geminiApiKey
+      );
+
+      if (ytData.title && (!cleanTitle || cleanTitle === "Imported Article" || cleanTitle === "YouTube")) {
+        cleanTitle = ytData.title;
+      }
+      if (ytData.coverUrl && !resolvedCoverUrl) {
+        resolvedCoverUrl = ytData.coverUrl;
+      }
+      if (ytData.youtubeDuration && !resolvedDuration) {
+        resolvedDuration = ytData.youtubeDuration;
+      }
+      if (ytData.channelName && !resolvedChannelName) {
+        resolvedChannelName = ytData.channelName;
+      }
+      if (ytData.channelAvatarUrl && !resolvedChannelAvatarUrl) {
+        resolvedChannelAvatarUrl = ytData.channelAvatarUrl;
+      }
+
+      if (ytData.ok && ytData.text && !ytData.isFallback) {
+        finalText = ytData.text.trim();
+      } else if (hasValidTimestampedSubtitles) {
+        finalText = rawText;
+      } else if (ytData.text) {
+        finalText = ytData.text.trim();
+      } else {
+        finalText = htmlToPlainText(rawText);
+      }
+    } catch (ytErr) {
+      console.warn("[POST /api/lessons] Failed to fetch YouTube metadata/subtitles:", ytErr);
+      finalText = hasValidTimestampedSubtitles ? rawText : htmlToPlainText(rawText);
+    }
+
+    if (!resolvedCoverUrl) {
+      resolvedCoverUrl = `https://img.youtube.com/vi/${resolvedYoutubeId}/maxresdefault.jpg`;
+    }
+  } else {
+    finalText = htmlToPlainText(rawText);
+  }
+
+  const isVideoOrAudio = Boolean(resolvedYoutubeId) || lessonType === "video" || lessonType === "podcast" || lessonType === "youtube";
   const incomingAudio = (req.body.audioUrl || req.body.audio_url || "").trim();
-  const isMediaStream = incomingAudio && (
-    /youtube\.com|youtu\.be/i.test(incomingAudio) ||
+  const isMediaStream = incomingAudio && !resolvedYoutubeId && (
     /\.(mp3|m4a|wav|ogg|aac|flac|mp4|webm|m3u8)(\?.*)?$/i.test(incomingAudio) ||
     incomingAudio.startsWith("/api/audio-files/")
   );
 
   const resolvedAudioUrl = (isVideoOrAudio && isMediaStream) ? incomingAudio : null;
-  const type = (resolvedAudioUrl || isVideoOrAudio) ? (lessonType || "video") : "article";
-  const lessonId = id || ("ext_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 7));
+  const type = resolvedYoutubeId ? "youtube" : ((resolvedAudioUrl || isVideoOrAudio) ? (lessonType || "video") : "article");
 
-  if (!cleanText) {
+  if (!finalText) {
     return res.status(400).json({ error: "Lesson text/content is required" });
   }
+
+  // Compute wordCount & CEFR difficulty just like Lectura native importer
+  const plainWordsText = finalText.replace(/^\d+(?:\.\d+)?s\t/gm, " ");
+  const wordCount = plainWordsText.trim().split(/\s+/).filter(Boolean).length;
+  let difficulty: string | null = null;
+  let difficultyExplanation: string | null = null;
+  try {
+    const analysis = analyzeTextComplexity(plainWordsText, targetLang);
+    if (analysis) {
+      difficulty = analysis.cefrOverall || null;
+      difficultyExplanation = JSON.stringify({
+        coverage: analysis.coverage,
+        uniqueWords: analysis.uniqueWords,
+        stats: analysis.stats,
+      });
+    }
+  } catch (_) {}
 
   try {
     const db = getDbConnection(userId);
     const now = Date.now();
 
+    // Check if this YouTube video was already imported by this user (e.g. broken previous import without youtubeId)
+    let lessonId = id || "";
+    if (!lessonId && resolvedYoutubeId) {
+      const existing = db.prepare(`
+        SELECT id FROM lessons
+        WHERE user_id = ? AND (
+          youtubeId = ?
+          OR (channelUrl IS NOT NULL AND channelUrl LIKE ?)
+          OR (title = ? AND (lessonType = 'youtube' OR sourceType = 'youtube'))
+        )
+        ORDER BY createdAt DESC
+        LIMIT 1
+      `).get(userId, resolvedYoutubeId, `%${resolvedYoutubeId}%`, cleanTitle) as { id: string } | undefined;
+      if (existing?.id) {
+        lessonId = existing.id;
+      }
+    }
+    if (!lessonId) {
+      lessonId = "ext_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 7);
+    }
+
+    const canonicalSourceUrl = resolvedYoutubeId
+      ? (sourceUrl || `https://www.youtube.com/watch?v=${resolvedYoutubeId}`)
+      : (sourceUrl || null);
+
     db.transaction(() => {
       db.prepare(`
         INSERT INTO lessons (
-          id, user_id, title, text, audioUrl, targetLanguage, translationLanguage,
-          isBuiltIn, isArchived, coverUrl, lessonType, pinned, createdAt, channelTitle, channelUrl, sourceType
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, ?, ?, ?, ?)
+          id, user_id, title, text, audioUrl, youtubeId, duration, wordCount,
+          difficulty, difficultyExplanation, targetLanguage, translationLanguage,
+          isBuiltIn, isArchived, coverUrl, lessonType, pinned, createdAt,
+          channelName, channelTitle, channelAvatarUrl, channelUrl, sourceType
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id, id) DO UPDATE SET
           title = excluded.title,
           text = excluded.text,
           audioUrl = excluded.audioUrl,
+          youtubeId = COALESCE(excluded.youtubeId, lessons.youtubeId),
+          duration = COALESCE(excluded.duration, lessons.duration),
+          wordCount = excluded.wordCount,
+          difficulty = COALESCE(excluded.difficulty, lessons.difficulty),
+          difficultyExplanation = COALESCE(excluded.difficultyExplanation, lessons.difficultyExplanation),
           targetLanguage = excluded.targetLanguage,
           translationLanguage = excluded.translationLanguage,
           coverUrl = COALESCE(excluded.coverUrl, lessons.coverUrl),
+          lessonType = excluded.lessonType,
+          channelName = COALESCE(excluded.channelName, lessons.channelName),
           channelTitle = COALESCE(excluded.channelTitle, lessons.channelTitle),
+          channelAvatarUrl = COALESCE(excluded.channelAvatarUrl, lessons.channelAvatarUrl),
           channelUrl = COALESCE(excluded.channelUrl, lessons.channelUrl),
-          sourceType = COALESCE(excluded.sourceType, lessons.sourceType)
+          sourceType = excluded.sourceType
       `).run(
         lessonId,
         userId,
         cleanTitle,
-        cleanText,
+        finalText,
         resolvedAudioUrl,
+        resolvedYoutubeId,
+        resolvedDuration,
+        wordCount,
+        difficulty,
+        difficultyExplanation,
         targetLang,
         transLang,
-        coverUrl || null,
+        resolvedCoverUrl,
         type,
         now,
-        author || channelTitle || null,
-        sourceUrl || null,
+        resolvedChannelName,
+        resolvedChannelName,
+        resolvedChannelAvatarUrl,
+        canonicalSourceUrl,
         type
       );
 
@@ -474,36 +602,47 @@ router.post("/", (req: Request, res: Response) => {
         INSERT INTO reading_history (
           id, user_id, lessonId, lessonTitle, lessonType, coverUrl, targetLanguage,
           timestamp, actionType, status, durationSeconds, channelTitle, channelUrl
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'opened', 'reading', 0, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'opened', 'reading', ?, ?, ?)
       `).run(
         historyId,
         userId,
         lessonId,
         cleanTitle,
         type,
-        coverUrl || null,
+        resolvedCoverUrl,
         targetLang,
         new Date().toISOString(),
-        author || channelTitle || null,
-        sourceUrl || null
+        resolvedDuration || 0,
+        resolvedChannelName,
+        canonicalSourceUrl
       );
     })();
 
-    console.log(`[EXTENSION API] Imported lesson '${cleanTitle}' (${lessonId}) for user ${userId}`);
+    console.log(`[EXTENSION API] Imported lesson '${cleanTitle}' (${lessonId}, type=${type}, lang=${targetLang}, yt=${resolvedYoutubeId || "none"}) for user ${userId}`);
     return res.json({
       status: "success",
       id: lessonId,
       lesson: {
         id: lessonId,
         title: cleanTitle,
+        text: finalText,
         targetLanguage: targetLang,
         translationLanguage: transLang,
         lessonType: type,
         sourceType: type,
-        sourceUrl: sourceUrl || null,
+        sourceUrl: canonicalSourceUrl,
+        coverUrl: resolvedCoverUrl,
         audioUrl: resolvedAudioUrl,
         audioFile: null,
-        youtubeId: null,
+        youtubeId: resolvedYoutubeId,
+        duration: resolvedDuration,
+        wordCount,
+        difficulty,
+        difficultyExplanation,
+        channelName: resolvedChannelName,
+        channelTitle: resolvedChannelName,
+        channelAvatarUrl: resolvedChannelAvatarUrl,
+        channelUrl: canonicalSourceUrl,
         createdAt: now
       }
     });

@@ -83,6 +83,8 @@ export interface SaveLessonPayload {
   lessonType?: string;
   sourceType?: string;
   author?: string;
+  channelAvatarUrl?: string | null;
+  duration?: number | null;
   audioUrl?: string | null;
   audioFile?: string | null;
   youtubeId?: string | null;

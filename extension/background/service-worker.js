@@ -332,7 +332,7 @@ var LecturaApiClient = class {
         method: "POST",
         headers: this.buildHeaders(settings),
         body: JSON.stringify(bodyData),
-        signal: AbortSignal.timeout(1e4)
+        signal: AbortSignal.timeout(6e4)
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -30069,26 +30069,53 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
   if (info.menuItemId === "lectura-import-article") {
     try {
+      const ytMatch = (tab.url || "").match(
+        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/i
+      );
+      const fallbackYoutubeId = ytMatch ? ytMatch[1] : null;
       chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_ARTICLE" }, async (response) => {
+        const settings = await StorageService.getSettings();
+        if ((chrome.runtime.lastError || !response?.success) && fallbackYoutubeId) {
+          try {
+            const cleanTabTitle = (tab.title || "YouTube Video").replace(/\s*-\s*YouTube$/i, "").trim();
+            await apiClient.saveLesson({
+              title: cleanTabTitle,
+              content: "",
+              sourceUrl: `https://www.youtube.com/watch?v=${fallbackYoutubeId}`,
+              coverUrl: `https://img.youtube.com/vi/${fallbackYoutubeId}/maxresdefault.jpg`,
+              targetLanguage: settings.targetLanguage,
+              lessonType: "youtube",
+              sourceType: "youtube",
+              youtubeId: fallbackYoutubeId
+            });
+            showBadge("OK", "#10b981");
+          } catch (e2) {
+            console.error("[Lectura Context Menu] Fallback YouTube import failed:", e2);
+            showBadge("ERR", "#ef4444");
+          }
+          return;
+        }
         if (chrome.runtime.lastError || !response?.success) {
           console.error("[Lectura Context Menu] Failed to extract article:", chrome.runtime.lastError || response?.error);
           showBadge("ERR", "#ef4444");
           return;
         }
         const article = response.article;
-        const settings = await StorageService.getSettings();
+        const isYoutubeLesson = Boolean(article.youtubeId || fallbackYoutubeId || article.lessonType === "youtube");
         await apiClient.saveLesson({
           title: article.title,
-          content: article.content,
-          sourceUrl: article.sourceUrl,
+          content: article.content || "",
+          sourceUrl: article.sourceUrl || tab.url,
           coverUrl: article.leadImageUrl || null,
           author: article.author,
-          targetLanguage: article.language !== "auto" ? article.language : settings.targetLanguage,
-          lessonType: article.lessonType || "article",
-          sourceType: article.sourceType || "article",
+          channelAvatarUrl: article.channelAvatarUrl,
+          duration: article.duration,
+          targetLanguage: article.language && article.language !== "auto" ? article.language : settings.targetLanguage,
+          lessonType: isYoutubeLesson ? "youtube" : article.lessonType || "article",
+          sourceType: isYoutubeLesson ? "youtube" : article.sourceType || "article",
           audioUrl: null,
           audioFile: null,
-          youtubeId: article.youtubeId || null
+          youtubeId: article.youtubeId || fallbackYoutubeId || null
         });
         showBadge("OK", "#10b981");
       });

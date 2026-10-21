@@ -799,17 +799,21 @@ class YouTubeLecturaOverlay {
             const channelName = extractPrimaryYouTubeChannel() || 'YouTube';
             const langCode = this.getEffectiveLang();
 
-            let transcriptText = (this.preparsedSentences || [])
-              .map((s) => s.text.trim())
-              .filter(Boolean)
-              .join('\n\n');
+            const transcriptText = (this.preparsedSentences || [])
+              .filter((s) => s.text && s.text.trim())
+              .map((s) => `${Math.floor(s.start || 0)}s\t${s.text.trim().replace(/\s+/g, ' ')}`)
+              .join('\n');
 
-            if (!transcriptText) {
-              const descEl = document.querySelector<HTMLElement>('#description-inline-expander, #description');
-              transcriptText = descEl?.innerText?.trim() || rawTitle;
-            }
+            const avatarImg = document.querySelector<HTMLImageElement>(
+              'ytd-watch-metadata #owner #avatar img, #upload-info #avatar img, ytd-video-owner-renderer #avatar img'
+            );
+            const channelAvatarUrl = avatarImg?.src || undefined;
+            const duration =
+              this.videoElement?.duration && isFinite(this.videoElement.duration) && this.videoElement.duration > 0
+                ? Math.round(this.videoElement.duration)
+                : undefined;
 
-            const words = transcriptText.split(/\s+/).filter(Boolean);
+            const words = transcriptText.replace(/^\d+s\t/gm, '').split(/\s+/).filter(Boolean);
             sendResponse({
               success: true,
               article: {
@@ -817,8 +821,10 @@ class YouTubeLecturaOverlay {
                 content: transcriptText,
                 excerpt: transcriptText.slice(0, 200),
                 author: channelName,
+                channelAvatarUrl,
+                duration,
                 sourceUrl: `https://www.youtube.com/watch?v=${videoId}`,
-                leadImageUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                leadImageUrl: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
                 language: langCode,
                 wordCount: words.length,
                 lessonType: 'youtube',
@@ -3987,6 +3993,43 @@ class YouTubeLecturaOverlay {
             const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
             if (matchingTrack?.baseUrl) {
               trackUrl = matchingTrack.baseUrl;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (!trackUrl) {
+        try {
+          const scripts = Array.from(document.scripts);
+          for (const s of scripts) {
+            const txt = s.textContent || '';
+            const idx = txt.indexOf('"captionTracks":');
+            if (idx !== -1) {
+              const arrStart = txt.indexOf('[', idx);
+              if (arrStart !== -1) {
+                let depth = 0;
+                let arrEnd = -1;
+                for (let k = arrStart; k < Math.min(txt.length, arrStart + 25000); k++) {
+                  if (txt[k] === '[') depth++;
+                  else if (txt[k] === ']') {
+                    depth--;
+                    if (depth === 0) {
+                      arrEnd = k + 1;
+                      break;
+                    }
+                  }
+                }
+                if (arrEnd !== -1) {
+                  const tracks = JSON.parse(txt.slice(arrStart, arrEnd));
+                  if (Array.isArray(tracks) && tracks.length > 0) {
+                    const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+                    if (matchingTrack?.baseUrl) {
+                      trackUrl = matchingTrack.baseUrl;
+                      break;
+                    }
+                  }
+                }
+              }
             }
           }
         } catch (_) {}

@@ -46,7 +46,16 @@ export const LANG_MAP: Record<string, string> = {
   hi: "Hindi",
   hindi: "Hindi",
   uk: "Ukrainian",
+  ua: "Ukrainian",
   ukrainian: "Ukrainian",
+  kk: "Kazakh",
+  kazakh: "Kazakh",
+  he: "Hebrew",
+  hebrew: "Hebrew",
+  fa: "Persian",
+  persian: "Persian",
+  cs: "Czech",
+  czech: "Czech",
   vi: "Vietnamese",
   vietnamese: "Vietnamese",
   th: "Thai",
@@ -59,6 +68,8 @@ export function normalizeLang(lang: string): string {
   if (!lang) return "English";
   const lower = lang.trim().toLowerCase();
   if (LANG_MAP[lower]) return LANG_MAP[lower];
+  const base = lower.split(/[-_]/)[0];
+  if (LANG_MAP[base]) return LANG_MAP[base];
   return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
 }
 
