@@ -848,6 +848,42 @@
         throw err;
       }
     }
+    /**
+     * Fetches full timestamped YouTube subtitles via Lectura backend (/api/youtube-subtitles)
+     */
+    async fetchYoutubeSubtitles(videoId, targetLanguage) {
+      if (this.isContentScript()) {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ type: "FETCH_YOUTUBE_SUBTITLES", payload: { videoId, targetLanguage } }, (response2) => {
+            if (chrome.runtime.lastError) {
+              return reject(new Error(chrome.runtime.lastError.message));
+            }
+            if (response2?.success && response2.data) {
+              resolve(response2.data);
+            } else {
+              reject(new Error(response2?.error || "Failed to fetch YouTube subtitles from server"));
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/youtube-subtitles");
+      const lang = targetLanguage || settings.targetLanguage || "English";
+      const response = await fetch(url, {
+        method: "POST",
+        headers: this.buildHeaders(settings),
+        body: JSON.stringify({
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          targetLanguage: lang,
+          mode: "auto"
+        }),
+        signal: AbortSignal.timeout(45e3)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return await response.json();
+    }
   };
 
   // extension/src/services/i18n.ts

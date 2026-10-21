@@ -3025,6 +3025,42 @@
         throw err;
       }
     }
+    /**
+     * Fetches full timestamped YouTube subtitles via Lectura backend (/api/youtube-subtitles)
+     */
+    async fetchYoutubeSubtitles(videoId, targetLanguage) {
+      if (this.isContentScript()) {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ type: "FETCH_YOUTUBE_SUBTITLES", payload: { videoId, targetLanguage } }, (response2) => {
+            if (chrome.runtime.lastError) {
+              return reject(new Error(chrome.runtime.lastError.message));
+            }
+            if (response2?.success && response2.data) {
+              resolve(response2.data);
+            } else {
+              reject(new Error(response2?.error || "Failed to fetch YouTube subtitles from server"));
+            }
+          });
+        });
+      }
+      const settings = await this.getActiveSettings();
+      const url = this.sanitizeUrl(settings.serverUrl, "/api/youtube-subtitles");
+      const lang = targetLanguage || settings.targetLanguage || "English";
+      const response = await fetch(url, {
+        method: "POST",
+        headers: this.buildHeaders(settings),
+        body: JSON.stringify({
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          targetLanguage: lang,
+          mode: "auto"
+        }),
+        signal: AbortSignal.timeout(45e3)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return await response.json();
+    }
   };
 
   // node_modules/compromise/src/API/world.js
@@ -42658,6 +42694,9 @@
                       this.syncVocabulary(clean2);
                     }
                   }
+                  if (this.currentVideoId && entry.name.includes(`v=${this.currentVideoId}`) && (!this.preparsedSentences || this.preparsedSentences.length === 0) && !this.isLoadingSubtitles) {
+                    this.loadFullVideoSubtitles(this.currentVideoId);
+                  }
                 } catch (_2) {
                 }
               }
@@ -42893,135 +42932,144 @@
           window.dispatchEvent(new CustomEvent("LECTURA_REQUEST_CAPTIONS", { detail: { forceEnableCC: false } }));
         } catch (_2) {
         }
-        let trackUrl = null;
-        const ytPlayer = document.getElementById("movie_player");
-        try {
-          const bridged = window.__LECTURA_BRIDGED_TRACKS__;
-          if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
-            const matchingTrack = bridged.tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || bridged.tracks[0];
-            if (matchingTrack?.baseUrl) {
-              trackUrl = matchingTrack.baseUrl;
-            }
-          }
-        } catch (_2) {
-        }
-        if (!trackUrl && ytPlayer && typeof ytPlayer.getPlayerResponse === "function") {
-          try {
-            const pResponse = ytPlayer.getPlayerResponse();
-            const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-            if (Array.isArray(tracks) && tracks.length > 0) {
-              const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
-              if (matchingTrack?.baseUrl) {
-                trackUrl = matchingTrack.baseUrl;
-              }
-            }
-          } catch (_2) {
-          }
-        }
-        if (!trackUrl) {
-          try {
-            const initResp = window.ytInitialPlayerResponse;
-            const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-            if (Array.isArray(tracks) && tracks.length > 0) {
-              const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
-              if (matchingTrack?.baseUrl) {
-                trackUrl = matchingTrack.baseUrl;
-              }
-            }
-          } catch (_2) {
-          }
-        }
-        if (!trackUrl) {
-          try {
-            const scripts = Array.from(document.scripts);
-            for (const s3 of scripts) {
-              const txt = s3.textContent || "";
-              const idx = txt.indexOf('"captionTracks":');
-              if (idx !== -1) {
-                const arrStart = txt.indexOf("[", idx);
-                if (arrStart !== -1) {
-                  let depth = 0;
-                  let arrEnd = -1;
-                  for (let k2 = arrStart; k2 < Math.min(txt.length, arrStart + 25e3); k2++) {
-                    if (txt[k2] === "[") depth++;
-                    else if (txt[k2] === "]") {
-                      depth--;
-                      if (depth === 0) {
-                        arrEnd = k2 + 1;
-                        break;
-                      }
-                    }
-                  }
-                  if (arrEnd !== -1) {
-                    const tracks = JSON.parse(txt.slice(arrStart, arrEnd));
-                    if (Array.isArray(tracks) && tracks.length > 0) {
-                      const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
-                      if (matchingTrack?.baseUrl) {
-                        trackUrl = matchingTrack.baseUrl;
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          } catch (_2) {
-          }
-        }
-        if (!trackUrl) {
+        const findSignedTimedTextUrl = () => {
           try {
             const entries = performance.getEntriesByType("resource");
             for (let i3 = entries.length - 1; i3 >= 0; i3--) {
               const entry = entries[i3];
               if (entry.name && entry.name.includes("/api/timedtext") && entry.name.includes(`v=${videoId}`)) {
-                trackUrl = entry.name;
-                break;
+                return entry.name;
               }
             }
           } catch (_2) {
           }
-        }
-        if (trackUrl) {
+          return null;
+        };
+        const tryFetchAndParseTrackUrl = async (candidateUrl) => {
           try {
-            const finalUrl = trackUrl.includes("fmt=") ? trackUrl : `${trackUrl}&fmt=json3`;
+            const finalUrl = candidateUrl.includes("fmt=") ? candidateUrl : `${candidateUrl}&fmt=json3`;
             const res = await fetch(finalUrl);
-            if (res.ok) {
-              const contentType = res.headers.get("content-type") || "";
-              if (contentType.includes("json") || finalUrl.includes("fmt=json3")) {
-                const data = await res.json();
-                if (data && data.events) {
-                  const sentences = parseJson3IntoCleanSentences(data.events);
-                  if (sentences.length > 0) {
-                    this.preparsedSentences = sentences;
-                    this.currentSentenceIndex = -1;
-                    this.autoPausedSentenceIndex = -1;
-                    console.log(`\u2705 [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (JSON3) for ${lang}!`);
-                    this.updateFloatingPillAndTranscript();
-                    if (this.videoElement) {
-                      this.updateSubtitleOverlay(this.videoElement.currentTime);
-                    }
-                    return true;
-                  }
-                }
-              } else {
-                const text = await res.text();
-                const sentences = parseXmlIntoCleanSentences(text);
-                if (sentences.length > 0) {
-                  this.preparsedSentences = sentences;
-                  this.currentSentenceIndex = -1;
-                  this.autoPausedSentenceIndex = -1;
-                  console.log(`\u2705 [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (XML) for ${lang}!`);
-                  this.updateFloatingPillAndTranscript();
-                  if (this.videoElement) {
-                    this.updateSubtitleOverlay(this.videoElement.currentTime);
-                  }
-                  return true;
+            if (!res.ok) return false;
+            const rawBody = await res.text();
+            if (!rawBody || !rawBody.trim()) return false;
+            const trimmed = rawBody.trim();
+            let sentences = [];
+            if (trimmed.startsWith("{")) {
+              const data = JSON.parse(trimmed);
+              if (data && Array.isArray(data.events)) {
+                sentences = parseJson3IntoCleanSentences(data.events);
+              }
+            } else if (trimmed.startsWith("<")) {
+              sentences = parseXmlIntoCleanSentences(trimmed);
+            }
+            if (sentences.length > 0) {
+              this.preparsedSentences = sentences;
+              this.currentSentenceIndex = -1;
+              this.autoPausedSentenceIndex = -1;
+              console.log(`\u2705 [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences for ${lang}!`);
+              this.updateFloatingPillAndTranscript();
+              if (this.videoElement) {
+                this.updateSubtitleOverlay(this.videoElement.currentTime);
+              }
+              return true;
+            }
+          } catch (err) {
+            console.warn("\u26A0\uFE0F [Lectura Subtitles] Candidate track fetch failed:", err);
+          }
+          return false;
+        };
+        let signedUrl = findSignedTimedTextUrl();
+        if (!signedUrl) {
+          try {
+            const ccBtn = document.querySelector(".ytp-subtitles-button");
+            if (ccBtn && ccBtn.getAttribute("aria-pressed") === "false") {
+              ccBtn.click();
+              await new Promise((r2) => setTimeout(r2, 450));
+              signedUrl = findSignedTimedTextUrl();
+            }
+          } catch (_2) {
+          }
+        }
+        if (signedUrl && await tryFetchAndParseTrackUrl(signedUrl)) {
+          return true;
+        }
+        const candidateUrls = [];
+        const ytPlayer = document.getElementById("movie_player");
+        try {
+          const bridged = window.__LECTURA_BRIDGED_TRACKS__;
+          if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
+            const matchingTrack = bridged.tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || bridged.tracks[0];
+            if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
+          }
+        } catch (_2) {
+        }
+        if (ytPlayer && typeof ytPlayer.getPlayerResponse === "function") {
+          try {
+            const pResponse = ytPlayer.getPlayerResponse();
+            const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+            if (Array.isArray(tracks) && tracks.length > 0) {
+              const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
+              if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
+            }
+          } catch (_2) {
+          }
+        }
+        try {
+          const initResp = window.ytInitialPlayerResponse;
+          const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const matchingTrack = tracks.find((t4) => normalizeLangCode(t4.languageCode) === lang) || tracks[0];
+            if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
+          }
+        } catch (_2) {
+        }
+        for (const url of candidateUrls) {
+          if (await tryFetchAndParseTrackUrl(url)) {
+            return true;
+          }
+        }
+        try {
+          const serverSub = await this.apiClient.fetchYoutubeSubtitles(videoId, lang);
+          if (serverSub && serverSub.text && !serverSub.isFallback) {
+            const rawLines = serverSub.text.split(/\r?\n/).map((l2) => l2.trim()).filter(Boolean);
+            const parsedFromServer = [];
+            for (let i3 = 0; i3 < rawLines.length; i3++) {
+              const m3 = rawLines[i3].match(/^(\d+(?:\.\d+)?)s\t(.+)$/);
+              if (m3) {
+                const startSec = parseFloat(m3[1]);
+                const textPart = m3[2].trim();
+                if (textPart) {
+                  parsedFromServer.push({
+                    id: parsedFromServer.length,
+                    start: startSec,
+                    end: startSec + 5,
+                    text: textPart
+                  });
                 }
               }
             }
-          } catch (err) {
-            console.warn("\u26A0\uFE0F [Lectura Subtitles] Failed to fetch caption track directly:", err);
+            for (let i3 = 0; i3 < parsedFromServer.length; i3++) {
+              if (i3 + 1 < parsedFromServer.length) {
+                parsedFromServer[i3].end = Math.max(
+                  parsedFromServer[i3].start + 0.8,
+                  Math.min(parsedFromServer[i3 + 1].start, parsedFromServer[i3].start + 8)
+                );
+              }
+            }
+            if (parsedFromServer.length > 0) {
+              this.preparsedSentences = parsedFromServer;
+              this.currentSentenceIndex = -1;
+              this.autoPausedSentenceIndex = -1;
+              console.log(`\u2705 [Lectura Subtitles] Loaded ${parsedFromServer.length} sentences via Lectura Server for ${lang}!`);
+              this.updateFloatingPillAndTranscript();
+              if (this.videoElement) {
+                this.updateSubtitleOverlay(this.videoElement.currentTime);
+              }
+              return true;
+            }
           }
+        } catch (srvErr) {
+          console.warn("\u26A0\uFE0F [Lectura Subtitles] Server subtitle fallback skipped:", srvErr);
         }
         if ((!this.preparsedSentences || this.preparsedSentences.length === 0) && this.subtitleLoadAttempts <= 1) {
           try {
@@ -45901,8 +45949,20 @@
         return;
       }
       if (!this.preparsedSentences || this.preparsedSentences.length === 0) {
-        if (this.currentVideoId && !this.isLoadingSubtitles && this.subtitleLoadAttempts < 2 && Date.now() - this.lastSubtitleAttemptTime > 5e3) {
+        if (this.currentVideoId && !this.isLoadingSubtitles && this.subtitleLoadAttempts < 3 && Date.now() - this.lastSubtitleAttemptTime > 4e3) {
           this.loadFullVideoSubtitles(this.currentVideoId);
+        }
+        const domSegments = Array.from(document.querySelectorAll(".ytp-caption-segment")).map((el) => el.textContent?.trim() || "").filter(Boolean);
+        const domText = deduplicateSubtitleSegments(domSegments);
+        if (domText && domText !== this.currentSubtitleText) {
+          this.currentSubtitleText = domText;
+          this.renderSubtitleTokens(domText);
+        } else if (!domText && this.currentSubtitleText) {
+          this.currentSubtitleText = "";
+          if (this.subtitleBox && this.subtitleBox.style.display !== "none") {
+            this.subtitleBox.style.display = "none";
+            this.subtitleBox.innerHTML = "";
+          }
         }
         return;
       }

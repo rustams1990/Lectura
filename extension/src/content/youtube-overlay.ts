@@ -3712,6 +3712,14 @@ class YouTubeLecturaOverlay {
                     this.syncVocabulary(clean);
                   }
                 }
+                if (
+                  this.currentVideoId &&
+                  entry.name.includes(`v=${this.currentVideoId}`) &&
+                  (!this.preparsedSentences || this.preparsedSentences.length === 0) &&
+                  !this.isLoadingSubtitles
+                ) {
+                  this.loadFullVideoSubtitles(this.currentVideoId);
+                }
               } catch (_) {}
             }
           }
@@ -3958,140 +3966,159 @@ class YouTubeLecturaOverlay {
         window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: false } }));
       } catch (_) {}
 
-      let trackUrl: string | null = null;
-      const ytPlayer = document.getElementById('movie_player') as any;
-
-      // 0. Check bridged tracks from MAIN world
-      try {
-        const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
-        if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
-          const matchingTrack = bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || bridged.tracks[0];
-          if (matchingTrack?.baseUrl) {
-            trackUrl = matchingTrack.baseUrl;
-          }
-        }
-      } catch (_) {}
-
-      if (!trackUrl && ytPlayer && typeof ytPlayer.getPlayerResponse === 'function') {
-        try {
-          const pResponse = ytPlayer.getPlayerResponse();
-          const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-          if (Array.isArray(tracks) && tracks.length > 0) {
-            const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
-            if (matchingTrack?.baseUrl) {
-              trackUrl = matchingTrack.baseUrl;
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (!trackUrl) {
-        try {
-          const initResp = (window as any).ytInitialPlayerResponse;
-          const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-          if (Array.isArray(tracks) && tracks.length > 0) {
-            const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
-            if (matchingTrack?.baseUrl) {
-              trackUrl = matchingTrack.baseUrl;
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (!trackUrl) {
-        try {
-          const scripts = Array.from(document.scripts);
-          for (const s of scripts) {
-            const txt = s.textContent || '';
-            const idx = txt.indexOf('"captionTracks":');
-            if (idx !== -1) {
-              const arrStart = txt.indexOf('[', idx);
-              if (arrStart !== -1) {
-                let depth = 0;
-                let arrEnd = -1;
-                for (let k = arrStart; k < Math.min(txt.length, arrStart + 25000); k++) {
-                  if (txt[k] === '[') depth++;
-                  else if (txt[k] === ']') {
-                    depth--;
-                    if (depth === 0) {
-                      arrEnd = k + 1;
-                      break;
-                    }
-                  }
-                }
-                if (arrEnd !== -1) {
-                  const tracks = JSON.parse(txt.slice(arrStart, arrEnd));
-                  if (Array.isArray(tracks) && tracks.length > 0) {
-                    const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
-                    if (matchingTrack?.baseUrl) {
-                      trackUrl = matchingTrack.baseUrl;
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (!trackUrl) {
+      const findSignedTimedTextUrl = (): string | null => {
         try {
           const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
           for (let i = entries.length - 1; i >= 0; i--) {
             const entry = entries[i];
             if (entry.name && entry.name.includes('/api/timedtext') && entry.name.includes(`v=${videoId}`)) {
-              trackUrl = entry.name;
-              break;
+              return entry.name;
             }
+          }
+        } catch (_) {}
+        return null;
+      };
+
+      const tryFetchAndParseTrackUrl = async (candidateUrl: string): Promise<boolean> => {
+        try {
+          const finalUrl = candidateUrl.includes('fmt=') ? candidateUrl : `${candidateUrl}&fmt=json3`;
+          const res = await fetch(finalUrl);
+          if (!res.ok) return false;
+          const rawBody = await res.text();
+          if (!rawBody || !rawBody.trim()) return false;
+
+          const trimmed = rawBody.trim();
+          let sentences: CleanSentence[] = [];
+          if (trimmed.startsWith('{')) {
+            const data = JSON.parse(trimmed);
+            if (data && Array.isArray(data.events)) {
+              sentences = parseJson3IntoCleanSentences(data.events);
+            }
+          } else if (trimmed.startsWith('<')) {
+            sentences = parseXmlIntoCleanSentences(trimmed);
+          }
+
+          if (sentences.length > 0) {
+            this.preparsedSentences = sentences;
+            this.currentSentenceIndex = -1;
+            this.autoPausedSentenceIndex = -1;
+            console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences for ${lang}!`);
+            this.updateFloatingPillAndTranscript();
+            if (this.videoElement) {
+              this.updateSubtitleOverlay(this.videoElement.currentTime);
+            }
+            return true;
+          }
+        } catch (err) {
+          console.warn('⚠️ [Lectura Subtitles] Candidate track fetch failed:', err);
+        }
+        return false;
+      };
+
+      // 1. Priority 1: Signed /api/timedtext URL from performance ResourceTiming (includes YouTube POT token!)
+      let signedUrl = findSignedTimedTextUrl();
+      if (!signedUrl) {
+        // Ensure YouTube's CC button is enabled directly from content script DOM so YouTube fires the signed /api/timedtext request
+        try {
+          const ccBtn = document.querySelector<HTMLElement>('.ytp-subtitles-button');
+          if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
+            ccBtn.click();
+            await new Promise((r) => setTimeout(r, 450));
+            signedUrl = findSignedTimedTextUrl();
           }
         } catch (_) {}
       }
 
-      if (trackUrl) {
+      if (signedUrl && (await tryFetchAndParseTrackUrl(signedUrl))) {
+        return true;
+      }
+
+      // 2. Priority 2: Bridged / Player captionTracks URLs
+      const candidateUrls: string[] = [];
+      const ytPlayer = document.getElementById('movie_player') as any;
+
+      try {
+        const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
+        if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
+          const matchingTrack = bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || bridged.tracks[0];
+          if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
+        }
+      } catch (_) {}
+
+      if (ytPlayer && typeof ytPlayer.getPlayerResponse === 'function') {
         try {
-          const finalUrl = trackUrl.includes('fmt=') ? trackUrl : `${trackUrl}&fmt=json3`;
-          const res = await fetch(finalUrl);
-          if (res.ok) {
-            const contentType = res.headers.get('content-type') || '';
-            if (contentType.includes('json') || finalUrl.includes('fmt=json3')) {
-              const data = await res.json();
-              if (data && data.events) {
-                const sentences = parseJson3IntoCleanSentences(data.events);
-                if (sentences.length > 0) {
-                  this.preparsedSentences = sentences;
-                  this.currentSentenceIndex = -1;
-                  this.autoPausedSentenceIndex = -1;
-                  console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (JSON3) for ${lang}!`);
-                  this.updateFloatingPillAndTranscript();
-                  if (this.videoElement) {
-                    this.updateSubtitleOverlay(this.videoElement.currentTime);
-                  }
-                  return true;
-                }
-              }
-            } else {
-              const text = await res.text();
-              const sentences = parseXmlIntoCleanSentences(text);
-              if (sentences.length > 0) {
-                this.preparsedSentences = sentences;
-                this.currentSentenceIndex = -1;
-                this.autoPausedSentenceIndex = -1;
-                console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (XML) for ${lang}!`);
-                this.updateFloatingPillAndTranscript();
-                if (this.videoElement) {
-                  this.updateSubtitleOverlay(this.videoElement.currentTime);
-                }
-                return true;
-              }
-            }
+          const pResponse = ytPlayer.getPlayerResponse();
+          const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+            if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
           }
-        } catch (err) {
-          console.warn('⚠️ [Lectura Subtitles] Failed to fetch caption track directly:', err);
+        } catch (_) {}
+      }
+
+      try {
+        const initResp = (window as any).ytInitialPlayerResponse;
+        const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (Array.isArray(tracks) && tracks.length > 0) {
+          const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+          if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
+        }
+      } catch (_) {}
+
+      for (const url of candidateUrls) {
+        if (await tryFetchAndParseTrackUrl(url)) {
+          return true;
         }
       }
 
-      // Fallback: if direct fetch yielded empty response or no trackUrl yet, ask MAIN world to activate YouTube's caption module once
+      // 3. Priority 3: Fetch official subtitles via Lectura backend (/api/youtube-subtitles)
+      // Guarantees subtitles work even when YouTube blocks browser-side timedtext fetches via POT/CSP
+      try {
+        const serverSub = await this.apiClient.fetchYoutubeSubtitles(videoId, lang);
+        if (serverSub && serverSub.text && !serverSub.isFallback) {
+          const rawLines = serverSub.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          const parsedFromServer: CleanSentence[] = [];
+          for (let i = 0; i < rawLines.length; i++) {
+            const m = rawLines[i].match(/^(\d+(?:\.\d+)?)s\t(.+)$/);
+            if (m) {
+              const startSec = parseFloat(m[1]);
+              const textPart = m[2].trim();
+              if (textPart) {
+                parsedFromServer.push({
+                  id: parsedFromServer.length,
+                  start: startSec,
+                  end: startSec + 5,
+                  text: textPart,
+                });
+              }
+            }
+          }
+          // Refine end times from next cue's start time
+          for (let i = 0; i < parsedFromServer.length; i++) {
+            if (i + 1 < parsedFromServer.length) {
+              parsedFromServer[i].end = Math.max(
+                parsedFromServer[i].start + 0.8,
+                Math.min(parsedFromServer[i + 1].start, parsedFromServer[i].start + 8)
+              );
+            }
+          }
+          if (parsedFromServer.length > 0) {
+            this.preparsedSentences = parsedFromServer;
+            this.currentSentenceIndex = -1;
+            this.autoPausedSentenceIndex = -1;
+            console.log(`✅ [Lectura Subtitles] Loaded ${parsedFromServer.length} sentences via Lectura Server for ${lang}!`);
+            this.updateFloatingPillAndTranscript();
+            if (this.videoElement) {
+              this.updateSubtitleOverlay(this.videoElement.currentTime);
+            }
+            return true;
+          }
+        }
+      } catch (srvErr) {
+        console.warn('⚠️ [Lectura Subtitles] Server subtitle fallback skipped:', srvErr);
+      }
+
+      // Fallback: ask MAIN world to activate YouTube's caption module once
       if ((!this.preparsedSentences || this.preparsedSentences.length === 0) && this.subtitleLoadAttempts <= 1) {
         try {
           window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: true } }));
@@ -7178,10 +7205,26 @@ class YouTubeLecturaOverlay {
       if (
         this.currentVideoId &&
         !this.isLoadingSubtitles &&
-        this.subtitleLoadAttempts < 2 &&
-        Date.now() - this.lastSubtitleAttemptTime > 5000
+        this.subtitleLoadAttempts < 3 &&
+        Date.now() - this.lastSubtitleAttemptTime > 4000
       ) {
         this.loadFullVideoSubtitles(this.currentVideoId);
+      }
+
+      // Live DOM caption fallback while full subtitle track is loading
+      const domSegments = Array.from(document.querySelectorAll<HTMLElement>('.ytp-caption-segment'))
+        .map((el) => el.textContent?.trim() || '')
+        .filter(Boolean);
+      const domText = deduplicateSubtitleSegments(domSegments);
+      if (domText && domText !== this.currentSubtitleText) {
+        this.currentSubtitleText = domText;
+        this.renderSubtitleTokens(domText);
+      } else if (!domText && this.currentSubtitleText) {
+        this.currentSubtitleText = '';
+        if (this.subtitleBox && this.subtitleBox.style.display !== 'none') {
+          this.subtitleBox.style.display = 'none';
+          this.subtitleBox.innerHTML = '';
+        }
       }
       return;
     }

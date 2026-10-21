@@ -789,6 +789,47 @@ export class LecturaApiClient {
       throw err;
     }
   }
+
+  /**
+   * Fetches full timestamped YouTube subtitles via Lectura backend (/api/youtube-subtitles)
+   */
+  async fetchYoutubeSubtitles(videoId: string, targetLanguage?: string): Promise<{ text: string; title?: string; isFallback?: boolean }> {
+    if (this.isContentScript()) {
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'FETCH_YOUTUBE_SUBTITLES', payload: { videoId, targetLanguage } }, (response) => {
+          if (chrome.runtime.lastError) {
+            return reject(new Error(chrome.runtime.lastError.message));
+          }
+          if (response?.success && response.data) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response?.error || 'Failed to fetch YouTube subtitles from server'));
+          }
+        });
+      });
+    }
+
+    const settings = await this.getActiveSettings();
+    const url = this.sanitizeUrl(settings.serverUrl, '/api/youtube-subtitles');
+    const lang = targetLanguage || settings.targetLanguage || 'English';
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(settings),
+      body: JSON.stringify({
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        targetLanguage: lang,
+        mode: 'auto',
+      }),
+      signal: AbortSignal.timeout(45000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  }
 }
 
 export async function fetchUserVocabulary(studyLanguage: string): Promise<{ words: any[]; map: WordMap; count?: number }> {

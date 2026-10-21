@@ -460,6 +460,15 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
     return true;
   }
 
+  if (message.type === 'FETCH_YOUTUBE_SUBTITLES') {
+    const { videoId, targetLanguage } = message.payload || {};
+    apiClient
+      .fetchYoutubeSubtitles(videoId, targetLanguage)
+      .then((res) => sendResponse({ success: true, data: res }))
+      .catch((err) => sendResponse({ success: false, error: err?.message || 'YouTube subtitle fetch failed' }));
+    return true;
+  }
+
   if (message.type === 'OPEN_OPTIONS') {
     chrome.runtime.openOptionsPage();
     sendResponse({ success: true });

@@ -19530,7 +19530,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.39";
+var APP_VERSION = "v1.0.40";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);
