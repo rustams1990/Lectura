@@ -438,16 +438,38 @@ async function downloadChangedFilesViaCompareApi(
   deferredFiles: { fullPath: string; content: Buffer }[];
   extractedPrebuiltDist: boolean;
 }> {
-  const cleanBase = baseTag.startsWith("v") ? baseTag : `v${baseTag}`;
-  const compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
+  let cleanBase = baseTag.startsWith("v") ? baseTag : `v${baseTag}`;
+  let compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
 
-  const res = await fetch(compareUrl, {
+  let res = await fetch(compareUrl, {
     headers: {
       Accept: "application/vnd.github.v3+json",
       "User-Agent": "Lectura-Updater",
     },
     signal: AbortSignal.timeout(15000),
   });
+
+  // If exact baseTag is not found (404), fallback to comparing against the latest tag available on GitHub
+  if (!res.ok && res.status === 404) {
+    try {
+      const tagsRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/tags?per_page=15`, {
+        headers: { Accept: "application/vnd.github.v3+json", "User-Agent": "Lectura-Updater" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (tagsRes.ok) {
+        const tags = (await tagsRes.json()) as any[];
+        const candidate = tags.find((t: any) => t.name && compareSemver(cleanBase, t.name) >= 0);
+        if (candidate?.name) {
+          cleanBase = candidate.name;
+          compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
+          res = await fetch(compareUrl, {
+            headers: { Accept: "application/vnd.github.v3+json", "User-Agent": "Lectura-Updater" },
+            signal: AbortSignal.timeout(15000),
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   if (!res.ok) {
     throw new Error(`Compare API returned HTTP ${res.status}`);
@@ -532,7 +554,7 @@ async function downloadAndExtractGitHubZip(holdEntryFilesForDevWatch: boolean): 
   try {
     const res = await fetch(MAIN_ZIP_URL, {
       headers: { "User-Agent": "Lectura-Updater" },
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(300000), // 5 minutes
     });
     if (!res.ok || !res.body) {
       throw new Error(`Failed to download update archive from GitHub (HTTP ${res.status})`);

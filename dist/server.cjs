@@ -19530,7 +19530,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.42";
+var APP_VERSION = "v1.0.43";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);
@@ -19854,15 +19854,36 @@ function isProtectedPath(relPath) {
   return false;
 }
 async function downloadChangedFilesViaCompareApi(baseTag, holdEntryFilesForDevWatch) {
-  const cleanBase = baseTag.startsWith("v") ? baseTag : `v${baseTag}`;
-  const compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
-  const res = await fetch(compareUrl, {
+  let cleanBase = baseTag.startsWith("v") ? baseTag : `v${baseTag}`;
+  let compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
+  let res = await fetch(compareUrl, {
     headers: {
       Accept: "application/vnd.github.v3+json",
       "User-Agent": "Lectura-Updater"
     },
     signal: AbortSignal.timeout(15e3)
   });
+  if (!res.ok && res.status === 404) {
+    try {
+      const tagsRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/tags?per_page=15`, {
+        headers: { Accept: "application/vnd.github.v3+json", "User-Agent": "Lectura-Updater" },
+        signal: AbortSignal.timeout(1e4)
+      });
+      if (tagsRes.ok) {
+        const tags = await tagsRes.json();
+        const candidate = tags.find((t) => t.name && compareSemver(cleanBase, t.name) >= 0);
+        if (candidate?.name) {
+          cleanBase = candidate.name;
+          compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
+          res = await fetch(compareUrl, {
+            headers: { Accept: "application/vnd.github.v3+json", "User-Agent": "Lectura-Updater" },
+            signal: AbortSignal.timeout(15e3)
+          });
+        }
+      }
+    } catch (_) {
+    }
+  }
   if (!res.ok) {
     throw new Error(`Compare API returned HTTP ${res.status}`);
   }
@@ -19922,7 +19943,8 @@ async function downloadAndExtractGitHubZip(holdEntryFilesForDevWatch) {
   try {
     const res = await fetch(MAIN_ZIP_URL, {
       headers: { "User-Agent": "Lectura-Updater" },
-      signal: AbortSignal.timeout(9e4)
+      signal: AbortSignal.timeout(3e5)
+      // 5 minutes
     });
     if (!res.ok || !res.body) {
       throw new Error(`Failed to download update archive from GitHub (HTTP ${res.status})`);
