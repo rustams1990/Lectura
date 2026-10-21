@@ -469,6 +469,15 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
     return true;
   }
 
+  if (message.type === 'FETCH_TATOEBA_EXAMPLES') {
+    const { word, sourceLang, targetLang } = message.payload || {};
+    apiClient
+      .fetchTatoebaExamples(word, sourceLang, targetLang)
+      .then((res) => sendResponse({ success: true, data: res }))
+      .catch((err) => sendResponse({ success: false, error: err?.message || 'Tatoeba fetch failed', data: [] }));
+    return true;
+  }
+
   if (message.type === 'OPEN_OPTIONS') {
     chrome.runtime.openOptionsPage();
     sendResponse({ success: true });

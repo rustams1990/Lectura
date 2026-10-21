@@ -830,6 +830,130 @@ export class LecturaApiClient {
 
     return await response.json();
   }
+
+  /**
+   * Fetches Tatoeba example sentences (proxied through background service worker to bypass CORS)
+   */
+  async fetchTatoebaExamples(
+    word: string,
+    sourceLang?: string,
+    targetLang?: string
+  ): Promise<Array<{ source: string; target: string }>> {
+    if (this.isContentScript()) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            type: 'FETCH_TATOEBA_EXAMPLES',
+            payload: { word, sourceLang, targetLang },
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.warn('[Lectura API] Tatoeba message error:', chrome.runtime.lastError.message);
+              return resolve([]);
+            }
+            if (response?.success && Array.isArray(response.data)) {
+              resolve(response.data);
+            } else {
+              resolve([]);
+            }
+          }
+        );
+      });
+    }
+
+    const clean = (word || '').trim().toLowerCase();
+    if (!clean || clean.length < 2) return [];
+
+    const fromIso = (sourceLang || 'en').slice(0, 2).toLowerCase();
+    const toIso = (targetLang || 'ru').slice(0, 2).toLowerCase();
+
+    const tatoebaIsoMap: Record<string, string> = {
+      en: 'eng', es: 'spa', fr: 'fra', de: 'deu', it: 'ita',
+      ru: 'rus', pt: 'por', ja: 'jpn', zh: 'cmn', tr: 'tur',
+      pl: 'pol', uk: 'ukr', ko: 'kor', ar: 'ara', nl: 'nld',
+      sv: 'swe', el: 'ell', he: 'heb', iw: 'heb', hi: 'hin',
+      vi: 'vie', th: 'tha', id: 'ind', cs: 'ces', ro: 'ron',
+      hu: 'hun', fi: 'fin', da: 'dan', no: 'nob', nb: 'nob',
+    };
+
+    const fromCode = tatoebaIsoMap[fromIso] || fromIso;
+    const toCode = tatoebaIsoMap[toIso] || toIso;
+
+    try {
+      let url = `https://tatoeba.org/en/api_v0/search?from=${fromCode}&to=${toCode}&query=${encodeURIComponent(clean)}&orphans=no&unapproved=no&trans_filter=limit&limit=6`;
+      let resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+
+      let data: any = null;
+      if (resp.ok) {
+        data = await resp.json().catch(() => null);
+      }
+
+      // If no direct bilingual pairs found, query sentences in source language without restricting translation language
+      if (!data?.results || !Array.isArray(data.results) || data.results.length === 0) {
+        url = `https://tatoeba.org/en/api_v0/search?from=${fromCode}&query=${encodeURIComponent(clean)}&orphans=no&unapproved=no&limit=6`;
+        resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (resp.ok) {
+          data = await resp.json().catch(() => null);
+        }
+      }
+
+      if (data?.results && Array.isArray(data.results) && data.results.length > 0) {
+        const pairs: Array<{ source: string; target: string }> = [];
+
+        // Filter: short, clean sentences (< 95 chars)
+        const cleanResults = data.results.filter(
+          (item: any) =>
+            item.text &&
+            item.text.length < 95 &&
+            !item.text.toLowerCase().includes('killed') &&
+            !item.text.toLowerCase().includes('die')
+        );
+
+        for (const item of cleanResults) {
+          const srcText = item.text.trim();
+          let tgtText = '';
+
+          if (Array.isArray(item.translations)) {
+            for (const group of item.translations) {
+              if (Array.isArray(group)) {
+                // First look for user's native language translation
+                const matchingLang = group.find(
+                  (t: any) => t && t.text && t.text.trim() && (t.lang === toCode || t.lang_tag === toIso)
+                );
+                if (matchingLang) {
+                  tgtText = matchingLang.text.trim();
+                  break;
+                }
+              }
+            }
+          }
+
+          if (srcText) {
+            pairs.push({ source: srcText, target: tgtText });
+            if (pairs.length >= 3) break;
+          }
+        }
+
+        // If target translation is missing for some sentences, translate with Google Translate
+        for (const pair of pairs) {
+          if (!pair.target) {
+            try {
+              const transRes = await this.translateText(pair.source, fromIso, toIso).catch(() => null);
+              if (transRes?.translation) {
+                pair.target = transRes.translation;
+              }
+            } catch (_) {}
+          }
+        }
+
+        return pairs;
+      }
+    } catch (e) {
+      console.warn('[Lectura API] Tatoeba fetch error:', e);
+    }
+
+    return [];
+  }
 }
 
 export async function fetchUserVocabulary(studyLanguage: string): Promise<{ words: any[]; map: WordMap; count?: number }> {

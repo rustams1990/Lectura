@@ -5916,7 +5916,7 @@ class YouTubeLecturaOverlay {
   private static tatoebaCache = new Map<string, Array<{ source: string; target: string }>>();
 
   /**
-   * Fetches 2-3 short, clean example sentences from Tatoeba
+   * Fetches 2-3 short, clean example sentences from Tatoeba (proxied via service worker to avoid CORS)
    */
   private async fetchTatoebaExamples(word: string, sourceLang: string, targetLang: string): Promise<Array<{ source: string; target: string }>> {
     const clean = word.trim().toLowerCase();
@@ -5926,65 +5926,14 @@ class YouTubeLecturaOverlay {
       return YouTubeLecturaOverlay.tatoebaCache.get(clean)!;
     }
 
-    const fromIso = (sourceLang || 'en').slice(0, 2).toLowerCase();
-    const toIso = (targetLang || 'ru').slice(0, 2).toLowerCase();
-
-    // Map 2-letter ISO to Tatoeba 3-letter codes
-    const tatoebaIsoMap: Record<string, string> = {
-      en: 'eng', es: 'spa', fr: 'fra', de: 'deu', it: 'ita',
-      ru: 'rus', pt: 'por', ja: 'jpn', zh: 'cmn', tr: 'tur',
-      pl: 'pol', uk: 'ukr', ko: 'kor', ar: 'ara',
-    };
-
-    const fromCode = tatoebaIsoMap[fromIso] || fromIso;
-    const toCode = tatoebaIsoMap[toIso] || toIso;
-
     try {
-      const url = `https://tatoeba.org/en/api_v0/search?from=${fromCode}&to=${toCode}&query=${encodeURIComponent(clean)}&orphans=no&unapproved=no&trans_filter=limit&limit=6`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
-      if (!resp.ok) return [];
-
-      const data = await resp.json();
-      if (data?.results && Array.isArray(data.results)) {
-        const pairs: Array<{ source: string; target: string }> = [];
-
-        // Filter: short, clean sentences (< 75 chars)
-        const cleanResults = data.results.filter(
-          (item: any) =>
-            item.text &&
-            item.text.length < 75 &&
-            !item.text.toLowerCase().includes('killed') &&
-            !item.text.toLowerCase().includes('die')
-        );
-
-        for (const item of cleanResults) {
-          const srcText = item.text.trim();
-          let tgtText = '';
-
-          if (Array.isArray(item.translations)) {
-            for (const group of item.translations) {
-              if (Array.isArray(group)) {
-                const found = group.find((t: any) => t && t.text && t.text.trim());
-                if (found) {
-                  tgtText = found.text.trim();
-                  break;
-                }
-              }
-            }
-          }
-
-          if (srcText) {
-            pairs.push({ source: srcText, target: tgtText });
-            if (pairs.length >= 2) break;
-          }
-        }
-
+      const pairs = await this.apiClient.fetchTatoebaExamples(clean, sourceLang, targetLang);
+      if (pairs && pairs.length > 0) {
         YouTubeLecturaOverlay.tatoebaCache.set(clean, pairs);
         return pairs;
       }
     } catch (e) {
       console.warn('[Tatoeba Error]', e);
-      return [];
     }
 
     return [];
@@ -6921,25 +6870,43 @@ class YouTubeLecturaOverlay {
     if (!word.includes(' ')) {
       this.fetchTatoebaExamples(word, activeLang, nativeLang)
         .then((examples) => {
-          if (examples && examples.length > 0 && this.popupCard && this.activeWordData?.word.toLowerCase() === word.toLowerCase()) {
+          if (this.popupCard && this.activeWordData?.word.toLowerCase() === word.toLowerCase()) {
             const tatoebaSection = this.popupCard.querySelector('.lectura-card-tatoeba-section') as HTMLElement | null;
-            const listEl = this.popupCard.querySelector('.lectura-tatoeba-list');
-            if (tatoebaSection && listEl) {
-              listEl.innerHTML = examples
+            const listEls = this.popupCard.querySelectorAll('.lectura-tatoeba-list');
+
+            if (examples && examples.length > 0) {
+              const html = examples
                 .map(
                   (ex) => `
                   <div class="lectura-tatoeba-item">
                     <div class="lectura-tatoeba-src">${this.highlightWordInContext(ex.source, word)}</div>
-                    ${ex.target ? `<div class="lectura-tatoeba-tgt">${ex.target}</div>` : ''}
+                    ${ex.target ? `<div class="lectura-tatoeba-tgt">${this.escapeHtml(ex.target)}</div>` : ''}
                   </div>
                 `
                 )
                 .join('');
-              tatoebaSection.style.display = 'block';
+
+              listEls.forEach((el) => {
+                el.innerHTML = html;
+              });
+              if (tatoebaSection) {
+                tatoebaSection.style.display = 'block';
+              }
+            } else {
+              listEls.forEach((el) => {
+                el.innerHTML = `<div class="lectura-extended-pane-inner" style="color: #94a3b8; font-style: italic; padding: 4px 0;">No Tatoeba examples found for "${this.escapeHtml(word)}".</div>`;
+              });
             }
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          if (this.popupCard && this.activeWordData?.word.toLowerCase() === word.toLowerCase()) {
+            const listEls = this.popupCard.querySelectorAll('.lectura-tatoeba-list');
+            listEls.forEach((el) => {
+              el.innerHTML = `<div class="lectura-extended-pane-inner" style="color: #94a3b8; font-style: italic; padding: 4px 0;">Could not load Tatoeba examples.</div>`;
+            });
+          }
+        });
     }
     } catch (err) {
       console.error('[Lectura Extension] Failed to render popup:', err);
