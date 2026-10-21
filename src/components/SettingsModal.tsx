@@ -2508,7 +2508,16 @@ function SettingsModal({
               </div>
             )}
 
-            <div className="text-[9px] bg-zinc-100/80 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("lectura:check-updates"))}
+              title={t("updater.check_for_updates", "Check for updates")}
+              className="text-[9px] bg-zinc-100/80 hover:bg-teal-50 dark:bg-zinc-800 dark:hover:bg-teal-950/60 text-zinc-500 hover:text-teal-600 dark:text-zinc-400 dark:hover:text-teal-400 font-bold px-2 py-0.5 rounded-md border border-zinc-200/40 dark:border-zinc-700/45 font-mono flex items-center gap-1 transition cursor-pointer"
+            >
+              <RefreshCw className="w-2.5 h-2.5" />
+              <span>{APP_VERSION}</span>
+            </button>
+            <div className="hidden">
               {APP_VERSION}
             </div>
           </div>

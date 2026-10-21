@@ -11,6 +11,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   enableYoutubeOverlay: true,
   trackListeningActivity: true,
   enableDualSubtitles: false,
+  autoPauseAfterSubtitle: false,
+  subtitleBlurMode: 'off',
+  showTranscriptSidebar: false,
   subtitleSizePreset: 'md',
   captureVideoSnapshot: false,
   pauseOnWordClick: false,
@@ -125,5 +128,53 @@ export class StorageService {
     const words = await this.getCachedWords(langKey);
     words[word.toLowerCase().trim()] = item;
     await this.setCachedWords(langKey, words);
+  }
+
+  /**
+   * Gets cached word-to-lemma links strictly scoped by language
+   */
+  static async getWordLinks(lang: string): Promise<Record<string, string>> {
+    const langKey = normalizeLangKey(lang);
+    return new Promise((resolve) => {
+      const key = `word_links_${langKey}`;
+      chrome.storage.local.get([key], (res) => {
+        resolve(res[key] || {});
+      });
+    });
+  }
+
+  /**
+   * Saves cached word-to-lemma links strictly scoped by language
+   */
+  static async saveWordLinks(lang: string, links: Record<string, string>): Promise<void> {
+    const langKey = normalizeLangKey(lang);
+    return new Promise((resolve) => {
+      const key = `word_links_${langKey}`;
+      chrome.storage.local.set({ [key]: links }, () => resolve());
+    });
+  }
+
+  /**
+   * Clears all user-specific vocabulary, word link, and activity caches when switching accounts (Dogma #1)
+   */
+  static async clearVocabularyCaches(): Promise<void> {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(null, (allItems) => {
+        const keysToRemove = Object.keys(allItems || {}).filter(
+          (k) =>
+            k.startsWith('cached_words_') ||
+            k.startsWith('vocab_cache_') ||
+            k.startsWith('word_links_') ||
+            k.startsWith('lectura_activity_cache') ||
+            k === 'words_cache' ||
+            k === 'lectura_words_cache'
+        );
+        if (keysToRemove.length === 0) {
+          resolve();
+          return;
+        }
+        chrome.storage.local.remove(keysToRemove, () => resolve());
+      });
+    });
   }
 }

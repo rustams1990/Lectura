@@ -114,7 +114,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (info.menuItemId === 'lectura-import-article') {
     try {
-      // Send message to active tab to extract clean article
+      // Send message to active tab to extract clean article or YouTube transcript
       chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ARTICLE' }, async (response) => {
         if (chrome.runtime.lastError || !response?.success) {
           console.error('[Lectura Context Menu] Failed to extract article:', chrome.runtime.lastError || response?.error);
@@ -129,14 +129,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           title: article.title,
           content: article.content,
           sourceUrl: article.sourceUrl,
-          coverUrl: article.leadImageUrl,
+          coverUrl: article.leadImageUrl || null,
           author: article.author,
           targetLanguage: article.language !== 'auto' ? article.language : settings.targetLanguage,
-          lessonType: 'article',
-          sourceType: 'article',
+          lessonType: article.lessonType || 'article',
+          sourceType: article.sourceType || 'article',
           audioUrl: null,
           audioFile: null,
-          youtubeId: null,
+          youtubeId: article.youtubeId || null,
         });
 
         showBadge('OK', '#10b981');
@@ -285,7 +285,7 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
     return true;
   }
 
-  if (message.type === 'TRANSLATE_TEXT' || message.type === 'TRANSLATE_WORD') {
+  if (message.type === 'TRANSLATE_TEXT') {
     const text = (message.payload?.text || message.payload?.word || (message as any).text || (message as any).word || '').trim();
     const sourceLang = message.payload?.sourceLang || (message as any).sourceLang || 'auto';
     const targetLang = message.payload?.targetLang || (message as any).targetLang || 'ru';
@@ -302,7 +302,7 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
         ]);
         if (res && res.translation && res.translation.trim()) {
           console.log('[Lectura ServiceWorker] Server response:', res);
-          sendResponse({ success: true, data: res });
+          sendResponse({ success: true, data: res, translation: res.translation });
           return;
         }
       } catch (err: any) {
@@ -312,10 +312,11 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
       try {
         const direct = await translateDirectInWorker(text, sourceLang, targetLang);
         console.log('[Lectura ServiceWorker] Direct fallback response:', { text, direct });
-        sendResponse({ success: true, data: { text, translation: direct || '— (нет данных)' } });
+        const finalTranslation = direct || '— (нет данных)';
+        sendResponse({ success: true, data: { text, translation: finalTranslation }, translation: finalTranslation });
       } catch (e: any) {
         console.error('[Lectura ServiceWorker] Fallback translation failed:', e?.message || e);
-        sendResponse({ success: true, data: { text, translation: '— (нет данных)' } });
+        sendResponse({ success: true, data: { text, translation: '— (нет данных)' }, translation: '— (нет данных)' });
       }
     })();
     return true; // CRITICAL: keeps message port open for async response
@@ -363,7 +364,7 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
     const isMultiWord = clean.includes(' ');
     const dtParams = isMultiWord ? 'dt=t' : 'dt=t&dt=bd&dt=rm';
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sIso}&tl=${tIso}&${dtParams}&q=${encodeURIComponent(clean)}`;
-    
+
     fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -388,7 +389,7 @@ chrome.runtime.onMessage.addListener((message: ExtMessage, _sender, sendResponse
           variants.unshift(primary);
         }
         const translationText = variants.length > 0 ? variants.slice(0, 5).join(', ') : primary || '—';
-        sendResponse({ success: true, translation: translationText });
+        sendResponse({ success: true, translation: translationText, data: { translation: translationText } });
       })
       .catch((err) => {
         sendResponse({ success: false, error: err.message, translation: '—' });

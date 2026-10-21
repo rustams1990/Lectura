@@ -2188,6 +2188,9 @@
     enableYoutubeOverlay: true,
     trackListeningActivity: true,
     enableDualSubtitles: false,
+    autoPauseAfterSubtitle: false,
+    subtitleBlurMode: "off",
+    showTranscriptSidebar: false,
     subtitleSizePreset: "md",
     captureVideoSnapshot: false,
     pauseOnWordClick: false,
@@ -2295,6 +2298,45 @@
       const words = await this.getCachedWords(langKey);
       words[word.toLowerCase().trim()] = item;
       await this.setCachedWords(langKey, words);
+    }
+    /**
+     * Gets cached word-to-lemma links strictly scoped by language
+     */
+    static async getWordLinks(lang) {
+      const langKey = normalizeLangKey(lang);
+      return new Promise((resolve) => {
+        const key = `word_links_${langKey}`;
+        chrome.storage.local.get([key], (res) => {
+          resolve(res[key] || {});
+        });
+      });
+    }
+    /**
+     * Saves cached word-to-lemma links strictly scoped by language
+     */
+    static async saveWordLinks(lang, links) {
+      const langKey = normalizeLangKey(lang);
+      return new Promise((resolve) => {
+        const key = `word_links_${langKey}`;
+        chrome.storage.local.set({ [key]: links }, () => resolve());
+      });
+    }
+    /**
+     * Clears all user-specific vocabulary, word link, and activity caches when switching accounts (Dogma #1)
+     */
+    static async clearVocabularyCaches() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(null, (allItems) => {
+          const keysToRemove = Object.keys(allItems || {}).filter(
+            (k2) => k2.startsWith("cached_words_") || k2.startsWith("vocab_cache_") || k2.startsWith("word_links_") || k2.startsWith("lectura_activity_cache") || k2 === "words_cache" || k2 === "lectura_words_cache"
+          );
+          if (keysToRemove.length === 0) {
+            resolve();
+            return;
+          }
+          chrome.storage.local.remove(keysToRemove, () => resolve());
+        });
+      });
     }
   };
 
@@ -38601,30 +38643,30 @@
   console.log("%c[LECTURA ACTIVE]", "background: #0284c7; color: white; padding: 4px 8px; font-size: 14px; font-weight: bold; border-radius: 4px;", window.location.href);
   var LANGUAGE_DIALECTS = {
     es: [
-      { code: "es-MX", label: "\u{1F1F2}\u{1F1FD} MX", name: "Mexican Spanish" },
-      { code: "es-ES", label: "\u{1F1EA}\u{1F1F8} ES", name: "Castilian Spanish" },
-      { code: "es-US", label: "\u{1F1FA}\u{1F1F8} US", name: "US Spanish" },
-      { code: "es-AR", label: "\u{1F1E6}\u{1F1F7} AR", name: "Argentine Spanish" }
+      { code: "es-MX", label: "MX", name: "Mexican Spanish" },
+      { code: "es-ES", label: "ES", name: "Castilian Spanish" },
+      { code: "es-US", label: "US", name: "US Spanish" },
+      { code: "es-AR", label: "AR", name: "Argentine Spanish" }
     ],
     en: [
-      { code: "en-US", label: "\u{1F1FA}\u{1F1F8} US", name: "American English" },
-      { code: "en-GB", label: "\u{1F1EC}\u{1F1E7} UK", name: "British English" },
-      { code: "en-AU", label: "\u{1F1E6}\u{1F1FA} AU", name: "Australian English" }
+      { code: "en-US", label: "US", name: "American English" },
+      { code: "en-GB", label: "UK", name: "British English" },
+      { code: "en-AU", label: "AU", name: "Australian English" }
     ],
     fr: [
-      { code: "fr-FR", label: "\u{1F1EB}\u{1F1F7} FR", name: "French (France)" },
-      { code: "fr-CA", label: "\u{1F1E8}\u{1F1E6} CA", name: "French (Canada)" }
+      { code: "fr-FR", label: "FR", name: "French (France)" },
+      { code: "fr-CA", label: "CA", name: "French (Canada)" }
     ],
     pt: [
-      { code: "pt-BR", label: "\u{1F1E7}\u{1F1F7} BR", name: "Portuguese (Brazil)" },
-      { code: "pt-PT", label: "\u{1F1F5}\u{1F1F9} PT", name: "Portuguese (Portugal)" }
+      { code: "pt-BR", label: "BR", name: "Portuguese (Brazil)" },
+      { code: "pt-PT", label: "PT", name: "Portuguese (Portugal)" }
     ],
-    de: [{ code: "de-DE", label: "\u{1F1E9}\u{1F1EA} DE", name: "German" }],
-    ru: [{ code: "ru-RU", label: "\u{1F1F7}\u{1F1FA} RU", name: "Russian" }],
-    it: [{ code: "it-IT", label: "\u{1F1EE}\u{1F1F9} IT", name: "Italian" }],
-    ja: [{ code: "ja-JP", label: "\u{1F1EF}\u{1F1F5} JP", name: "Japanese" }],
-    zh: [{ code: "zh-CN", label: "\u{1F1E8}\u{1F1F3} CN", name: "Chinese (Mandarin)" }],
-    ko: [{ code: "ko-KR", label: "\u{1F1F0}\u{1F1F7} KR", name: "Korean" }]
+    de: [{ code: "de-DE", label: "DE", name: "German" }],
+    ru: [{ code: "ru-RU", label: "RU", name: "Russian" }],
+    it: [{ code: "it-IT", label: "IT", name: "Italian" }],
+    ja: [{ code: "ja-JP", label: "JP", name: "Japanese" }],
+    zh: [{ code: "zh-CN", label: "CN", name: "Chinese (Mandarin)" }],
+    ko: [{ code: "ko-KR", label: "KR", name: "Korean" }]
   };
   function normalizeLangCode(lang) {
     if (!lang) return "en";
@@ -38747,6 +38789,7 @@
       this.activePopupLang = "en";
       this.isShiftDown = false;
       this.hoverThrottleTimer = null;
+      this.highlightObserverTimer = null;
       this.toastTimeoutId = null;
       if (window.location.hostname.includes("youtube.com")) {
         return;
@@ -38781,6 +38824,7 @@
       }
       console.log("[Lectura] Web reader active on:", window.location.href);
       this.settings = await StorageService.getSettings();
+      this.setupMessageListener();
       if (!this.settings.enableInSituSelection) {
         return;
       }
@@ -38788,8 +38832,12 @@
       this.activePopupLang = lang;
       this.cachedWordsByLang[lang] = await StorageService.getCachedWords(lang);
       try {
+        const storedLinks = await StorageService.getWordLinks(lang);
         const data = await chrome.storage.local.get([`lectura_word_links_${lang}`, `lectura_tts_dialect_${lang}`]);
-        this.cachedWordLinksByLang[lang] = data[`lectura_word_links_${lang}`] || {};
+        this.cachedWordLinksByLang[lang] = {
+          ...data[`lectura_word_links_${lang}`] || {},
+          ...storedLinks || {}
+        };
         if (data[`lectura_tts_dialect_${lang}`]) {
           this.activeDialectByLang[lang] = data[`lectura_tts_dialect_${lang}`];
         }
@@ -38799,7 +38847,223 @@
       this.setupShiftTracking();
       this.setupPointHoverListeners();
       this.setupKeyboardShortcuts();
-      this.setupMessageListener();
+      this.updatePageHighlights();
+      this.setupPageHighlightObserver();
+      this.syncVocabulary(lang);
+    }
+    setupPageHighlightObserver() {
+      if (typeof MutationObserver === "undefined" || !document.body) return;
+      const observer = new MutationObserver((mutations) => {
+        if (document.hidden || !this.settings?.highlightKnownWords || !this.isExtensionActiveOnPage()) return;
+        let hasRelevantAdditions = false;
+        for (let i3 = 0; i3 < mutations.length; i3++) {
+          const m3 = mutations[i3];
+          if (m3.addedNodes && m3.addedNodes.length > 0) {
+            const targetEl = m3.target;
+            if (targetEl && targetEl.id !== "lectura-reader-shadow-host" && !targetEl.closest?.("#lectura-reader-shadow-host")) {
+              hasRelevantAdditions = true;
+              break;
+            }
+          }
+        }
+        if (!hasRelevantAdditions) return;
+        if (this.highlightObserverTimer) {
+          window.clearTimeout(this.highlightObserverTimer);
+        }
+        this.highlightObserverTimer = window.setTimeout(() => {
+          if (!document.hidden) {
+            this.updatePageHighlights();
+          }
+        }, 1800);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+    async syncVocabulary(langOverride) {
+      try {
+        const lang = normalizeLangCode(langOverride || this.activePopupLang || await getEffectiveLanguage());
+        this.activePopupLang = lang;
+        const localCached = await StorageService.getCachedWords(lang);
+        if (localCached && Object.keys(localCached).length > 0) {
+          this.cachedWordsByLang[lang] = { ...this.cachedWordsByLang[lang] || {}, ...localCached };
+        }
+        const res = await this.apiClient.getWords(lang);
+        if (res && res.map && Object.keys(res.map).length > 0) {
+          this.cachedWordsByLang[lang] = { ...this.cachedWordsByLang[lang] || {}, ...res.map };
+          await StorageService.saveCachedWords(lang, this.cachedWordsByLang[lang]);
+        }
+        const storedLinks = await StorageService.getWordLinks(lang);
+        if (storedLinks && Object.keys(storedLinks).length > 0) {
+          this.cachedWordLinksByLang[lang] = {
+            ...this.cachedWordLinksByLang[lang] || {},
+            ...storedLinks
+          };
+        }
+        const serverLinks = await this.apiClient.getWordLinks(lang);
+        if (serverLinks && typeof serverLinks === "object" && Object.keys(serverLinks).length > 0) {
+          this.cachedWordLinksByLang[lang] = {
+            ...this.cachedWordLinksByLang[lang] || {},
+            ...serverLinks
+          };
+          await StorageService.saveWordLinks(lang, this.cachedWordLinksByLang[lang]);
+        }
+        this.updatePageHighlights();
+      } catch (err) {
+        console.warn("[Lectura PageReader] Vocabulary sync failed:", err);
+      }
+    }
+    /**
+     * Non-destructive in-page vocabulary highlighting using CSS Custom Highlight API (CSS.highlights)
+     */
+    updatePageHighlights() {
+      try {
+        const cssHighlights = window.CSS?.highlights;
+        const HighlightCtor = window.Highlight;
+        if (!cssHighlights || !HighlightCtor || !document.body) return;
+        const stageNames = ["lectura-stage-new", "lectura-stage-1", "lectura-stage-2", "lectura-stage-3", "lectura-stage-4"];
+        for (const name of stageNames) {
+          cssHighlights.delete(name);
+        }
+        if (!this.isExtensionActiveOnPage() || this.settings?.highlightKnownWords === false) {
+          return;
+        }
+        if (!document.getElementById("lectura-page-highlight-styles") && document.head) {
+          const styleEl = document.createElement("style");
+          styleEl.id = "lectura-page-highlight-styles";
+          styleEl.textContent = `
+          ::highlight(lectura-stage-new) {
+            background-color: rgba(56, 189, 248, 0.10);
+            text-decoration: underline rgba(56, 189, 248, 0.70) 1.5px;
+          }
+          ::highlight(lectura-stage-1) {
+            background-color: rgba(251, 113, 133, 0.22);
+            text-decoration: underline rgba(251, 113, 133, 0.85) 2px;
+          }
+          ::highlight(lectura-stage-2) {
+            background-color: rgba(250, 204, 21, 0.24);
+            text-decoration: underline rgba(234, 179, 8, 0.85) 2px;
+          }
+          ::highlight(lectura-stage-3) {
+            background-color: rgba(52, 211, 153, 0.20);
+            text-decoration: underline rgba(16, 185, 129, 0.80) 2px;
+          }
+          ::highlight(lectura-stage-4) {
+            background-color: rgba(59, 130, 246, 0.18);
+            text-decoration: underline rgba(37, 99, 235, 0.80) 2px;
+          }
+        `;
+          document.head.appendChild(styleEl);
+        }
+        const lang = this.activePopupLang || "en";
+        const isEn = lang.toLowerCase().startsWith("en");
+        const dict = this.cachedWordsByLang[lang] || {};
+        const links = this.cachedWordLinksByLang[lang] || {};
+        const hasLoadedDict = Object.keys(dict).length > 0;
+        if (!hasLoadedDict) return;
+        const normalizeStage = (rawStatus) => {
+          const s3 = String(rawStatus ?? "").toLowerCase().trim();
+          if (["ignored", "ignore", "0"].includes(s3)) return "known";
+          if (["known", "known_completely", "well_known", "5"].includes(s3)) return "known";
+          if (s3 === "1" || s3 === "learning") return "1";
+          if (s3 === "2" || s3 === "hard") return "2";
+          if (s3 === "3" || s3 === "remembering") return "3";
+          if (s3 === "4" || s3 === "almost_known") return "4";
+          return "";
+        };
+        const resolvedTokenCache = /* @__PURE__ */ new Map();
+        const resolveWordStage = (rawToken) => {
+          const lower = normalizeApostrophes(rawToken.toLowerCase());
+          if (resolvedTokenCache.has(lower)) {
+            return resolvedTokenCache.get(lower);
+          }
+          if (!isWordToken(rawToken, isEn)) {
+            resolvedTokenCache.set(lower, "known");
+            return "known";
+          }
+          if (dict[lower]) {
+            const st = normalizeStage(dict[lower].status);
+            if (st) {
+              resolvedTokenCache.set(lower, st);
+              return st;
+            }
+          }
+          const base = normalizeContraction(lower, lang);
+          if (base && base !== lower && dict[base]) {
+            const st = normalizeStage(dict[base].status);
+            if (st) {
+              resolvedTokenCache.set(lower, st);
+              return st;
+            }
+          }
+          const linkedParent = links[lower] || (base ? links[base] : "");
+          if (linkedParent && dict[linkedParent]) {
+            const st = normalizeStage(dict[linkedParent].status);
+            if (st) {
+              resolvedTokenCache.set(lower, st);
+              return st;
+            }
+          }
+          const lemmas = getSuggestedLemmas(lower, lang);
+          for (const lem of lemmas) {
+            if (dict[lem]) {
+              const st = normalizeStage(dict[lem].status);
+              if (st) {
+                resolvedTokenCache.set(lower, st);
+                return st;
+              }
+            }
+          }
+          const autoIgnore = ignoreListManager.checkAutoIgnore(lower, void 0, lang);
+          if (autoIgnore.isIgnored || base && base !== lower && ignoreListManager.checkAutoIgnore(base, void 0, lang).isIgnored) {
+            resolvedTokenCache.set(lower, "known");
+            return "known";
+          }
+          resolvedTokenCache.set(lower, "new");
+          return "new";
+        };
+        const rangesByStage = { new: [], "1": [], "2": [], "3": [], "4": [] };
+        const skipTags = /* @__PURE__ */ new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "CODE", "PRE", "SVG", "MATH", "BUTTON", "NAV", "HEADER", "FOOTER"]);
+        const wordRegex = /[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu;
+        let totalRanges = 0;
+        const maxRanges = 2200;
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) => {
+            const parent = node.parentElement;
+            if (!parent) return NodeFilter.FILTER_REJECT;
+            if (skipTags.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+            if (parent.isContentEditable || parent.closest('#lectura-reader-shadow-host, [contenteditable="true"], nav, header, footer, button, [role="navigation"], [role="menubar"]')) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        let currentNode;
+        while ((currentNode = walker.nextNode()) !== null && totalRanges < maxRanges) {
+          const text = currentNode.textContent || "";
+          if (text.trim().length < 2) continue;
+          const inReadableBlock = !!currentNode.parentElement?.closest("article, main, p, li, blockquote, h1, h2, h3");
+          wordRegex.lastIndex = 0;
+          let match2;
+          while ((match2 = wordRegex.exec(text)) !== null) {
+            const rawToken = match2[0];
+            if (rawToken.length < 2) continue;
+            const stage = resolveWordStage(rawToken);
+            if (stage === "1" || stage === "2" || stage === "3" || stage === "4" || stage === "new" && inReadableBlock) {
+              const r2 = document.createRange();
+              r2.setStart(currentNode, match2.index);
+              r2.setEnd(currentNode, match2.index + rawToken.length);
+              rangesByStage[stage].push(r2);
+              totalRanges++;
+              if (totalRanges >= maxRanges) break;
+            }
+          }
+        }
+        for (const stage of ["new", "1", "2", "3", "4"]) {
+          if (rangesByStage[stage].length > 0) {
+            cssHighlights.set(`lectura-stage-${stage}`, new HighlightCtor(...rangesByStage[stage]));
+          }
+        }
+      } catch (_2) {
+      }
     }
     createShadowTooltip() {
       if (this.tooltipHost) return;
@@ -40141,6 +40405,11 @@
         }
       }, true);
       document.addEventListener("mousemove", (e2) => {
+        const modifier = this.settings?.modifierKey || "alt";
+        const isModifierActive = isModifierKeyPressed(e2, modifier) || e2.shiftKey || this.isShiftDown;
+        if (!isModifierActive) {
+          return;
+        }
         if (!this.isExtensionActiveOnPage()) {
           return;
         }
@@ -40157,18 +40426,14 @@
           window.clearTimeout(this.hoverThrottleTimer);
         }
         this.hoverThrottleTimer = window.setTimeout(() => {
-          const modifier = this.settings?.modifierKey || "alt";
-          const isModifierActive = isModifierKeyPressed(e2, modifier) || e2.shiftKey || this.isShiftDown;
-          if (isModifierActive) {
-            if (this.tooltipElement && this.tooltipElement.style.display !== "none") {
-              return;
-            }
-            const res = this.getWordAtPoint(e2.clientX, e2.clientY);
-            if (res) {
-              if (res.word.toLowerCase() !== this.activeWord.toLowerCase() || !this.tooltipElement || this.tooltipElement.style.display === "none") {
-                console.log("[Lectura] Found word on Hover:", res.word);
-                this.showWordPopup(res.word, res.rect, res.sentence, false);
-              }
+          if (this.tooltipElement && this.tooltipElement.style.display !== "none") {
+            return;
+          }
+          const res = this.getWordAtPoint(e2.clientX, e2.clientY);
+          if (res) {
+            if (res.word.toLowerCase() !== this.activeWord.toLowerCase() || !this.tooltipElement || this.tooltipElement.style.display === "none") {
+              console.log("[Lectura] Found word on Hover:", res.word);
+              this.showWordPopup(res.word, res.rect, res.sentence, false);
             }
           }
         }, 40);
@@ -40233,28 +40498,46 @@
       }
       this.activeWord = "";
     }
+    getCurrentPopupTranslation(word) {
+      if (!this.tooltipElement) return "";
+      const meaningInput = this.tooltipElement.querySelector(".calm-meaning-input, .lectura-meaning-input");
+      if (meaningInput && meaningInput.value.trim()) {
+        return meaningInput.value.trim();
+      }
+      const transEl = this.tooltipElement.querySelector(".lectura-card-translation, .glass-main-translation");
+      if (transEl && transEl.textContent?.trim()) {
+        return transEl.textContent.trim();
+      }
+      if (word) {
+        const cleanLower = cleanWordForTranslation(word);
+        const lang = this.activePopupLang || "en";
+        return _PageReader.localTranslationCache.get(`${lang}:${cleanLower}`) || _PageReader.localTranslationCache.get(cleanLower) || "";
+      }
+      return "";
+    }
     setupKeyboardShortcuts() {
       window.addEventListener("keydown", (e2) => {
         if (!this.tooltipElement || this.tooltipElement.style.display === "none" || !this.activeWord) {
           return;
         }
+        if (e2.ctrlKey || e2.metaKey || e2.altKey) {
+          return;
+        }
         const target = e2.target;
-        if (target && (["INPUT", "TEXTAREA"].includes(target.tagName) || target.isContentEditable)) {
+        if (target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable || e2.composedPath().some((el) => el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))))) {
           return;
         }
         const key = e2.key.toUpperCase();
         if (["1", "2", "3", "4", "5"].includes(e2.key)) {
           e2.preventDefault();
-          const transEl = this.tooltipElement.querySelector(".lectura-card-translation");
-          const translationText = transEl?.textContent || "";
+          const translationText = this.getCurrentPopupTranslation(this.activeWord);
           this.saveWord(this.activeWord, translationText, e2.key, this.activeContextSentence);
           this.hideWordPopup();
           return;
         }
         if (key === "K" || key === "ENTER") {
           e2.preventDefault();
-          const transEl = this.tooltipElement.querySelector(".lectura-card-translation");
-          const translationText = transEl?.textContent || "";
+          const translationText = this.getCurrentPopupTranslation(this.activeWord);
           this.saveWord(this.activeWord, translationText, "known", this.activeContextSentence);
           this.hideWordPopup();
           return;
@@ -40262,8 +40545,7 @@
         if (e2.key === "0" || key === "I" || key === "ESCAPE") {
           e2.preventDefault();
           if (e2.key === "0" || key === "I") {
-            const transEl = this.tooltipElement.querySelector(".lectura-card-translation");
-            const translationText = transEl?.textContent || "";
+            const translationText = this.getCurrentPopupTranslation(this.activeWord);
             this.saveWord(this.activeWord, translationText, "ignored", this.activeContextSentence);
           }
           this.hideWordPopup();
@@ -40295,7 +40577,7 @@
     async fetchDirectTranslation(word, targetLang = "ru", sourceLang) {
       const clean2 = cleanWordForTranslation(word);
       if (!clean2) return { translationText: "" };
-      const currentLang = normalizeLangCode(sourceLang || this.currentArticleLanguage || this.settings?.targetLanguage || "en");
+      const currentLang = normalizeLangCode(sourceLang || this.activePopupLang || this.settings?.targetLanguage || "en");
       const sIso = currentLang.slice(0, 2).toLowerCase();
       const tIso = (targetLang || "ru").slice(0, 2).toLowerCase();
       const cacheKey = `${sIso}:${clean2}`;
@@ -40667,7 +40949,7 @@
       const translationLines = cached?.translation ? cached.translation.split("\n").map((l2) => l2.trim()).filter(Boolean) : [];
       const glassMainTranslation = translationLines[0] || (cached?.translation || "Translating...");
       const glassSubDefinition = translationLines.slice(1).join("\n");
-      const currentTheme = this.settings?.popupTheme || "compact";
+      const currentTheme = this.settings?.popupTheme === "calm_light" ? "calm_light" : "glass";
       this.tooltipElement.className = `lectura-word-card ${currentTheme}`;
       const statusToSlider = {
         "0": 0,
@@ -41219,8 +41501,7 @@
         e2.stopPropagation();
         const val = parseInt(slider.value, 10);
         const targetStatus = sliderToStatus[val] || "1";
-        const transEl = this.tooltipElement?.querySelector(".lectura-card-translation") || this.tooltipElement?.querySelector(".glass-main-translation");
-        const translationText = transEl?.textContent || "";
+        const translationText = this.getCurrentPopupTranslation(word);
         await this.saveWord(word, translationText, targetStatus, contextSentence, isMultiWord);
         this.showToast(`Saved status: ${targetStatus}`, "success");
       });
@@ -41268,6 +41549,7 @@
             if (currentRootEl) currentRootEl.textContent = cleanParent;
             const lemmaInput2 = this.tooltipElement?.querySelector(".lectura-lemma-input, #root-input-field");
             if (lemmaInput2) lemmaInput2.value = cleanParent;
+            this.updatePageHighlights();
             this.showToast(`\u2713 Linked "${word}" \u2794 "${cleanParent}"`, "success");
           } catch (err) {
             this.showToast(`Failed to link: ${err?.message || "Error"}`, "error");
@@ -41304,11 +41586,22 @@
       buttons.forEach((btn) => {
         btn.addEventListener("click", async () => {
           const newStatus = btn.getAttribute("data-status") || "1";
-          const transEl = this.tooltipElement?.querySelector(".lectura-card-translation") || this.tooltipElement?.querySelector(".glass-main-translation");
-          const translationText = transEl?.textContent || "";
+          const translationText = this.getCurrentPopupTranslation(word);
           await this.saveWord(word, translationText, newStatus, contextSentence, isMultiWord);
           this.hideWordPopup();
         });
+      });
+      const meaningInputEl = this.tooltipElement.querySelector(".calm-meaning-input, .lectura-meaning-input");
+      meaningInputEl?.addEventListener("keydown", async (e2) => {
+        if (e2.key === "Enter") {
+          e2.preventDefault();
+          e2.stopPropagation();
+          const customTrans = meaningInputEl.value.trim();
+          const activeStatusBtn = this.tooltipElement?.querySelector("[data-status].active");
+          const statusToSave = activeStatusBtn?.getAttribute("data-status") || (status && status !== "new" && status !== "0" ? status : "1");
+          await this.saveWord(word, customTrans, statusToSave, contextSentence, isMultiWord);
+          this.hideWordPopup();
+        }
       });
       const dictButtons = this.tooltipElement.querySelectorAll("[data-dict], .glass-dict-btn");
       dictButtons.forEach((btn) => {
@@ -41422,6 +41715,9 @@
           tags.push("phrase");
         }
         const currentLang = await getEffectiveLanguage(contextSentence || word) || this.activePopupLang || "en";
+        if (!translationToSave) {
+          translationToSave = _PageReader.localTranslationCache.get(`${currentLang}:${cleanLower}`) || _PageReader.localTranslationCache.get(cleanLower) || (this.cachedWordsByLang[currentLang] || {})[cleanLower]?.translation || "";
+        }
         await this.apiClient.saveWord({
           word,
           lemma: cleanLower,
@@ -41443,6 +41739,11 @@
           this.cachedWordsByLang[currentLang] = {};
         }
         this.cachedWordsByLang[currentLang][cleanLower] = { status, translation: translationToSave };
+        if (translationToSave) {
+          _PageReader.localTranslationCache.set(`${currentLang}:${cleanLower}`, translationToSave);
+        }
+        await StorageService.updateCachedWord(currentLang, cleanLower, { status, translation: translationToSave });
+        this.updatePageHighlights();
         this.showToast(`Saved '${word}' (${status}) [${currentLang.toUpperCase()}]`, "success");
       } catch (err) {
         this.showToast(`Failed to save: ${err.message || "Server error"}`, "error");
@@ -41527,6 +41828,7 @@
           if (!this.isExtensionActiveOnPage()) {
             this.hideWordPopup();
           }
+          this.updatePageHighlights();
           if (changes.popupTheme || changes.popup_theme) {
             const newTheme = changes.popupTheme?.newValue || changes.popup_theme?.newValue || "compact";
             this.applyPopupTheme(newTheme);

@@ -17,6 +17,8 @@ audio_cache/
 image_cache/
 
 # Backups
+backups/
+.last_run_version
 21.06*
 Резервы/
 

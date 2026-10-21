@@ -18,6 +18,8 @@ import podcastsRouter from "./routes/podcasts.ts";
 import translateRouter from "./routes/translate.ts";
 import historyRouter from "./routes/history.ts";
 import lessonsRouter from "./routes/lessons.ts";
+import systemRouter from "./routes/system.ts";
+import { ensureStartupVersionCheckAndBackup, getLiveServerVersion } from "./server/updaterService.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { processVideoFile, switchVideoAudioTrack } from "./server/videoProcessor.ts";
 import { handleHlsPlaylist, handleHlsSegment } from "./server/hlsStreamer.ts";
@@ -189,7 +191,7 @@ async function startServer() {
     try {
       resolvedUser = resolveUserId(req);
     } catch (_) {}
-    res.json({ status: "ok", version: APP_VERSION, uptime: process.uptime(), timestamp: Date.now(), userId: resolvedUser });
+    res.json({ status: "ok", version: getLiveServerVersion() || APP_VERSION, uptime: process.uptime(), timestamp: Date.now(), userId: resolvedUser });
   });
 
   // Dynamic Service Worker endpoint: injects current APP_VERSION into CACHE_NAME
@@ -353,8 +355,10 @@ self.addEventListener("activate", (event) => {
   app.use("/api", translateRouter);
   app.use("/api", historyRouter);
   app.use("/api/lessons", lessonsRouter);
+  app.use("/api", systemRouter);
 
   // Start background automated backup scheduler
+  await ensureStartupVersionCheckAndBackup();
   startBackupScheduler();
 
   // ============================================================

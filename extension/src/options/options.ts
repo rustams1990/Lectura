@@ -403,7 +403,11 @@ class OptionsController {
   private async saveSettings() {
     this.btnSave.disabled = true;
     try {
+      const prevSettings = await StorageService.getSettings();
       const settings = this.getFormSettings();
+      if (prevSettings.selectedUserId !== settings.selectedUserId) {
+        await StorageService.clearVocabularyCaches();
+      }
       await StorageService.saveSettings(settings);
 
       // Also sync shortcuts storage keys
@@ -434,7 +438,8 @@ class OptionsController {
       const health = await testClient.checkHealth();
       const wordData = await this.refreshVocabularyCache(settings);
 
-      const version = health.version ? `v${health.version}` : 'Online';
+      const rawVer = String(health.version || '').trim();
+      const version = rawVer ? (rawVer.startsWith('v') ? rawVer : `v${rawVer}`) : 'Online';
       const wordCount = wordData?.count !== undefined ? ` • ${wordData.count} words` : '';
       this.serverStatusBadge.textContent = `Connected (${version}${wordCount})`;
       this.serverStatusBadge.className = 'badge badge-success';

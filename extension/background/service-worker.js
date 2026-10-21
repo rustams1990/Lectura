@@ -10,6 +10,9 @@ var DEFAULT_SETTINGS = {
   enableYoutubeOverlay: true,
   trackListeningActivity: true,
   enableDualSubtitles: false,
+  autoPauseAfterSubtitle: false,
+  subtitleBlurMode: "off",
+  showTranscriptSidebar: false,
   subtitleSizePreset: "md",
   captureVideoSnapshot: false,
   pauseOnWordClick: false,
@@ -117,6 +120,45 @@ var StorageService = class {
     const words = await this.getCachedWords(langKey);
     words[word.toLowerCase().trim()] = item;
     await this.setCachedWords(langKey, words);
+  }
+  /**
+   * Gets cached word-to-lemma links strictly scoped by language
+   */
+  static async getWordLinks(lang) {
+    const langKey = normalizeLangKey(lang);
+    return new Promise((resolve) => {
+      const key = `word_links_${langKey}`;
+      chrome.storage.local.get([key], (res) => {
+        resolve(res[key] || {});
+      });
+    });
+  }
+  /**
+   * Saves cached word-to-lemma links strictly scoped by language
+   */
+  static async saveWordLinks(lang, links) {
+    const langKey = normalizeLangKey(lang);
+    return new Promise((resolve) => {
+      const key = `word_links_${langKey}`;
+      chrome.storage.local.set({ [key]: links }, () => resolve());
+    });
+  }
+  /**
+   * Clears all user-specific vocabulary, word link, and activity caches when switching accounts (Dogma #1)
+   */
+  static async clearVocabularyCaches() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(null, (allItems) => {
+        const keysToRemove = Object.keys(allItems || {}).filter(
+          (k2) => k2.startsWith("cached_words_") || k2.startsWith("vocab_cache_") || k2.startsWith("word_links_") || k2.startsWith("lectura_activity_cache") || k2 === "words_cache" || k2 === "lectura_words_cache"
+        );
+        if (keysToRemove.length === 0) {
+          resolve();
+          return;
+        }
+        chrome.storage.local.remove(keysToRemove, () => resolve());
+      });
+    });
   }
 };
 
@@ -30039,14 +30081,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           title: article.title,
           content: article.content,
           sourceUrl: article.sourceUrl,
-          coverUrl: article.leadImageUrl,
+          coverUrl: article.leadImageUrl || null,
           author: article.author,
           targetLanguage: article.language !== "auto" ? article.language : settings.targetLanguage,
-          lessonType: "article",
-          sourceType: "article",
+          lessonType: article.lessonType || "article",
+          sourceType: article.sourceType || "article",
           audioUrl: null,
           audioFile: null,
-          youtubeId: null
+          youtubeId: article.youtubeId || null
         });
         showBadge("OK", "#10b981");
       });
@@ -30158,7 +30200,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     apiClient.getProfiles().then((res) => sendResponse({ success: true, data: res })).catch((err) => sendResponse({ success: false, error: err.message }));
     return true;
   }
-  if (message.type === "TRANSLATE_TEXT" || message.type === "TRANSLATE_WORD") {
+  if (message.type === "TRANSLATE_TEXT") {
     const text = (message.payload?.text || message.payload?.word || message.text || message.word || "").trim();
     const sourceLang = message.payload?.sourceLang || message.sourceLang || "auto";
     const targetLang = message.payload?.targetLang || message.targetLang || "ru";
@@ -30174,7 +30216,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         ]);
         if (res && res.translation && res.translation.trim()) {
           console.log("[Lectura ServiceWorker] Server response:", res);
-          sendResponse({ success: true, data: res });
+          sendResponse({ success: true, data: res, translation: res.translation });
           return;
         }
       } catch (err) {
@@ -30183,10 +30225,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       try {
         const direct = await translateDirectInWorker(text, sourceLang, targetLang);
         console.log("[Lectura ServiceWorker] Direct fallback response:", { text, direct });
-        sendResponse({ success: true, data: { text, translation: direct || "\u2014 (\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445)" } });
+        const finalTranslation = direct || "\u2014 (\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445)";
+        sendResponse({ success: true, data: { text, translation: finalTranslation }, translation: finalTranslation });
       } catch (e2) {
         console.error("[Lectura ServiceWorker] Fallback translation failed:", e2?.message || e2);
-        sendResponse({ success: true, data: { text, translation: "\u2014 (\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445)" } });
+        sendResponse({ success: true, data: { text, translation: "\u2014 (\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445)" }, translation: "\u2014 (\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445)" });
       }
     })();
     return true;
@@ -30242,7 +30285,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         variants.unshift(primary);
       }
       const translationText = variants.length > 0 ? variants.slice(0, 5).join(", ") : primary || "\u2014";
-      sendResponse({ success: true, translation: translationText });
+      sendResponse({ success: true, translation: translationText, data: { translation: translationText } });
     }).catch((err) => {
       sendResponse({ success: false, error: err.message, translation: "\u2014" });
     });

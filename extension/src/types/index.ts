@@ -15,6 +15,9 @@ export interface ExtensionSettings {
   enableYoutubeOverlay: boolean;
   trackListeningActivity?: boolean;
   enableDualSubtitles?: boolean;
+  autoPauseAfterSubtitle?: boolean;
+  subtitleBlurMode?: 'off' | 'translation' | 'both';
+  showTranscriptSidebar?: boolean;
   subtitleSizePreset?: 'sm' | 'md' | 'lg';
   captureVideoSnapshot?: boolean;
   pauseOnWordClick?: boolean;
@@ -63,6 +66,9 @@ export interface SaveWordPayload {
   is_phrase?: boolean;
   tags?: string[];
   imageUrl?: string;
+  youtubeId?: string;
+  cueStart?: number;
+  cueEnd?: number;
 }
 
 export interface SaveLessonPayload {

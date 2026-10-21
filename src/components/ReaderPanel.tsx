@@ -29,6 +29,7 @@ import {
   Gamepad2,
   Tv,
   ChevronLeft,
+  ChevronUp,
 } from "lucide-react";
 import { getDifficultyBadgeStyles } from "./LibraryHome";
 import { useReaderHistory } from "../hooks/useReaderHistory";
@@ -354,6 +355,19 @@ function ReaderPanel({
   const [unknownViewMode, setUnknownViewMode] = useState<"text" | "list">("text");
   const [unknownSearchQuery, setUnknownSearchQuery] = useState("");
   const [unknownSortMode, setUnknownSortMode] = useState<"alpha" | "appearance">("alpha");
+
+  // Collapsible meta toolbar (saves vertical screen space especially on tablets and video mode)
+  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem("lectura_reader_toolbar_collapsed") === "true";
+  });
+
+  const toggleToolbarCollapsed = () => {
+    setIsToolbarCollapsed((prev) => {
+      const next = !prev;
+      safeLocalStorageSetItem("lectura_reader_toolbar_collapsed", String(next));
+      return next;
+    });
+  };
 
   // Status & Reading Time Management States
   const {
@@ -1021,7 +1035,11 @@ function ReaderPanel({
       className={`reader-container book-page-sheet relative w-full max-w-none lg:max-w-none ${
         hideMeta 
           ? "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-md px-4 py-3 lg:px-10 lg:pt-4 lg:pb-6 min-h-screen lg:min-h-[70vh] flex flex-col justify-between" 
-          : "rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-sm px-4 py-3 lg:p-8 space-y-3 lg:space-y-6"
+          : `rounded-none lg:rounded-3xl border-0 lg:border shadow-none lg:shadow-sm px-4 transition-all duration-200 ${
+              isToolbarCollapsed
+                ? "py-2 space-y-2 lg:py-5 lg:space-y-4 lg:px-8"
+                : "py-3 space-y-3 lg:p-8 lg:space-y-6"
+            }`
       } transition-colors duration-200 overflow-hidden ${currentTheme.container}`}
     >
       <div id="reader-top-anchor" className="h-0 pointer-events-none" />
@@ -1099,176 +1117,230 @@ function ReaderPanel({
 
       {/* Title / status — hidden in Focus Mode via hideMeta prop */}
       {!hideMeta && (
-        <div className={`pb-2.5 sm:pb-3.5 border-b ${currentTheme.divider} flex items-center justify-end lg:justify-between gap-3 min-w-0`}>
-          {/* Main Lesson Title (Truncated on long titles, hidden on mobile/tablet to avoid duplication with video header, shown on PC) */}
-          <h1 
-            className="hidden lg:block text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate max-w-[60%] sm:max-w-[70%] md:max-w-[75%] min-w-0"
-            title={lesson.title}
-          >
-            {lesson.title}
-          </h1>
+        isToolbarCollapsed ? (
+          /* Collapsed minimal handle bar — saves maximum vertical space on tablet/mobile */
+          <div className={`py-1 px-1 border-b ${currentTheme.divider} flex items-center justify-between min-w-0 transition-all text-xs`}>
+            {/* Main Lesson Title (desktop) */}
+            <h1 
+              className="hidden lg:block text-xs sm:text-sm font-semibold tracking-tight truncate max-w-[60%] min-w-0 opacity-70"
+              title={lesson.title}
+            >
+              {lesson.title}
+            </h1>
 
-          {/* Right: Action Icons (mobile) + Status Switcher (In Progress / Completed) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
-            <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
-              {/* 1. Translation Toggle */}
-              {activeSettings.toolbarVisibility?.showTranslation === true && (
-                <button
-                  type="button"
-                  onClick={onToggleTranslations}
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                    activeSettings.showSentenceTranslations
-                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                      : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
-                  }`}
-                  title={activeSettings.showSentenceTranslations ? t("reader.hide_translations_title", "Скрыть перевод предложений (T)") : t("reader.show_translations_title", "Показать перевод предложений (T)")}
-                >
-                  <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-              )}
+            {/* Expand button and subtle status badge */}
+            <div className="flex items-center gap-1.5 ml-auto">
+              {/* Mini clickable status pill */}
+              <button
+                type="button"
+                onClick={() => handleToggleStatus(currentStatus === "completed" ? "in_progress" : "completed")}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  currentStatus === "completed" 
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25" 
+                    : "bg-teal-500/15 text-teal-600 dark:text-teal-400 hover:bg-teal-500/25"
+                }`}
+                title={currentStatus === "completed" ? t('reader.status_completed_title', 'Status: Completed (click to change)') : t('reader.status_in_progress_title', 'Status: In Progress (click to change)')}
+              >
+                {currentStatus === "completed" ? <CheckCircle2 className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
+                <span>{currentStatus === "completed" ? t('reader.status_completed', 'Completed') : t('reader.status_in_progress', 'In Progress')}</span>
+              </button>
 
-              {/* 2. Focus Mode */}
-              {activeSettings.toolbarVisibility?.showFocusMode !== false && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!isFocusMode) {
-                      setShowYoutubePlayer(true);
-                    }
-                    setIsFocusMode(!isFocusMode);
-                  }}
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                    isFocusMode
-                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                      : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
-                  }`}
-                  title={t("reader.focus_btn", "Режим фокуса")}
-                >
-                  <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={toggleToolbarCollapsed}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                title={t('reader.expand_toolbar', 'Развернуть панель')}
+                aria-label={t('reader.expand_toolbar', 'Развернуть панель')}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-medium">{t('reader.toolbar_expand', 'Инструменты')}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Full expanded toolbar */
+          <div className={`pb-2.5 sm:pb-3.5 border-b ${currentTheme.divider} flex items-center justify-end lg:justify-between gap-3 min-w-0`}>
+            {/* Main Lesson Title (Truncated on long titles, hidden on mobile/tablet to avoid duplication with video header, shown on PC) */}
+            <h1 
+              className="hidden lg:block text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate max-w-[60%] sm:max-w-[70%] md:max-w-[75%] min-w-0"
+              title={lesson.title}
+            >
+              {lesson.title}
+            </h1>
 
-              {/* 3. Play: Match Pairs */}
-              {activeSettings.toolbarVisibility?.showPlayPairs === true && (
-                <button
-                  type="button"
-                  onClick={() => setShowMatchPairsModal(true)}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                  title={t("reader.pairs_btn_title", "Игра: Пары")}
-                >
-                  <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-              )}
+            {/* Right: Action Icons (mobile) + Status Switcher (In Progress / Completed) */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* 5 Reader Action Icons (visible only on mobile/tablet, hidden on desktop) */}
+              <div className="flex lg:hidden items-center gap-0.5 sm:gap-1 shrink-0">
+                {/* 1. Translation Toggle */}
+                {activeSettings.toolbarVisibility?.showTranslation === true && (
+                  <button
+                    type="button"
+                    onClick={onToggleTranslations}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                      activeSettings.showSentenceTranslations
+                        ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
+                    }`}
+                    title={activeSettings.showSentenceTranslations ? t("reader.hide_translations_title", "Скрыть перевод предложений (T)") : t("reader.show_translations_title", "Показать перевод предложений (T)")}
+                  >
+                    <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+                )}
 
-              {/* 4. Unknown Only */}
-              {activeSettings.toolbarVisibility?.showUnknownOnly !== false && (
-                <button
-                  type="button"
-                  onClick={() => (onWordClick ? storeSetShowOnlyUnknown(!storeShowOnlyUnknown) : null)}
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                    storeShowOnlyUnknown || showOnlyUnknown
-                      ? "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-400/10 border border-amber-500/30 shadow-3xs"
-                      : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
-                  }`}
-                  title={t("reader.unknown_btn_title", "Только неизвестные слова")}
-                >
-                  {(storeShowOnlyUnknown || showOnlyUnknown) ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                </button>
-              )}
-
-              {/* 5. Video */}
-              {activeSettings.toolbarVisibility?.showVideoToggle !== false && !isBook && lesson.sourceType !== 'book' && lesson.sourceType !== 'article' && Boolean(lesson.youtubeId || (lesson as any).localVideoUrl) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
-                    if (isMobileOrTablet) {
-                      if (isFocusMode && showYoutubePlayer) {
-                        setShowYoutubePlayer(false);
-                      } else {
-                        setIsFocusMode(true);
+                {/* 2. Focus Mode */}
+                {activeSettings.toolbarVisibility?.showFocusMode !== false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isFocusMode) {
                         setShowYoutubePlayer(true);
                       }
-                    } else {
-                      setShowYoutubePlayer(!showYoutubePlayer);
+                      setIsFocusMode(!isFocusMode);
+                    }}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                      isFocusMode
+                        ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
+                    }`}
+                    title={t("reader.focus_btn", "Режим фокуса")}
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+                )}
+
+                {/* 3. Play: Match Pairs */}
+                {activeSettings.toolbarVisibility?.showPlayPairs === true && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMatchPairsModal(true)}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    title={t("reader.pairs_btn_title", "Игра: Пары")}
+                  >
+                    <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+                )}
+
+                {/* 4. Unknown Only */}
+                {activeSettings.toolbarVisibility?.showUnknownOnly !== false && (
+                  <button
+                    type="button"
+                    onClick={() => (onWordClick ? storeSetShowOnlyUnknown(!storeShowOnlyUnknown) : null)}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                      storeShowOnlyUnknown || showOnlyUnknown
+                        ? "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-400/10 border border-amber-500/30 shadow-3xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
+                    }`}
+                    title={t("reader.unknown_btn_title", "Только неизвестные слова")}
+                  >
+                    {(storeShowOnlyUnknown || showOnlyUnknown) ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                  </button>
+                )}
+
+                {/* 5. Video */}
+                {activeSettings.toolbarVisibility?.showVideoToggle !== false && !isBook && lesson.sourceType !== 'book' && lesson.sourceType !== 'article' && Boolean(lesson.youtubeId || (lesson as any).localVideoUrl) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const isMobileOrTablet = typeof window !== "undefined" && window.innerWidth < 1024;
+                      if (isMobileOrTablet) {
+                        if (isFocusMode && showYoutubePlayer) {
+                          setShowYoutubePlayer(false);
+                        } else {
+                          setIsFocusMode(true);
+                          setShowYoutubePlayer(true);
+                        }
+                      } else {
+                        setShowYoutubePlayer(!showYoutubePlayer);
+                      }
+                    }}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                      (showYoutubePlayer && !isFocusMode) || (isFocusMode && showYoutubePlayer)
+                        ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
+                    }`}
+                    title={t("reader.video_btn_title", "Видео")}
+                  >
+                    <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+                )}
+
+                {/* 6. Timestamps */}
+                {activeSettings.toolbarVisibility?.showTimestampsToggle !== false && hasTimestamps && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateSettings?.({
+                        ...settings,
+                        showTimestamps: activeSettings.showTimestamps === false ? true : false,
+                      })
                     }
-                  }}
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                    (showYoutubePlayer && !isFocusMode) || (isFocusMode && showYoutubePlayer)
-                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                      : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
-                  }`}
-                  title={t("reader.video_btn_title", "Видео")}
-                >
-                  <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-              )}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
+                      activeSettings.showTimestamps !== false
+                        ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
+                    }`}
+                    title={
+                      activeSettings.showTimestamps !== false
+                        ? t("reader.hide_timestamps_title", "Скрыть временные метки")
+                        : t("reader.show_timestamps_title", "Показать временные метки")
+                    }
+                  >
+                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+                )}
 
-              {/* 6. Timestamps */}
-              {activeSettings.toolbarVisibility?.showTimestampsToggle !== false && hasTimestamps && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onUpdateSettings?.({
-                      ...settings,
-                      showTimestamps: activeSettings.showTimestamps === false ? true : false,
-                    })
-                  }
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                    activeSettings.showTimestamps !== false
-                      ? "text-teal-600 bg-teal-500/10 dark:text-teal-400 dark:bg-teal-400/10 border border-teal-500/30 shadow-3xs"
-                      : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10"
-                  }`}
-                  title={
-                    activeSettings.showTimestamps !== false
-                      ? t("reader.hide_timestamps_title", "Скрыть временные метки")
-                      : t("reader.show_timestamps_title", "Показать временные метки")
-                  }
-                >
-                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-              )}
+                {/* 7. Text Settings (AA) */}
+                <TextSettingsControls
+                  settings={activeSettings}
+                  onUpdateSettings={onUpdateSettings || (() => {})}
+                  compact={false}
+                  lessonType={isBook ? "book" : lesson.lessonType}
+                />
+              </div>
 
-              {/* 7. Text Settings (AA) */}
-              <TextSettingsControls
-                settings={activeSettings}
-                onUpdateSettings={onUpdateSettings || (() => {})}
-                compact={false}
-                lessonType={isBook ? "book" : lesson.lessonType}
-              />
+              {/* Status Switcher (In Progress / Completed) */}
+              <button
+                type="button"
+                onClick={() => handleToggleStatus("in_progress")}
+                className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                  currentStatus === "in_progress"
+                    ? "bg-teal-600 text-white shadow-xs"
+                    : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200/50 dark:border-zinc-800/50`
+                }`}
+                title={t('reader.status_in_progress_title', 'Set status: In Progress')}
+              >
+                <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                <span>{t('reader.status_in_progress', 'In Progress')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleToggleStatus("completed")}
+                className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                  currentStatus === "completed"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200/50 dark:border-zinc-800/50`
+                }`}
+                title={t('reader.status_completed_title', 'Set status: Completed')}
+              >
+                <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                <span>{t('reader.status_completed', 'Completed')}</span>
+              </button>
+
+              {/* Collapse toolbar button */}
+              <button
+                type="button"
+                onClick={toggleToolbarCollapsed}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0 ml-0.5"
+                title={t('reader.collapse_toolbar', 'Свернуть панель')}
+                aria-label={t('reader.collapse_toolbar', 'Свернуть панель')}
+              >
+                <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
             </div>
-
-            {/* Status Switcher (In Progress / Completed) */}
-            <button
-              type="button"
-              onClick={() => handleToggleStatus("in_progress")}
-              className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                currentStatus === "in_progress"
-                  ? "bg-teal-600 text-white shadow-xs"
-                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200/50 dark:border-zinc-800/50`
-              }`}
-              title={t('reader.status_in_progress_title', 'Set status: In Progress')}
-            >
-              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-              <span>{t('reader.status_in_progress', 'In Progress')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleToggleStatus("completed")}
-              className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-black rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                currentStatus === "completed"
-                  ? "bg-emerald-600 text-white shadow-xs"
-                  : `${currentTheme.subText} hover:bg-black/5 dark:hover:bg-white/5 border border-zinc-200/50 dark:border-zinc-800/50`
-              }`}
-              title={t('reader.status_completed_title', 'Set status: Completed')}
-            >
-              <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-              <span>{t('reader.status_completed', 'Completed')}</span>
-            </button>
           </div>
-        </div>
+        )
       )} {/* end !hideMeta */}
 
       {showOnlyUnknown && (

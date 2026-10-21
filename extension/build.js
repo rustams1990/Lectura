@@ -15,6 +15,34 @@ const SRC_DIR = path.join(EXTENSION_ROOT, 'src');
 async function build() {
   console.log('🚀 Building Lectura Chrome Extension (Manifest V3)...');
 
+  // 0. Sync manifest.json version with root package.json
+  try {
+    const pkgPath = path.join(EXTENSION_ROOT, '..', 'package.json');
+    const manifestPath = path.join(EXTENSION_ROOT, 'manifest.json');
+    if (fs.existsSync(pkgPath) && fs.existsSync(manifestPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      if (pkg.version && manifest.version !== pkg.version) {
+        manifest.version = pkg.version;
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+        console.log(`📌 Synced extension manifest version to ${pkg.version}`);
+      }
+    }
+  } catch (e) {
+    console.warn('[Build] Could not sync manifest version:', e);
+  }
+
+  // Clean up stray legacy files outside src/
+  const strayPaths = [
+    path.join(EXTENSION_ROOT, 'popup', 'ActivityTab.tsx'),
+    path.join(EXTENSION_ROOT, 'services'),
+  ];
+  for (const sp of strayPaths) {
+    if (fs.existsSync(sp)) {
+      fs.rmSync(sp, { recursive: true, force: true });
+    }
+  }
+
   // 1. Ensure clean dist structure
   if (fs.existsSync(DIST_DIR)) {
     fs.rmSync(DIST_DIR, { recursive: true, force: true });

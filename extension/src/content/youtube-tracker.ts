@@ -504,38 +504,56 @@ function sendPayload(settings: ExtensionSettings, payload: any, isFinal: boolean
 
   const jsonStr = JSON.stringify(payload);
 
-  // 1. Send via fetch with keepalive: true (preserves custom headers even while unloading)
+  // When page is unloading (isFinal), use fetch with keepalive: true (or sendBeacon fallback)
+  if (isFinal) {
+    let sent = false;
+    try {
+      fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: jsonStr,
+        keepalive: true,
+      }).catch(() => {});
+      sent = true;
+    } catch (_) {}
+
+    if (!sent && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      try {
+        const beaconUrl = `${endpoint}?sync_user=${encodeURIComponent(
+          userId || userEmail || 'default'
+        )}&userId=${encodeURIComponent(userId || '')}&userEmail=${encodeURIComponent(userEmail || '')}&sync_key=${encodeURIComponent(settings.syncKey || '')}`;
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        navigator.sendBeacon(beaconUrl, blob);
+      } catch (_) {}
+    }
+    return;
+  }
+
+  // Normal periodic/pause flush: route via background service worker first (avoids PNA/Mixed-Content & duplicate POSTs)
   try {
+    chrome.runtime.sendMessage(
+      {
+        type: 'LOG_YOUTUBE_ACTIVITY',
+        payload,
+      },
+      (res) => {
+        if (chrome.runtime.lastError || !res?.success) {
+          // Fallback to direct fetch only if background worker is unavailable
+          fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: jsonStr,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      }
+    );
+  } catch (_) {
     fetch(endpoint, {
       method: 'POST',
       headers,
       body: jsonStr,
       keepalive: true,
-    }).catch((err) => {
-      console.warn('[Lectura Tracker] fetch error:', err);
-    });
-  } catch (err) {
-    console.warn('[Lectura Tracker] fetch exception:', err);
+    }).catch(() => {});
   }
-
-  // 2. If page is unloading and navigator.sendBeacon is available, fire beacon as redundant safeguard
-  if (isFinal && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-    try {
-      const beaconUrl = `${endpoint}?sync_user=${encodeURIComponent(
-        userId || userEmail || 'default'
-      )}&userId=${encodeURIComponent(userId || '')}&userEmail=${encodeURIComponent(userEmail || '')}&sync_key=${encodeURIComponent(settings.syncKey || '')}`;
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      navigator.sendBeacon(beaconUrl, blob);
-    } catch (_) {}
-  }
-
-  // 3. Also notify background service worker
-  try {
-    chrome.runtime
-      .sendMessage({
-        type: 'LOG_YOUTUBE_ACTIVITY',
-        payload,
-      })
-      .catch(() => {});
-  } catch (_) {}
 }

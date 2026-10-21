@@ -15,7 +15,7 @@
         <span class="ext-logo">📖</span>
         <div class="ext-brand-title">
           <span class="ext-title">Lectura</span>
-          <span class="ext-ver">v1.0.1</span>
+          <span class="ext-ver" id="extVersionBadge">v1.0.35</span>
         </div>
       </div>
       <div class="ext-header-right">
@@ -131,8 +131,6 @@
           <select class="ext-select" id="popupThemeSelect">
             <option value="glass" selected data-i18n="theme_glass">✨ Modern Glass (Neon)</option>
             <option value="calm_light" data-i18n="theme_calm_light">🌿 Calm Light (Pastel)</option>
-            <option value="extended" data-i18n="theme_extended">📚 Extended (Dictionary)</option>
-            <option value="compact" data-i18n="theme_compact">⚡ Compact (Minimal)</option>
           </select>
         </div>
 
@@ -192,6 +190,27 @@
             <span class="slider"></span>
           </label>
         </div>
+
+        <div class="ext-toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-text" data-i18n="auto_pause_sub">Auto-Pause After Subtitle</span>
+            <span class="toggle-hint" data-i18n="auto_pause_sub_hint">Hotkey: [Q]</span>
+          </div>
+          <label class="ext-switch">
+            <input type="checkbox" id="autoPauseAfterSubtitleCheck" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="ext-toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-text" data-i18n="opt_highlight_vocab">Highlight Vocabulary Words</span>
+          </div>
+          <label class="ext-switch">
+            <input type="checkbox" id="highlightKnownWordsCheck" />
+            <span class="slider"></span>
+          </label>
+        </div>
       </section>
 
       <!-- 6) Кнопки импорта и синхронизации: Import Current Video, Open App, Sync Words -->
@@ -247,7 +266,7 @@
       </div>
 
       <!-- Weekday Labels -->
-      <div class="calendar-weekdays-grid">
+      <div class="calendar-weekdays-grid" id="calendarWeekdaysGrid">
         <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
       </div>
 
@@ -281,4 +300,3 @@
 <script src="popup.js"></script>
 </body>
 </html>
-

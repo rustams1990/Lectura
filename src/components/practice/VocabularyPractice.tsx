@@ -267,6 +267,11 @@ export default function VocabularyPractice({
       }));
   }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter, studyMode]);
 
+  const safeCurrentIndex = learningList.length > 0
+    ? Math.min(Math.max(0, currentIndex), learningList.length - 1)
+    : 0;
+  const currentLq = learningList[safeCurrentIndex] || null;
+
 
 
 
@@ -313,7 +318,7 @@ export default function VocabularyPractice({
       if (newIdx !== -1) {
         setCurrentIndex(newIdx);
       } else {
-        setCurrentIndex(0);
+        setCurrentIndex((prev) => (learningList.length > 0 ? Math.min(prev, learningList.length - 1) : 0));
       }
     }
   }, [learningList]);
@@ -620,9 +625,9 @@ export default function VocabularyPractice({
   // Keep currentIndex in bounds when deck size or language changes
   useEffect(() => {
     if (learningList.length === 0) {
-      setCurrentIndex(0);
+      if (currentIndex !== 0) setCurrentIndex(0);
     } else if (isNaN(currentIndex) || currentIndex < 0 || currentIndex >= learningList.length) {
-      setCurrentIndex(0);
+      setCurrentIndex(Math.min(Math.max(0, currentIndex), learningList.length - 1));
     }
   }, [learningList.length, currentIndex]);
 
@@ -722,8 +727,6 @@ export default function VocabularyPractice({
       setIsGenerating(false);
     }
   };
-
-  const currentLq = learningList[currentIndex];
 
 
   const checkSpelling = () => {
@@ -898,15 +901,6 @@ export default function VocabularyPractice({
   const hasAnyImages = useMemo(() => {
     return learningList.some((lq) => !!lq.imageUrl);
   }, [learningList]);
-
-  // Safeguard against temporary out-of-bound index renders during state updates
-  if (learningList.length > 0 && !currentLq) {
-    return (
-      <div className="flex items-center justify-center p-8 text-zinc-500 font-sans">
-        {t('practice.loading_flashcard', 'Loading flashcard...')}
-      </div>
-    );
-  }
 
   const isCardWithImage = studyMode === "image" && currentLq && !!currentLq.imageUrl;
 
@@ -1512,6 +1506,10 @@ export default function VocabularyPractice({
             </div>
           </div>
         )
+      ) : !currentLq ? (
+        <div className="flex items-center justify-center p-8 text-zinc-500 font-sans">
+          {t('practice.loading_flashcard', 'Loading flashcard...')}
+        </div>
       ) : (
         <div className={showList ? "grid grid-cols-1 md:grid-cols-12 gap-6" : "space-y-4"}>
           {/* Left Card Column */}

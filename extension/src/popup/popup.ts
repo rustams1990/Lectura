@@ -235,6 +235,18 @@ export function getLanguageDisplay(code: string, userCustomFlags?: Record<string
   return base;
 }
 
+const LOCALIZED_MONTHS: Record<string, string[]> = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
+  es: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+};
+
+const LOCALIZED_WEEKDAYS: Record<string, string[]> = {
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+  es: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+};
+
 class PopupController {
   private serverUrlInput?: HTMLInputElement | null;
   private authTokenInput?: HTMLInputElement | null;
@@ -270,6 +282,8 @@ class PopupController {
   private currentSubtitleBgColor: string = 'rgba(0, 0, 0, 0.45)';
   private dualSubsCheck!: HTMLInputElement;
   private pauseOnWordClickCheck!: HTMLInputElement;
+  private autoPauseAfterSubtitleCheck?: HTMLInputElement | null;
+  private highlightKnownWordsCheck?: HTMLInputElement | null;
   private enableYoutubeOverlayCheck!: HTMLInputElement;
   private trackListeningActivityCheck!: HTMLInputElement;
   private popupThemeSelect!: HTMLSelectElement;
@@ -287,6 +301,7 @@ class PopupController {
   private prevMonthBtn!: HTMLButtonElement;
   private nextMonthBtn!: HTMLButtonElement;
   private currentMonthYearLabel!: HTMLElement;
+  private calendarWeekdaysGrid?: HTMLElement | null;
   private calendarDaysGrid!: HTMLElement;
   private calendarGoalBadge!: HTMLElement;
   private selectedDateLabel!: HTMLElement;
@@ -311,6 +326,13 @@ class PopupController {
   }
 
   private async init() {
+    // Sync extension version badge from manifest.json
+    const verEl = document.querySelector('.ext-ver');
+    const manifestVer = chrome.runtime?.getManifest?.()?.version;
+    if (verEl && manifestVer) {
+      verEl.textContent = manifestVer.startsWith('v') ? manifestVer : `v${manifestVer}`;
+    }
+
     this.masterPowerCard = document.getElementById('masterPowerCard') as HTMLElement;
     this.globalEnabledToggle = document.getElementById('globalEnabledToggle') as HTMLInputElement;
     this.powerStatusDot = document.getElementById('powerStatusDot') as HTMLElement;
@@ -332,6 +354,8 @@ class PopupController {
     this.subBgColorPicker = document.getElementById('subBgColorPicker') as HTMLInputElement;
     this.dualSubsCheck = document.getElementById('dualSubsCheck') as HTMLInputElement;
     this.pauseOnWordClickCheck = document.getElementById('pauseOnWordClickCheck') as HTMLInputElement;
+    this.autoPauseAfterSubtitleCheck = document.getElementById('autoPauseAfterSubtitleCheck') as HTMLInputElement | null;
+    this.highlightKnownWordsCheck = document.getElementById('highlightKnownWordsCheck') as HTMLInputElement | null;
     this.enableYoutubeOverlayCheck = document.getElementById('enableYoutubeOverlayCheck') as HTMLInputElement;
     this.trackListeningActivityCheck = document.getElementById('trackListeningActivityCheck') as HTMLInputElement;
     this.popupThemeSelect = document.getElementById('popupThemeSelect') as HTMLSelectElement;
@@ -359,6 +383,7 @@ class PopupController {
     this.prevMonthBtn = document.getElementById('prevMonthBtn') as HTMLButtonElement;
     this.nextMonthBtn = document.getElementById('nextMonthBtn') as HTMLButtonElement;
     this.currentMonthYearLabel = document.getElementById('currentMonthYearLabel') as HTMLElement;
+    this.calendarWeekdaysGrid = document.getElementById('calendarWeekdaysGrid') as HTMLElement | null;
     this.calendarDaysGrid = document.getElementById('calendarDaysGrid') as HTMLElement;
     this.calendarGoalBadge = document.getElementById('calendarGoalBadge') as HTMLElement;
     this.selectedDateLabel = document.getElementById('selectedDateLabel') as HTMLElement;
@@ -464,6 +489,7 @@ class PopupController {
         const selectedUserId = this.userProfileSelect?.value;
         const selectedUserEmail = selectedOption?.dataset?.email || '';
         if (selectedUserId) {
+          await StorageService.clearVocabularyCaches();
           await StorageService.saveSettings({ selectedUserId, selectedUserEmail });
           await this.syncWords();
           this.loadActivityHistory();
@@ -583,6 +609,18 @@ class PopupController {
     this.pauseOnWordClickCheck.addEventListener('change', async () => {
       const enabled = this.pauseOnWordClickCheck.checked;
       await StorageService.saveSettings({ pauseOnWordClick: enabled });
+    });
+
+    this.autoPauseAfterSubtitleCheck?.addEventListener('change', async () => {
+      const enabled = !!this.autoPauseAfterSubtitleCheck?.checked;
+      await StorageService.saveSettings({ autoPauseAfterSubtitle: enabled });
+      chrome.storage.local.set({ autoPauseAfterSubtitle: enabled });
+    });
+
+    this.highlightKnownWordsCheck?.addEventListener('change', async () => {
+      const enabled = !!this.highlightKnownWordsCheck?.checked;
+      await StorageService.saveSettings({ highlightKnownWords: enabled });
+      chrome.storage.local.set({ highlightKnownWords: enabled });
     });
 
     if (this.globalEnabledToggle) {
@@ -778,13 +816,16 @@ class PopupController {
   }
 
   private renderCalendar() {
-    const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
+    const uiLangKey = (this.currentUiLang || 'en').slice(0, 2).toLowerCase();
+    const monthNames = LOCALIZED_MONTHS[uiLangKey] || LOCALIZED_MONTHS.en;
+    const weekdayNames = LOCALIZED_WEEKDAYS[uiLangKey] || LOCALIZED_WEEKDAYS.en;
 
     if (this.currentMonthYearLabel) {
       this.currentMonthYearLabel.textContent = `${monthNames[this.currentCalendarMonth]} ${this.currentCalendarYear}`;
+    }
+
+    if (this.calendarWeekdaysGrid) {
+      this.calendarWeekdaysGrid.innerHTML = weekdayNames.map((wd) => `<div>${wd}</div>`).join('');
     }
 
     const targetGoalMinutes = this.getTargetGoalMinutes(this.selectedActivityLang);
@@ -890,7 +931,9 @@ class PopupController {
         const parts = dateStr.split('-');
         if (parts.length === 3) {
           const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-          this.selectedDateLabel.textContent = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+          const localeMap: Record<string, string> = { ru: 'ru-RU', es: 'es-ES', en: 'en-US' };
+          const locale = localeMap[(this.currentUiLang || 'en').slice(0, 2).toLowerCase()] || 'en-US';
+          this.selectedDateLabel.textContent = d.toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric' });
         } else {
           this.selectedDateLabel.textContent = dateStr;
         }
@@ -1149,6 +1192,12 @@ class PopupController {
     if (this.pauseOnWordClickCheck) {
       this.pauseOnWordClickCheck.checked = settings.pauseOnWordClick ?? false;
     }
+    if (this.autoPauseAfterSubtitleCheck) {
+      this.autoPauseAfterSubtitleCheck.checked = settings.autoPauseAfterSubtitle ?? false;
+    }
+    if (this.highlightKnownWordsCheck) {
+      this.highlightKnownWordsCheck.checked = settings.highlightKnownWords ?? true;
+    }
     this.currentSubtitleMode = settings.subtitleHighlightMode || 'underline';
     this.updateModeButtonsUI(this.currentSubtitleMode);
 
@@ -1364,7 +1413,8 @@ class PopupController {
         });
       }
       const count = wordData?.count || (wordData?.words ? wordData.words.length : Object.keys(wordData?.map || {}).length);
-      const versionStr = health.version ? `v${health.version}` : 'Online';
+      const rawVer = String(health.version || '').trim();
+      const versionStr = rawVer ? (rawVer.startsWith('v') ? rawVer : `v${rawVer}`) : 'Online';
       const userStr = count ? ` • ${count} words` : '';
 
       if (this.connectionBadge) {
@@ -1405,7 +1455,7 @@ class PopupController {
       chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ARTICLE' }, async (response) => {
         if (chrome.runtime.lastError || !response?.success) {
           this.showAlert(
-            'Could not extract article text from this page. Try refreshing the tab.',
+            response?.error || 'Could not extract content from this page. Try refreshing the tab.',
             'error'
           );
           this.resetImportButton();
@@ -1423,18 +1473,18 @@ class PopupController {
 
         try {
           const settings = await StorageService.getSettings();
-          const saveRes = await this.apiClient.saveLesson({
+          await this.apiClient.saveLesson({
             title: article.title,
             content: article.content,
             sourceUrl: article.sourceUrl || tab.url,
-            coverUrl: article.leadImageUrl,
+            coverUrl: article.leadImageUrl || null,
             author: article.author,
             targetLanguage: article.language !== 'auto' ? article.language : settings.targetLanguage,
-            lessonType: 'article',
-            sourceType: 'article',
+            lessonType: article.lessonType || 'article',
+            sourceType: article.sourceType || 'article',
             audioUrl: null,
             audioFile: null,
-            youtubeId: null,
+            youtubeId: article.youtubeId || null,
           });
 
           this.showAlert(`Lesson "${article.title}" saved to Lectura!`, 'success');

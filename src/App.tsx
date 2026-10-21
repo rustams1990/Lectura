@@ -1226,7 +1226,39 @@ export default function App() {
   }, [handleBackNavigation]);
 
   useEffect(() => {
-    // Automatic background update check on app launch
+    let lastAutoCheck = Date.now();
+    const runAutoCheck = () => {
+      lastAutoCheck = Date.now();
+      checkForGitHubUpdate(false).then((release) => {
+        if (release && release.hasUpdate) {
+          setAvailableUpdate(release);
+          setShowUpdateModal(true);
+        }
+      });
+    };
+
+    const handleManualUpdateCheck = async () => {
+      const release = await checkForGitHubUpdate(true);
+      if (release && release.hasUpdate) {
+        setAvailableUpdate(release);
+        setShowUpdateModal(true);
+      } else {
+        showToast(
+          t("updater.up_to_date", "You are on the latest version ({{ver}})", { ver: APP_VERSION }),
+          "success"
+        );
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastAutoCheck > 10 * 60 * 1000) {
+        runAutoCheck();
+      }
+    };
+
+    const intervalId = window.setInterval(runAutoCheck, 20 * 60 * 1000);
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("lectura:check-updates", handleManualUpdateCheck);
     const timer = setTimeout(() => {
       checkForGitHubUpdate(false).then((release) => {
         if (release && release.hasUpdate) {
@@ -1235,7 +1267,12 @@ export default function App() {
         }
       });
     }, 2500);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      window.clearInterval(intervalId);
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("lectura:check-updates", handleManualUpdateCheck);
+    };
   }, []);
 
   useEffect(() => {

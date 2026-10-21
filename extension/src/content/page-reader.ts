@@ -48,30 +48,30 @@ export interface DialectInfo {
 
 export const LANGUAGE_DIALECTS: Record<string, DialectInfo[]> = {
   es: [
-    { code: 'es-MX', label: '🇲🇽 MX', name: 'Mexican Spanish' },
-    { code: 'es-ES', label: '🇪🇸 ES', name: 'Castilian Spanish' },
-    { code: 'es-US', label: '🇺🇸 US', name: 'US Spanish' },
-    { code: 'es-AR', label: '🇦🇷 AR', name: 'Argentine Spanish' },
+    { code: 'es-MX', label: 'MX', name: 'Mexican Spanish' },
+    { code: 'es-ES', label: 'ES', name: 'Castilian Spanish' },
+    { code: 'es-US', label: 'US', name: 'US Spanish' },
+    { code: 'es-AR', label: 'AR', name: 'Argentine Spanish' },
   ],
   en: [
-    { code: 'en-US', label: '🇺🇸 US', name: 'American English' },
-    { code: 'en-GB', label: '🇬🇧 UK', name: 'British English' },
-    { code: 'en-AU', label: '🇦🇺 AU', name: 'Australian English' },
+    { code: 'en-US', label: 'US', name: 'American English' },
+    { code: 'en-GB', label: 'UK', name: 'British English' },
+    { code: 'en-AU', label: 'AU', name: 'Australian English' },
   ],
   fr: [
-    { code: 'fr-FR', label: '🇫🇷 FR', name: 'French (France)' },
-    { code: 'fr-CA', label: '🇨🇦 CA', name: 'French (Canada)' },
+    { code: 'fr-FR', label: 'FR', name: 'French (France)' },
+    { code: 'fr-CA', label: 'CA', name: 'French (Canada)' },
   ],
   pt: [
-    { code: 'pt-BR', label: '🇧🇷 BR', name: 'Portuguese (Brazil)' },
-    { code: 'pt-PT', label: '🇵🇹 PT', name: 'Portuguese (Portugal)' },
+    { code: 'pt-BR', label: 'BR', name: 'Portuguese (Brazil)' },
+    { code: 'pt-PT', label: 'PT', name: 'Portuguese (Portugal)' },
   ],
-  de: [{ code: 'de-DE', label: '🇩🇪 DE', name: 'German' }],
-  ru: [{ code: 'ru-RU', label: '🇷🇺 RU', name: 'Russian' }],
-  it: [{ code: 'it-IT', label: '🇮🇹 IT', name: 'Italian' }],
-  ja: [{ code: 'ja-JP', label: '🇯🇵 JP', name: 'Japanese' }],
-  zh: [{ code: 'zh-CN', label: '🇨🇳 CN', name: 'Chinese (Mandarin)' }],
-  ko: [{ code: 'ko-KR', label: '🇰🇷 KR', name: 'Korean' }],
+  de: [{ code: 'de-DE', label: 'DE', name: 'German' }],
+  ru: [{ code: 'ru-RU', label: 'RU', name: 'Russian' }],
+  it: [{ code: 'it-IT', label: 'IT', name: 'Italian' }],
+  ja: [{ code: 'ja-JP', label: 'JP', name: 'Japanese' }],
+  zh: [{ code: 'zh-CN', label: 'CN', name: 'Chinese (Mandarin)' }],
+  ko: [{ code: 'ko-KR', label: 'KR', name: 'Korean' }],
 };
 
 export function normalizeLangCode(lang?: string): string {
@@ -264,6 +264,8 @@ export class PageReader {
 
     console.log('[Lectura] Web reader active on:', window.location.href);
     this.settings = await StorageService.getSettings();
+    this.setupMessageListener();
+
     if (!this.settings.enableInSituSelection) {
       return;
     }
@@ -274,8 +276,12 @@ export class PageReader {
 
     // Load word links / lemmas and stored dialect if present in storage
     try {
+      const storedLinks = await StorageService.getWordLinks(lang);
       const data = await chrome.storage.local.get([`lectura_word_links_${lang}`, `lectura_tts_dialect_${lang}`]);
-      this.cachedWordLinksByLang[lang] = data[`lectura_word_links_${lang}`] || {};
+      this.cachedWordLinksByLang[lang] = {
+        ...(data[`lectura_word_links_${lang}`] || {}),
+        ...(storedLinks || {}),
+      };
       if (data[`lectura_tts_dialect_${lang}`]) {
         this.activeDialectByLang[lang] = data[`lectura_tts_dialect_${lang}`];
       }
@@ -285,7 +291,260 @@ export class PageReader {
     this.setupShiftTracking();
     this.setupPointHoverListeners();
     this.setupKeyboardShortcuts();
-    this.setupMessageListener();
+    this.updatePageHighlights();
+    this.setupPageHighlightObserver();
+
+    // Always sync fresh vocabulary & word links from Lectura server in background
+    this.syncVocabulary(lang);
+  }
+
+  private highlightObserverTimer: number | null = null;
+
+  private setupPageHighlightObserver(): void {
+    if (typeof MutationObserver === 'undefined' || !document.body) return;
+    const observer = new MutationObserver((mutations) => {
+      if (document.hidden || !this.settings?.highlightKnownWords || !this.isExtensionActiveOnPage()) return;
+      let hasRelevantAdditions = false;
+      for (let i = 0; i < mutations.length; i++) {
+        const m = mutations[i];
+        if (m.addedNodes && m.addedNodes.length > 0) {
+          const targetEl = m.target as HTMLElement | null;
+          if (targetEl && targetEl.id !== 'lectura-reader-shadow-host' && !targetEl.closest?.('#lectura-reader-shadow-host')) {
+            hasRelevantAdditions = true;
+            break;
+          }
+        }
+      }
+      if (!hasRelevantAdditions) return;
+
+      if (this.highlightObserverTimer) {
+        window.clearTimeout(this.highlightObserverTimer);
+      }
+      this.highlightObserverTimer = window.setTimeout(() => {
+        if (!document.hidden) {
+          this.updatePageHighlights();
+        }
+      }, 1800);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  public async syncVocabulary(langOverride?: string): Promise<void> {
+    try {
+      const lang = normalizeLangCode(langOverride || this.activePopupLang || await getEffectiveLanguage());
+      this.activePopupLang = lang;
+
+      const localCached = await StorageService.getCachedWords(lang);
+      if (localCached && Object.keys(localCached).length > 0) {
+        this.cachedWordsByLang[lang] = { ...(this.cachedWordsByLang[lang] || {}), ...localCached };
+      }
+
+      const res = await this.apiClient.getWords(lang);
+      if (res && res.map && Object.keys(res.map).length > 0) {
+        this.cachedWordsByLang[lang] = { ...(this.cachedWordsByLang[lang] || {}), ...res.map };
+        await StorageService.saveCachedWords(lang, this.cachedWordsByLang[lang]);
+      }
+
+      const storedLinks = await StorageService.getWordLinks(lang);
+      if (storedLinks && Object.keys(storedLinks).length > 0) {
+        this.cachedWordLinksByLang[lang] = {
+          ...(this.cachedWordLinksByLang[lang] || {}),
+          ...storedLinks,
+        };
+      }
+
+      const serverLinks = await this.apiClient.getWordLinks(lang);
+      if (serverLinks && typeof serverLinks === 'object' && Object.keys(serverLinks).length > 0) {
+        this.cachedWordLinksByLang[lang] = {
+          ...(this.cachedWordLinksByLang[lang] || {}),
+          ...serverLinks,
+        };
+        await StorageService.saveWordLinks(lang, this.cachedWordLinksByLang[lang]);
+      }
+
+      this.updatePageHighlights();
+    } catch (err) {
+      console.warn('[Lectura PageReader] Vocabulary sync failed:', err);
+    }
+  }
+
+  /**
+   * Non-destructive in-page vocabulary highlighting using CSS Custom Highlight API (CSS.highlights)
+   */
+  private updatePageHighlights(): void {
+    try {
+      const cssHighlights = (window as any).CSS?.highlights;
+      const HighlightCtor = (window as any).Highlight;
+      if (!cssHighlights || !HighlightCtor || !document.body) return;
+
+      const stageNames = ['lectura-stage-new', 'lectura-stage-1', 'lectura-stage-2', 'lectura-stage-3', 'lectura-stage-4'];
+      for (const name of stageNames) {
+        cssHighlights.delete(name);
+      }
+
+      if (!this.isExtensionActiveOnPage() || this.settings?.highlightKnownWords === false) {
+        return;
+      }
+
+      // Ensure global ::highlight() rules are injected once
+      if (!document.getElementById('lectura-page-highlight-styles') && document.head) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'lectura-page-highlight-styles';
+        styleEl.textContent = `
+          ::highlight(lectura-stage-new) {
+            background-color: rgba(56, 189, 248, 0.10);
+            text-decoration: underline rgba(56, 189, 248, 0.70) 1.5px;
+          }
+          ::highlight(lectura-stage-1) {
+            background-color: rgba(251, 113, 133, 0.22);
+            text-decoration: underline rgba(251, 113, 133, 0.85) 2px;
+          }
+          ::highlight(lectura-stage-2) {
+            background-color: rgba(250, 204, 21, 0.24);
+            text-decoration: underline rgba(234, 179, 8, 0.85) 2px;
+          }
+          ::highlight(lectura-stage-3) {
+            background-color: rgba(52, 211, 153, 0.20);
+            text-decoration: underline rgba(16, 185, 129, 0.80) 2px;
+          }
+          ::highlight(lectura-stage-4) {
+            background-color: rgba(59, 130, 246, 0.18);
+            text-decoration: underline rgba(37, 99, 235, 0.80) 2px;
+          }
+        `;
+        document.head.appendChild(styleEl);
+      }
+
+      const lang = this.activePopupLang || 'en';
+      const isEn = lang.toLowerCase().startsWith('en');
+      const dict = this.cachedWordsByLang[lang] || {};
+      const links = this.cachedWordLinksByLang[lang] || {};
+      const hasLoadedDict = Object.keys(dict).length > 0;
+      if (!hasLoadedDict) return;
+
+      const normalizeStage = (rawStatus: any): string => {
+        const s = String(rawStatus ?? '').toLowerCase().trim();
+        if (['ignored', 'ignore', '0'].includes(s)) return 'known';
+        if (['known', 'known_completely', 'well_known', '5'].includes(s)) return 'known';
+        if (s === '1' || s === 'learning') return '1';
+        if (s === '2' || s === 'hard') return '2';
+        if (s === '3' || s === 'remembering') return '3';
+        if (s === '4' || s === 'almost_known') return '4';
+        return '';
+      };
+
+      const resolvedTokenCache = new Map<string, string>();
+      const resolveWordStage = (rawToken: string): string => {
+        const lower = normalizeApostrophes(rawToken.toLowerCase());
+        if (resolvedTokenCache.has(lower)) {
+          return resolvedTokenCache.get(lower)!;
+        }
+        if (!isWordToken(rawToken, isEn)) {
+          resolvedTokenCache.set(lower, 'known');
+          return 'known';
+        }
+
+        // 1. Direct match
+        if (dict[lower]) {
+          const st = normalizeStage(dict[lower].status);
+          if (st) {
+            resolvedTokenCache.set(lower, st);
+            return st;
+          }
+        }
+
+        // 2. Contraction base
+        const base = normalizeContraction(lower, lang);
+        if (base && base !== lower && dict[base]) {
+          const st = normalizeStage(dict[base].status);
+          if (st) {
+            resolvedTokenCache.set(lower, st);
+            return st;
+          }
+        }
+
+        // 3. Explicit user parent-child link
+        const linkedParent = links[lower] || (base ? links[base] : '');
+        if (linkedParent && dict[linkedParent]) {
+          const st = normalizeStage(dict[linkedParent].status);
+          if (st) {
+            resolvedTokenCache.set(lower, st);
+            return st;
+          }
+        }
+
+        // 4. Morphological lemma suggestions (e.g. charged -> charge, driving -> drive, said -> say)
+        const lemmas = getSuggestedLemmas(lower, lang);
+        for (const lem of lemmas) {
+          if (dict[lem]) {
+            const st = normalizeStage(dict[lem].status);
+            if (st) {
+              resolvedTokenCache.set(lower, st);
+              return st;
+            }
+          }
+        }
+
+        // 5. System auto-ignore (proper names, cities, brands, etc.)
+        const autoIgnore = ignoreListManager.checkAutoIgnore(lower, undefined, lang);
+        if (autoIgnore.isIgnored || (base && base !== lower && ignoreListManager.checkAutoIgnore(base, undefined, lang).isIgnored)) {
+          resolvedTokenCache.set(lower, 'known');
+          return 'known';
+        }
+
+        resolvedTokenCache.set(lower, 'new');
+        return 'new';
+      };
+
+      const rangesByStage: Record<string, Range[]> = { new: [], '1': [], '2': [], '3': [], '4': [] };
+      const skipTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'SELECT', 'CODE', 'PRE', 'SVG', 'MATH', 'BUTTON', 'NAV', 'HEADER', 'FOOTER']);
+      const wordRegex = /[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu;
+      let totalRanges = 0;
+      const maxRanges = 2200;
+
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => {
+          const parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          if (skipTags.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+          if (
+            parent.isContentEditable ||
+            parent.closest('#lectura-reader-shadow-host, [contenteditable="true"], nav, header, footer, button, [role="navigation"], [role="menubar"]')
+          ) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+
+      let currentNode: Node | null;
+      while ((currentNode = walker.nextNode()) !== null && totalRanges < maxRanges) {
+        const text = currentNode.textContent || '';
+        if (text.trim().length < 2) continue;
+        const inReadableBlock = !!(currentNode.parentElement?.closest('article, main, p, li, blockquote, h1, h2, h3'));
+        wordRegex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = wordRegex.exec(text)) !== null) {
+          const rawToken = match[0];
+          if (rawToken.length < 2) continue;
+          const stage = resolveWordStage(rawToken);
+          if (stage === '1' || stage === '2' || stage === '3' || stage === '4' || (stage === 'new' && inReadableBlock)) {
+            const r = document.createRange();
+            r.setStart(currentNode, match.index);
+            r.setEnd(currentNode, match.index + rawToken.length);
+            rangesByStage[stage].push(r);
+            totalRanges++;
+            if (totalRanges >= maxRanges) break;
+          }
+        }
+      }
+
+      for (const stage of ['new', '1', '2', '3', '4']) {
+        if (rangesByStage[stage].length > 0) {
+          cssHighlights.set(`lectura-stage-${stage}`, new HighlightCtor(...rangesByStage[stage]));
+        }
+      }
+    } catch (_) {}
   }
 
   private createShadowTooltip() {
@@ -1664,6 +1923,12 @@ export class PageReader {
 
     // 2. Mousemove for Yomitan/Migaku style Shift+Hover scanning
     document.addEventListener('mousemove', (e: MouseEvent) => {
+      const modifier = this.settings?.modifierKey || 'alt';
+      const isModifierActive = isModifierKeyPressed(e, modifier) || e.shiftKey || this.isShiftDown;
+      if (!isModifierActive) {
+        return;
+      }
+
       if (!this.isExtensionActiveOnPage()) {
         return;
       }
@@ -1688,19 +1953,14 @@ export class PageReader {
       }
 
       this.hoverThrottleTimer = window.setTimeout(() => {
-        const modifier = this.settings?.modifierKey || 'alt';
-        const isModifierActive = isModifierKeyPressed(e, modifier) || e.shiftKey || this.isShiftDown;
-
-        if (isModifierActive) {
-          if (this.tooltipElement && this.tooltipElement.style.display !== 'none') {
-            return;
-          }
-          const res = this.getWordAtPoint(e.clientX, e.clientY);
-          if (res) {
-            if (res.word.toLowerCase() !== this.activeWord.toLowerCase() || !this.tooltipElement || this.tooltipElement.style.display === 'none') {
-              console.log('[Lectura] Found word on Hover:', res.word);
-              this.showWordPopup(res.word, res.rect, res.sentence, false);
-            }
+        if (this.tooltipElement && this.tooltipElement.style.display !== 'none') {
+          return;
+        }
+        const res = this.getWordAtPoint(e.clientX, e.clientY);
+        if (res) {
+          if (res.word.toLowerCase() !== this.activeWord.toLowerCase() || !this.tooltipElement || this.tooltipElement.style.display === 'none') {
+            console.log('[Lectura] Found word on Hover:', res.word);
+            this.showWordPopup(res.word, res.rect, res.sentence, false);
           }
         }
       }, 40);
@@ -1787,14 +2047,45 @@ export class PageReader {
     this.activeWord = '';
   }
 
+  private getCurrentPopupTranslation(word?: string): string {
+    if (!this.tooltipElement) return '';
+    const meaningInput = this.tooltipElement.querySelector<HTMLInputElement>('.calm-meaning-input, .lectura-meaning-input');
+    if (meaningInput && meaningInput.value.trim()) {
+      return meaningInput.value.trim();
+    }
+    const transEl = this.tooltipElement.querySelector('.lectura-card-translation, .glass-main-translation');
+    if (transEl && transEl.textContent?.trim()) {
+      return transEl.textContent.trim();
+    }
+    if (word) {
+      const cleanLower = cleanWordForTranslation(word);
+      const lang = this.activePopupLang || 'en';
+      return (
+        PageReader.localTranslationCache.get(`${lang}:${cleanLower}`) ||
+        PageReader.localTranslationCache.get(cleanLower) ||
+        ''
+      );
+    }
+    return '';
+  }
+
   private setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (!this.tooltipElement || this.tooltipElement.style.display === 'none' || !this.activeWord) {
         return;
       }
 
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
-      if (target && (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable)) {
+      if (
+        target &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+          target.isContentEditable ||
+          e.composedPath().some((el: any) => el && ((el as HTMLElement).isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes((el as HTMLElement).tagName))))
+      ) {
         return;
       }
 
@@ -1803,8 +2094,7 @@ export class PageReader {
       // 1..5 -> Save learning stage (1-5)
       if (['1', '2', '3', '4', '5'].includes(e.key)) {
         e.preventDefault();
-        const transEl = this.tooltipElement.querySelector('.lectura-card-translation');
-        const translationText = transEl?.textContent || '';
+        const translationText = this.getCurrentPopupTranslation(this.activeWord);
         this.saveWord(this.activeWord, translationText, e.key, this.activeContextSentence);
         this.hideWordPopup();
         return;
@@ -1813,8 +2103,7 @@ export class PageReader {
       // K or Enter -> Mark Known
       if (key === 'K' || key === 'ENTER') {
         e.preventDefault();
-        const transEl = this.tooltipElement.querySelector('.lectura-card-translation');
-        const translationText = transEl?.textContent || '';
+        const translationText = this.getCurrentPopupTranslation(this.activeWord);
         this.saveWord(this.activeWord, translationText, 'known', this.activeContextSentence);
         this.hideWordPopup();
         return;
@@ -1824,8 +2113,7 @@ export class PageReader {
       if (e.key === '0' || key === 'I' || key === 'ESCAPE') {
         e.preventDefault();
         if (e.key === '0' || key === 'I') {
-          const transEl = this.tooltipElement.querySelector('.lectura-card-translation');
-          const translationText = transEl?.textContent || '';
+          const translationText = this.getCurrentPopupTranslation(this.activeWord);
           this.saveWord(this.activeWord, translationText, 'ignored', this.activeContextSentence);
         }
         this.hideWordPopup();
@@ -1862,7 +2150,7 @@ export class PageReader {
   private async fetchDirectTranslation(word: string, targetLang = 'ru', sourceLang?: string): Promise<{ translationText: string; baseRoot?: string }> {
     const clean = cleanWordForTranslation(word);
     if (!clean) return { translationText: '' };
-    const currentLang = normalizeLangCode(sourceLang || this.currentArticleLanguage || this.settings?.targetLanguage || 'en');
+    const currentLang = normalizeLangCode(sourceLang || this.activePopupLang || this.settings?.targetLanguage || 'en');
     const sIso = currentLang.slice(0, 2).toLowerCase();
     const tIso = (targetLang || 'ru').slice(0, 2).toLowerCase();
     const cacheKey = `${sIso}:${clean}`;
@@ -2304,7 +2592,7 @@ export class PageReader {
     const glassMainTranslation = translationLines[0] || (cached?.translation || 'Translating...');
     const glassSubDefinition = translationLines.slice(1).join('\n');
 
-    const currentTheme = this.settings?.popupTheme || 'compact';
+    const currentTheme = this.settings?.popupTheme === 'calm_light' ? 'calm_light' : 'glass';
     this.tooltipElement.className = `lectura-word-card ${currentTheme}`;
 
     const statusToSlider: Record<string, number> = {
@@ -2869,8 +3157,7 @@ export class PageReader {
       e.stopPropagation();
       const val = parseInt(slider.value, 10);
       const targetStatus = sliderToStatus[val] || '1';
-      const transEl = this.tooltipElement?.querySelector('.lectura-card-translation') || this.tooltipElement?.querySelector('.glass-main-translation');
-      const translationText = transEl?.textContent || '';
+      const translationText = this.getCurrentPopupTranslation(word);
       await this.saveWord(word, translationText, targetStatus, contextSentence, isMultiWord);
       this.showToast(`Saved status: ${targetStatus}`, 'success');
     });
@@ -2930,6 +3217,7 @@ export class PageReader {
           const lemmaInput = this.tooltipElement?.querySelector('.lectura-lemma-input, #root-input-field') as HTMLInputElement | null;
           if (lemmaInput) lemmaInput.value = cleanParent;
 
+          this.updatePageHighlights();
           this.showToast(`✓ Linked "${word}" ➔ "${cleanParent}"`, 'success');
         } catch (err: any) {
           this.showToast(`Failed to link: ${err?.message || 'Error'}`, 'error');
@@ -2970,12 +3258,27 @@ export class PageReader {
     buttons.forEach((btn) => {
       btn.addEventListener('click', async () => {
         const newStatus = btn.getAttribute('data-status') || '1';
-        const transEl = this.tooltipElement?.querySelector('.lectura-card-translation') || this.tooltipElement?.querySelector('.glass-main-translation');
-        const translationText = transEl?.textContent || '';
+        const translationText = this.getCurrentPopupTranslation(word);
 
         await this.saveWord(word, translationText, newStatus, contextSentence, isMultiWord);
         this.hideWordPopup();
       });
+    });
+
+    // Save custom meaning when pressing Enter in meaning input
+    const meaningInputEl = this.tooltipElement.querySelector<HTMLInputElement>('.calm-meaning-input, .lectura-meaning-input');
+    meaningInputEl?.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        const customTrans = meaningInputEl.value.trim();
+        const activeStatusBtn = this.tooltipElement?.querySelector('[data-status].active');
+        const statusToSave =
+          activeStatusBtn?.getAttribute('data-status') ||
+          (status && status !== 'new' && status !== '0' ? status : '1');
+        await this.saveWord(word, customTrans, statusToSave, contextSentence, isMultiWord);
+        this.hideWordPopup();
+      }
     });
 
     // External Dictionary buttons
@@ -3102,6 +3405,14 @@ export class PageReader {
 
       const currentLang = await getEffectiveLanguage(contextSentence || word) || this.activePopupLang || 'en';
 
+      if (!translationToSave) {
+        translationToSave =
+          PageReader.localTranslationCache.get(`${currentLang}:${cleanLower}`) ||
+          PageReader.localTranslationCache.get(cleanLower) ||
+          (this.cachedWordsByLang[currentLang] || {})[cleanLower]?.translation ||
+          '';
+      }
+
       await this.apiClient.saveWord({
         word,
         lemma: cleanLower,
@@ -3124,6 +3435,11 @@ export class PageReader {
         this.cachedWordsByLang[currentLang] = {};
       }
       this.cachedWordsByLang[currentLang][cleanLower] = { status, translation: translationToSave };
+      if (translationToSave) {
+        PageReader.localTranslationCache.set(`${currentLang}:${cleanLower}`, translationToSave);
+      }
+      await StorageService.updateCachedWord(currentLang, cleanLower, { status, translation: translationToSave });
+      this.updatePageHighlights();
       this.showToast(`Saved '${word}' (${status}) [${currentLang.toUpperCase()}]`, 'success');
     } catch (err: any) {
       this.showToast(`Failed to save: ${err.message || 'Server error'}`, 'error');
@@ -3216,6 +3532,7 @@ export class PageReader {
         if (!this.isExtensionActiveOnPage()) {
           this.hideWordPopup();
         }
+        this.updatePageHighlights();
 
         if (changes.popupTheme || changes.popup_theme) {
           const newTheme = changes.popupTheme?.newValue || changes.popup_theme?.newValue || 'compact';

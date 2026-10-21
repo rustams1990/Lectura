@@ -40,6 +40,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/server ./server
+COPY --from=builder /app/scripts ./scripts
 
 # Default environment variables
 ENV NODE_ENV=production

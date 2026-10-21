@@ -11,6 +11,9 @@
     enableYoutubeOverlay: true,
     trackListeningActivity: true,
     enableDualSubtitles: false,
+    autoPauseAfterSubtitle: false,
+    subtitleBlurMode: "off",
+    showTranscriptSidebar: false,
     subtitleSizePreset: "md",
     captureVideoSnapshot: false,
     pauseOnWordClick: false,
@@ -118,6 +121,45 @@
       const words = await this.getCachedWords(langKey);
       words[word.toLowerCase().trim()] = item;
       await this.setCachedWords(langKey, words);
+    }
+    /**
+     * Gets cached word-to-lemma links strictly scoped by language
+     */
+    static async getWordLinks(lang) {
+      const langKey = normalizeLangKey(lang);
+      return new Promise((resolve) => {
+        const key = `word_links_${langKey}`;
+        chrome.storage.local.get([key], (res) => {
+          resolve(res[key] || {});
+        });
+      });
+    }
+    /**
+     * Saves cached word-to-lemma links strictly scoped by language
+     */
+    static async saveWordLinks(lang, links) {
+      const langKey = normalizeLangKey(lang);
+      return new Promise((resolve) => {
+        const key = `word_links_${langKey}`;
+        chrome.storage.local.set({ [key]: links }, () => resolve());
+      });
+    }
+    /**
+     * Clears all user-specific vocabulary, word link, and activity caches when switching accounts (Dogma #1)
+     */
+    static async clearVocabularyCaches() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(null, (allItems) => {
+          const keysToRemove = Object.keys(allItems || {}).filter(
+            (k) => k.startsWith("cached_words_") || k.startsWith("vocab_cache_") || k.startsWith("word_links_") || k.startsWith("lectura_activity_cache") || k === "words_cache" || k === "lectura_words_cache"
+          );
+          if (keysToRemove.length === 0) {
+            resolve();
+            return;
+          }
+          chrome.storage.local.remove(keysToRemove, () => resolve());
+        });
+      });
     }
   };
 
@@ -955,7 +997,23 @@
       replaying_cue: "Replaying cue",
       prev_cue: "Previous cue",
       next_cue: "Next cue",
-      dual_subs_toast: "Dual Subtitles"
+      dual_subs_toast: "Dual Subtitles",
+      auto_pause_sub: "Auto-Pause After Subtitle",
+      auto_pause_sub_hint: "Pause at end of each line [Q]",
+      auto_pause_on: "Auto-Pause: ON [Q]",
+      auto_pause_off: "Auto-Pause: OFF [Q]",
+      blur_mode_off: "Blur: OFF [H]",
+      blur_mode_trans: "Blur: Translation [H]",
+      blur_mode_both: "Blur: All Subtitles [H]",
+      transcript_panel: "Transcript",
+      transcript_words_tab: "Words",
+      transcript_filter_all: "All",
+      transcript_filter_new: "New",
+      transcript_filter_learning: "Learning",
+      transcript_no_words: "All words in this video are known!",
+      transcript_search: "Search in subtitles...",
+      transcript_empty: "No subtitles loaded yet",
+      comprehension_label: "Known"
     },
     ru: {
       // Brand & Header
@@ -1102,7 +1160,23 @@
       replaying_cue: "\u041F\u043E\u0432\u0442\u043E\u0440 \u0444\u0440\u0430\u0437\u044B",
       prev_cue: "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0430\u044F \u0444\u0440\u0430\u0437\u0430",
       next_cue: "\u0421\u043B\u0435\u0434\u0443\u044E\u0449\u0430\u044F \u0444\u0440\u0430\u0437\u0430",
-      dual_subs_toast: "\u0414\u0432\u043E\u0439\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B"
+      dual_subs_toast: "\u0414\u0432\u043E\u0439\u043D\u044B\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B",
+      auto_pause_sub: "\u0410\u0432\u0442\u043E\u043F\u0430\u0443\u0437\u0430 \u043F\u043E\u0441\u043B\u0435 \u0444\u0440\u0430\u0437\u044B",
+      auto_pause_sub_hint: "\u041F\u0430\u0443\u0437\u0430 \u0432 \u043A\u043E\u043D\u0446\u0435 \u043A\u0430\u0436\u0434\u043E\u0439 \u0440\u0435\u043F\u043B\u0438\u043A\u0438 [Q]",
+      auto_pause_on: "\u0410\u0432\u0442\u043E\u043F\u0430\u0443\u0437\u0430: \u0412\u041A\u041B [Q]",
+      auto_pause_off: "\u0410\u0432\u0442\u043E\u043F\u0430\u0443\u0437\u0430: \u0412\u042B\u041A\u041B [Q]",
+      blur_mode_off: "\u0420\u0430\u0437\u043C\u044B\u0442\u0438\u0435: \u0412\u042B\u041A\u041B [H]",
+      blur_mode_trans: "\u0420\u0430\u0437\u043C\u044B\u0442\u0438\u0435: \u041F\u0435\u0440\u0435\u0432\u043E\u0434 [H]",
+      blur_mode_both: "\u0420\u0430\u0437\u043C\u044B\u0442\u0438\u0435: \u0412\u0441\u0435 \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u044B [H]",
+      transcript_panel: "\u0422\u0440\u0430\u043D\u0441\u043A\u0440\u0438\u043F\u0442",
+      transcript_words_tab: "\u0421\u043B\u043E\u0432\u0430",
+      transcript_filter_all: "\u0412\u0441\u0435",
+      transcript_filter_new: "\u041D\u043E\u0432\u044B\u0435",
+      transcript_filter_learning: "\u0423\u0447\u0443",
+      transcript_no_words: "\u0412\u0441\u0435 \u0441\u043B\u043E\u0432\u0430 \u0432 \u044D\u0442\u043E\u043C \u0432\u0438\u0434\u0435\u043E \u0443\u0436\u0435 \u0438\u0437\u0443\u0447\u0435\u043D\u044B!",
+      transcript_search: "\u041F\u043E\u0438\u0441\u043A \u043F\u043E \u0441\u0443\u0431\u0442\u0438\u0442\u0440\u0430\u043C...",
+      transcript_empty: "\u0421\u0443\u0431\u0442\u0438\u0442\u0440\u044B \u0435\u0449\u0435 \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B",
+      comprehension_label: "\u041F\u043E\u043D\u044F\u0442\u043D\u043E\u0441\u0442\u044C"
     },
     es: {
       // Brand & Header
@@ -1249,7 +1323,23 @@
       replaying_cue: "Repitiendo frase",
       prev_cue: "Frase anterior",
       next_cue: "Frase siguiente",
-      dual_subs_toast: "Subt\xEDtulos dobles"
+      dual_subs_toast: "Subt\xEDtulos dobles",
+      auto_pause_sub: "Autopausa por subt\xEDtulo",
+      auto_pause_sub_hint: "Pausar al final de cada frase [Q]",
+      auto_pause_on: "Autopausa: ACTIVADA [Q]",
+      auto_pause_off: "Autopausa: DESACTIVADA [Q]",
+      blur_mode_off: "Desenfoque: OFF [H]",
+      blur_mode_trans: "Desenfoque: Traducci\xF3n [H]",
+      blur_mode_both: "Desenfoque: Todo [H]",
+      transcript_panel: "Transcripci\xF3n",
+      transcript_words_tab: "Palabras",
+      transcript_filter_all: "Todas",
+      transcript_filter_new: "Nuevas",
+      transcript_filter_learning: "Aprendiendo",
+      transcript_no_words: "\xA1Todas las palabras de este video son conocidas!",
+      transcript_search: "Buscar en subt\xEDtulos...",
+      transcript_empty: "A\xFAn no hay subt\xEDtulos cargados",
+      comprehension_label: "Conocido"
     }
   };
   function t(key, lang = "en") {
@@ -1628,7 +1718,11 @@
     async saveSettings() {
       this.btnSave.disabled = true;
       try {
+        const prevSettings = await StorageService.getSettings();
         const settings = this.getFormSettings();
+        if (prevSettings.selectedUserId !== settings.selectedUserId) {
+          await StorageService.clearVocabularyCaches();
+        }
         await StorageService.saveSettings(settings);
         chrome.storage.local.set({
           dual_subs: settings.enableDualSubtitles ?? false,
@@ -1653,7 +1747,8 @@
         const testClient = new LecturaApiClient(settings);
         const health = await testClient.checkHealth();
         const wordData = await this.refreshVocabularyCache(settings);
-        const version = health.version ? `v${health.version}` : "Online";
+        const rawVer = String(health.version || "").trim();
+        const version = rawVer ? rawVer.startsWith("v") ? rawVer : `v${rawVer}` : "Online";
         const wordCount = wordData?.count !== void 0 ? ` \u2022 ${wordData.count} words` : "";
         this.serverStatusBadge.textContent = `Connected (${version}${wordCount})`;
         this.serverStatusBadge.className = "badge badge-success";

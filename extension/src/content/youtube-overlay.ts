@@ -390,30 +390,30 @@ export interface DialectInfo {
 
 export const LANGUAGE_DIALECTS: Record<string, DialectInfo[]> = {
   es: [
-    { code: 'es-MX', label: '🇲🇽 MX', name: 'Mexican Spanish' },
-    { code: 'es-ES', label: '🇪🇸 ES', name: 'Castilian Spanish' },
-    { code: 'es-US', label: '🇺🇸 US', name: 'US Spanish' },
-    { code: 'es-AR', label: '🇦🇷 AR', name: 'Argentine Spanish' },
+    { code: 'es-MX', label: 'MX', name: 'Mexican Spanish' },
+    { code: 'es-ES', label: 'ES', name: 'Castilian Spanish' },
+    { code: 'es-US', label: 'US', name: 'US Spanish' },
+    { code: 'es-AR', label: 'AR', name: 'Argentine Spanish' },
   ],
   en: [
-    { code: 'en-US', label: '🇺🇸 US', name: 'American English' },
-    { code: 'en-GB', label: '🇬🇧 UK', name: 'British English' },
-    { code: 'en-AU', label: '🇦🇺 AU', name: 'Australian English' },
+    { code: 'en-US', label: 'US', name: 'American English' },
+    { code: 'en-GB', label: 'UK', name: 'British English' },
+    { code: 'en-AU', label: 'AU', name: 'Australian English' },
   ],
   fr: [
-    { code: 'fr-FR', label: '🇫🇷 FR', name: 'French (France)' },
-    { code: 'fr-CA', label: '🇨🇦 CA', name: 'French (Canada)' },
+    { code: 'fr-FR', label: 'FR', name: 'French (France)' },
+    { code: 'fr-CA', label: 'CA', name: 'French (Canada)' },
   ],
   pt: [
-    { code: 'pt-BR', label: '🇧🇷 BR', name: 'Portuguese (Brazil)' },
-    { code: 'pt-PT', label: '🇵🇹 PT', name: 'Portuguese (Portugal)' },
+    { code: 'pt-BR', label: 'BR', name: 'Portuguese (Brazil)' },
+    { code: 'pt-PT', label: 'PT', name: 'Portuguese (Portugal)' },
   ],
-  de: [{ code: 'de-DE', label: '🇩🇪 DE', name: 'German' }],
-  ru: [{ code: 'ru-RU', label: '🇷🇺 RU', name: 'Russian' }],
-  it: [{ code: 'it-IT', label: '🇮🇹 IT', name: 'Italian' }],
-  ja: [{ code: 'ja-JP', label: '🇯🇵 JP', name: 'Japanese' }],
-  zh: [{ code: 'zh-CN', label: '🇨🇳 CN', name: 'Chinese (Mandarin)' }],
-  ko: [{ code: 'ko-KR', label: '🇰🇷 KR', name: 'Korean' }],
+  de: [{ code: 'de-DE', label: 'DE', name: 'German' }],
+  ru: [{ code: 'ru-RU', label: 'RU', name: 'Russian' }],
+  it: [{ code: 'it-IT', label: 'IT', name: 'Italian' }],
+  ja: [{ code: 'ja-JP', label: 'JP', name: 'Japanese' }],
+  zh: [{ code: 'zh-CN', label: 'CN', name: 'Chinese (Mandarin)' }],
+  ko: [{ code: 'ko-KR', label: 'KR', name: 'Korean' }],
 };
 
 export function normalizeLangCode(lang?: string): string {
@@ -541,6 +541,17 @@ class YouTubeLecturaOverlay {
   // Dual Subtitles state (default OFF unless user enabled)
   private enableDualSubtitles: boolean = false;
 
+  // Language Reactor / Trancy style enhancements: Auto-Pause [Q], Blur Mode [H], Transcript Sidebar [T]
+  private autoPauseAfterSubtitle: boolean = false;
+  private autoPausedSentenceIndex: number = -1;
+  private subtitleBlurMode: 'off' | 'translation' | 'both' = 'off';
+  private showTranscriptSidebar: boolean = false;
+  private sidebarHost: HTMLElement | null = null;
+  private sidebarShadowRoot: ShadowRoot | null = null;
+  private transcriptPanel: HTMLElement | null = null;
+  private playerFloatingToggle: HTMLElement | null = null;
+  private transcriptSearchQuery: string = '';
+
   // AbortController for in-flight translation requests
   private translationAbortController: AbortController | null = null;
 
@@ -548,11 +559,18 @@ class YouTubeLecturaOverlay {
   private activeWatchSeconds: number = 0;
   private watchTimer: number | null = null;
   private hasActivityListeners: boolean = false;
+  private hasStorageListener: boolean = false;
 
   // Full Static Sentence Display State (Track Pre-fetching & Strict Sentence Splitting)
   public preparsedSentences: CleanSentence[] = [];
   public currentSentenceIndex: number = -1;
   private isLoadingSubtitles: boolean = false;
+  private subtitleLoadAttempts: number = 0;
+  private lastSubtitleAttemptTime: number = 0;
+  private hasGlobalOverlayListeners: boolean = false;
+  private isSubMouseDown: boolean = false;
+  private subDragStartIndex: number | null = null;
+  private lastTickTime: number = 0;
   private animFrameId: number | null = null;
   private staticSubtitleBlocks: StaticSubtitleBlock[] = [];
   private activeBlockId: number | null = null;
@@ -576,6 +594,10 @@ class YouTubeLecturaOverlay {
     this.setupTimedTextNetworkInterceptor();
 
     this.settings = await StorageService.getSettings();
+
+    // Listen for live storage & runtime messages (including EXTRACT_ARTICLE and re-enabling overlay)
+    this.setupStorageListener();
+
     if (this.settings.isEnabled === false || !this.settings.enableYoutubeOverlay) {
       console.log('[Lectura YT] YouTube overlay is disabled in settings.');
       return;
@@ -592,28 +614,41 @@ class YouTubeLecturaOverlay {
       'customSubtitlesPos',
     ]);
 
-    // Restore saved size preset and dual subtitles preference
-    chrome.storage.local.get(['sub_size_preset', 'dual_subs'], (res) => {
-      const saved = res.sub_size_preset;
-      if (saved && ['sm', 'md', 'lg'].includes(saved)) {
-        this.applySizePreset(saved as 'sm' | 'md' | 'lg', false);
-      } else {
-        this.applySizePreset('md', false);
-      }
+    // Restore saved size preset, dual subtitles, auto-pause, blur mode, and transcript sidebar preferences
+    this.autoPauseAfterSubtitle = Boolean(this.settings.autoPauseAfterSubtitle);
+    this.subtitleBlurMode = (this.settings.subtitleBlurMode as 'off' | 'translation' | 'both') || 'off';
+    this.showTranscriptSidebar = Boolean(this.settings.showTranscriptSidebar);
 
-      if (typeof res.dual_subs === 'boolean') {
-        this.enableDualSubtitles = res.dual_subs;
+    chrome.storage.local.get(
+      ['sub_size_preset', 'dual_subs', 'autoPauseAfterSubtitle', 'subtitleBlurMode', 'showTranscriptSidebar'],
+      (res) => {
+        const saved = res.sub_size_preset;
+        if (saved && ['sm', 'md', 'lg'].includes(saved)) {
+          this.applySizePreset(saved as 'sm' | 'md' | 'lg', false);
+        } else {
+          this.applySizePreset('md', false);
+        }
+
+        if (typeof res.dual_subs === 'boolean') {
+          this.enableDualSubtitles = res.dual_subs;
+        }
+        if (typeof res.autoPauseAfterSubtitle === 'boolean') {
+          this.autoPauseAfterSubtitle = res.autoPauseAfterSubtitle;
+        }
+        if (res.subtitleBlurMode && ['off', 'translation', 'both'].includes(res.subtitleBlurMode)) {
+          this.subtitleBlurMode = res.subtitleBlurMode;
+        }
+        if (typeof res.showTranscriptSidebar === 'boolean') {
+          this.showTranscriptSidebar = res.showTranscriptSidebar;
+        }
       }
-    });
+    );
 
     const initialLang = this.getEffectiveLang();
     this.cachedWordsByLang[initialLang] = await StorageService.getCachedWords(initialLang);
 
     // Sync fresh dictionary & word links from Lectura server in background
     this.syncVocabulary(initialLang);
-
-    // Listen for live storage changes (mode switch, font size, opacity)
-    this.setupStorageListener();
 
     // Listen for SPA navigation events on YouTube
     this.setupSpaNavigation();
@@ -661,6 +696,9 @@ class YouTubeLecturaOverlay {
    * Listens for live configuration changes from Popup or Options page
    */
   private setupStorageListener() {
+    if (this.hasStorageListener) return;
+    this.hasStorageListener = true;
+
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'sync' || area === 'local') {
         if (changes.subtitleHighlightMode) {
@@ -697,12 +735,14 @@ class YouTubeLecturaOverlay {
         }
         if (changes.isEnabled !== undefined) {
           const isEnabled = changes.isEnabled.newValue !== false;
+          if (this.settings) this.settings.isEnabled = isEnabled;
           if (this.overlayContainer) {
             this.overlayContainer.style.display = (isEnabled && this.settings?.enableYoutubeOverlay !== false) ? '' : 'none';
           }
           if (this.popupCard && !isEnabled) {
             this.popupCard.style.display = 'none';
           }
+          this.syncTranscriptPlacement();
         }
         if (changes.sub_size_preset || changes.subtitleSizePreset) {
           const newPreset = (changes.sub_size_preset?.newValue || changes.subtitleSizePreset?.newValue) as 'sm' | 'md' | 'lg';
@@ -737,8 +777,61 @@ class YouTubeLecturaOverlay {
       }
     });
 
-    // Listen for direct theme & language update messages from Popup and Options pages
-    chrome.runtime.onMessage.addListener((message) => {
+    // Listen for direct theme, language, and video extraction messages from Popup and Options pages
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message.type === 'EXTRACT_ARTICLE') {
+        (async () => {
+          try {
+            const videoId = this.extractVideoId(window.location.href) || this.currentVideoId;
+            if (!videoId) {
+              sendResponse({ success: false, error: 'Please open a YouTube video page (/watch or /shorts) to import.' });
+              return;
+            }
+
+            if (!this.preparsedSentences || this.preparsedSentences.length === 0) {
+              await this.loadFullVideoSubtitles(videoId);
+            }
+
+            const titleEl = document.querySelector<HTMLElement>(
+              'ytd-watch-metadata h1 yt-formatted-string, #title h1 yt-formatted-string, h1.ytd-watch-metadata'
+            );
+            const rawTitle = (titleEl?.textContent || document.title || '').replace(/\s*-\s*YouTube$/i, '').trim() || 'YouTube Video';
+            const channelName = extractPrimaryYouTubeChannel() || 'YouTube';
+            const langCode = this.getEffectiveLang();
+
+            let transcriptText = (this.preparsedSentences || [])
+              .map((s) => s.text.trim())
+              .filter(Boolean)
+              .join('\n\n');
+
+            if (!transcriptText) {
+              const descEl = document.querySelector<HTMLElement>('#description-inline-expander, #description');
+              transcriptText = descEl?.innerText?.trim() || rawTitle;
+            }
+
+            const words = transcriptText.split(/\s+/).filter(Boolean);
+            sendResponse({
+              success: true,
+              article: {
+                title: rawTitle,
+                content: transcriptText,
+                excerpt: transcriptText.slice(0, 200),
+                author: channelName,
+                sourceUrl: `https://www.youtube.com/watch?v=${videoId}`,
+                leadImageUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                language: langCode,
+                wordCount: words.length,
+                lessonType: 'youtube',
+                sourceType: 'youtube',
+                youtubeId: videoId,
+              },
+            });
+          } catch (err: any) {
+            sendResponse({ success: false, error: err?.message || 'Failed to extract YouTube video' });
+          }
+        })();
+        return true;
+      }
       if (message.type === 'VOCABULARY_UPDATED') {
         StorageService.getSettings().then((freshSettings) => {
           this.settings = freshSettings;
@@ -773,6 +866,7 @@ class YouTubeLecturaOverlay {
         }
         if (this.overlayContainer) {
           this.overlayContainer.style.display = message.enabled ? '' : 'none';
+          this.syncTranscriptPlacement();
         } else if (message.enabled) {
           this.init();
         }
@@ -901,7 +995,8 @@ class YouTubeLecturaOverlay {
         const clickedInsideOverlay = this.overlayContainer ? path.includes(this.overlayContainer) : false;
         const clickedInsideCard = this.popupCard ? path.includes(this.popupCard) : false;
         const clickedInsideSubtitles = this.subtitleBox ? path.includes(this.subtitleBox) : false;
-        if (!clickedInsideOverlay && !clickedInsideCard && !clickedInsideSubtitles) {
+        const clickedInsideTranscript = this.sidebarHost ? path.includes(this.sidebarHost) : false;
+        if (!clickedInsideOverlay && !clickedInsideCard && !clickedInsideSubtitles && !clickedInsideTranscript) {
           this.closeWordCard();
         }
       }
@@ -916,6 +1011,10 @@ class YouTubeLecturaOverlay {
     this.preparsedSentences = [];
     this.currentSentenceIndex = -1;
     this.isLoadingSubtitles = false;
+    this.subtitleLoadAttempts = 0;
+    this.lastSubtitleAttemptTime = 0;
+    this.isSubMouseDown = false;
+    this.subDragStartIndex = null;
     this.activeCues = [];
     this.currentCueIndex = -1;
     this.currentSubtitleText = '';
@@ -1048,30 +1147,63 @@ class YouTubeLecturaOverlay {
     this.toastElement.className = 'lectura-toast';
     this.shadowRoot.appendChild(this.toastElement);
 
-    // Multi-token Mouse Drag Selection on Subtitle Box
-    let isMouseDown = false;
-    let dragStartIndex: number | null = null;
+    // Top-Right Unified Control & Transcript Pill (auto-hides with YouTube player controls)
+    this.playerFloatingToggle = document.createElement('div');
+    this.playerFloatingToggle.className = 'lectura-player-top-pill';
+    this.playerFloatingToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+      const action = btn?.dataset.action || 'transcript';
+      if (action === 'prev') this.jumpToPreviousCue();
+      else if (action === 'replay') this.replayCurrentCue();
+      else if (action === 'next') this.jumpToNextCue();
+      else if (action === 'autopause') this.toggleAutoPauseAfterSubtitle();
+      else if (action === 'blur') this.cycleSubtitleBlurMode();
+      else if (action === 'transcript') this.toggleTranscriptSidebar();
+    });
+    this.shadowRoot.appendChild(this.playerFloatingToggle);
 
+    // Interactive Side Transcript Panel (Docked in YouTube's right column #secondary so it never covers the video)
+    if (this.sidebarHost && this.sidebarHost.parentElement) {
+      this.sidebarHost.remove();
+    }
+    this.sidebarHost = document.createElement('div');
+    this.sidebarHost.id = 'lectura-yt-sidebar-host';
+    this.sidebarShadowRoot = this.sidebarHost.attachShadow({ mode: 'open' });
+    const sidebarStyleEl = document.createElement('style');
+    sidebarStyleEl.textContent = this.getShadowStyles();
+    this.sidebarShadowRoot.appendChild(sidebarStyleEl);
+
+    this.transcriptPanel = document.createElement('div');
+    this.transcriptPanel.className = 'lectura-transcript-sidebar';
+    this.transcriptPanel.style.display = this.showTranscriptSidebar ? 'flex' : 'none';
+    this.transcriptPanel.addEventListener('click', (e) => e.stopPropagation());
+    this.transcriptPanel.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+    this.sidebarShadowRoot.appendChild(this.transcriptPanel);
+    this.syncTranscriptPlacement();
+    this.updateFloatingPillAndTranscript();
+
+    // Multi-token Mouse Drag Selection on Subtitle Box
     this.subtitleBox.addEventListener('mousedown', (e: MouseEvent) => {
       const target = (e.target as HTMLElement)?.closest?.('.lectura-token, .lectura-word-token') as HTMLElement | null;
       if (!target) return;
-      isMouseDown = true;
+      this.isSubMouseDown = true;
       this.hasDraggedMultiple = false;
-      dragStartIndex = parseInt(target.dataset.tokenIndex || '-1', 10);
+      this.subDragStartIndex = parseInt(target.dataset.tokenIndex || '-1', 10);
     });
 
     this.subtitleBox.addEventListener('mouseover', (e: MouseEvent) => {
-      if (!isMouseDown || dragStartIndex === null || dragStartIndex === -1) return;
+      if (!this.isSubMouseDown || this.subDragStartIndex === null || this.subDragStartIndex === -1) return;
       const target = (e.target as HTMLElement)?.closest?.('.lectura-token, .lectura-word-token') as HTMLElement | null;
       if (!target) return;
       const currentIdx = parseInt(target.dataset.tokenIndex || '-1', 10);
       if (currentIdx === -1) return;
 
-      if (currentIdx !== dragStartIndex) {
+      if (currentIdx !== this.subDragStartIndex) {
         this.hasDraggedMultiple = true;
         const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token') || []);
-        const minIdx = Math.min(dragStartIndex, currentIdx);
-        const maxIdx = Math.max(dragStartIndex, currentIdx);
+        const minIdx = Math.min(this.subDragStartIndex, currentIdx);
+        const maxIdx = Math.max(this.subDragStartIndex, currentIdx);
 
         allTokens.forEach((t) => {
           const idx = parseInt(t.dataset.tokenIndex || '-1', 10);
@@ -1084,47 +1216,59 @@ class YouTubeLecturaOverlay {
       }
     });
 
-    window.addEventListener('mouseup', (e: MouseEvent) => {
-      if (!isMouseDown) return;
-      isMouseDown = false;
-
-      if (this.hasDraggedMultiple && dragStartIndex !== null) {
-        const target = (e.target as HTMLElement)?.closest?.('.lectura-token, .lectura-word-token') as HTMLElement | null;
-        const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token') || []);
-        const endIdx = target ? parseInt(target.dataset.tokenIndex || '-1', 10) : -1;
-        const validEndIdx = endIdx !== -1 ? endIdx : dragStartIndex;
-        const minIdx = Math.min(dragStartIndex, validEndIdx);
-        const maxIdx = Math.max(dragStartIndex, validEndIdx);
-
-        if (minIdx !== maxIdx) {
-          if (this.settings?.pauseOnWordClick && this.videoElement && !this.videoElement.paused) {
-            this.videoElement.pause();
-          }
-          this.selectedTokens = allTokens.filter((t) => {
-            const idx = parseInt(t.dataset.tokenIndex || '-1', 10);
-            return idx >= minIdx && idx <= maxIdx;
-          });
-          this.selectedTokens.forEach((t) => t.classList.add('lectura-token--selected'));
-          const phraseText = this.selectedTokens.map((t) => t.textContent?.trim() || '').join(' ').trim();
-          this.startTokenIndex = dragStartIndex;
-          this.isPhraseSelecting = true;
-          this.showWordCard(phraseText, this.currentSubtitleText, this.selectedTokens[0]);
-        }
-      }
-      dragStartIndex = null;
-    });
-
     this.playerContainer?.appendChild(this.overlayContainer);
 
-    const ensureOverlayAnchor = () => {
-      const player = (document.querySelector('#movie_player, .html5-video-player') as HTMLElement) || this.playerContainer;
-      if (player && this.overlayContainer && !player.contains(this.overlayContainer)) {
-        this.playerContainer = player;
-        player.appendChild(this.overlayContainer);
-      }
-    };
-    document.addEventListener('fullscreenchange', ensureOverlayAnchor);
-    window.addEventListener('resize', ensureOverlayAnchor);
+    if (!this.hasGlobalOverlayListeners) {
+      this.hasGlobalOverlayListeners = true;
+
+      window.addEventListener('mouseup', (e: MouseEvent) => {
+        if (!this.isSubMouseDown) return;
+        this.isSubMouseDown = false;
+        const dragStartIndex = this.subDragStartIndex;
+
+        if (this.hasDraggedMultiple && dragStartIndex !== null) {
+          const target = (e.target as HTMLElement)?.closest?.('.lectura-token, .lectura-word-token') as HTMLElement | null;
+          const allTokens = Array.from(this.subtitleBox?.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token') || []);
+          const endIdx = target ? parseInt(target.dataset.tokenIndex || '-1', 10) : -1;
+          const validEndIdx = endIdx !== -1 ? endIdx : dragStartIndex;
+          const minIdx = Math.min(dragStartIndex, validEndIdx);
+          const maxIdx = Math.max(dragStartIndex, validEndIdx);
+
+          if (minIdx !== maxIdx) {
+            if (this.settings?.pauseOnWordClick && this.videoElement && !this.videoElement.paused) {
+              this.videoElement.pause();
+            }
+            this.selectedTokens = allTokens.filter((t) => {
+              const idx = parseInt(t.dataset.tokenIndex || '-1', 10);
+              return idx >= minIdx && idx <= maxIdx;
+            });
+            this.selectedTokens.forEach((t) => t.classList.add('lectura-token--selected'));
+            const phraseText = this.selectedTokens.map((t) => t.textContent?.trim() || '').join(' ').trim();
+            this.startTokenIndex = dragStartIndex;
+            this.isPhraseSelecting = true;
+            this.showWordCard(phraseText, this.currentSubtitleText, this.selectedTokens[0]);
+          }
+        }
+        this.subDragStartIndex = null;
+      });
+
+      const ensureOverlayAnchor = () => {
+        const player = (document.querySelector('#movie_player, .html5-video-player') as HTMLElement) || this.playerContainer;
+        if (player && this.overlayContainer && !player.contains(this.overlayContainer)) {
+          this.playerContainer = player;
+          player.appendChild(this.overlayContainer);
+        }
+        this.syncTranscriptPlacement();
+      };
+      document.addEventListener('fullscreenchange', ensureOverlayAnchor);
+      window.addEventListener('resize', ensureOverlayAnchor);
+      document.addEventListener('yt-action', (ev: any) => {
+        const actionName = ev?.detail?.actionName || '';
+        if (!actionName || actionName.includes('theater') || actionName.includes('fullscreen') || actionName.includes('size')) {
+          setTimeout(() => this.syncTranscriptPlacement(), 150);
+        }
+      });
+    }
   }
 
   private applySizePreset(preset: 'sm' | 'md' | 'lg', showToast = true) {
@@ -2834,11 +2978,11 @@ class YouTubeLecturaOverlay {
       .status-btn.st-known.active, .lectura-btn-known.active { background: #059669; box-shadow: 0 0 12px #10b981; }
       .status-btn.st-0.active, .lectura-btn-ignore.active { background: rgba(239, 68, 68, 0.25); box-shadow: 0 0 10px #ef4444; }
 
-      /* Toast */
+      /* Toast (positioned neatly below the top-right control bar so it never overlaps buttons) */
       .lectura-toast {
         position: absolute;
-        top: 20px;
-        right: 20px;
+        top: 52px;
+        right: 16px;
         background: rgba(15, 23, 42, 0.88);
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
@@ -2867,6 +3011,605 @@ class YouTubeLecturaOverlay {
         background: rgba(13, 148, 136, 0.92) !important;
         border-color: rgba(45, 212, 191, 0.4) !important;
       }
+
+      /* ==========================================================
+         BLUR MODE (Listening Practice — unblurs on hover)
+         ========================================================== */
+      .lectura-sub-box.blur-mode-translation .lectura-sub-translation {
+        filter: blur(6px);
+        opacity: 0.65;
+        transition: filter 0.18s ease, opacity 0.18s ease;
+      }
+      .lectura-sub-box.blur-mode-translation:hover .lectura-sub-translation {
+        filter: none;
+        opacity: 1;
+      }
+      .lectura-sub-box.blur-mode-both .lectura-sub-line,
+      .lectura-sub-box.blur-mode-both .lectura-sub-translation {
+        filter: blur(7px);
+        opacity: 0.7;
+        transition: filter 0.18s ease, opacity 0.18s ease;
+      }
+      .lectura-sub-box.blur-mode-both:hover .lectura-sub-line,
+      .lectura-sub-box.blur-mode-both:hover .lectura-sub-translation {
+        filter: none;
+        opacity: 1;
+      }
+
+      /* ==========================================================
+         SUBTITLE HOVER MICRO-TOOLBAR
+         ========================================================== */
+      .lectura-sub-box {
+        position: relative !important;
+      }
+      .lectura-sub-toolbar {
+        position: absolute;
+        top: -30px;
+        right: 4px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        padding: 3px 6px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(4px);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        z-index: 20;
+      }
+      .lectura-sub-box:hover .lectura-sub-toolbar {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+      .lectura-sub-tool-btn {
+        background: transparent;
+        border: none;
+        color: #cbd5e1;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 999px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        line-height: 1.2;
+        transition: background 0.12s ease, color 0.12s ease;
+      }
+      .lectura-sub-tool-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+      }
+      .lectura-sub-tool-btn.active {
+        background: rgba(56, 189, 248, 0.22);
+        color: #38bdf8;
+      }
+
+      /* ==========================================================
+         TOP-RIGHT UNIFIED PLAYER CONTROL & TRANSCRIPT BAR
+         ========================================================== */
+      .lectura-player-top-pill {
+        position: absolute;
+        top: 14px;
+        right: 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 4px 6px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.86);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #f8fafc;
+        font-size: 12px;
+        font-weight: 700;
+        pointer-events: auto;
+        z-index: 120;
+        opacity: 0.9;
+        transition: opacity 0.22s ease, transform 0.18s ease, border-color 0.18s ease;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      }
+      /* Auto-hide pill when YouTube player controls auto-hide so video is 100% clean */
+      :host-context(.ytp-autohide) .lectura-player-top-pill {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .lectura-player-top-pill:hover {
+        opacity: 1;
+        border-color: rgba(56, 189, 248, 0.55);
+        background: rgba(15, 23, 42, 0.96);
+      }
+      .lectura-top-pill-divider {
+        width: 1px;
+        height: 14px;
+        background: rgba(255, 255, 255, 0.16);
+        margin: 0 2px;
+      }
+      .lectura-player-top-pill .comp-badge {
+        color: #34d399;
+        font-weight: 800;
+        margin-left: 2px;
+      }
+
+      /* ==========================================================
+         INTERACTIVE SIDE TRANSCRIPT PANEL (Docked Outside Video)
+         Adaptive to YouTube Dark (#181818) & Light (#ffffff) Themes
+         ========================================================== */
+      .lectura-transcript-sidebar {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        background: #181818;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+        display: flex;
+        flex-direction: column;
+        pointer-events: auto;
+        z-index: 130;
+        overflow: hidden;
+        color: #f1f1f1;
+        transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+      }
+      .lectura-transcript-sidebar.theme-yt-light {
+        background: #ffffff;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+        color: #0f172a;
+      }
+      .lectura-transcript-sidebar.docked-in-player {
+        border-radius: 0;
+        border-top: none;
+        border-right: none;
+        border-bottom: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .lectura-transcript-header {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background: #212121;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-header {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .lectura-transcript-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+      .lectura-transcript-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #f1f1f1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-title {
+        color: #0f172a;
+      }
+      .lectura-transcript-controls {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .lectura-transcript-ctrl-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #cbd5e1;
+        border-radius: 6px;
+        padding: 3px 7px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .lectura-transcript-ctrl-btn:hover {
+        background: rgba(255, 255, 255, 0.16);
+        color: #ffffff;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-ctrl-btn {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #475569;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-ctrl-btn:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+      }
+      .lectura-transcript-ctrl-btn.active {
+        background: rgba(56, 189, 248, 0.2) !important;
+        border-color: rgba(56, 189, 248, 0.5) !important;
+        color: #38bdf8 !important;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-ctrl-btn.active {
+        background: rgba(2, 132, 199, 0.12) !important;
+        border-color: rgba(2, 132, 199, 0.4) !important;
+        color: #0284c7 !important;
+      }
+      .lectura-transcript-search {
+        width: 100%;
+        box-sizing: border-box;
+        background: #121212;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        padding: 6px 10px;
+        color: #f1f1f1;
+        font-size: 12px;
+        outline: none;
+        transition: border-color 0.15s ease;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-search {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #0f172a;
+      }
+      .lectura-transcript-search:focus {
+        border-color: #38bdf8;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-search:focus {
+        border-color: #0284c7;
+      }
+      .lectura-transcript-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+      }
+      .lectura-transcript-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.12s ease;
+        border-left: 3px solid transparent;
+      }
+      .lectura-transcript-row:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-row:hover {
+        background: #f1f5f9;
+      }
+      .lectura-transcript-row.active-cue {
+        background: rgba(56, 189, 248, 0.14);
+        border-left-color: #38bdf8;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-row.active-cue {
+        background: rgba(2, 132, 199, 0.1);
+        border-left-color: #0284c7;
+      }
+      .lectura-transcript-time {
+        font-size: 11px;
+        font-family: monospace;
+        color: #38bdf8;
+        background: rgba(56, 189, 248, 0.12);
+        padding: 2px 5px;
+        border-radius: 4px;
+        flex-shrink: 0;
+        margin-top: 1px;
+        user-select: none;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-time {
+        color: #0284c7;
+        background: rgba(2, 132, 199, 0.1);
+      }
+      .lectura-transcript-text {
+        font-size: 13px;
+        line-height: 1.5;
+        color: #e2e8f0;
+        flex: 1;
+        word-break: break-word;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-text {
+        color: #334155;
+      }
+      .lectura-transcript-row.active-cue .lectura-transcript-text {
+        color: #ffffff;
+        font-weight: 500;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-row.active-cue .lectura-transcript-text {
+        color: #0f172a;
+        font-weight: 500;
+      }
+      .lectura-transcript-speaker {
+        color: #38bdf8;
+        font-weight: 700;
+        margin-right: 3px;
+        opacity: 0.85;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-speaker {
+        color: #0284c7;
+      }
+      /* Interactive Word Tokens inside Transcript Sidebar */
+      .lectura-transcript-word {
+        cursor: pointer;
+        border-radius: 3px;
+        padding: 0 1px;
+        transition: background-color 0.12s ease, color 0.12s ease;
+        text-decoration-skip-ink: none;
+        -webkit-text-decoration-skip-ink: none;
+        text-underline-offset: 3px;
+        text-decoration-thickness: 2px;
+      }
+      .lectura-transcript-word:hover,
+      .lectura-transcript-word.lectura-token--selected {
+        background: rgba(56, 189, 248, 0.22);
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-word:hover,
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-word.lectura-token--selected {
+        background: rgba(2, 132, 199, 0.16);
+      }
+      /* Underline mode (default) in Transcript Sidebar */
+      .lectura-transcript-sidebar.sub-mode--underline .lectura-transcript-word.status-new {
+        text-decoration: underline;
+        text-decoration-color: rgba(56, 189, 248, 0.75);
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--underline .lectura-transcript-word.status-new {
+        text-decoration-color: rgba(2, 132, 199, 0.65);
+      }
+      .lectura-transcript-sidebar.sub-mode--underline .lectura-transcript-word.status-1 {
+        text-decoration: underline;
+        text-decoration-color: #fb7185;
+      }
+      .lectura-transcript-sidebar.sub-mode--underline .lectura-transcript-word.status-2 {
+        text-decoration: underline;
+        text-decoration-color: #facc15;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--underline .lectura-transcript-word.status-2 {
+        text-decoration-color: #eab308;
+      }
+      .lectura-transcript-sidebar.sub-mode--underline .lectura-transcript-word.status-3,
+      .lectura-transcript-sidebar.sub-mode--underline .lectura-transcript-word.status-learning {
+        text-decoration: underline;
+        text-decoration-color: #34d399;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--underline .lectura-transcript-word.status-3,
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--underline .lectura-transcript-word.status-learning {
+        text-decoration-color: #10b981;
+      }
+      .lectura-transcript-sidebar.sub-mode--underline .lectura-transcript-word.status-4 {
+        text-decoration: underline;
+        text-decoration-color: #3b82f6;
+      }
+      .lectura-transcript-sidebar.sub-mode--underline .lectura-transcript-word.status-5 {
+        text-decoration: underline;
+        text-decoration-color: #c084fc;
+      }
+      /* Color mode in Transcript Sidebar */
+      .lectura-transcript-sidebar.sub-mode--color .lectura-transcript-word.status-new {
+        color: #38bdf8;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--color .lectura-transcript-word.status-new {
+        color: #0284c7;
+      }
+      .lectura-transcript-sidebar.sub-mode--color .lectura-transcript-word.status-1 {
+        color: #fb7185;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--color .lectura-transcript-word.status-1 {
+        color: #e11d48;
+      }
+      .lectura-transcript-sidebar.sub-mode--color .lectura-transcript-word.status-2 {
+        color: #facc15;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--color .lectura-transcript-word.status-2 {
+        color: #ca8a04;
+      }
+      .lectura-transcript-sidebar.sub-mode--color .lectura-transcript-word.status-3,
+      .lectura-transcript-sidebar.sub-mode--color .lectura-transcript-word.status-learning {
+        color: #34d399;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--color .lectura-transcript-word.status-3,
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--color .lectura-transcript-word.status-learning {
+        color: #059669;
+      }
+      .lectura-transcript-sidebar.sub-mode--color .lectura-transcript-word.status-4 {
+        color: #60a5fa;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--color .lectura-transcript-word.status-4 {
+        color: #2563eb;
+      }
+      .lectura-transcript-sidebar.sub-mode--color .lectura-transcript-word.status-5 {
+        color: #c084fc;
+      }
+      .lectura-transcript-sidebar.theme-yt-light.sub-mode--color .lectura-transcript-word.status-5 {
+        color: #9333ea;
+      }
+      /* Segmented Tab Bar in Transcript Header (Text vs Video Words) */
+      .lectura-transcript-tabs {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 2px;
+        gap: 2px;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-transcript-tabs {
+        background: #e2e8f0;
+        border-color: #cbd5e1;
+      }
+      .lectura-ttab-btn {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 11.5px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-ttab-btn {
+        color: #475569;
+      }
+      .lectura-ttab-btn:hover {
+        color: #f1f5f9;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-ttab-btn:hover {
+        color: #0f172a;
+      }
+      .lectura-ttab-btn.active {
+        background: #38bdf8;
+        color: #0f172a !important;
+        font-weight: 700;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-ttab-btn.active {
+        background: #ffffff;
+        color: #0284c7 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      /* Sub-filter pills for Video Words tab */
+      .lectura-vword-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .lectura-vword-fbtn {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 6px;
+        border-radius: 6px;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.12s ease;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-vword-fbtn {
+        background: #ffffff;
+        border-color: #e2e8f0;
+        color: #64748b;
+      }
+      .lectura-vword-fbtn.active {
+        background: rgba(56, 189, 248, 0.16);
+        border-color: rgba(56, 189, 248, 0.45);
+        color: #38bdf8;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-vword-fbtn.active {
+        background: rgba(2, 132, 199, 0.1);
+        border-color: rgba(2, 132, 199, 0.4);
+        color: #0284c7;
+      }
+      /* Video Word Row */
+      .lectura-vword-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        transition: background 0.12s ease;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-vword-row {
+        border-bottom-color: #f1f5f9;
+      }
+      .lectura-vword-row:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-vword-row:hover {
+        background: #f8fafc;
+      }
+      .lectura-vword-main {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        flex: 1;
+      }
+      .lectura-vword-info {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
+        flex: 1;
+        flex-wrap: wrap;
+      }
+      .lectura-vword-info .lectura-transcript-word {
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+      .lectura-vword-count {
+        font-size: 10.5px;
+        color: #64748b;
+        font-weight: 600;
+      }
+      .lectura-vword-trans {
+        font-size: 12px;
+        color: #94a3b8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 135px;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-vword-trans {
+        color: #64748b;
+      }
+      .lectura-vword-actions {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        flex-shrink: 0;
+      }
+      .lectura-vword-act {
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #cbd5e1;
+        border-radius: 5px;
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        transition: all 0.12s ease;
+      }
+      .lectura-transcript-sidebar.theme-yt-light .lectura-vword-act {
+        background: #ffffff;
+        border-color: #cbd5e1;
+        color: #475569;
+      }
+      .lectura-vword-act.act-learn:hover,
+      .lectura-vword-act.act-learn.active {
+        background: rgba(251, 113, 133, 0.2);
+        border-color: #fb7185;
+        color: #fb7185;
+      }
+      .lectura-vword-act.act-known:hover {
+        background: rgba(16, 185, 129, 0.22);
+        border-color: #10b981;
+        color: #10b981;
+      }
+      .lectura-vword-act.act-ignore:hover {
+        background: rgba(148, 163, 184, 0.22);
+        border-color: #94a3b8;
+        color: #94a3b8;
+      }
     `;
   }
 
@@ -2893,17 +3636,52 @@ class YouTubeLecturaOverlay {
       }
     });
 
-    // 1b. Listen for pre-segmented TimedText full track payload
+    // 1b. Listen for pre-segmented TimedText full track payload from MAIN world
     window.addEventListener('LECTURA_TIMEDTEXT_DATA', (event: any) => {
       const { lang, text } = event?.detail || {};
-      if (text) {
+      if (text && typeof text === 'string') {
+        try {
+          let sentences: CleanSentence[] = [];
+          const trimmed = text.trim();
+          if (trimmed.startsWith('{')) {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && Array.isArray(parsed.events)) {
+              sentences = parseJson3IntoCleanSentences(parsed.events);
+            }
+          } else if (trimmed.startsWith('<')) {
+            sentences = parseXmlIntoCleanSentences(trimmed);
+          }
+          if (sentences.length > 0) {
+            this.preparsedSentences = sentences;
+            this.currentSentenceIndex = -1;
+            this.autoPausedSentenceIndex = -1;
+            console.log(`✅ [Lectura Subtitles] Loaded ${sentences.length} sentences from intercepted TimedText (${lang || 'active track'})`);
+            this.updateFloatingPillAndTranscript();
+            if (this.videoElement) {
+              this.updateSubtitleOverlay(this.videoElement.currentTime);
+            }
+          }
+        } catch (_) {}
+
         const blocks = parseTimedTextData(text);
         if (blocks.length > 0) {
           this.staticSubtitleBlocks = blocks;
-          console.log(`✨ [Lectura Subtitles] Successfully pre-segmented ${blocks.length} static full-sentence blocks for ${lang || 'active track'}`);
-          if (this.videoElement) {
-            this.updateSubtitleOverlay(this.videoElement.currentTime);
-          }
+        }
+      }
+    });
+
+    // 1c. Listen for captionTracks metadata bridged from MAIN world player
+    window.addEventListener('LECTURA_CAPTION_TRACKS', (event: any) => {
+      const { videoId, tracks } = event?.detail || {};
+      if (Array.isArray(tracks) && tracks.length > 0) {
+        (window as any).__LECTURA_BRIDGED_TRACKS__ = { videoId, tracks };
+        if (
+          (!this.preparsedSentences || this.preparsedSentences.length === 0) &&
+          this.currentVideoId &&
+          !this.isLoadingSubtitles &&
+          this.subtitleLoadAttempts === 0
+        ) {
+          this.loadFullVideoSubtitles(this.currentVideoId);
         }
       }
     });
@@ -2989,9 +3767,51 @@ class YouTubeLecturaOverlay {
               }
               return origOpen.apply(this, arguments);
             };
+            // Bridge captionTracks from MAIN world (movie_player.getPlayerResponse / ytInitialPlayerResponse)
+            function bridgePlayerCaptionTracks(forceEnableCC) {
+              try {
+                const player = document.getElementById('movie_player');
+                const pResp = (player && typeof player.getPlayerResponse === 'function' && player.getPlayerResponse()) || window.ytInitialPlayerResponse;
+                const videoId = pResp && pResp.videoDetails && pResp.videoDetails.videoId;
+                const tracks = pResp && pResp.captions && pResp.captions.playerCaptionsTracklistRenderer && pResp.captions.playerCaptionsTracklistRenderer.captionTracks;
+                if (Array.isArray(tracks) && tracks.length > 0) {
+                  window.dispatchEvent(new CustomEvent('LECTURA_CAPTION_TRACKS', {
+                    detail: {
+                      videoId: videoId || '',
+                      tracks: tracks.map(t => ({
+                        baseUrl: t.baseUrl,
+                        languageCode: t.languageCode,
+                        kind: t.kind
+                      }))
+                    }
+                  }));
+                }
+                // Ensure YouTube's caption module is active so signed timedtext requests fire if needed
+                if (forceEnableCC && player) {
+                  if (typeof player.loadModule === 'function') {
+                    player.loadModule('captions');
+                  }
+                  const ccBtn = document.querySelector('.ytp-subtitles-button');
+                  if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
+                    ccBtn.click();
+                  }
+                }
+              } catch (_) {}
+            }
+
+            window.addEventListener('LECTURA_REQUEST_CAPTIONS', function(ev) {
+              const forceCC = ev && ev.detail && ev.detail.forceEnableCC;
+              bridgePlayerCaptionTracks(forceCC);
+            });
+            window.addEventListener('yt-navigate-finish', function() {
+              setTimeout(function() { bridgePlayerCaptionTracks(false); }, 300);
+            });
+            setTimeout(function() { bridgePlayerCaptionTracks(false); }, 150);
           })();
         `;
         (document.head || document.documentElement).appendChild(script);
+      } else {
+        window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: false } }));
       }
     } catch (_) {}
   }
@@ -3114,95 +3934,131 @@ class YouTubeLecturaOverlay {
       if (this.currentSubtitleText) {
         this.renderSubtitleTokens(this.currentSubtitleText);
       }
+      this.updateFloatingPillAndTranscript();
     } catch (_) {}
   }
 
   public async loadFullVideoSubtitles(videoId: string, targetLang?: string): Promise<boolean> {
-    if (!videoId) return false;
-    const lang = normalizeLangCode(targetLang || this.getEffectiveLang() || 'es');
+    if (!videoId || this.isLoadingSubtitles) return false;
+    this.isLoadingSubtitles = true;
+    this.subtitleLoadAttempts++;
+    this.lastSubtitleAttemptTime = Date.now();
 
-    let trackUrl: string | null = null;
-    const ytPlayer = document.getElementById('movie_player') as any;
+    try {
+      const lang = normalizeLangCode(targetLang || this.getEffectiveLang() || 'es');
 
-    if (ytPlayer && typeof ytPlayer.getPlayerResponse === 'function') {
+      // Ask MAIN world bridge to publish captionTracks from movie_player.getPlayerResponse()
       try {
-        const pResponse = ytPlayer.getPlayerResponse();
-        const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-        if (Array.isArray(tracks) && tracks.length > 0) {
-          const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+        window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: false } }));
+      } catch (_) {}
+
+      let trackUrl: string | null = null;
+      const ytPlayer = document.getElementById('movie_player') as any;
+
+      // 0. Check bridged tracks from MAIN world
+      try {
+        const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
+        if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
+          const matchingTrack = bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || bridged.tracks[0];
           if (matchingTrack?.baseUrl) {
             trackUrl = matchingTrack.baseUrl;
           }
         }
       } catch (_) {}
-    }
 
-    if (!trackUrl) {
-      try {
-        const initResp = (window as any).ytInitialPlayerResponse;
-        const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-        if (Array.isArray(tracks) && tracks.length > 0) {
-          const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
-          if (matchingTrack?.baseUrl) {
-            trackUrl = matchingTrack.baseUrl;
+      if (!trackUrl && ytPlayer && typeof ytPlayer.getPlayerResponse === 'function') {
+        try {
+          const pResponse = ytPlayer.getPlayerResponse();
+          const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+            if (matchingTrack?.baseUrl) {
+              trackUrl = matchingTrack.baseUrl;
+            }
           }
-        }
-      } catch (_) {}
-    }
+        } catch (_) {}
+      }
 
-    if (!trackUrl) {
-      try {
-        const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
-        for (let i = entries.length - 1; i >= 0; i--) {
-          const entry = entries[i];
-          if (entry.name && entry.name.includes('/api/timedtext') && entry.name.includes(`v=${videoId}`)) {
-            trackUrl = entry.name;
-            break;
+      if (!trackUrl) {
+        try {
+          const initResp = (window as any).ytInitialPlayerResponse;
+          const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
+            if (matchingTrack?.baseUrl) {
+              trackUrl = matchingTrack.baseUrl;
+            }
           }
-        }
-      } catch (_) {}
-    }
+        } catch (_) {}
+      }
 
-    if (trackUrl) {
-      try {
-        const finalUrl = trackUrl.includes('fmt=') ? trackUrl : `${trackUrl}&fmt=json3`;
-        const res = await fetch(finalUrl);
-        if (res.ok) {
-          const contentType = res.headers.get('content-type') || '';
-          if (contentType.includes('json') || finalUrl.includes('fmt=json3')) {
-            const data = await res.json();
-            if (data && data.events) {
-              const sentences = parseJson3IntoCleanSentences(data.events);
+      if (!trackUrl) {
+        try {
+          const entries = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+          for (let i = entries.length - 1; i >= 0; i--) {
+            const entry = entries[i];
+            if (entry.name && entry.name.includes('/api/timedtext') && entry.name.includes(`v=${videoId}`)) {
+              trackUrl = entry.name;
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (trackUrl) {
+        try {
+          const finalUrl = trackUrl.includes('fmt=') ? trackUrl : `${trackUrl}&fmt=json3`;
+          const res = await fetch(finalUrl);
+          if (res.ok) {
+            const contentType = res.headers.get('content-type') || '';
+            if (contentType.includes('json') || finalUrl.includes('fmt=json3')) {
+              const data = await res.json();
+              if (data && data.events) {
+                const sentences = parseJson3IntoCleanSentences(data.events);
+                if (sentences.length > 0) {
+                  this.preparsedSentences = sentences;
+                  this.currentSentenceIndex = -1;
+                  this.autoPausedSentenceIndex = -1;
+                  console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (JSON3) for ${lang}!`);
+                  this.updateFloatingPillAndTranscript();
+                  if (this.videoElement) {
+                    this.updateSubtitleOverlay(this.videoElement.currentTime);
+                  }
+                  return true;
+                }
+              }
+            } else {
+              const text = await res.text();
+              const sentences = parseXmlIntoCleanSentences(text);
               if (sentences.length > 0) {
                 this.preparsedSentences = sentences;
                 this.currentSentenceIndex = -1;
-                console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (JSON3) for ${lang}!`);
+                this.autoPausedSentenceIndex = -1;
+                console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (XML) for ${lang}!`);
+                this.updateFloatingPillAndTranscript();
                 if (this.videoElement) {
                   this.updateSubtitleOverlay(this.videoElement.currentTime);
                 }
                 return true;
               }
             }
-          } else {
-            const text = await res.text();
-            const sentences = parseXmlIntoCleanSentences(text);
-            if (sentences.length > 0) {
-              this.preparsedSentences = sentences;
-              this.currentSentenceIndex = -1;
-              console.log(`✅ [Lectura Subtitles] Pre-segmented ${sentences.length} clean strict sentences (XML) for ${lang}!`);
-              if (this.videoElement) {
-                this.updateSubtitleOverlay(this.videoElement.currentTime);
-              }
-              return true;
-            }
           }
+        } catch (err) {
+          console.warn('⚠️ [Lectura Subtitles] Failed to fetch caption track directly:', err);
         }
-      } catch (err) {
-        console.warn('⚠️ [Lectura Subtitles] Failed to fetch caption track directly:', err);
       }
-    }
 
-    return false;
+      // Fallback: if direct fetch yielded empty response or no trackUrl yet, ask MAIN world to activate YouTube's caption module once
+      if ((!this.preparsedSentences || this.preparsedSentences.length === 0) && this.subtitleLoadAttempts <= 1) {
+        try {
+          window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: true } }));
+        } catch (_) {}
+      }
+
+      return false;
+    } finally {
+      this.isLoadingSubtitles = false;
+    }
   }
 
   private hideNativeCaptions() {
@@ -3350,40 +4206,54 @@ class YouTubeLecturaOverlay {
       return s || 'new';
     };
 
-    // 1. Direct match in language dictionary (User saved word ALWAYS takes top priority!)
+    // 1. Check explicit user parent-child link first if parent has a saved status (e.g. offices -> office)
+    const parentRoot = cachedLinks[lower] || cachedLinks[rawLower];
+    if (parentRoot && parentRoot !== lower && cachedWords[parentRoot]) {
+      const parentItem = cachedWords[parentRoot];
+      const parentStatus = normalizeStatusValue(parentItem.status !== undefined && parentItem.status !== null ? parentItem.status : 'new');
+      if (parentStatus !== 'new') {
+        const ownTranslation = (cachedWords[lower] || cachedWords[rawLower])?.translation;
+        return {
+          ...parentItem,
+          translation: ownTranslation || parentItem.translation,
+          status: parentStatus,
+          lemma: parentRoot,
+        };
+      }
+    }
+
+    // 2. Direct match in language dictionary (only if status is not a transient 'new' translation cache entry)
     if (cachedWords[lower] || cachedWords[rawLower]) {
       const item = cachedWords[lower] || cachedWords[rawLower];
       const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
       const normalizedStatus = normalizeStatusValue(rawStatus);
-      return { ...item, status: normalizedStatus, lemma: lower };
+      if (normalizedStatus !== 'new') {
+        return { ...item, status: normalizedStatus, lemma: parentRoot || lower };
+      }
     }
 
-    // 2. Contraction normalization (e.g. let's -> let, user's -> user, don't -> do, can't -> can)
+    // 3. Contraction normalization (e.g. let's -> let, user's -> user, don't -> do, can't -> can)
     const base = normalizeContraction(lower, lang);
     if (base && base !== lower) {
       if (cachedWords[base]) {
         const item = cachedWords[base];
         const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
         const normalizedStatus = normalizeStatusValue(rawStatus);
-        return { ...item, status: normalizedStatus, lemma: base };
+        if (normalizedStatus !== 'new') {
+          return { ...item, status: normalizedStatus, lemma: base };
+        }
       }
       if (cachedLinks[base] && cachedWords[cachedLinks[base]]) {
         const item = cachedWords[cachedLinks[base]];
         const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
         const normalizedStatus = normalizeStatusValue(rawStatus);
-        return { ...item, status: normalizedStatus, lemma: cachedLinks[base] };
+        if (normalizedStatus !== 'new') {
+          return { ...item, status: normalizedStatus, lemma: cachedLinks[base] };
+        }
       }
     }
 
-    // 3. Check explicit user parent-child link (e.g. were -> be)
-    const parentRoot = cachedLinks[lower] || cachedLinks[rawLower];
     if (parentRoot && parentRoot !== lower) {
-      if (cachedWords[parentRoot]) {
-        const item = cachedWords[parentRoot];
-        const rawStatus = item.status !== undefined && item.status !== null ? item.status : 'new';
-        const normalizedStatus = normalizeStatusValue(rawStatus);
-        return { ...item, status: normalizedStatus, lemma: parentRoot };
-      }
       return { status: 'new', lemma: parentRoot };
     }
 
@@ -3487,7 +4357,7 @@ class YouTubeLecturaOverlay {
   private renderSubtitleTokens(text: string) {
     if (!this.subtitleBox) return;
 
-    const cleanedText = removeInternalRepeats(text);
+    const cleanedText = removeInternalRepeats(text.replace(/\s*>>+\s*/g, ' ').trim());
     if (!cleanedText) {
       this.subtitleBox.innerHTML = '';
       this.subtitleBox.style.display = 'none';
@@ -3695,6 +4565,12 @@ class YouTubeLecturaOverlay {
 
     boxEl.style.setProperty('--lectura-sub-current-font-size', `${effectiveFontSize}px`);
 
+    if (this.subtitleBlurMode === 'translation') {
+      boxEl.classList.add('blur-mode-translation');
+    } else if (this.subtitleBlurMode === 'both') {
+      boxEl.classList.add('blur-mode-both');
+    }
+
     const line1Div = document.createElement('div');
     line1Div.className = 'lectura-sub-line';
     for (let i = 0; i < line1Words.length; i++) {
@@ -3775,6 +4651,655 @@ class YouTubeLecturaOverlay {
       }
     }
     this.showToast(`Dual Subtitles: ${this.enableDualSubtitles ? 'ON' : 'OFF'}`);
+  }
+
+  /**
+   * Toggles Auto-Pause at the end of each subtitle sentence [Q]
+   */
+  private toggleAutoPauseAfterSubtitle() {
+    this.autoPauseAfterSubtitle = !this.autoPauseAfterSubtitle;
+    this.autoPausedSentenceIndex = -1;
+    if (this.settings) this.settings.autoPauseAfterSubtitle = this.autoPauseAfterSubtitle;
+    chrome.storage.local.set({ autoPauseAfterSubtitle: this.autoPauseAfterSubtitle });
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    this.showToast(t(this.autoPauseAfterSubtitle ? 'auto_pause_on' : 'auto_pause_off', uiLang));
+    this.updateFloatingPillAndTranscript();
+    if (this.currentSubtitleText) {
+      this.renderSubtitleTokens(this.currentSubtitleText);
+    }
+  }
+
+  /**
+   * Cycles Blur Mode for listening practice: off -> translation -> both -> off [H]
+   */
+  private cycleSubtitleBlurMode() {
+    const order: Array<'off' | 'translation' | 'both'> = ['off', 'translation', 'both'];
+    const idx = order.indexOf(this.subtitleBlurMode);
+    this.subtitleBlurMode = order[(idx + 1) % order.length];
+    if (this.settings) this.settings.subtitleBlurMode = this.subtitleBlurMode;
+    chrome.storage.local.set({ subtitleBlurMode: this.subtitleBlurMode });
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    const keyMap: Record<'off' | 'translation' | 'both', string> = {
+      off: 'blur_mode_off',
+      translation: 'blur_mode_trans',
+      both: 'blur_mode_both',
+    };
+    this.showToast(t(keyMap[this.subtitleBlurMode], uiLang));
+    this.updateFloatingPillAndTranscript();
+    if (this.currentSubtitleText) {
+      this.renderSubtitleTokens(this.currentSubtitleText);
+    }
+  }
+
+  /**
+   * Toggles the Interactive Side Transcript Panel [T]
+   */
+  private toggleTranscriptSidebar() {
+    this.showTranscriptSidebar = !this.showTranscriptSidebar;
+    if (this.settings) this.settings.showTranscriptSidebar = this.showTranscriptSidebar;
+    chrome.storage.local.set({ showTranscriptSidebar: this.showTranscriptSidebar });
+    if (this.transcriptPanel) {
+      this.transcriptPanel.style.display = this.showTranscriptSidebar ? 'flex' : 'none';
+    }
+    this.syncTranscriptPlacement();
+    this.updateFloatingPillAndTranscript();
+    if (this.showTranscriptSidebar) {
+      this.highlightActiveTranscriptCue(this.currentSentenceIndex);
+    }
+  }
+
+  /**
+   * Docks the Transcript Sidebar into YouTube's right column (#secondary-inner / #secondary) in standard view,
+   * or docks it beside the video in Theater / Fullscreen mode by shrinking the video container width so it NEVER covers the video.
+   */
+  private syncTranscriptPlacement(retries = 0) {
+    if (!this.sidebarHost || !this.transcriptPanel) return;
+
+    const player = (document.querySelector('#movie_player, .html5-video-player') as HTMLElement) || this.playerContainer;
+
+    // Ensure global CSS rule for side-by-side layout in Theater/Fullscreen modes
+    if (!document.getElementById('lectura-dock-layout-style') && document.head) {
+      const dockStyle = document.createElement('style');
+      dockStyle.id = 'lectura-dock-layout-style';
+      dockStyle.textContent = `
+        #movie_player.lectura-with-docked-sidebar .html5-video-container {
+          width: calc(100% - 350px) !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          height: 100% !important;
+        }
+        #movie_player.lectura-with-docked-sidebar video.html5-main-video {
+          width: 100% !important;
+          height: 100% !important;
+          left: 0 !important;
+          top: 0 !important;
+          object-fit: contain !important;
+        }
+        #movie_player.lectura-with-docked-sidebar .ytp-chrome-bottom {
+          width: calc(100% - 374px) !important;
+          left: 12px !important;
+        }
+        #movie_player.lectura-with-docked-sidebar #lectura-yt-shadow-host {
+          width: calc(100% - 350px) !important;
+        }
+      `;
+      document.head.appendChild(dockStyle);
+    }
+
+    if (!this.showTranscriptSidebar || this.settings?.isEnabled === false || this.settings?.enableYoutubeOverlay === false) {
+      this.sidebarHost.style.display = 'none';
+      this.transcriptPanel.style.display = 'none';
+      player?.classList.remove('lectura-with-docked-sidebar');
+      return;
+    }
+
+    this.transcriptPanel.style.display = 'flex';
+
+    const isFullscreen = !!document.fullscreenElement || !!player?.classList.contains('ytp-fullscreen');
+    const isTheater = !!document.querySelector('ytd-watch-flexy[theater]');
+
+    if (isFullscreen || isTheater) {
+      // Only in Fullscreen or Theater mode: dock on right edge of player & shrink video container to left
+      if (player) {
+        player.classList.add('lectura-with-docked-sidebar');
+        this.transcriptPanel.classList.add('docked-in-player');
+        if (this.sidebarHost.parentElement !== player) {
+          player.appendChild(this.sidebarHost);
+        }
+        this.sidebarHost.style.cssText = `
+          display: block;
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 350px;
+          height: 100%;
+          z-index: 1001;
+        `;
+      }
+      return;
+    }
+
+    // Standard windowed mode: NEVER shrink #movie_player; dock strictly inside YouTube's right column (#secondary)
+    player?.classList.remove('lectura-with-docked-sidebar');
+    this.transcriptPanel.classList.remove('docked-in-player');
+
+    const secondaryTarget = (
+      document.querySelector('ytd-watch-flexy #secondary #secondary-inner') ||
+      document.querySelector('ytd-watch-flexy #secondary') ||
+      document.querySelector('#secondary-inner') ||
+      document.querySelector('#secondary')
+    ) as HTMLElement | null;
+
+    const playerRect = player?.getBoundingClientRect();
+    const secondaryRect = secondaryTarget?.getBoundingClientRect();
+
+    if (secondaryTarget && secondaryRect && secondaryRect.width >= 200) {
+      if (secondaryTarget.firstElementChild !== this.sidebarHost) {
+        secondaryTarget.prepend(this.sidebarHost);
+      }
+      const panelHeight = Math.max(400, Math.min(680, Math.round(playerRect?.height || 500)));
+      this.sidebarHost.style.cssText = `
+        display: block;
+        position: relative;
+        width: 100%;
+        height: ${panelHeight}px;
+        margin-bottom: 16px;
+        z-index: 10;
+      `;
+    } else {
+      // YouTube's #secondary column is still hydrating (skeleton phase on initial load) — wait until ready (bounded retries)
+      this.sidebarHost.style.display = 'none';
+      if (retries < 10) {
+        window.setTimeout(() => this.syncTranscriptPlacement(retries + 1), 350);
+      }
+    }
+  }
+
+  private formatCueTimestamp(sec: number): string {
+    const total = Math.max(0, Math.floor(sec));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  /**
+   * Calculates video vocabulary comprehension percentage (% of known/ignored words vs new/learning)
+   */
+  private computeVideoComprehension(): { knownPct: number; newCount: number; learningCount: number } {
+    if (!this.preparsedSentences || this.preparsedSentences.length === 0) {
+      return { knownPct: 100, newCount: 0, learningCount: 0 };
+    }
+    const uniqueWords = new Set<string>();
+    const isEn = this.getEffectiveLang().toLowerCase().startsWith('en');
+    for (const s of this.preparsedSentences) {
+      const tokens = s.text.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) || [];
+      for (const tok of tokens) {
+        if (isWordToken(tok, isEn)) {
+          uniqueWords.add(tok.toLowerCase());
+        }
+      }
+    }
+    if (uniqueWords.size === 0) {
+      return { knownPct: 100, newCount: 0, learningCount: 0 };
+    }
+    let knownOrIgnored = 0;
+    let newCount = 0;
+    let learningCount = 0;
+    for (const w of uniqueWords) {
+      const info = this.lookupWordInfo(w);
+      if (info.status === 'known' || info.status === 'ignored' || info.status === '0' || info.status === '5') {
+        knownOrIgnored++;
+      } else if (['1', '2', '3', '4', 'learning'].includes(info.status)) {
+        learningCount++;
+      } else {
+        newCount++;
+      }
+    }
+    const knownPct = Math.round((knownOrIgnored / uniqueWords.size) * 100);
+    return { knownPct, newCount, learningCount };
+  }
+
+  private updateFloatingPillAndTranscript() {
+    if (this.playerFloatingToggle) {
+      const uiLang = this.settings?.interfaceLanguage || 'en';
+      const hasSubs = this.preparsedSentences && this.preparsedSentences.length > 0;
+      const comp = hasSubs ? this.computeVideoComprehension() : null;
+      const compHtml = comp
+        ? `<span class="comp-badge" title="${t('comprehension_label', uiLang)}: ${comp.knownPct}% (${comp.newCount} new, ${comp.learningCount} learning)">${comp.knownPct}%</span>`
+        : '';
+
+      this.playerFloatingToggle.innerHTML = `
+        <button type="button" class="lectura-sub-tool-btn" data-action="prev" title="${t('prev_cue', uiLang)} [A]">⏮</button>
+        <button type="button" class="lectura-sub-tool-btn" data-action="replay" title="${t('replaying_cue', uiLang)} [S]">🔁</button>
+        <button type="button" class="lectura-sub-tool-btn" data-action="next" title="${t('next_cue', uiLang)} [D]">⏭</button>
+        <span class="lectura-top-pill-divider"></span>
+        <button type="button" class="lectura-sub-tool-btn ${this.autoPauseAfterSubtitle ? 'active' : ''}" data-action="autopause" title="${t('auto_pause_sub_hint', uiLang)}">⏸ Q</button>
+        <button type="button" class="lectura-sub-tool-btn ${this.subtitleBlurMode !== 'off' ? 'active' : ''}" data-action="blur" title="Blur Mode [H]">👁 H</button>
+        <span class="lectura-top-pill-divider"></span>
+        <button type="button" class="lectura-sub-tool-btn ${this.showTranscriptSidebar ? 'active' : ''}" data-action="transcript" title="${t('transcript_panel', uiLang)} [T]">
+          <span>📜 ${t('transcript_panel', uiLang)}</span>
+          ${compHtml}
+        </button>
+      `;
+    }
+    if (this.showTranscriptSidebar) {
+      this.syncTranscriptPlacement();
+      this.renderTranscriptSidebar();
+    }
+  }
+
+  private ytThemeObserverInitialized = false;
+
+  private syncTranscriptThemeClass() {
+    if (!this.transcriptPanel) return;
+    const isDockedInPlayer = this.transcriptPanel.classList.contains('docked-in-player');
+    const isYtDark = document.documentElement.hasAttribute('dark') || isDockedInPlayer;
+    this.transcriptPanel.classList.toggle('theme-yt-light', !isYtDark);
+    this.transcriptPanel.classList.toggle('theme-yt-dark', isYtDark);
+
+    const isColorMode = this.settings?.subtitleHighlightStyle === 'color';
+    this.transcriptPanel.classList.toggle('sub-mode--color', isColorMode);
+    this.transcriptPanel.classList.toggle('sub-mode--underline', !isColorMode);
+
+    if (!this.ytThemeObserverInitialized && document.documentElement) {
+      this.ytThemeObserverInitialized = true;
+      const obs = new MutationObserver(() => this.syncTranscriptThemeClass());
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ['dark'] });
+    }
+  }
+
+  /**
+   * Re-evaluates vocabulary status classes on all currently rendered tokens in the subtitle overlay and right transcript sidebar
+   */
+  private refreshAllVisibleWordTokens() {
+    if (this.subtitleBox) {
+      this.subtitleBox.querySelectorAll<HTMLElement>('.lectura-token, .lectura-word-token').forEach((el) => {
+        const w = el.dataset.coreWord || el.dataset.word || el.textContent?.trim() || '';
+        if (!w) return;
+        const info = this.lookupWordInfo(w);
+        const isSelected = el.classList.contains('lectura-token--selected');
+        const statusCls =
+          info.status === 'ignored' || info.status === '0'
+            ? 'status-ignored status-0'
+            : info.status === 'known'
+              ? 'status-known'
+              : `status-${info.status}`;
+        el.className = `lectura-word-token lectura-token ${statusCls}${isSelected ? ' lectura-token--selected' : ''}`;
+      });
+    }
+
+    if (this.transcriptPanel) {
+      this.transcriptPanel.querySelectorAll<HTMLElement>('.lectura-transcript-word').forEach((el) => {
+        const w = el.dataset.coreWord || el.dataset.word || el.textContent?.trim() || '';
+        if (!w) return;
+        const info = this.lookupWordInfo(w);
+        const isSelected = el.classList.contains('lectura-token--selected');
+        const statusCls =
+          info.status === 'ignored' || info.status === '0'
+            ? 'status-ignored status-0'
+            : info.status === 'known'
+              ? 'status-known'
+              : `status-${info.status}`;
+        el.className = `lectura-transcript-word ${statusCls}${isSelected ? ' lectura-token--selected' : ''}`;
+      });
+    }
+  }
+
+  private renderTranscriptTextTokens(rawText: string): string {
+    const cleanText = rawText.replace(/\s*(?:>>+|›)\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    const isEnglish = this.getEffectiveLang().toLowerCase().startsWith('en');
+    const parts = cleanText.match(/([\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\p{L}\p{N}\s]+|\s+)/gu) || [cleanText];
+
+    let html = '';
+    for (const part of parts) {
+      if (/^\s+$/.test(part)) {
+        html += part;
+        continue;
+      }
+      if (isWordToken(part, isEnglish)) {
+        const wordInfo = this.lookupWordInfo(part);
+        const statusClass =
+          wordInfo.status === 'ignored' || wordInfo.status === '0'
+            ? 'status-ignored status-0'
+            : `status-${wordInfo.status}`;
+        const escWord = this.escapeHtml(part);
+        const escLower = this.escapeHtml(part.toLowerCase());
+        html += `<span class="lectura-transcript-word ${statusClass}" data-word="${escLower}" data-core-word="${escWord}">${escWord}</span>`;
+      } else {
+        html += this.escapeHtml(part);
+      }
+    }
+    return html;
+  }
+
+  private transcriptActiveTab: 'text' | 'words' = 'text';
+  private transcriptWordsFilter: 'all' | 'new' | 'learning' = 'all';
+
+  private renderTranscriptRowsHtml(query: string): string {
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    const rows = (this.preparsedSentences || [])
+      .map((s, idx) => {
+        if (query && !s.text.toLowerCase().includes(query)) return '';
+        const isActive = idx === this.currentSentenceIndex;
+        return `
+          <div class="lectura-transcript-row ${isActive ? 'active-cue' : ''}" data-cue-idx="${idx}">
+            <span class="lectura-transcript-time" title="Seek to ${this.formatCueTimestamp(s.start)}">${this.formatCueTimestamp(s.start)}</span>
+            <span class="lectura-transcript-text">${this.renderTranscriptTextTokens(s.text)}</span>
+          </div>
+        `;
+      })
+      .filter(Boolean)
+      .join('');
+    return rows || `<div style="padding: 18px 10px; text-align: center; color: #94a3b8; font-size: 12px;">${t('transcript_empty', uiLang)}</div>`;
+  }
+
+  private renderTranscriptWordsHtml(query: string): string {
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    const lang = this.getEffectiveLang();
+    const isEn = lang.toLowerCase().startsWith('en');
+
+    const wordMap = new Map<
+      string,
+      {
+        word: string;
+        lower: string;
+        status: string;
+        translation: string;
+        count: number;
+        cueIdx: number;
+        start: number;
+        sentence: string;
+      }
+    >();
+
+    for (let idx = 0; idx < (this.preparsedSentences || []).length; idx++) {
+      const s = this.preparsedSentences[idx];
+      const tokens = s.text.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) || [];
+      for (const tok of tokens) {
+        if (!isWordToken(tok, isEn)) continue;
+        const lower = tok.toLowerCase();
+        const existing = wordMap.get(lower);
+        if (existing) {
+          existing.count++;
+          continue;
+        }
+        const info = this.lookupWordInfo(lower);
+        if (info.status === 'known' || info.status === 'ignored' || info.status === '0' || info.status === '5') {
+          continue;
+        }
+        const rawTrans =
+          this.cachedWordsByLang[lang]?.[lower]?.translation?.trim() ||
+          info.translation?.trim() ||
+          YouTubeLecturaOverlay.localTranslationCache.get(`${lang}:${lower}`) ||
+          '';
+        const cleanTrans =
+          rawTrans && !['[known]', '[ignored]', '[импорт с датой]', '—', '...'].includes(rawTrans.toLowerCase())
+            ? rawTrans.split('\n')[0].replace(/^\([a-zA-Z]+\)\s*/, '').trim()
+            : '';
+
+        wordMap.set(lower, {
+          word: tok,
+          lower,
+          status: info.status,
+          translation: cleanTrans,
+          count: 1,
+          cueIdx: idx,
+          start: s.start,
+          sentence: s.text.replace(/\s*(?:>>+|›)\s*/g, ' ').trim(),
+        });
+      }
+    }
+
+    const items = Array.from(wordMap.values()).filter((item) => {
+      if (this.transcriptWordsFilter === 'new' && item.status !== 'new') return false;
+      if (this.transcriptWordsFilter === 'learning' && item.status === 'new') return false;
+      if (query && !item.lower.includes(query) && !item.translation.toLowerCase().includes(query)) return false;
+      return true;
+    });
+
+    if (items.length === 0) {
+      return `<div style="padding: 18px 10px; text-align: center; color: #94a3b8; font-size: 12px;">${t('transcript_no_words', uiLang)}</div>`;
+    }
+
+    return items
+      .map((item) => {
+        const isLearning = ['1', '2', '3', '4', 'learning'].includes(item.status);
+        return `
+          <div class="lectura-vword-row" data-cue-idx="${item.cueIdx}" data-vword="${this.escapeHtml(item.word)}">
+            <div class="lectura-vword-main">
+              <span class="lectura-transcript-time" data-seek-cue="${item.cueIdx}" title="Seek to ${this.formatCueTimestamp(item.start)}">${this.formatCueTimestamp(item.start)}</span>
+              <div class="lectura-vword-info">
+                <span class="lectura-transcript-word status-${item.status}" data-word="${this.escapeHtml(item.lower)}" data-core-word="${this.escapeHtml(item.word)}">${this.escapeHtml(item.word)}</span>
+                ${item.count > 1 ? `<span class="lectura-vword-count">×${item.count}</span>` : ''}
+                ${item.translation ? `<span class="lectura-vword-trans" title="${this.escapeHtml(item.translation)}">${this.escapeHtml(item.translation)}</span>` : ''}
+              </div>
+            </div>
+            <div class="lectura-vword-actions">
+              <button type="button" class="lectura-vword-act act-learn ${isLearning ? 'active' : ''}" data-vwact="1" title="${t('status_learning', uiLang)} (1)">1</button>
+              <button type="button" class="lectura-vword-act act-known" data-vwact="known" title="${t('status_known', uiLang)} (K)">✓</button>
+              <button type="button" class="lectura-vword-act act-ignore" data-vwact="ignored" title="${t('status_ignored', uiLang)} (0)">🚫</button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  private renderTranscriptSidebar() {
+    if (!this.transcriptPanel) return;
+    this.syncTranscriptThemeClass();
+    const uiLang = this.settings?.interfaceLanguage || 'en';
+    const comp = this.computeVideoComprehension();
+    const totalStudyWords = comp.newCount + comp.learningCount;
+    const query = this.transcriptSearchQuery.trim().toLowerCase();
+    const prevListEl = this.transcriptPanel.querySelector<HTMLElement>('.lectura-transcript-list');
+    const prevScrollTop = prevListEl ? prevListEl.scrollTop : null;
+
+    const filterBarHtml =
+      this.transcriptActiveTab === 'words'
+        ? `
+        <div class="lectura-vword-filter-bar">
+          <button type="button" class="lectura-vword-fbtn ${this.transcriptWordsFilter === 'all' ? 'active' : ''}" data-wfilter="all">${t('transcript_filter_all', uiLang)} (${totalStudyWords})</button>
+          <button type="button" class="lectura-vword-fbtn ${this.transcriptWordsFilter === 'new' ? 'active' : ''}" data-wfilter="new">${t('transcript_filter_new', uiLang)} (${comp.newCount})</button>
+          <button type="button" class="lectura-vword-fbtn ${this.transcriptWordsFilter === 'learning' ? 'active' : ''}" data-wfilter="learning">${t('transcript_filter_learning', uiLang)} (${comp.learningCount})</button>
+        </div>
+      `
+        : '';
+
+    const listContentHtml =
+      this.transcriptActiveTab === 'words' ? this.renderTranscriptWordsHtml(query) : this.renderTranscriptRowsHtml(query);
+
+    this.transcriptPanel.innerHTML = `
+      <div class="lectura-transcript-header">
+        <div class="lectura-transcript-title-row">
+          <div class="lectura-transcript-title">
+            <div class="lectura-transcript-tabs">
+              <button type="button" class="lectura-ttab-btn ${this.transcriptActiveTab === 'text' ? 'active' : ''}" data-ttab="text">
+                📜 ${t('transcript_panel', uiLang)}
+              </button>
+              <button type="button" class="lectura-ttab-btn ${this.transcriptActiveTab === 'words' ? 'active' : ''}" data-ttab="words">
+                📊 ${t('transcript_words_tab', uiLang)} (${totalStudyWords})
+              </button>
+            </div>
+            <span style="font-size: 11px; color: #10b981; background: rgba(16, 185, 129, 0.14); padding: 1px 6px; border-radius: 999px; font-weight: 700;">
+              ${comp.knownPct}%
+            </span>
+          </div>
+          <div class="lectura-transcript-controls">
+            <button type="button" class="lectura-transcript-ctrl-btn ${this.autoPauseAfterSubtitle ? 'active' : ''}" data-tctrl="autopause" title="${t('auto_pause_sub_hint', uiLang)}">⏸ Q</button>
+            <button type="button" class="lectura-transcript-ctrl-btn ${this.subtitleBlurMode !== 'off' ? 'active' : ''}" data-tctrl="blur" title="Blur Mode [H]">👁 H</button>
+            <button type="button" class="lectura-transcript-ctrl-btn" data-tctrl="close" title="Close">✕</button>
+          </div>
+        </div>
+        <input type="text" class="lectura-transcript-search" placeholder="${t('transcript_search', uiLang)}" value="${this.escapeHtml(this.transcriptSearchQuery)}" />
+        ${filterBarHtml}
+      </div>
+      <div class="lectura-transcript-list">
+        ${listContentHtml}
+      </div>
+    `;
+
+    // Bind tab switcher buttons (Text vs Video Words)
+    this.transcriptPanel.querySelectorAll<HTMLElement>('[data-ttab]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tab = btn.dataset.ttab as 'text' | 'words';
+        if (tab && tab !== this.transcriptActiveTab) {
+          this.transcriptActiveTab = tab;
+          this.renderTranscriptSidebar();
+        }
+      });
+    });
+
+    // Bind sub-filter buttons inside Words tab
+    this.transcriptPanel.querySelectorAll<HTMLElement>('[data-wfilter]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wf = btn.dataset.wfilter as 'all' | 'new' | 'learning';
+        if (wf && wf !== this.transcriptWordsFilter) {
+          this.transcriptWordsFilter = wf;
+          this.renderTranscriptSidebar();
+        }
+      });
+    });
+
+    // Bind header control buttons
+    this.transcriptPanel.querySelectorAll<HTMLElement>('[data-tctrl]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ctrl = btn.dataset.tctrl;
+        if (ctrl === 'autopause') this.toggleAutoPauseAfterSubtitle();
+        else if (ctrl === 'blur') this.cycleSubtitleBlurMode();
+        else if (ctrl === 'close') this.toggleTranscriptSidebar();
+      });
+    });
+
+    // Bind search input
+    const searchInput = this.transcriptPanel.querySelector<HTMLInputElement>('.lectura-transcript-search');
+    searchInput?.addEventListener('input', (e) => {
+      e.stopPropagation();
+      this.transcriptSearchQuery = searchInput.value;
+      const listEl = this.transcriptPanel?.querySelector<HTMLElement>('.lectura-transcript-list');
+      if (listEl) {
+        const q = this.transcriptSearchQuery.trim().toLowerCase();
+        listEl.innerHTML =
+          this.transcriptActiveTab === 'words' ? this.renderTranscriptWordsHtml(q) : this.renderTranscriptRowsHtml(q);
+      }
+    });
+
+    // Delegated hover & click on transcript words and rows
+    const listEl = this.transcriptPanel.querySelector<HTMLElement>('.lectura-transcript-list');
+    if (listEl) {
+      if (prevScrollTop !== null && prevScrollTop > 0) {
+        listEl.scrollTop = prevScrollTop;
+      } else if (this.transcriptActiveTab === 'text' && this.currentSentenceIndex >= 0) {
+        this.highlightActiveTranscriptCue(this.currentSentenceIndex);
+      }
+
+      listEl.addEventListener('scroll', () => {
+        this.hideHoverTooltip();
+      }, { passive: true });
+
+      listEl.addEventListener('mouseover', (e) => {
+        const wordEl = (e.target as HTMLElement).closest<HTMLElement>('.lectura-transcript-word');
+        if (wordEl) {
+          const coreWord = wordEl.dataset.coreWord || wordEl.textContent?.trim() || '';
+          if (coreWord) this.showHoverTooltip(wordEl, coreWord);
+        }
+      });
+
+      listEl.addEventListener('mouseout', (e) => {
+        const wordEl = (e.target as HTMLElement).closest<HTMLElement>('.lectura-transcript-word');
+        if (wordEl) {
+          this.hideHoverTooltip();
+        }
+      });
+
+      listEl.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const target = e.target as HTMLElement;
+
+        // A) Quick 1-click status button in Video Words tab (1 / ✓ Known / 🚫 Ignore)
+        const actBtn = target.closest<HTMLElement>('[data-vwact]');
+        if (actBtn) {
+          const newStatus = actBtn.dataset.vwact || 'known';
+          const vrow = actBtn.closest<HTMLElement>('.lectura-vword-row');
+          const vword = vrow?.dataset.vword || '';
+          const cueIdx = parseInt(vrow?.dataset.cueIdx || '-1', 10);
+          const sentenceObj = cueIdx >= 0 && cueIdx < this.preparsedSentences.length ? this.preparsedSentences[cueIdx] : null;
+          if (vword) {
+            this.hideHoverTooltip();
+            const langCode = this.getEffectiveLang();
+            const nativeLang = this.settings?.nativeLanguage || 'Russian';
+            let trans =
+              this.cachedWordsByLang[langCode]?.[vword.toLowerCase()]?.translation ||
+              YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${vword.toLowerCase()}`) ||
+              '';
+            if (!trans && newStatus === '1') {
+              try {
+                const res = await this.fetchDirectTranslation(vword, nativeLang, langCode);
+                trans = res.translationText || '';
+              } catch (_) {}
+            }
+            await this.saveWordToLectura(
+              vword,
+              trans,
+              newStatus,
+              sentenceObj ? sentenceObj.text.replace(/\s*(?:>>+|›)\s*/g, ' ').trim() : ''
+            );
+          }
+          return;
+        }
+
+        const row = target.closest<HTMLElement>('.lectura-transcript-row, .lectura-vword-row');
+        if (!row) return;
+        const idx = parseInt(row.dataset.cueIdx || '-1', 10);
+        const sentenceObj = idx >= 0 && idx < this.preparsedSentences.length ? this.preparsedSentences[idx] : null;
+
+        // B) Clicking a word token inside the transcript or words tab opens its word lookup card
+        const wordEl = target.closest<HTMLElement>('.lectura-transcript-word');
+        if (wordEl && sentenceObj) {
+          this.hideHoverTooltip();
+          if (this.settings?.pauseOnWordClick && this.videoElement && !this.videoElement.paused) {
+            this.videoElement.pause();
+          }
+          listEl.querySelectorAll('.lectura-token--selected').forEach((el) => el.classList.remove('lectura-token--selected'));
+          wordEl.classList.add('lectura-token--selected');
+          this.selectedTokens = [wordEl];
+          const coreWord = wordEl.dataset.coreWord || wordEl.textContent?.trim() || '';
+          if (coreWord) {
+            this.showWordCard(coreWord, sentenceObj.text.replace(/\s*(?:>>+|›)\s*/g, ' ').trim(), wordEl);
+          }
+          return;
+        }
+
+        // C) Clicking the timestamp or row background seeks the video to that cue
+        if (sentenceObj && this.videoElement) {
+          this.autoPausedSentenceIndex = -1;
+          this.videoElement.currentTime = Math.max(0, sentenceObj.start + 0.01);
+          this.updateSubtitleOverlay(this.videoElement.currentTime);
+        }
+      });
+    }
+  }
+
+  private highlightActiveTranscriptCue(activeIndex: number) {
+    if (!this.transcriptPanel || !this.showTranscriptSidebar) return;
+    const listEl = this.transcriptPanel.querySelector<HTMLElement>('.lectura-transcript-list');
+    const rows = this.transcriptPanel.querySelectorAll<HTMLElement>('.lectura-transcript-row');
+    rows.forEach((r) => {
+      const idx = parseInt(r.dataset.cueIdx || '-1', 10);
+      if (idx === activeIndex) {
+        r.classList.add('active-cue');
+        if (listEl) {
+          const targetTop = r.offsetTop - listEl.clientHeight / 2 + r.clientHeight / 2;
+          listEl.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+        }
+      } else {
+        r.classList.remove('active-cue');
+      }
+    });
   }
 
   private static aiExplanationCache = new Map<string, any>();
@@ -3871,26 +5396,51 @@ class YouTubeLecturaOverlay {
         </div>
       `;
 
+      const isFromTranscript = Boolean(this.transcriptPanel && this.transcriptPanel.contains(token));
+      if (isFromTranscript && this.sidebarShadowRoot) {
+        if (this.hoverTooltip.parentNode !== this.sidebarShadowRoot) {
+          this.sidebarShadowRoot.appendChild(this.hoverTooltip);
+        }
+      } else if (this.shadowRoot) {
+        if (this.hoverTooltip.parentNode !== this.shadowRoot) {
+          this.shadowRoot.appendChild(this.hoverTooltip);
+        }
+      }
+
+      this.hoverTooltip.style.display = 'flex';
+
       // Position tooltip strictly above hovered token
       const tokenRect = token.getBoundingClientRect();
       const tooltipRect = this.hoverTooltip.getBoundingClientRect();
       const tooltipWidth = tooltipRect.width || 140;
 
-      let left = tokenRect.left + tokenRect.width / 2 - tooltipWidth / 2;
-      // Keep inside window bounds
-      if (left < 10) left = 10;
-      if (left + tooltipWidth > window.innerWidth - 10) {
-        left = window.innerWidth - tooltipWidth - 10;
+      if (isFromTranscript && this.sidebarHost) {
+        const hostRect = this.sidebarHost.getBoundingClientRect();
+        let leftRel = (tokenRect.left - hostRect.left) + (tokenRect.width / 2) - (tooltipWidth / 2);
+        leftRel = Math.max(8, Math.min(leftRel, hostRect.width - tooltipWidth - 8));
+        const bottomRel = Math.max(8, (hostRect.bottom - tokenRect.top) + 10);
+
+        this.hoverTooltip.style.position = 'absolute';
+        this.hoverTooltip.style.left = `${Math.round(leftRel)}px`;
+        this.hoverTooltip.style.bottom = `${Math.round(bottomRel)}px`;
+        this.hoverTooltip.style.top = 'auto';
+      } else {
+        let left = tokenRect.left + tokenRect.width / 2 - tooltipWidth / 2;
+        if (left < 10) left = 10;
+        if (left + tooltipWidth > window.innerWidth - 10) {
+          left = window.innerWidth - tooltipWidth - 10;
+        }
+
+        const isFromSubtitleBox = Boolean(this.subtitleBox && this.subtitleBox.contains(token));
+        const targetTop = (isFromSubtitleBox && this.subtitleBox) ? Math.min(tokenRect.top, this.subtitleBox.getBoundingClientRect().top) : tokenRect.top;
+        const bottomOffset = window.innerHeight - targetTop + 14;
+
+        this.hoverTooltip.style.position = 'fixed';
+        this.hoverTooltip.style.left = `${left}px`;
+        this.hoverTooltip.style.bottom = `${bottomOffset}px`;
+        this.hoverTooltip.style.top = 'auto';
       }
 
-      // Compute target top (ensuring gap above token and subtitle container)
-      const targetTop = this.subtitleBox ? Math.min(tokenRect.top, this.subtitleBox.getBoundingClientRect().top) : tokenRect.top;
-      const bottomOffset = window.innerHeight - targetTop + 14;
-
-      this.hoverTooltip.style.left = `${left}px`;
-      this.hoverTooltip.style.bottom = `${bottomOffset}px`;
-      this.hoverTooltip.style.top = 'auto';
-      this.hoverTooltip.style.display = 'flex';
       requestAnimationFrame(() => {
         this.hoverTooltip?.classList.add('visible');
       });
@@ -3902,34 +5452,51 @@ class YouTubeLecturaOverlay {
       return;
     }
 
-    // 2. Instant check from local memory cache or vocabulary (including contraction base)
+    // 2. Instant check from user vocabulary first (custom Lectura translation ALWAYS takes top priority), then session cache
     const lang = this.getEffectiveLang();
     const cacheKey = `${lang}:${cleanWord}`;
     const baseWord = normalizeContraction(cleanWord, lang);
     const baseCacheKey = `${lang}:${baseWord}`;
 
-    let cachedTrans = YouTubeLecturaOverlay.localTranslationCache.get(cacheKey) || 
-      (this.cachedWordsByLang[lang]?.[cleanWord]?.translation?.trim() || '');
+    const isSystemPlaceholder = (val?: string): boolean => {
+      if (!val) return true;
+      const v = val.trim().toLowerCase();
+      if (!v || v === cleanWord) return true;
+      const placeholders = [
+        '...', 'translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден',
+        '[ignored]', '[known]', '[импорт с датой]', 'ignored', 'known', 'ха', 'ха-ха', 'ha', 'ha-ha',
+      ];
+      return placeholders.includes(v);
+    };
 
-    if (!cachedTrans && baseWord && baseWord !== cleanWord) {
-      cachedTrans = YouTubeLecturaOverlay.localTranslationCache.get(baseCacheKey) ||
-        (this.cachedWordsByLang[lang]?.[baseWord]?.translation?.trim() || '');
-    }
+    const userSavedTrans =
+      this.cachedWordsByLang[lang]?.[cleanWord]?.translation?.trim() ||
+      wordInfo.translation?.trim() ||
+      (baseWord && baseWord !== cleanWord ? this.cachedWordsByLang[lang]?.[baseWord]?.translation?.trim() : '') ||
+      '';
 
-    const invalidPlaceholders = ['...', 'translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден', '[ignored]', '[импорт с датой]', 'ignored'];
-    if (cachedTrans && !invalidPlaceholders.includes(cachedTrans.toLowerCase()) && cachedTrans.toLowerCase() !== cleanWord) {
+    let cachedTrans = !isSystemPlaceholder(userSavedTrans)
+      ? userSavedTrans
+      : YouTubeLecturaOverlay.localTranslationCache.get(cacheKey) ||
+        (baseWord && baseWord !== cleanWord ? YouTubeLecturaOverlay.localTranslationCache.get(baseCacheKey) || '' : '');
+
+    if (cachedTrans && !isSystemPlaceholder(cachedTrans)) {
       renderTooltipDom(cachedTrans);
       return;
     }
 
-    // 2. Not in cache: show minimal loading dots and fetch
+    // 3. Not in cache (or only had system placeholder like [Known]): show loading dots and fetch dictionary translation
     this.hoverTooltip.dataset.hoveredWord = cleanWord;
     renderTooltipDom('...');
 
     this.fetchDirectTranslation(cleanWord, nativeLang, lang)
       .then((res) => {
-        if (this.hoverTooltip && this.hoverTooltip.dataset.hoveredWord === cleanWord && this.hoverTooltip.style.display !== 'none') {
-          if (res.translationText && res.translationText !== '—') {
+        if (res.translationText && res.translationText !== '—') {
+          const existing = this.cachedWordsByLang[lang]?.[cleanWord]?.translation;
+          if (this.cachedWordsByLang[lang]?.[cleanWord] && isSystemPlaceholder(existing)) {
+            this.cachedWordsByLang[lang][cleanWord].translation = res.translationText;
+          }
+          if (this.hoverTooltip && this.hoverTooltip.dataset.hoveredWord === cleanWord && this.hoverTooltip.style.display !== 'none') {
             renderTooltipDom(res.translationText);
           }
         }
@@ -4447,26 +6014,29 @@ class YouTubeLecturaOverlay {
     const existingParent = cachedLinks[cleanLower] || 
       (baseWord && cachedLinks[baseWord] ? cachedLinks[baseWord] : (wordInfo.lemma && wordInfo.lemma !== cleanLower ? wordInfo.lemma : ''));
     
-    // Check if we have an immediate non-empty translation (and filter out placeholder strings)
-    let rawTranslation = YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${cleanLower}`) || 
-      (cachedWords[cleanLower]?.translation?.trim() || '');
-
-    if (!rawTranslation && baseWord && baseWord !== cleanLower) {
-      rawTranslation = YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${baseWord}`) ||
-        (cachedWords[baseWord]?.translation?.trim() || '');
-    }
-
+    // Check user's custom translation from Lectura first, then session auto-translation cache
     const invalidPlaceholders = [
-      'translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден',
-      '[ignored]', '[импорт с датой]', 'ignored', 'ха', 'ха-ха', 'ha', 'ha-ha'
+      '...', 'translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден',
+      '[ignored]', '[known]', '[импорт с датой]', 'ignored', 'known', 'ха', 'ха-ха', 'ha', 'ha-ha'
     ];
-    if (
-      invalidPlaceholders.includes(rawTranslation.toLowerCase()) || 
-      rawTranslation.toLowerCase() === cleanLower ||
-      rawTranslation.startsWith('[') && rawTranslation.endsWith(']') ||
-      rawTranslation.toLowerCase() === 'ха' ||
-      rawTranslation.toLowerCase() === 'ha'
-    ) {
+    const isPlaceholder = (val?: string): boolean => {
+      if (!val) return true;
+      const v = val.trim().toLowerCase();
+      return !v || v === cleanLower || invalidPlaceholders.includes(v);
+    };
+
+    const userSavedTrans =
+      cachedWords[cleanLower]?.translation?.trim() ||
+      wordInfo.translation?.trim() ||
+      (baseWord && baseWord !== cleanLower ? cachedWords[baseWord]?.translation?.trim() : '') ||
+      '';
+
+    let rawTranslation = !isPlaceholder(userSavedTrans)
+      ? userSavedTrans
+      : YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${cleanLower}`) ||
+        (baseWord && baseWord !== cleanLower ? YouTubeLecturaOverlay.localTranslationCache.get(`${langCode}:${baseWord}`) || '' : '');
+
+    if (isPlaceholder(rawTranslation)) {
       rawTranslation = '';
     }
     const readyTranslation = rawTranslation;
@@ -4479,7 +6049,7 @@ class YouTubeLecturaOverlay {
     const glassMainTranslation = translationLines[0] || (readyTranslation || t('translating', uiLang));
     const glassSubDefinition = translationLines.slice(1).join('\n');
 
-    const currentTheme = this.settings?.popupTheme || 'compact';
+    const currentTheme = this.settings?.popupTheme === 'calm_light' ? 'calm_light' : 'glass';
     this.popupCard.className = `lectura-word-card ${currentTheme}`;
 
     const statusToSlider: Record<string, number> = {
@@ -5017,8 +6587,7 @@ class YouTubeLecturaOverlay {
       e.stopPropagation();
       const val = parseInt(slider.value, 10);
       const targetStatus = sliderToStatus[val] || '1';
-      const transEl = this.popupCard?.querySelector('.lectura-card-translation') || this.popupCard?.querySelector('.glass-main-translation');
-      const translationText = transEl?.textContent || '';
+      const translationText = this.getCurrentPopupTranslation(word);
       await this.saveWordToLectura(word, translationText, targetStatus, contextSentence);
       this.showToast(`Saved status: ${targetStatus}`, 'success');
     });
@@ -5047,29 +6616,52 @@ class YouTubeLecturaOverlay {
         }
         this.cachedWordLinksByLang[langCode][word.toLowerCase()] = cleanParent;
 
-        // If parent has a known status, inherit it immediately
-        const inheritedStatus = linkRes?.parentStatus || (this.cachedWordsByLang[langCode] || {})[cleanParent]?.status;
-        if (inheritedStatus) {
+        // If parent has a known status, inherit it immediately across ALL occurrences in subtitles & transcript
+        const rawInherited = linkRes?.parentStatus ?? (this.cachedWordsByLang[langCode] || {})[cleanParent]?.status;
+        if (rawInherited !== undefined && rawInherited !== null) {
+          const s = String(rawInherited).toLowerCase().trim();
+          const inheritedStatus = ['known', 'known_completely', 'well_known', '5'].includes(s)
+            ? 'known'
+            : ['ignored', 'ignore', '0'].includes(s)
+              ? 'ignored'
+              : s;
+
           if (!this.cachedWordsByLang[langCode]) {
             this.cachedWordsByLang[langCode] = {};
           }
+          const transToKeep =
+            readyTranslation ||
+            (this.cachedWordsByLang[langCode] || {})[word.toLowerCase()]?.translation ||
+            (this.cachedWordsByLang[langCode] || {})[cleanParent]?.translation ||
+            '';
+
           this.cachedWordsByLang[langCode][word.toLowerCase()] = {
             status: inheritedStatus,
-            translation: readyTranslation || (this.cachedWordsByLang[langCode] || {})[word.toLowerCase()]?.translation || '',
+            translation: transToKeep,
           };
-
-          // Update UI tokens
-          if (this.selectedTokens.length > 0) {
-            this.selectedTokens.forEach((t) => {
-              t.className = `lectura-token status-${inheritedStatus}`;
-            });
-          } else if (this.subtitleBox) {
-            const tokens = this.subtitleBox.querySelectorAll(`.lectura-token[data-word="${word.toLowerCase()}"]`);
-            tokens.forEach((t) => {
-              t.className = `lectura-token status-${inheritedStatus}`;
-            });
+          if (!this.cachedWordsByLang[langCode][cleanParent]) {
+            this.cachedWordsByLang[langCode][cleanParent] = {
+              status: inheritedStatus,
+              translation: transToKeep,
+            };
           }
+          await StorageService.updateCachedWord(langCode, word.toLowerCase(), {
+            status: inheritedStatus,
+            translation: transToKeep,
+          });
+
+          // Highlight active status button in open popup card
+          this.popupCard?.querySelectorAll('[data-status]').forEach((btn) => {
+            const btnStatus = btn.getAttribute('data-status');
+            btn.classList.toggle(
+              'active',
+              btnStatus === inheritedStatus || (inheritedStatus === 'ignored' && btnStatus === '0')
+            );
+          });
         }
+
+        this.refreshAllVisibleWordTokens();
+        this.updateFloatingPillAndTranscript();
 
         const currentRootEl = this.popupCard?.querySelector('.current-root-name, #current-root-name');
         if (currentRootEl) currentRootEl.textContent = cleanParent;
@@ -5151,12 +6743,27 @@ class YouTubeLecturaOverlay {
     buttons.forEach((btn) => {
       btn.addEventListener('click', async () => {
         const newStatus = btn.getAttribute('data-status') || '1';
-        const transEl = this.popupCard?.querySelector('.lectura-card-translation') || this.popupCard?.querySelector('.glass-main-translation');
-        const translationText = transEl?.textContent || '';
+        const translationText = this.getCurrentPopupTranslation(word);
 
         await this.saveWordToLectura(word, translationText, newStatus, contextSentence);
         this.closeWordCard();
       });
+    });
+
+    // Save custom meaning when pressing Enter in meaning input
+    const meaningInputEl = this.popupCard.querySelector<HTMLInputElement>('.calm-meaning-input, .lectura-meaning-input');
+    meaningInputEl?.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        const customTrans = meaningInputEl.value.trim();
+        const activeStatusBtn = this.popupCard?.querySelector('[data-status].active');
+        const statusToSave =
+          activeStatusBtn?.getAttribute('data-status') ||
+          (wordInfo.status && wordInfo.status !== 'new' && wordInfo.status !== '0' ? wordInfo.status : '1');
+        await this.saveWordToLectura(word, customTrans, statusToSave, contextSentence);
+        this.closeWordCard();
+      }
     });
 
     console.log('[Lectura Debug] Word clicked:', word);
@@ -5270,20 +6877,28 @@ class YouTubeLecturaOverlay {
     }
 
     const popupWidth = this.popupCard.offsetWidth || 440;
+    const popupHeight = this.popupCard.offsetHeight || 390;
 
     if (targetToken && this.playerContainer) {
+      const isFromSubtitleBox = Boolean(this.subtitleBox && this.subtitleBox.contains(targetToken));
       const tokenRect = targetToken.getBoundingClientRect();
-      const containerRect = this.subtitleBox ? this.subtitleBox.getBoundingClientRect() : tokenRect;
-      const playerRect = this.playerContainer.getBoundingClientRect();
+      const containerRect = (isFromSubtitleBox && this.subtitleBox) ? this.subtitleBox.getBoundingClientRect() : tokenRect;
+      // Use overlayContainer rect so docked sidebar width (350px in Fullscreen/Theater) is excluded!
+      const boundsRect = this.overlayContainer ? this.overlayContainer.getBoundingClientRect() : this.playerContainer.getBoundingClientRect();
 
-      // Горизонталь: центрируем относительно кликнутого слова внутри плеера
-      const tokenCenterRel = (tokenRect.left - playerRect.left) + (tokenRect.width / 2);
+      // Горизонталь: центрируем относительно кликнутого слова внутри видимой области видео (слева от боковой панели)
+      const tokenCenterRel = (tokenRect.left - boundsRect.left) + (tokenRect.width / 2);
       let leftRel = tokenCenterRel - (popupWidth / 2);
-      // Ограничиваем, чтобы не вылезало за края плеера
-      leftRel = Math.max(16, Math.min(leftRel, playerRect.width - popupWidth - 16));
+      leftRel = Math.max(16, Math.min(leftRel, boundsRect.width - popupWidth - 16));
 
-      // Вертикаль: ВСЕГДА строго над всем блоком субтитров внутри плеера с отступом 12px
-      const bottomRel = Math.max(16, (playerRect.bottom - containerRect.top) + 12);
+      // Вертикаль: над блоком субтитров (или напротив строки транскрипта, но строго внутри верхней и нижней границ видео)
+      let bottomRel = Math.max(16, (boundsRect.bottom - containerRect.top) + 12);
+      if (!isFromSubtitleBox) {
+        const desiredBottom = (boundsRect.bottom - tokenRect.top) - (popupHeight / 2);
+        bottomRel = Math.max(72, desiredBottom);
+      }
+      const maxBottomRel = Math.max(16, boundsRect.height - popupHeight - 54);
+      bottomRel = Math.min(bottomRel, maxBottomRel);
 
       this.popupCard.style.position = 'absolute';
       this.popupCard.style.left = `${Math.round(leftRel)}px`;
@@ -5370,27 +6985,64 @@ class YouTubeLecturaOverlay {
     }
   }
 
+  private getCurrentPopupTranslation(word?: string): string {
+    if (!this.popupCard) return '';
+    const meaningInput = this.popupCard.querySelector<HTMLInputElement>('.calm-meaning-input, .lectura-meaning-input');
+    if (meaningInput && meaningInput.value.trim()) {
+      return meaningInput.value.trim();
+    }
+    const transEl = this.popupCard.querySelector('.lectura-card-translation, .glass-main-translation');
+    if (transEl && transEl.textContent?.trim()) {
+      return transEl.textContent.trim();
+    }
+    if (word) {
+      const cleanLower = cleanWordForTranslation(word);
+      const lang = this.getEffectiveLang();
+      return (
+        YouTubeLecturaOverlay.localTranslationCache.get(`${lang}:${cleanLower}`) ||
+        YouTubeLecturaOverlay.localTranslationCache.get(cleanLower) ||
+        ''
+      );
+    }
+    return '';
+  }
+
   private async saveWordToLectura(word: string, translation: string, status: string, contextSentence: string) {
     try {
       const cleanLower = word.toLowerCase().trim();
       let translationToSave = translation?.trim() || '';
 
       // Strict validation: NEVER save loader or placeholder texts as translation
-      const invalidPlaceholders = ['translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден'];
-      if (invalidPlaceholders.includes(translationToSave.toLowerCase()) || translationToSave.toLowerCase() === cleanLower) {
+      const invalidPlaceholders = [
+        'translating...', 'loading...', '—', '— (нет данных)', 'перевод не найден',
+        '[known]', '[ignored]', '[импорт с датой]', 'known', 'ignored',
+      ];
+      if (
+        invalidPlaceholders.includes(translationToSave.toLowerCase()) ||
+        (translationToSave.startsWith('[') && translationToSave.endsWith(']')) ||
+        translationToSave.toLowerCase() === cleanLower
+      ) {
         translationToSave = '';
-      }
-
-      // If translationToSave is empty, check session translation cache
-      if (!translationToSave && YouTubeLecturaOverlay.localTranslationCache.has(cleanLower)) {
-        translationToSave = YouTubeLecturaOverlay.localTranslationCache.get(cleanLower) || '';
       }
 
       let targetLang = this.getEffectiveLang();
       const activeLang = getLanguageDisplayName(targetLang);
 
+      // If translationToSave is empty, check session translation cache (language-scoped first, then plain fallback)
+      if (!translationToSave) {
+        translationToSave =
+          YouTubeLecturaOverlay.localTranslationCache.get(`${targetLang}:${cleanLower}`) ||
+          YouTubeLecturaOverlay.localTranslationCache.get(cleanLower) ||
+          (this.cachedWordsByLang[targetLang] || {})[cleanLower]?.translation ||
+          '';
+      }
+
       const isMultiWord = word.trim().includes(' ');
       const snapshotImage = this.captureVideoSnapshot();
+      const activeSentenceObj =
+        this.currentSentenceIndex >= 0 && this.currentSentenceIndex < this.preparsedSentences.length
+          ? this.preparsedSentences[this.currentSentenceIndex]
+          : undefined;
 
       await this.apiClient.saveWord({
         word,
@@ -5408,10 +7060,13 @@ class YouTubeLecturaOverlay {
         source_url: window.location.href,
         is_phrase: isMultiWord,
         imageUrl: snapshotImage,
+        youtubeId: this.currentVideoId || undefined,
+        cueStart: activeSentenceObj ? Math.round(activeSentenceObj.start * 100) / 100 : undefined,
+        cueEnd: activeSentenceObj ? Math.round(activeSentenceObj.end * 100) / 100 : undefined,
         tags: isMultiWord ? ['phrase', 'youtube_extension'] : ['youtube_extension'],
       });
 
-      // Update local cache strictly for this language
+      // Update local cache strictly for this language (including any linked root / sibling forms)
       if (!this.cachedWordsByLang[targetLang]) {
         this.cachedWordsByLang[targetLang] = {};
       }
@@ -5421,17 +7076,24 @@ class YouTubeLecturaOverlay {
       }
       await StorageService.updateCachedWord(targetLang, cleanLower, { status, translation: translationToSave });
 
-      // Update all matching or selected tokens visually in current subtitle box
-      if (this.selectedTokens.length > 0) {
-        this.selectedTokens.forEach((t) => {
-          t.className = `lectura-token status-${status}`;
-        });
-      } else if (this.subtitleBox) {
-        const tokens = this.subtitleBox.querySelectorAll(`.lectura-token[data-word="${cleanLower}"]`);
-        tokens.forEach((t) => {
-          t.className = `lectura-token status-${status}`;
-        });
+      const linkedParent = this.cachedWordLinksByLang[targetLang]?.[cleanLower];
+      if (linkedParent && linkedParent !== cleanLower) {
+        const parentTrans = this.cachedWordsByLang[targetLang][linkedParent]?.translation || translationToSave;
+        this.cachedWordsByLang[targetLang][linkedParent] = { status, translation: parentTrans };
+        await StorageService.updateCachedWord(targetLang, linkedParent, { status, translation: parentTrans });
       }
+      const linksMap = this.cachedWordLinksByLang[targetLang] || {};
+      const rootKey = linkedParent || cleanLower;
+      for (const [childWord, parentWord] of Object.entries(linksMap)) {
+        if (parentWord === rootKey && childWord !== cleanLower) {
+          const childTrans = this.cachedWordsByLang[targetLang][childWord]?.translation || translationToSave;
+          this.cachedWordsByLang[targetLang][childWord] = { status, translation: childTrans };
+          await StorageService.updateCachedWord(targetLang, childWord, { status, translation: childTrans });
+        }
+      }
+
+      this.refreshAllVisibleWordTokens();
+      this.updateFloatingPillAndTranscript();
     } catch (err: any) {
       this.showToast(`Failed to save: ${err.message || 'Server error'}`, 'error');
     }
@@ -5470,13 +7132,40 @@ class YouTubeLecturaOverlay {
     }
 
     if (!this.preparsedSentences || this.preparsedSentences.length === 0) {
-      if (this.currentVideoId && !this.isLoadingSubtitles) {
-        this.isLoadingSubtitles = true;
-        this.loadFullVideoSubtitles(this.currentVideoId).finally(() => {
-          this.isLoadingSubtitles = false;
-        });
+      if (
+        this.currentVideoId &&
+        !this.isLoadingSubtitles &&
+        this.subtitleLoadAttempts < 2 &&
+        Date.now() - this.lastSubtitleAttemptTime > 5000
+      ) {
+        this.loadFullVideoSubtitles(this.currentVideoId);
       }
       return;
+    }
+
+    // Fast O(1) check: if currentTime is still within the currently displayed sentence
+    if (this.currentSentenceIndex >= 0 && this.currentSentenceIndex < this.preparsedSentences.length) {
+      const curSent = this.preparsedSentences[this.currentSentenceIndex];
+      const nextSent = this.preparsedSentences[this.currentSentenceIndex + 1];
+      const effectiveEnd = nextSent ? Math.min(curSent.end, nextSent.start) : curSent.end;
+
+      // Auto-Pause at end of current sentence (Language Reactor style [Q])
+      if (
+        this.autoPauseAfterSubtitle &&
+        this.videoElement &&
+        !this.videoElement.paused &&
+        this.autoPausedSentenceIndex !== this.currentSentenceIndex &&
+        currentTime >= curSent.start + 0.15 &&
+        currentTime >= effectiveEnd - 0.14
+      ) {
+        this.autoPausedSentenceIndex = this.currentSentenceIndex;
+        this.videoElement.pause();
+        return;
+      }
+
+      if (currentTime >= curSent.start && currentTime < effectiveEnd) {
+        return;
+      }
     }
 
     // Find sentence index for the exact currentTime (with strict next block start precedence)
@@ -5493,6 +7182,7 @@ class YouTubeLecturaOverlay {
     }
 
     this.currentSentenceIndex = newIndex;
+    this.highlightActiveTranscriptCue(newIndex);
 
     // 2. If between sentences or past end — hide box
     if (newIndex === -1) {
@@ -5512,10 +7202,13 @@ class YouTubeLecturaOverlay {
   private setupTimeListener() {
     if (!this.videoElement) return;
 
-    // Continuous frame-accurate synchronization loop via requestAnimationFrame (0ms lag)
-    const tick = () => {
+    // Throttled synchronization loop (~22 Hz / every 45ms instead of 60-144 FPS) to keep CPU near 0%
+    const tick = (now: number) => {
       if (this.videoElement && !this.videoElement.paused && !this.videoElement.ended) {
-        this.updateSubtitleOverlay(this.videoElement.currentTime);
+        if (now - this.lastTickTime >= 45) {
+          this.lastTickTime = now;
+          this.updateSubtitleOverlay(this.videoElement.currentTime);
+        }
         this.animFrameId = requestAnimationFrame(tick);
       } else {
         this.animFrameId = null;
@@ -5566,21 +7259,35 @@ class YouTubeLecturaOverlay {
 
   private setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (this.settings?.isEnabled === false || this.settings?.enableYoutubeOverlay === false) {
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
       if (
-        ['INPUT', 'TEXTAREA'].includes(target.tagName) ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
         target.isContentEditable ||
-        e.composedPath().some((el: any) => el && (el as HTMLElement).isContentEditable)
+        e.composedPath().some((el: any) => el && ((el as HTMLElement).isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes((el as HTMLElement).tagName)))
       ) {
+        return;
+      }
+
+      // Never intercept browser/system shortcuts with Ctrl or Cmd (Meta)
+      if (e.ctrlKey || e.metaKey) {
         return;
       }
 
       const key = e.key.toUpperCase();
 
+      // Only allow Alt+T when Alt is held down
+      if (e.altKey && key !== 'T') {
+        return;
+      }
+
       // 1. Hotkeys when word popup card is open
-      if (this.popupCard && this.popupCard.style.display !== 'none' && this.activeWordData) {
+      if (this.popupCard && this.popupCard.style.display !== 'none' && this.activeWordData && !e.altKey) {
         // Space -> close popup and resume video playback
         if (e.code === 'Space' || e.key === ' ') {
           e.preventDefault();
@@ -5594,8 +7301,7 @@ class YouTubeLecturaOverlay {
         // 1..5 -> select corresponding level (1-5) and close
         if (['1', '2', '3', '4', '5'].includes(e.key)) {
           e.preventDefault();
-          const transEl = this.popupCard.querySelector('.lectura-card-translation');
-          const translationText = transEl?.textContent || '';
+          const translationText = this.getCurrentPopupTranslation(this.activeWordData.word);
           this.saveWordToLectura(this.activeWordData.word, translationText, e.key, this.activeWordData.contextSentence);
           this.closeWordCard();
           return;
@@ -5605,8 +7311,7 @@ class YouTubeLecturaOverlay {
         if (e.key === '0' || key === 'I' || key === 'ESCAPE') {
           e.preventDefault();
           if (e.key === '0' || key === 'I') {
-            const transEl = this.popupCard.querySelector('.lectura-card-translation');
-            const translationText = transEl?.textContent || '';
+            const translationText = this.getCurrentPopupTranslation(this.activeWordData.word);
             this.saveWordToLectura(this.activeWordData.word, translationText, 'ignored', this.activeWordData.contextSentence);
           }
           this.closeWordCard();
@@ -5616,22 +7321,23 @@ class YouTubeLecturaOverlay {
         // Enter or K -> mark as Known (✔️) and close
         if (key === 'ENTER' || key === 'K') {
           e.preventDefault();
-          const transEl = this.popupCard.querySelector('.lectura-card-translation');
-          const translationText = transEl?.textContent || '';
+          const translationText = this.getCurrentPopupTranslation(this.activeWordData.word);
           this.saveWordToLectura(this.activeWordData.word, translationText, 'known', this.activeWordData.contextSentence);
           this.closeWordCard();
           return;
         }
       }
 
+      if (!this.videoElement || !this.currentVideoId) return;
+
       // 2. Subtitle size preset switching ([ and ])
-      if (e.key === '[' || e.code === 'BracketLeft') {
+      if (!e.altKey && (e.key === '[' || e.code === 'BracketLeft')) {
         e.preventDefault();
         const next = this.currentSizePreset === 'lg' ? 'md' : (this.currentSizePreset === 'md' ? 'sm' : 'sm');
         this.applySizePreset(next, true);
         return;
       }
-      if (e.key === ']' || e.code === 'BracketRight') {
+      if (!e.altKey && (e.key === ']' || e.code === 'BracketRight')) {
         e.preventDefault();
         const next = this.currentSizePreset === 'sm' ? 'md' : (this.currentSizePreset === 'md' ? 'lg' : 'lg');
         this.applySizePreset(next, true);
@@ -5639,7 +7345,7 @@ class YouTubeLecturaOverlay {
       }
 
       // 3. Toggle Dual Subtitles (B for Bilingual, E, or Alt+T)
-      if (key === 'B' || key === 'E' || (e.altKey && key === 'T')) {
+      if ((!e.altKey && (key === 'B' || key === 'E')) || (e.altKey && key === 'T')) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -5647,7 +7353,24 @@ class YouTubeLecturaOverlay {
         return;
       }
 
-      if (!this.videoElement) return;
+      if (e.altKey) return;
+
+      // 3b. Auto-Pause after subtitle [Q], Blur mode [H], Side Transcript Panel [T]
+      if (key === 'Q') {
+        e.preventDefault();
+        this.toggleAutoPauseAfterSubtitle();
+        return;
+      }
+      if (key === 'H') {
+        e.preventDefault();
+        this.cycleSubtitleBlurMode();
+        return;
+      }
+      if (key === 'T') {
+        e.preventDefault();
+        this.toggleTranscriptSidebar();
+        return;
+      }
 
       // 4. Navigation hotkeys (A, S, D)
       if (key === 'A') {
@@ -5664,58 +7387,105 @@ class YouTubeLecturaOverlay {
   }
 
   private jumpToPreviousCue() {
-    if (!this.videoElement || this.activeCues.length === 0) return;
-
+    if (!this.videoElement) return;
     const currentTime = this.videoElement.currentTime;
-    let targetCue: SubtitleCue | null = null;
+    const uiLang = this.settings?.interfaceLanguage || 'en';
 
-    for (let i = this.activeCues.length - 1; i >= 0; i--) {
-      if (this.activeCues[i].startTime < currentTime - 0.5) {
-        targetCue = this.activeCues[i];
-        this.currentCueIndex = i;
-        break;
+    if (this.preparsedSentences && this.preparsedSentences.length > 0) {
+      let targetIdx = -1;
+      for (let i = this.preparsedSentences.length - 1; i >= 0; i--) {
+        if (this.preparsedSentences[i].start < currentTime - 0.6) {
+          targetIdx = i;
+          break;
+        }
+      }
+      if (targetIdx !== -1) {
+        this.videoElement.currentTime = Math.max(0, this.preparsedSentences[targetIdx].start + 0.01);
+        this.updateSubtitleOverlay(this.videoElement.currentTime);
+        this.showToast(t('prev_cue', uiLang));
+        return;
       }
     }
 
-    if (targetCue) {
-      this.videoElement.currentTime = Math.max(0, targetCue.startTime);
-    } else {
-      this.videoElement.currentTime = Math.max(0, currentTime - 3);
+    if (this.activeCues.length > 0) {
+      for (let i = this.activeCues.length - 1; i >= 0; i--) {
+        if (this.activeCues[i].startTime < currentTime - 0.5) {
+          this.currentCueIndex = i;
+          this.videoElement.currentTime = Math.max(0, this.activeCues[i].startTime);
+          this.showToast(t('prev_cue', uiLang));
+          return;
+        }
+      }
     }
+
+    this.videoElement.currentTime = Math.max(0, currentTime - 3);
+    this.showToast(t('prev_cue', uiLang));
   }
 
   private jumpToNextCue() {
-    if (!this.videoElement || this.activeCues.length === 0) return;
-
+    if (!this.videoElement) return;
     const currentTime = this.videoElement.currentTime;
-    let targetCue: SubtitleCue | null = null;
+    const uiLang = this.settings?.interfaceLanguage || 'en';
 
-    for (let i = 0; i < this.activeCues.length; i++) {
-      if (this.activeCues[i].startTime > currentTime + 0.5) {
-        targetCue = this.activeCues[i];
-        this.currentCueIndex = i;
-        break;
+    if (this.preparsedSentences && this.preparsedSentences.length > 0) {
+      let targetIdx = -1;
+      for (let i = 0; i < this.preparsedSentences.length; i++) {
+        if (this.preparsedSentences[i].start > currentTime + 0.3) {
+          targetIdx = i;
+          break;
+        }
+      }
+      if (targetIdx !== -1) {
+        this.videoElement.currentTime = this.preparsedSentences[targetIdx].start + 0.01;
+        this.updateSubtitleOverlay(this.videoElement.currentTime);
+        this.showToast(t('next_cue', uiLang));
+        return;
       }
     }
 
-    if (targetCue) {
-      this.videoElement.currentTime = targetCue.startTime;
-    } else {
-      this.videoElement.currentTime = currentTime + 3;
+    if (this.activeCues.length > 0) {
+      for (let i = 0; i < this.activeCues.length; i++) {
+        if (this.activeCues[i].startTime > currentTime + 0.5) {
+          this.currentCueIndex = i;
+          this.videoElement.currentTime = this.activeCues[i].startTime;
+          this.showToast(t('next_cue', uiLang));
+          return;
+        }
+      }
     }
+
+    this.videoElement.currentTime = currentTime + 3;
+    this.showToast(t('next_cue', uiLang));
   }
 
   private replayCurrentCue() {
     if (!this.videoElement) return;
-
     const currentTime = this.videoElement.currentTime;
-    const currentCue = this.activeCues[this.currentCueIndex];
+    const uiLang = this.settings?.interfaceLanguage || 'en';
 
+    if (this.preparsedSentences && this.preparsedSentences.length > 0) {
+      const currentSent =
+        this.currentSentenceIndex >= 0 && this.currentSentenceIndex < this.preparsedSentences.length
+          ? this.preparsedSentences[this.currentSentenceIndex]
+          : this.preparsedSentences.find((s) => currentTime >= s.start && currentTime <= s.end + 1.5);
+      if (currentSent) {
+        this.videoElement.currentTime = Math.max(0, currentSent.start + 0.01);
+        if (this.videoElement.paused) {
+          this.videoElement.play().catch(() => {});
+        }
+        this.updateSubtitleOverlay(this.videoElement.currentTime);
+        this.showToast(t('replaying_cue', uiLang));
+        return;
+      }
+    }
+
+    const currentCue = this.activeCues[this.currentCueIndex];
     if (currentCue && Math.abs(currentCue.startTime - currentTime) < 10) {
       this.videoElement.currentTime = Math.max(0, currentCue.startTime);
     } else {
       this.videoElement.currentTime = Math.max(0, currentTime - 3);
     }
+    this.showToast(t('replaying_cue', uiLang));
   }
 }
 
