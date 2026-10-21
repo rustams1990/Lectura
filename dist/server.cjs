@@ -19530,7 +19530,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.38";
+var APP_VERSION = "v1.0.39";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);
@@ -19853,6 +19853,70 @@ function isProtectedPath(relPath) {
   }
   return false;
 }
+async function downloadChangedFilesViaCompareApi(baseTag, holdEntryFilesForDevWatch) {
+  const cleanBase = baseTag.startsWith("v") ? baseTag : `v${baseTag}`;
+  const compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
+  const res = await fetch(compareUrl, {
+    headers: {
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "Lectura-Updater"
+    },
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!res.ok) {
+    throw new Error(`Compare API returned HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const files = Array.isArray(data?.files) ? data.files : [];
+  if (files.length === 0 || files.length > 150) {
+    throw new Error(`Compare API returned ${files.length} files (fallback to archive)`);
+  }
+  const rootDir = process.cwd();
+  const deferredFiles = [];
+  let hasDistServer = false;
+  let hasDistIndex = false;
+  for (const f of files) {
+    const relPath = String(f.filename || "").replace(/^\/+/, "");
+    if (!relPath || isProtectedPath(relPath)) continue;
+    if (f.status === "removed") {
+      const targetPath = import_path14.default.join(rootDir, relPath);
+      if (import_fs14.default.existsSync(targetPath)) {
+        try {
+          import_fs14.default.unlinkSync(targetPath);
+        } catch (_) {
+        }
+      }
+      continue;
+    }
+    const rawUrl = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${relPath}?t=${Date.now()}`;
+    const fileRes = await fetch(rawUrl, {
+      headers: { "User-Agent": "Lectura-Updater", "Cache-Control": "no-cache" },
+      signal: AbortSignal.timeout(3e4)
+    });
+    if (!fileRes.ok) {
+      throw new Error(`Failed to fetch ${relPath} (HTTP ${fileRes.status})`);
+    }
+    const buf = Buffer.from(await fileRes.arrayBuffer());
+    const fullPath = import_path14.default.join(rootDir, relPath);
+    if (relPath === "dist/server.cjs") hasDistServer = true;
+    if (relPath === "dist/index.html") hasDistIndex = true;
+    if (holdEntryFilesForDevWatch && (relPath === "server.ts" || relPath === "src/version.ts")) {
+      deferredFiles.push({ fullPath, content: buf });
+      continue;
+    }
+    const parentDir = import_path14.default.dirname(fullPath);
+    if (!import_fs14.default.existsSync(parentDir)) {
+      import_fs14.default.mkdirSync(parentDir, { recursive: true });
+    }
+    import_fs14.default.writeFileSync(fullPath, buf);
+  }
+  const distReady = hasDistServer && hasDistIndex || import_fs14.default.existsSync(import_path14.default.join(rootDir, "dist", "server.cjs")) && import_fs14.default.existsSync(import_path14.default.join(rootDir, "dist", "index.html"));
+  return {
+    ok: true,
+    deferredFiles,
+    extractedPrebuiltDist: distReady
+  };
+}
 async function downloadAndExtractGitHubZip(holdEntryFilesForDevWatch) {
   const tmpZipPath = import_path14.default.join(import_os4.default.tmpdir(), `lectura_update_${Date.now()}.zip`);
   try {
@@ -19977,9 +20041,18 @@ async function startSystemUpdate() {
         }
       }
       if (!usedGit) {
-        const zipResult = await downloadAndExtractGitHubZip(isDevWatch);
-        deferredFiles = zipResult.deferredFiles;
-        hasPrebuiltDist = zipResult.extractedPrebuiltDist;
+        try {
+          const currentVer = getLiveServerVersion();
+          const fastResult = await downloadChangedFilesViaCompareApi(currentVer, isDevWatch);
+          deferredFiles = fastResult.deferredFiles;
+          hasPrebuiltDist = fastResult.extractedPrebuiltDist;
+          console.log(`[Updater] Fast delta update from ${currentVer} completed via GitHub Compare API.`);
+        } catch (deltaErr) {
+          console.warn("[Updater] Delta update fallback to full archive:", deltaErr?.message || deltaErr);
+          const zipResult = await downloadAndExtractGitHubZip(isDevWatch);
+          deferredFiles = zipResult.deferredFiles;
+          hasPrebuiltDist = zipResult.extractedPrebuiltDist;
+        }
       }
       let newDepsJson = "";
       let newVersionClean = targetVersion.replace(/^v/i, "");
@@ -21052,4 +21125,3 @@ startServer().catch((err) => {
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-//# sourceMappingURL=server.cjs.map

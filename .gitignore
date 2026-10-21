@@ -26,6 +26,11 @@ backups/
 # Temporary downloaded dictionary source files
 tools/dictionaries/*.dic
 tools/dictionaries/*_50k.txt
+tools/dictionaries/master_dictionary.js
+tools/dictionaries/master_dictionary.json
+server/frequency/*_50k.txt
+server/frequency/*.db-wal
+server/frequency/*.db-shm
 
 # Media and Models
 media/

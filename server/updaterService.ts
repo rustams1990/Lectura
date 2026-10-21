@@ -426,6 +426,99 @@ function isProtectedPath(relPath: string): boolean {
 }
 
 /**
+ * Fast delta updater via GitHub Compare API:
+ * Downloads ONLY the files changed between `baseTag` (e.g. v1.0.38) and `main`
+ * directly from raw.githubusercontent.com (typically ~5 MB in 2-3 seconds, <5 MB RAM).
+ */
+async function downloadChangedFilesViaCompareApi(
+  baseTag: string,
+  holdEntryFilesForDevWatch: boolean
+): Promise<{
+  ok: boolean;
+  deferredFiles: { fullPath: string; content: Buffer }[];
+  extractedPrebuiltDist: boolean;
+}> {
+  const cleanBase = baseTag.startsWith("v") ? baseTag : `v${baseTag}`;
+  const compareUrl = `https://api.github.com/repos/${GITHUB_REPO}/compare/${cleanBase}...main`;
+
+  const res = await fetch(compareUrl, {
+    headers: {
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "Lectura-Updater",
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Compare API returned HTTP ${res.status}`);
+  }
+
+  const data = (await res.json()) as any;
+  const files: any[] = Array.isArray(data?.files) ? data.files : [];
+  if (files.length === 0 || files.length > 150) {
+    throw new Error(`Compare API returned ${files.length} files (fallback to archive)`);
+  }
+
+  const rootDir = process.cwd();
+  const deferredFiles: { fullPath: string; content: Buffer }[] = [];
+  let hasDistServer = false;
+  let hasDistIndex = false;
+
+  for (const f of files) {
+    const relPath = String(f.filename || "").replace(/^\/+/, "");
+    if (!relPath || isProtectedPath(relPath)) continue;
+
+    if (f.status === "removed") {
+      const targetPath = path.join(rootDir, relPath);
+      if (fs.existsSync(targetPath)) {
+        try {
+          fs.unlinkSync(targetPath);
+        } catch (_) {}
+      }
+      continue;
+    }
+
+    const rawUrl = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${relPath}?t=${Date.now()}`;
+    const fileRes = await fetch(rawUrl, {
+      headers: { "User-Agent": "Lectura-Updater", "Cache-Control": "no-cache" },
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!fileRes.ok) {
+      throw new Error(`Failed to fetch ${relPath} (HTTP ${fileRes.status})`);
+    }
+
+    const buf = Buffer.from(await fileRes.arrayBuffer());
+    const fullPath = path.join(rootDir, relPath);
+
+    if (relPath === "dist/server.cjs") hasDistServer = true;
+    if (relPath === "dist/index.html") hasDistIndex = true;
+
+    if (holdEntryFilesForDevWatch && (relPath === "server.ts" || relPath === "src/version.ts")) {
+      deferredFiles.push({ fullPath, content: buf });
+      continue;
+    }
+
+    const parentDir = path.dirname(fullPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    fs.writeFileSync(fullPath, buf);
+  }
+
+  const distReady =
+    (hasDistServer && hasDistIndex) ||
+    (fs.existsSync(path.join(rootDir, "dist", "server.cjs")) &&
+      fs.existsSync(path.join(rootDir, "dist", "index.html")));
+
+  return {
+    ok: true,
+    deferredFiles,
+    extractedPrebuiltDist: distReady,
+  };
+}
+
+/**
  * Downloads and extracts latest main.zip from GitHub.
  * In dev mode (tsx watch), holds back server.ts and src/version.ts until dependencies are installed
  * so tsx watch does not prematurely restart the server mid-update.
@@ -597,9 +690,18 @@ export async function startSystemUpdate(): Promise<{ started: boolean; message: 
       }
 
       if (!usedGit) {
-        const zipResult = await downloadAndExtractGitHubZip(isDevWatch);
-        deferredFiles = zipResult.deferredFiles;
-        hasPrebuiltDist = zipResult.extractedPrebuiltDist;
+        try {
+          const currentVer = getLiveServerVersion();
+          const fastResult = await downloadChangedFilesViaCompareApi(currentVer, isDevWatch);
+          deferredFiles = fastResult.deferredFiles;
+          hasPrebuiltDist = fastResult.extractedPrebuiltDist;
+          console.log(`[Updater] Fast delta update from ${currentVer} completed via GitHub Compare API.`);
+        } catch (deltaErr: any) {
+          console.warn("[Updater] Delta update fallback to full archive:", deltaErr?.message || deltaErr);
+          const zipResult = await downloadAndExtractGitHubZip(isDevWatch);
+          deferredFiles = zipResult.deferredFiles;
+          hasPrebuiltDist = zipResult.extractedPrebuiltDist;
+        }
       }
 
       // Check if dependencies changed
