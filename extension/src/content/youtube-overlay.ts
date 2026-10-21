@@ -2617,6 +2617,52 @@ class YouTubeLecturaOverlay {
         color: #0284c7 !important;
       }
 
+      /* Tatoeba Examples in Calm Light Theme */
+      .theme-calm-light .lectura-card-tatoeba-section,
+      .calm_light .lectura-card-tatoeba-section,
+      .lectura-word-card.calm_light .lectura-card-tatoeba-section {
+        background: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+      }
+      .theme-calm-light .lectura-tatoeba-title,
+      .calm_light .lectura-tatoeba-title,
+      .lectura-word-card.calm_light .lectura-tatoeba-title {
+        color: #059669 !important;
+        font-weight: 700 !important;
+      }
+      .theme-calm-light .lectura-tatoeba-item,
+      .calm_light .lectura-tatoeba-item,
+      .lectura-word-card.calm_light .lectura-tatoeba-item {
+        border-left: 2.5px solid #10b981 !important;
+        margin-bottom: 8px !important;
+        padding-left: 10px !important;
+      }
+      .theme-calm-light .lectura-tatoeba-src,
+      .calm_light .lectura-tatoeba-src,
+      .lectura-word-card.calm_light .lectura-tatoeba-src {
+        color: #0f172a !important; /* High contrast, crisp dark slate */
+        font-size: 13.5px !important;
+        line-height: 1.45 !important;
+        font-weight: 500 !important;
+      }
+      .theme-calm-light .lectura-tatoeba-src .highlight-token,
+      .theme-calm-light .lectura-tatoeba-src b,
+      .calm_light .lectura-tatoeba-src .highlight-token,
+      .calm_light .lectura-tatoeba-src b,
+      .lectura-word-card.calm_light .lectura-tatoeba-src .highlight-token,
+      .lectura-word-card.calm_light .lectura-tatoeba-src b {
+        color: #0284c7 !important; /* Vibrant Ocean Blue */
+        font-weight: 700 !important;
+      }
+      .theme-calm-light .lectura-tatoeba-tgt,
+      .calm_light .lectura-tatoeba-tgt,
+      .lectura-word-card.calm_light .lectura-tatoeba-tgt {
+        color: #475569 !important; /* Clear Slate-600 */
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        margin-top: 3px !important;
+      }
+
       @keyframes cardFadeIn {
         from { opacity: 0; transform: scale(0.96); }
         to { opacity: 1; transform: scale(1); }
@@ -6089,7 +6135,10 @@ class YouTubeLecturaOverlay {
     const glassSubDefinition = translationLines.slice(1).join('\n');
 
     const currentTheme = this.settings?.popupTheme === 'calm_light' ? 'calm_light' : 'glass';
-    this.popupCard.className = `lectura-word-card ${currentTheme}`;
+    this.popupCard.className =
+      currentTheme === 'calm_light'
+        ? 'lectura-word-card calm_light theme-calm-light'
+        : 'lectura-word-card glass theme-glass-v2';
 
     const statusToSlider: Record<string, number> = {
       '0': 0, 'ignored': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, 'known': 6, 'new': 1
