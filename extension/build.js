@@ -68,6 +68,7 @@ async function build() {
 
   // Content Scripts & UI pages (IIFE format strictly required for Chrome/Opera content scripts)
   const iifeEntryPoints = [
+    { in: path.join(SRC_DIR, 'content', 'youtube-bridge.ts'), out: 'content/youtube-bridge' },
     { in: path.join(SRC_DIR, 'content', 'youtube-overlay.ts'), out: 'content/youtube-overlay' },
     { in: path.join(SRC_DIR, 'content', 'page-reader.ts'), out: 'content/page-reader' },
     { in: path.join(SRC_DIR, 'popup', 'popup.ts'), out: 'popup/popup' },
@@ -108,6 +109,7 @@ async function build() {
 
   const copyToRoot = [
     { from: path.join(DIST_DIR, 'background', 'service-worker.js'), to: path.join(EXTENSION_ROOT, 'background', 'service-worker.js') },
+    { from: path.join(DIST_DIR, 'content', 'youtube-bridge.js'), to: path.join(EXTENSION_ROOT, 'content', 'youtube-bridge.js') },
     { from: path.join(DIST_DIR, 'content', 'youtube-overlay.js'), to: path.join(EXTENSION_ROOT, 'content', 'youtube-overlay.js') },
     { from: path.join(DIST_DIR, 'content', 'page-reader.js'), to: path.join(EXTENSION_ROOT, 'content', 'page-reader.js') },
     { from: path.join(DIST_DIR, 'popup', 'popup.js'), to: path.join(EXTENSION_ROOT, 'popup', 'popup.js') },

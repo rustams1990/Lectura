@@ -3681,13 +3681,32 @@ class YouTubeLecturaOverlay {
       const { videoId, tracks } = event?.detail || {};
       if (Array.isArray(tracks) && tracks.length > 0) {
         (window as any).__LECTURA_BRIDGED_TRACKS__ = { videoId, tracks };
+
+        // Identify best language: user's target language if present, else the video's default/first track
+        const target = normalizeLangCode(this.settings?.targetLanguage || '');
+        const matched =
+          tracks.find((t: any) => normalizeLangCode(t.languageCode) === target) ||
+          tracks.find((t: any) => t.isDefault) ||
+          tracks[0];
+
+        if (matched && matched.languageCode) {
+          const detectedLang = normalizeLangCode(matched.languageCode);
+          if (detectedLang && detectedLang !== this.videoSessionLanguage) {
+            console.log('🎯 [Lectura] Active Subtitle Language resolved from captionTracks:', detectedLang);
+            (window as any).__LECTURA_ACTIVE_LANG__ = detectedLang;
+            (window as any).__LECTURA_YT_TRACK_LANG__ = detectedLang;
+            this.videoSessionLanguage = detectedLang;
+            this.currentDetectedLanguage = getLanguageDisplayName(detectedLang);
+            this.syncVocabulary(detectedLang);
+          }
+        }
+
         if (
           (!this.preparsedSentences || this.preparsedSentences.length === 0) &&
           this.currentVideoId &&
-          !this.isLoadingSubtitles &&
-          this.subtitleLoadAttempts === 0
+          !this.isLoadingSubtitles
         ) {
-          this.loadFullVideoSubtitles(this.currentVideoId);
+          this.loadFullVideoSubtitles(this.currentVideoId, this.videoSessionLanguage);
         }
       }
     });
@@ -3841,21 +3860,25 @@ class YouTubeLecturaOverlay {
       return code;
     }
 
-    // 1. YouTube Player active caption track
-    const ytPlayer = document.getElementById('movie_player') as any;
-    if (ytPlayer && typeof ytPlayer.getOption === 'function') {
-      try {
-        const track = ytPlayer.getOption('captions', 'track');
-        if (track && track.languageCode) {
-          const code = normalizeLangCode(track.languageCode);
+    // 1. Bridged tracks from MAIN world
+    try {
+      const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
+      if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0) {
+        const target = normalizeLangCode(this.settings?.targetLanguage || '');
+        const matched =
+          bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === target) ||
+          bridged.tracks.find((t: any) => t.isDefault) ||
+          bridged.tracks[0];
+        if (matched?.languageCode) {
+          const code = normalizeLangCode(matched.languageCode);
           (window as any).__LECTURA_ACTIVE_LANG__ = code;
           (window as any).__LECTURA_YT_TRACK_LANG__ = code;
           this.videoSessionLanguage = code;
           this.currentDetectedLanguage = getLanguageDisplayName(code);
           return code;
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
 
     // 2. Resource Timing entries check
     try {
@@ -3877,43 +3900,35 @@ class YouTubeLecturaOverlay {
       }
     } catch (_) {}
 
-    // 3. YouTube caption tracks list in getPlayerResponse()
-    if (ytPlayer && typeof ytPlayer.getPlayerResponse === 'function') {
-      try {
-        const pResponse = ytPlayer.getPlayerResponse();
-        const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-        if (Array.isArray(tracks) && tracks.length > 0) {
-          const activeTrack = tracks.find((t: any) => t.languageCode) || tracks[0];
-          if (activeTrack?.languageCode) {
-            const code = normalizeLangCode(activeTrack.languageCode);
-            (window as any).__LECTURA_ACTIVE_LANG__ = code;
-            (window as any).__LECTURA_YT_TRACK_LANG__ = code;
-            this.videoSessionLanguage = code;
-            this.currentDetectedLanguage = getLanguageDisplayName(code);
-            return code;
+    // 3. Scan document.scripts for captionTracks
+    try {
+      for (const s of Array.from(document.scripts)) {
+        const text = s.textContent || '';
+        if (!text.includes('captionTracks')) continue;
+        const m = text.match(/"captionTracks":\s*(\[\{.*?\}\])/);
+        if (m && m[1]) {
+          const tracks = JSON.parse(m[1]);
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const target = normalizeLangCode(this.settings?.targetLanguage || '');
+            const matched =
+              tracks.find((t: any) => normalizeLangCode(t.languageCode) === target) ||
+              tracks.find((t: any) => t.isDefault) ||
+              tracks[0];
+            if (matched?.languageCode) {
+              const code = normalizeLangCode(matched.languageCode);
+              (window as any).__LECTURA_ACTIVE_LANG__ = code;
+              (window as any).__LECTURA_YT_TRACK_LANG__ = code;
+              this.videoSessionLanguage = code;
+              this.currentDetectedLanguage = getLanguageDisplayName(code);
+              return code;
+            }
           }
         }
-      } catch (_) {}
-    }
-
-    // 4. Global initial player response
-    try {
-      const initResp = (window as any).ytInitialPlayerResponse;
-      const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (Array.isArray(tracks) && tracks.length > 0 && tracks[0]?.languageCode) {
-        const code = normalizeLangCode(tracks[0].languageCode);
-        (window as any).__LECTURA_ACTIVE_LANG__ = code;
-        (window as any).__LECTURA_YT_TRACK_LANG__ = code;
-        this.videoSessionLanguage = code;
-        this.currentDetectedLanguage = getLanguageDisplayName(code);
-        return code;
       }
     } catch (_) {}
 
-    // 5. Fallback to settings target language
-    const fallback = normalizeLangCode(this.settings?.targetLanguage || 'es');
-    (window as any).__LECTURA_ACTIVE_LANG__ = fallback;
-    (window as any).__LECTURA_YT_TRACK_LANG__ = fallback;
+    // 4. Fallback to settings target language
+    const fallback = normalizeLangCode(this.settings?.targetLanguage || 'en');
     this.videoSessionLanguage = fallback;
     this.currentDetectedLanguage = getLanguageDisplayName(fallback);
     return fallback;
@@ -3959,9 +3974,9 @@ class YouTubeLecturaOverlay {
     this.lastSubtitleAttemptTime = Date.now();
 
     try {
-      const lang = normalizeLangCode(targetLang || this.getEffectiveLang() || 'es');
+      const lang = normalizeLangCode(targetLang || this.getEffectiveLang() || 'en');
 
-      // Ask MAIN world bridge to publish captionTracks from movie_player.getPlayerResponse()
+      // Ask MAIN world bridge to publish captionTracks from movie_player
       try {
         window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: false } }));
       } catch (_) {}
@@ -4018,14 +4033,15 @@ class YouTubeLecturaOverlay {
       // 1. Priority 1: Signed /api/timedtext URL from performance ResourceTiming (includes YouTube POT token!)
       let signedUrl = findSignedTimedTextUrl();
       if (!signedUrl) {
-        // Ensure YouTube's CC button is enabled directly from content script DOM so YouTube fires the signed /api/timedtext request
+        // Ensure YouTube's CC button is enabled directly from content script DOM or MAIN world
         try {
+          window.dispatchEvent(new CustomEvent('LECTURA_REQUEST_CAPTIONS', { detail: { forceEnableCC: true } }));
           const ccBtn = document.querySelector<HTMLElement>('.ytp-subtitles-button');
           if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
             ccBtn.click();
-            await new Promise((r) => setTimeout(r, 450));
-            signedUrl = findSignedTimedTextUrl();
           }
+          await new Promise((r) => setTimeout(r, 450));
+          signedUrl = findSignedTimedTextUrl();
         } catch (_) {}
       }
 
@@ -4035,33 +4051,33 @@ class YouTubeLecturaOverlay {
 
       // 2. Priority 2: Bridged / Player captionTracks URLs
       const candidateUrls: string[] = [];
-      const ytPlayer = document.getElementById('movie_player') as any;
 
       try {
         const bridged = (window as any).__LECTURA_BRIDGED_TRACKS__;
         if (bridged && Array.isArray(bridged.tracks) && bridged.tracks.length > 0 && (!bridged.videoId || bridged.videoId === videoId)) {
-          const matchingTrack = bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || bridged.tracks[0];
+          const matchingTrack =
+            bridged.tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) ||
+            bridged.tracks.find((t: any) => t.isDefault) ||
+            bridged.tracks[0];
           if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
         }
       } catch (_) {}
 
-      if (ytPlayer && typeof ytPlayer.getPlayerResponse === 'function') {
-        try {
-          const pResponse = ytPlayer.getPlayerResponse();
-          const tracks = pResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-          if (Array.isArray(tracks) && tracks.length > 0) {
-            const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
-            if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
-          }
-        } catch (_) {}
-      }
-
       try {
-        const initResp = (window as any).ytInitialPlayerResponse;
-        const tracks = initResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-        if (Array.isArray(tracks) && tracks.length > 0) {
-          const matchingTrack = tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) || tracks[0];
-          if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
+        for (const s of Array.from(document.scripts)) {
+          const text = s.textContent || '';
+          if (!text.includes('captionTracks')) continue;
+          const m = text.match(/"captionTracks":\s*(\[\{.*?\}\])/);
+          if (m && m[1]) {
+            const tracks = JSON.parse(m[1]);
+            if (Array.isArray(tracks) && tracks.length > 0) {
+              const matchingTrack =
+                tracks.find((t: any) => normalizeLangCode(t.languageCode) === lang) ||
+                tracks.find((t: any) => t.isDefault) ||
+                tracks[0];
+              if (matchingTrack?.baseUrl) candidateUrls.push(matchingTrack.baseUrl);
+            }
+          }
         }
       } catch (_) {}
 
@@ -4074,7 +4090,11 @@ class YouTubeLecturaOverlay {
       // 3. Priority 3: Fetch official subtitles via Lectura backend (/api/youtube-subtitles)
       // Guarantees subtitles work even when YouTube blocks browser-side timedtext fetches via POT/CSP
       try {
-        const serverSub = await this.apiClient.fetchYoutubeSubtitles(videoId, lang);
+        let serverSub = await this.apiClient.fetchYoutubeSubtitles(videoId, lang).catch(() => null);
+        if ((!serverSub || !serverSub.text || serverSub.isFallback) && lang !== 'en') {
+          serverSub = await this.apiClient.fetchYoutubeSubtitles(videoId, 'English').catch(() => null);
+        }
+
         if (serverSub && serverSub.text && !serverSub.isFallback) {
           const rawLines = serverSub.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
           const parsedFromServer: CleanSentence[] = [];
@@ -7205,10 +7225,18 @@ class YouTubeLecturaOverlay {
       if (
         this.currentVideoId &&
         !this.isLoadingSubtitles &&
-        this.subtitleLoadAttempts < 3 &&
-        Date.now() - this.lastSubtitleAttemptTime > 4000
+        this.subtitleLoadAttempts < 5 &&
+        Date.now() - this.lastSubtitleAttemptTime > 2500
       ) {
         this.loadFullVideoSubtitles(this.currentVideoId);
+      }
+
+      // Ensure YouTube CC button is activated so YouTube streams signed captions
+      const ccBtn = document.querySelector<HTMLElement>('.ytp-subtitles-button');
+      if (ccBtn && ccBtn.getAttribute('aria-pressed') === 'false') {
+        try {
+          ccBtn.click();
+        } catch (_) {}
       }
 
       // Live DOM caption fallback while full subtitle track is loading
