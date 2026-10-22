@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../context/ToastContext";
+import { resolveApiUrl } from "../utils/apiConfig";
 import { 
   X, Check, User, Key, Upload, Lightbulb, Lock, 
   ShieldCheck, Loader2, RefreshCw, Sparkles, Image as ImageIcon, Trash2
@@ -98,19 +99,21 @@ export function UserAvatarDisplay({
   );
 
   if (isImg) {
+    const finalUrl = avatarUrl.startsWith("/") ? resolveApiUrl(avatarUrl) : avatarUrl;
     return (
       <img
-        src={avatarUrl!}
+        src={finalUrl}
         alt=""
         onError={() => setImgError(true)}
-        className={`rounded-full object-cover border border-teal-500/30 bg-zinc-100 dark:bg-zinc-800 shrink-0 ${sizeClasses[size]} ${className}`}
+        className={`rounded-full object-cover border border-teal-500/30 bg-zinc-100 dark:bg-zinc-800 shrink-0 overflow-hidden ${sizeClasses[size]} ${className}`}
       />
     );
   }
 
-  if (avatarUrl) {
+  // Only render text avatar if it's an emoji or very short text (<= 4 chars) and not a path or URL
+  if (avatarUrl && avatarUrl.length <= 4 && !avatarUrl.includes("/") && !avatarUrl.includes(".")) {
     return (
-      <div className={`rounded-full bg-teal-100 dark:bg-teal-950/60 border border-teal-500/30 text-teal-800 dark:text-teal-200 flex items-center justify-center font-bold select-none shrink-0 ${sizeClasses[size]} ${className}`}>
+      <div className={`rounded-full bg-teal-100 dark:bg-teal-950/60 border border-teal-500/30 text-teal-800 dark:text-teal-200 flex items-center justify-center font-bold select-none shrink-0 overflow-hidden truncate ${sizeClasses[size]} ${className}`}>
         {avatarUrl}
       </div>
     );
@@ -118,7 +121,7 @@ export function UserAvatarDisplay({
 
   const initial = (name || "U").substring(0, 1).toUpperCase();
   return (
-    <div className={`rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center font-black select-none shrink-0 shadow-xs ${sizeClasses[size]} ${className}`}>
+    <div className={`rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center font-black select-none shrink-0 shadow-xs overflow-hidden truncate ${sizeClasses[size]} ${className}`}>
       {initial}
     </div>
   );

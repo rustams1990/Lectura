@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
 import zlib from "zlib";
-import { getDbConnection } from "./dbConnection.ts";
+import { getDbConnection, getUserDbVersion, touchUserDbVersion } from "./dbConnection.ts";
 import { resolveUserId } from "./auth.ts";
 import { analyzeTextComplexity } from "../server/frequency/frequencyService.ts";
 import { cleanWordPrefix, deduplicateDbPlaylistItems, LANG_MAP, normalizeLang } from "./htmlTextUtils.ts";
@@ -98,23 +98,6 @@ export function getLocalServerDb(userId: string = "default") {
 
       let lessonDifficulty = l.difficulty;
       let lessonDifficultyExplanation = l.difficultyExplanation;
-
-      // Automatic CEFR calculation via offline frequency table if difficulty is missing
-      if (!lessonDifficulty && typeof l.text === "string" && l.text.trim().length > 0) {
-        try {
-          const langCode = (l.targetLanguage || "en").toLowerCase();
-          const comp = analyzeTextComplexity(l.text, langCode.startsWith("en") ? "en" : langCode);
-          if (comp && comp.cefrOverall) {
-            lessonDifficulty = comp.cefrOverall;
-            lessonDifficultyExplanation = `A1-A2: ${comp.coverage.a1_a2}%, B1-B2: ${comp.coverage.b1_b2}%, C1-C2: ${comp.coverage.c1_c2}%, Rare: ${comp.coverage.rare}%`;
-            // Persist in background
-            try {
-              db.prepare("UPDATE lessons SET difficulty = ?, difficultyExplanation = ? WHERE id = ? AND user_id = ?")
-                .run(lessonDifficulty, lessonDifficultyExplanation, l.id, userId);
-            } catch (_) {}
-          }
-        } catch (_) {}
-      }
 
       if (l && typeof l.wordTimestamps === 'string') {
         try { l.wordTimestamps = JSON.parse(l.wordTimestamps); } catch (_) { l.wordTimestamps = null; }
@@ -1179,6 +1162,17 @@ router.get("/server-db", (req: Request, res: Response) => {
     return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
   }
 
+  // Fast ETag check: if user data has not changed, return 304 Not Modified in < 2ms (0 bytes)
+  const userVersion = getUserDbVersion(userId);
+  const etag = `W/"${userId}-${userVersion}"`;
+  res.setHeader("ETag", etag);
+  res.setHeader("Cache-Control", "private, no-cache");
+
+  const ifNoneMatch = req.headers["if-none-match"];
+  if (ifNoneMatch && (ifNoneMatch === etag || ifNoneMatch === `"${userId}-${userVersion}"`)) {
+    return res.status(304).end();
+  }
+
   const dbData = getLocalServerDb(userId);
   if (!dbData) {
     return res.json({ status: "empty" });
@@ -1219,6 +1213,7 @@ router.post("/server-db", (req: Request, res: Response) => {
   }
 
   const success = saveLocalServerDb(userId, data);
+  if (success) touchUserDbVersion(userId);
   if (success) {
     return res.json({ status: "success" });
   } else {

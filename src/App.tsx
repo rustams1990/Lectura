@@ -1386,6 +1386,7 @@ export default function App() {
 
 
   const serverInitialLoadComplete = useRef<boolean>(false);
+  const serverDbEtagRef = useRef<string>("");
   const isServerLoadInProgress = useRef<boolean>(false);
   const [isInitialServerLoading, setIsInitialServerLoading] = useState<boolean>(() => {
     return storageMode === "server" && !serverInitialLoadComplete.current;
@@ -1509,6 +1510,7 @@ export default function App() {
       if (prevUserIdRef.current !== activeUserId) {
         prevUserIdRef.current = activeUserId;
         serverInitialLoadComplete.current = false;
+        serverDbEtagRef.current = "";
         // Clear any previous error so a fresh login always triggers a clean sync
         setLocalSyncError(false);
         // Only load from server if an authenticated user is logged in
@@ -1526,6 +1528,7 @@ export default function App() {
   useEffect(() => {
     const handleLogout = () => {
       serverInitialLoadComplete.current = false;
+      serverDbEtagRef.current = "";
       const initialLessons = normalizeBuiltInLessons(BUILT_IN_LESSONS);
       setLessons(initialLessons);
       useLessonStore.getState().setLessons(initialLessons);
@@ -1551,16 +1554,13 @@ export default function App() {
   }, []);
 
   const loadDataFromLocalServer = async (force: boolean = false) => {
+    if (force) {
+      setLocalSyncError(false);
+    }
     if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 5000) {
       return;
     }
-    // Only block on error if we already successfully loaded once — first-time login should always retry
-    if (localSyncError && serverInitialLoadComplete.current) return;
-    if (!force && storageMode === "server" && serverInitialLoadComplete.current && Date.now() - lastLocalChangeTime.current < 15000) {
-      return;
-    }
     if (storageMode !== "server") return;
-    if (localSyncError) return;
     if (isServerLoadInProgress.current) {
       return;
     }
@@ -1590,11 +1590,33 @@ export default function App() {
     console.log("[Load] loadDataFromLocalServer START", new Date().toISOString());
     try {
       const fetchHeaders = buildSyncHeaders({}, { syncKey: localSyncKey });
+      const lastEtag = serverDbEtagRef.current || localStorage.getItem(`lectura_etag_${activeUserId || 'default'}`) || "";
+      if (lastEtag && serverInitialLoadComplete.current) {
+        fetchHeaders["If-None-Match"] = lastEtag;
+      }
       const fetchStart = performance.now();
       const res = await fetch(resolveApiUrl("/api/server-db"), {
-        headers: fetchHeaders
+        headers: fetchHeaders,
+        signal: AbortSignal.timeout(25000),
       });
       console.log(`[Load] /api/server-db responded in ${(performance.now() - fetchStart).toFixed(0)}ms, status=${res.status}`);
+
+      if (res.status === 304) {
+        console.log(`[Load] /api/server-db 304 Not Modified in ${(performance.now() - fetchStart).toFixed(0)}ms — up to date`);
+        lastSyncSuccessTime.current = Date.now();
+        setLocalSyncError(false);
+        setIsSyncing(false);
+        setSyncProgress({
+          isSyncing: false,
+          percent: 100,
+          message: "В сети",
+          error: false,
+          lastSyncTime: Date.now(),
+        });
+        serverInitialLoadComplete.current = true;
+        setIsInitialServerLoading(false);
+        return;
+      }
 
       if (res.status === 401 || res.status === 403) {
         setLocalSyncError(true);
@@ -1609,6 +1631,11 @@ export default function App() {
         return;
       }
       if (res.ok) {
+        const receivedEtag = res.headers.get("etag");
+        if (receivedEtag) {
+          serverDbEtagRef.current = receivedEtag;
+          try { localStorage.setItem(`lectura_etag_${activeUserId || 'default'}`, receivedEtag); } catch (_) {}
+        }
         setSyncProgress({
           isSyncing: true,
           percent: 65,
@@ -2146,6 +2173,7 @@ export default function App() {
       const res = await fetch(resolveApiUrl("/api/server-db"), {
         method: "POST",
         headers: postHeaders,
+        signal: AbortSignal.timeout(30000),
         body: JSON.stringify({
           data: {
             isDelta: canUseDelta,

@@ -459,6 +459,77 @@ function setupSchema(db: Database.Database) {
     `).run();
   } catch (_) {}
 
+  // Triggers to maintain automatic microsecond db_user_version in metadata on any change
+  try {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS trg_words_ins_v AFTER INSERT ON words
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_words_upd_v AFTER UPDATE ON words
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_words_del_v AFTER DELETE ON words
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_lessons_ins_v AFTER INSERT ON lessons
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_lessons_upd_v AFTER UPDATE ON lessons
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_lessons_del_v AFTER DELETE ON lessons
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_playlists_ins_v AFTER INSERT ON playlists
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_playlists_upd_v AFTER UPDATE ON playlists
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_playlists_del_v AFTER DELETE ON playlists
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_history_ins_v AFTER INSERT ON reading_history
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_history_upd_v AFTER UPDATE ON reading_history
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_history_del_v AFTER DELETE ON reading_history
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+    `);
+  } catch (trgErr) {
+    console.warn("[dbConnection] Triggers init warning:", trgErr);
+  }
+
   // Auto-enrich existing lessons missing channelName or title
   setTimeout(async () => {
     try {
@@ -1188,4 +1259,37 @@ export function closeDbConnection(): void {
     }
     _sharedDb = null;
   }
+}
+
+export function getUserDbVersion(userId: string = "default"): string {
+  try {
+    const db = getDbConnection(userId);
+    const row = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'db_user_version'").get(userId) as { value: string } | undefined;
+    if (row?.value) {
+      return row.value;
+    }
+    // Fast fallback fingerprint based on rowids and counts
+    const w = db.prepare("SELECT count(*) as c, max(rowid) as m FROM words WHERE user_id = ?").get(userId) as any;
+    const l = db.prepare("SELECT count(*) as c, max(rowid) as m FROM lessons WHERE user_id = ?").get(userId) as any;
+    const p = db.prepare("SELECT count(*) as c, max(rowid) as m FROM playlists WHERE user_id = ?").get(userId) as any;
+    const h = db.prepare("SELECT count(*) as c, max(rowid) as m FROM reading_history WHERE user_id = ?").get(userId) as any;
+    const m = db.prepare("SELECT max(rowid) as m FROM metadata WHERE user_id = ?").get(userId) as any;
+    const fallbackVersion = `w${w?.c || 0}_${w?.m || 0}_l${l?.c || 0}_${l?.m || 0}_p${p?.c || 0}_${p?.m || 0}_h${h?.c || 0}_${h?.m || 0}_m${m?.m || 0}`;
+
+    try {
+      db.prepare("INSERT INTO metadata (user_id, key, value) VALUES (?, 'db_user_version', ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value").run(userId, fallbackVersion);
+    } catch (_) {}
+
+    return fallbackVersion;
+  } catch (_) {
+    return String(Date.now());
+  }
+}
+
+export function touchUserDbVersion(userId: string = "default"): void {
+  try {
+    const db = getDbConnection(userId);
+    const newVer = String(Date.now());
+    db.prepare("INSERT INTO metadata (user_id, key, value) VALUES (?, 'db_user_version', ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value").run(userId, newVer);
+  } catch (_) {}
 }

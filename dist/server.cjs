@@ -3334,6 +3334,75 @@ function setupSchema(db) {
     `).run();
   } catch (_) {
   }
+  try {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS trg_words_ins_v AFTER INSERT ON words
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_words_upd_v AFTER UPDATE ON words
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_words_del_v AFTER DELETE ON words
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_lessons_ins_v AFTER INSERT ON lessons
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_lessons_upd_v AFTER UPDATE ON lessons
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_lessons_del_v AFTER DELETE ON lessons
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_playlists_ins_v AFTER INSERT ON playlists
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_playlists_upd_v AFTER UPDATE ON playlists
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_playlists_del_v AFTER DELETE ON playlists
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_history_ins_v AFTER INSERT ON reading_history
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_history_upd_v AFTER UPDATE ON reading_history
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_history_del_v AFTER DELETE ON reading_history
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+    `);
+  } catch (trgErr) {
+    console.warn("[dbConnection] Triggers init warning:", trgErr);
+  }
   setTimeout(async () => {
     try {
       const unpopulated = db.prepare(`
@@ -4112,6 +4181,36 @@ function closeDbConnection() {
     _sharedDb = null;
   }
 }
+function getUserDbVersion(userId = "default") {
+  try {
+    const db = getDbConnection(userId);
+    const row = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'db_user_version'").get(userId);
+    if (row?.value) {
+      return row.value;
+    }
+    const w = db.prepare("SELECT count(*) as c, max(rowid) as m FROM words WHERE user_id = ?").get(userId);
+    const l = db.prepare("SELECT count(*) as c, max(rowid) as m FROM lessons WHERE user_id = ?").get(userId);
+    const p = db.prepare("SELECT count(*) as c, max(rowid) as m FROM playlists WHERE user_id = ?").get(userId);
+    const h = db.prepare("SELECT count(*) as c, max(rowid) as m FROM reading_history WHERE user_id = ?").get(userId);
+    const m = db.prepare("SELECT max(rowid) as m FROM metadata WHERE user_id = ?").get(userId);
+    const fallbackVersion = `w${w?.c || 0}_${w?.m || 0}_l${l?.c || 0}_${l?.m || 0}_p${p?.c || 0}_${p?.m || 0}_h${h?.c || 0}_${h?.m || 0}_m${m?.m || 0}`;
+    try {
+      db.prepare("INSERT INTO metadata (user_id, key, value) VALUES (?, 'db_user_version', ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value").run(userId, fallbackVersion);
+    } catch (_) {
+    }
+    return fallbackVersion;
+  } catch (_) {
+    return String(Date.now());
+  }
+}
+function touchUserDbVersion(userId = "default") {
+  try {
+    const db = getDbConnection(userId);
+    const newVer = String(Date.now());
+    db.prepare("INSERT INTO metadata (user_id, key, value) VALUES (?, 'db_user_version', ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value").run(userId, newVer);
+  } catch (_) {
+  }
+}
 
 // routes/auth.ts
 var router4 = (0, import_express4.Router)();
@@ -4479,457 +4578,9 @@ var auth_default = router4;
 
 // routes/db.ts
 var import_express6 = require("express");
-var import_path7 = __toESM(require("path"), 1);
-var import_fs8 = __toESM(require("fs"), 1);
-var import_zlib = __toESM(require("zlib"), 1);
-
-// server/frequency/frequencyService.ts
-var import_fs7 = __toESM(require("fs"), 1);
 var import_path6 = __toESM(require("path"), 1);
-var import_better_sqlite33 = __toESM(require("better-sqlite3"), 1);
-var freqDbInstance = null;
-function normalizeLangCode2(rawLang) {
-  if (!rawLang) return null;
-  const l = rawLang.toLowerCase().trim();
-  if (l.startsWith("en") || l.includes("engl") || l.includes("\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A")) return "en";
-  if (l.startsWith("es") || l.includes("span") || l.includes("\u0438\u0441\u043F\u0430\u043D\u0441\u043A")) return "es";
-  if (l.startsWith("de") || l.includes("ger") || l.includes("deutsch") || l.includes("\u043D\u0435\u043C\u0435\u0446\u043A")) return "de";
-  if (l.startsWith("fr") || l.includes("fren") || l.includes("franc") || l.includes("\u0444\u0440\u0430\u043D\u0446\u0443\u0437")) return "fr";
-  if (l.startsWith("it") || l.includes("ital") || l.includes("\u0438\u0442\u0430\u043B\u044C\u044F\u043D")) return "it";
-  if (l.startsWith("pt") || l.includes("port") || l.includes("\u043F\u043E\u0440\u0442\u0443\u0433\u0430\u043B")) return "pt";
-  if (l.startsWith("kk") || l.startsWith("kz") || l.includes("kaz") || l.includes("\u049B\u0430\u0437\u0430\u049B") || l.includes("\u043A\u0430\u0437\u0430\u0445")) return "kk";
-  if (l.startsWith("ru") || l.includes("russ") || l.includes("\u0440\u0443\u0441\u0441\u043A")) return "ru";
-  if (l.startsWith("uk") || l.startsWith("ua") || l.includes("ukr") || l.includes("\u0443\u043A\u0440\u0430\u0438\u043D") || l.includes("\u0443\u043A\u0440\u0430\u0457\u043D")) return "uk";
-  if (l.startsWith("pl") || l.includes("pol") || l.includes("\u043F\u043E\u043B\u044C\u0441\u043A") || l.includes("polski")) return "pl";
-  if (l.startsWith("cs") || l.startsWith("cz") || l.includes("cze") || l.includes("\u0447\u0435\u0448\u0441\u043A") || l.includes("\u010De\u0161")) return "cs";
-  return null;
-}
-var KAZAKH_SUFFIXES = [
-  // Plural + Case combinations
-  "\u043B\u0430\u0440\u044B\u043C\u044B\u0437\u0431\u0435\u043D",
-  "\u043B\u0435\u0440\u0456\u043C\u0456\u0437\u0431\u0435\u043D",
-  "\u0434\u0430\u0440\u044B\u043C\u044B\u0437\u0431\u0435\u043D",
-  "\u0434\u0435\u0440\u0456\u043C\u0456\u0437\u0431\u0435\u043D",
-  "\u0442\u0430\u0440\u044B\u043C\u044B\u0437\u0431\u0435\u043D",
-  "\u0442\u0435\u0440\u0456\u043C\u0456\u0437\u0431\u0435\u043D",
-  "\u043B\u0430\u0440\u044B\u043D\u044B\u04A3",
-  "\u043B\u0435\u0440\u0456\u043D\u0456\u04A3",
-  "\u0434\u0430\u0440\u044B\u043D\u044B\u04A3",
-  "\u0434\u0435\u0440\u0456\u043D\u0456\u04A3",
-  "\u0442\u0430\u0440\u044B\u043D\u044B\u04A3",
-  "\u0442\u0435\u0440\u0456\u043D\u0456\u04A3",
-  "\u043B\u0430\u0440\u044B\u043D\u0430\u043D",
-  "\u043B\u0435\u0440\u0456\u043D\u0435\u043D",
-  "\u0434\u0430\u0440\u044B\u043D\u0430\u043D",
-  "\u0434\u0435\u0440\u0456\u043D\u0435\u043D",
-  "\u0442\u0430\u0440\u044B\u043D\u0430\u043D",
-  "\u0442\u0435\u0440\u0456\u043D\u0435\u043D",
-  "\u043B\u0430\u0440\u044B\u043D\u0434\u0430",
-  "\u043B\u0435\u0440\u0456\u043D\u0434\u0435",
-  "\u0434\u0430\u0440\u044B\u043D\u0434\u0430",
-  "\u0434\u0435\u0440\u0456\u043D\u0434\u0435",
-  "\u0442\u0430\u0440\u044B\u043D\u0434\u0430",
-  "\u0442\u0435\u0440\u0456\u043D\u0434\u0435",
-  "\u043B\u0430\u0440\u044B\u043D\u0430",
-  "\u043B\u0435\u0440\u0456\u043D\u0435",
-  "\u0434\u0430\u0440\u044B\u043D\u0430",
-  "\u0434\u0435\u0440\u0456\u043D\u0435",
-  "\u0442\u0430\u0440\u044B\u043D\u0430",
-  "\u0442\u0435\u0440\u0456\u043D\u0435",
-  "\u043B\u0430\u0440\u0434\u044B\u04A3",
-  "\u043B\u0435\u0440\u0434\u0456\u04A3",
-  "\u0434\u0430\u0440\u0434\u044B\u04A3",
-  "\u0434\u0435\u0440\u0434\u0456\u04A3",
-  "\u0442\u0430\u0440\u0434\u044B\u04A3",
-  "\u0442\u0435\u0440\u0434\u0456\u04A3",
-  "\u043B\u0430\u0440\u0434\u0430\u043D",
-  "\u043B\u0435\u0440\u0434\u0435\u043D",
-  "\u0434\u0430\u0440\u0434\u0430\u043D",
-  "\u0434\u0435\u0440\u0434\u0435\u043D",
-  "\u0442\u0430\u0440\u0434\u0430\u043D",
-  "\u0442\u0435\u0440\u0434\u0435\u043D",
-  "\u043B\u0430\u0440\u0434\u0430",
-  "\u043B\u0435\u0440\u0434\u0435",
-  "\u0434\u0430\u0440\u0434\u0430",
-  "\u0434\u0435\u0440\u0434\u0435",
-  "\u0442\u0430\u0440\u0434\u0430",
-  "\u0442\u0435\u0440\u0434\u0435",
-  "\u043B\u0430\u0440\u0493\u0430",
-  "\u043B\u0435\u0440\u0433\u0435",
-  "\u0434\u0430\u0440\u0493\u0430",
-  "\u0434\u0435\u0440\u0433\u0435",
-  "\u0442\u0430\u0440\u0493\u0430",
-  "\u0442\u0435\u0440\u0433\u0435",
-  "\u043B\u0430\u0440\u0434\u044B",
-  "\u043B\u0435\u0440\u0434\u0456",
-  "\u0434\u0430\u0440\u0434\u044B",
-  "\u0434\u0435\u0440\u0434\u0456",
-  "\u0442\u0430\u0440\u0434\u044B",
-  "\u0442\u0435\u0440\u0434\u0456",
-  // Plural endings
-  "\u043B\u0430\u0440",
-  "\u043B\u0435\u0440",
-  "\u0434\u0430\u0440",
-  "\u0434\u0435\u0440",
-  "\u0442\u0430\u0440",
-  "\u0442\u0435\u0440",
-  // Case endings
-  "\u043D\u044B\u04A3",
-  "\u043D\u0456\u04A3",
-  "\u0434\u044B\u04A3",
-  "\u0434\u0456\u04A3",
-  "\u0442\u044B\u04A3",
-  "\u0442\u0456\u04A3",
-  "\u0434\u0430\u043D",
-  "\u0434\u0435\u043D",
-  "\u0442\u0430\u043D",
-  "\u0442\u0435\u043D",
-  "\u043D\u0430\u043D",
-  "\u043D\u0435\u043D",
-  "\u043C\u0435\u043D",
-  "\u0431\u0435\u043D",
-  "\u043F\u0435\u043D",
-  "\u043D\u0434\u0430",
-  "\u043D\u0434\u0435",
-  "\u0434\u0430",
-  "\u0434\u0435",
-  "\u0442\u0430",
-  "\u0442\u0435",
-  "\u0493\u0430",
-  "\u0433\u0435",
-  "\u049B\u0430",
-  "\u043A\u0435",
-  "\u043D\u0430",
-  "\u043D\u0435",
-  "\u043D\u044B",
-  "\u043D\u0456",
-  "\u0434\u044B",
-  "\u0434\u0456",
-  "\u0442\u044B",
-  "\u0442\u0456",
-  // Possessive endings
-  "\u044B\u043C\u044B\u0437",
-  "\u0456\u043C\u0456\u0437",
-  "\u043C\u044B\u0437",
-  "\u043C\u0456\u0437",
-  "\u044B\u04A3\u044B\u0437",
-  "\u0456\u04A3\u0456\u0437",
-  "\u04A3\u044B\u0437",
-  "\u04A3\u0456\u0437",
-  "\u044B\u04A3",
-  "\u0456\u04A3",
-  "\u044B\u043C",
-  "\u0456\u043C",
-  "\u0441\u044B",
-  "\u0441\u0456",
-  "\u044B",
-  "\u0456"
-];
-function stripKazakhSuffix(word) {
-  const candidates = [];
-  for (const suf of KAZAKH_SUFFIXES) {
-    if (word.endsWith(suf) && word.length - suf.length >= 3) {
-      candidates.push(word.slice(0, -suf.length));
-    }
-  }
-  return candidates;
-}
-function getFrequencyDb() {
-  if (freqDbInstance) return freqDbInstance;
-  const dbDir = import_path6.default.join(process.cwd(), "server", "frequency");
-  if (!import_fs7.default.existsSync(dbDir)) {
-    import_fs7.default.mkdirSync(dbDir, { recursive: true });
-  }
-  const dbPath = import_path6.default.join(dbDir, "frequency.db");
-  const db = new import_better_sqlite33.default(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("synchronous = NORMAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS word_frequencies (
-      lang TEXT NOT NULL,
-      word TEXT NOT NULL,
-      rank INTEGER NOT NULL,
-      frequency INTEGER NOT NULL,
-      cefr TEXT NOT NULL,
-      PRIMARY KEY (lang, word)
-    );
-    CREATE INDEX IF NOT EXISTS idx_freq_lookup ON word_frequencies(lang, word);
-  `);
-  const langConfigs = [
-    { code: "en", file: "en_50k.txt" },
-    { code: "es", file: "es_50k.txt" },
-    { code: "de", file: "de_50k.txt" },
-    { code: "fr", file: "fr_50k.txt" },
-    { code: "it", file: "it_50k.txt" },
-    { code: "pt", file: "pt_50k.txt" },
-    { code: "kk", file: "kk_50k.txt" },
-    { code: "ru", file: "ru_50k.txt" },
-    { code: "uk", file: "uk_50k.txt" },
-    { code: "pl", file: "pl_50k.txt" },
-    { code: "cs", file: "cs_50k.txt" }
-  ];
-  for (const cfg of langConfigs) {
-    const row = db.prepare("SELECT COUNT(*) as c FROM word_frequencies WHERE lang = ?").get(cfg.code);
-    if (!row || row.c < 500) {
-      populateLanguageFrequencies(db, cfg.code, cfg.file);
-    }
-  }
-  freqDbInstance = db;
-  return db;
-}
-function calculateCefr(rank) {
-  if (rank <= 1e3) return "A1";
-  if (rank <= 2500) return "A2";
-  if (rank <= 5e3) return "B1";
-  if (rank <= 9e3) return "B2";
-  if (rank <= 16e3) return "C1";
-  if (rank <= 3e4) return "C2";
-  return "rare";
-}
-function populateLanguageFrequencies(db, lang, filename) {
-  const txtPath = import_path6.default.join(process.cwd(), "server", "frequency", filename);
-  if (!import_fs7.default.existsSync(txtPath)) {
-    console.warn(`${filename} not found, skipping frequency DB population for ${lang}`);
-    return;
-  }
-  console.log(`Populating ${lang.toUpperCase()} frequency database into SQLite...`);
-  const content = import_fs7.default.readFileSync(txtPath, "utf-8");
-  const lines = content.split("\n");
-  const insertStmt = db.prepare(`
-    INSERT OR REPLACE INTO word_frequencies (lang, word, rank, frequency, cefr)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  const insertMany = db.transaction((rows) => {
-    for (const r of rows) {
-      insertStmt.run(r[0], r[1], r[2], r[3], r[4]);
-    }
-  });
-  const batch = [];
-  let rank = 1;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const parts = trimmed.split(/\s+/);
-    if (parts.length >= 2) {
-      const word = parts[0].toLowerCase().trim();
-      const freq = parseInt(parts[1], 10) || 0;
-      if (word && !word.startsWith("'") && word.length > 0) {
-        const cefr = calculateCefr(rank);
-        batch.push([lang, word, rank, freq, cefr]);
-        rank++;
-      }
-    }
-  }
-  if (batch.length > 0) {
-    insertMany(batch);
-    console.log(`Successfully indexed ${batch.length} ${lang.toUpperCase()} frequency words into SQLite!`);
-  }
-}
-function lookupWordFrequency(word, rawLang = "en") {
-  const lang = normalizeLangCode2(rawLang);
-  if (!lang) {
-    return null;
-  }
-  const cleanWord = word.trim().toLowerCase().replace(/[’‘`]/g, "'");
-  const db = getFrequencyDb();
-  const stmt = db.prepare(
-    "SELECT rank, frequency, cefr FROM word_frequencies WHERE lang = ? AND word = ?"
-  );
-  let row = stmt.get(lang, cleanWord);
-  if (!row && cleanWord.includes("'")) {
-    const parts = cleanWord.split("'");
-    if (parts.length >= 2) {
-      const basePart = parts[parts.length - 1];
-      const prefixPart = parts[0] + "'";
-      if (basePart) {
-        row = stmt.get(lang, basePart);
-      }
-      if (!row && prefixPart) {
-        row = stmt.get(lang, prefixPart);
-      }
-    }
-  }
-  if (!row && cleanWord.includes("-")) {
-    const parts = cleanWord.split("-");
-    for (const p of parts) {
-      if (p.length > 1) {
-        const subRow = stmt.get(lang, p);
-        if (subRow && (!row || subRow.rank < row.rank)) {
-          row = subRow;
-        }
-      }
-    }
-  }
-  if (!row && lang === "kk") {
-    const stemCandidates = stripKazakhSuffix(cleanWord);
-    for (const stem of stemCandidates) {
-      const stemRow = stmt.get("kk", stem);
-      if (stemRow && (!row || stemRow.rank < row.rank)) {
-        row = stemRow;
-      }
-    }
-  }
-  if (!row && lang === "ru" && (cleanWord.includes("\u0451") || cleanWord.includes("\u0435"))) {
-    const altWord1 = cleanWord.replace(/ё/g, "\u0435");
-    const altWord2 = cleanWord.replace(/е/g, "\u0451");
-    row = stmt.get("ru", altWord1) || stmt.get("ru", altWord2);
-  }
-  const totalWords = 5e4;
-  if (row) {
-    const percentile = Math.max(0.01, Math.min(100, row.rank / totalWords * 100));
-    return {
-      word: cleanWord,
-      lang,
-      found: true,
-      rank: row.rank,
-      frequency: row.frequency,
-      cefr: row.cefr,
-      percentile: parseFloat(percentile.toFixed(1)),
-      totalWords
-    };
-  }
-  return {
-    word: cleanWord,
-    lang,
-    found: false,
-    cefr: "rare",
-    totalWords
-  };
-}
-function lookupBatchWordFrequency(words, lang = "en") {
-  const db = getFrequencyDb();
-  const results = {};
-  const totalWords = 5e4;
-  if (!words || words.length === 0) return results;
-  const placeholders = words.map(() => "?").join(",");
-  const query = `
-    SELECT word, rank, frequency, cefr 
-    FROM word_frequencies 
-    WHERE lang = ? AND word IN (${placeholders})
-  `;
-  const rows = db.prepare(query).all(lang, ...words.map((w) => w.toLowerCase()));
-  const foundMap = /* @__PURE__ */ new Map();
-  for (const r of rows) {
-    foundMap.set(r.word, r);
-  }
-  for (const w of words) {
-    const lower = w.toLowerCase();
-    const row = foundMap.get(lower);
-    if (row) {
-      results[lower] = {
-        word: lower,
-        lang,
-        found: true,
-        rank: row.rank,
-        frequency: row.frequency,
-        cefr: row.cefr,
-        totalWords
-      };
-    } else {
-      results[lower] = {
-        word: lower,
-        lang,
-        found: false,
-        cefr: "rare",
-        totalWords
-      };
-    }
-  }
-  return results;
-}
-function analyzeTextComplexity(text, rawLang = "en") {
-  const lang = normalizeLangCode2(rawLang);
-  if (!lang) {
-    return null;
-  }
-  if (!text || !text.trim()) {
-    return {
-      totalWords: 0,
-      uniqueWords: 0,
-      coverage: { a1_a2: 100, b1_b2: 0, c1_c2: 0, rare: 0 },
-      cefrOverall: "A1",
-      stats: { a1: 0, a2: 0, b1: 0, b2: 0, c1: 0, c2: 0, rare: 0 },
-      rarestWords: []
-    };
-  }
-  const words = text.match(/[\p{L}'’]+/gu) || [];
-  const properNouns = /* @__PURE__ */ new Set();
-  const rawWordsWithPos = text.split(/\s+/);
-  for (let i = 1; i < rawWordsWithPos.length; i++) {
-    const prev = rawWordsWithPos[i - 1];
-    const curr = rawWordsWithPos[i].replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
-    if (curr.length > 1 && !/[.!?]$/.test(prev) && /^\p{Lu}\p{Ll}+$/u.test(curr)) {
-      properNouns.add(curr.toLowerCase());
-    }
-  }
-  const rawTokens = [];
-  for (const w of words) {
-    const clean = w.toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
-    if (clean.length > 1 && !properNouns.has(clean)) {
-      rawTokens.push(clean);
-    }
-  }
-  const totalWords = rawTokens.length;
-  if (totalWords === 0) {
-    return {
-      totalWords: 0,
-      uniqueWords: 0,
-      coverage: { a1_a2: 100, b1_b2: 0, c1_c2: 0, rare: 0 },
-      cefrOverall: "A1",
-      stats: { a1: 0, a2: 0, b1: 0, b2: 0, c1: 0, c2: 0, rare: 0 },
-      rarestWords: []
-    };
-  }
-  const uniqueWordsSet = new Set(rawTokens);
-  const uniqueWordsList = Array.from(uniqueWordsSet);
-  const batchResults = lookupBatchWordFrequency(uniqueWordsList, lang);
-  const stats = { a1: 0, a2: 0, b1: 0, b2: 0, c1: 0, c2: 0, rare: 0 };
-  const rarestWordsMap = /* @__PURE__ */ new Map();
-  for (const token of rawTokens) {
-    const res = batchResults[token];
-    if (res && res.found) {
-      stats[res.cefr.toLowerCase()]++;
-      if (res.cefr === "C1" || res.cefr === "C2" || res.cefr === "rare") {
-        if (!rarestWordsMap.has(token)) {
-          rarestWordsMap.set(token, { word: token, rank: res.rank, cefr: res.cefr });
-        }
-      }
-    } else {
-      stats.rare++;
-      if (!rarestWordsMap.has(token)) {
-        rarestWordsMap.set(token, { word: token, cefr: "rare" });
-      }
-    }
-  }
-  const a1_a2_pct = parseFloat(((stats.a1 + stats.a2) / totalWords * 100).toFixed(1));
-  const b1_b2_pct = parseFloat(((stats.b1 + stats.b2) / totalWords * 100).toFixed(1));
-  const c1_c2_pct = parseFloat(((stats.c1 + stats.c2) / totalWords * 100).toFixed(1));
-  const rare_pct = parseFloat((stats.rare / totalWords * 100).toFixed(1));
-  let cefrOverall = "A1";
-  if (a1_a2_pct >= 92) {
-    cefrOverall = stats.a2 > stats.a1 ? "A2" : "A1";
-  } else if (a1_a2_pct + b1_b2_pct >= 88) {
-    cefrOverall = stats.b2 > stats.b1 ? "B2" : "B1";
-  } else if (c1_c2_pct > 8 || rare_pct > 6) {
-    cefrOverall = "C2";
-  } else {
-    cefrOverall = "C1";
-  }
-  const rarestWords = Array.from(rarestWordsMap.values()).sort((a, b) => (b.rank || 999999) - (a.rank || 999999)).slice(0, 10);
-  return {
-    totalWords,
-    uniqueWords: uniqueWordsSet.size,
-    coverage: {
-      a1_a2: a1_a2_pct,
-      b1_b2: b1_b2_pct,
-      c1_c2: c1_c2_pct,
-      rare: rare_pct
-    },
-    cefrOverall,
-    stats,
-    rarestWords
-  };
-}
+var import_fs7 = __toESM(require("fs"), 1);
+var import_zlib = __toESM(require("zlib"), 1);
 
 // routes/htmlTextUtils.ts
 var import_jsdom = require("jsdom");
@@ -12102,11 +11753,11 @@ var vocabRoutes_default = router5;
 // routes/db.ts
 var router6 = (0, import_express6.Router)();
 var DATA_DIR5 = process.env.DATA_DIR || process.cwd();
-var AUDIO_STORAGE_DIR = import_path7.default.join(DATA_DIR5, "audio_files");
+var AUDIO_STORAGE_DIR = import_path6.default.join(DATA_DIR5, "audio_files");
 function saveAudioBase64ToDisk(lessonId, base64OrDataUrl, userId = "default") {
   try {
-    if (!import_fs8.default.existsSync(AUDIO_STORAGE_DIR)) {
-      import_fs8.default.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
+    if (!import_fs7.default.existsSync(AUDIO_STORAGE_DIR)) {
+      import_fs7.default.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
     }
     const cleanBase64 = base64OrDataUrl.replace(/^data:[^;]+;base64,/, "");
     const buffer = Buffer.from(cleanBase64, "base64");
@@ -12118,8 +11769,8 @@ function saveAudioBase64ToDisk(lessonId, base64OrDataUrl, userId = "default") {
     const safeUser = (userId || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
     const safeLessonId = String(lessonId).replace(/[^a-zA-Z0-9_-]/g, "_");
     const fileName = safeUser === "default" ? `${safeLessonId}.${ext}` : `${safeUser}_${safeLessonId}.${ext}`;
-    const filePath = import_path7.default.join(AUDIO_STORAGE_DIR, fileName);
-    import_fs8.default.writeFileSync(filePath, buffer);
+    const filePath = import_path6.default.join(AUDIO_STORAGE_DIR, fileName);
+    import_fs7.default.writeFileSync(filePath, buffer);
     return `/api/audio-files/${fileName}`;
   } catch (err) {
     console.error(`[saveAudioBase64ToDisk] Failed to save audio for lesson ${lessonId}:`, err);
@@ -12170,21 +11821,6 @@ function getLocalServerDb(userId = "default") {
       }
       let lessonDifficulty = l.difficulty;
       let lessonDifficultyExplanation = l.difficultyExplanation;
-      if (!lessonDifficulty && typeof l.text === "string" && l.text.trim().length > 0) {
-        try {
-          const langCode = (l.targetLanguage || "en").toLowerCase();
-          const comp = analyzeTextComplexity(l.text, langCode.startsWith("en") ? "en" : langCode);
-          if (comp && comp.cefrOverall) {
-            lessonDifficulty = comp.cefrOverall;
-            lessonDifficultyExplanation = `A1-A2: ${comp.coverage.a1_a2}%, B1-B2: ${comp.coverage.b1_b2}%, C1-C2: ${comp.coverage.c1_c2}%, Rare: ${comp.coverage.rare}%`;
-            try {
-              db.prepare("UPDATE lessons SET difficulty = ?, difficultyExplanation = ? WHERE id = ? AND user_id = ?").run(lessonDifficulty, lessonDifficultyExplanation, l.id, userId);
-            } catch (_) {
-            }
-          }
-        } catch (_) {
-        }
-      }
       if (l && typeof l.wordTimestamps === "string") {
         try {
           l.wordTimestamps = JSON.parse(l.wordTimestamps);
@@ -12632,27 +12268,27 @@ function saveLocalServerDb(userId = "default", data) {
         }
       }
       if (data.deletedLessonIds && Array.isArray(data.deletedLessonIds) && data.deletedLessonIds.length > 0) {
-        const VIDEO_STORAGE_DIR3 = import_path7.default.join(DATA_DIR5, "media", "videos");
+        const VIDEO_STORAGE_DIR3 = import_path6.default.join(DATA_DIR5, "media", "videos");
         const checkOtherUsersLessonStmt = db.prepare("SELECT 1 FROM lessons WHERE id = ? AND user_id != ? LIMIT 1");
         const safeUser = (userId || "default").replace(/[^a-zA-Z0-9_-]/g, "_");
         for (const delId of data.deletedLessonIds) {
           try {
             const safeDelId = String(delId).replace(/[^a-zA-Z0-9_-]/g, "_");
             for (const ext of ["mp3", "m4a", "wav", "ogg"]) {
-              const userScopedAudio = import_path7.default.join(AUDIO_STORAGE_DIR, `${safeUser}_${safeDelId}.${ext}`);
-              if (import_fs8.default.existsSync(userScopedAudio)) import_fs8.default.unlinkSync(userScopedAudio);
+              const userScopedAudio = import_path6.default.join(AUDIO_STORAGE_DIR, `${safeUser}_${safeDelId}.${ext}`);
+              if (import_fs7.default.existsSync(userScopedAudio)) import_fs7.default.unlinkSync(userScopedAudio);
             }
             const stillUsedByOther = checkOtherUsersLessonStmt.get(delId, userId);
             if (!stillUsedByOther) {
-              const audioPathMp3 = import_path7.default.join(AUDIO_STORAGE_DIR, `audio_${delId}.mp3`);
-              if (import_fs8.default.existsSync(audioPathMp3)) import_fs8.default.unlinkSync(audioPathMp3);
-              const audioPathM4a = import_path7.default.join(AUDIO_STORAGE_DIR, `audio_${delId}.m4a`);
-              if (import_fs8.default.existsSync(audioPathM4a)) import_fs8.default.unlinkSync(audioPathM4a);
-              if (import_fs8.default.existsSync(VIDEO_STORAGE_DIR3)) {
-                const videoMp4 = import_path7.default.join(VIDEO_STORAGE_DIR3, `${delId}.mp4`);
-                if (import_fs8.default.existsSync(videoMp4)) import_fs8.default.unlinkSync(videoMp4);
-                const videoM4a = import_path7.default.join(VIDEO_STORAGE_DIR3, `${delId}.m4a`);
-                if (import_fs8.default.existsSync(videoM4a)) import_fs8.default.unlinkSync(videoM4a);
+              const audioPathMp3 = import_path6.default.join(AUDIO_STORAGE_DIR, `audio_${delId}.mp3`);
+              if (import_fs7.default.existsSync(audioPathMp3)) import_fs7.default.unlinkSync(audioPathMp3);
+              const audioPathM4a = import_path6.default.join(AUDIO_STORAGE_DIR, `audio_${delId}.m4a`);
+              if (import_fs7.default.existsSync(audioPathM4a)) import_fs7.default.unlinkSync(audioPathM4a);
+              if (import_fs7.default.existsSync(VIDEO_STORAGE_DIR3)) {
+                const videoMp4 = import_path6.default.join(VIDEO_STORAGE_DIR3, `${delId}.mp4`);
+                if (import_fs7.default.existsSync(videoMp4)) import_fs7.default.unlinkSync(videoMp4);
+                const videoM4a = import_path6.default.join(VIDEO_STORAGE_DIR3, `${delId}.m4a`);
+                if (import_fs7.default.existsSync(videoM4a)) import_fs7.default.unlinkSync(videoM4a);
               }
             }
           } catch (e) {
@@ -13074,6 +12710,14 @@ router6.get("/server-db", (req, res) => {
     }
     return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
   }
+  const userVersion = getUserDbVersion(userId);
+  const etag = `W/"${userId}-${userVersion}"`;
+  res.setHeader("ETag", etag);
+  res.setHeader("Cache-Control", "private, no-cache");
+  const ifNoneMatch = req.headers["if-none-match"];
+  if (ifNoneMatch && (ifNoneMatch === etag || ifNoneMatch === `"${userId}-${userVersion}"`)) {
+    return res.status(304).end();
+  }
   const dbData = getLocalServerDb(userId);
   if (!dbData) {
     return res.json({ status: "empty" });
@@ -13110,6 +12754,7 @@ router6.post("/server-db", (req, res) => {
     return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
   }
   const success = saveLocalServerDb(userId, data);
+  if (success) touchUserDbVersion(userId);
   if (success) {
     return res.json({ status: "success" });
   } else {
@@ -13384,8 +13029,8 @@ var db_default = router6;
 
 // routes/media.ts
 var import_express7 = require("express");
-var import_path8 = __toESM(require("path"), 1);
-var import_fs9 = __toESM(require("fs"), 1);
+var import_path7 = __toESM(require("path"), 1);
+var import_fs8 = __toESM(require("fs"), 1);
 var import_os2 = __toESM(require("os"), 1);
 var import_crypto4 = __toESM(require("crypto"), 1);
 var import_genai4 = require("@google/genai");
@@ -14062,17 +13707,17 @@ var pdfParse = pdfParseModule.default || pdfParseModule;
 var execFilePromise = import_util2.default.promisify(import_child_process.execFile);
 var router7 = (0, import_express7.Router)();
 var DATA_DIR6 = process.env.DATA_DIR || process.cwd();
-var IMAGE_CACHE_DIR = import_path8.default.join(DATA_DIR6, "image_cache");
-if (!import_fs9.default.existsSync(IMAGE_CACHE_DIR)) {
-  import_fs9.default.mkdirSync(IMAGE_CACHE_DIR, { recursive: true });
+var IMAGE_CACHE_DIR = import_path7.default.join(DATA_DIR6, "image_cache");
+if (!import_fs8.default.existsSync(IMAGE_CACHE_DIR)) {
+  import_fs8.default.mkdirSync(IMAGE_CACHE_DIR, { recursive: true });
 }
-var VIDEO_STORAGE_DIR = import_path8.default.join(DATA_DIR6, "media", "videos");
-if (!import_fs9.default.existsSync(VIDEO_STORAGE_DIR)) {
-  import_fs9.default.mkdirSync(VIDEO_STORAGE_DIR, { recursive: true });
+var VIDEO_STORAGE_DIR = import_path7.default.join(DATA_DIR6, "media", "videos");
+if (!import_fs8.default.existsSync(VIDEO_STORAGE_DIR)) {
+  import_fs8.default.mkdirSync(VIDEO_STORAGE_DIR, { recursive: true });
 }
-var CLIPS_STORAGE_DIR = import_path8.default.join(DATA_DIR6, "media", "clips");
-if (!import_fs9.default.existsSync(CLIPS_STORAGE_DIR)) {
-  import_fs9.default.mkdirSync(CLIPS_STORAGE_DIR, { recursive: true });
+var CLIPS_STORAGE_DIR = import_path7.default.join(DATA_DIR6, "media", "clips");
+if (!import_fs8.default.existsSync(CLIPS_STORAGE_DIR)) {
+  import_fs8.default.mkdirSync(CLIPS_STORAGE_DIR, { recursive: true });
 }
 router7.get("/image-proxy", async (req, res) => {
   const imageUrl = req.query.url;
@@ -14083,13 +13728,13 @@ router7.get("/image-proxy", async (req, res) => {
     const hash = import_crypto4.default.createHash("md5").update(imageUrl).digest("hex");
     const parsedUrl = new URL(imageUrl);
     const pathname = parsedUrl.pathname;
-    let ext = import_path8.default.extname(pathname) || ".jpg";
+    let ext = import_path7.default.extname(pathname) || ".jpg";
     if (!/^\.[a-zA-Z0-5]+$/.test(ext) || ext.length > 5) {
       ext = ".jpg";
     }
     const cacheFilename = `img_${hash}${ext}`;
-    const cacheFilePath = import_path8.default.join(IMAGE_CACHE_DIR, cacheFilename);
-    if (import_fs9.default.existsSync(cacheFilePath)) {
+    const cacheFilePath = import_path7.default.join(IMAGE_CACHE_DIR, cacheFilename);
+    if (import_fs8.default.existsSync(cacheFilePath)) {
       res.set("Cache-Control", "public, max-age=31536000");
       return res.sendFile(cacheFilePath);
     }
@@ -14104,7 +13749,7 @@ router7.get("/image-proxy", async (req, res) => {
     const contentType = response.headers.get("content-type") || "image/jpeg";
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    await import_fs9.default.promises.writeFile(cacheFilePath, buffer);
+    await import_fs8.default.promises.writeFile(cacheFilePath, buffer);
     res.set("Content-Type", contentType);
     res.set("Cache-Control", "public, max-age=31536000");
     return res.send(buffer);
@@ -14316,13 +13961,13 @@ router7.post("/import-url", async (req, res) => {
             const arrayBuf = await audioFetch.arrayBuffer();
             const buf = Buffer.from(arrayBuf);
             const DATA_DIR12 = process.env.DATA_DIR || process.cwd();
-            const audioStorageDir = import_path8.default.join(DATA_DIR12, "audio_files");
-            if (!import_fs9.default.existsSync(audioStorageDir)) {
-              import_fs9.default.mkdirSync(audioStorageDir, { recursive: true });
+            const audioStorageDir = import_path7.default.join(DATA_DIR12, "audio_files");
+            if (!import_fs8.default.existsSync(audioStorageDir)) {
+              import_fs8.default.mkdirSync(audioStorageDir, { recursive: true });
             }
             const audioFileName = `podcast_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp3`;
-            const diskPath = import_path8.default.join(audioStorageDir, audioFileName);
-            import_fs9.default.writeFileSync(diskPath, buf);
+            const diskPath = import_path7.default.join(audioStorageDir, audioFileName);
+            import_fs8.default.writeFileSync(diskPath, buf);
             audioUrl = `/api/audio-files/${audioFileName}`;
             audioBase64 = null;
             const userApiKey = req.headers["x-gemini-key"] || req.body.geminiApiKey;
@@ -14538,8 +14183,8 @@ router7.post("/transcribe-audio", async (req, res) => {
     else if (rawType.includes("m4a") || rawType.includes("aac")) ext = "m4a";
     else if (rawType.includes("webm")) ext = "webm";
     const tempAudioDir = import_os2.default.tmpdir();
-    const tempAudioPath = import_path8.default.join(tempAudioDir, `transcribe_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`);
-    import_fs9.default.writeFileSync(tempAudioPath, buffer);
+    const tempAudioPath = import_path7.default.join(tempAudioDir, `transcribe_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`);
+    import_fs8.default.writeFileSync(tempAudioPath, buffer);
     let uploadedGeminiFile = null;
     try {
       console.log(`[Audio Transcribe] Uploading ${buffer.length} bytes to Gemini File API (${mimeType})...`);
@@ -14584,9 +14229,9 @@ Rules:
         success: true
       });
     } finally {
-      if (import_fs9.default.existsSync(tempAudioPath)) {
+      if (import_fs8.default.existsSync(tempAudioPath)) {
         try {
-          import_fs9.default.unlinkSync(tempAudioPath);
+          import_fs8.default.unlinkSync(tempAudioPath);
         } catch (e) {
         }
       }
@@ -14641,9 +14286,9 @@ router7.post("/media/download", async (req, res) => {
     const isAudio = !!onlyAudio;
     const ext = isAudio ? "m4a" : "mp4";
     const filename = `${fileId}.${ext}`;
-    const targetFilePath = import_path8.default.join(VIDEO_STORAGE_DIR, filename);
-    if (import_fs9.default.existsSync(targetFilePath)) {
-      const stat = import_fs9.default.statSync(targetFilePath);
+    const targetFilePath = import_path7.default.join(VIDEO_STORAGE_DIR, filename);
+    if (import_fs8.default.existsSync(targetFilePath)) {
+      const stat = import_fs8.default.statSync(targetFilePath);
       if (stat.size > 1e5) {
         return res.json({
           ready: true,
@@ -14660,7 +14305,7 @@ router7.post("/media/download", async (req, res) => {
       downloadProgressMap.set(lockKey, { percent: 1, speed: "", eta: "", status: "starting" });
       downloadPromise = new Promise((resolve, reject) => {
         const videoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
-        const tempPath = import_path8.default.join(VIDEO_STORAGE_DIR, `${fileId}_tmp_${Date.now()}.${ext}`);
+        const tempPath = import_path7.default.join(VIDEO_STORAGE_DIR, `${fileId}_tmp_${Date.now()}.${ext}`);
         const ytArgs = {
           output: tempPath,
           noPlaylist: true,
@@ -14705,15 +14350,15 @@ router7.post("/media/download", async (req, res) => {
         cp.on("close", (code) => {
           activeDownloads.delete(lockKey);
           downloadProgressMap.delete(lockKey);
-          if (code === 0 && import_fs9.default.existsSync(tempPath)) {
+          if (code === 0 && import_fs8.default.existsSync(tempPath)) {
             try {
-              if (import_fs9.default.existsSync(targetFilePath)) {
+              if (import_fs8.default.existsSync(targetFilePath)) {
                 try {
-                  import_fs9.default.unlinkSync(targetFilePath);
+                  import_fs8.default.unlinkSync(targetFilePath);
                 } catch (_) {
                 }
               }
-              import_fs9.default.renameSync(tempPath, targetFilePath);
+              import_fs8.default.renameSync(tempPath, targetFilePath);
               if (lessonId) {
                 try {
                   const db = getDbConnection(userId);
@@ -14726,7 +14371,7 @@ router7.post("/media/download", async (req, res) => {
                   console.warn("Could not update lesson media URL in SQLite:", dbErr);
                 }
               }
-              const stat = import_fs9.default.existsSync(targetFilePath) ? import_fs9.default.statSync(targetFilePath) : null;
+              const stat = import_fs8.default.existsSync(targetFilePath) ? import_fs8.default.statSync(targetFilePath) : null;
               resolve({
                 url: `/api/media/stream/${filename}`,
                 filename,
@@ -14737,9 +14382,9 @@ router7.post("/media/download", async (req, res) => {
               reject(new Error("\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0435\u0440\u0435\u043C\u0435\u0449\u0435\u043D\u0438\u044F \u0441\u043A\u0430\u0447\u0430\u043D\u043D\u043E\u0433\u043E \u0444\u0430\u0439\u043B\u0430: " + err.message));
             }
           } else {
-            if (import_fs9.default.existsSync(tempPath)) {
+            if (import_fs8.default.existsSync(tempPath)) {
               try {
-                import_fs9.default.unlinkSync(tempPath);
+                import_fs8.default.unlinkSync(tempPath);
               } catch (_) {
               }
             }
@@ -14749,9 +14394,9 @@ router7.post("/media/download", async (req, res) => {
         cp.on("error", (err) => {
           activeDownloads.delete(lockKey);
           downloadProgressMap.delete(lockKey);
-          if (import_fs9.default.existsSync(tempPath)) {
+          if (import_fs8.default.existsSync(tempPath)) {
             try {
-              import_fs9.default.unlinkSync(tempPath);
+              import_fs8.default.unlinkSync(tempPath);
             } catch (_) {
             }
           }
@@ -14774,11 +14419,11 @@ router7.get("/media/status", (req, res) => {
   const isAudio = onlyAudio === "true" || onlyAudio === "1";
   const ext = isAudio ? "m4a" : "mp4";
   const filename = `${fileId}.${ext}`;
-  const targetFilePath = import_path8.default.join(VIDEO_STORAGE_DIR, filename);
+  const targetFilePath = import_path7.default.join(VIDEO_STORAGE_DIR, filename);
   const lockKey = `${fileId}_${ext}`;
   const isDownloading = activeDownloads.has(lockKey);
-  if (import_fs9.default.existsSync(targetFilePath)) {
-    const stat = import_fs9.default.statSync(targetFilePath);
+  if (import_fs8.default.existsSync(targetFilePath)) {
+    const stat = import_fs8.default.statSync(targetFilePath);
     if (stat.size > 1e5) {
       return res.json({
         exists: true,
@@ -14793,9 +14438,9 @@ router7.get("/media/status", (req, res) => {
   }
   if (!isAudio) {
     const audioFilename = `${fileId}.m4a`;
-    const audioPath = import_path8.default.join(VIDEO_STORAGE_DIR, audioFilename);
-    if (import_fs9.default.existsSync(audioPath)) {
-      const stat = import_fs9.default.statSync(audioPath);
+    const audioPath = import_path7.default.join(VIDEO_STORAGE_DIR, audioFilename);
+    if (import_fs8.default.existsSync(audioPath)) {
+      const stat = import_fs8.default.statSync(audioPath);
       if (stat.size > 1e5) {
         return res.json({
           exists: true,
@@ -14816,13 +14461,13 @@ router7.get("/media/status", (req, res) => {
   });
 });
 function streamFile(filePath, req, res, defaultContentType) {
-  if (!import_fs9.default.existsSync(filePath)) {
+  if (!import_fs8.default.existsSync(filePath)) {
     return res.status(404).json({ error: "Media file not found" });
   }
-  const stat = import_fs9.default.statSync(filePath);
+  const stat = import_fs8.default.statSync(filePath);
   const fileSize = stat.size;
   const range = req.headers.range;
-  const ext = import_path8.default.extname(filePath).toLowerCase();
+  const ext = import_path7.default.extname(filePath).toLowerCase();
   let contentType = defaultContentType || (ext === ".mkv" ? "video/x-matroska" : "video/mp4");
   if (ext === ".m4a" || ext === ".aac") contentType = "audio/mp4";
   else if (ext === ".mp3") contentType = "audio/mpeg";
@@ -14838,7 +14483,7 @@ function streamFile(filePath, req, res, defaultContentType) {
       return res.end();
     }
     const chunksize = end - start + 1;
-    const fileStream = import_fs9.default.createReadStream(filePath, { start, end });
+    const fileStream = import_fs8.default.createReadStream(filePath, { start, end });
     res.writeHead(206, {
       "Content-Range": `bytes ${start}-${end}/${fileSize}`,
       "Content-Length": chunksize,
@@ -14850,16 +14495,16 @@ function streamFile(filePath, req, res, defaultContentType) {
       "Content-Length": fileSize,
       "Content-Type": contentType
     });
-    import_fs9.default.createReadStream(filePath).pipe(res);
+    import_fs8.default.createReadStream(filePath).pipe(res);
   }
 }
 router7.get("/media/stream/:filename", (req, res) => {
-  const filename = import_path8.default.basename(req.params.filename);
-  const filePath = import_path8.default.join(VIDEO_STORAGE_DIR, filename);
+  const filename = import_path7.default.basename(req.params.filename);
+  const filePath = import_path7.default.join(VIDEO_STORAGE_DIR, filename);
   if (filename.toLowerCase().endsWith(".mkv")) {
     const mp4Name = filename.replace(/\.mkv$/i, ".mp4");
-    const mp4Path = import_path8.default.join(VIDEO_STORAGE_DIR, mp4Name);
-    if (import_fs9.default.existsSync(mp4Path)) {
+    const mp4Path = import_path7.default.join(VIDEO_STORAGE_DIR, mp4Name);
+    if (import_fs8.default.existsSync(mp4Path)) {
       return streamFile(mp4Path, req, res, "video/mp4");
     }
   }
@@ -14879,17 +14524,17 @@ router7.get("/media/youtube-stream/:videoId", async (req, res) => {
     }
     const lessonId = req.query.lessonId ? String(req.query.lessonId).replace(/[^a-zA-Z0-9_-]/g, "") : cleanVideoId;
     const filename = `${lessonId}.m4a`;
-    const targetFilePath = import_path8.default.join(VIDEO_STORAGE_DIR, filename);
-    if (import_fs9.default.existsSync(targetFilePath)) {
-      const stat = import_fs9.default.statSync(targetFilePath);
+    const targetFilePath = import_path7.default.join(VIDEO_STORAGE_DIR, filename);
+    if (import_fs8.default.existsSync(targetFilePath)) {
+      const stat = import_fs8.default.statSync(targetFilePath);
       if (stat.size > 5e4) {
         return streamFile(targetFilePath, req, res, "audio/mp4");
       }
     }
     for (const altExt of ["m4a", "mp4"]) {
-      const altPath = import_path8.default.join(VIDEO_STORAGE_DIR, `${cleanVideoId}.${altExt}`);
-      if (import_fs9.default.existsSync(altPath)) {
-        const stat = import_fs9.default.statSync(altPath);
+      const altPath = import_path7.default.join(VIDEO_STORAGE_DIR, `${cleanVideoId}.${altExt}`);
+      if (import_fs8.default.existsSync(altPath)) {
+        const stat = import_fs8.default.statSync(altPath);
         if (stat.size > 5e4) {
           return streamFile(altPath, req, res, altExt === "m4a" ? "audio/mp4" : "video/mp4");
         }
@@ -14901,7 +14546,7 @@ router7.get("/media/youtube-stream/:videoId", async (req, res) => {
       downloadProgressMap.set(lockKey, { percent: 1, speed: "", eta: "", status: "starting" });
       downloadPromise = new Promise((resolve, reject) => {
         const videoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
-        const tempPath = import_path8.default.join(VIDEO_STORAGE_DIR, `${lessonId}_tmp_${Date.now()}.m4a`);
+        const tempPath = import_path7.default.join(VIDEO_STORAGE_DIR, `${lessonId}_tmp_${Date.now()}.m4a`);
         const ytArgs = {
           output: tempPath,
           noPlaylist: true,
@@ -14933,15 +14578,15 @@ router7.get("/media/youtube-stream/:videoId", async (req, res) => {
         cp.on("close", (code) => {
           activeDownloads.delete(lockKey);
           downloadProgressMap.delete(lockKey);
-          if (code === 0 && import_fs9.default.existsSync(tempPath)) {
+          if (code === 0 && import_fs8.default.existsSync(tempPath)) {
             try {
-              if (import_fs9.default.existsSync(targetFilePath)) {
+              if (import_fs8.default.existsSync(targetFilePath)) {
                 try {
-                  import_fs9.default.unlinkSync(targetFilePath);
+                  import_fs8.default.unlinkSync(targetFilePath);
                 } catch (_) {
                 }
               }
-              import_fs9.default.renameSync(tempPath, targetFilePath);
+              import_fs8.default.renameSync(tempPath, targetFilePath);
               if (lessonId) {
                 try {
                   const db = getDbConnection(userId);
@@ -14949,7 +14594,7 @@ router7.get("/media/youtube-stream/:videoId", async (req, res) => {
                 } catch (_) {
                 }
               }
-              const stat = import_fs9.default.existsSync(targetFilePath) ? import_fs9.default.statSync(targetFilePath) : null;
+              const stat = import_fs8.default.existsSync(targetFilePath) ? import_fs8.default.statSync(targetFilePath) : null;
               resolve({
                 url: `/api/media/stream/${filename}`,
                 filename,
@@ -14960,9 +14605,9 @@ router7.get("/media/youtube-stream/:videoId", async (req, res) => {
               reject(err);
             }
           } else {
-            if (import_fs9.default.existsSync(tempPath)) {
+            if (import_fs8.default.existsSync(tempPath)) {
               try {
-                import_fs9.default.unlinkSync(tempPath);
+                import_fs8.default.unlinkSync(tempPath);
               } catch (_) {
               }
             }
@@ -14980,12 +14625,12 @@ router7.get("/media/youtube-stream/:videoId", async (req, res) => {
   }
 });
 router7.get("/media/clips/:filename", (req, res) => {
-  const filename = import_path8.default.basename(req.params.filename);
-  const filePath = import_path8.default.join(CLIPS_STORAGE_DIR, filename);
-  if (!import_fs9.default.existsSync(filePath)) {
+  const filename = import_path7.default.basename(req.params.filename);
+  const filePath = import_path7.default.join(CLIPS_STORAGE_DIR, filename);
+  if (!import_fs8.default.existsSync(filePath)) {
     return res.status(404).json({ error: "Clip not found" });
   }
-  const ext = import_path8.default.extname(filename).toLowerCase();
+  const ext = import_path7.default.extname(filename).toLowerCase();
   const contentType = ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : ext === ".webp" ? "image/webp" : "image/jpeg";
   return streamFile(filePath, req, res, contentType);
 });
@@ -15012,14 +14657,14 @@ router7.post("/media/create-card-clip", async (req, res) => {
     const paddedStart = Math.max(0, startNum - 0.15);
     const paddedEnd = endNum + 0.25;
     const clipId = `clip_${Date.now()}_${import_crypto4.default.randomBytes(4).toString("hex")}`;
-    const targetMp3Path = import_path8.default.join(CLIPS_STORAGE_DIR, `${clipId}.mp3`);
-    const targetJpgPath = import_path8.default.join(CLIPS_STORAGE_DIR, `${clipId}.jpg`);
+    const targetMp3Path = import_path7.default.join(CLIPS_STORAGE_DIR, `${clipId}.mp3`);
+    const targetJpgPath = import_path7.default.join(CLIPS_STORAGE_DIR, `${clipId}.jpg`);
     let finalImageUrl = null;
     let finalAudioUrl = null;
     if (imageSnapshot && typeof imageSnapshot === "string" && imageSnapshot.startsWith("data:image")) {
       try {
         const base64Data = imageSnapshot.replace(/^data:image\/\w+;base64,/, "");
-        import_fs9.default.writeFileSync(targetJpgPath, Buffer.from(base64Data, "base64"));
+        import_fs8.default.writeFileSync(targetJpgPath, Buffer.from(base64Data, "base64"));
         finalImageUrl = `/api/media/clips/${clipId}.jpg`;
       } catch (imgErr) {
         console.warn("[CardClip] Failed to write image snapshot:", imgErr);
@@ -15027,14 +14672,14 @@ router7.post("/media/create-card-clip", async (req, res) => {
     }
     let sourcePath = null;
     const candidates = [
-      lessonId ? import_path8.default.join(VIDEO_STORAGE_DIR, `${lessonId}.m4a`) : null,
-      lessonId ? import_path8.default.join(VIDEO_STORAGE_DIR, `${lessonId}.mp4`) : null,
-      videoId ? import_path8.default.join(VIDEO_STORAGE_DIR, `${videoId}.m4a`) : null,
-      videoId ? import_path8.default.join(VIDEO_STORAGE_DIR, `${videoId}.mp4`) : null,
-      localVideoUrl ? import_path8.default.join(VIDEO_STORAGE_DIR, import_path8.default.basename(localVideoUrl)) : null
+      lessonId ? import_path7.default.join(VIDEO_STORAGE_DIR, `${lessonId}.m4a`) : null,
+      lessonId ? import_path7.default.join(VIDEO_STORAGE_DIR, `${lessonId}.mp4`) : null,
+      videoId ? import_path7.default.join(VIDEO_STORAGE_DIR, `${videoId}.m4a`) : null,
+      videoId ? import_path7.default.join(VIDEO_STORAGE_DIR, `${videoId}.mp4`) : null,
+      localVideoUrl ? import_path7.default.join(VIDEO_STORAGE_DIR, import_path7.default.basename(localVideoUrl)) : null
     ].filter(Boolean);
     for (const c of candidates) {
-      if (import_fs9.default.existsSync(c)) {
+      if (import_fs8.default.existsSync(c)) {
         sourcePath = c;
         break;
       }
@@ -15058,7 +14703,7 @@ router7.post("/media/create-card-clip", async (req, res) => {
           "2",
           targetMp3Path
         ]);
-        if (import_fs9.default.existsSync(targetMp3Path)) {
+        if (import_fs8.default.existsSync(targetMp3Path)) {
           finalAudioUrl = `/api/media/clips/${clipId}.mp3`;
         }
       } catch (audioErr) {
@@ -15078,7 +14723,7 @@ router7.post("/media/create-card-clip", async (req, res) => {
             "3",
             targetJpgPath
           ]);
-          if (import_fs9.default.existsSync(targetJpgPath)) {
+          if (import_fs8.default.existsSync(targetJpgPath)) {
             finalImageUrl = `/api/media/clips/${clipId}.jpg`;
           }
         } catch (frameErr) {
@@ -15104,14 +14749,14 @@ router7.post("/media/create-card-clip", async (req, res) => {
           "2",
           targetMp3Path
         ]);
-        if (import_fs9.default.existsSync(targetMp3Path)) {
+        if (import_fs8.default.existsSync(targetMp3Path)) {
           finalAudioUrl = `/api/media/clips/${clipId}.mp3`;
         }
       } catch (remoteErr) {
         console.warn("[CardClip] Remote audio stream ffmpeg cut error:", remoteErr?.message);
       }
     } else if (videoId) {
-      const tempSectionMp4 = import_path8.default.join(CLIPS_STORAGE_DIR, `temp_${clipId}.mp4`);
+      const tempSectionMp4 = import_path7.default.join(CLIPS_STORAGE_DIR, `temp_${clipId}.mp4`);
       try {
         const ytDlp = getYtDlp();
         await Promise.race([
@@ -15130,7 +14775,7 @@ router7.post("/media/create-card-clip", async (req, res) => {
             (_, reject) => setTimeout(() => reject(new Error("yt-dlp section cut timed out after 12s")), 12e3)
           )
         ]);
-        if (import_fs9.default.existsSync(tempSectionMp4)) {
+        if (import_fs8.default.existsSync(tempSectionMp4)) {
           if (!finalImageUrl) {
             try {
               await execFilePromise("ffmpeg", [
@@ -15145,7 +14790,7 @@ router7.post("/media/create-card-clip", async (req, res) => {
                 "2",
                 targetJpgPath
               ]);
-              if (import_fs9.default.existsSync(targetJpgPath)) {
+              if (import_fs8.default.existsSync(targetJpgPath)) {
                 finalImageUrl = `/api/media/clips/${clipId}.jpg`;
               }
             } catch (fErr) {
@@ -15166,21 +14811,21 @@ router7.post("/media/create-card-clip", async (req, res) => {
               "2",
               targetMp3Path
             ]);
-            if (import_fs9.default.existsSync(targetMp3Path)) {
+            if (import_fs8.default.existsSync(targetMp3Path)) {
               finalAudioUrl = `/api/media/clips/${clipId}.mp3`;
             }
           } catch (aErr) {
             console.warn("[CardClip] Failed to extract audio from section mp4:", aErr?.message);
           }
           try {
-            import_fs9.default.unlinkSync(tempSectionMp4);
+            import_fs8.default.unlinkSync(tempSectionMp4);
           } catch (_) {
           }
         }
       } catch (ytdlpErr) {
         console.warn("[CardClip] yt-dlp section cut error:", ytdlpErr?.message);
         try {
-          if (import_fs9.default.existsSync(tempSectionMp4)) import_fs9.default.unlinkSync(tempSectionMp4);
+          if (import_fs8.default.existsSync(tempSectionMp4)) import_fs8.default.unlinkSync(tempSectionMp4);
         } catch (_) {
         }
       }
@@ -15204,28 +14849,28 @@ var media_default = router7;
 // routes/whisper.ts
 var import_express8 = require("express");
 var import_os3 = __toESM(require("os"), 1);
-var import_fs11 = __toESM(require("fs"), 1);
-var import_path10 = __toESM(require("path"), 1);
+var import_fs10 = __toESM(require("fs"), 1);
+var import_path9 = __toESM(require("path"), 1);
 var import_child_process3 = require("child_process");
 init_ytdlpWrapper();
 
 // server/whisper/python_resolver.ts
-var import_fs10 = __toESM(require("fs"), 1);
-var import_path9 = __toESM(require("path"), 1);
+var import_fs9 = __toESM(require("fs"), 1);
+var import_path8 = __toESM(require("path"), 1);
 var import_child_process2 = require("child_process");
 function resolvePythonExecutable() {
-  if (process.env.WHISPER_PYTHON_PATH && import_fs10.default.existsSync(process.env.WHISPER_PYTHON_PATH)) {
+  if (process.env.WHISPER_PYTHON_PATH && import_fs9.default.existsSync(process.env.WHISPER_PYTHON_PATH)) {
     return process.env.WHISPER_PYTHON_PATH;
   }
   const projectRoot = process.cwd();
-  const venvWindows = import_path9.default.join(projectRoot, "venv", "Scripts", "python.exe");
-  const venvUnix = import_path9.default.join(projectRoot, "venv", "bin", "python");
-  if (import_fs10.default.existsSync(venvWindows)) return venvWindows;
-  if (import_fs10.default.existsSync(venvUnix)) return venvUnix;
-  const whisperflowVenvWin = import_path9.default.join(projectRoot, "..", "whisperflow-audio-transcription-&-alignment", "venv", "Scripts", "python.exe");
-  const whisperflowVenvUnix = import_path9.default.join(projectRoot, "..", "whisperflow-audio-transcription-&-alignment", "venv", "bin", "python");
-  if (import_fs10.default.existsSync(whisperflowVenvWin)) return whisperflowVenvWin;
-  if (import_fs10.default.existsSync(whisperflowVenvUnix)) return whisperflowVenvUnix;
+  const venvWindows = import_path8.default.join(projectRoot, "venv", "Scripts", "python.exe");
+  const venvUnix = import_path8.default.join(projectRoot, "venv", "bin", "python");
+  if (import_fs9.default.existsSync(venvWindows)) return venvWindows;
+  if (import_fs9.default.existsSync(venvUnix)) return venvUnix;
+  const whisperflowVenvWin = import_path8.default.join(projectRoot, "..", "whisperflow-audio-transcription-&-alignment", "venv", "Scripts", "python.exe");
+  const whisperflowVenvUnix = import_path8.default.join(projectRoot, "..", "whisperflow-audio-transcription-&-alignment", "venv", "bin", "python");
+  if (import_fs9.default.existsSync(whisperflowVenvWin)) return whisperflowVenvWin;
+  if (import_fs9.default.existsSync(whisperflowVenvUnix)) return whisperflowVenvUnix;
   const candidates = process.platform === "win32" ? ["python", "py", "python3"] : ["python3", "python"];
   for (const cmd of candidates) {
     try {
@@ -15239,18 +14884,18 @@ function resolvePythonExecutable() {
 
 // routes/whisper.ts
 var router8 = (0, import_express8.Router)();
-var uploadDir = import_path10.default.join(import_os3.default.tmpdir(), "lectura_whisper_uploads");
-if (!import_fs11.default.existsSync(uploadDir)) {
-  import_fs11.default.mkdirSync(uploadDir, { recursive: true });
+var uploadDir = import_path9.default.join(import_os3.default.tmpdir(), "lectura_whisper_uploads");
+if (!import_fs10.default.existsSync(uploadDir)) {
+  import_fs10.default.mkdirSync(uploadDir, { recursive: true });
 } else {
   try {
     const cutoff = Date.now() - 24 * 60 * 60 * 1e3;
-    for (const file of import_fs11.default.readdirSync(uploadDir)) {
-      const fullPath = import_path10.default.join(uploadDir, file);
+    for (const file of import_fs10.default.readdirSync(uploadDir)) {
+      const fullPath = import_path9.default.join(uploadDir, file);
       try {
-        const stat = import_fs11.default.statSync(fullPath);
+        const stat = import_fs10.default.statSync(fullPath);
         if (stat.isFile() && stat.mtimeMs < cutoff) {
-          import_fs11.default.unlinkSync(fullPath);
+          import_fs10.default.unlinkSync(fullPath);
         }
       } catch (_) {
       }
@@ -15340,7 +14985,7 @@ async function processQueue() {
         } catch (_) {
         }
       }
-      const outPattern = import_path10.default.join(uploadDir, `yt_whisper_${activeItem.id}.%(ext)s`);
+      const outPattern = import_path9.default.join(uploadDir, `yt_whisper_${activeItem.id}.%(ext)s`);
       const dlp = getYtDlp();
       try {
         await dlp(activeItem.sourceUrl, {
@@ -15365,12 +15010,12 @@ async function processQueue() {
           preferFreeFormats: true
         });
       }
-      const files = import_fs11.default.readdirSync(uploadDir);
+      const files = import_fs10.default.readdirSync(uploadDir);
       const matchingFile = files.find((f) => f.startsWith(`yt_whisper_${activeItem.id}.`));
       if (!matchingFile) {
         throw new Error("Could not find extracted audio file from YouTube");
       }
-      tempAudioPath = import_path10.default.join(uploadDir, matchingFile);
+      tempAudioPath = import_path9.default.join(uploadDir, matchingFile);
     } else if (activeItem.sourceType === "podcast" && activeItem.sourceUrl) {
       activeItem.stageText = "Downloading podcast audio stream...";
       broadcastSse("queue_update", { queue, activeItem });
@@ -15439,7 +15084,7 @@ async function processQueue() {
         try {
           activeItem.stageText = "Trying yt-dlp fallback for podcast...";
           broadcastSse("queue_update", { queue, activeItem });
-          const outPattern = import_path10.default.join(uploadDir, `podcast_ytdlp_${activeItem.id}.%(ext)s`);
+          const outPattern = import_path9.default.join(uploadDir, `podcast_ytdlp_${activeItem.id}.%(ext)s`);
           const dlp = getYtDlp();
           await dlp(podcastUrl, {
             format: "ba[ext=m4a]/ba[ext=mp3]/bestaudio/best",
@@ -15449,17 +15094,17 @@ async function processQueue() {
               "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             ]
           });
-          const ytdlpFiles = import_fs11.default.readdirSync(uploadDir);
+          const ytdlpFiles = import_fs10.default.readdirSync(uploadDir);
           const ytdlpMatch = ytdlpFiles.find((f) => f.startsWith(`podcast_ytdlp_${activeItem.id}.`));
           if (ytdlpMatch) {
             const DATA_DIR22 = process.env.DATA_DIR || process.cwd();
-            const audioStorageDir2 = import_path10.default.join(DATA_DIR22, "audio_files");
-            if (!import_fs11.default.existsSync(audioStorageDir2)) import_fs11.default.mkdirSync(audioStorageDir2, { recursive: true });
+            const audioStorageDir2 = import_path9.default.join(DATA_DIR22, "audio_files");
+            if (!import_fs10.default.existsSync(audioStorageDir2)) import_fs10.default.mkdirSync(audioStorageDir2, { recursive: true });
             const audioFileName2 = `podcast_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp3`;
-            const diskPath2 = import_path10.default.join(audioStorageDir2, audioFileName2);
-            import_fs11.default.copyFileSync(import_path10.default.join(uploadDir, ytdlpMatch), diskPath2);
+            const diskPath2 = import_path9.default.join(audioStorageDir2, audioFileName2);
+            import_fs10.default.copyFileSync(import_path9.default.join(uploadDir, ytdlpMatch), diskPath2);
             try {
-              import_fs11.default.unlinkSync(import_path10.default.join(uploadDir, ytdlpMatch));
+              import_fs10.default.unlinkSync(import_path9.default.join(uploadDir, ytdlpMatch));
             } catch (_) {
             }
             tempAudioPath = diskPath2;
@@ -15473,12 +15118,12 @@ async function processQueue() {
         }
       } else {
         const DATA_DIR12 = process.env.DATA_DIR || process.cwd();
-        const audioStorageDir = import_path10.default.join(DATA_DIR12, "audio_files");
-        if (!import_fs11.default.existsSync(audioStorageDir)) {
-          import_fs11.default.mkdirSync(audioStorageDir, { recursive: true });
+        const audioStorageDir = import_path9.default.join(DATA_DIR12, "audio_files");
+        if (!import_fs10.default.existsSync(audioStorageDir)) {
+          import_fs10.default.mkdirSync(audioStorageDir, { recursive: true });
         }
         const audioFileName = `podcast_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp3`;
-        const diskPath = import_path10.default.join(audioStorageDir, audioFileName);
+        const diskPath = import_path9.default.join(audioStorageDir, audioFileName);
         const audioFetch = await fetch(directAudioUrl, {
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -15488,12 +15133,12 @@ async function processQueue() {
           throw new Error(`Failed to download podcast audio stream (HTTP ${audioFetch.status})`);
         }
         const arrayBuf = await audioFetch.arrayBuffer();
-        import_fs11.default.writeFileSync(diskPath, Buffer.from(arrayBuf));
+        import_fs10.default.writeFileSync(diskPath, Buffer.from(arrayBuf));
         tempAudioPath = diskPath;
         activeItem.persistedAudioUrl = `/api/audio-files/${audioFileName}`;
         broadcastSse("queue_update", { queue, activeItem });
       }
-    } else if (activeItem.filePath && import_fs11.default.existsSync(activeItem.filePath)) {
+    } else if (activeItem.filePath && import_fs10.default.existsSync(activeItem.filePath)) {
       tempAudioPath = activeItem.filePath;
     } else {
       throw new Error("No valid media source provided");
@@ -15502,10 +15147,10 @@ async function processQueue() {
     activeItem.stageText = "Starting Faster-Whisper CPU...";
     broadcastSse("queue_update", { queue, activeItem });
     const pythonPath = resolvePythonExecutable();
-    const workerScript = import_path10.default.join(process.cwd(), "server", "whisper", "whisper_worker.py");
-    const cacheDir = import_path10.default.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
-    if (!import_fs11.default.existsSync(cacheDir)) {
-      import_fs11.default.mkdirSync(cacheDir, { recursive: true });
+    const workerScript = import_path9.default.join(process.cwd(), "server", "whisper", "whisper_worker.py");
+    const cacheDir = import_path9.default.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
+    if (!import_fs10.default.existsSync(cacheDir)) {
+      import_fs10.default.mkdirSync(cacheDir, { recursive: true });
     }
     const workerArgs = [
       workerScript,
@@ -15613,9 +15258,9 @@ async function processQueue() {
   } finally {
     const persistedUrl = activeItem?.persistedAudioUrl;
     const isPersisted = persistedUrl && tempAudioPath && tempAudioPath.includes("audio_files");
-    if (tempAudioPath && !isPersisted && import_fs11.default.existsSync(tempAudioPath)) {
+    if (tempAudioPath && !isPersisted && import_fs10.default.existsSync(tempAudioPath)) {
       try {
-        import_fs11.default.unlinkSync(tempAudioPath);
+        import_fs10.default.unlinkSync(tempAudioPath);
       } catch (_) {
       }
     }
@@ -15777,9 +15422,9 @@ router8.post("/queue", async (req, res) => {
     if (fileBase64 && typeof fileBase64 === "string") {
       const cleanBase64 = fileBase64.replace(/^data:[^;]+;base64,/, "");
       const buffer = Buffer.from(cleanBase64, "base64");
-      const ext = import_path10.default.extname(filename || "audio.mp3") || ".mp3";
-      const targetPath = import_path10.default.join(uploadDir, `upload_${Date.now()}_${Math.random().toString(36).substring(2, 6)}${ext}`);
-      import_fs11.default.writeFileSync(targetPath, buffer);
+      const ext = import_path9.default.extname(filename || "audio.mp3") || ".mp3";
+      const targetPath = import_path9.default.join(uploadDir, `upload_${Date.now()}_${Math.random().toString(36).substring(2, 6)}${ext}`);
+      import_fs10.default.writeFileSync(targetPath, buffer);
       localFilePath = targetPath;
     }
     const itemTitle = (title || "").trim() || (resolvedSourceType === "youtube" ? "YouTube Video" : resolvedSourceType === "podcast" ? "Podcast Episode" : filename || "Audio Lesson");
@@ -15828,7 +15473,7 @@ router8.post("/cancel", (req, res) => {
     }
     if (activeItem.filePath && activeItem.filePath.startsWith(uploadDir)) {
       try {
-        if (import_fs11.default.existsSync(activeItem.filePath)) import_fs11.default.unlinkSync(activeItem.filePath);
+        if (import_fs10.default.existsSync(activeItem.filePath)) import_fs10.default.unlinkSync(activeItem.filePath);
       } catch (_) {
       }
     }
@@ -15840,7 +15485,7 @@ router8.post("/cancel", (req, res) => {
     const removed = queue.splice(idx, 1)[0];
     if (removed.filePath && removed.filePath.startsWith(uploadDir)) {
       try {
-        if (import_fs11.default.existsSync(removed.filePath)) import_fs11.default.unlinkSync(removed.filePath);
+        if (import_fs10.default.existsSync(removed.filePath)) import_fs10.default.unlinkSync(removed.filePath);
       } catch (_) {
       }
     }
@@ -15879,10 +15524,10 @@ router8.get("/telemetry", async (_req, res) => {
   });
 });
 router8.get("/models-status", async (_req, res) => {
-  const cacheDir = import_path10.default.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
+  const cacheDir = import_path9.default.join(process.env.DATA_DIR || process.cwd(), "models", "whisper");
   const models = ["tiny", "base", "small", "medium"];
   const pythonPath = resolvePythonExecutable();
-  const workerScript = import_path10.default.join(process.cwd(), "server", "whisper", "whisper_worker.py");
+  const workerScript = import_path9.default.join(process.cwd(), "server", "whisper", "whisper_worker.py");
   const results = {};
   await Promise.all(models.map(async (model) => {
     return new Promise((resolve) => {
@@ -16120,6 +15765,456 @@ var wordnet_default = router9;
 
 // routes/frequency.ts
 var import_express10 = require("express");
+
+// server/frequency/frequencyService.ts
+var import_fs11 = __toESM(require("fs"), 1);
+var import_path10 = __toESM(require("path"), 1);
+var import_better_sqlite33 = __toESM(require("better-sqlite3"), 1);
+var freqDbInstance = null;
+function normalizeLangCode2(rawLang) {
+  if (!rawLang) return null;
+  const l = rawLang.toLowerCase().trim();
+  if (l.startsWith("en") || l.includes("engl") || l.includes("\u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A")) return "en";
+  if (l.startsWith("es") || l.includes("span") || l.includes("\u0438\u0441\u043F\u0430\u043D\u0441\u043A")) return "es";
+  if (l.startsWith("de") || l.includes("ger") || l.includes("deutsch") || l.includes("\u043D\u0435\u043C\u0435\u0446\u043A")) return "de";
+  if (l.startsWith("fr") || l.includes("fren") || l.includes("franc") || l.includes("\u0444\u0440\u0430\u043D\u0446\u0443\u0437")) return "fr";
+  if (l.startsWith("it") || l.includes("ital") || l.includes("\u0438\u0442\u0430\u043B\u044C\u044F\u043D")) return "it";
+  if (l.startsWith("pt") || l.includes("port") || l.includes("\u043F\u043E\u0440\u0442\u0443\u0433\u0430\u043B")) return "pt";
+  if (l.startsWith("kk") || l.startsWith("kz") || l.includes("kaz") || l.includes("\u049B\u0430\u0437\u0430\u049B") || l.includes("\u043A\u0430\u0437\u0430\u0445")) return "kk";
+  if (l.startsWith("ru") || l.includes("russ") || l.includes("\u0440\u0443\u0441\u0441\u043A")) return "ru";
+  if (l.startsWith("uk") || l.startsWith("ua") || l.includes("ukr") || l.includes("\u0443\u043A\u0440\u0430\u0438\u043D") || l.includes("\u0443\u043A\u0440\u0430\u0457\u043D")) return "uk";
+  if (l.startsWith("pl") || l.includes("pol") || l.includes("\u043F\u043E\u043B\u044C\u0441\u043A") || l.includes("polski")) return "pl";
+  if (l.startsWith("cs") || l.startsWith("cz") || l.includes("cze") || l.includes("\u0447\u0435\u0448\u0441\u043A") || l.includes("\u010De\u0161")) return "cs";
+  return null;
+}
+var KAZAKH_SUFFIXES = [
+  // Plural + Case combinations
+  "\u043B\u0430\u0440\u044B\u043C\u044B\u0437\u0431\u0435\u043D",
+  "\u043B\u0435\u0440\u0456\u043C\u0456\u0437\u0431\u0435\u043D",
+  "\u0434\u0430\u0440\u044B\u043C\u044B\u0437\u0431\u0435\u043D",
+  "\u0434\u0435\u0440\u0456\u043C\u0456\u0437\u0431\u0435\u043D",
+  "\u0442\u0430\u0440\u044B\u043C\u044B\u0437\u0431\u0435\u043D",
+  "\u0442\u0435\u0440\u0456\u043C\u0456\u0437\u0431\u0435\u043D",
+  "\u043B\u0430\u0440\u044B\u043D\u044B\u04A3",
+  "\u043B\u0435\u0440\u0456\u043D\u0456\u04A3",
+  "\u0434\u0430\u0440\u044B\u043D\u044B\u04A3",
+  "\u0434\u0435\u0440\u0456\u043D\u0456\u04A3",
+  "\u0442\u0430\u0440\u044B\u043D\u044B\u04A3",
+  "\u0442\u0435\u0440\u0456\u043D\u0456\u04A3",
+  "\u043B\u0430\u0440\u044B\u043D\u0430\u043D",
+  "\u043B\u0435\u0440\u0456\u043D\u0435\u043D",
+  "\u0434\u0430\u0440\u044B\u043D\u0430\u043D",
+  "\u0434\u0435\u0440\u0456\u043D\u0435\u043D",
+  "\u0442\u0430\u0440\u044B\u043D\u0430\u043D",
+  "\u0442\u0435\u0440\u0456\u043D\u0435\u043D",
+  "\u043B\u0430\u0440\u044B\u043D\u0434\u0430",
+  "\u043B\u0435\u0440\u0456\u043D\u0434\u0435",
+  "\u0434\u0430\u0440\u044B\u043D\u0434\u0430",
+  "\u0434\u0435\u0440\u0456\u043D\u0434\u0435",
+  "\u0442\u0430\u0440\u044B\u043D\u0434\u0430",
+  "\u0442\u0435\u0440\u0456\u043D\u0434\u0435",
+  "\u043B\u0430\u0440\u044B\u043D\u0430",
+  "\u043B\u0435\u0440\u0456\u043D\u0435",
+  "\u0434\u0430\u0440\u044B\u043D\u0430",
+  "\u0434\u0435\u0440\u0456\u043D\u0435",
+  "\u0442\u0430\u0440\u044B\u043D\u0430",
+  "\u0442\u0435\u0440\u0456\u043D\u0435",
+  "\u043B\u0430\u0440\u0434\u044B\u04A3",
+  "\u043B\u0435\u0440\u0434\u0456\u04A3",
+  "\u0434\u0430\u0440\u0434\u044B\u04A3",
+  "\u0434\u0435\u0440\u0434\u0456\u04A3",
+  "\u0442\u0430\u0440\u0434\u044B\u04A3",
+  "\u0442\u0435\u0440\u0434\u0456\u04A3",
+  "\u043B\u0430\u0440\u0434\u0430\u043D",
+  "\u043B\u0435\u0440\u0434\u0435\u043D",
+  "\u0434\u0430\u0440\u0434\u0430\u043D",
+  "\u0434\u0435\u0440\u0434\u0435\u043D",
+  "\u0442\u0430\u0440\u0434\u0430\u043D",
+  "\u0442\u0435\u0440\u0434\u0435\u043D",
+  "\u043B\u0430\u0440\u0434\u0430",
+  "\u043B\u0435\u0440\u0434\u0435",
+  "\u0434\u0430\u0440\u0434\u0430",
+  "\u0434\u0435\u0440\u0434\u0435",
+  "\u0442\u0430\u0440\u0434\u0430",
+  "\u0442\u0435\u0440\u0434\u0435",
+  "\u043B\u0430\u0440\u0493\u0430",
+  "\u043B\u0435\u0440\u0433\u0435",
+  "\u0434\u0430\u0440\u0493\u0430",
+  "\u0434\u0435\u0440\u0433\u0435",
+  "\u0442\u0430\u0440\u0493\u0430",
+  "\u0442\u0435\u0440\u0433\u0435",
+  "\u043B\u0430\u0440\u0434\u044B",
+  "\u043B\u0435\u0440\u0434\u0456",
+  "\u0434\u0430\u0440\u0434\u044B",
+  "\u0434\u0435\u0440\u0434\u0456",
+  "\u0442\u0430\u0440\u0434\u044B",
+  "\u0442\u0435\u0440\u0434\u0456",
+  // Plural endings
+  "\u043B\u0430\u0440",
+  "\u043B\u0435\u0440",
+  "\u0434\u0430\u0440",
+  "\u0434\u0435\u0440",
+  "\u0442\u0430\u0440",
+  "\u0442\u0435\u0440",
+  // Case endings
+  "\u043D\u044B\u04A3",
+  "\u043D\u0456\u04A3",
+  "\u0434\u044B\u04A3",
+  "\u0434\u0456\u04A3",
+  "\u0442\u044B\u04A3",
+  "\u0442\u0456\u04A3",
+  "\u0434\u0430\u043D",
+  "\u0434\u0435\u043D",
+  "\u0442\u0430\u043D",
+  "\u0442\u0435\u043D",
+  "\u043D\u0430\u043D",
+  "\u043D\u0435\u043D",
+  "\u043C\u0435\u043D",
+  "\u0431\u0435\u043D",
+  "\u043F\u0435\u043D",
+  "\u043D\u0434\u0430",
+  "\u043D\u0434\u0435",
+  "\u0434\u0430",
+  "\u0434\u0435",
+  "\u0442\u0430",
+  "\u0442\u0435",
+  "\u0493\u0430",
+  "\u0433\u0435",
+  "\u049B\u0430",
+  "\u043A\u0435",
+  "\u043D\u0430",
+  "\u043D\u0435",
+  "\u043D\u044B",
+  "\u043D\u0456",
+  "\u0434\u044B",
+  "\u0434\u0456",
+  "\u0442\u044B",
+  "\u0442\u0456",
+  // Possessive endings
+  "\u044B\u043C\u044B\u0437",
+  "\u0456\u043C\u0456\u0437",
+  "\u043C\u044B\u0437",
+  "\u043C\u0456\u0437",
+  "\u044B\u04A3\u044B\u0437",
+  "\u0456\u04A3\u0456\u0437",
+  "\u04A3\u044B\u0437",
+  "\u04A3\u0456\u0437",
+  "\u044B\u04A3",
+  "\u0456\u04A3",
+  "\u044B\u043C",
+  "\u0456\u043C",
+  "\u0441\u044B",
+  "\u0441\u0456",
+  "\u044B",
+  "\u0456"
+];
+function stripKazakhSuffix(word) {
+  const candidates = [];
+  for (const suf of KAZAKH_SUFFIXES) {
+    if (word.endsWith(suf) && word.length - suf.length >= 3) {
+      candidates.push(word.slice(0, -suf.length));
+    }
+  }
+  return candidates;
+}
+function getFrequencyDb() {
+  if (freqDbInstance) return freqDbInstance;
+  const dbDir = import_path10.default.join(process.cwd(), "server", "frequency");
+  if (!import_fs11.default.existsSync(dbDir)) {
+    import_fs11.default.mkdirSync(dbDir, { recursive: true });
+  }
+  const dbPath = import_path10.default.join(dbDir, "frequency.db");
+  const db = new import_better_sqlite33.default(dbPath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS word_frequencies (
+      lang TEXT NOT NULL,
+      word TEXT NOT NULL,
+      rank INTEGER NOT NULL,
+      frequency INTEGER NOT NULL,
+      cefr TEXT NOT NULL,
+      PRIMARY KEY (lang, word)
+    );
+    CREATE INDEX IF NOT EXISTS idx_freq_lookup ON word_frequencies(lang, word);
+  `);
+  const langConfigs = [
+    { code: "en", file: "en_50k.txt" },
+    { code: "es", file: "es_50k.txt" },
+    { code: "de", file: "de_50k.txt" },
+    { code: "fr", file: "fr_50k.txt" },
+    { code: "it", file: "it_50k.txt" },
+    { code: "pt", file: "pt_50k.txt" },
+    { code: "kk", file: "kk_50k.txt" },
+    { code: "ru", file: "ru_50k.txt" },
+    { code: "uk", file: "uk_50k.txt" },
+    { code: "pl", file: "pl_50k.txt" },
+    { code: "cs", file: "cs_50k.txt" }
+  ];
+  for (const cfg of langConfigs) {
+    const row = db.prepare("SELECT COUNT(*) as c FROM word_frequencies WHERE lang = ?").get(cfg.code);
+    if (!row || row.c < 500) {
+      populateLanguageFrequencies(db, cfg.code, cfg.file);
+    }
+  }
+  freqDbInstance = db;
+  return db;
+}
+function calculateCefr(rank) {
+  if (rank <= 1e3) return "A1";
+  if (rank <= 2500) return "A2";
+  if (rank <= 5e3) return "B1";
+  if (rank <= 9e3) return "B2";
+  if (rank <= 16e3) return "C1";
+  if (rank <= 3e4) return "C2";
+  return "rare";
+}
+function populateLanguageFrequencies(db, lang, filename) {
+  const txtPath = import_path10.default.join(process.cwd(), "server", "frequency", filename);
+  if (!import_fs11.default.existsSync(txtPath)) {
+    console.warn(`${filename} not found, skipping frequency DB population for ${lang}`);
+    return;
+  }
+  console.log(`Populating ${lang.toUpperCase()} frequency database into SQLite...`);
+  const content = import_fs11.default.readFileSync(txtPath, "utf-8");
+  const lines = content.split("\n");
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO word_frequencies (lang, word, rank, frequency, cefr)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const insertMany = db.transaction((rows) => {
+    for (const r of rows) {
+      insertStmt.run(r[0], r[1], r[2], r[3], r[4]);
+    }
+  });
+  const batch = [];
+  let rank = 1;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split(/\s+/);
+    if (parts.length >= 2) {
+      const word = parts[0].toLowerCase().trim();
+      const freq = parseInt(parts[1], 10) || 0;
+      if (word && !word.startsWith("'") && word.length > 0) {
+        const cefr = calculateCefr(rank);
+        batch.push([lang, word, rank, freq, cefr]);
+        rank++;
+      }
+    }
+  }
+  if (batch.length > 0) {
+    insertMany(batch);
+    console.log(`Successfully indexed ${batch.length} ${lang.toUpperCase()} frequency words into SQLite!`);
+  }
+}
+function lookupWordFrequency(word, rawLang = "en") {
+  const lang = normalizeLangCode2(rawLang);
+  if (!lang) {
+    return null;
+  }
+  const cleanWord = word.trim().toLowerCase().replace(/[’‘`]/g, "'");
+  const db = getFrequencyDb();
+  const stmt = db.prepare(
+    "SELECT rank, frequency, cefr FROM word_frequencies WHERE lang = ? AND word = ?"
+  );
+  let row = stmt.get(lang, cleanWord);
+  if (!row && cleanWord.includes("'")) {
+    const parts = cleanWord.split("'");
+    if (parts.length >= 2) {
+      const basePart = parts[parts.length - 1];
+      const prefixPart = parts[0] + "'";
+      if (basePart) {
+        row = stmt.get(lang, basePart);
+      }
+      if (!row && prefixPart) {
+        row = stmt.get(lang, prefixPart);
+      }
+    }
+  }
+  if (!row && cleanWord.includes("-")) {
+    const parts = cleanWord.split("-");
+    for (const p of parts) {
+      if (p.length > 1) {
+        const subRow = stmt.get(lang, p);
+        if (subRow && (!row || subRow.rank < row.rank)) {
+          row = subRow;
+        }
+      }
+    }
+  }
+  if (!row && lang === "kk") {
+    const stemCandidates = stripKazakhSuffix(cleanWord);
+    for (const stem of stemCandidates) {
+      const stemRow = stmt.get("kk", stem);
+      if (stemRow && (!row || stemRow.rank < row.rank)) {
+        row = stemRow;
+      }
+    }
+  }
+  if (!row && lang === "ru" && (cleanWord.includes("\u0451") || cleanWord.includes("\u0435"))) {
+    const altWord1 = cleanWord.replace(/ё/g, "\u0435");
+    const altWord2 = cleanWord.replace(/е/g, "\u0451");
+    row = stmt.get("ru", altWord1) || stmt.get("ru", altWord2);
+  }
+  const totalWords = 5e4;
+  if (row) {
+    const percentile = Math.max(0.01, Math.min(100, row.rank / totalWords * 100));
+    return {
+      word: cleanWord,
+      lang,
+      found: true,
+      rank: row.rank,
+      frequency: row.frequency,
+      cefr: row.cefr,
+      percentile: parseFloat(percentile.toFixed(1)),
+      totalWords
+    };
+  }
+  return {
+    word: cleanWord,
+    lang,
+    found: false,
+    cefr: "rare",
+    totalWords
+  };
+}
+function lookupBatchWordFrequency(words, lang = "en") {
+  const db = getFrequencyDb();
+  const results = {};
+  const totalWords = 5e4;
+  if (!words || words.length === 0) return results;
+  const placeholders = words.map(() => "?").join(",");
+  const query = `
+    SELECT word, rank, frequency, cefr 
+    FROM word_frequencies 
+    WHERE lang = ? AND word IN (${placeholders})
+  `;
+  const rows = db.prepare(query).all(lang, ...words.map((w) => w.toLowerCase()));
+  const foundMap = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    foundMap.set(r.word, r);
+  }
+  for (const w of words) {
+    const lower = w.toLowerCase();
+    const row = foundMap.get(lower);
+    if (row) {
+      results[lower] = {
+        word: lower,
+        lang,
+        found: true,
+        rank: row.rank,
+        frequency: row.frequency,
+        cefr: row.cefr,
+        totalWords
+      };
+    } else {
+      results[lower] = {
+        word: lower,
+        lang,
+        found: false,
+        cefr: "rare",
+        totalWords
+      };
+    }
+  }
+  return results;
+}
+function analyzeTextComplexity(text, rawLang = "en") {
+  const lang = normalizeLangCode2(rawLang);
+  if (!lang) {
+    return null;
+  }
+  if (!text || !text.trim()) {
+    return {
+      totalWords: 0,
+      uniqueWords: 0,
+      coverage: { a1_a2: 100, b1_b2: 0, c1_c2: 0, rare: 0 },
+      cefrOverall: "A1",
+      stats: { a1: 0, a2: 0, b1: 0, b2: 0, c1: 0, c2: 0, rare: 0 },
+      rarestWords: []
+    };
+  }
+  const words = text.match(/[\p{L}'’]+/gu) || [];
+  const properNouns = /* @__PURE__ */ new Set();
+  const rawWordsWithPos = text.split(/\s+/);
+  for (let i = 1; i < rawWordsWithPos.length; i++) {
+    const prev = rawWordsWithPos[i - 1];
+    const curr = rawWordsWithPos[i].replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+    if (curr.length > 1 && !/[.!?]$/.test(prev) && /^\p{Lu}\p{Ll}+$/u.test(curr)) {
+      properNouns.add(curr.toLowerCase());
+    }
+  }
+  const rawTokens = [];
+  for (const w of words) {
+    const clean = w.toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+    if (clean.length > 1 && !properNouns.has(clean)) {
+      rawTokens.push(clean);
+    }
+  }
+  const totalWords = rawTokens.length;
+  if (totalWords === 0) {
+    return {
+      totalWords: 0,
+      uniqueWords: 0,
+      coverage: { a1_a2: 100, b1_b2: 0, c1_c2: 0, rare: 0 },
+      cefrOverall: "A1",
+      stats: { a1: 0, a2: 0, b1: 0, b2: 0, c1: 0, c2: 0, rare: 0 },
+      rarestWords: []
+    };
+  }
+  const uniqueWordsSet = new Set(rawTokens);
+  const uniqueWordsList = Array.from(uniqueWordsSet);
+  const batchResults = lookupBatchWordFrequency(uniqueWordsList, lang);
+  const stats = { a1: 0, a2: 0, b1: 0, b2: 0, c1: 0, c2: 0, rare: 0 };
+  const rarestWordsMap = /* @__PURE__ */ new Map();
+  for (const token of rawTokens) {
+    const res = batchResults[token];
+    if (res && res.found) {
+      stats[res.cefr.toLowerCase()]++;
+      if (res.cefr === "C1" || res.cefr === "C2" || res.cefr === "rare") {
+        if (!rarestWordsMap.has(token)) {
+          rarestWordsMap.set(token, { word: token, rank: res.rank, cefr: res.cefr });
+        }
+      }
+    } else {
+      stats.rare++;
+      if (!rarestWordsMap.has(token)) {
+        rarestWordsMap.set(token, { word: token, cefr: "rare" });
+      }
+    }
+  }
+  const a1_a2_pct = parseFloat(((stats.a1 + stats.a2) / totalWords * 100).toFixed(1));
+  const b1_b2_pct = parseFloat(((stats.b1 + stats.b2) / totalWords * 100).toFixed(1));
+  const c1_c2_pct = parseFloat(((stats.c1 + stats.c2) / totalWords * 100).toFixed(1));
+  const rare_pct = parseFloat((stats.rare / totalWords * 100).toFixed(1));
+  let cefrOverall = "A1";
+  if (a1_a2_pct >= 92) {
+    cefrOverall = stats.a2 > stats.a1 ? "A2" : "A1";
+  } else if (a1_a2_pct + b1_b2_pct >= 88) {
+    cefrOverall = stats.b2 > stats.b1 ? "B2" : "B1";
+  } else if (c1_c2_pct > 8 || rare_pct > 6) {
+    cefrOverall = "C2";
+  } else {
+    cefrOverall = "C1";
+  }
+  const rarestWords = Array.from(rarestWordsMap.values()).sort((a, b) => (b.rank || 999999) - (a.rank || 999999)).slice(0, 10);
+  return {
+    totalWords,
+    uniqueWords: uniqueWordsSet.size,
+    coverage: {
+      a1_a2: a1_a2_pct,
+      b1_b2: b1_b2_pct,
+      c1_c2: c1_c2_pct,
+      rare: rare_pct
+    },
+    cefrOverall,
+    stats,
+    rarestWords
+  };
+}
+
+// routes/frequency.ts
 var frequencyRouter = (0, import_express10.Router)();
 frequencyRouter.get("/lookup", (req, res) => {
   try {
@@ -19541,7 +19636,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.44";
+var APP_VERSION = "v1.0.45";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);
