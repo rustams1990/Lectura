@@ -1961,6 +1961,14 @@ export default function App() {
         message: e?.message || "Ошибка подключения",
         error: true,
       }));
+      // If server is currently booting up on machine start, retry automatically in 3s
+      if (!serverInitialLoadComplete.current && storageMode === "server") {
+        setTimeout(() => {
+          if (!serverInitialLoadComplete.current && storageMode === "server") {
+            loadDataFromLocalServer(true).catch(() => {});
+          }
+        }, 3000);
+      }
     } finally {
       isServerLoadInProgress.current = false;
       setIsSyncing(false);

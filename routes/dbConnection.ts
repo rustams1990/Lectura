@@ -1177,3 +1177,15 @@ export function getDbConnection(_rawUserId: string = "default"): Database.Databa
   console.log("[DB] Shared database ready at:", SQLITE_DB_PATH);
   return _sharedDb;
 }
+
+export function closeDbConnection(): void {
+  if (_sharedDb) {
+    try {
+      _sharedDb.close();
+      console.log("[DB] SQLite connection closed cleanly.");
+    } catch (e) {
+      console.error("[DB] Error closing SQLite connection:", e);
+    }
+    _sharedDb = null;
+  }
+}

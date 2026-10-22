@@ -19,6 +19,7 @@ import translateRouter from "./routes/translate.ts";
 import historyRouter from "./routes/history.ts";
 import lessonsRouter from "./routes/lessons.ts";
 import systemRouter from "./routes/system.ts";
+import { closeDbConnection } from "./routes/dbConnection.ts";
 import { ensureStartupVersionCheckAndBackup, getLiveServerVersion } from "./server/updaterService.ts";
 import { startBackupScheduler } from "./server/backupService.ts";
 import { processVideoFile, switchVideoAudioTrack } from "./server/videoProcessor.ts";
@@ -357,10 +358,6 @@ self.addEventListener("activate", (event) => {
   app.use("/api/lessons", lessonsRouter);
   app.use("/api", systemRouter);
 
-  // Start background automated backup scheduler
-  await ensureStartupVersionCheckAndBackup();
-  startBackupScheduler();
-
   // ============================================================
   // Frontend Middleware (Vite Dev Server / Production Static Files)
   // ============================================================
@@ -396,9 +393,43 @@ self.addEventListener("activate", (event) => {
     });
   }
 
-  app.listen(Number(PORT), "0.0.0.0", () => {
+  // Bind and start listening immediately so clients and Docker healthcheck connect in < 100ms
+  const server = app.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`Server is running at http://localhost:${PORT}`);
   });
+
+  // Background non-blocking tasks: do NOT delay HTTP server startup
+  ensureStartupVersionCheckAndBackup().catch((e) => {
+    console.warn("[Startup Version Check] Warning:", e);
+  });
+  startBackupScheduler();
+
+  // Graceful shutdown handling for Docker & systemd (instant shutdown without 90s SIGKILL timeout)
+  let isShuttingDown = false;
+  const gracefulShutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[Server] Received ${signal}. Initiating graceful shutdown...`);
+
+    server.close(() => {
+      try {
+        closeDbConnection();
+      } catch (_) {}
+      console.log("[Server] HTTP server and database closed. Clean exit.");
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      try {
+        closeDbConnection();
+      } catch (_) {}
+      console.log("[Server] Force exiting after shutdown timeout.");
+      process.exit(0);
+    }, 2500);
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 }
 
 startServer().catch((err) => {

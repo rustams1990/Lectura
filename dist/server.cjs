@@ -4101,6 +4101,17 @@ function getDbConnection(_rawUserId = "default") {
   console.log("[DB] Shared database ready at:", SQLITE_DB_PATH);
   return _sharedDb;
 }
+function closeDbConnection() {
+  if (_sharedDb) {
+    try {
+      _sharedDb.close();
+      console.log("[DB] SQLite connection closed cleanly.");
+    } catch (e) {
+      console.error("[DB] Error closing SQLite connection:", e);
+    }
+    _sharedDb = null;
+  }
+}
 
 // routes/auth.ts
 var router4 = (0, import_express4.Router)();
@@ -19530,7 +19541,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.43";
+var APP_VERSION = "v1.0.44";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);
@@ -21107,8 +21118,6 @@ self.addEventListener("activate", (event) => {
   app.use("/api", history_default);
   app.use("/api/lessons", lessons_default);
   app.use("/api", system_default);
-  await ensureStartupVersionCheckAndBackup();
-  startBackupScheduler();
   if (process.env.NODE_ENV !== "production") {
     const vite = await (0, import_vite.createServer)({
       server: { middlewareMode: true },
@@ -21135,9 +21144,37 @@ self.addEventListener("activate", (event) => {
       res.sendFile(import_path17.default.join(distPath, "index.html"));
     });
   }
-  app.listen(Number(PORT), "0.0.0.0", () => {
+  const server = app.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`Server is running at http://localhost:${PORT}`);
   });
+  ensureStartupVersionCheckAndBackup().catch((e) => {
+    console.warn("[Startup Version Check] Warning:", e);
+  });
+  startBackupScheduler();
+  let isShuttingDown = false;
+  const gracefulShutdown = (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[Server] Received ${signal}. Initiating graceful shutdown...`);
+    server.close(() => {
+      try {
+        closeDbConnection();
+      } catch (_) {
+      }
+      console.log("[Server] HTTP server and database closed. Clean exit.");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      try {
+        closeDbConnection();
+      } catch (_) {
+      }
+      console.log("[Server] Force exiting after shutdown timeout.");
+      process.exit(0);
+    }, 2500);
+  };
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 }
 startServer().catch((err) => {
   console.error("FATAL ERROR IN startServer:", err);

@@ -73,6 +73,12 @@ export function UserAvatarDisplay({
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
 }) {
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [avatarUrl]);
+
   const sizeClasses = {
     xs: "w-5 h-5 text-[10px]",
     sm: "w-7 h-7 text-xs",
@@ -81,7 +87,7 @@ export function UserAvatarDisplay({
     xl: "w-20 h-20 text-4xl"
   };
 
-  const isImg = avatarUrl && (
+  const isImg = !imgError && avatarUrl && (
     avatarUrl.startsWith("data:image") || 
     avatarUrl.startsWith("http") || 
     avatarUrl.startsWith("/api/") ||
@@ -94,8 +100,9 @@ export function UserAvatarDisplay({
   if (isImg) {
     return (
       <img
-        src={avatarUrl}
-        alt={name || "User avatar"}
+        src={avatarUrl!}
+        alt=""
+        onError={() => setImgError(true)}
         className={`rounded-full object-cover border border-teal-500/30 bg-zinc-100 dark:bg-zinc-800 shrink-0 ${sizeClasses[size]} ${className}`}
       />
     );
