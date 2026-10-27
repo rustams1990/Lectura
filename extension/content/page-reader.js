@@ -39076,7 +39076,7 @@
         const cssHighlights = window.CSS?.highlights;
         const HighlightCtor = window.Highlight;
         if (!cssHighlights || !HighlightCtor || !document.body) return;
-        const stageNames = ["lectura-stage-new", "lectura-stage-1", "lectura-stage-2", "lectura-stage-3", "lectura-stage-4"];
+        const stageNames = ["lectura-stage-new", "lectura-stage-1", "lectura-stage-2", "lectura-stage-3", "lectura-stage-4", "lectura-stage-5"];
         for (const name of stageNames) {
           cssHighlights.delete(name);
         }
@@ -39107,6 +39107,10 @@
             background-color: rgba(59, 130, 246, 0.18);
             text-decoration: underline rgba(37, 99, 235, 0.80) 2px;
           }
+          ::highlight(lectura-stage-5) {
+            background-color: rgba(192, 132, 252, 0.20);
+            text-decoration: underline rgba(168, 85, 247, 0.80) 2px;
+          }
         `;
           document.head.appendChild(styleEl);
         }
@@ -39118,12 +39122,14 @@
         if (!hasLoadedDict) return;
         const normalizeStage = (rawStatus) => {
           const s3 = String(rawStatus ?? "").toLowerCase().trim();
-          if (["ignored", "ignore", "0"].includes(s3)) return "known";
-          if (["known", "known_completely", "well_known", "5"].includes(s3)) return "known";
-          if (s3 === "1" || s3 === "learning") return "1";
-          if (s3 === "2" || s3 === "hard") return "2";
-          if (s3 === "3" || s3 === "remembering") return "3";
-          if (s3 === "4" || s3 === "almost_known") return "4";
+          if (["ignored", "ignore", "0"].includes(s3)) return "ignored";
+          if (["known", "known_completely", "well_known"].includes(s3)) return "known";
+          if (["1", "2", "3", "4", "5"].includes(s3)) return s3;
+          if (s3 === "learning") return "1";
+          if (s3 === "hard") return "2";
+          if (s3 === "remembering") return "3";
+          if (s3 === "almost_known") return "4";
+          if (s3 === "mastered") return "5";
           return "";
         };
         const resolvedTokenCache = /* @__PURE__ */ new Map();
@@ -39177,7 +39183,7 @@
           resolvedTokenCache.set(lower, "new");
           return "new";
         };
-        const rangesByStage = { new: [], "1": [], "2": [], "3": [], "4": [] };
+        const rangesByStage = { new: [], "1": [], "2": [], "3": [], "4": [], "5": [] };
         const skipTags = /* @__PURE__ */ new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "CODE", "PRE", "SVG", "MATH", "BUTTON", "NAV", "HEADER", "FOOTER"]);
         const wordRegex = /[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu;
         let totalRanges = 0;
@@ -39204,7 +39210,7 @@
             const rawToken = match2[0];
             if (rawToken.length < 2) continue;
             const stage = resolveWordStage(rawToken);
-            if (stage === "1" || stage === "2" || stage === "3" || stage === "4" || stage === "new" && inReadableBlock) {
+            if (stage === "1" || stage === "2" || stage === "3" || stage === "4" || stage === "5" || stage === "new" && inReadableBlock) {
               const r2 = document.createRange();
               r2.setStart(currentNode, match2.index);
               r2.setEnd(currentNode, match2.index + rawToken.length);
@@ -39214,7 +39220,7 @@
             }
           }
         }
-        for (const stage of ["new", "1", "2", "3", "4"]) {
+        for (const stage of ["new", "1", "2", "3", "4", "5"]) {
           if (rangesByStage[stage].length > 0) {
             cssHighlights.set(`lectura-stage-${stage}`, new HighlightCtor(...rangesByStage[stage]));
           }
@@ -41062,7 +41068,13 @@
       const normalizeStatusValue = (s3) => {
         const str = String(s3 || "").toLowerCase().trim();
         if (["ignored", "ignore", "0"].includes(str)) return "0";
-        if (["known", "known_completely", "5"].includes(str)) return "known";
+        if (["known", "known_completely", "well_known"].includes(str)) return "known";
+        if (["1", "2", "3", "4", "5"].includes(str)) return str;
+        if (str === "mastered") return "5";
+        if (str === "almost_known") return "4";
+        if (str === "remembering") return "3";
+        if (str === "hard") return "2";
+        if (str === "learning") return "1";
         return str || "new";
       };
       const status = normalizeStatusValue(rawStatus);
@@ -41875,8 +41887,18 @@
         if (!translationToSave) {
           translationToSave = _PageReader.localTranslationCache.get(`${currentLang}:${cleanLower}`) || _PageReader.localTranslationCache.get(cleanLower) || (this.cachedWordsByLang[currentLang] || {})[cleanLower]?.translation || "";
         }
+        const isMultiWord = isPhrase || word.includes(" ");
+        const isAllUpper = word === word.toUpperCase() && word !== word.toLowerCase() && word.length > 1;
+        const isAcronym4 = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(word);
+        const isGerman = currentLang.toLowerCase().startsWith("de");
+        let wordToSave = word;
+        if (isAllUpper && !isAcronym4) {
+          wordToSave = isGerman ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : cleanLower;
+        } else if (!isGerman && !isAcronym4 && !isMultiWord) {
+          wordToSave = cleanLower;
+        }
         await this.apiClient.saveWord({
-          word,
+          word: wordToSave,
           lemma: cleanLower,
           translation: translationToSave,
           status,

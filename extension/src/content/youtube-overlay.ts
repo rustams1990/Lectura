@@ -4333,8 +4333,9 @@ class YouTubeLecturaOverlay {
       if (raw === undefined || raw === null) return 'new';
       const s = String(raw).toLowerCase().trim();
       if (['ignored', 'ignore', '0'].includes(s)) return 'ignored';
-      if (['known', 'known_completely', 'well_known', '5'].includes(s)) return 'known';
-      if (['1', '2', '3', '4'].includes(s)) return s;
+      if (['known', 'known_completely', 'well_known'].includes(s)) return 'known';
+      if (['1', '2', '3', '4', '5'].includes(s)) return s;
+      if (s === 'mastered') return '5';
       if (s === 'hard') return '2';
       if (s === 'remembering') return '3';
       if (s === 'almost_known') return '4';
@@ -4984,9 +4985,9 @@ class YouTubeLecturaOverlay {
     let learningCount = 0;
     for (const w of uniqueWords) {
       const info = this.lookupWordInfo(w);
-      if (info.status === 'known' || info.status === 'ignored' || info.status === '0' || info.status === '5') {
+      if (info.status === 'known' || info.status === 'ignored' || info.status === '0') {
         knownOrIgnored++;
-      } else if (['1', '2', '3', '4', 'learning'].includes(info.status)) {
+      } else if (['1', '2', '3', '4', '5', 'learning'].includes(info.status)) {
         learningCount++;
       } else {
         newCount++;
@@ -5161,7 +5162,7 @@ class YouTubeLecturaOverlay {
           continue;
         }
         const info = this.lookupWordInfo(lower);
-        if (info.status === 'known' || info.status === 'ignored' || info.status === '0' || info.status === '5') {
+        if (info.status === 'known' || info.status === 'ignored' || info.status === '0') {
           continue;
         }
         const rawTrans =
@@ -6708,7 +6709,7 @@ class YouTubeLecturaOverlay {
         const rawInherited = linkRes?.parentStatus ?? (this.cachedWordsByLang[langCode] || {})[cleanParent]?.status;
         if (rawInherited !== undefined && rawInherited !== null) {
           const s = String(rawInherited).toLowerCase().trim();
-          const inheritedStatus = ['known', 'known_completely', 'well_known', '5'].includes(s)
+          const inheritedStatus = ['known', 'known_completely', 'well_known'].includes(s)
             ? 'known'
             : ['ignored', 'ignore', '0'].includes(s)
               ? 'ignored'
@@ -7150,8 +7151,18 @@ class YouTubeLecturaOverlay {
           ? this.preparsedSentences[this.currentSentenceIndex]
           : undefined;
 
+      const isAllUpper = word === word.toUpperCase() && word !== word.toLowerCase() && word.length > 1;
+      const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(word);
+      const isGerman = targetLang.toLowerCase().startsWith('de');
+      let wordToSave = word;
+      if (isAllUpper && !isAcronym) {
+        wordToSave = isGerman ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : cleanLower;
+      } else if (!isGerman && !isAcronym && !isMultiWord) {
+        wordToSave = cleanLower;
+      }
+
       await this.apiClient.saveWord({
-        word,
+        word: wordToSave,
         lemma: cleanLower,
         translation: translationToSave,
         grammar: this.activeWordData?.grammar,

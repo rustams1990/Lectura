@@ -358,7 +358,7 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     setVocab((prev) => {
       const nextVocab = { ...prev };
 
-      // Inherit existing family definition ONLY if this update didn't specify one
+      // Inherit existing family definition & imageUrl ONLY if this update didn't specify one
       if (effectiveItem.definition === undefined) {
         for (const lw of linkedWords) {
           if (lw === cleanWord) continue;
@@ -366,6 +366,17 @@ export function VocabProvider({ children }: { children: ReactNode }) {
           const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
           if (ex?.definition && ex.definition.trim() !== "") {
             effectiveItem.definition = ex.definition.trim();
+            break;
+          }
+        }
+      }
+      if (effectiveItem.imageUrl === undefined || effectiveItem.imageUrl === null) {
+        for (const lw of linkedWords) {
+          if (lw === cleanWord) continue;
+          const k = `${activeLang}_${lw}`;
+          const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
+          if (ex?.imageUrl && typeof ex.imageUrl === "string" && ex.imageUrl.trim() !== "") {
+            effectiveItem.imageUrl = ex.imageUrl.trim();
             break;
           }
         }
@@ -410,12 +421,79 @@ export function VocabProvider({ children }: { children: ReactNode }) {
     const sourceKey = `${activeLang}_${lowerFrom}`;
     const targetKey = `${activeLang}_${lowerTo}`;
 
-    setWordLinks((prev) => {
-      const nextWordLinks = {
-        ...prev,
-        [sourceKey]: targetKey,
-      };
-      return nextWordLinks;
+    const nextWordLinks = {
+      ...wordLinks,
+      [sourceKey]: targetKey,
+    };
+    setWordLinks(nextWordLinks);
+
+    // Sync image and definition across family
+    setVocab((prev) => {
+      const familyWords = Array.from(new Set([
+        lowerFrom,
+        lowerTo,
+        ...getLinkedWordsFor(lowerTo, activeLang, nextWordLinks),
+        ...getLinkedWordsFor(lowerFrom, activeLang, nextWordLinks)
+      ]));
+
+      let targetDefinition: string | undefined = undefined;
+      let targetImageUrl: string | undefined = undefined;
+      for (const fw of familyWords) {
+        const item = prev[`${activeLang}_${fw}`] || prev[`english_${fw}`] || prev[`spanish_${fw}`] || prev[`french_${fw}`] || prev[`german_${fw}`] || prev[fw];
+        if (!targetDefinition && item?.definition && item.definition.trim() !== "") {
+          targetDefinition = item.definition.trim();
+        }
+        if (!targetImageUrl && item?.imageUrl && typeof item.imageUrl === "string" && item.imageUrl.trim() !== "") {
+          targetImageUrl = item.imageUrl.trim();
+        }
+      }
+
+      let targetStatus: WordStatus = "2";
+      for (const fw of familyWords) {
+        const item = prev[`${activeLang}_${fw}`] || prev[`english_${fw}`] || prev[`spanish_${fw}`] || prev[`french_${fw}`] || prev[`german_${fw}`] || prev[fw];
+        if (item?.status && item.status !== "new") {
+          targetStatus = item.status;
+          break;
+        }
+      }
+
+      const nextVocab = { ...prev };
+      const now = Date.now();
+      familyWords.forEach((linkedWord) => {
+        const k = `${activeLang}_${linkedWord}`.toLowerCase();
+        markWordLocallyMutated(k);
+        markWordLocallyMutated(linkedWord);
+        const existing = prev[k] || prev[linkedWord];
+        if (existing) {
+          nextVocab[k] = {
+            ...existing,
+            status: existing.status && existing.status !== "new" ? existing.status : targetStatus,
+            definition: targetDefinition || existing.definition || undefined,
+            imageUrl: existing.imageUrl || targetImageUrl || null,
+            updatedAt: now,
+          };
+        } else {
+          nextVocab[k] = {
+            word: linkedWord,
+            status: targetStatus,
+            translation: "",
+            definition: targetDefinition || undefined,
+            ipa: "",
+            grammar: "",
+            contextRelation: "",
+            examples: [],
+            createdAt: now,
+            updatedAt: now,
+            tags: [],
+            imageUrl: targetImageUrl || null,
+          };
+        }
+      });
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("lectura:vocab_updated", { detail: nextVocab }));
+      }
+      return nextVocab;
     });
   };
 

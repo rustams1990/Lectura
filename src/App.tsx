@@ -263,6 +263,15 @@ export default function App() {
       wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || DEFAULT_READER_SETTINGS.wordCardMode,
       bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || DEFAULT_READER_SETTINGS.bookWordCardMode,
       showTimestamps: localStorage.getItem("lectura_show_timestamps") !== "false",
+      ttsLocale: localStorage.getItem("lectura_tts_locale") || DEFAULT_READER_SETTINGS.ttsLocale,
+      ttsLocales: (() => {
+        try {
+          const raw = localStorage.getItem("lectura_tts_locales");
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) {
+          return {};
+        }
+      })(),
       toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
     };
     try {
@@ -286,6 +295,10 @@ export default function App() {
         return {
           ...defaults,
           ...parsed,
+          ttsLocales: {
+            ...(defaults.ttsLocales || {}),
+            ...(parsed.ttsLocales || {}),
+          },
           toolbarVisibility: {
             ...DEFAULT_TOOLBAR_VISIBILITY,
             ...(parsed.toolbarVisibility || {}),
@@ -322,7 +335,7 @@ export default function App() {
       selectedVariant: languageFlags[lang.toLowerCase()] || undefined,
     });
     if (storageMode === "server") {
-      syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettings, pinnedLanguages, hiddenLanguages, lang).catch(() => {});
+      syncDataToLocalServer(lessons, lessonTypes, vocab, wordLinks, listeningSeconds, languageFlags, historyRef.current, undefined, readerSettingsRef.current, pinnedLanguages, hiddenLanguages, lang).catch(() => {});
     }
   };
 
@@ -984,6 +997,12 @@ export default function App() {
       if (next.readerLayoutWidth) {
         safeLocalStorageSetItem("lectura_reader_layout_width", next.readerLayoutWidth);
       }
+      if (next.ttsLocale) {
+        safeLocalStorageSetItem("lectura_tts_locale", next.ttsLocale);
+      }
+      if (next.ttsLocales) {
+        safeLocalStorageSetItem("lectura_tts_locales", JSON.stringify(next.ttsLocales));
+      }
       settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
       try {
         fetch(resolveApiUrl("/api/user/settings"), {
@@ -1388,6 +1407,7 @@ export default function App() {
   const serverInitialLoadComplete = useRef<boolean>(false);
   const serverDbEtagRef = useRef<string>("");
   const isServerLoadInProgress = useRef<boolean>(false);
+  const consecutiveServerLoadErrorsRef = useRef<number>(0);
   const [isInitialServerLoading, setIsInitialServerLoading] = useState<boolean>(() => {
     return storageMode === "server" && !serverInitialLoadComplete.current;
   });
@@ -1603,6 +1623,7 @@ export default function App() {
 
       if (res.status === 304) {
         console.log(`[Load] /api/server-db 304 Not Modified in ${(performance.now() - fetchStart).toFixed(0)}ms — up to date`);
+        consecutiveServerLoadErrorsRef.current = 0;
         lastSyncSuccessTime.current = Date.now();
         setLocalSyncError(false);
         setIsSyncing(false);
@@ -1619,18 +1640,23 @@ export default function App() {
       }
 
       if (res.status === 401 || res.status === 403) {
-        setLocalSyncError(true);
+        consecutiveServerLoadErrorsRef.current += 1;
         setIsSyncing(false);
-        setSyncProgress({
-          isSyncing: false,
-          percent: 0,
-          message: "Ошибка доступа (401/403)",
-          error: true,
-          lastSyncTime: lastSyncSuccessTime.current,
-        });
+        if (consecutiveServerLoadErrorsRef.current >= 2) {
+          setLocalSyncError(true);
+          setSyncProgress({
+            isSyncing: false,
+            percent: 0,
+            message: "Ошибка доступа (401/403)",
+            error: true,
+            lastSyncTime: lastSyncSuccessTime.current,
+          });
+        }
         return;
       }
       if (res.ok) {
+        consecutiveServerLoadErrorsRef.current = 0;
+        setLocalSyncError(false);
         const receivedEtag = res.headers.get("etag");
         if (receivedEtag) {
           serverDbEtagRef.current = receivedEtag;
@@ -1773,12 +1799,23 @@ export default function App() {
             if (!settingsRecentlyChanged) {
               const nextSettings: ReaderSettings = {
                 ...DEFAULT_READER_SETTINGS,
+                ...readerSettingsRef.current,
                 ...d.readerSettings,
+                ttsLocales: {
+                  ...(readerSettingsRef.current?.ttsLocales || {}),
+                  ...(d.readerSettings.ttsLocales || {}),
+                },
                 toolbarVisibility: {
                   ...DEFAULT_TOOLBAR_VISIBILITY,
                   ...(d.readerSettings.toolbarVisibility || {}),
                 },
               };
+              if (nextSettings.ttsLocale) {
+                safeLocalStorageSetItem("lectura_tts_locale", nextSettings.ttsLocale);
+              }
+              if (nextSettings.ttsLocales) {
+                safeLocalStorageSetItem("lectura_tts_locales", JSON.stringify(nextSettings.ttsLocales));
+              }
               setReaderSettings(nextSettings);
               readerSettingsRef.current = nextSettings;
               useSettingsStore.getState().setSettings(nextSettings);
@@ -1980,14 +2017,19 @@ export default function App() {
         }));
       }
     } catch (e: any) {
-      console.error("Failed to load or seed dataset from local server:", e);
-      setSyncProgress(prev => ({
-        ...prev,
-        isSyncing: false,
-        percent: 0,
-        message: e?.message || "Ошибка подключения",
-        error: true,
-      }));
+      console.warn("Failed to load or seed dataset from local server (transient):", e);
+      consecutiveServerLoadErrorsRef.current += 1;
+      const isHardOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const shouldShowOffline = isHardOffline || consecutiveServerLoadErrorsRef.current >= 3;
+      if (shouldShowOffline) {
+        setSyncProgress(prev => ({
+          ...prev,
+          isSyncing: false,
+          percent: 0,
+          message: isHardOffline ? "Нет сети" : (e?.message || "Ошибка подключения"),
+          error: true,
+        }));
+      }
       // If server is currently booting up on machine start, retry automatically in 3s
       if (!serverInitialLoadComplete.current && storageMode === "server") {
         setTimeout(() => {
@@ -2000,12 +2042,15 @@ export default function App() {
       isServerLoadInProgress.current = false;
       setIsSyncing(false);
       setIsInitialServerLoading(false);
+      const isHardOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const hasError = isHardOffline || consecutiveServerLoadErrorsRef.current >= 3;
       setSyncProgress(prev => ({
         ...prev,
         isSyncing: false,
-        percent: prev.error ? 0 : 100,
-        message: prev.error ? (prev.message || "Ошибка") : "В сети",
-        lastSyncTime: prev.error ? prev.lastSyncTime : Date.now(),
+        percent: hasError ? 0 : 100,
+        message: hasError ? (prev.message || "Ошибка") : "В сети",
+        lastSyncTime: hasError ? prev.lastSyncTime : Date.now(),
+        error: hasError,
       }));
     }
   };
@@ -2058,7 +2103,7 @@ export default function App() {
     deletedHistoryIds?: string[]
   ) => {
     if (storageMode !== "server") return;
-    if (localSyncError) return;
+    // Attempt sync even if localSyncError was set, so transient glitches can auto-heal
     lastLocalChangeTime.current = Date.now();
     
     if (deletedLessonIds) pendingSyncDeletedLessonsRef.current.push(...deletedLessonIds);
@@ -2218,6 +2263,8 @@ export default function App() {
         return;
       }
       if (res.ok) {
+        setLocalSyncError(false);
+        consecutiveServerLoadErrorsRef.current = 0;
         lastSyncedVocabRef.current = fullVocab;
         lastSyncedLinksRef.current = fullLinks;
         lastSyncedLessonsMapRef.current = new Map(fullLessons.map((l) => [l.id, l]));
@@ -2234,14 +2281,17 @@ export default function App() {
         }));
       }
     } catch (e: any) {
-      console.error("Failed to auto-sync with local dev server:", e);
-      setSyncProgress(prev => ({
-        ...prev,
-        isSyncing: false,
-        percent: 0,
-        message: e?.message || "Ошибка отправки",
-        error: true,
-      }));
+      console.warn("Failed to auto-sync with local dev server (transient):", e);
+      const isHardOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (isHardOffline) {
+        setSyncProgress(prev => ({
+          ...prev,
+          isSyncing: false,
+          percent: 0,
+          message: "Нет сети",
+          error: true,
+        }));
+      }
     }
     }, 1500);
   };
@@ -2765,13 +2815,16 @@ export default function App() {
         ...getLinkedWordsFor(lowerFrom, activeLang, nextWordLinks)
       ]));
 
-      // Search across ALL words in the entire family in `prev` to find the definition
+      // Search across ALL words in the entire family in `prev` to find the definition and imageUrl
       let targetDefinition: string | undefined = undefined;
+      let targetImageUrl: string | undefined = undefined;
       for (const fw of familyWords) {
         const item = prev[`${activeLang}_${fw}`] || prev[`english_${fw}`] || prev[`spanish_${fw}`] || prev[`french_${fw}`] || prev[`german_${fw}`] || prev[fw];
-        if (item?.definition && item.definition.trim() !== "") {
+        if (!targetDefinition && item?.definition && item.definition.trim() !== "") {
           targetDefinition = item.definition.trim();
-          break;
+        }
+        if (!targetImageUrl && item?.imageUrl && typeof item.imageUrl === "string" && item.imageUrl.trim() !== "") {
+          targetImageUrl = item.imageUrl.trim();
         }
       }
 
@@ -2798,6 +2851,7 @@ export default function App() {
             ...existing,
             status: existing.status && existing.status !== "new" ? existing.status : targetStatus,
             definition: targetDefinition || existing.definition || undefined,
+            imageUrl: existing.imageUrl || targetImageUrl || null,
             updatedAt: now,
           };
         } else {
@@ -2813,7 +2867,7 @@ export default function App() {
             createdAt: now,
             updatedAt: now,
             tags: [],
-            imageUrl: null,
+            imageUrl: targetImageUrl || null,
           };
         }
       });
@@ -2869,7 +2923,7 @@ export default function App() {
     setVocab((prev) => {
       const nextVocab = { ...prev };
       
-      // Inherit existing family definition ONLY if this update didn't specify one and wasn't explicitly cleared ("")
+      // Inherit existing family definition & imageUrl ONLY if this update didn't specify one
       let effectiveItem = { ...newVocabItem };
       if (effectiveItem.definition === undefined) {
         for (const lw of linkedWords) {
@@ -2878,6 +2932,17 @@ export default function App() {
           const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
           if (ex?.definition && ex.definition.trim() !== "") {
             effectiveItem.definition = ex.definition.trim();
+            break;
+          }
+        }
+      }
+      if (effectiveItem.imageUrl === undefined || effectiveItem.imageUrl === null) {
+        for (const lw of linkedWords) {
+          if (lw === cleanWord) continue;
+          const k = `${activeLang}_${lw}`;
+          const ex = prev[k] || prev[`english_${lw}`] || prev[`spanish_${lw}`] || prev[`french_${lw}`] || prev[`german_${lw}`] || prev[lw];
+          if (ex?.imageUrl && typeof ex.imageUrl === "string" && ex.imageUrl.trim() !== "") {
+            effectiveItem.imageUrl = ex.imageUrl.trim();
             break;
           }
         }

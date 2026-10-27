@@ -31,6 +31,10 @@ const initialMode = getInitialWordCardMode();
 const defaultSettings: ReaderSettings = {
   ...DEFAULT_READER_SETTINGS,
   wordCardMode: initialMode,
+  ttsLocale: (typeof window !== 'undefined' && window.localStorage?.getItem('lectura_tts_locale')) || DEFAULT_READER_SETTINGS.ttsLocale,
+  ttsLocales: (typeof window !== 'undefined' && window.localStorage?.getItem('lectura_tts_locales'))
+    ? (() => { try { return JSON.parse(window.localStorage.getItem('lectura_tts_locales')!); } catch (_) { return {}; } })()
+    : {},
 };
 
 export let lastSettingsLocalMutationTime = 0;
@@ -60,7 +64,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setSettings: (newSettings: Partial<ReaderSettings>) => {
     markSettingsLocallyMutated();
     set((state) => {
-      const merged = { ...state.settings, ...newSettings };
+      const merged = {
+        ...state.settings,
+        ...newSettings,
+        ttsLocales: {
+          ...(state.settings.ttsLocales || {}),
+          ...(newSettings.ttsLocales || {}),
+        },
+      };
       const mode = (newSettings.wordCardMode || merged.wordCardMode || state.wordCardMode) as WordCardMode;
       if (newSettings.wordCardMode && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_word_card_mode', newSettings.wordCardMode);
@@ -106,6 +117,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       if (newSettings.showTimestamps !== undefined && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_show_timestamps', String(newSettings.showTimestamps));
+      }
+      if (newSettings.ttsLocale && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_tts_locale', newSettings.ttsLocale);
+      }
+      if (newSettings.ttsLocales && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_tts_locales', JSON.stringify(newSettings.ttsLocales));
       }
       return {
         settings: merged,

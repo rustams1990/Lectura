@@ -7,6 +7,26 @@ import { ignoreListManager } from "../src/services/ignoreListService.ts";
 
 const router = Router();
 
+export function normalizeCanonicalWord(token: string, lang: string): string {
+  const trimmed = (token || "").trim();
+  if (!trimmed) return "";
+  const isAllUpper = trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase() && trimmed.length > 1;
+  const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(trimmed);
+  const langLower = (lang || "").toLowerCase();
+  const isGerman = langLower.startsWith("de") || langLower.startsWith("german");
+
+  if (isAllUpper && !isAcronym) {
+    if (isGerman) {
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    }
+    return trimmed.toLowerCase();
+  }
+  if (!isGerman && !isAcronym && !trimmed.includes(" ")) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
+}
+
 // 1. Save / Update Word (Vocabulary Item)
 router.post("/words", (req: Request, res: Response) => {
   let userId: string;
@@ -45,6 +65,7 @@ router.post("/words", (req: Request, res: Response) => {
   const rawLang = (language_code || targetLanguage || language || "English").trim();
   const langName = normalizeLang(rawLang);
   const langLower = langName.toLowerCase();
+  const canonicalWord = normalizeCanonicalWord(rawWord, langName);
   const wordStatus = String(status || "1");
   let wordTranslation = (translation || "").trim();
   const invalidPlaceholders = ["translating...", "loading...", "—", "— (нет данных)", "перевод не найден"];
@@ -79,13 +100,14 @@ router.post("/words", (req: Request, res: Response) => {
       ON CONFLICT(code) DO NOTHING
     `).run(langName, langName);
 
-    const newWordId = `${userId}_${langLower}_${rawWord.toLowerCase()}`;
+    const newWordId = `${userId}_${langLower}_${canonicalWord.toLowerCase()}`;
 
-    const existing = db.prepare("SELECT id, translation FROM words WHERE user_id = ? AND language_code = ? AND word = ?").get(userId, langName, rawWord) as any;
+    const existing = db.prepare("SELECT id, translation FROM words WHERE user_id = ? AND language_code = ? AND (word = ? OR lower(word) = ?)").get(userId, langName, canonicalWord, canonicalWord.toLowerCase()) as any;
 
     if (existing) {
       db.prepare(`
         UPDATE words SET
+          word = ?,
           translation = CASE WHEN ? != '' THEN ? ELSE words.translation END,
           definition = CASE WHEN ? = 1 THEN ? ELSE definition END,
           ipa = CASE WHEN ? != '' THEN ? ELSE ipa END,
@@ -95,8 +117,9 @@ router.post("/words", (req: Request, res: Response) => {
           tags = ?,
           imageUrl = COALESCE(?, imageUrl),
           examples = CASE WHEN ? != '[]' THEN ? ELSE examples END
-        WHERE user_id = ? AND language_code = ? AND word = ?
+        WHERE user_id = ? AND id = ?
       `).run(
+        canonicalWord,
         wordTranslation, wordTranslation,
         hasDefinition ? 1 : 0, wordDefinition,
         wordIpa, wordIpa,
@@ -107,8 +130,7 @@ router.post("/words", (req: Request, res: Response) => {
         imageUrl || null,
         examplesJson, examplesJson,
         userId,
-        langName,
-        rawWord
+        existing.id
       );
     } else {
       db.prepare(`
@@ -117,6 +139,7 @@ router.post("/words", (req: Request, res: Response) => {
           ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          word = excluded.word,
           status = excluded.status,
           examples = CASE WHEN excluded.examples != '[]' THEN excluded.examples ELSE words.examples END,
           imageUrl = COALESCE(excluded.imageUrl, words.imageUrl)
@@ -124,7 +147,7 @@ router.post("/words", (req: Request, res: Response) => {
         newWordId,
         userId,
         langName,
-        rawWord,
+        canonicalWord,
         wordTranslation,
         wordDefinition,
         wordIpa,
@@ -138,11 +161,11 @@ router.post("/words", (req: Request, res: Response) => {
       );
     }
 
-    console.log(`[EXTENSION API] Word saved: '${rawWord}' -> '${wordTranslation}' (${wordStatus}) [${langName}] for user "${userId}"`);
+    console.log(`[EXTENSION API] Word saved: '${canonicalWord}' (orig: '${rawWord}') -> '${wordTranslation}' (${wordStatus}) [${langName}] for user "${userId}"`);
     return res.json({
       status: "success",
       userId,
-      word: rawWord,
+      word: canonicalWord,
       language: langName,
       wordStatus,
       translation: wordTranslation

@@ -281,6 +281,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   segmentSpacing: "normal",
   ttsEngine: "google",
   ttsLocale: "en-US",
+  ttsLocales: {},
   autoPunctuationSplit: true,
   wordHighlight: true,
   idiomHighlightStyle: "underline",

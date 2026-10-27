@@ -1,9 +1,23 @@
 import { Router, Request, Response } from "express";
-import { resolveUserId } from "./auth.ts";
+import { resolveUserId, handleAuthError } from "./auth.ts";
 import { getDbConnection } from "./dbConnection.ts";
 import { matchLanguage, LANG_MAP } from "./htmlTextUtils.ts";
 
 const router = Router();
+
+export function safeParseTags(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((t) => String(t).trim()).filter(Boolean);
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map((t) => String(t).trim()).filter(Boolean);
+      if (typeof parsed === "string") return [parsed.trim()].filter(Boolean);
+    } catch (_) {}
+    return raw.split(",").map((t) => t.trim()).filter(Boolean);
+  }
+  return [];
+}
 
 function normalizeLang(lang: string): string {
   if (!lang) return "Spanish";
@@ -28,10 +42,7 @@ export function handleTrackActivity(req: Request, res: Response) {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 
   const {
@@ -308,10 +319,7 @@ router.patch("/history/:id", (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 
   const { id } = req.params;
@@ -416,7 +424,7 @@ router.patch("/history/:id", (req: Request, res: Response) => {
             db.prepare("INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(tagId, userId, pTag, null, nextTargetLang || null, Date.now());
             db.prepare("INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)").run(userId, id, tagId, 1);
           }
-          const parsedTags = nextTags ? (typeof nextTags === "string" ? JSON.parse(nextTags) : nextTags) : [];
+          const parsedTags = safeParseTags(nextTags);
           if (Array.isArray(parsedTags)) {
             for (const t of parsedTags) {
               if (!t || typeof t !== "string" || !t.trim()) continue;
@@ -467,10 +475,7 @@ router.delete("/history/:id", (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 
   const { id } = req.params;
@@ -529,10 +534,7 @@ router.post("/history/batch-edit", (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 
   const { ids, targetLanguage, primaryTag, tags, tagMode = "replace" } = req.body;
@@ -628,10 +630,7 @@ router.post("/history/assign-channel", (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 
   const { lessonIds, historyIds, channelName, channelAvatarUrl, channelUrl } = req.body;
@@ -788,10 +787,7 @@ const getDayActivityHandler = (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ" });
+    return handleAuthError(err, res);
   }
 
   const dateStr = req.query.date ? String(req.query.date).trim() : new Date().toISOString().slice(0, 10);
@@ -923,10 +919,7 @@ router.delete("/activity/log/:id", (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ" });
+    return handleAuthError(err, res);
   }
 
   const { id } = req.params;

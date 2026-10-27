@@ -783,7 +783,14 @@ export function normalizeVocabRecord(record: Record<string, any> | any[] | undef
     const cleanWord = rawWord.replace(/^[a-zA-Z]+_/, "");
     if (!cleanWord) continue;
 
-    const cleanKey = `${lang}_${cleanWord.toLowerCase()}`;
+    const isAllUpper = cleanWord === cleanWord.toUpperCase() && cleanWord !== cleanWord.toLowerCase() && cleanWord.length > 1;
+    const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(cleanWord);
+    const isGerman = lang.startsWith("de") || lang.startsWith("german");
+    const canonicalWord = (isAllUpper && !isAcronym)
+      ? (isGerman ? cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase() : cleanWord.toLowerCase())
+      : cleanWord;
+
+    const cleanKey = `${lang}_${canonicalWord.toLowerCase()}`;
 
     let cleanStatus = "known";
     const rawStatus = typeof value.status === "string"
@@ -808,7 +815,7 @@ export function normalizeVocabRecord(record: Record<string, any> | any[] | undef
     }
 
     normalized[cleanKey] = {
-      word: cleanWord,
+      word: canonicalWord,
       translation: typeof value.translation === "string" ? value.translation : "",
       definition: typeof value.definition === "string" && value.definition.trim() !== "" ? value.definition.trim() : undefined,
       grammar: normGrammar,

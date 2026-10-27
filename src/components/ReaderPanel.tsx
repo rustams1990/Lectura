@@ -448,8 +448,19 @@ function ReaderPanel({
       sentenceSpacing: resolved.sentenceSpacing || "normal",
       segmentSpacing: resolved.segmentSpacing || "normal",
       ttsEngine: settings?.ttsEngine || "google",
-      ttsLocale: settings?.ttsLocale || "",
-      ttsLocales: settings?.ttsLocales || {},
+      ttsLocale: settings?.ttsLocale || (typeof window !== "undefined" ? localStorage.getItem("lectura_tts_locale") || "" : ""),
+      ttsLocales: settings?.ttsLocales && Object.keys(settings.ttsLocales).length > 0
+        ? settings.ttsLocales
+        : (typeof window !== "undefined"
+            ? (() => {
+                try {
+                  const raw = localStorage.getItem("lectura_tts_locales");
+                  return raw ? JSON.parse(raw) : {};
+                } catch (_) {
+                  return {};
+                }
+              })()
+            : {}),
       localTtsUrl: settings?.localTtsUrl || "http://localhost:8880/v1/audio/speech",
       localTtsVoice: settings?.localTtsVoice || "af_sarah",
       wordHighlight: settings?.wordHighlight !== false,
@@ -816,7 +827,16 @@ function ReaderPanel({
     const lower = w.toLowerCase();
     const lang = lesson.targetLanguage.toLowerCase();
     const langKey = `${lang}_${lower}`;
-    const resolved = wordLinks[langKey] || lower;
+    let resolved = wordLinks[langKey] || wordLinks[lower] || lower;
+    let depth = 0;
+    while (depth < 5) {
+      const cleanResolved = resolved.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+      const nextLangKey = `${lang}_${cleanResolved}`;
+      const nextResolved = wordLinks[nextLangKey] || wordLinks[cleanResolved];
+      if (!nextResolved || nextResolved.toLowerCase() === cleanResolved) break;
+      resolved = nextResolved;
+      depth++;
+    }
     return resolved.replace(/^[a-zA-Z]+_/, "");
   };
 
@@ -2382,21 +2402,49 @@ function ReaderPanel({
 
                     if (lq) {
                       const rawBaseWord = wordLinks[`${lang}_${cleanWordLower}`] || (wordLinks[cleanWordLower] ? wordLinks[cleanWordLower] : "");
-                      const baseWord = rawBaseWord ? rawBaseWord.replace(/^[a-zA-Z]+_/, "") : "";
+                      const baseWord = (rawBaseWord ? rawBaseWord.replace(/^[a-zA-Z]+_/, "") : (key !== cleanWordLower ? key : "")).trim();
+
+                      const isMeaningfulText = (str?: string | null) => {
+                        if (!str) return false;
+                        const trimmed = str.trim();
+                        if (!trimmed || trimmed === "Pending translation" || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+                          return false;
+                        }
+                        return true;
+                      };
+
+                      const resolvedTranslation: string =
+                        (isMeaningfulText(exactVocab?.translation) ? exactVocab!.translation.trim() : "") ||
+                        (isMeaningfulText(parentVocab?.translation) ? parentVocab!.translation.trim() : "") ||
+                        "";
 
                       const resolvedDefinition: string =
-                        exactVocab?.definition ||
-                        (parentVocab && parentVocab !== exactVocab ? parentVocab.definition : undefined) ||
+                        (isMeaningfulText(exactVocab?.definition) ? exactVocab!.definition.trim() : "") ||
+                        (isMeaningfulText(parentVocab?.definition) ? parentVocab!.definition.trim() : "") ||
                         "";
+
+                      const resolvedImageUrl: string | undefined =
+                        (exactVocab?.imageUrl && exactVocab.imageUrl.trim() ? exactVocab.imageUrl.trim() : undefined) ||
+                        (parentVocab?.imageUrl && parentVocab.imageUrl.trim() ? parentVocab.imageUrl.trim() : undefined) ||
+                        undefined;
+
+                      const resolvedTags =
+                        (exactVocab?.tags && exactVocab.tags.length > 0)
+                          ? exactVocab.tags
+                          : (parentVocab?.tags && parentVocab.tags.length > 0 ? parentVocab.tags : undefined);
+
+                      const resolvedGrammar =
+                        (exactVocab?.grammar && exactVocab.grammar.trim() ? exactVocab.grammar.trim() : undefined) ||
+                        (parentVocab?.grammar && parentVocab.grammar.trim() ? parentVocab.grammar.trim() : undefined);
                       
                       setHoveredWordObj({
                         word: cWord,
                         parentWord: (baseWord && baseWord.toLowerCase() !== cleanWordLower) ? baseWord : undefined,
-                        translation: lq.translation,
+                        translation: resolvedTranslation,
                         definition: resolvedDefinition || undefined,
-                        tags: lq.tags,
-                        grammar: lq.grammar,
-                        imageUrl: lq.imageUrl || undefined,
+                        tags: resolvedTags,
+                        grammar: resolvedGrammar,
+                        imageUrl: resolvedImageUrl,
                         x: rect.left + rect.width / 2,
                         y: posY,
                         position: showBelow ? "below" : "above",

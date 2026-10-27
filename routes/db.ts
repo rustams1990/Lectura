@@ -3,11 +3,11 @@ import path from "path";
 import fs from "fs";
 import zlib from "zlib";
 import { getDbConnection, getUserDbVersion, touchUserDbVersion } from "./dbConnection.ts";
-import { resolveUserId } from "./auth.ts";
+import { resolveUserId, handleAuthError } from "./auth.ts";
 import { analyzeTextComplexity } from "../server/frequency/frequencyService.ts";
 import { cleanWordPrefix, deduplicateDbPlaylistItems, LANG_MAP, normalizeLang } from "./htmlTextUtils.ts";
 import { handleDictionaryExplain } from "./dictionaryLookup.ts";
-import vocabRouter from "./vocabRoutes.ts";
+import vocabRouter, { normalizeCanonicalWord } from "./vocabRoutes.ts";
 
 export { LANG_MAP, normalizeLang };
 
@@ -298,6 +298,23 @@ export function getLocalServerDb(userId: string = "default") {
       }
     }
 
+    // Merge authoritative user_settings (which stores settings via PATCH /api/user/settings)
+    // so readerSettings is never missing fields like ttsLocales
+    try {
+      const userSettingsRow = db.prepare("SELECT settings FROM user_settings WHERE user_id = ?").get(userId) as any;
+      if (userSettingsRow?.settings) {
+        const parsedUser = JSON.parse(userSettingsRow.settings);
+        readerSettings = {
+          ...(readerSettings || {}),
+          ...parsedUser,
+          ttsLocales: {
+            ...(readerSettings?.ttsLocales || {}),
+            ...(parsedUser.ttsLocales || {})
+          }
+        };
+      }
+    } catch (_) {}
+
     return {
       lessons,
       playlists,
@@ -482,15 +499,16 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
           const val = value as any;
           const lang = (match ? match[1] : (val?.language || "english")).toLowerCase();
           const wordVal = cleanWordPrefix(val.word || (match ? match[2] : key));
+          const canonicalWordVal = normalizeCanonicalWord(wordVal, lang);
 
-          if (!wordVal || wordVal.length > 80 || /[\r\n\t]/.test(wordVal)) {
+          if (!canonicalWordVal || canonicalWordVal.length > 80 || /[\r\n\t]/.test(canonicalWordVal)) {
             continue;
           }
 
           const tagsJson = (val.tags && Array.isArray(val.tags) && val.tags.length > 0) ? JSON.stringify(val.tags) : null;
           const examplesJson = (val.examples && Array.isArray(val.examples) && val.examples.length > 0) ? JSON.stringify(val.examples) : null;
 
-          const wordKey = `${lang}_${wordVal.toLowerCase()}`;
+          const wordKey = `${lang}_${canonicalWordVal.toLowerCase()}`;
           const wordId = `${userId}_${wordKey}`;
 
           const nextTranslation = val.translation || "";
@@ -546,7 +564,7 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
             wordId,
             userId,
             lang,
-            wordVal,
+            canonicalWordVal,
             nextTranslation,
             nextDefinition,
             nextIpa,
@@ -858,7 +876,32 @@ export function saveLocalServerDb(userId: string = "default", data: any) {
       }
 
       if (data.readerSettings && typeof data.readerSettings === "object") {
-        insertMetadata.run(userId, "readerSettings", JSON.stringify(data.readerSettings));
+        let existingSettings: Record<string, any> = {};
+        try {
+          const userRow = db.prepare("SELECT settings FROM user_settings WHERE user_id = ?").get(userId) as any;
+          if (userRow?.settings) {
+            existingSettings = JSON.parse(userRow.settings);
+          } else {
+            const metaRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'readerSettings'").get(userId) as any;
+            if (metaRow?.value) {
+              existingSettings = JSON.parse(metaRow.value);
+            }
+          }
+        } catch (_) {}
+
+        const mergedSettings = {
+          ...existingSettings,
+          ...data.readerSettings,
+          ttsLocales: {
+            ...(existingSettings.ttsLocales || {}),
+            ...(data.readerSettings.ttsLocales || {}),
+          },
+        };
+        const serialized = JSON.stringify(mergedSettings);
+        insertMetadata.run(userId, "readerSettings", serialized);
+        try {
+          db.prepare("INSERT OR REPLACE INTO user_settings (user_id, settings, updated_at) VALUES (?, ?, ?)").run(userId, serialized, Date.now());
+        } catch (_) {}
       }
 
       if (data.pinnedLanguages && Array.isArray(data.pinnedLanguages)) {
@@ -1156,10 +1199,7 @@ router.get("/server-db", (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 
   // Fast ETag check: if user data has not changed, return 304 Not Modified in < 2ms (0 bytes)
@@ -1206,10 +1246,7 @@ router.post("/server-db", (req: Request, res: Response) => {
   try {
     userId = resolveUserId(req);
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 
   const success = saveLocalServerDb(userId, data);

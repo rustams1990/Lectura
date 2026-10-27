@@ -377,7 +377,7 @@ export class PageReader {
       const HighlightCtor = (window as any).Highlight;
       if (!cssHighlights || !HighlightCtor || !document.body) return;
 
-      const stageNames = ['lectura-stage-new', 'lectura-stage-1', 'lectura-stage-2', 'lectura-stage-3', 'lectura-stage-4'];
+      const stageNames = ['lectura-stage-new', 'lectura-stage-1', 'lectura-stage-2', 'lectura-stage-3', 'lectura-stage-4', 'lectura-stage-5'];
       for (const name of stageNames) {
         cssHighlights.delete(name);
       }
@@ -411,6 +411,10 @@ export class PageReader {
             background-color: rgba(59, 130, 246, 0.18);
             text-decoration: underline rgba(37, 99, 235, 0.80) 2px;
           }
+          ::highlight(lectura-stage-5) {
+            background-color: rgba(192, 132, 252, 0.20);
+            text-decoration: underline rgba(168, 85, 247, 0.80) 2px;
+          }
         `;
         document.head.appendChild(styleEl);
       }
@@ -424,12 +428,14 @@ export class PageReader {
 
       const normalizeStage = (rawStatus: any): string => {
         const s = String(rawStatus ?? '').toLowerCase().trim();
-        if (['ignored', 'ignore', '0'].includes(s)) return 'known';
-        if (['known', 'known_completely', 'well_known', '5'].includes(s)) return 'known';
-        if (s === '1' || s === 'learning') return '1';
-        if (s === '2' || s === 'hard') return '2';
-        if (s === '3' || s === 'remembering') return '3';
-        if (s === '4' || s === 'almost_known') return '4';
+        if (['ignored', 'ignore', '0'].includes(s)) return 'ignored';
+        if (['known', 'known_completely', 'well_known'].includes(s)) return 'known';
+        if (['1', '2', '3', '4', '5'].includes(s)) return s;
+        if (s === 'learning') return '1';
+        if (s === 'hard') return '2';
+        if (s === 'remembering') return '3';
+        if (s === 'almost_known') return '4';
+        if (s === 'mastered') return '5';
         return '';
       };
 
@@ -496,7 +502,7 @@ export class PageReader {
         return 'new';
       };
 
-      const rangesByStage: Record<string, Range[]> = { new: [], '1': [], '2': [], '3': [], '4': [] };
+      const rangesByStage: Record<string, Range[]> = { new: [], '1': [], '2': [], '3': [], '4': [], '5': [] };
       const skipTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'SELECT', 'CODE', 'PRE', 'SVG', 'MATH', 'BUTTON', 'NAV', 'HEADER', 'FOOTER']);
       const wordRegex = /[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu;
       let totalRanges = 0;
@@ -528,7 +534,7 @@ export class PageReader {
           const rawToken = match[0];
           if (rawToken.length < 2) continue;
           const stage = resolveWordStage(rawToken);
-          if (stage === '1' || stage === '2' || stage === '3' || stage === '4' || (stage === 'new' && inReadableBlock)) {
+          if (stage === '1' || stage === '2' || stage === '3' || stage === '4' || stage === '5' || (stage === 'new' && inReadableBlock)) {
             const r = document.createRange();
             r.setStart(currentNode, match.index);
             r.setEnd(currentNode, match.index + rawToken.length);
@@ -539,7 +545,7 @@ export class PageReader {
         }
       }
 
-      for (const stage of ['new', '1', '2', '3', '4']) {
+      for (const stage of ['new', '1', '2', '3', '4', '5']) {
         if (rangesByStage[stage].length > 0) {
           cssHighlights.set(`lectura-stage-${stage}`, new HighlightCtor(...rangesByStage[stage]));
         }
@@ -2547,7 +2553,13 @@ export class PageReader {
     const normalizeStatusValue = (s: any): string => {
       const str = String(s || '').toLowerCase().trim();
       if (['ignored', 'ignore', '0'].includes(str)) return '0';
-      if (['known', 'known_completely', '5'].includes(str)) return 'known';
+      if (['known', 'known_completely', 'well_known'].includes(str)) return 'known';
+      if (['1', '2', '3', '4', '5'].includes(str)) return str;
+      if (str === 'mastered') return '5';
+      if (str === 'almost_known') return '4';
+      if (str === 'remembering') return '3';
+      if (str === 'hard') return '2';
+      if (str === 'learning') return '1';
       return str || 'new';
     };
     const status = normalizeStatusValue(rawStatus);
@@ -3413,8 +3425,19 @@ export class PageReader {
           '';
       }
 
+      const isMultiWord = isPhrase || word.includes(' ');
+      const isAllUpper = word === word.toUpperCase() && word !== word.toLowerCase() && word.length > 1;
+      const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(word);
+      const isGerman = currentLang.toLowerCase().startsWith('de');
+      let wordToSave = word;
+      if (isAllUpper && !isAcronym) {
+        wordToSave = isGerman ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : cleanLower;
+      } else if (!isGerman && !isAcronym && !isMultiWord) {
+        wordToSave = cleanLower;
+      }
+
       await this.apiClient.saveWord({
-        word,
+        word: wordToSave,
         lemma: cleanLower,
         translation: translationToSave,
         status,

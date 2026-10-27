@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Lesson } from "../types";
-import { safeJsonParse, getBCP47LanguageTag, FLAG_EMOJI_TO_CODE, normalizeLanguage } from "../utils";
+import { safeJsonParse, getBCP47LanguageTag, getEffectiveTtsLocale, FLAG_EMOJI_TO_CODE, normalizeLanguage } from "../utils";
 import { useToast } from "../context/ToastContext";
 import { APP_VERSION } from "../version";
 import { 
@@ -1680,7 +1680,9 @@ function SettingsModal({
 
                 {/* Accent / Locale Picker — always visible */}
                 {(() => {
-                  const currentLocale = settings?.ttsLocale || "en-US";
+                  const currentLocale = selectedTargetLanguage && selectedTargetLanguage !== "All"
+                    ? getEffectiveTtsLocale(selectedTargetLanguage, settings)
+                    : (settings?.ttsLocale || "en-US");
                   const getIsSelected = (code: string) => {
                     const baseCode = code.split("-")[0].toLowerCase();
                     if (settings?.ttsLocales?.[baseCode]) {

@@ -4119,7 +4119,8 @@ function autoAssignDefaultDataToPrimaryUser(db) {
 }
 function getDbConnection(_rawUserId = "default") {
   if (_sharedDb) return _sharedDb;
-  _sharedDb = new import_better_sqlite32.default(SQLITE_DB_PATH);
+  _sharedDb = new import_better_sqlite32.default(SQLITE_DB_PATH, { timeout: 1e4 });
+  _sharedDb.pragma("busy_timeout = 10000");
   _sharedDb.pragma("journal_mode = WAL");
   _sharedDb.pragma("synchronous = NORMAL");
   _sharedDb.pragma("temp_store = MEMORY");
@@ -4166,6 +4167,32 @@ function getDbConnection(_rawUserId = "default") {
     })();
   } catch (e) {
     console.warn("[DB] ISO language normalization warning:", e);
+  }
+  try {
+    const allWords = _sharedDb.prepare("SELECT id, word, language_code FROM words").all();
+    const updateWordStmt = _sharedDb.prepare("UPDATE words SET word = ? WHERE id = ?");
+    const wordsToFix = [];
+    for (const row of allWords) {
+      if (typeof row.word === "string" && row.word.length > 1) {
+        const isAllUpper = row.word === row.word.toUpperCase() && row.word !== row.word.toLowerCase();
+        const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(row.word);
+        if (isAllUpper && !isAcronym) {
+          const isGerman = (row.language_code || "").toLowerCase().startsWith("de") || (row.language_code || "").toLowerCase().startsWith("german");
+          const fixed = isGerman ? row.word.charAt(0).toUpperCase() + row.word.slice(1).toLowerCase() : row.word.toLowerCase();
+          wordsToFix.push({ id: row.id, word: fixed });
+        }
+      }
+    }
+    if (wordsToFix.length > 0) {
+      _sharedDb.transaction(() => {
+        for (const w of wordsToFix) {
+          updateWordStmt.run(w.word, w.id);
+        }
+      })();
+      console.log(`[DB] Normalized casing for ${wordsToFix.length} all-caps words in SQLite.`);
+    }
+  } catch (e) {
+    console.warn("[DB] Word casing normalization warning:", e);
   }
   console.log("[DB] Shared database ready at:", SQLITE_DB_PATH);
   return _sharedDb;
@@ -4254,19 +4281,38 @@ async function verifyPassword(password, storedHash) {
   }
   return false;
 }
+function handleAuthError(err, res) {
+  if (err?.message === "UNAUTHORIZED_TOKEN") {
+    return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
+  }
+  if (err?.message === "UNAUTHORIZED_SYNC_KEY") {
+    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+  }
+  console.error("[Auth/User Resolution Error]:", err);
+  return res.status(503).json({ error: "\u0421\u0435\u0440\u0432\u0435\u0440 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u0437\u0430\u043D\u044F\u0442, \u043F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u0435 \u043F\u043E\u043F\u044B\u0442\u043A\u0443" });
+}
 function resolveUserId(req) {
   const authHeader = req.headers["authorization"];
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7).trim();
     if (token) {
-      const db = getDbConnection("default");
-      const session = db.prepare("SELECT user_id, expires_at FROM server_sessions WHERE token = ?").get(token);
-      if (session) {
-        if (session.expires_at && session.expires_at < Date.now()) {
-          db.prepare("DELETE FROM server_sessions WHERE token = ?").run(token);
-        } else {
-          return session.user_id;
+      try {
+        const db = getDbConnection("default");
+        const session = db.prepare("SELECT user_id, expires_at FROM server_sessions WHERE token = ?").get(token);
+        if (session) {
+          if (session.expires_at && session.expires_at < Date.now()) {
+            try {
+              db.prepare("DELETE FROM server_sessions WHERE token = ?").run(token);
+            } catch (_) {
+            }
+            throw new Error("UNAUTHORIZED_TOKEN");
+          } else {
+            return session.user_id;
+          }
         }
+      } catch (err) {
+        if (err?.message === "UNAUTHORIZED_TOKEN") throw err;
+        console.warn("[resolveUserId] Session lookup query warning:", err?.message);
       }
     }
   }
@@ -4300,10 +4346,7 @@ function requireAuth(req, res, next) {
     req.userId = userId;
     next();
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
 }
 router4.post("/register", authRateLimit, async (req, res) => {
@@ -11271,6 +11314,24 @@ var ignoreListManager = new IgnoreListManager();
 
 // routes/vocabRoutes.ts
 var router5 = (0, import_express5.Router)();
+function normalizeCanonicalWord(token, lang) {
+  const trimmed = (token || "").trim();
+  if (!trimmed) return "";
+  const isAllUpper = trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase() && trimmed.length > 1;
+  const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(trimmed);
+  const langLower = (lang || "").toLowerCase();
+  const isGerman = langLower.startsWith("de") || langLower.startsWith("german");
+  if (isAllUpper && !isAcronym) {
+    if (isGerman) {
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    }
+    return trimmed.toLowerCase();
+  }
+  if (!isGerman && !isAcronym && !trimmed.includes(" ")) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
+}
 router5.post("/words", (req, res) => {
   let userId;
   try {
@@ -11305,6 +11366,7 @@ router5.post("/words", (req, res) => {
   const rawLang = (language_code || targetLanguage || language || "English").trim();
   const langName = normalizeLang(rawLang);
   const langLower = langName.toLowerCase();
+  const canonicalWord = normalizeCanonicalWord(rawWord, langName);
   const wordStatus = String(status || "1");
   let wordTranslation = (translation || "").trim();
   const invalidPlaceholders = ["translating...", "loading...", "\u2014", "\u2014 (\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445)", "\u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D"];
@@ -11334,11 +11396,12 @@ router5.post("/words", (req, res) => {
       INSERT INTO languages (code, name, flag) VALUES (?, ?, NULL)
       ON CONFLICT(code) DO NOTHING
     `).run(langName, langName);
-    const newWordId = `${userId}_${langLower}_${rawWord.toLowerCase()}`;
-    const existing = db.prepare("SELECT id, translation FROM words WHERE user_id = ? AND language_code = ? AND word = ?").get(userId, langName, rawWord);
+    const newWordId = `${userId}_${langLower}_${canonicalWord.toLowerCase()}`;
+    const existing = db.prepare("SELECT id, translation FROM words WHERE user_id = ? AND language_code = ? AND (word = ? OR lower(word) = ?)").get(userId, langName, canonicalWord, canonicalWord.toLowerCase());
     if (existing) {
       db.prepare(`
         UPDATE words SET
+          word = ?,
           translation = CASE WHEN ? != '' THEN ? ELSE words.translation END,
           definition = CASE WHEN ? = 1 THEN ? ELSE definition END,
           ipa = CASE WHEN ? != '' THEN ? ELSE ipa END,
@@ -11348,8 +11411,9 @@ router5.post("/words", (req, res) => {
           tags = ?,
           imageUrl = COALESCE(?, imageUrl),
           examples = CASE WHEN ? != '[]' THEN ? ELSE examples END
-        WHERE user_id = ? AND language_code = ? AND word = ?
+        WHERE user_id = ? AND id = ?
       `).run(
+        canonicalWord,
         wordTranslation,
         wordTranslation,
         hasDefinition ? 1 : 0,
@@ -11366,8 +11430,7 @@ router5.post("/words", (req, res) => {
         examplesJson,
         examplesJson,
         userId,
-        langName,
-        rawWord
+        existing.id
       );
     } else {
       db.prepare(`
@@ -11376,6 +11439,7 @@ router5.post("/words", (req, res) => {
           ipa, grammar, contextRelation, status, createdAt, tags, imageUrl, examples
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          word = excluded.word,
           status = excluded.status,
           examples = CASE WHEN excluded.examples != '[]' THEN excluded.examples ELSE words.examples END,
           imageUrl = COALESCE(excluded.imageUrl, words.imageUrl)
@@ -11383,7 +11447,7 @@ router5.post("/words", (req, res) => {
         newWordId,
         userId,
         langName,
-        rawWord,
+        canonicalWord,
         wordTranslation,
         wordDefinition,
         wordIpa,
@@ -11396,11 +11460,11 @@ router5.post("/words", (req, res) => {
         examplesJson
       );
     }
-    console.log(`[EXTENSION API] Word saved: '${rawWord}' -> '${wordTranslation}' (${wordStatus}) [${langName}] for user "${userId}"`);
+    console.log(`[EXTENSION API] Word saved: '${canonicalWord}' (orig: '${rawWord}') -> '${wordTranslation}' (${wordStatus}) [${langName}] for user "${userId}"`);
     return res.json({
       status: "success",
       userId,
-      word: rawWord,
+      word: canonicalWord,
       language: langName,
       wordStatus,
       translation: wordTranslation
@@ -12018,6 +12082,21 @@ function getLocalServerDb(userId = "default") {
         lastActiveLessonId = row.value;
       }
     }
+    try {
+      const userSettingsRow = db.prepare("SELECT settings FROM user_settings WHERE user_id = ?").get(userId);
+      if (userSettingsRow?.settings) {
+        const parsedUser = JSON.parse(userSettingsRow.settings);
+        readerSettings = {
+          ...readerSettings || {},
+          ...parsedUser,
+          ttsLocales: {
+            ...readerSettings?.ttsLocales || {},
+            ...parsedUser.ttsLocales || {}
+          }
+        };
+      }
+    } catch (_) {
+    }
     return {
       lessons,
       playlists,
@@ -12177,12 +12256,13 @@ function saveLocalServerDb(userId = "default", data) {
           const val = value;
           const lang = (match ? match[1] : val?.language || "english").toLowerCase();
           const wordVal = cleanWordPrefix(val.word || (match ? match[2] : key));
-          if (!wordVal || wordVal.length > 80 || /[\r\n\t]/.test(wordVal)) {
+          const canonicalWordVal = normalizeCanonicalWord(wordVal, lang);
+          if (!canonicalWordVal || canonicalWordVal.length > 80 || /[\r\n\t]/.test(canonicalWordVal)) {
             continue;
           }
           const tagsJson = val.tags && Array.isArray(val.tags) && val.tags.length > 0 ? JSON.stringify(val.tags) : null;
           const examplesJson = val.examples && Array.isArray(val.examples) && val.examples.length > 0 ? JSON.stringify(val.examples) : null;
-          const wordKey = `${lang}_${wordVal.toLowerCase()}`;
+          const wordKey = `${lang}_${canonicalWordVal.toLowerCase()}`;
           const wordId = `${userId}_${wordKey}`;
           const nextTranslation = val.translation || "";
           const nextDefinition = val.definition && typeof val.definition === "string" && val.definition.trim() !== "" ? val.definition.trim() : null;
@@ -12211,7 +12291,7 @@ function saveLocalServerDb(userId = "default", data) {
             wordId,
             userId,
             lang,
-            wordVal,
+            canonicalWordVal,
             nextTranslation,
             nextDefinition,
             nextIpa,
@@ -12467,7 +12547,33 @@ function saveLocalServerDb(userId = "default", data) {
         insertMetadata.run(userId, "listeningSeconds", String(data.listeningSeconds));
       }
       if (data.readerSettings && typeof data.readerSettings === "object") {
-        insertMetadata.run(userId, "readerSettings", JSON.stringify(data.readerSettings));
+        let existingSettings = {};
+        try {
+          const userRow = db.prepare("SELECT settings FROM user_settings WHERE user_id = ?").get(userId);
+          if (userRow?.settings) {
+            existingSettings = JSON.parse(userRow.settings);
+          } else {
+            const metaRow = db.prepare("SELECT value FROM metadata WHERE user_id = ? AND key = 'readerSettings'").get(userId);
+            if (metaRow?.value) {
+              existingSettings = JSON.parse(metaRow.value);
+            }
+          }
+        } catch (_) {
+        }
+        const mergedSettings = {
+          ...existingSettings,
+          ...data.readerSettings,
+          ttsLocales: {
+            ...existingSettings.ttsLocales || {},
+            ...data.readerSettings.ttsLocales || {}
+          }
+        };
+        const serialized = JSON.stringify(mergedSettings);
+        insertMetadata.run(userId, "readerSettings", serialized);
+        try {
+          db.prepare("INSERT OR REPLACE INTO user_settings (user_id, settings, updated_at) VALUES (?, ?, ?)").run(userId, serialized, Date.now());
+        } catch (_) {
+        }
       }
       if (data.pinnedLanguages && Array.isArray(data.pinnedLanguages)) {
         insertMetadata.run(userId, "pinnedLanguages", JSON.stringify(data.pinnedLanguages));
@@ -12705,10 +12811,7 @@ router6.get("/server-db", (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
   const userVersion = getUserDbVersion(userId);
   const etag = `W/"${userId}-${userVersion}"`;
@@ -12748,10 +12851,7 @@ router6.post("/server-db", (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
   const success = saveLocalServerDb(userId, data);
   if (success) touchUserDbVersion(userId);
@@ -17959,6 +18059,20 @@ var translate_default = router12;
 // routes/history.ts
 var import_express14 = require("express");
 var router13 = (0, import_express14.Router)();
+function safeParseTags(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((t) => String(t).trim()).filter(Boolean);
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map((t) => String(t).trim()).filter(Boolean);
+      if (typeof parsed === "string") return [parsed.trim()].filter(Boolean);
+    } catch (_) {
+    }
+    return raw.split(",").map((t) => t.trim()).filter(Boolean);
+  }
+  return [];
+}
 function normalizeLang2(lang) {
   if (!lang) return "Spanish";
   const lower = lang.trim().toLowerCase();
@@ -17973,10 +18087,7 @@ function handleTrackActivity(req, res) {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
   const {
     videoId,
@@ -18203,10 +18314,7 @@ router13.patch("/history/:id", (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
   const { id } = req.params;
   const updates = req.body;
@@ -18320,7 +18428,7 @@ router13.patch("/history/:id", (req, res) => {
             db.prepare("INSERT OR IGNORE INTO tags (id, user_id, name, color, targetLanguage, createdAt) VALUES (?, ?, ?, ?, ?, ?)").run(tagId, userId, pTag, null, nextTargetLang || null, Date.now());
             db.prepare("INSERT OR REPLACE INTO item_tags (user_id, item_id, tag_id, is_primary) VALUES (?, ?, ?, ?)").run(userId, id, tagId, 1);
           }
-          const parsedTags = nextTags ? typeof nextTags === "string" ? JSON.parse(nextTags) : nextTags : [];
+          const parsedTags = safeParseTags(nextTags);
           if (Array.isArray(parsedTags)) {
             for (const t of parsedTags) {
               if (!t || typeof t !== "string" || !t.trim()) continue;
@@ -18366,10 +18474,7 @@ router13.delete("/history/:id", (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
   const { id } = req.params;
   try {
@@ -18421,10 +18526,7 @@ router13.post("/history/batch-edit", (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
   const { ids, targetLanguage, primaryTag, tags, tagMode = "replace" } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
@@ -18511,10 +18613,7 @@ router13.post("/history/assign-channel", (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    return handleAuthError(err, res);
   }
   const { lessonIds, historyIds, channelName, channelAvatarUrl, channelUrl } = req.body;
   if (!channelName || !Array.isArray(lessonIds) && !Array.isArray(historyIds)) {
@@ -18658,10 +18757,7 @@ var getDayActivityHandler = (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447" });
+    return handleAuthError(err, res);
   }
   const dateStr = req.query.date ? String(req.query.date).trim() : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
   const lang = req.query.language || req.query.lang ? String(req.query.language || req.query.lang).toLowerCase().trim() : null;
@@ -18820,10 +18916,7 @@ router13.delete("/activity/log/:id", (req, res) => {
   try {
     userId = resolveUserId(req);
   } catch (err) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "\u0421\u0435\u0441\u0441\u0438\u044F \u043D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430." });
-    }
-    return res.status(401).json({ error: "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439 \u0438\u043B\u0438 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0439 \u043A\u043B\u044E\u0447" });
+    return handleAuthError(err, res);
   }
   const { id } = req.params;
   try {
@@ -19636,7 +19729,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.45";
+var APP_VERSION = "v1.0.46";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);

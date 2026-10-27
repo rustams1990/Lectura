@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../../types";
 import { calculateNextReview } from "../../utils/srsAlgorithm";
 import { motion, AnimatePresence } from "motion/react";
-import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit, SlidersHorizontal, List, MoreVertical } from "lucide-react";
+import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit, SlidersHorizontal, List, MoreVertical, ArrowUpDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../../utils";
 import { useToast } from "../../context/ToastContext";
@@ -36,6 +36,15 @@ interface VocabularyPracticeProps {
   onDeleteWordLink?: (from: string, lang?: string) => void;
   lessons?: Lesson[];
 }
+
+export type PracticeSortOption =
+  | "date_desc"
+  | "date_asc"
+  | "alpha_asc"
+  | "alpha_desc"
+  | "due_asc"
+  | "difficulty_desc"
+  | "random";
 
 export default function VocabularyPractice({
   vocab,
@@ -81,9 +90,14 @@ export default function VocabularyPractice({
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [deckTypeFilter, setDeckTypeFilter] = useState<"learning" | "all" | "spelling-problems" | "spelling-accents" | "spelling-correct">("learning");
+  const [sortBy, setSortBy] = useState<PracticeSortOption>(() => {
+    return (localStorage.getItem("vocab_practice_sort") as PracticeSortOption) || "date_desc";
+  });
+  const [shuffleSeed, setShuffleSeed] = useState<number>(() => Date.now());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyMode, setStudyMode] = useState<"word" | "image" | "spelling">("word");
+  const [studyDirection, setStudyDirection] = useState<"forward" | "reverse">("forward");
   // Words re-queued after "Again" — shown again at end of current session
   const [relearningQueue, setRelearningQueue] = useState<string[]>([]);
 
@@ -93,12 +107,14 @@ export default function VocabularyPractice({
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
   const [isDirDropdownOpen, setIsDirDropdownOpen] = useState(false);
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   const langDropdownRef = React.useRef<HTMLDivElement | null>(null);
   const filtersPopoverRef = React.useRef<HTMLDivElement | null>(null);
   const moreMenuRef = React.useRef<HTMLDivElement | null>(null);
   const modeDropdownRef = React.useRef<HTMLDivElement | null>(null);
   const dirDropdownRef = React.useRef<HTMLDivElement | null>(null);
+  const sortDropdownRef = React.useRef<HTMLDivElement | null>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -118,6 +134,9 @@ export default function VocabularyPractice({
       }
       if (dirDropdownRef.current && !dirDropdownRef.current.contains(target)) {
         setIsDirDropdownOpen(false);
+      }
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(target)) {
+        setIsSortDropdownOpen(false);
       }
     };
 
@@ -197,7 +216,7 @@ export default function VocabularyPractice({
 
     // Step 2: Apply deck filters to the resolved root parent items
     const now = Date.now();
-    return Array.from(parentMap.values())
+    const result = Array.from(parentMap.values())
       .filter((lq) => {
         if (!lq || !lq.word) return false;
 
@@ -265,12 +284,97 @@ export default function VocabularyPractice({
         lastSpelledWithAccentError: !!lq.lastSpelledWithAccentError,
         spellingExclude: !!lq.spellingExclude,
       }));
-  }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter, studyMode]);
+
+    // Step 3: Apply word sorting to the deck
+    if (sortBy === "date_desc") {
+      result.sort((a, b) => {
+        const diff = (b.createdAt || 0) - (a.createdAt || 0);
+        return diff !== 0 ? diff : a.word.localeCompare(b.word);
+      });
+    } else if (sortBy === "date_asc") {
+      result.sort((a, b) => {
+        const diff = (a.createdAt || 0) - (b.createdAt || 0);
+        return diff !== 0 ? diff : a.word.localeCompare(b.word);
+      });
+    } else if (sortBy === "alpha_asc") {
+      result.sort((a, b) => {
+        const labelA = studyDirection === "reverse" && a.translation ? a.translation : a.word;
+        const labelB = studyDirection === "reverse" && b.translation ? b.translation : b.word;
+        return labelA.localeCompare(labelB, undefined, { sensitivity: "base" });
+      });
+    } else if (sortBy === "alpha_desc") {
+      result.sort((a, b) => {
+        const labelA = studyDirection === "reverse" && a.translation ? a.translation : a.word;
+        const labelB = studyDirection === "reverse" && b.translation ? b.translation : b.word;
+        return labelB.localeCompare(labelA, undefined, { sensitivity: "base" });
+      });
+    } else if (sortBy === "due_asc") {
+      result.sort((a, b) => {
+        const dueA = a.srsNextReview || 0;
+        const dueB = b.srsNextReview || 0;
+        if (dueA !== dueB) return dueA - dueB;
+        return (a.srsInterval || 0) - (b.srsInterval || 0);
+      });
+    } else if (sortBy === "difficulty_desc") {
+      result.sort((a, b) => {
+        const errorsA = (a.spellingIncorrectCount || 0) + (a.lastSpelledCorrectly === false ? 2 : 0) + (a.lastSpelledWithAccentError ? 1 : 0);
+        const errorsB = (b.spellingIncorrectCount || 0) + (b.lastSpelledCorrectly === false ? 2 : 0) + (b.lastSpelledWithAccentError ? 1 : 0);
+        if (errorsA !== errorsB) return errorsB - errorsA;
+        const stageA = parseInt(a.status || "1", 10) || 1;
+        const stageB = parseInt(b.status || "1", 10) || 1;
+        if (stageA !== stageB) return stageA - stageB;
+        return (a.srsEaseFactor || 2.5) - (b.srsEaseFactor || 2.5);
+      });
+    } else if (sortBy === "random") {
+      let m = shuffleSeed;
+      for (let i = result.length - 1; i > 0; i--) {
+        m = (m * 9301 + 49297) % 233280;
+        const j = Math.floor((m / 233280) * (i + 1));
+        const temp = result[i];
+        result[i] = result[j];
+        result[j] = temp;
+      }
+    }
+
+    return result;
+  }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter, studyMode, studyDirection, sortBy, shuffleSeed]);
 
   const safeCurrentIndex = learningList.length > 0
     ? Math.min(Math.max(0, currentIndex), learningList.length - 1)
     : 0;
   const currentLq = learningList[safeCurrentIndex] || null;
+
+  const sortOptions: { value: PracticeSortOption; label: string; shortLabel: string; icon: string }[] = useMemo(() => [
+    { value: "date_desc", label: t('practice.sort_newest', 'Newest first 🕐'), shortLabel: t('practice.sort_newest_short', 'Newest'), icon: "🕐" },
+    { value: "date_asc", label: t('practice.sort_oldest', 'Oldest first 📅'), shortLabel: t('practice.sort_oldest_short', 'Oldest'), icon: "📅" },
+    { value: "alpha_asc", label: t('practice.sort_alpha_asc', 'Alphabet A → Z 🔤'), shortLabel: t('practice.sort_alpha_asc_short', 'A → Z'), icon: "🔤" },
+    { value: "alpha_desc", label: t('practice.sort_alpha_desc', 'Alphabet Z → A 🔤'), shortLabel: t('practice.sort_alpha_desc_short', 'Z → A'), icon: "🔤" },
+    { value: "due_asc", label: t('practice.sort_due_asc', 'Due for review ⏰'), shortLabel: t('practice.sort_due_asc_short', 'Review due'), icon: "⏰" },
+    { value: "difficulty_desc", label: t('practice.sort_diff_desc', 'Difficult / Errors ⚠️'), shortLabel: t('practice.sort_diff_desc_short', 'Difficult'), icon: "⚠️" },
+    { value: "random", label: t('practice.sort_random', 'Random shuffle 🔀'), shortLabel: t('practice.sort_random_short', 'Shuffle'), icon: "🔀" },
+  ], [t]);
+
+  const activeSortOption = useMemo(() => {
+    return sortOptions.find((opt) => opt.value === sortBy) || sortOptions[0];
+  }, [sortOptions, sortBy]);
+
+  const handleSortChange = (newSort: PracticeSortOption) => {
+    if (currentLq?.word) {
+      nextWordTargetRef.current = currentLq.word;
+    }
+    setSortBy(newSort);
+    safeLocalStorageSetItem("vocab_practice_sort", newSort);
+    if (newSort === "random") {
+      setShuffleSeed(Date.now());
+    }
+  };
+
+  const handleReshuffle = () => {
+    if (currentLq?.word) {
+      nextWordTargetRef.current = currentLq.word;
+    }
+    setShuffleSeed(Date.now());
+  };
 
 
 
@@ -328,7 +432,6 @@ export default function VocabularyPractice({
     setSpellingStatus("unchecked");
     setHasCheckedSpelling(false);
   };
-  const [studyDirection, setStudyDirection] = useState<"forward" | "reverse">("forward");
   const [isEditingWord, setIsEditingWord] = useState<string | null>(null);
   const [showList, setShowList] = useState(false);
   const [modalTranslationLang, setModalTranslationLang] = useState(() => {
@@ -1261,6 +1364,32 @@ export default function VocabularyPractice({
                     ))}
                   </div>
                 </div>
+
+                {/* Word Sorting */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
+                    {t('practice.sort_words', 'Word sorting')}
+                  </span>
+                  <div className="grid grid-cols-2 gap-1 bg-stone-100/60 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60">
+                    {sortOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          handleSortChange(opt.value);
+                        }}
+                        className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition-all text-left cursor-pointer flex items-center gap-1.5 ${
+                          sortBy === opt.value
+                            ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/60 dark:border-zinc-700"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        }`}
+                      >
+                        <span className="shrink-0">{opt.icon}</span>
+                        <span className="truncate">{opt.shortLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1551,17 +1680,75 @@ export default function VocabularyPractice({
           {/* Right Word List Column */}
           {showList && (
             <div className="md:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-5 flex flex-col max-h-[520px] shadow-sm animate-in fade-in slide-in-from-right-5 duration-200">
-              <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-3">
-                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+              <div className="flex justify-between items-center pb-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-3 gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 truncate">
                   {t('practice.words_in_deck', 'Words in deck ({{count}})', { count: learningList.length })}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setShowList(false)}
-                  className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
-                >
-                  {t('practice.hide', 'Hide ×')}
-                </button>
+                
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Sort Dropdown */}
+                  <div className="relative" ref={sortDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsSortDropdownOpen((prev) => !prev)}
+                      className="flex items-center gap-1 px-2 py-1 bg-stone-100/80 hover:bg-stone-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-[10px] font-bold text-zinc-700 dark:text-zinc-300 transition-all border border-zinc-200/60 dark:border-zinc-700/60 cursor-pointer shadow-3xs"
+                      title={t('practice.sort_tooltip', 'Sort words in deck')}
+                    >
+                      <ArrowUpDown className="w-3 h-3 text-zinc-400 shrink-0" />
+                      <span className="max-w-[85px] sm:max-w-[105px] truncate">{activeSortOption.shortLabel}</span>
+                      <ChevronDown className={`w-2.5 h-2.5 text-zinc-400 transition-transform ${isSortDropdownOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {isSortDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-1 p-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 min-w-[200px] space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+                        <div className="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 mb-0.5">
+                          {t('practice.sort_words', 'Word sorting')}
+                        </div>
+                        {sortOptions.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              handleSortChange(opt.value);
+                              setIsSortDropdownOpen(false);
+                            }}
+                            className={`w-full px-2.5 py-1.5 text-xs font-bold rounded-lg transition-colors text-left flex items-center justify-between cursor-pointer ${
+                              sortBy === opt.value
+                                ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400"
+                                : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5 truncate">
+                              <span className="text-xs shrink-0">{opt.icon}</span>
+                              <span className="truncate">{opt.label}</span>
+                            </span>
+                            {sortBy === opt.value && <span className="text-teal-600 dark:text-teal-400 text-xs shrink-0 ml-1.5">✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reshuffle button if random sort is active */}
+                  {sortBy === "random" && (
+                    <button
+                      type="button"
+                      onClick={handleReshuffle}
+                      className="p-1 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors cursor-pointer"
+                      title={t('practice.reshuffle_tooltip', 'Reshuffle deck')}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowList(false)}
+                    className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer ml-0.5"
+                  >
+                    {t('practice.hide', 'Hide ×')}
+                  </button>
+                </div>
               </div>
               
               <div className="overflow-y-auto custom-scrollbar space-y-1.5 flex-grow pr-1">

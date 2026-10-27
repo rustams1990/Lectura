@@ -1206,7 +1206,8 @@ function autoAssignDefaultDataToPrimaryUser(db: Database.Database) {
 export function getDbConnection(_rawUserId: string = "default"): Database.Database {
   if (_sharedDb) return _sharedDb;
 
-  _sharedDb = new Database(SQLITE_DB_PATH);
+  _sharedDb = new Database(SQLITE_DB_PATH, { timeout: 10000 });
+  _sharedDb.pragma("busy_timeout = 10000");
   _sharedDb.pragma("journal_mode = WAL");
   _sharedDb.pragma("synchronous = NORMAL");
   _sharedDb.pragma("temp_store = MEMORY");
@@ -1243,6 +1244,39 @@ export function getDbConnection(_rawUserId: string = "default"): Database.Databa
     })();
   } catch (e) {
     console.warn("[DB] ISO language normalization warning:", e);
+  }
+
+  // Word casing normalization: ensure words saved in screaming ALL-CAPS (e.g. from YouTube captions)
+  // are normalized to dictionary standard (lowercase for en/es/etc., capitalized for German)
+  try {
+    const allWords = _sharedDb.prepare("SELECT id, word, language_code FROM words").all() as any[];
+    const updateWordStmt = _sharedDb.prepare("UPDATE words SET word = ? WHERE id = ?");
+    const wordsToFix: Array<{ id: string; word: string }> = [];
+
+    for (const row of allWords) {
+      if (typeof row.word === "string" && row.word.length > 1) {
+        const isAllUpper = row.word === row.word.toUpperCase() && row.word !== row.word.toLowerCase();
+        const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(row.word);
+        if (isAllUpper && !isAcronym) {
+          const isGerman = (row.language_code || "").toLowerCase().startsWith("de") || (row.language_code || "").toLowerCase().startsWith("german");
+          const fixed = isGerman
+            ? row.word.charAt(0).toUpperCase() + row.word.slice(1).toLowerCase()
+            : row.word.toLowerCase();
+          wordsToFix.push({ id: row.id, word: fixed });
+        }
+      }
+    }
+
+    if (wordsToFix.length > 0) {
+      _sharedDb.transaction(() => {
+        for (const w of wordsToFix) {
+          updateWordStmt.run(w.word, w.id);
+        }
+      })();
+      console.log(`[DB] Normalized casing for ${wordsToFix.length} all-caps words in SQLite.`);
+    }
+  } catch (e) {
+    console.warn("[DB] Word casing normalization warning:", e);
   }
 
   console.log("[DB] Shared database ready at:", SQLITE_DB_PATH);

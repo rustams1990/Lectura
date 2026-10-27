@@ -43593,8 +43593,9 @@
         if (raw === void 0 || raw === null) return "new";
         const s3 = String(raw).toLowerCase().trim();
         if (["ignored", "ignore", "0"].includes(s3)) return "ignored";
-        if (["known", "known_completely", "well_known", "5"].includes(s3)) return "known";
-        if (["1", "2", "3", "4"].includes(s3)) return s3;
+        if (["known", "known_completely", "well_known"].includes(s3)) return "known";
+        if (["1", "2", "3", "4", "5"].includes(s3)) return s3;
+        if (s3 === "mastered") return "5";
         if (s3 === "hard") return "2";
         if (s3 === "remembering") return "3";
         if (s3 === "almost_known") return "4";
@@ -44141,9 +44142,9 @@
       let learningCount = 0;
       for (const w of uniqueWords) {
         const info = this.lookupWordInfo(w);
-        if (info.status === "known" || info.status === "ignored" || info.status === "0" || info.status === "5") {
+        if (info.status === "known" || info.status === "ignored" || info.status === "0") {
           knownOrIgnored++;
-        } else if (["1", "2", "3", "4", "learning"].includes(info.status)) {
+        } else if (["1", "2", "3", "4", "5", "learning"].includes(info.status)) {
           learningCount++;
         } else {
           newCount++;
@@ -44270,7 +44271,7 @@
             continue;
           }
           const info = this.lookupWordInfo(lower);
-          if (info.status === "known" || info.status === "ignored" || info.status === "0" || info.status === "5") {
+          if (info.status === "known" || info.status === "ignored" || info.status === "0") {
             continue;
           }
           const rawTrans = this.cachedWordsByLang[lang]?.[lower]?.translation?.trim() || info.translation?.trim() || _YouTubeLecturaOverlay.localTranslationCache.get(`${lang}:${lower}`) || "";
@@ -45656,7 +45657,7 @@
             const rawInherited = linkRes?.parentStatus ?? (this.cachedWordsByLang[langCode] || {})[cleanParent]?.status;
             if (rawInherited !== void 0 && rawInherited !== null) {
               const s3 = String(rawInherited).toLowerCase().trim();
-              const inheritedStatus = ["known", "known_completely", "well_known", "5"].includes(s3) ? "known" : ["ignored", "ignore", "0"].includes(s3) ? "ignored" : s3;
+              const inheritedStatus = ["known", "known_completely", "well_known"].includes(s3) ? "known" : ["ignored", "ignore", "0"].includes(s3) ? "ignored" : s3;
               if (!this.cachedWordsByLang[langCode]) {
                 this.cachedWordsByLang[langCode] = {};
               }
@@ -46007,8 +46008,17 @@
         const isMultiWord = word.trim().includes(" ");
         const snapshotImage = this.captureVideoSnapshot();
         const activeSentenceObj = this.currentSentenceIndex >= 0 && this.currentSentenceIndex < this.preparsedSentences.length ? this.preparsedSentences[this.currentSentenceIndex] : void 0;
+        const isAllUpper = word === word.toUpperCase() && word !== word.toLowerCase() && word.length > 1;
+        const isAcronym4 = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(word);
+        const isGerman = targetLang.toLowerCase().startsWith("de");
+        let wordToSave = word;
+        if (isAllUpper && !isAcronym4) {
+          wordToSave = isGerman ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : cleanLower;
+        } else if (!isGerman && !isAcronym4 && !isMultiWord) {
+          wordToSave = cleanLower;
+        }
         await this.apiClient.saveWord({
-          word,
+          word: wordToSave,
           lemma: cleanLower,
           translation: translationToSave,
           grammar: this.activeWordData?.grammar,

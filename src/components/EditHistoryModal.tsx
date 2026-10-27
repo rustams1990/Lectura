@@ -521,39 +521,57 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
           return h;
         });
 
-        // 1. Direct atomic write to SQLite on server for history
-        const histRes = await fetch(resolveApiUrl(`/api/history/${entry.id}`), {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({
-            lessonId,
-            lessonTitle: title,
-            targetLanguage: targetLang,
-            coverUrl: preservedCoverUrl,
-            lessonType,
-            actionType: formActionType,
-            status: formStatus,
-            durationSeconds,
-            notes: formNotes.trim(),
-            tags: parsedTags,
-            primaryTag: primaryTagVal,
-            timestamp,
-            channelName,
-            channelAvatarUrl,
-            channelUrl: formChannelUrl.trim() || undefined,
-            mode: formMode,
-            category: formMode === "custom" ? formCategory : undefined,
-            customTitle: formMode === "custom" ? title : undefined,
-          }),
-        });
-
-        if (!histRes.ok) {
-          throw new Error(`Server returned ${histRes.status}`);
+        // 1. Optimistic update: save immediately to local state and IndexedDB, schedule sync
+        onUpdateHistory(updated);
+        if (updatedLessons && onUpdateLessons) {
+          onUpdateLessons(updatedLessons);
         }
+        showToast(t('history_page.entry_saved', 'Record saved successfully'), 'success');
+        onClose();
 
-        // 2. Also patch the lesson if linked
+        // 2. Direct atomic background write to SQLite on server with automatic retry
+        const patchHistoryOnServer = async (retries = 2) => {
+          try {
+            const histRes = await fetch(resolveApiUrl(`/api/history/${entry.id}`), {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({
+                lessonId,
+                lessonTitle: title,
+                targetLanguage: targetLang,
+                coverUrl: preservedCoverUrl,
+                lessonType,
+                actionType: formActionType,
+                status: formStatus,
+                durationSeconds,
+                notes: formNotes.trim(),
+                tags: parsedTags,
+                primaryTag: primaryTagVal,
+                timestamp,
+                channelName,
+                channelAvatarUrl,
+                channelUrl: formChannelUrl.trim() || undefined,
+                mode: formMode,
+                category: formMode === "custom" ? formCategory : undefined,
+                customTitle: formMode === "custom" ? title : undefined,
+              }),
+            });
+            if (!histRes.ok && (histRes.status === 503 || histRes.status === 500) && retries > 0) {
+              setTimeout(() => patchHistoryOnServer(retries - 1), 500);
+            }
+          } catch (netErr) {
+            if (retries > 0) {
+              setTimeout(() => patchHistoryOnServer(retries - 1), 500);
+            } else {
+              console.warn("[EditHistoryModal] Direct PATCH network failure, background queued sync will persist:", netErr);
+            }
+          }
+        };
+        patchHistoryOnServer();
+
+        // 3. Also patch the lesson if linked
         if (realLessonId && realLessonId !== "custom") {
-          await fetch(resolveApiUrl(`/api/lessons/${realLessonId}`), {
+          fetch(resolveApiUrl(`/api/lessons/${realLessonId}`), {
             method: "PATCH",
             headers,
             body: JSON.stringify({
@@ -567,14 +585,6 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
             }),
           }).catch((e) => console.warn("Failed to patch lesson:", e));
         }
-
-        onUpdateHistory(updated);
-        if (updatedLessons && onUpdateLessons) {
-          onUpdateLessons(updatedLessons);
-        }
-
-        showToast(t('history_page.entry_saved', 'Record saved successfully'), 'success');
-        onClose();
       } else {
         const generatedId = generateHistoryId({
           durationSeconds,
@@ -610,18 +620,36 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
           customTitle: formMode === "custom" ? title : undefined,
         };
 
-        const createRes = await fetch(resolveApiUrl(`/api/history/${newEntry.id}`), {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify(newEntry),
-        });
-
-        if (!createRes.ok) {
-          throw new Error(`Server returned ${createRes.status}`);
+        const updated = [newEntry, ...history];
+        onUpdateHistory(updated);
+        if (updatedLessons && onUpdateLessons) {
+          onUpdateLessons(updatedLessons);
         }
+        showToast(t('history_page.entry_created', 'New entry added'), 'success');
+        onClose();
+
+        const createHistoryOnServer = async (retries = 2) => {
+          try {
+            const createRes = await fetch(resolveApiUrl(`/api/history/${newEntry.id}`), {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify(newEntry),
+            });
+            if (!createRes.ok && (createRes.status === 503 || createRes.status === 500) && retries > 0) {
+              setTimeout(() => createHistoryOnServer(retries - 1), 500);
+            }
+          } catch (netErr) {
+            if (retries > 0) {
+              setTimeout(() => createHistoryOnServer(retries - 1), 500);
+            } else {
+              console.warn("[EditHistoryModal] Direct create PATCH failed, background queued sync will persist:", netErr);
+            }
+          }
+        };
+        createHistoryOnServer();
 
         if (lessonId && lessonId !== "custom") {
-          await fetch(resolveApiUrl(`/api/lessons/${lessonId}`), {
+          fetch(resolveApiUrl(`/api/lessons/${lessonId}`), {
             method: "PATCH",
             headers,
             body: JSON.stringify({
@@ -635,15 +663,6 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
             }),
           }).catch((e) => console.warn("Failed to patch lesson channel:", e));
         }
-
-        const updated = [newEntry, ...history];
-        onUpdateHistory(updated);
-        if (updatedLessons && onUpdateLessons) {
-          onUpdateLessons(updatedLessons);
-        }
-
-        showToast(t('history_page.entry_created', 'New entry added'), 'success');
-        onClose();
       }
     } catch (err: any) {
       console.error("Failed to save history entry:", err);

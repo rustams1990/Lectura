@@ -61,6 +61,18 @@ interface StatisticsPageProps {
   onUpdateSettings?: (newSettings: ReaderSettings) => void;
 }
 
+
+export function formatWordDisplay(w: string): string {
+  if (!w || typeof w !== 'string') return '';
+  const trimmed = w.trim();
+  const isAllUpper = trimmed.length > 1 && trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase();
+  const isAcronym = /^(?:USA|UK|EU|UN|AI|FBI|CIA|NASA|NATO|HTML|CSS|JS|API|URL|UI|ID|TV|CD|DVD|VIP|SOS)$/i.test(trimmed);
+  if (isAllUpper && !isAcronym) {
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  }
+  return trimmed;
+}
+
 function StatisticsPage({
   vocab,
   lessons,
@@ -1993,7 +2005,7 @@ function StatisticsPage({
                               key={`${word}-${wIdx}`} 
                               className="px-2 py-0.5 bg-white dark:bg-zinc-900 border border-teal-100 dark:border-teal-900/60 rounded-lg text-[11px] font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1 shadow-3xs"
                             >
-                              <span className="text-teal-600 dark:text-teal-400 capitalize">{word}</span>
+                              <span className="text-teal-600 dark:text-teal-400 capitalize">{formatWordDisplay(word)}</span>
                               {wordObj?.translation && (
                                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[120px] font-medium border-l pl-1 border-zinc-100 dark:border-zinc-800">
                                   {wordObj.translation}
@@ -2831,7 +2843,7 @@ function StatisticsPage({
                                     className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-xs font-bold text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
                                   />
                                 ) : (
-                                  <span className="capitalize leading-tight font-extrabold text-teal-600 dark:text-teal-400">{item.word}</span>
+                                  <span className="capitalize leading-tight font-extrabold text-teal-600 dark:text-teal-400">{formatWordDisplay(item.word)}</span>
                                 )}
                                 {item.tags && item.tags.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-1 select-none">
@@ -2886,7 +2898,7 @@ function StatisticsPage({
                                 return parent ? (
                                   <div className="inline-flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 px-2 py-1 rounded-lg">
                                     <span className="font-semibold text-zinc-700 dark:text-zinc-300 capitalize">
-                                      {parent}
+                                      {formatWordDisplay(parent)}
                                     </span>
                                     <button
                                       type="button"

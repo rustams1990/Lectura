@@ -10,6 +10,7 @@ import { Volume2, X, Link2, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { playGoogleTTS, fetchWordMeaning, fetchSentenceTranslation, normalizePossessiveSuffix, normalizeLanguage } from "../utils";
 import { getSuggestedLemmas } from "../morphology";
 import { executeAiWithFailover, getOrCreateAiProfiles } from "../services/aiFailoverService";
+import { useWordStore } from "../store/useWordStore";
 
 export interface CalmSheetWordCardProps {
   word: string | null;
@@ -957,11 +958,22 @@ export default function CalmSheetWordCard({
 
             {/* Current linked root status */}
             {currentLinkedRoot && (
-              <div className="text-xs text-slate-600 dark:text-zinc-400 pt-1 border-t border-slate-200/60 dark:border-zinc-800/60">
-                Current Base Root:{" "}
-                <strong className="text-sky-600 dark:text-sky-400 underline underline-offset-2 font-bold">
+              <div className="text-xs text-slate-600 dark:text-zinc-400 pt-1 border-t border-slate-200/60 dark:border-zinc-800/60 flex items-center gap-1.5">
+                <span>Current Base Root:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onWordClick) {
+                      onWordClick(currentLinkedRoot, sentence || word || "");
+                    } else {
+                      useWordStore.getState().setSelectedWord(currentLinkedRoot, sentence || word || "");
+                    }
+                  }}
+                  title={`Open root word: ${currentLinkedRoot}`}
+                  className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 underline underline-offset-2 font-bold cursor-pointer transition-colors"
+                >
                   {currentLinkedRoot}
-                </strong>
+                </button>
               </div>
             )}
           </div>

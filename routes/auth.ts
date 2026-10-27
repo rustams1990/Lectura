@@ -62,19 +62,36 @@ export async function verifyPassword(password: string, storedHash: string): Prom
 // Multi-Account User Resolution and Middlewares
 // ============================================================
 
+export function handleAuthError(err: any, res: Response) {
+  if (err?.message === "UNAUTHORIZED_TOKEN") {
+    return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
+  }
+  if (err?.message === "UNAUTHORIZED_SYNC_KEY") {
+    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+  }
+  console.error("[Auth/User Resolution Error]:", err);
+  return res.status(503).json({ error: "Сервер временно занят, повторите попытку" });
+}
+
 export function resolveUserId(req: Request): string {
   const authHeader = req.headers["authorization"];
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7).trim();
     if (token) {
-      const db = getDbConnection("default");
-      const session = db.prepare("SELECT user_id, expires_at FROM server_sessions WHERE token = ?").get(token) as any;
-      if (session) {
-        if (session.expires_at && session.expires_at < Date.now()) {
-          db.prepare("DELETE FROM server_sessions WHERE token = ?").run(token);
-        } else {
-          return session.user_id;
+      try {
+        const db = getDbConnection("default");
+        const session = db.prepare("SELECT user_id, expires_at FROM server_sessions WHERE token = ?").get(token) as any;
+        if (session) {
+          if (session.expires_at && session.expires_at < Date.now()) {
+            try { db.prepare("DELETE FROM server_sessions WHERE token = ?").run(token); } catch (_) {}
+            throw new Error("UNAUTHORIZED_TOKEN");
+          } else {
+            return session.user_id;
+          }
         }
+      } catch (err: any) {
+        if (err?.message === "UNAUTHORIZED_TOKEN") throw err;
+        console.warn("[resolveUserId] Session lookup query warning:", err?.message);
       }
     }
   }
@@ -124,10 +141,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     (req as any).userId = userId;
     next();
   } catch (err: any) {
-    if (err.message === "UNAUTHORIZED_TOKEN") {
-      return res.status(401).json({ error: "Сессия недействительна или истекла. Пожалуйста, войдите снова." });
-    }
-    return res.status(401).json({ error: "Неверный или отсутствующий ключ локальной синхронизации" });
+    return handleAuthError(err, res);
   }
 }
 

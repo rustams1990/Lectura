@@ -1055,9 +1055,19 @@ function WordExplainer({
 
   // Word link custom base targets variables
   const [parentWordInput, setParentWordInput] = useState("");
-  const isLinked = word ? !!wordLinks[`${targetLanguage.toLowerCase()}_${word.toLowerCase()}`] : false;
-  const linkedParentRaw = word ? (wordLinks[`${targetLanguage.toLowerCase()}_${word.toLowerCase()}`] || "") : "";
+  const isLinked = word ? (!!wordLinks[`${targetLanguage.toLowerCase()}_${word.toLowerCase()}`] || !!wordLinks[word.toLowerCase()]) : false;
+  const linkedParentRaw = word ? (wordLinks[`${targetLanguage.toLowerCase()}_${word.toLowerCase()}`] || wordLinks[word.toLowerCase()] || "") : "";
   const linkedParent = linkedParentRaw.replace(/^[a-zA-Z]+_/, "");
+
+  const handleSelectRelatedWord = (targetWord: string) => {
+    if (!targetWord || !targetWord.trim()) return;
+    const clean = targetWord.trim();
+    if (word && clean.toLowerCase() === word.toLowerCase()) return;
+    if (onWordClick) {
+      onWordClick(clean, sentence || word || "");
+    }
+    useWordStore.getState().setSelectedWord(clean, sentence || word || "");
+  };
 
   // Word Family state
   const [familyTabOpen, setFamilyTabOpen] = useState(false);
@@ -1331,7 +1341,31 @@ function WordExplainer({
       return "";
     };
 
+    const resolveImageUrl = (): string | null => {
+      const wordLower = word.toLowerCase();
+      const lang = targetLanguage.toLowerCase();
+      const langPrefix = `${lang}_`;
+
+      if (existingVocab?.imageUrl) {
+        return existingVocab.imageUrl;
+      }
+      const directVocab = vocab?.[`${langPrefix}${wordLower}`] || vocab?.[wordLower];
+      if (directVocab?.imageUrl) {
+        return directVocab.imageUrl;
+      }
+
+      // Check parent link via wordLinks
+      const rawParentKey = wordLinks[`${langPrefix}${wordLower}`] || wordLinks[wordLower] || "";
+      const parentWord = rawParentKey ? rawParentKey.replace(/^[a-zA-Z]+_/, "").toLowerCase() : "";
+      if (parentWord && parentWord !== wordLower) {
+        const parentEntry = resolveParentVocab(parentWord);
+        if (parentEntry?.imageUrl) return parentEntry.imageUrl;
+      }
+      return null;
+    };
+
     const resolvedDef = resolveDefinition();
+    const resolvedImg = resolveImageUrl();
 
     const vocabContentChanged =
       wordChanged ||
@@ -1365,6 +1399,7 @@ function WordExplainer({
       if (!isDefinitionFocusedRef.current) {
         setDefinitionValue(resolvedDef);
       }
+      setImageUrlValue(resolvedImg || null);
       setIpaValue(existingVocab.ipa);
       const cleanGrammar = sanitizeGrammarTag(existingVocab.grammar);
       setGrammarValue(cleanGrammar);
@@ -1379,7 +1414,7 @@ function WordExplainer({
         setStatus(existingVocab.status);
       }
       setSelectedTags(existingVocab.tags || (cleanGrammar ? [cleanGrammar] : []));
-      setImageUrlValue(existingVocab.imageUrl || null);
+      setImageUrlValue(existingVocab.imageUrl || resolvedImg || null);
     } else {
       // Check if this word/phrase exists in the auto-detected idioms
       const cleanWord = word.toLowerCase();
@@ -2222,7 +2257,17 @@ function WordExplainer({
                     return (
                       <span className="inline-flex items-center gap-1 text-[12px] font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
                         <span className="text-zinc-400 dark:text-zinc-500 font-normal">{t('explainer.from_word', 'from')}</span>
-                        <span className="font-bold text-teal-600 dark:text-teal-400 capitalize">{cleanParentWord}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectRelatedWord(cleanParentWord);
+                          }}
+                          title={t('explainer.open_root_word', 'Open root word: {{word}}', { word: cleanParentWord })}
+                          className="font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline capitalize cursor-pointer transition-colors"
+                        >
+                          {cleanParentWord}
+                        </button>
                         {parentTrans && <span className="text-zinc-400 dark:text-zinc-500 font-normal">— {parentTrans}</span>}
                       </span>
                     );
@@ -2673,7 +2718,17 @@ function WordExplainer({
                     <div className="flex items-center gap-1 text-[9px] text-teal-600 dark:text-teal-400 font-bold">
                       <span>📖</span>
                       <span>{t('explainer.definition_for_lemma', 'Definition for root:')}</span>
-                      <span className="capitalize font-extrabold">{linkedParent}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectRelatedWord(linkedParent);
+                        }}
+                        title={t('explainer.open_root_word', 'Open root word: {{word}}', { word: linkedParent })}
+                        className="capitalize font-extrabold hover:underline cursor-pointer transition-colors"
+                      >
+                        {linkedParent}
+                      </button>
                     </div>
                   )}
                   <div className="flex items-start gap-1.5">
@@ -2906,8 +2961,20 @@ function WordExplainer({
                   <>
                     {isLinked ? (
                   <div className="flex items-center justify-between bg-white dark:bg-zinc-900 border border-zinc-200/55 dark:border-zinc-800 p-2 rounded-lg font-medium shadow-3xs">
-                    <p className="text-zinc-600 dark:text-zinc-300 text-[10.5px]">
-                      Root: <strong className="text-teal-600 dark:text-teal-400 capitalize">{linkedParent}</strong>
+                    <p className="text-zinc-600 dark:text-zinc-300 text-[10.5px] flex items-center gap-1.5">
+                      <span>Root:</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectRelatedWord(linkedParent);
+                        }}
+                        title={t('explainer.open_root_word', 'Open root word: {{word}}', { word: linkedParent })}
+                        className="font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline capitalize cursor-pointer transition-colors inline-flex items-center gap-1 group"
+                      >
+                        <span>{linkedParent}</span>
+                        <ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                      </button>
                     </p>
                     <button
                       onClick={() => onDeleteWordLink(word!.toLowerCase())}
