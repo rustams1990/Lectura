@@ -377,7 +377,7 @@ function SettingsModal({
   }, [activeUser]);
 
   const [customInputs, setCustomInputs] = useState<Record<string, string>>({});
-  const [activeSettingsTab, setActiveSettingsTab] = useState<"flags" | "interface" | "audio" | "ai" | "whisper" | "stats" | "ignore_lists" | "storage">("flags");
+  const [activeSettingsTab, setActiveSettingsTab] = useState<"interface" | "stats" | "audio" | "ai" | "whisper" | "flags" | "ignore_lists" | "storage">("interface");
   const [importStatus, setImportStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [showConfirmClearHistory, setShowConfirmClearHistory] = useState<boolean>(false);
@@ -775,8 +775,97 @@ function SettingsModal({
 
   if (!isOpen) return null;
 
+  const isRu = i18n.language?.startsWith("ru");
+  const navGroups: Array<{
+    groupTitle: string;
+    items: Array<{
+      id: typeof activeSettingsTab;
+      emoji: string;
+      label: string;
+      shortLabel: string;
+    }>;
+  }> = [
+    {
+      groupTitle: t("settings.group_general", isRu ? "Основные" : "General"),
+      items: [
+        {
+          id: "interface" as const,
+          emoji: "📐",
+          label: t("settings.tab_ui_full", isRu ? "Интерфейс и время" : "Interface & Region"),
+          shortLabel: t("settings.tab_ui_short", isRu ? "Интерфейс" : "Interface"),
+        },
+        {
+          id: "stats" as const,
+          emoji: "📖",
+          label: t("settings.tab_study_stats", isRu ? "Чтение и статистика" : "Reading & Stats"),
+          shortLabel: t("settings.tab_study_short", isRu ? "Чтение" : "Reading"),
+        },
+      ],
+    },
+    {
+      groupTitle: t("settings.group_audio_ai", isRu ? "Озвучка и ИИ" : "Audio & AI"),
+      items: [
+        {
+          id: "audio" as const,
+          emoji: "🎙️",
+          label: t("settings.tab_audio", "Audio (TTS)"),
+          shortLabel: t("settings.tab_audio_short", isRu ? "Озвучка" : "Audio"),
+        },
+        {
+          id: "ai" as const,
+          emoji: "✨",
+          label: t("settings.tab_ai", "AI Assistant"),
+          shortLabel: t("settings.tab_ai_short", "AI"),
+        },
+        {
+          id: "whisper" as const,
+          emoji: "⚡",
+          label: t("settings.tab_whisper", "Whisper (STT)"),
+          shortLabel: "Whisper",
+        },
+      ],
+    },
+    {
+      groupTitle: t("settings.group_languages", isRu ? "Языки и фильтрация" : "Languages & Filters"),
+      items: [
+        {
+          id: "flags" as const,
+          emoji: "🚩",
+          label: t("settings.tab_flags", "Language Flags"),
+          shortLabel: t("settings.tab_flags_short", isRu ? "Флаги" : "Flags"),
+        },
+        {
+          id: "ignore_lists" as const,
+          emoji: "🛡️",
+          label: t("settings.tab_ignore_lists", "Ignore Lists"),
+          shortLabel: t("settings.tab_ignore_short", isRu ? "Фильтры" : "Filters"),
+        },
+      ],
+    },
+    {
+      groupTitle: t("settings.group_system", isRu ? "Аккаунт и данные" : "Account & Data"),
+      items: [
+        {
+          id: "storage" as const,
+          emoji: "💾",
+          label: t("settings.tab_storage", "Data & Sync"),
+          shortLabel: t("settings.tab_storage_short", isRu ? "Данные" : "Data"),
+        },
+      ],
+    },
+  ];
+  const allNavItems = navGroups.flatMap((g) => g.items);
+
+  const handleSelectSettingsTab = (tabId: typeof activeSettingsTab) => {
+    setActiveSettingsTab(tabId);
+    if (tabId === "storage") {
+      setImportStatus({ type: "idle" });
+      setSyncStatus(null);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       {/* Semi-transparent backdrop without GPU blur passes */}
       <div 
         className="fixed inset-0 bg-black/60 transition-opacity duration-150"
@@ -784,122 +873,90 @@ function SettingsModal({
       />
 
       {/* Settings Modal Box */}
-      <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-xl flex flex-col max-h-[85vh]">
+      <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-xl flex flex-col max-h-[92vh] md:h-[85vh] md:max-h-[780px]">
         
         {/* Modal Header */}
-        <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/40">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-teal-50 dark:bg-teal-950/50 rounded-xl text-teal-600 dark:text-teal-400">
+        <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/40 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-teal-50 dark:bg-teal-950/50 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
               <Globe className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider">
-                {t('settings.title', 'Application Settings')} <span className="text-[10px] ml-1 px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">{APP_VERSION}</span>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-black text-zinc-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
+                <span>{t('settings.title', 'Application Settings')}</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-800 rounded-md font-mono text-zinc-600 dark:text-zinc-400">{APP_VERSION}</span>
               </h3>
-              <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed">
-                {t('settings.subtitle', 'Configure interface scale, manage word connections and flag visuals.')}
+              <p className="text-[11px] text-zinc-500 mt-0.5 font-medium leading-relaxed hidden sm:block truncate">
+                {t('settings.subtitle_v2', isRu ? 'Настройка интерфейса, форматов времени, чтения, озвучки, ИИ и синхронизации' : 'Configure interface, regional time formats, reading, audio, AI, and synchronization')}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer shrink-0"
             title={t('settings.close', 'Close')}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Tabs Header */}
-        <div className="flex border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/30 px-3 sm:px-6 select-none shrink-0 gap-1 overflow-x-auto">
-          <button
-            onClick={() => setActiveSettingsTab("flags")}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "flags"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            🚩 {t('settings.tab_flags', 'Language Flags')}
-          </button>
-          <button
-            onClick={() => setActiveSettingsTab("interface")}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "interface"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            📐 {t('settings.tab_ui', 'Interface')}
-          </button>
-          <button
-            onClick={() => setActiveSettingsTab("audio")}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "audio"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            🎙️ {t('settings.tab_audio', 'Audio (TTS)')}
-          </button>
-          <button
-            onClick={() => setActiveSettingsTab("ai")}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "ai"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            ✨ {t('settings.tab_ai', 'AI Assistant')}
-          </button>
-          <button
-            onClick={() => setActiveSettingsTab("whisper")}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "whisper"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            ⚡ {t('settings.tab_whisper', 'Whisper (STT)')}
-          </button>
-          <button
-            onClick={() => setActiveSettingsTab("stats")}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "stats"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            📊 {t('settings.tab_stats', 'Statistics')}
-          </button>
-          <button
-            onClick={() => setActiveSettingsTab("ignore_lists")}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "ignore_lists"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            🛡️ {t('settings.tab_ignore_lists', 'Ignore Lists')}
-          </button>
-          <button
-            onClick={() => {
-              setActiveSettingsTab("storage");
-              setImportStatus({ type: "idle" });
-              setSyncStatus(null);
-            }}
-            className={`py-3 px-3 sm:px-4 text-xs font-black uppercase tracking-wider relative transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-              activeSettingsTab === "storage"
-                ? "text-teal-600 dark:text-teal-400 border-teal-500 font-black"
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent"
-            }`}
-          >
-            💾 {t('settings.tab_storage', 'Data & Sync')}
-          </button>
+        {/* Mobile / Phone Compact Grid Navigation (No horizontal scrollbar!) */}
+        <div className="md:hidden grid grid-cols-4 gap-1.5 p-2 bg-zinc-50/90 dark:bg-zinc-950/40 border-b border-zinc-200/80 dark:border-zinc-800 shrink-0 select-none">
+          {allNavItems.map((item) => {
+            const isActive = activeSettingsTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleSelectSettingsTab(item.id)}
+                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-xl text-center transition-all cursor-pointer border ${
+                  isActive
+                    ? "bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-500/50 font-black shadow-2xs"
+                    : "bg-white/70 dark:bg-zinc-900/60 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-800/70 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-bold"
+                }`}
+              >
+                <span className="text-sm leading-none">{item.emoji}</span>
+                <span className="text-[10px] leading-tight truncate w-full">{item.shortLabel}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Modal Scrollable Contents */}
-        <div className="p-6 overflow-y-auto flex-grow">
+        {/* Main 2-Column Body (Sidebar on Tablet/PC + Scrollable Content) */}
+        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+          {/* Left Vertical Sidebar Navigation (Tablet & Desktop) */}
+          <aside className="hidden md:flex md:w-56 lg:w-64 shrink-0 flex-col border-r border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/30 p-3 overflow-y-auto gap-4 select-none">
+            {navGroups.map((group) => (
+              <div key={group.groupTitle} className="space-y-1">
+                <div className="px-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  {group.groupTitle}
+                </div>
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const isActive = activeSettingsTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectSettingsTab(item.id)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs transition-all cursor-pointer text-left border ${
+                          isActive
+                            ? "bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border-teal-500/40 font-black shadow-2xs"
+                            : "bg-transparent text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-200/50 dark:hover:bg-zinc-800/60 hover:text-zinc-900 dark:hover:text-zinc-200 font-bold"
+                        }`}
+                      >
+                        <span className="text-base leading-none shrink-0">{item.emoji}</span>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </aside>
+
+          {/* Modal Scrollable Contents */}
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-w-0">
           
           {/* Active Tab: Languages & Flags */}
           {activeSettingsTab === "flags" && (
@@ -1323,212 +1380,55 @@ function SettingsModal({
                 </div>
               </div>
 
-              {/* Book Covers Dimming Filter Option */}
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                    {t("settings.dim_covers_label", "Dim covers in library")}
-                  </h4>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    {t("settings.dim_covers_desc", "Apply dimming gradient filter over book covers for text contrast (disabled by default).")}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => onSettingsChange?.({ dimBookCovers: !settings?.dimBookCovers })}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    settings?.dimBookCovers ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      settings?.dimBookCovers ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Book Card Title & Badges Placement Option */}
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                    {t("settings.card_title_position_label", "Title and badges below cover (YouTube style)")}
-                  </h4>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    {t("settings.card_title_position_desc", "Display titles and language tags below the cover image for clean visuals and 100% readability.")}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => onSettingsChange?.({ cardTitlePosition: (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "on_cover" : "below_cover" })}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Default Video Mode (YouTube / Video Lessons) */}
+              {/* Book Covers Dimming Filter & Title Placement Options */}
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
-                    <Tv className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      {t("explainer.default_video_mode", "Default YouTube / Video View Mode")}
+                      {t("settings.card_title_position_label", "Title and badges below cover (YouTube style)")}
                     </h4>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                      {t("settings.default_video_mode_desc", "Choose how YouTube and video lessons open on mobile devices and tablets.")}
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {t("settings.card_title_position_desc", "Display titles and language tags below the cover image for clean visuals and 100% readability.")}
                     </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "focus" })}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      (settings?.defaultVideoViewMode || "focus") === "focus"
-                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
-                    }`}
-                  >
-                    <span className="text-xs font-bold flex items-center gap-1.5">
-                      🎯 {t("explainer.video_mode_focus", "Focus Mode (Default on mobile/tablet)")}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.video_mode_focus_hint", "Default on mobile & tablets")}
-                    </span>
-                  </button>
 
                   <button
                     type="button"
-                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "floating" })}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      settings?.defaultVideoViewMode === "floating"
-                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    onClick={() => onSettingsChange?.({ cardTitlePosition: (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "on_cover" : "below_cover" })}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
                     }`}
                   >
-                    <span className="text-xs font-bold flex items-center gap-1.5">
-                      🪟 {t("explainer.video_mode_floating", "Floating Window (PiP)")}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.video_mode_floating_hint", "Compact floating window over text")}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "off" })}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      settings?.defaultVideoViewMode === "off"
-                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
-                    }`}
-                  >
-                    <span className="text-xs font-bold flex items-center gap-1.5">
-                      ⏹️ {t("explainer.video_mode_off", "Closed by Default (open manually)")}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.video_mode_off_hint", "Open manually only")}
-                    </span>
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        (settings?.cardTitlePosition || "below_cover") === "below_cover" ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
                   </button>
                 </div>
-              </div>
 
-              {/* Word Card Mode (Инспектор слова vs Calm Sheet) */}
-              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
+                <div className="border-t border-zinc-200/70 dark:border-zinc-800/80 pt-4 flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
                     <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
-                      {t("settings.word_card_mode", "Word Card View")}
+                      {t("settings.dim_covers_label", "Dim covers in library")}
                     </h4>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
-                      {t("settings.word_card_mode_desc", "Choose the popup card style when clicking a word in text.")}
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {t("settings.dim_covers_desc", "Apply dimming gradient filter over book covers for text contrast (disabled by default).")}
                     </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSettingsChange?.({ wordCardMode: "inspector", bookWordCardMode: "inspector" });
-                      try {
-                        localStorage.setItem("lectura_word_card_mode", "inspector");
-                        localStorage.setItem("lectura_book_word_card_mode", "inspector");
-                      } catch (_) {}
-                    }}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      settings?.wordCardMode === "inspector" || settings?.wordCardMode === "full-inspector"
-                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
-                    }`}
-                  >
-                    <span className="text-xs font-bold flex items-center gap-1.5">
-                      🔬 {t("settings.card_mode_full", "Full Inspector")}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_full_desc", "Full panel with all tags and translation providers")}
-                    </span>
-                  </button>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      onSettingsChange?.({ wordCardMode: "floating", bookWordCardMode: "floating" });
-                      try {
-                        localStorage.setItem("lectura_word_card_mode", "floating");
-                        localStorage.setItem("lectura_book_word_card_mode", "floating");
-                      } catch (_) {}
-                    }}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      settings?.wordCardMode === "floating" || settings?.wordCardMode === "calm-sheet"
-                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    onClick={() => onSettingsChange?.({ dimBookCovers: !settings?.dimBookCovers })}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      settings?.dimBookCovers ? "bg-teal-500" : "bg-zinc-300 dark:bg-zinc-700"
                     }`}
                   >
-                    <span className="text-xs font-bold flex items-center gap-1.5">
-                      🍃 {t("settings.card_mode_calm", "Calm Sheet (Minimalist)")}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_calm_desc", "Light calm card with tabs, direct translation, and 1–5 status bar")}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSettingsChange?.({ wordCardMode: "sheet", bookWordCardMode: "sheet" });
-                      try {
-                        localStorage.setItem("lectura_word_card_mode", "sheet");
-                        localStorage.setItem("lectura_book_word_card_mode", "sheet");
-                      } catch (_) {}
-                    }}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      settings?.wordCardMode === "sheet" || settings?.wordCardMode === "bottom-sheet"
-                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
-                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
-                    }`}
-                  >
-                    <span className="text-xs font-bold flex items-center gap-1.5">
-                      📱 {t("settings.card_mode_sheet", "Bottom Sheet")}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
-                      {t("settings.card_mode_sheet_desc", "Docked sheet at the bottom for comfortable reading")}
-                    </span>
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                        settings?.dimBookCovers ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
                   </button>
                 </div>
               </div>
@@ -1820,9 +1720,167 @@ function SettingsModal({
             />
           )}
 
-          {/* Active Tab: Book Card Statistics */}
+          {/* Active Tab: Reading, Word Card & Book Card Statistics */}
           {activeSettingsTab === "stats" && (
             <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Word Card Mode (Инспектор слова vs Calm Sheet) */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                      {t("settings.word_card_mode", "Word Card View")}
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                      {t("settings.word_card_mode_desc", "Choose the popup card style when clicking a word in text.")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSettingsChange?.({ wordCardMode: "inspector", bookWordCardMode: "inspector" });
+                      try {
+                        localStorage.setItem("lectura_word_card_mode", "inspector");
+                        localStorage.setItem("lectura_book_word_card_mode", "inspector");
+                      } catch (_) {}
+                    }}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.wordCardMode === "inspector" || settings?.wordCardMode === "full-inspector"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🔬 {t("settings.card_mode_full", "Full Inspector")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.card_mode_full_desc", "Full panel with all tags and translation providers")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSettingsChange?.({ wordCardMode: "floating", bookWordCardMode: "floating" });
+                      try {
+                        localStorage.setItem("lectura_word_card_mode", "floating");
+                        localStorage.setItem("lectura_book_word_card_mode", "floating");
+                      } catch (_) {}
+                    }}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.wordCardMode === "floating" || settings?.wordCardMode === "calm-sheet"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🍃 {t("settings.card_mode_calm", "Calm Sheet (Minimalist)")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.card_mode_calm_desc", "Light calm card with tabs, direct translation, and 1–5 status bar")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSettingsChange?.({ wordCardMode: "sheet", bookWordCardMode: "sheet" });
+                      try {
+                        localStorage.setItem("lectura_word_card_mode", "sheet");
+                        localStorage.setItem("lectura_book_word_card_mode", "sheet");
+                      } catch (_) {}
+                    }}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.wordCardMode === "sheet" || settings?.wordCardMode === "bottom-sheet"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      📱 {t("settings.card_mode_sheet", "Bottom Sheet")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.card_mode_sheet_desc", "Docked sheet at the bottom for comfortable reading")}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Default Video Mode (YouTube / Video Lessons) */}
+              <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-xl text-teal-600 dark:text-teal-400 shrink-0">
+                    <Tv className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-black text-zinc-800 dark:text-white leading-tight">
+                      {t("explainer.default_video_mode", "Default YouTube / Video View Mode")}
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                      {t("settings.default_video_mode_desc", "Choose how YouTube and video lessons open on mobile devices and tablets.")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "focus" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      (settings?.defaultVideoViewMode || "focus") === "focus"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🎯 {t("explainer.video_mode_focus", "Focus Mode (Default on mobile/tablet)")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.video_mode_focus_hint", "Default on mobile & tablets")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "floating" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.defaultVideoViewMode === "floating"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      🪟 {t("explainer.video_mode_floating", "Floating Window (PiP)")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.video_mode_floating_hint", "Compact floating window over text")}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onSettingsChange?.({ defaultVideoViewMode: "off" })}
+                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      settings?.defaultVideoViewMode === "off"
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 shadow-xs"
+                        : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300"
+                    }`}
+                  >
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      ⏹️ {t("explainer.video_mode_off", "Closed by Default (open manually)")}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal">
+                      {t("settings.video_mode_off_hint", "Open manually only")}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               {/* Book Card Stats Section */}
               <div className="bg-zinc-50 dark:bg-zinc-950/40 p-5 rounded-2xl border border-zinc-100/60 dark:border-zinc-800 space-y-4">
                 <div className="flex items-start gap-3">
@@ -2471,10 +2529,11 @@ function SettingsModal({
             </div>
           )}
 
+          </div>
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="p-5 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/20 shrink-0 select-none">
+        <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/20 shrink-0 select-none">
           <div className="flex items-center gap-3.5">
             {activeSettingsTab === "flags" ? (
               <button

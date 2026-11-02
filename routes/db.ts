@@ -1539,6 +1539,7 @@ const updateUserSettingsHandler = (req: Request, res: Response) => {
       db.prepare("INSERT OR REPLACE INTO user_settings (user_id, settings, updated_at) VALUES (?, ?, ?)").run(userId, serialized, now);
       db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'readerSettings', ?)").run(userId, serialized);
     })();
+    touchUserDbVersion(userId);
 
     return res.json({ status: "success", settings: incomingSettings, updatedAt: now });
   } catch (err: any) {

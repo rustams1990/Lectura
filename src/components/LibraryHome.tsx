@@ -1739,8 +1739,8 @@ function LibraryHome({
           )}
         </div>
 
-        {/* Filters & Actions Wrapper: Side-by-side on sm+, unified on 2xl */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 flex-1 min-w-0">
+        {/* Filters & Actions Wrapper: Side-by-side on xl+, stacked on mobile/tablet */}
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2.5 flex-1 min-w-0">
           {/* Center: Dynamic Category Filter chips (All, YouTube, Podcast, Book) */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 flex-1 scroll-smooth">
           <button
@@ -1792,7 +1792,7 @@ function LibraryHome({
         </div>
 
         {/* Right: Actions, Sort, Grid Columns & Play All */}
-        <div className="flex items-center gap-1.5 shrink-0 sm:ml-auto flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-1.5 shrink-0 xl:ml-auto flex-wrap">
           {/* Tag Filter dropdown */}
           <TagFilterDropdown
             selectedTag={selectedTag}

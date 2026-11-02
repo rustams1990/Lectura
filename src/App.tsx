@@ -263,6 +263,9 @@ export default function App() {
       wordCardMode: (localStorage.getItem("lectura_word_card_mode") as any) || DEFAULT_READER_SETTINGS.wordCardMode,
       bookWordCardMode: (localStorage.getItem("lectura_book_word_card_mode") as any) || DEFAULT_READER_SETTINGS.bookWordCardMode,
       showTimestamps: localStorage.getItem("lectura_show_timestamps") !== "false",
+      dateFormat: (localStorage.getItem("lectura_date_format") as any) || DEFAULT_READER_SETTINGS.dateFormat,
+      timeFormat: (localStorage.getItem("lectura_time_format") as any) || DEFAULT_READER_SETTINGS.timeFormat,
+      firstDayOfWeek: (localStorage.getItem("lectura_first_day_of_week") as any) || DEFAULT_READER_SETTINGS.firstDayOfWeek,
       ttsLocale: localStorage.getItem("lectura_tts_locale") || DEFAULT_READER_SETTINGS.ttsLocale,
       ttsLocales: (() => {
         try {
@@ -292,9 +295,15 @@ export default function App() {
           };
           parsed.toolbarVisibility_v3 = true;
         }
+        const savedDateFmt = localStorage.getItem("lectura_date_format") as any;
+        const savedTimeFmt = localStorage.getItem("lectura_time_format") as any;
+        const savedFirstDay = localStorage.getItem("lectura_first_day_of_week") as any;
         return {
           ...defaults,
           ...parsed,
+          dateFormat: (parsed.dateFormat && parsed.dateFormat !== "auto") ? parsed.dateFormat : (savedDateFmt || parsed.dateFormat || defaults.dateFormat),
+          timeFormat: (parsed.timeFormat && parsed.timeFormat !== "auto") ? parsed.timeFormat : (savedTimeFmt || parsed.timeFormat || defaults.timeFormat),
+          firstDayOfWeek: (parsed.firstDayOfWeek && parsed.firstDayOfWeek !== "auto") ? parsed.firstDayOfWeek : (savedFirstDay || parsed.firstDayOfWeek || defaults.firstDayOfWeek),
           ttsLocales: {
             ...(defaults.ttsLocales || {}),
             ...(parsed.ttsLocales || {}),
@@ -1002,6 +1011,15 @@ export default function App() {
       }
       if (next.ttsLocales) {
         safeLocalStorageSetItem("lectura_tts_locales", JSON.stringify(next.ttsLocales));
+      }
+      if (next.dateFormat) {
+        safeLocalStorageSetItem("lectura_date_format", next.dateFormat);
+      }
+      if (next.timeFormat) {
+        safeLocalStorageSetItem("lectura_time_format", next.timeFormat);
+      }
+      if (next.firstDayOfWeek) {
+        safeLocalStorageSetItem("lectura_first_day_of_week", next.firstDayOfWeek);
       }
       settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(next)).catch(() => {});
       try {
@@ -1760,7 +1778,9 @@ export default function App() {
                   undefined,
                   undefined,
                   undefined,
-                  undefined,
+                  d.readerSettings
+                    ? { ...readerSettingsRef.current, ...d.readerSettings }
+                    : readerSettingsRef.current,
                   undefined,
                   undefined,
                   undefined,
@@ -1797,12 +1817,33 @@ export default function App() {
               Date.now() - lastSettingsLocalChangeTimeRef.current < 60000 ||
               Date.now() - lastSettingsLocalMutationTime < 60000;
             if (!settingsRecentlyChanged) {
+              const localCur = readerSettingsRef.current;
+              const serverDateFmt = d.readerSettings.dateFormat;
+              const serverTimeFmt = d.readerSettings.timeFormat;
+              const serverFirstDay = d.readerSettings.firstDayOfWeek;
+
+              const resolvedDateFormat =
+                serverDateFmt && serverDateFmt !== "auto"
+                  ? serverDateFmt
+                  : (localCur?.dateFormat && localCur.dateFormat !== "auto" ? localCur.dateFormat : (serverDateFmt || "auto"));
+              const resolvedTimeFormat =
+                serverTimeFmt && serverTimeFmt !== "auto"
+                  ? serverTimeFmt
+                  : (localCur?.timeFormat && localCur.timeFormat !== "auto" ? localCur.timeFormat : (serverTimeFmt || "auto"));
+              const resolvedFirstDay =
+                serverFirstDay && serverFirstDay !== "auto"
+                  ? serverFirstDay
+                  : (localCur?.firstDayOfWeek && localCur.firstDayOfWeek !== "auto" ? localCur.firstDayOfWeek : (serverFirstDay || "auto"));
+
               const nextSettings: ReaderSettings = {
                 ...DEFAULT_READER_SETTINGS,
-                ...readerSettingsRef.current,
+                ...localCur,
                 ...d.readerSettings,
+                dateFormat: resolvedDateFormat,
+                timeFormat: resolvedTimeFormat,
+                firstDayOfWeek: resolvedFirstDay,
                 ttsLocales: {
-                  ...(readerSettingsRef.current?.ttsLocales || {}),
+                  ...(localCur?.ttsLocales || {}),
                   ...(d.readerSettings.ttsLocales || {}),
                 },
                 toolbarVisibility: {
@@ -1816,11 +1857,35 @@ export default function App() {
               if (nextSettings.ttsLocales) {
                 safeLocalStorageSetItem("lectura_tts_locales", JSON.stringify(nextSettings.ttsLocales));
               }
+              if (nextSettings.dateFormat) {
+                safeLocalStorageSetItem("lectura_date_format", nextSettings.dateFormat);
+              }
+              if (nextSettings.timeFormat) {
+                safeLocalStorageSetItem("lectura_time_format", nextSettings.timeFormat);
+              }
+              if (nextSettings.firstDayOfWeek) {
+                safeLocalStorageSetItem("lectura_first_day_of_week", nextSettings.firstDayOfWeek);
+              }
               setReaderSettings(nextSettings);
               readerSettingsRef.current = nextSettings;
-              useSettingsStore.getState().setSettings(nextSettings);
+              useSettingsStore.getState().setSettings(nextSettings, true);
               safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(nextSettings));
               settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(nextSettings)).catch(() => {});
+
+              // If local had a non-auto regional preference that the server didn't have yet, push it back to server
+              if (
+                (resolvedTimeFormat !== serverTimeFmt) ||
+                (resolvedDateFormat !== serverDateFmt) ||
+                (resolvedFirstDay !== serverFirstDay)
+              ) {
+                try {
+                  fetch(resolveApiUrl("/api/user/settings"), {
+                    method: "PATCH",
+                    headers: buildSyncHeaders({ "Content-Type": "application/json" }, { syncKey: localSyncKey }),
+                    body: JSON.stringify({ settings: nextSettings }),
+                  }).catch(() => {});
+                } catch (_) {}
+              }
             } else {
               console.log("[Load] Preserving recent local readerSettings (tone/theme/font changed < 60s ago)");
             }
@@ -1831,11 +1896,15 @@ export default function App() {
             if (!settingsRecentlyChanged) {
               const cleanDefaults: ReaderSettings = {
                 ...DEFAULT_READER_SETTINGS,
-                toolbarVisibility: { ...DEFAULT_TOOLBAR_VISIBILITY },
+                ...readerSettingsRef.current,
+                toolbarVisibility: {
+                  ...DEFAULT_TOOLBAR_VISIBILITY,
+                  ...(readerSettingsRef.current?.toolbarVisibility || {}),
+                },
               };
               setReaderSettings(cleanDefaults);
               readerSettingsRef.current = cleanDefaults;
-              useSettingsStore.getState().setSettings(cleanDefaults);
+              useSettingsStore.getState().setSettings(cleanDefaults, true);
               safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults));
               settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(cleanDefaults)).catch(() => {});
             }
@@ -2477,7 +2546,7 @@ export default function App() {
   }, [listeningSeconds]);
 
   useEffect(() => {
-    useSettingsStore.getState().setSettings(readerSettings);
+    useSettingsStore.getState().setSettings(readerSettings, true);
     safeLocalStorageSetItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
     settingsStore.setItem("vocab_clone_reader_settings", JSON.stringify(readerSettings));
   }, [readerSettings]);

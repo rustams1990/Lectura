@@ -525,6 +525,17 @@ function setupSchema(db: Database.Database) {
         INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
         ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
       END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_user_settings_ins_v AFTER INSERT ON user_settings
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_user_settings_upd_v AFTER UPDATE ON user_settings
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
     `);
   } catch (trgErr) {
     console.warn("[dbConnection] Triggers init warning:", trgErr);

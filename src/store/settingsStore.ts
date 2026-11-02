@@ -12,7 +12,7 @@ interface SettingsState {
 
   // Actions
   setWordCardMode: (mode: WordCardMode) => void;
-  setSettings: (newSettings: Partial<ReaderSettings>) => void;
+  setSettings: (newSettings: Partial<ReaderSettings>, isFromSync?: boolean) => void;
   getSettings: () => ReaderSettings;
 }
 
@@ -26,15 +26,33 @@ const getInitialWordCardMode = (): WordCardMode => {
   return 'floating';
 };
 
+const getInitialSavedSettings = (): Partial<ReaderSettings> => {
+  if (typeof window === 'undefined' || !window.localStorage) return {};
+  let parsed: Partial<ReaderSettings> = {};
+  try {
+    const raw = window.localStorage.getItem('vocab_clone_reader_settings');
+    if (raw) parsed = JSON.parse(raw);
+  } catch (_) {}
+  const df = window.localStorage.getItem('lectura_date_format') as DateFormatOption | null;
+  const tf = window.localStorage.getItem('lectura_time_format') as TimeFormatOption | null;
+  const fd = window.localStorage.getItem('lectura_first_day_of_week') as FirstDayOfWeekOption | null;
+  if (df && (!parsed.dateFormat || parsed.dateFormat === 'auto')) parsed.dateFormat = df;
+  if (tf && (!parsed.timeFormat || parsed.timeFormat === 'auto')) parsed.timeFormat = tf;
+  if (fd && (!parsed.firstDayOfWeek || parsed.firstDayOfWeek === 'auto')) parsed.firstDayOfWeek = fd;
+  return parsed;
+};
+
 const initialMode = getInitialWordCardMode();
+const initialSaved = getInitialSavedSettings();
 
 const defaultSettings: ReaderSettings = {
   ...DEFAULT_READER_SETTINGS,
-  wordCardMode: initialMode,
-  ttsLocale: (typeof window !== 'undefined' && window.localStorage?.getItem('lectura_tts_locale')) || DEFAULT_READER_SETTINGS.ttsLocale,
+  ...initialSaved,
+  wordCardMode: (initialSaved.wordCardMode as WordCardMode) || initialMode,
+  ttsLocale: (typeof window !== 'undefined' && window.localStorage?.getItem('lectura_tts_locale')) || initialSaved.ttsLocale || DEFAULT_READER_SETTINGS.ttsLocale,
   ttsLocales: (typeof window !== 'undefined' && window.localStorage?.getItem('lectura_tts_locales'))
-    ? (() => { try { return JSON.parse(window.localStorage.getItem('lectura_tts_locales')!); } catch (_) { return {}; } })()
-    : {},
+    ? (() => { try { return JSON.parse(window.localStorage.getItem('lectura_tts_locales')!); } catch (_) { return initialSaved.ttsLocales || {}; } })()
+    : (initialSaved.ttsLocales || {}),
 };
 
 export let lastSettingsLocalMutationTime = 0;
@@ -45,10 +63,10 @@ export function markSettingsLocallyMutated() {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: defaultSettings,
-  wordCardMode: initialMode,
-  dateFormat: 'auto',
-  timeFormat: 'auto',
-  firstDayOfWeek: 'auto',
+  wordCardMode: defaultSettings.wordCardMode || initialMode,
+  dateFormat: defaultSettings.dateFormat || 'auto',
+  timeFormat: defaultSettings.timeFormat || 'auto',
+  firstDayOfWeek: defaultSettings.firstDayOfWeek || 'auto',
 
   setWordCardMode: (mode: WordCardMode) => {
     markSettingsLocallyMutated();
@@ -61,8 +79,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }));
   },
 
-  setSettings: (newSettings: Partial<ReaderSettings>) => {
-    markSettingsLocallyMutated();
+  setSettings: (newSettings: Partial<ReaderSettings>, isFromSync?: boolean) => {
+    if (!isFromSync) {
+      markSettingsLocallyMutated();
+    }
     set((state) => {
       const merged = {
         ...state.settings,
@@ -123,6 +143,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       if (newSettings.ttsLocales && typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('lectura_tts_locales', JSON.stringify(newSettings.ttsLocales));
+      }
+      if (newSettings.dateFormat && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_date_format', newSettings.dateFormat);
+      }
+      if (newSettings.timeFormat && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_time_format', newSettings.timeFormat);
+      }
+      if (newSettings.firstDayOfWeek && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('lectura_first_day_of_week', newSettings.firstDayOfWeek);
       }
       return {
         settings: merged,

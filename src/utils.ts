@@ -1001,21 +1001,25 @@ export function buildVocabItem(
   let finalTranslation = "";
   if (isTargetWord) {
     // Target word being edited explicitly gets user's translation input
-    if (newItem.translation !== undefined && !isPlaceholder(newItem.translation)) {
-      finalTranslation = newItem.translation.trim();
+    // If newItem.translation is specified (even if explicitly cleared to empty ""), respect user's edit!
+    if (newItem.translation !== undefined) {
+      if (newItem.translation.trim() === "Pending translation" && existing?.translation && !isPlaceholder(existing.translation)) {
+        finalTranslation = existing.translation.trim();
+      } else {
+        finalTranslation = newItem.translation.trim();
+      }
     } else if (existing?.translation && !isPlaceholder(existing.translation)) {
       finalTranslation = existing.translation.trim();
     } else {
-      finalTranslation = newItem.translation || "";
+      finalTranslation = existing?.translation || "";
     }
   } else {
     // Linked family words preserve their existing contextual translation if set
-    if (existing?.translation && !isPlaceholder(existing.translation)) {
+    // Do NOT overwrite a linked word's blank translation with another word's translation.
+    if (existing?.translation !== undefined && !isPlaceholder(existing.translation)) {
       finalTranslation = existing.translation.trim();
-    } else if (newItem.translation !== undefined && !isPlaceholder(newItem.translation)) {
-      finalTranslation = newItem.translation.trim();
     } else {
-      finalTranslation = "";
+      finalTranslation = existing?.translation || "";
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { VocabItem } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 import { Volume2, Edit3, ArrowRight, CheckCircle, BrainCircuit, RefreshCw, Star, Sparkles, Clock } from "lucide-react";
@@ -22,6 +22,49 @@ interface FlashcardModeProps {
 // 3 = {t('practice.rate_hard', 'Трудно')} (Hard) - Correct, but hard
 // 4 = {t('practice.rate_good', 'Хорошо')} (Good) - Correct
 // 5 = {t('practice.rate_easy', 'Легко')} (Easy) - Perfect response
+
+function FlashcardImage({
+  imageUrl,
+  alt,
+  className,
+}: {
+  imageUrl: string;
+  alt: string;
+  className: string;
+}) {
+  const [useFallback, setUseFallback] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setUseFallback(false);
+    setHasError(false);
+  }, [imageUrl]);
+
+  if (hasError) return null;
+
+  const initialSrc = imageUrl.startsWith("http")
+    ? `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
+    : imageUrl;
+
+  const currentSrc = useFallback ? imageUrl : initialSrc;
+
+  return (
+    <img
+      key={`fc-img-${imageUrl}-${useFallback ? "fallback" : "proxy"}`}
+      src={currentSrc}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (!useFallback && imageUrl.startsWith("http")) {
+          setUseFallback(true);
+        } else {
+          setHasError(true);
+        }
+      }}
+      className={className}
+    />
+  );
+}
 
 export default function FlashcardMode({
   item,
@@ -145,18 +188,9 @@ export default function FlashcardMode({
               {/* If in Translation -> Target Word mode and word has an image, display it prominently */}
               {studyDirection === "reverse" && item.imageUrl && (
                 <div className="mb-4 max-h-48 max-w-full flex items-center justify-center">
-                  <img
-                    src={item.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(item.imageUrl)}` : item.imageUrl}
+                  <FlashcardImage
+                    imageUrl={item.imageUrl}
                     alt={item.word}
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      if (!e.currentTarget.dataset.fallback && item.imageUrl?.startsWith("http")) {
-                        e.currentTarget.dataset.fallback = "true";
-                        e.currentTarget.src = item.imageUrl;
-                      } else {
-                        e.currentTarget.style.display = "none";
-                      }
-                    }}
                     className="max-h-40 sm:max-h-48 max-w-[280px] sm:max-w-xs object-contain rounded-2xl border border-teal-100 dark:border-zinc-800 shadow-md bg-white/80 dark:bg-zinc-900/80 p-1"
                   />
                 </div>
@@ -274,18 +308,9 @@ export default function FlashcardMode({
               {/* Word Image on Back side as well */}
               {item.imageUrl && (
                 <div className="my-2 flex items-center justify-center">
-                  <img
-                    src={item.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(item.imageUrl)}` : item.imageUrl}
+                  <FlashcardImage
+                    imageUrl={item.imageUrl}
                     alt={item.word}
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      if (!e.currentTarget.dataset.fallback && item.imageUrl?.startsWith("http")) {
-                        e.currentTarget.dataset.fallback = "true";
-                        e.currentTarget.src = item.imageUrl;
-                      } else {
-                        e.currentTarget.style.display = "none";
-                      }
-                    }}
                     className="max-h-32 sm:max-h-40 max-w-[260px] sm:max-w-xs object-contain rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm bg-zinc-50/80 dark:bg-zinc-950/80 p-1"
                   />
                 </div>

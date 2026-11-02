@@ -1,8 +1,6 @@
 name: Build and Publish Docker Image
 
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
 
 env:
@@ -47,5 +45,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags || format('ghcr.io/{0}:latest', github.repository) }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max

@@ -187,8 +187,14 @@ function HistoryPage({
       const name = l.channelName?.trim() || (l as any).channelTitle?.trim();
       if (name) {
         const key = name.toLowerCase();
+        const avatar = l.channelAvatarUrl || ((l.youtubeId || l.lessonType === "youtube") ? l.coverUrl : null) || null;
+        const chUrl = l.channelUrl || null;
         if (!map.has(key)) {
-          map.set(key, { name, avatarUrl: l.channelAvatarUrl || null, channelUrl: l.channelUrl || null });
+          map.set(key, { name, avatarUrl: avatar, channelUrl: chUrl });
+        } else {
+          const ex = map.get(key)!;
+          if (!ex.avatarUrl && avatar) ex.avatarUrl = avatar;
+          if (!ex.channelUrl && chUrl) ex.channelUrl = chUrl;
         }
       }
     });
@@ -196,8 +202,14 @@ function HistoryPage({
       const name = h.channelName?.trim();
       if (name) {
         const key = name.toLowerCase();
+        const avatar = h.channelAvatarUrl || (h as any).channelAvatar || null;
+        const chUrl = (h as any).channelUrl || null;
         if (!map.has(key)) {
-          map.set(key, { name, avatarUrl: h.channelAvatarUrl || null, channelUrl: (h as any).channelUrl || null });
+          map.set(key, { name, avatarUrl: avatar, channelUrl: chUrl });
+        } else {
+          const ex = map.get(key)!;
+          if (!ex.avatarUrl && avatar) ex.avatarUrl = avatar;
+          if (!ex.channelUrl && chUrl) ex.channelUrl = chUrl;
         }
       }
     });
@@ -318,8 +330,45 @@ function HistoryPage({
     setEditingEntry(entry);
   };
 
-  const startCreateEntry = () => {
+  const defaultCreateDate = useMemo(() => {
+    if (selectedPeriod === "yesterday") {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    if (selectedPeriod === "today") {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    if (selectedPeriod === "custom" && customDate) {
+      return customDate;
+    }
+    if (selectedPeriod === "all" && selectedMonth && selectedMonth !== "all") {
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      if (selectedMonth === currentMonthKey) {
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const dd = String(now.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      } else {
+        return `${selectedMonth}-01`;
+      }
+    }
+    return "";
+  }, [selectedPeriod, customDate, selectedMonth]);
+
+  const [createInitialDate, setCreateInitialDate] = useState<string>("");
+
+  const startCreateEntry = (dateOverride?: string) => {
     setEditingEntry(null);
+    setCreateInitialDate(dateOverride || defaultCreateDate);
     setIsCreateModalOpen(true);
   };
 
@@ -1163,14 +1212,21 @@ function HistoryPage({
 
   // Group paginated items by date
   const groupedHistory = useMemo(() => {
-    const groups: { dateKey: string; items: HistoryEntry[] }[] = [];
+    const groups: { dateKey: string; isoDate: string; items: HistoryEntry[] }[] = [];
     let currentKey = "";
+    let currentIso = "";
     let currentItems: HistoryEntry[] = [];
 
     paginatedHistory.forEach((item) => {
       let key = "";
+      let isoDate = "";
       try {
         const d = new Date(item.timestamp);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        isoDate = `${yyyy}-${mm}-${dd}`;
+
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const itemDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1189,9 +1245,10 @@ function HistoryPage({
 
       if (key !== currentKey) {
         if (currentItems.length > 0) {
-          groups.push({ dateKey: currentKey, items: currentItems });
+          groups.push({ dateKey: currentKey, isoDate: currentIso, items: currentItems });
         }
         currentKey = key;
+        currentIso = isoDate;
         currentItems = [item];
       } else {
         currentItems.push(item);
@@ -1199,7 +1256,7 @@ function HistoryPage({
     });
 
     if (currentItems.length > 0) {
-      groups.push({ dateKey: currentKey, items: currentItems });
+      groups.push({ dateKey: currentKey, isoDate: currentIso, items: currentItems });
     }
 
     return groups;
@@ -2384,6 +2441,16 @@ function HistoryPage({
                 <span className="text-xs font-black text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
                   {group.dateKey}
                 </span>
+                {group.isoDate && (
+                  <button
+                    type="button"
+                    onClick={() => startCreateEntry(group.isoDate)}
+                    title={t('history_page.add_entry_for_date', 'Add record for this date')}
+                    className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <div className="flex-1 h-px bg-zinc-200/70 dark:bg-zinc-800" />
               </div>
 
@@ -2507,7 +2574,7 @@ function HistoryPage({
                               ? "text-teal-600 dark:text-teal-400 bg-teal-100/60 dark:bg-teal-900/40"
                               : isSelectionMode || selectedIds.size > 0
                               ? "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                              : "opacity-80 sm:opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                              : "opacity-40 hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
                           }`}
                           title={isSelected ? t('history_page.deselect_item', 'Deselect') : t('history_page.select_item', 'Select')}
                         >
@@ -2735,7 +2802,7 @@ function HistoryPage({
                             e.stopPropagation();
                             startEditEntry(item);
                           }}
-                          className="opacity-80 sm:opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-lg transition-all cursor-pointer"
+                          className="opacity-75 hover:opacity-100 p-1.5 text-zinc-500 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded-lg transition-all cursor-pointer"
                           title={t('history_page.edit_entry', 'Edit history record')}
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -2745,7 +2812,7 @@ function HistoryPage({
                         <button
                           type="button"
                           onClick={(e) => handleDeleteEntry(item.id, e)}
-                          className="opacity-80 sm:opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all cursor-pointer"
+                          className="opacity-75 hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all cursor-pointer"
                           title={t('history_page.delete_entry', 'Delete from history')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -3251,9 +3318,11 @@ function HistoryPage({
       <EditHistoryModal
         isOpen={Boolean(editingEntry || isCreateModalOpen)}
         entry={editingEntry}
+        initialDate={createInitialDate || defaultCreateDate}
         onClose={() => {
           setEditingEntry(null);
           setIsCreateModalOpen(false);
+          setCreateInitialDate("");
         }}
         lessons={lessons}
         playlists={playlists}

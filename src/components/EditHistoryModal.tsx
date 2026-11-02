@@ -81,6 +81,7 @@ export interface EditHistoryModalProps {
   selectedLanguage: string;
   onUpdateHistory: (updatedHistory: HistoryEntry[], deletedIds?: string[]) => void;
   onUpdateLessons?: (updatedLessons: Lesson[]) => void;
+  initialDate?: string;
 }
 
 export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
@@ -94,6 +95,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   selectedLanguage,
   onUpdateHistory,
   onUpdateLessons,
+  initialDate,
 }) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -116,11 +118,29 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
   const [formChannelName, setFormChannelName] = useState("");
   const [formChannelUrl, setFormChannelUrl] = useState("");
   const [formChannelAvatarUrl, setFormChannelAvatarUrl] = useState<string | null>(null);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [isResolvingFormChannel, setIsResolvingFormChannel] = useState(false);
   const [formYoutubeUrl, setFormYoutubeUrl] = useState("");
   const [formCoverUrl, setFormCoverUrl] = useState<string | null>(null);
   const [isResolvingYoutube, setIsResolvingYoutube] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [formChannelAvatarUrl, formChannelName]);
+
+  const effectiveAvatarUrl = useMemo(() => {
+    if (avatarLoadFailed) return null;
+    if (formChannelAvatarUrl) return formChannelAvatarUrl;
+    if (!formChannelName) return null;
+    const norm = formChannelName.trim().toLowerCase();
+    const ch = existingChannels.find((c) => c.name.toLowerCase() === norm);
+    if (ch?.avatarUrl) return ch.avatarUrl;
+    const lMatch = lessons.find((l) => l.channelName && l.channelName.trim().toLowerCase() === norm && l.channelAvatarUrl);
+    if (lMatch?.channelAvatarUrl) return lMatch.channelAvatarUrl;
+    const hMatch = history.find((h) => h.channelName && h.channelName.trim().toLowerCase() === norm && (h.channelAvatarUrl || (h as any).channelAvatar));
+    return hMatch?.channelAvatarUrl || (hMatch as any)?.channelAvatar || null;
+  }, [formChannelAvatarUrl, formChannelName, existingChannels, lessons, history, avatarLoadFailed]);
 
   const initializedKeyRef = useRef<string | null>(null);
 
@@ -131,7 +151,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       return;
     }
 
-    const currentKey = entry ? `edit_${entry.id}` : "new_entry";
+    const currentKey = entry ? `edit_${entry.id}` : `new_entry_${initialDate || "default"}`;
     if (initializedKeyRef.current === currentKey) {
       return; // Already initialized for this modal session, do not wipe user inputs
     }
@@ -164,9 +184,25 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormPrimaryTag(initialPrimary);
       setNewTagInput("");
 
-      setFormChannelName(entry.channelName || matchedLesson?.channelName || (matchedLesson as any)?.channelTitle || "");
+      const chName = entry.channelName || matchedLesson?.channelName || (matchedLesson as any)?.channelTitle || "";
+      setFormChannelName(chName);
       setFormChannelUrl((entry as any).channelUrl || matchedLesson?.channelUrl || "");
-      setFormChannelAvatarUrl(entry.channelAvatarUrl || matchedLesson?.channelAvatarUrl || null);
+
+      const knownChannel = chName ? existingChannels.find((c) => c.name.toLowerCase() === chName.trim().toLowerCase()) : null;
+      const lessonWithAvatar = chName ? lessons.find((l) => l.channelName && l.channelName.trim().toLowerCase() === chName.trim().toLowerCase() && l.channelAvatarUrl) : null;
+      const historyWithAvatar = chName ? history.find((h) => h.channelName && h.channelName.trim().toLowerCase() === chName.trim().toLowerCase() && (h.channelAvatarUrl || (h as any).channelAvatar)) : null;
+
+      const resolvedAvatar =
+        entry.channelAvatarUrl ||
+        (entry as any).channelAvatar ||
+        matchedLesson?.channelAvatarUrl ||
+        knownChannel?.avatarUrl ||
+        lessonWithAvatar?.channelAvatarUrl ||
+        historyWithAvatar?.channelAvatarUrl ||
+        (historyWithAvatar as any)?.channelAvatar ||
+        null;
+
+      setFormChannelAvatarUrl(resolvedAvatar);
 
       const rawTime = entry.timestamp || (entry as any).createdAt || (entry as any).date;
       if (rawTime) {
@@ -208,15 +244,21 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       setFormChannelAvatarUrl(null);
 
       const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, "0");
-      const dd = String(now.getDate()).padStart(2, "0");
-      setFormDateOnly(`${yyyy}-${mm}-${dd}`);
+      let defaultDate = "";
+      if (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
+        defaultDate = initialDate;
+      } else {
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const dd = String(now.getDate()).padStart(2, "0");
+        defaultDate = `${yyyy}-${mm}-${dd}`;
+      }
+      setFormDateOnly(defaultDate);
       const hh = String(now.getHours()).padStart(2, "0");
       const min = String(now.getMinutes()).padStart(2, "0");
       setFormTime(`${hh}:${min}`);
     }
-  }, [isOpen, entry, lessons, selectedLanguage]);
+  }, [isOpen, entry, lessons, selectedLanguage, initialDate]);
 
   const handleAddTag = (rawName: string) => {
     let clean = rawName.trim().replace(/^#+/, "").trim();
@@ -436,7 +478,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       coverUrl = selectedLesson ? (selectedLesson.coverUrl || formCoverUrl || null) : (formCoverUrl || null);
       lessonType = selectedLesson ? (selectedLesson.lessonType || "article") : "article";
       channelName = formChannelName.trim() || (selectedLesson ? selectedLesson.channelName || null : null);
-      channelAvatarUrl = formChannelAvatarUrl || (selectedLesson ? selectedLesson.channelAvatarUrl || null : null);
+      channelAvatarUrl = formChannelAvatarUrl || effectiveAvatarUrl || (selectedLesson ? selectedLesson.channelAvatarUrl || null : null);
       lessonId = formLessonId || "custom";
 
       if (selectedLesson) {
@@ -461,7 +503,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
       lessonId = entry ? (entry.lessonId || "custom") : "custom";
       lessonType = formCategory;
       channelName = formChannelName.trim() || null;
-      channelAvatarUrl = formChannelAvatarUrl || null;
+      channelAvatarUrl = formChannelAvatarUrl || effectiveAvatarUrl || null;
       coverUrl = formCoverUrl || (entry ? entry.coverUrl || null : null);
     }
 
@@ -772,6 +814,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                           <img
                             src={chAvatar}
                             alt=""
+                            referrerPolicy="no-referrer"
                             className="w-4 h-4 rounded-full object-cover shrink-0 border border-amber-300 dark:border-amber-700"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                           />
@@ -898,6 +941,7 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                         <img
                           src={formCoverUrl}
                           alt="Cover preview"
+                          referrerPolicy="no-referrer"
                           className="w-16 h-10 rounded-lg object-cover border border-zinc-200 dark:border-zinc-800 shrink-0"
                         />
                         <div className="flex-1 min-w-0">
@@ -979,18 +1023,29 @@ export const EditHistoryModal: React.FC<EditHistoryModalProps> = ({
                     {t('import.channel', 'Channel / Author')}
                   </span>
                 </div>
-                {formChannelAvatarUrl && (
-                  <div className="flex items-center gap-1.5">
+                {effectiveAvatarUrl ? (
+                  <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-2 py-0.5 rounded-full shadow-3xs">
                     <img
-                      src={formChannelAvatarUrl}
+                      src={effectiveAvatarUrl}
                       alt=""
-                      className="w-5 h-5 rounded-full object-cover border border-zinc-300 dark:border-zinc-700"
+                      referrerPolicy="no-referrer"
+                      className="w-5 h-5 rounded-full object-cover border border-zinc-300 dark:border-zinc-700 shrink-0"
+                      onError={() => setAvatarLoadFailed(true)}
                     />
                     <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 truncate max-w-[150px]">
                       {formChannelName}
                     </span>
                   </div>
-                )}
+                ) : formChannelName ? (
+                  <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-2 py-0.5 rounded-full shadow-3xs">
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 text-white font-black text-[9px] flex items-center justify-center shrink-0">
+                      {formChannelName.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 truncate max-w-[150px]">
+                      {formChannelName}
+                    </span>
+                  </div>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

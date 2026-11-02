@@ -2938,10 +2938,19 @@ function ReaderPanel({
               {hoveredWordObj.imageUrl && (
                 <div className="w-full max-h-40 min-h-[96px] overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-950 flex items-center justify-center p-1 shrink-0">
                   <img
-                    src={hoveredWordObj.imageUrl}
+                    key={`reader-hover-img-${hoveredWordObj.word}-${hoveredWordObj.imageUrl}`}
+                    src={hoveredWordObj.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(hoveredWordObj.imageUrl)}` : hoveredWordObj.imageUrl}
                     alt={hoveredWordObj.word}
                     className="max-h-36 max-w-full w-auto h-auto object-contain rounded-md"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (!e.currentTarget.dataset.fallback && hoveredWordObj.imageUrl?.startsWith("http")) {
+                        e.currentTarget.dataset.fallback = "true";
+                        e.currentTarget.src = hoveredWordObj.imageUrl;
+                      } else {
+                        e.currentTarget.style.display = "none";
+                      }
+                    }}
                   />
                 </div>
               )}

@@ -61,6 +61,7 @@ jobs:
         with:
           name: Lectura-APK
           path: build-output/Lectura.apk
+          retention-days: 1
 
       - name: Determine Release Tag
         id: release_info

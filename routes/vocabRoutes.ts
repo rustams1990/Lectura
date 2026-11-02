@@ -72,6 +72,7 @@ router.post("/words", (req: Request, res: Response) => {
   if (invalidPlaceholders.includes(wordTranslation.toLowerCase()) || wordTranslation.toLowerCase() === rawWord.toLowerCase()) {
     wordTranslation = "";
   }
+  const hasTranslation = translation !== undefined;
   const hasDefinition = definition !== undefined;
   const wordDefinition = hasDefinition ? (definition ? String(definition).trim() : null) : null;
   const wordIpa = ipa ? String(ipa).trim() : "";
@@ -108,26 +109,26 @@ router.post("/words", (req: Request, res: Response) => {
       db.prepare(`
         UPDATE words SET
           word = ?,
-          translation = CASE WHEN ? != '' THEN ? ELSE words.translation END,
+          translation = CASE WHEN ? = 1 THEN ? ELSE words.translation END,
           definition = CASE WHEN ? = 1 THEN ? ELSE definition END,
           ipa = CASE WHEN ? != '' THEN ? ELSE ipa END,
           grammar = CASE WHEN ? != '' THEN ? ELSE grammar END,
           contextRelation = CASE WHEN ? != '' THEN ? ELSE contextRelation END,
           status = ?,
           tags = ?,
-          imageUrl = COALESCE(?, imageUrl),
+          imageUrl = CASE WHEN ? = 1 THEN ? ELSE imageUrl END,
           examples = CASE WHEN ? != '[]' THEN ? ELSE examples END
         WHERE user_id = ? AND id = ?
       `).run(
         canonicalWord,
-        wordTranslation, wordTranslation,
+        hasTranslation ? 1 : 0, wordTranslation,
         hasDefinition ? 1 : 0, wordDefinition,
         wordIpa, wordIpa,
         wordGrammar, wordGrammar,
         wordContext, wordContext,
         wordStatus,
         tagsJson,
-        imageUrl || null,
+        imageUrl !== undefined ? 1 : 0, imageUrl || null,
         examplesJson, examplesJson,
         userId,
         existing.id
@@ -142,7 +143,7 @@ router.post("/words", (req: Request, res: Response) => {
           word = excluded.word,
           status = excluded.status,
           examples = CASE WHEN excluded.examples != '[]' THEN excluded.examples ELSE words.examples END,
-          imageUrl = COALESCE(excluded.imageUrl, words.imageUrl)
+          imageUrl = CASE WHEN ? = 1 THEN ? ELSE words.imageUrl END
       `).run(
         newWordId,
         userId,
@@ -157,7 +158,8 @@ router.post("/words", (req: Request, res: Response) => {
         now,
         tagsJson,
         imageUrl || null,
-        examplesJson
+        examplesJson,
+        imageUrl !== undefined ? 1 : 0, imageUrl || null
       );
     }
 

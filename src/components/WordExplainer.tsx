@@ -700,6 +700,10 @@ function WordExplainer({
 
   const handleSelectImage = (url: string | null) => {
     setImageUrlValue(url);
+    if (url && url.startsWith("http")) {
+      // Pre-cache external image immediately to disk so it never gets lost if external site goes down
+      fetch(`/api/image-proxy?url=${encodeURIComponent(url)}`).catch(() => {});
+    }
     if (word) {
       const nextStatus = status === "new" ? "2" : status;
       internalStatusUpdateRef.current = true;
@@ -2140,7 +2144,7 @@ function WordExplainer({
       
       {/* Top Header Row with Word, close and speech synthesis */}
       <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* Play button + accent picker */}
           <div className="relative flex items-center shrink-0">
             <button
@@ -2241,9 +2245,9 @@ function WordExplainer({
             })()}
           </div>
           
-          <div className="min-w-0 font-sans">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h3 className="text-lg font-bold text-inherit capitalize tracking-tight leading-tight truncate select-all">
+          <div className="min-w-0 flex-1 font-sans pr-1">
+            <div className="flex items-center gap-1.5 flex-wrap max-w-full">
+              <h3 className="text-lg font-bold text-inherit capitalize tracking-tight leading-tight truncate select-all shrink-0">
                 {word}
               </h3>
               {(() => {
@@ -2254,9 +2258,13 @@ function WordExplainer({
                   if (cleanParentWord.toLowerCase() !== word.toLowerCase()) {
                     const parentVocab = vocab ? (vocab[`${langKey}_${cleanParentWord.toLowerCase()}`] || vocab[cleanParentWord.toLowerCase()]) : null;
                     const parentTrans = parentVocab?.translation;
+                    const cleanParentTrans = parentTrans ? parentTrans.split(/[\n;]/)[0].trim() : "";
+                    const displayParentTrans = cleanParentTrans.length > 40
+                      ? cleanParentTrans.slice(0, 38).trim() + "…"
+                      : cleanParentTrans;
                     return (
-                      <span className="inline-flex items-center gap-1 text-[12px] font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
-                        <span className="text-zinc-400 dark:text-zinc-500 font-normal">{t('explainer.from_word', 'from')}</span>
+                      <span className="inline-flex items-center gap-1 text-[12px] font-medium text-zinc-500 dark:text-zinc-400 min-w-0 max-w-full truncate">
+                        <span className="text-zinc-400 dark:text-zinc-500 font-normal shrink-0">{t('explainer.from_word', 'from')}</span>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -2264,11 +2272,18 @@ function WordExplainer({
                             handleSelectRelatedWord(cleanParentWord);
                           }}
                           title={t('explainer.open_root_word', 'Open root word: {{word}}', { word: cleanParentWord })}
-                          className="font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline capitalize cursor-pointer transition-colors"
+                          className="font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 hover:underline capitalize cursor-pointer transition-colors shrink-0"
                         >
                           {cleanParentWord}
                         </button>
-                        {parentTrans && <span className="text-zinc-400 dark:text-zinc-500 font-normal">— {parentTrans}</span>}
+                        {parentTrans && (
+                          <span
+                            className="text-zinc-400 dark:text-zinc-500 font-normal truncate max-w-[130px] sm:max-w-[180px] md:max-w-[240px] inline-block align-bottom"
+                            title={parentTrans}
+                          >
+                            — {displayParentTrans}
+                          </span>
+                        )}
                       </span>
                     );
                   }
@@ -2282,7 +2297,7 @@ function WordExplainer({
               )}
             </div>
             {ipaValue && (
-              <span className="text-[10px] font-mono text-teal-600 dark:text-teal-400 font-semibold tracking-wider block mt-0.5">
+              <span className="text-[10px] font-mono text-teal-600 dark:text-teal-400 font-semibold tracking-wider block mt-0.5 truncate max-w-full">
                 {targetLanguage.toLowerCase() === "english" 
                   ? ipaValue 
                   : `IPA: ${ipaValue.replace(/US:\s*/gi, "").replace(/UK:\s*/gi, "").split("|")[0].trim()}`}
@@ -2355,7 +2370,7 @@ function WordExplainer({
             }}
             title={t('explainer.close_panel_title', 'Close panel')}
             aria-label="Close modal"
-            className="p-2 touch-none z-50 cursor-pointer outline-none focus:outline-none relative w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all shrink-0"
+            className="p-2 touch-none z-50 cursor-pointer outline-none focus:outline-none relative w-7 h-7 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-full flex items-center justify-center transition-all shrink-0 ml-1"
           >
             <X className="w-4 h-4" />
           </button>

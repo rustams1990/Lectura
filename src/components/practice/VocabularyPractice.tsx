@@ -201,9 +201,18 @@ export default function VocabularyPractice({
       if (!existing) {
         parentMap.set(normalizedParentKey, parentLq);
       } else {
+        const validParentTrans = parentLq.translation && parentLq.translation !== "Pending translation" && !parentLq.translation.startsWith("[");
+        const validExistingTrans = existing.translation && existing.translation !== "Pending translation" && !existing.translation.startsWith("[");
+        const resolvedTrans = validParentTrans
+          ? parentLq.translation
+          : (validExistingTrans ? existing.translation : (parentLq.translation || existing.translation || ""));
+
         const merged: VocabItem = {
           ...existing,
           ...parentLq,
+          translation: resolvedTrans,
+          imageUrl: parentLq.imageUrl || existing.imageUrl || null,
+          definition: parentLq.definition || existing.definition || "",
           srsNextReview: parentLq.srsNextReview ?? existing.srsNextReview,
           srsInterval: parentLq.srsInterval ?? existing.srsInterval,
           srsEaseFactor: parentLq.srsEaseFactor ?? existing.srsEaseFactor,

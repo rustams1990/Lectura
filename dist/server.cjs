@@ -3399,6 +3399,17 @@ function setupSchema(db) {
         INSERT INTO metadata (user_id, key, value) VALUES (OLD.user_id, 'db_user_version', strftime('%s%f', 'now'))
         ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
       END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_user_settings_ins_v AFTER INSERT ON user_settings
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
+      CREATE TRIGGER IF NOT EXISTS trg_user_settings_upd_v AFTER UPDATE ON user_settings
+      BEGIN
+        INSERT INTO metadata (user_id, key, value) VALUES (NEW.user_id, 'db_user_version', strftime('%s%f', 'now'))
+        ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+      END;
     `);
   } catch (trgErr) {
     console.warn("[dbConnection] Triggers init warning:", trgErr);
@@ -11373,6 +11384,7 @@ router5.post("/words", (req, res) => {
   if (invalidPlaceholders.includes(wordTranslation.toLowerCase()) || wordTranslation.toLowerCase() === rawWord.toLowerCase()) {
     wordTranslation = "";
   }
+  const hasTranslation = translation !== void 0;
   const hasDefinition = definition !== void 0;
   const wordDefinition = hasDefinition ? definition ? String(definition).trim() : null : null;
   const wordIpa = ipa ? String(ipa).trim() : "";
@@ -11402,19 +11414,19 @@ router5.post("/words", (req, res) => {
       db.prepare(`
         UPDATE words SET
           word = ?,
-          translation = CASE WHEN ? != '' THEN ? ELSE words.translation END,
+          translation = CASE WHEN ? = 1 THEN ? ELSE words.translation END,
           definition = CASE WHEN ? = 1 THEN ? ELSE definition END,
           ipa = CASE WHEN ? != '' THEN ? ELSE ipa END,
           grammar = CASE WHEN ? != '' THEN ? ELSE grammar END,
           contextRelation = CASE WHEN ? != '' THEN ? ELSE contextRelation END,
           status = ?,
           tags = ?,
-          imageUrl = COALESCE(?, imageUrl),
+          imageUrl = CASE WHEN ? = 1 THEN ? ELSE imageUrl END,
           examples = CASE WHEN ? != '[]' THEN ? ELSE examples END
         WHERE user_id = ? AND id = ?
       `).run(
         canonicalWord,
-        wordTranslation,
+        hasTranslation ? 1 : 0,
         wordTranslation,
         hasDefinition ? 1 : 0,
         wordDefinition,
@@ -11426,6 +11438,7 @@ router5.post("/words", (req, res) => {
         wordContext,
         wordStatus,
         tagsJson,
+        imageUrl !== void 0 ? 1 : 0,
         imageUrl || null,
         examplesJson,
         examplesJson,
@@ -11442,7 +11455,7 @@ router5.post("/words", (req, res) => {
           word = excluded.word,
           status = excluded.status,
           examples = CASE WHEN excluded.examples != '[]' THEN excluded.examples ELSE words.examples END,
-          imageUrl = COALESCE(excluded.imageUrl, words.imageUrl)
+          imageUrl = CASE WHEN ? = 1 THEN ? ELSE words.imageUrl END
       `).run(
         newWordId,
         userId,
@@ -11457,7 +11470,9 @@ router5.post("/words", (req, res) => {
         now,
         tagsJson,
         imageUrl || null,
-        examplesJson
+        examplesJson,
+        imageUrl !== void 0 ? 1 : 0,
+        imageUrl || null
       );
     }
     console.log(`[EXTENSION API] Word saved: '${canonicalWord}' (orig: '${rawWord}') -> '${wordTranslation}' (${wordStatus}) [${langName}] for user "${userId}"`);
@@ -13116,6 +13131,7 @@ var updateUserSettingsHandler = (req, res) => {
       db.prepare("INSERT OR REPLACE INTO user_settings (user_id, settings, updated_at) VALUES (?, ?, ?)").run(userId, serialized, now);
       db.prepare("INSERT OR REPLACE INTO metadata (user_id, key, value) VALUES (?, 'readerSettings', ?)").run(userId, serialized);
     })();
+    touchUserDbVersion(userId);
     return res.json({ status: "success", settings: incomingSettings, updatedAt: now });
   } catch (err) {
     console.error("[PATCH /api/user/settings] Error:", err);
@@ -13840,8 +13856,12 @@ router7.get("/image-proxy", async (req, res) => {
     }
     const response = await fetch(imageUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      }
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": parsedUrl.origin + "/"
+      },
+      signal: AbortSignal.timeout(1e4)
     });
     if (!response.ok) {
       return res.status(response.status).json({ error: `Image fetch failed with status ${response.status}` });
@@ -19729,7 +19749,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.46";
+var APP_VERSION = "v1.0.47";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);

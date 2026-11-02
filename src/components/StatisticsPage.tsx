@@ -2828,9 +2828,17 @@ function StatisticsPage({
                             <div className="flex items-center gap-2">
                               {item.imageUrl && (
                                 <img
-                                  src={item.imageUrl}
+                                  src={item.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(item.imageUrl)}` : item.imageUrl}
                                   alt={item.word}
                                   referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    if (!e.currentTarget.dataset.fallback && item.imageUrl?.startsWith("http")) {
+                                      e.currentTarget.dataset.fallback = "true";
+                                      e.currentTarget.src = item.imageUrl;
+                                    } else {
+                                      e.currentTarget.style.display = "none";
+                                    }
+                                  }}
                                   className="w-7 h-7 object-cover rounded-lg border border-zinc-100 dark:border-zinc-800 shrink-0 select-none shadow-4xs"
                                 />
                               )}
