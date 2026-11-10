@@ -8,9 +8,18 @@ interface StatsWidgetProps {
   selectedLanguage?: string;
   onlyPatterns?: boolean;
   onToggleOnlyPatterns?: () => void;
+  onOpenVocabulary?: () => void;
+  onOpenHistory?: () => void;
 }
 
-export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onToggleOnlyPatterns }: StatsWidgetProps) {
+export default function StatsWidget({
+  stats,
+  selectedLanguage,
+  onlyPatterns,
+  onToggleOnlyPatterns,
+  onOpenVocabulary,
+  onOpenHistory,
+}: StatsWidgetProps) {
   const { t } = useTranslation();
   const formatTime = (totalSeconds: number) => {
     if (!totalSeconds || totalSeconds <= 0) return `0${t('stats.seconds_short', 'с')}`;
@@ -32,7 +41,13 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
   return (
     <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 font-sans select-none">
       {/* Listening Card */}
-      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01]">
+      <div 
+        onClick={onOpenHistory}
+        className={`bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01] ${
+          onOpenHistory ? "cursor-pointer hover:border-sky-300 dark:hover:border-sky-800/80 shadow-3xs" : ""
+        }`}
+        title={onOpenHistory ? t('stats.view_history_tooltip', 'Открыть историю занятий') : undefined}
+      >
         <div className="hidden sm:flex p-3 rounded-xl bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 shrink-0">
           <Headphones className="w-5 h-5" />
         </div>
@@ -55,7 +70,13 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
       </div>
 
       {/* Learning Status */}
-      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01]">
+      <div 
+        onClick={onOpenVocabulary}
+        className={`bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01] ${
+          onOpenVocabulary ? "cursor-pointer hover:border-amber-300 dark:hover:border-amber-800/80 shadow-3xs" : ""
+        }`}
+        title={onOpenVocabulary ? t('stats.view_vocabulary_tooltip', 'Открыть словарь и изучаемые слова') : undefined}
+      >
         <div className="hidden sm:flex p-3 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 shrink-0">
           <Bookmark className="w-5 h-5" />
         </div>
@@ -71,7 +92,13 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
       </div>
 
       {/* Known Words */}
-      <div className="bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01]">
+      <div 
+        onClick={onOpenVocabulary}
+        className={`bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01] ${
+          onOpenVocabulary ? "cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-800/80 shadow-3xs" : ""
+        }`}
+        title={onOpenVocabulary ? t('stats.view_vocabulary_tooltip', 'Открыть словарь и изученные слова') : undefined}
+      >
         <div className="hidden sm:flex p-3 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shrink-0">
           <CheckCircle2 className="w-5 h-5" />
         </div>
@@ -85,7 +112,10 @@ export default function StatsWidget({ stats, selectedLanguage, onlyPatterns, onT
             {onToggleOnlyPatterns && (
               <button
                 type="button"
-                onClick={onToggleOnlyPatterns}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleOnlyPatterns();
+                }}
                 className={`hidden sm:inline-flex px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border items-center gap-1 select-none cursor-pointer shrink-0 ${
                   onlyPatterns
                     ? "bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-950/50 dark:border-teal-800 dark:text-teal-400 font-extrabold shadow-2xs"

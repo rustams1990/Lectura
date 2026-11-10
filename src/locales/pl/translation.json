@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "Biblioteka",
     "practice": "Praktyka",
-    "statistics": "Statystyka",
+    "statistics": "Słownictwo",
     "history": "Historia",
     "settings": "Ustawienia",
     "navigation": "Nawigacja",
@@ -321,7 +321,8 @@
     "close_menu": "Zamknij menu",
     "reading": "Czytanie",
     "focus_mode_desc": "Wejdź w tryb skupienia",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "Słownictwo"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "Odtwórz oryginalny dźwięk z wideo",
     "original_clip": "Klip",
     "filter_video_clips": "Klipy wideo 🎬",
-    "playing_clip": "Odtwarzanie..."
+    "playing_clip": "Odtwarzanie...",
+    "prev_card": "Poprzednia fiszka (←)",
+    "next_card": "Następna fiszka (→)",
+    "auto_tts_on": "🔊 Auto-wymowa włączona",
+    "auto_tts_off": "🔇 Auto-wymowa wyłączona",
+    "auto_tts_enabled": "Auto-wymowa: WŁ. (kliknij, aby wyciszyć)",
+    "auto_tts_disabled": "Auto-wymowa: WYŁ. (kliknij, aby włączyć)",
+    "stage_filter": "Etap nauki (1–5)",
+    "lesson_filter": "Książka / Wideo",
+    "all_lessons": "📚 Wszystkie książki i wideo",
+    "tag_filter": "Tag / Poziom CEFR",
+    "all_tags": "🏷️ Wszystkie tagi",
+    "reset_filters": "Resetuj filtry ×",
+    "image_card": "Obrazek"
   },
   "reader": {
     "no_translation_yet": "— Nie ma jeszcze tłumaczenia",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "Auto-pauza",
+    "auto_pause_word_on": "Auto-pauza po kliknięciu słowa: Wł. (pauzuje po kliknięciu, wznawia po wyborze statusu lub zamknięciu)",
+    "auto_pause_word_off": "Auto-pauza po kliknięciu słowa: Wył.",
+    "auto_pause_word_desc": "Wstrzymaj wideo/audio po kliknięciu słowa i wznów po wybraniu statusu lub zamknięciu karty",
+    "tb_auto_pause": "Przycisk Auto-pauzy"
   },
   "app": {
     "idioms_error": "Błąd podczas wykrywania idiomów:",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "Usuń filtrowane słowa",
     "delete_filtered_confirm": "Zamierzasz usunąć {{count}} FILTEROWANE słowa dla języka „{{lang}}”.",
     "delete_filtered_warning": "Wszystkie te słowa zostaną trwale usunięte wraz ze swoimi statusami.",
-    "deleted_filtered_toast": "Pomyślnie usunięto odfiltrowane słowa {{count}}."
+    "deleted_filtered_toast": "Pomyślnie usunięto odfiltrowane słowa {{count}}.",
+    "tab_overview": "Postępy i poziom",
+    "tab_vocabulary": "Lista słów"
   },
   "history_page": {
     "title": "Historia aktywności w czytaniu i słuchaniu",

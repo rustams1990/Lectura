@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages, List, Clock, FastForward } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ChevronLeft, Sparkles, Trophy, Loader2, Eye, EyeOff, Tv, BookOpen, Brain, Languages, List, Clock, FastForward, PauseCircle } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 import TextSettingsControls from "./TextSettingsControls";
 import AudioPlayerBar from "./AudioPlayerBar";
@@ -219,8 +219,12 @@ export default function ReaderScreen({
         return;
       }
       if (e.key === "Escape") {
-        if (selectedWord) {
+        if (selectedWord || effectiveSelectedWord) {
           e.preventDefault();
+          if (readerSettings.autoPauseOnWordClick !== false) {
+            window.dispatchEvent(new CustomEvent("lectura:word-auto-resume"));
+          }
+          useWordStore.getState().setSelectedWord(null);
           setSelectedWord(null);
           return;
         }
@@ -255,9 +259,37 @@ export default function ReaderScreen({
     }
   }, [selectedWord]);
 
+  // Auto-pause / Auto-resume video & audio when clicking a word or closing the word card
+  const prevEffectiveWordRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevEffectiveWordRef.current;
+    prevEffectiveWordRef.current = effectiveSelectedWord;
+    if (typeof window === "undefined") return;
+    if (readerSettings.autoPauseOnWordClick === false) return;
+
+    if (effectiveSelectedWord) {
+      window.dispatchEvent(new CustomEvent("lectura:word-auto-pause"));
+    } else if (prev && !effectiveSelectedWord) {
+      window.dispatchEvent(new CustomEvent("lectura:word-auto-resume"));
+    }
+  }, [effectiveSelectedWord, readerSettings.autoPauseOnWordClick]);
+
+  const handleWordClickWithAutoPause = useCallback(
+    (word: string, sentence: string) => {
+      if (typeof window !== "undefined" && readerSettings.autoPauseOnWordClick !== false && word) {
+        window.dispatchEvent(new CustomEvent("lectura:word-auto-pause"));
+      }
+      handleWordClick(word, sentence);
+    },
+    [handleWordClick, readerSettings.autoPauseOnWordClick]
+  );
+
   const handleCloseWord = () => {
     if (typeof window !== "undefined") {
       (window as any).__lecturaLastModalClosedAt = Date.now();
+      if (readerSettings.autoPauseOnWordClick !== false) {
+        window.dispatchEvent(new CustomEvent("lectura:word-auto-resume"));
+      }
     }
     useWordStore.getState().setSelectedWord(null);
     setSelectedWord(null);
@@ -496,6 +528,32 @@ export default function ReaderScreen({
                       <FastForward className="w-3.5 h-3.5" />
                       <span>{t("reader.autoplay_next_lesson", "Auto-play")}</span>
                     </button>
+
+                    {/* Auto-pause Video/Audio on Word Click Toggle */}
+                    {toolbarVisibility.showAutoPauseToggle !== false && !isBookLesson && activeLesson?.sourceType !== 'book' && activeLesson?.sourceType !== 'article' && activeLesson?.lessonType !== 'article' && Boolean(activeLesson && (activeLesson.youtubeId || (activeLesson as any).localVideoUrl || activeLesson.audioUrl || activeLesson.audioBase64 || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "video" || activeLesson.lessonType === "podcast" || activeLesson.lessonType === "audio")) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReaderSettings((prev) => ({
+                            ...prev,
+                            autoPauseOnWordClick: prev.autoPauseOnWordClick === false ? true : false,
+                          }))
+                        }
+                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                          readerSettings.autoPauseOnWordClick !== false
+                            ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
+                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                        }`}
+                        title={
+                          readerSettings.autoPauseOnWordClick !== false
+                            ? t("reader.auto_pause_word_on", "Auto-pause on word click: On (pauses when clicking a word, resumes after choosing status or closing card)")
+                            : t("reader.auto_pause_word_off", "Auto-pause on word click: Off")
+                        }
+                      >
+                        <PauseCircle className="w-3.5 h-3.5" />
+                        <span>{t("reader.auto_pause_word", "Auto-pause")}</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Right items group (Display Mode, Width, Text Settings AA) */}
@@ -632,7 +690,7 @@ export default function ReaderScreen({
                 history={history}
                 onUpdateHistory={handleUpdateHistory}
                 hideMeta={isBookFocus}
-                onWordClick={handleWordClick}
+                onWordClick={handleWordClickWithAutoPause}
                 onClearSelection={handleCloseWord}
                 selectedWord={effectiveSelectedWord}
                 onToggleTranslations={() =>
@@ -673,7 +731,7 @@ export default function ReaderScreen({
                   onClose={handleCloseWord}
                   settings={readerSettings}
                   onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
-                  onWordClick={handleWordClick}
+                  onWordClick={handleWordClickWithAutoPause}
                   lessonText={activeLesson?.text}
                   lessons={lessons}
                   detectedPhrases={activeLesson.detectedPhrases}
@@ -737,7 +795,7 @@ export default function ReaderScreen({
                   onClose={handleCloseWord}
                   settings={readerSettings}
                   onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
-                  onWordClick={handleWordClick}
+                  onWordClick={handleWordClickWithAutoPause}
                   lessonText={activeLesson?.text}
                   lessons={lessons}
                   detectedPhrases={activeLesson.detectedPhrases}
@@ -816,7 +874,7 @@ export default function ReaderScreen({
                     onClose={handleCloseWord}
                     settings={readerSettings}
                     onSettingsChange={(patch) => setReaderSettings((prev: ReaderSettings) => ({ ...prev, ...patch }))}
-                    onWordClick={handleWordClick}
+                    onWordClick={handleWordClickWithAutoPause}
                     lessonText={activeLesson?.text}
                     lessons={lessons}
                     detectedPhrases={activeLesson.detectedPhrases}

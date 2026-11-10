@@ -13854,8 +13854,12 @@ router7.get("/image-proxy", async (req, res) => {
       res.set("Cache-Control", "public, max-age=31536000");
       return res.sendFile(cacheFilePath);
     }
+    const isWikimedia = parsedUrl.hostname.endsWith("wikimedia.org") || parsedUrl.hostname.endsWith("wikipedia.org");
     const response = await fetch(imageUrl, {
-      headers: {
+      headers: isWikimedia ? {
+        "User-Agent": "LecturaApp/1.0 (https://github.com/rustams1990/Lectura)",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+      } : {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
@@ -13883,14 +13887,24 @@ router7.get("/image-search", async (req, res) => {
   if (!query) {
     return res.status(400).json({ error: "Query parameter 'q' is required" });
   }
+  const qStr = query.trim();
   try {
-    const htmlUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
+    const bingResults = await searchBingImages(qStr);
+    if (bingResults.length > 0) {
+      return res.json({ results: bingResults });
+    }
+  } catch (bingErr) {
+    console.warn("Bing image search failed, trying fallback:", bingErr);
+  }
+  try {
+    const htmlUrl = `https://duckduckgo.com/?q=${encodeURIComponent(qStr)}&iax=images&ia=images`;
     const htmlResponse = await fetch(htmlUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5"
-      }
+      },
+      signal: AbortSignal.timeout(6e3)
     });
     if (!htmlResponse.ok) {
       throw new Error(`DuckDuckGo HTML query returned status ${htmlResponse.status}`);
@@ -13898,39 +13912,34 @@ router7.get("/image-search", async (req, res) => {
     const html = await htmlResponse.text();
     let vqd = null;
     const match1 = html.match(/vqd=([\d-]+)\&/);
-    if (match1) {
-      vqd = match1[1];
-    }
+    if (match1) vqd = match1[1];
     if (!vqd) {
       const match2 = html.match(/vqd\s*=\s*['"]([^'"]+)['"]/);
-      if (match2) {
-        vqd = match2[1];
-      }
+      if (match2) vqd = match2[1];
     }
     if (!vqd) {
       const match3 = html.match(/vqd="([\d-]+)"/);
-      if (match3) {
-        vqd = match3[1];
-      }
+      if (match3) vqd = match3[1];
     }
     if (!vqd) {
       throw new Error("Could not extract vqd token from DuckDuckGo response");
     }
-    const apiUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}&vqd=${vqd}&f=,,,;&p=1`;
+    const apiUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(qStr)}&vqd=${vqd}&f=,,,;&p=1`;
     const apiResponse = await fetch(apiUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Referer": "https://duckduckgo.com/"
-      }
+      },
+      signal: AbortSignal.timeout(6e3)
     });
-    if (!apiResponse.ok) {
+    if (!apiResponse.ok || apiResponse.status === 202) {
       throw new Error(`DuckDuckGo image API returned status ${apiResponse.status}`);
     }
     const data = await apiResponse.json();
     let results = (data.results || []).slice(0, 16).map((item, idx) => {
-      const imgUrl = item.image || item.thumbnail || "";
       const thumbUrl = item.thumbnail || item.image || "";
+      const imgUrl = item.thumbnail || item.image || "";
       return {
         id: `ddg_${idx}_${Date.now()}`,
         url: imgUrl,
@@ -13939,18 +13948,17 @@ router7.get("/image-search", async (req, res) => {
         thumbnail: thumbUrl,
         author: item.source || "DuckDuckGo",
         source: item.source || "DuckDuckGo",
-        description: item.title || "",
-        title: item.title || ""
+        description: item.title || qStr,
+        title: item.title || qStr
       };
-    });
+    }).filter((r) => r.url);
     if (!results || results.length === 0) {
-      results = await searchWikimedia(query);
+      results = await searchWikimedia(qStr);
     }
     return res.json({ results });
   } catch (err) {
-    console.error("DuckDuckGo Image search error, trying Wikimedia fallback:", err);
     try {
-      const wikiResults = await searchWikimedia(query);
+      const wikiResults = await searchWikimedia(qStr);
       if (wikiResults.length > 0) {
         return res.json({ results: wikiResults });
       }
@@ -13960,28 +13968,80 @@ router7.get("/image-search", async (req, res) => {
     return res.status(500).json({ error: err.message || "Failed to search images" });
   }
 });
+async function searchBingImages(query) {
+  const bingUrl = `https://www.bing.com/images/async?q=${encodeURIComponent(query)}&first=0&count=20&mmasync=1`;
+  const resp = await fetch(bingUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9"
+    },
+    signal: AbortSignal.timeout(8e3)
+  });
+  if (!resp.ok) return [];
+  const html = await resp.text();
+  const regex = /m="(\{[^"]+\})"/g;
+  const results = [];
+  let match;
+  let idx = 0;
+  while ((match = regex.exec(html)) !== null && results.length < 16) {
+    const jsonStr = match[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+    try {
+      const obj = JSON.parse(jsonStr);
+      const cdnThumb = obj.turl || "";
+      if (!cdnThumb || !cdnThumb.startsWith("http")) continue;
+      const cleanTitle = (obj.t || obj.desc || query).replace(/[\uE000-\uF8FF]/g, "").trim();
+      let hostSource = "Bing Images";
+      if (obj.purl) {
+        try {
+          hostSource = new URL(obj.purl).hostname.replace(/^www\./, "");
+        } catch (_) {
+        }
+      }
+      results.push({
+        id: `bing_${idx}_${Date.now()}`,
+        url: cdnThumb,
+        thumb: cdnThumb,
+        image: cdnThumb,
+        thumbnail: cdnThumb,
+        author: hostSource,
+        source: hostSource,
+        description: cleanTitle || query,
+        title: cleanTitle || query
+      });
+      idx++;
+    } catch (_) {
+    }
+  }
+  return results;
+}
 async function searchWikimedia(query) {
   try {
-    const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=16&prop=imageinfo&iiprop=url|mime&format=json`;
+    const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=20&prop=imageinfo&iiprop=url|mime&iiurlwidth=400&format=json`;
     const resp = await fetch(wikiUrl, {
-      headers: { "User-Agent": "LecturaApp/1.0 (https://lectura.app)" }
+      headers: { "User-Agent": "LecturaApp/1.0 (https://github.com/rustams1990/Lectura)" },
+      signal: AbortSignal.timeout(8e3)
     });
     if (!resp.ok) return [];
     const json = await resp.json();
     const pages = json.query?.pages || {};
-    return Object.values(pages).map((page, idx) => {
+    return Object.values(pages).filter((page) => {
+      const mime = page.imageinfo?.[0]?.mime || "";
+      return mime === "image/jpeg" || mime === "image/png" || mime === "image/webp" || mime === "image/gif";
+    }).slice(0, 16).map((page, idx) => {
       const ii = page.imageinfo?.[0];
-      const imgUrl = ii?.url || "";
+      const thumbUrl = ii?.thumburl || ii?.url || "";
+      const cleanTitle = (page.title || query).replace(/^File:/i, "").replace(/\.[a-zA-Z0-9]+$/, "");
       return {
         id: `wiki_${page.pageid || idx}`,
-        url: imgUrl,
-        thumb: imgUrl,
-        image: imgUrl,
-        thumbnail: imgUrl,
+        url: thumbUrl,
+        thumb: thumbUrl,
+        image: thumbUrl,
+        thumbnail: thumbUrl,
         author: "Wikimedia Commons",
         source: "Wikimedia Commons",
-        description: page.title || query,
-        title: page.title || query
+        description: cleanTitle,
+        title: cleanTitle
       };
     }).filter((item) => item.url);
   } catch (err) {
@@ -19749,7 +19809,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.47";
+var APP_VERSION = "v1.0.48";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);

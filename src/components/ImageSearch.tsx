@@ -165,6 +165,12 @@ export default function ImageSearch({
             alt={word || ""}
             className="max-h-32 max-w-full object-contain rounded-xl p-1"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              if (!e.currentTarget.dataset.fallback && imageUrlValue.startsWith("http")) {
+                e.currentTarget.dataset.fallback = "true";
+                e.currentTarget.src = imageUrlValue;
+              }
+            }}
           />
           <div className="absolute inset-0 bg-black/45 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity gap-2">
             <button
@@ -303,6 +309,15 @@ export default function ImageSearch({
                     alt={imgDesc}
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (!e.currentTarget.dataset.fallback && rawThumb.startsWith("http")) {
+                        e.currentTarget.dataset.fallback = "true";
+                        e.currentTarget.src = rawThumb;
+                      } else {
+                        const btn = e.currentTarget.closest("button");
+                        if (btn) btn.style.display = "none";
+                      }
+                    }}
                   />
                   <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[6.5px] px-0.5 py-0.25 truncate opacity-0 group-hover:opacity-100 transition-opacity leading-none">
                     {imgAuthor}

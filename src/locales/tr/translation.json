@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "Kütüphane",
     "practice": "Pratik",
-    "statistics": "İstatistikler",
+    "statistics": "Kelime Dağarcığı",
     "history": "Tarih",
     "settings": "Ayarlar",
     "navigation": "Navigasyon",
@@ -321,7 +321,8 @@
     "close_menu": "Menüyü Kapat",
     "reading": "Okuma",
     "focus_mode_desc": "Odak Moduna Girin",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "Kelime Dağarcığı"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "Videodaki orijinal sesi oynat",
     "original_clip": "Klip",
     "filter_video_clips": "Video klipleri 🎬",
-    "playing_clip": "Oynatılıyor..."
+    "playing_clip": "Oynatılıyor...",
+    "prev_card": "Önceki kart (←)",
+    "next_card": "Sonraki kart (→)",
+    "auto_tts_on": "🔊 Otomatik seslendirme açık",
+    "auto_tts_off": "🔇 Otomatik seslendirme kapalı",
+    "auto_tts_enabled": "Otomatik ses: AÇIK (kapatmak için tıklayın)",
+    "auto_tts_disabled": "Otomatik ses: KAPALI (açmak için tıklayın)",
+    "stage_filter": "Öğrenme Aşaması (1–5)",
+    "lesson_filter": "Kitap / Video",
+    "all_lessons": "📚 Tüm kitaplar ve videolar",
+    "tag_filter": "Etiket / CEFR Seviyesi",
+    "all_tags": "🏷️ Tüm etiketler",
+    "reset_filters": "Filtreleri sıfırla ×",
+    "image_card": "Görsel"
   },
   "reader": {
     "no_translation_yet": "— Henüz çeviri yok",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "Oto-duraklat",
+    "auto_pause_word_on": "Kelimeye tıklayınca oto-duraklat: Açık (tıklayınca duraklatır, durum seçilince veya kapatılınca devam eder)",
+    "auto_pause_word_off": "Kelimeye tıklayınca oto-duraklat: Kapalı",
+    "auto_pause_word_desc": "Bir kelimeye tıkladığınızda videoyu/sesi duraklatın ve durum seçtikten veya kartı kapattıktan sonra devam ettirin",
+    "tb_auto_pause": "Oto-duraklat Düğmesi"
   },
   "app": {
     "idioms_error": "Deyimler tespit edilirken hata oluştu:",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "Filtrelenen Kelimeleri Sil",
     "delete_filtered_confirm": "\"{{lang}}\" dili için {{count}} FILTERED kelimeleri silmek üzeresiniz.",
     "delete_filtered_warning": "Tüm bu kelimeler durumlarıyla birlikte kalıcı olarak silinecek.",
-    "deleted_filtered_toast": "{{count}} filtrelenen kelime başarıyla silindi."
+    "deleted_filtered_toast": "{{count}} filtrelenen kelime başarıyla silindi.",
+    "tab_overview": "İlerleme ve Seviye",
+    "tab_vocabulary": "Kelime Listesi"
   },
   "history_page": {
     "title": "Okuma ve Dinleme Etkinliği Geçmişi",

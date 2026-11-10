@@ -170,6 +170,41 @@ export default function AudioPlayerBar({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastAudioPosRef = useRef<number>(0);
+  const wasPausedByWordClickRef = useRef<boolean>(false);
+
+  // Auto-pause / Auto-resume when user clicks a word in the reader or chooses a status / closes the card
+  useEffect(() => {
+    const handleWordAutoPause = () => {
+      if (isGlobalPlayingThisLesson) {
+        if (usePlaylistStore.getState().isPlaying) {
+          wasPausedByWordClickRef.current = true;
+          usePlaylistStore.getState().setIsPlaying(false);
+        }
+      } else if (audioRef.current && !audioRef.current.paused) {
+        wasPausedByWordClickRef.current = true;
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+
+    const handleWordAutoResume = () => {
+      if (!wasPausedByWordClickRef.current) return;
+      wasPausedByWordClickRef.current = false;
+      if (isGlobalPlayingThisLesson) {
+        usePlaylistStore.getState().setIsPlaying(true);
+      } else if (audioRef.current) {
+        audioRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    };
+
+    window.addEventListener("lectura:word-auto-pause", handleWordAutoPause);
+    window.addEventListener("lectura:word-auto-resume", handleWordAutoResume);
+    return () => {
+      window.removeEventListener("lectura:word-auto-pause", handleWordAutoPause);
+      window.removeEventListener("lectura:word-auto-resume", handleWordAutoResume);
+    };
+  }, [isGlobalPlayingThisLesson, setIsPlaying]);
   const [error, setError] = useState<string | null>(null);
   const [isSentenceLoop, setIsSentenceLoop] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(() => {

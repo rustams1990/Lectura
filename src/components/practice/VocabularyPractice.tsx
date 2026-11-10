@@ -7,9 +7,10 @@ import React, { useState, useMemo, useEffect } from "react";
 import { VocabItem, WordStatus, Lesson, ReaderSettings } from "../../types";
 import { calculateNextReview } from "../../utils/srsAlgorithm";
 import { motion, AnimatePresence } from "motion/react";
-import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, BookOpen, Volume2, Edit3, Download, Settings, BrainCircuit, SlidersHorizontal, List, MoreVertical, ArrowUpDown } from "lucide-react";
+import { HelpCircle, Star, ArrowRight, CheckCircle, RefreshCw, Bookmark, Sparkles, X, ChevronDown, ChevronLeft, ChevronRight, BookOpen, Volume2, VolumeX, Edit3, Download, Settings, BrainCircuit, SlidersHorizontal, List, MoreVertical, ArrowUpDown, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { safeJsonParse, getTtsAudioFromCache, saveTtsAudioToCache, getLanguageCode, getBCP47LanguageTag, getEffectiveTtsLocale, getLanguageNameWithDialect, safeLocalStorageSetItem } from "../../utils";
+import { segmentSentenceTokens } from "../../tokenizer";
 import { useToast } from "../../context/ToastContext";
 import WordExplainer from "../WordExplainer";
 import FlashcardMode from "./FlashcardMode";
@@ -27,8 +28,10 @@ interface VocabularyPracticeProps {
   wordLinks?: Record<string, string>;
   onUpdateStatus: (word: string, status: WordStatus, lang?: string) => void;
   defaultLanguage?: string;
+  selectedTargetLanguage?: string;
+  onSelectTargetLanguage?: (lang: string) => void;
   onAddLesson?: (newL: Lesson) => void;
-  onSelectTab?: (tab: "library" | "read" | "practice" | "statistics") => void;
+  onSelectTab?: (tab: "library" | "read" | "practice" | "vocabulary" | "statistics" | "history" | "podcasts") => void;
   settings?: ReaderSettings;
   onSaveVocab?: (item: VocabItem, lang?: string) => void;
   onDeleteVocab?: (word: string, lang?: string) => void;
@@ -51,6 +54,8 @@ export default function VocabularyPractice({
   wordLinks = {},
   onUpdateStatus,
   defaultLanguage,
+  selectedTargetLanguage,
+  onSelectTargetLanguage,
   onAddLesson,
   onSelectTab,
   settings,
@@ -80,16 +85,37 @@ export default function VocabularyPractice({
     if (defaultLanguage) {
       langs.add(defaultLanguage.charAt(0).toUpperCase() + defaultLanguage.slice(1).toLowerCase());
     }
+    if (selectedTargetLanguage && selectedTargetLanguage !== "All") {
+      langs.add(selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1).toLowerCase());
+    }
     return Array.from(langs);
-  }, [vocab, defaultLanguage]);
+  }, [vocab, defaultLanguage, selectedTargetLanguage]);
 
   const [selectedPracticeLang, setSelectedPracticeLang] = useState<string>(() => {
+    if (selectedTargetLanguage && selectedTargetLanguage !== "All") {
+      return selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1).toLowerCase();
+    }
     return defaultLanguage || "Spanish";
   });
+
+  // Sync with global header target language when changed from AppHeader
+  useEffect(() => {
+    if (selectedTargetLanguage && selectedTargetLanguage !== "All") {
+      const normalized = selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1).toLowerCase();
+      setSelectedPracticeLang((prev) => (prev.toLowerCase() === normalized.toLowerCase() ? prev : normalized));
+    }
+  }, [selectedTargetLanguage]);
 
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [timeframeFilter, setTimeframeFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [deckTypeFilter, setDeckTypeFilter] = useState<"learning" | "all" | "spelling-problems" | "spelling-accents" | "spelling-correct">("learning");
+  const [stageFilter, setStageFilter] = useState<"all" | "1" | "2" | "3" | "4" | "5">("all");
+  const [lessonFilter, setLessonFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [autoPlayTts, setAutoPlayTts] = useState<boolean>(() => {
+    const saved = localStorage.getItem("vocab_practice_auto_tts");
+    return saved !== null ? saved === "true" : true;
+  });
   const [sortBy, setSortBy] = useState<PracticeSortOption>(() => {
     return (localStorage.getItem("vocab_practice_sort") as PracticeSortOption) || "date_desc";
   });
@@ -149,7 +175,90 @@ export default function VocabularyPractice({
     setCurrentIndex(0);
     setIsFlipped(false);
     setRelearningQueue([]);
-  }, [deckTypeFilter, studyMode, selectedPracticeLang]);
+  }, [deckTypeFilter, studyMode, selectedPracticeLang, stageFilter, lessonFilter, tagFilter]);
+
+  // Reset lesson and tag filters when language changes
+  useEffect(() => {
+    setLessonFilter("all");
+    setTagFilter("all");
+  }, [selectedPracticeLang]);
+
+  // Active lessons for the selected language
+  const lessonsForLang = useMemo(() => {
+    if (!lessons) return [];
+    const targetLower = selectedPracticeLang.toLowerCase();
+    return lessons.filter((l) => !l.isArchived && (l.targetLanguage || "").toLowerCase() === targetLower);
+  }, [lessons, selectedPracticeLang]);
+
+  // Precompute word set for the selected lesson filter
+  const selectedLessonWordsSet = useMemo(() => {
+    if (lessonFilter === "all" || !lessons) return null;
+    const foundLesson = lessons.find((l) => l.id === lessonFilter);
+    if (!foundLesson || !foundLesson.text) return null;
+
+    const targetLower = selectedPracticeLang.toLowerCase();
+    const lowerLinksMap = new Map<string, string>();
+    for (const [k, v] of Object.entries(wordLinks)) {
+      if (v) lowerLinksMap.set(k.toLowerCase(), v);
+    }
+
+    const resolveRootWord = (w: string): string => {
+      let curKey = `${targetLower}_${w.toLowerCase()}`;
+      const visited = new Set<string>();
+      while (true) {
+        const nextTarget = lowerLinksMap.get(curKey.toLowerCase()) || lowerLinksMap.get(curKey.replace(/^[a-zA-Z]+_/, "").toLowerCase());
+        if (!nextTarget || visited.has(nextTarget.toLowerCase())) break;
+        visited.add(curKey.toLowerCase());
+        curKey = nextTarget;
+      }
+      return curKey.replace(/^[a-zA-Z]+_/, "").toLowerCase();
+    };
+
+    const wordSet = new Set<string>();
+    const tokens = segmentSentenceTokens(foundLesson.text, foundLesson.targetLanguage || selectedPracticeLang);
+    const wordTokens = tokens.filter((t) => t.isWord && t.clean);
+
+    for (let i = 0; i < wordTokens.length; i++) {
+      const clean = wordTokens[i].clean.toLowerCase();
+      wordSet.add(clean);
+      wordSet.add(resolveRootWord(clean));
+      // Also add 2..5 word phrases in case multi-word phrases were saved from this lesson
+      for (let len = 2; len <= 5 && i + len <= wordTokens.length; len++) {
+        const phrase = wordTokens.slice(i, i + len).map((t) => t.clean.toLowerCase()).join(" ");
+        wordSet.add(phrase);
+        wordSet.add(resolveRootWord(phrase));
+      }
+    }
+    return wordSet;
+  }, [lessonFilter, lessons, selectedPracticeLang, wordLinks]);
+
+  // Extract available tags across active words of the selected language
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    const targetLangLower = selectedPracticeLang.toLowerCase();
+    Object.entries(vocab).forEach(([key, lq]) => {
+      if (!lq || lq.status === "ignored" || lq.status === "known") return;
+      const parts = key.split("_");
+      const itemLang = parts.length > 1 ? parts[0] : "spanish";
+      if (itemLang.toLowerCase() !== targetLangLower) return;
+      if (Array.isArray(lq.tags)) {
+        lq.tags.forEach((tg) => {
+          if (typeof tg === "string" && tg.trim()) {
+            tagSet.add(tg.trim().toLowerCase());
+          }
+        });
+      }
+    });
+    const cefrOrder = ["a1", "a2", "b1", "b2", "c1", "c2"];
+    return Array.from(tagSet).sort((a, b) => {
+      const idxA = cefrOrder.indexOf(a.toLowerCase());
+      const idxB = cefrOrder.indexOf(b.toLowerCase());
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [vocab, selectedPracticeLang]);
 
   // Extract all learning status words for the selected language, resolving them to parents if they exist
   const learningList = useMemo(() => {
@@ -258,6 +367,23 @@ export default function VocabularyPractice({
           }
         }
 
+        // Apply Stage (Status 1-5) filter
+        if (stageFilter !== "all") {
+          const itemStage = String(lq.status) === "learning" ? "3" : (lq.status || "1");
+          if (itemStage !== stageFilter) return false;
+        }
+
+        // Apply Tag / CEFR filter
+        if (tagFilter !== "all") {
+          const tagsLower = Array.isArray(lq.tags) ? lq.tags.map((t) => String(t).toLowerCase()) : [];
+          if (!tagsLower.includes(tagFilter.toLowerCase())) return false;
+        }
+
+        // Apply Lesson / Book filter
+        if (selectedLessonWordsSet) {
+          if (!selectedLessonWordsSet.has(lq.word.toLowerCase())) return false;
+        }
+
         // Apply timeframe filter
         if (timeframeFilter !== "all") {
           const createdAtVal = typeof lq.createdAt === "number" && !isNaN(lq.createdAt) ? lq.createdAt : now;
@@ -346,7 +472,7 @@ export default function VocabularyPractice({
     }
 
     return result;
-  }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter, studyMode, studyDirection, sortBy, shuffleSeed]);
+  }, [vocab, selectedPracticeLang, wordLinks, timeframeFilter, deckTypeFilter, stageFilter, tagFilter, selectedLessonWordsSet, studyMode, studyDirection, sortBy, shuffleSeed]);
 
   const safeCurrentIndex = learningList.length > 0
     ? Math.min(Math.max(0, currentIndex), learningList.length - 1)
@@ -714,7 +840,7 @@ export default function VocabularyPractice({
 
   // Auto-play when current card changes or when card is flipped to reveal target word
   useEffect(() => {
-    if (!currentLq || !currentLq.word) return;
+    if (!autoPlayTts || !currentLq || !currentLq.word) return;
 
     // In spelling mode: always auto-play on card change (currentIndex)
     if (studyMode === "spelling") {
@@ -732,7 +858,7 @@ export default function VocabularyPractice({
       return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, selectedPracticeLang, isFlipped, studyDirection, studyMode]);
+  }, [currentIndex, selectedPracticeLang, isFlipped, studyDirection, studyMode, autoPlayTts]);
 
   // Keep currentIndex in bounds when deck size or language changes
   useEffect(() => {
@@ -1016,6 +1142,24 @@ export default function VocabularyPractice({
 
   const isCardWithImage = studyMode === "image" && currentLq && !!currentLq.imageUrl;
 
+  const handlePrev = () => {
+    if (learningList.length === 0) return;
+    const prevIdx = (currentIndex - 1 + learningList.length) % learningList.length;
+    const targetWord = learningList[prevIdx]?.word || null;
+    nextWordTargetRef.current = targetWord;
+
+    resetSpellingState();
+    setIsFlipped(false);
+
+    if (pendingSpellSaveRef.current) {
+      handleSaveVocabWrapped(pendingSpellSaveRef.current);
+      pendingSpellSaveRef.current = null;
+    }
+
+    setCurrentIndex(prevIdx);
+    nextWordTargetRef.current = null;
+  };
+
   const handleNext = () => {
     // 1. Determine target next word before list changes
     const targetWord = learningList[(currentIndex + 1) % Math.max(learningList.length, 1)]?.word || null;
@@ -1165,6 +1309,10 @@ export default function VocabularyPractice({
   handleSrsAnswerRef.current = handleSrsAnswer;
   const playSpeechRef = React.useRef(playSpeech);
   playSpeechRef.current = playSpeech;
+  const handlePrevRef = React.useRef(handlePrev);
+  handlePrevRef.current = handlePrev;
+  const handleNextRef = React.useRef(handleNext);
+  handleNextRef.current = handleNext;
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -1183,6 +1331,18 @@ export default function VocabularyPractice({
       }
 
       // 3. In Word / Image mode:
+      // ArrowLeft / ArrowRight -> previous / next card
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        handlePrevRef.current();
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        handleNextRef.current();
+        return;
+      }
+
       // Space / Enter -> toggle card flip (same mechanism as clicking the card)
       if (e.code === "Space" || e.key === "Enter") {
         if (e.code === "Space") {
@@ -1262,6 +1422,9 @@ export default function VocabularyPractice({
                     type="button"
                     onClick={() => {
                       setSelectedPracticeLang(lang);
+                      if (onSelectTargetLanguage) {
+                        onSelectTargetLanguage(lang);
+                      }
                       setCurrentIndex(0);
                       setIsFlipped(false);
                       setIsLangMenuOpen(false);
@@ -1280,14 +1443,61 @@ export default function VocabularyPractice({
             )}
           </div>
 
-          {/* Counter */}
-          <div className="text-xs font-bold text-zinc-400 dark:text-zinc-500 font-mono tracking-tight select-none">
-            {learningList.length > 0 ? `${currentIndex + 1} / ${learningList.length}` : "0 / 0"}
+          {/* Prev / Counter / Next navigation */}
+          <div className="flex items-center gap-1 bg-zinc-100/70 dark:bg-zinc-800/70 px-1.5 py-1 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={learningList.length <= 1}
+              className="p-0.5 rounded-lg text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-white dark:hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              title={t('practice.prev_card', 'Previous card (←)')}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <div className="px-1.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 font-mono tracking-tight select-none">
+              {learningList.length > 0 ? `${safeCurrentIndex + 1} / ${learningList.length}` : "0 / 0"}
+            </div>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={learningList.length <= 1}
+              className="p-0.5 rounded-lg text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-white dark:hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              title={t('practice.next_card', 'Next card (→)')}
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* Right: 3 icon buttons (Filters, List, More) */}
+        {/* Right: Auto-TTS, Filters, List, More */}
         <div className="flex items-center gap-1.5">
+          {/* 🔊 Auto-TTS toggle button */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !autoPlayTts;
+              setAutoPlayTts(next);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("vocab_practice_auto_tts", String(next));
+              }
+              showToast(
+                next
+                  ? t('practice.auto_tts_on', '🔊 Auto-TTS enabled')
+                  : t('practice.auto_tts_off', '🔇 Auto-TTS disabled'),
+                "info",
+                2000
+              );
+            }}
+            className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+              autoPlayTts
+                ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900"
+                : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-400 dark:text-zinc-500 border-zinc-200/60 dark:border-zinc-700/60"
+            }`}
+            title={autoPlayTts ? t('practice.auto_tts_enabled', 'Auto-TTS: ON (click to mute)') : t('practice.auto_tts_disabled', 'Auto-TTS: OFF (click to enable)')}
+          >
+            {autoPlayTts ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
+
           {/* ⚙ Filters button & Popover */}
           <div className="relative" ref={filtersPopoverRef}>
             <button
@@ -1298,7 +1508,7 @@ export default function VocabularyPractice({
                 setIsMoreMenuOpen(false);
               }}
               className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
-                isFiltersOpen || deckTypeFilter !== "learning" || timeframeFilter !== "all"
+                isFiltersOpen || deckTypeFilter !== "learning" || timeframeFilter !== "all" || stageFilter !== "all" || lessonFilter !== "all" || tagFilter !== "all"
                   ? "bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-900"
                   : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60"
               }`}
@@ -1308,7 +1518,7 @@ export default function VocabularyPractice({
             </button>
 
             {isFiltersOpen && (
-              <div className="absolute right-0 top-full mt-1.5 p-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 w-[280px] sm:w-[320px] animate-in fade-in zoom-in-95 duration-100 space-y-3.5">
+              <div className="absolute right-0 top-full mt-1.5 p-3.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 w-[290px] sm:w-[340px] max-h-[80vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100 space-y-3.5">
                 {/* Deck Type Filter */}
                 <div className="space-y-1.5">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
@@ -1341,6 +1551,90 @@ export default function VocabularyPractice({
                     ))}
                   </div>
                 </div>
+
+                {/* Stage Filter (1-5) */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
+                    {t('practice.stage_filter', 'Learning Stage (1–5)')}
+                  </span>
+                  <div className="grid grid-cols-6 gap-1 bg-stone-100/60 dark:bg-zinc-950/40 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/60">
+                    {[
+                      { id: "all", label: t('common.all', 'All') },
+                      { id: "1", label: "1" },
+                      { id: "2", label: "2" },
+                      { id: "3", label: "3" },
+                      { id: "4", label: "4" },
+                      { id: "5", label: "5" }
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => {
+                          setStageFilter(st.id as any);
+                          setCurrentIndex(0);
+                          setIsFlipped(false);
+                        }}
+                        className={`py-1.5 text-[11px] font-bold rounded-lg transition-all text-center cursor-pointer ${
+                          stageFilter === st.id
+                            ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-xs border border-zinc-200/60 dark:border-zinc-700"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                        }`}
+                      >
+                        {st.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Book / Video Filter */}
+                {lessonsForLang.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
+                      {t('practice.lesson_filter', 'Book / Video')}
+                    </span>
+                    <select
+                      value={lessonFilter}
+                      onChange={(e) => {
+                        setLessonFilter(e.target.value);
+                        setCurrentIndex(0);
+                        setIsFlipped(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs font-bold rounded-xl bg-stone-100/70 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500/30 cursor-pointer"
+                    >
+                      <option value="all">{t('practice.all_lessons', '📚 All books & videos')}</option>
+                      {lessonsForLang.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.youtubeUrl || l.videoUrl ? "🎬 " : "📖 "}{l.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Tag / CEFR Filter */}
+                {availableTags.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block">
+                      {t('practice.tag_filter', 'Tag / CEFR Level')}
+                    </span>
+                    <select
+                      value={tagFilter}
+                      onChange={(e) => {
+                        setTagFilter(e.target.value);
+                        setCurrentIndex(0);
+                        setIsFlipped(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs font-bold rounded-xl bg-stone-100/70 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500/30 cursor-pointer"
+                    >
+                      <option value="all">{t('practice.all_tags', '🏷️ All tags')}</option>
+                      {availableTags.map((tg) => (
+                        <option key={tg} value={tg}>
+                          #{tg}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Timeframe Filter */}
                 <div className="space-y-1.5">
@@ -1399,6 +1693,25 @@ export default function VocabularyPractice({
                     ))}
                   </div>
                 </div>
+
+                {/* Reset Filters Button */}
+                {(deckTypeFilter !== "learning" || timeframeFilter !== "all" || stageFilter !== "all" || lessonFilter !== "all" || tagFilter !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeckTypeFilter("learning");
+                      setTimeframeFilter("all");
+                      setStageFilter("all");
+                      setLessonFilter("all");
+                      setTagFilter("all");
+                      setCurrentIndex(0);
+                      setIsFlipped(false);
+                    }}
+                    className="w-full py-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50/70 hover:bg-rose-100/80 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 rounded-xl border border-rose-200/60 dark:border-rose-900/50 transition-all cursor-pointer"
+                  >
+                    {t('practice.reset_filters', 'Reset all filters ×')}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1604,6 +1917,60 @@ export default function VocabularyPractice({
         </div>
       </div>
 
+      {/* 2.5 Active Filter Chips & Progress Bar */}
+      {(stageFilter !== "all" || lessonFilter !== "all" || tagFilter !== "all" || timeframeFilter !== "all" || deckTypeFilter !== "learning") && (
+        <div className="flex flex-wrap items-center gap-1.5 px-0.5">
+          {deckTypeFilter !== "learning" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200/60 dark:border-teal-800/60">
+              <span>
+                {deckTypeFilter === "all" ? t('practice.deck_all', 'All words 📖') :
+                 deckTypeFilter === "spelling-problems" ? t('practice.deck_problems', 'With errors ❌') :
+                 deckTypeFilter === "spelling-accents" ? t('practice.deck_accents', 'Accented ⚠️') :
+                 t('practice.deck_correct', 'Spelled correctly ✅')}
+              </span>
+              <button type="button" onClick={() => setDeckTypeFilter("learning")} className="hover:text-rose-500 cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+          {stageFilter !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60">
+              <span>{t('practice.stage', 'Stage {{status}}', { status: stageFilter })}</span>
+              <button type="button" onClick={() => setStageFilter("all")} className="hover:text-rose-500 cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+          {lessonFilter !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 max-w-[220px]">
+              <span className="truncate">📚 {lessonsForLang.find(l => l.id === lessonFilter)?.title || t('practice.lesson_filter', 'Book / Video')}</span>
+              <button type="button" onClick={() => setLessonFilter("all")} className="hover:text-rose-500 cursor-pointer ml-0.5 shrink-0">×</button>
+            </span>
+          )}
+          {tagFilter !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
+              <span>#{tagFilter}</span>
+              <button type="button" onClick={() => setTagFilter("all")} className="hover:text-rose-500 cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+          {timeframeFilter !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800/60">
+              <span>
+                {timeframeFilter === "today" ? t('practice.tf_today', 'Today ☀️') :
+                 timeframeFilter === "week" ? t('practice.tf_week', 'This week 📅') :
+                 t('practice.tf_month', 'This month 🗓️')}
+              </span>
+              <button type="button" onClick={() => setTimeframeFilter("all")} className="hover:text-rose-500 cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {learningList.length > 0 && (
+        <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 rounded-full transition-all duration-300"
+            style={{ width: `${Math.min(100, Math.max(2, ((safeCurrentIndex + 1) / learningList.length) * 100))}%` }}
+          />
+        </div>
+      )}
+
       {/* 3. Empty State OR Study Deck Layout */}
       {learningList.length === 0 ? (
         relearningQueue.length > 0 ? (
@@ -1763,7 +2130,16 @@ export default function VocabularyPractice({
               <div className="overflow-y-auto custom-scrollbar space-y-1.5 flex-grow pr-1">
                 {learningList.map((item, idx) => {
                   const isActive = idx === currentIndex;
-                  const displayLabel = studyDirection === "reverse" ? item.translation : item.word;
+                  const rawTrans = (item.translation || "").trim();
+                  const cleanTrans = rawTrans && rawTrans !== "Pending translation" && !rawTrans.startsWith("[") ? rawTrans : "";
+                  const rawLabel = studyDirection === "reverse" ? cleanTrans : item.word;
+                  const displayLabel = (rawLabel && rawLabel.trim())
+                    ? rawLabel
+                    : (item.definition && item.definition.trim())
+                      ? item.definition
+                      : item.imageUrl
+                        ? t('practice.image_card', 'Image')
+                        : item.word;
 
                   // Spelling status visual treatment
                   let spellingStatusIcon = null;
@@ -1809,11 +2185,18 @@ export default function VocabularyPractice({
                       title={itemTitle}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${itemBgClass}`}
                     >
-                      <span className="capitalize truncate max-w-[160px] flex items-center gap-1.5">
+                      <span className="capitalize truncate max-w-[175px] flex items-center gap-2">
                         {item.imageUrl && (
-                          <span className="text-[11px] opacity-80 shrink-0" title={t('explainer.word_image', 'Word Image')}>🖼️</span>
+                          <img
+                            src={item.imageUrl}
+                            alt=""
+                            className="w-5 h-5 rounded-md object-cover border border-zinc-200/80 dark:border-zinc-700 shrink-0"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                          />
                         )}
-                        <span className="truncate">{displayLabel}</span>
+                        <span className={`truncate ${!rawLabel?.trim() && studyDirection === "reverse" ? "italic text-zinc-400 dark:text-zinc-500" : ""}`}>
+                          {displayLabel}
+                        </span>
                         {spellingStatusIcon}
                       </span>
                       <div className="flex items-center gap-1.5 shrink-0">

@@ -892,7 +892,7 @@ export default function App() {
 
   // Helper to build distinct hash URLs for Android browser history navigation
   const buildHashUrl = useCallback((tab: string, lessonId?: string, focus?: boolean, overlayCount?: number) => {
-    const baseTab = tab || "library";
+    const baseTab = (tab === "statistics" || tab === "vocabulary") ? "vocabulary" : (tab || "library");
     let url = `#/${baseTab}`;
     const params = new URLSearchParams();
     if (baseTab === "read" && lessonId) {
@@ -4313,7 +4313,7 @@ export default function App() {
       >
         
         {/* Dynamic Achievements HUD Panel */}
-        {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && activeTab !== "library" && activeTab !== "podcasts" && activeTab !== "statistics" && (
+        {activeTab !== "read" && activeTab !== "practice" && activeTab !== "history" && activeTab !== "library" && activeTab !== "podcasts" && activeTab !== "statistics" && activeTab !== "vocabulary" && (
           <StatsWidget stats={calculatedStats} />
         )}
 
@@ -4511,10 +4511,12 @@ export default function App() {
               settings={readerSettings}
               onUpdateSettings={updateSettingsAndSync}
               isLoading={isInitialServerLoading && lessons.length === 0}
+              onOpenVocabulary={() => setActiveTab("vocabulary")}
+              onOpenHistory={() => setActiveTab("history")}
             />
           </div>
-        ) : activeTab === "statistics" ? (
-          /* Statistics Dashboard */
+        ) : (activeTab === "vocabulary" || activeTab === "statistics") ? (
+          /* Vocabulary & Progress Dashboard */
           <div className="py-2 animate-in fade-in duration-150">
             <StatisticsPage
               vocab={vocab}
@@ -4541,7 +4543,9 @@ export default function App() {
               vocab={vocab}
               wordLinks={wordLinks}
               onUpdateStatus={handleUpdateStatusDirect}
-              defaultLanguage={activeLesson?.targetLanguage || "Spanish"}
+              defaultLanguage={selectedTargetLanguage && selectedTargetLanguage !== "All" ? selectedTargetLanguage : (activeLesson?.targetLanguage || "Spanish")}
+              selectedTargetLanguage={selectedTargetLanguage}
+              onSelectTargetLanguage={handleSelectTargetLanguage}
               onAddLesson={handleAddLesson}
               onSelectTab={setActiveTab}
               settings={readerSettings}

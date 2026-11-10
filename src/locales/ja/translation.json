@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "図書館",
     "practice": "練習する",
-    "statistics": "統計",
+    "statistics": "単語帳",
     "history": "歴史",
     "settings": "設定",
     "navigation": "ナビゲーション",
@@ -321,7 +321,8 @@
     "close_menu": "メニューを閉じる",
     "reading": "読む",
     "focus_mode_desc": "フォーカスモードに入る",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "単語帳"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "動画の元の音声を再生",
     "original_clip": "クリップ",
     "filter_video_clips": "動画クリップ 🎬",
-    "playing_clip": "再生中..."
+    "playing_clip": "再生中...",
+    "prev_card": "前のカード (←)",
+    "next_card": "次のカード (→)",
+    "auto_tts_on": "🔊 自動読み上げ ON",
+    "auto_tts_off": "🔇 自動読み上げ OFF",
+    "auto_tts_enabled": "自動読み上げ: ON (クリックでミュート)",
+    "auto_tts_disabled": "自動読み上げ: OFF (クリックで有効化)",
+    "stage_filter": "学習ステージ (1–5)",
+    "lesson_filter": "本 / 動画",
+    "all_lessons": "📚 すべての本と動画",
+    "tag_filter": "タグ / CEFRレベル",
+    "all_tags": "🏷️ すべてのタグ",
+    "reset_filters": "フィルターをリセット ×",
+    "image_card": "画像"
   },
   "reader": {
     "no_translation_yet": "— まだ翻訳されていません",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "自動一時停止",
+    "auto_pause_word_on": "単語クリックで自動一時停止: オン（クリックで一時停止、ステータス選択または閉じると再開）",
+    "auto_pause_word_off": "単語クリックで自動一時停止: オフ",
+    "auto_pause_word_desc": "単語をクリックした時に動画/音声を一時停止し、ステータス選択またはカードを閉じた後に再開します",
+    "tb_auto_pause": "自動一時停止ボタン"
   },
   "app": {
     "idioms_error": "イディオムの検出エラー:",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "フィルタリングされた単語を削除する",
     "delete_filtered_confirm": "言語「{{lang}}」の {{count}} フィルター処理された単語を削除しようとしています。",
     "delete_filtered_warning": "これらすべての単語はステータスとともに完全に削除されます。",
-    "deleted_filtered_toast": "{{count}} フィルタリングされた単語が正常に削除されました。"
+    "deleted_filtered_toast": "{{count}} フィルタリングされた単語が正常に削除されました。",
+    "tab_overview": "進捗とレベル",
+    "tab_vocabulary": "単語リスト"
   },
   "history_page": {
     "title": "リーディングとリスニングの活動履歴",

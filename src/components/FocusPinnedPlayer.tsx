@@ -234,6 +234,50 @@ export default function FocusPinnedPlayer({
   const lastTickRef = useRef<number | null>(null);
   const lastStorageSaveRef = useRef<number>(0);
   const isEndedRef = useRef<boolean>(false);
+  const wasPausedByWordClickRef = useRef<boolean>(false);
+
+  // Auto-pause / Auto-resume when user clicks a word in the reader or chooses a status / closes the card
+  useEffect(() => {
+    const handleWordAutoPause = () => {
+      if (useLocalMedia && videoElRef.current) {
+        if (!videoElRef.current.paused) {
+          wasPausedByWordClickRef.current = true;
+          videoElRef.current.pause();
+        }
+      } else if (playerRef.current) {
+        try {
+          const state = typeof playerRef.current.getPlayerState === "function" ? playerRef.current.getPlayerState() : null;
+          if (state === 1 || state === 3) {
+            wasPausedByWordClickRef.current = true;
+            if (typeof playerRef.current.pauseVideo === "function") {
+              playerRef.current.pauseVideo();
+            }
+          }
+        } catch (_) {}
+      }
+    };
+
+    const handleWordAutoResume = () => {
+      if (!wasPausedByWordClickRef.current) return;
+      wasPausedByWordClickRef.current = false;
+      if (useLocalMedia && videoElRef.current) {
+        videoElRef.current.play().catch(() => {});
+      } else if (playerRef.current) {
+        try {
+          if (typeof playerRef.current.playVideo === "function") {
+            playerRef.current.playVideo();
+          }
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener("lectura:word-auto-pause", handleWordAutoPause);
+    window.addEventListener("lectura:word-auto-resume", handleWordAutoResume);
+    return () => {
+      window.removeEventListener("lectura:word-auto-pause", handleWordAutoPause);
+      window.removeEventListener("lectura:word-auto-resume", handleWordAutoResume);
+    };
+  }, [useLocalMedia]);
 
   if (!youtubeId && !lesson.localVideoUrl) return null;
 

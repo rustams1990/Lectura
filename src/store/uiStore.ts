@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type TabType = 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts';
+export type TabType = 'library' | 'read' | 'practice' | 'vocabulary' | 'statistics' | 'history' | 'podcasts';
 export type LayoutWidthType = 'standard' | 'wide' | 'ultra' | 'full';
 export type ReaderTextWidthType = 'standard' | 'wide' | 'full';
 export type BookReaderViewType = 'focus' | 'study';
@@ -49,7 +49,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeTab: (() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash;
-      if (hash.startsWith('#/statistics')) return 'statistics';
+      if (hash.startsWith('#/vocabulary') || hash.startsWith('#/words') || hash.startsWith('#/statistics')) return 'vocabulary';
       if (hash.startsWith('#/practice')) return 'practice';
       if (hash.startsWith('#/history')) return 'history';
       if (hash.startsWith('#/podcasts')) return 'podcasts';

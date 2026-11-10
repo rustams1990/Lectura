@@ -138,14 +138,44 @@ export default function SpellingMode({
             </div>
 
             <div className="text-center py-6 flex-grow flex flex-col justify-center items-center space-y-4">
-              <div className="space-y-1">
-                <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
+              {item.imageUrl && (
+                <div className="max-h-40 max-w-full flex items-center justify-center">
+                  <img
+                    src={item.imageUrl.startsWith("http") ? `/api/image-proxy?url=${encodeURIComponent(item.imageUrl)}` : item.imageUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (!e.currentTarget.dataset.fallback && item.imageUrl?.startsWith("http")) {
+                        e.currentTarget.dataset.fallback = "true";
+                        e.currentTarget.src = item.imageUrl;
+                      } else {
+                        e.currentTarget.style.display = "none";
+                      }
+                    }}
+                    className="max-h-36 max-w-[260px] object-contain rounded-2xl border border-teal-100 dark:border-zinc-800 shadow-sm bg-white/80 dark:bg-zinc-900/80 p-1"
+                  />
+                </div>
+              )}
+
+              {(item.translation && !item.translation.startsWith("[") && item.translation !== "Pending translation") ? (
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
                     {t('practice.translation_label', 'Translation')}
-                </span>
-                <h2 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize">
-                  {item.translation}
-                </h2>
-              </div>
+                  </span>
+                  <h2 className="text-2xl font-black text-teal-950 dark:text-zinc-50 capitalize">
+                    {item.translation}
+                  </h2>
+                </div>
+              ) : item.definition ? (
+                <div className="space-y-1 max-w-md">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
+                    {t('explainer.definition', 'Definition')}
+                  </span>
+                  <p className="text-sm font-medium italic text-zinc-700 dark:text-zinc-300">
+                    {item.definition}
+                  </p>
+                </div>
+              ) : null}
 
               {item.examples && item.examples.length > 0 && (
                 <div className="max-w-md w-full bg-zinc-50/50 dark:bg-zinc-950/30 p-3 rounded-xl border border-zinc-100/50 dark:border-zinc-800/40">

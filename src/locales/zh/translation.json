@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "图书馆",
     "practice": "实践",
-    "statistics": "统计数据",
+    "statistics": "词汇表",
     "history": "历史",
     "settings": "设置",
     "navigation": "导航",
@@ -321,7 +321,8 @@
     "close_menu": "关闭菜单",
     "reading": "阅读",
     "focus_mode_desc": "进入对焦模式",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "词汇表"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "播放视频原声",
     "original_clip": "剪辑",
     "filter_video_clips": "视频剪辑 🎬",
-    "playing_clip": "播放中..."
+    "playing_clip": "播放中...",
+    "prev_card": "上一张卡片 (←)",
+    "next_card": "下一张卡片 (→)",
+    "auto_tts_on": "🔊 自动朗读已开启",
+    "auto_tts_off": "🔇 自动朗读已关闭",
+    "auto_tts_enabled": "自动朗读：开启（点击静音）",
+    "auto_tts_disabled": "自动朗读：关闭（点击开启）",
+    "stage_filter": "学习阶段 (1–5)",
+    "lesson_filter": "书籍 / 视频",
+    "all_lessons": "📚 所有书籍和视频",
+    "tag_filter": "标签 / CEFR等级",
+    "all_tags": "🏷️ 所有标签",
+    "reset_filters": "重置所有筛选 ×",
+    "image_card": "图片"
   },
   "reader": {
     "no_translation_yet": "— 还没有翻译",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "自动暂停",
+    "auto_pause_word_on": "点击单词自动暂停：开启（点击单词时暂停，选择状态或关闭卡片后继续播放）",
+    "auto_pause_word_off": "点击单词自动暂停：关闭",
+    "auto_pause_word_desc": "点击单词时暂停视频/音频，并在选择状态或关闭卡片后恢复播放",
+    "tb_auto_pause": "自动暂停按钮"
   },
   "app": {
     "idioms_error": "检测习语时出错：",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "删除过滤的单词",
     "delete_filtered_confirm": "您即将删除语言“{{lang}}”的 {{count}} 已过滤单词。",
     "delete_filtered_warning": "所有这些单词及其状态都将被永久删除。",
-    "deleted_filtered_toast": "已成功删除 {{count}} 过滤的单词。"
+    "deleted_filtered_toast": "已成功删除 {{count}} 过滤的单词。",
+    "tab_overview": "进度与等级",
+    "tab_vocabulary": "单词列表"
   },
   "history_page": {
     "title": "阅读和听力活动历史",

@@ -849,6 +849,27 @@ export default function TextSettingsControls({
                     </div>
                   </div>
 
+                  {/* Auto-pause Video/Audio on Word Click */}
+                  <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-950 p-3 rounded-2xl border border-zinc-200/60 dark:border-zinc-800">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200 block">
+                        {t('reader.auto_pause_word', 'Auto-pause on word click')}
+                      </span>
+                      <span className="text-[9.5px] text-zinc-400 block leading-tight">
+                        {t('reader.auto_pause_word_desc', 'Pause video/audio when clicking a word and resume after choosing a status or closing the card')}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none shrink-0 ml-3">
+                      <input
+                        type="checkbox"
+                        checked={settings.autoPauseOnWordClick !== false}
+                        onChange={(e) => updateKey("autoPauseOnWordClick", e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="relative w-9 h-5 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                    </label>
+                  </div>
+
                   {/* Section Title: Toolbar Buttons Visibility */}
                   <div className="flex items-center justify-between pt-1 pb-0.5 border-b border-zinc-100 dark:border-zinc-800/60">
                     <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
@@ -996,6 +1017,22 @@ export default function TextSettingsControls({
                           type="checkbox"
                           checked={toolbarVisibility.showTimestampsToggle !== false}
                           onChange={(e) => updateToolbarVisibility("showTimestampsToggle", e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+
+                    {/* 10. Auto-pause Toggle */}
+                    <div className="flex items-center justify-between border-t border-zinc-200/50 dark:border-zinc-850 pt-2">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                        {t('reader.tb_auto_pause', 'Auto-pause Toggle Button')}
+                      </span>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={toolbarVisibility.showAutoPauseToggle !== false}
+                          onChange={(e) => updateToolbarVisibility("showAutoPauseToggle", e.target.checked)}
                           className="sr-only peer"
                         />
                         <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>

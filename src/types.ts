@@ -172,6 +172,7 @@ export interface ReaderToolbarVisibility {
   showDisplayMode: boolean;  // default: true (Badges / Book)
   showWidthToggle: boolean;  // default: true (Standard / Wide / Full)
   showTimestampsToggle: boolean; // default: true
+  showAutoPauseToggle: boolean; // default: true
 }
 
 export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
@@ -184,6 +185,7 @@ export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
   showDisplayMode: true,
   showWidthToggle: true,
   showTimestampsToggle: true,
+  showAutoPauseToggle: true,
 };
 
 export interface ReaderSettings {
@@ -245,6 +247,7 @@ export interface ReaderSettings {
   readerLayoutWidth?: "standard" | "wide" | "full";
   toolbarVisibility?: Partial<ReaderToolbarVisibility>;
   autoPlayNextLesson?: boolean; // When true, automatically transitions to next lesson upon completion (default: true)
+  autoPauseOnWordClick?: boolean; // When true, automatically pauses video/audio when clicking a word and resumes after choosing status or closing card
   enableVideoCardClips?: boolean; // When true, enables saving and practicing with video snapshot frames and audio clips
   channelPresets?: Record<string, ChannelPreset>;
 }
@@ -310,6 +313,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   cjkWordSpacing: false,
   toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
   autoPlayNextLesson: true,
+  autoPauseOnWordClick: true,
 };
 
 export type WordCardViewType = 'inspector' | 'floating' | 'sheet';

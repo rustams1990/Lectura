@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "도서관",
     "practice": "관행",
-    "statistics": "통계",
+    "statistics": "단어장",
     "history": "역사",
     "settings": "설정",
     "navigation": "항해",
@@ -321,7 +321,8 @@
     "close_menu": "메뉴 닫기",
     "reading": "독서",
     "focus_mode_desc": "집중 모드 들어가기",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "단어장"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "동영상 원본 오디오 재생",
     "original_clip": "클립",
     "filter_video_clips": "동영상 클립 🎬",
-    "playing_clip": "재생 중..."
+    "playing_clip": "재생 중...",
+    "prev_card": "이전 카드 (←)",
+    "next_card": "다음 카드 (→)",
+    "auto_tts_on": "🔊 자동 발음 켜짐",
+    "auto_tts_off": "🔇 자동 발음 꺼짐",
+    "auto_tts_enabled": "자동 발음: 켜짐 (클릭하여 끄기)",
+    "auto_tts_disabled": "자동 발음: 꺼짐 (클릭하여 켜기)",
+    "stage_filter": "학습 단계 (1–5)",
+    "lesson_filter": "책 / 비디오",
+    "all_lessons": "📚 모든 책 및 비디오",
+    "tag_filter": "태그 / CEFR 레벨",
+    "all_tags": "🏷️ 모든 태그",
+    "reset_filters": "필터 초기화 ×",
+    "image_card": "이미지"
   },
   "reader": {
     "no_translation_yet": "— 아직 번역이 없습니다",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "자동 일시정지",
+    "auto_pause_word_on": "단어 클릭 시 자동 일시정지: 켜짐 (클릭 시 일시정지, 상태 선택 또는 닫기 후 재생 재개)",
+    "auto_pause_word_off": "단어 클릭 시 자동 일시정지: 꺼짐",
+    "auto_pause_word_desc": "단어를 클릭하면 비디오/오디오를 일시정지하고 상태 선택 또는 카드를 닫으면 다시 재생합니다",
+    "tb_auto_pause": "자동 일시정지 버튼"
   },
   "app": {
     "idioms_error": "관용어 감지 오류:",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "필터링된 단어 삭제",
     "delete_filtered_confirm": "언어 \"{{lang}}\"에 대해 {{count}} 필터링된 단어를 삭제하려고 합니다.",
     "delete_filtered_warning": "이 모든 단어는 해당 상태와 함께 영구적으로 삭제됩니다.",
-    "deleted_filtered_toast": "{{count}} 필터링된 단어를 삭제했습니다."
+    "deleted_filtered_toast": "{{count}} 필터링된 단어를 삭제했습니다.",
+    "tab_overview": "진도 및 레벨",
+    "tab_vocabulary": "단어 목록"
   },
   "history_page": {
     "title": "읽기 및 듣기 활동 내역",

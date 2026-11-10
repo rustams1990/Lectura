@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "Library",
     "practice": "Practice",
-    "statistics": "Statistics",
+    "statistics": "Wortschatz",
     "history": "History",
     "settings": "Settings",
     "navigation": "Navigation",
@@ -321,7 +321,8 @@
     "close_menu": "Close Menu",
     "reading": "Reading",
     "focus_mode_desc": "Enter Focus Mode",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "Wortschatz"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "Originalton aus dem Video abspielen",
     "original_clip": "Clip",
     "filter_video_clips": "Videoclips 🎬",
-    "playing_clip": "Wiedergabe..."
+    "playing_clip": "Wiedergabe...",
+    "prev_card": "Vorherige Karte (←)",
+    "next_card": "Nächste Karte (→)",
+    "auto_tts_on": "🔊 Auto-Audio aktiviert",
+    "auto_tts_off": "🔇 Auto-Audio deaktiviert",
+    "auto_tts_enabled": "Auto-Audio: EIN (Klicken zum Stummschalten)",
+    "auto_tts_disabled": "Auto-Audio: AUS (Klicken zum Aktivieren)",
+    "stage_filter": "Lernstufe (1–5)",
+    "lesson_filter": "Buch / Video",
+    "all_lessons": "📚 Alle Bücher & Videos",
+    "tag_filter": "Tag / CEFR-Niveau",
+    "all_tags": "🏷️ Alle Tags",
+    "reset_filters": "Filter zurücksetzen ×",
+    "image_card": "Bild"
   },
   "reader": {
     "no_translation_yet": "— No translation yet",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "Auto-Pause",
+    "auto_pause_word_on": "Auto-Pause bei Wortklick: Ein (pausiert beim Klick, setzt nach Statuswahl oder Schließen fort)",
+    "auto_pause_word_off": "Auto-Pause bei Wortklick: Aus",
+    "auto_pause_word_desc": "Video/Audio beim Klicken auf ein Wort pausieren und nach Statusauswahl oder Schließen fortsetzen",
+    "tb_auto_pause": "Auto-Pause-Schaltfläche"
   },
   "app": {
     "idioms_error": "Error detecting idioms: ",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "Delete Filtered Words",
     "delete_filtered_confirm": "You are about to delete {{count}} FILTERED words for language \"{{lang}}\".",
     "delete_filtered_warning": "All these words will be permanently deleted with their statuses.",
-    "deleted_filtered_toast": "Successfully deleted {{count}} filtered words."
+    "deleted_filtered_toast": "Successfully deleted {{count}} filtered words.",
+    "tab_overview": "Fortschritt & Niveau",
+    "tab_vocabulary": "Wortliste"
   },
   "history_page": {
     "title": "Reading & Listening Activity History",

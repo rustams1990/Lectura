@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "Biblioteca",
     "practice": "Prática",
-    "statistics": "Estatísticas",
+    "statistics": "Vocabulário",
     "history": "História",
     "settings": "Configurações",
     "navigation": "Navegação",
@@ -321,7 +321,8 @@
     "close_menu": "Fechar menu",
     "reading": "Leitura",
     "focus_mode_desc": "Entre no modo de foco",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "Vocabulário"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "Tocar áudio original do vídeo",
     "original_clip": "Clipe",
     "filter_video_clips": "Clipes de vídeo 🎬",
-    "playing_clip": "Reproduzindo..."
+    "playing_clip": "Reproduzindo...",
+    "prev_card": "Cartão anterior (←)",
+    "next_card": "Próximo cartão (→)",
+    "auto_tts_on": "🔊 Áudio automático ativado",
+    "auto_tts_off": "🔇 Áudio automático desativado",
+    "auto_tts_enabled": "Áudio automático: LIGADO (clique para silenciar)",
+    "auto_tts_disabled": "Áudio automático: DESLIGADO (clique para ativar)",
+    "stage_filter": "Etapa de aprendizagem (1–5)",
+    "lesson_filter": "Livro / Vídeo",
+    "all_lessons": "📚 Todos os livros e vídeos",
+    "tag_filter": "Tag / Nível CEFR",
+    "all_tags": "🏷️ Todas as tags",
+    "reset_filters": "Redefinir filtros ×",
+    "image_card": "Imagem"
   },
   "reader": {
     "no_translation_yet": "- Sem tradução ainda",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "Auto-pausa",
+    "auto_pause_word_on": "Auto-pausa ao clicar na palavra: Ativada (pausa ao clicar, retoma ao escolher status ou fechar)",
+    "auto_pause_word_off": "Auto-pausa ao clicar na palavra: Desativada",
+    "auto_pause_word_desc": "Pausar vídeo/áudio ao clicar numa palavra e retomar após escolher o status ou fechar o cartão",
+    "tb_auto_pause": "Botão de Auto-pausa"
   },
   "app": {
     "idioms_error": "Erro ao detectar expressões idiomáticas:",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "Excluir palavras filtradas",
     "delete_filtered_confirm": "Você está prestes a excluir {{count}} palavras FILTERED para o idioma \"{{lang}}\".",
     "delete_filtered_warning": "Todas essas palavras serão excluídas permanentemente com seus status.",
-    "deleted_filtered_toast": "{{count}} palavras filtradas excluídas com sucesso."
+    "deleted_filtered_toast": "{{count}} palavras filtradas excluídas com sucesso.",
+    "tab_overview": "Progresso e nível",
+    "tab_vocabulary": "Lista de palavras"
   },
   "history_page": {
     "title": "Histórico de atividades de leitura e audição",

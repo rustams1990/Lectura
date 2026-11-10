@@ -408,6 +408,9 @@ export default function CalmSheetWordCard({
         imageUrl: existingVocab?.imageUrl ?? (vocabMatch?.imageUrl || null),
       };
       onSaveVocab(updatedItem);
+      if (typeof window !== "undefined" && settings?.autoPauseOnWordClick !== false) {
+        window.dispatchEvent(new CustomEvent("lectura:word-auto-resume"));
+      }
       return;
     }
 
@@ -428,6 +431,9 @@ export default function CalmSheetWordCard({
       imageUrl: existingVocab?.imageUrl ?? (vocabMatch?.imageUrl || null),
     };
     onSaveVocab(updatedItem);
+    if (typeof window !== "undefined" && settings?.autoPauseOnWordClick !== false) {
+      window.dispatchEvent(new CustomEvent("lectura:word-auto-resume"));
+    }
   };
 
   // Google Translate TTS audio playback

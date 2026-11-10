@@ -2000,6 +2000,10 @@ function WordExplainer({
       };
       onSaveVocab(updatedVocab);
     }
+
+    if (typeof window !== "undefined" && settings?.autoPauseOnWordClick !== false) {
+      window.dispatchEvent(new CustomEvent("lectura:word-auto-resume"));
+    }
   };
 
   const handleToggleTag = (tag: string) => {

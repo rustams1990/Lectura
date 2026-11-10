@@ -170,6 +170,8 @@ interface LibraryHomeProps {
   settings?: ReaderSettings;
   onUpdateSettings?: (newSettings: ReaderSettings) => void;
   isLoading?: boolean;
+  onOpenVocabulary?: () => void;
+  onOpenHistory?: () => void;
 }
 
 export function calculateBookStats(lesson: Lesson, vocab: Record<string, VocabItem>, wordLinks: Record<string, string>): BookStats {
@@ -537,6 +539,8 @@ function LibraryHome({
   settings,
   onUpdateSettings,
   isLoading = false,
+  onOpenVocabulary,
+  onOpenHistory,
 }: LibraryHomeProps) {
   const { t, i18n } = useTranslation();
   const { showToast } = useToast();
@@ -1665,6 +1669,8 @@ function LibraryHome({
         stats={languageAwareStats}
         selectedLanguage={selectedLanguage}
         onlyPatterns={settings?.onlyPatterns !== false}
+        onOpenVocabulary={onOpenVocabulary}
+        onOpenHistory={onOpenHistory}
       />
 
 

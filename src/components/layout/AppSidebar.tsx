@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 interface AppSidebarProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (isOpen: boolean) => void;
-  activeTab: 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts';
-  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts') => void;
+  activeTab: 'library' | 'read' | 'practice' | 'vocabulary' | 'statistics' | 'history' | 'podcasts';
+  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'vocabulary' | 'statistics' | 'history' | 'podcasts') => void;
   showImportForm: boolean;
   setShowImportForm: (show: boolean) => void;
   activeLesson: Lesson | null;
@@ -126,20 +126,20 @@ export default function AppSidebar({
             </button>
 
             <button
-              id="tab-statistics-mode"
+              id="tab-vocabulary-mode"
               onClick={() => {
-                setActiveTab("statistics");
+                setActiveTab("vocabulary");
                 setShowImportForm(false);
                 setIsSidebarOpen(false);
               }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                activeTab === "statistics" && !showImportForm
+                (activeTab === "vocabulary" || activeTab === "statistics") && !showImportForm
                   ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-100/50 dark:border-teal-900/40 shadow-3xs"
                   : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-white"
               }`}
             >
-              <TrendingUp className="w-4 h-4 shrink-0" />
-              {t('sidebar.statistics', 'Словарь и статистика')}
+              <BookMarked className="w-4 h-4 shrink-0" />
+              {t('sidebar.vocabulary', t('sidebar.statistics', 'Vocabulary'))}
             </button>
 
             <button

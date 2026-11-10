@@ -22,7 +22,7 @@ interface AppHeaderProps {
   };
   layoutContainerClass: string;
   setIsSidebarOpen: (isOpen: boolean) => void;
-  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'statistics' | 'history' | 'podcasts') => void;
+  setActiveTab: (tab: 'library' | 'read' | 'practice' | 'vocabulary' | 'statistics' | 'history' | 'podcasts') => void;
   setShowImportForm: (show: boolean) => void;
   setSelectedWord: (word: any) => void;
   isDarkMode: boolean;

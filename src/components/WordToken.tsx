@@ -98,13 +98,13 @@ function WordTokenComponent({
 
     if (isTextMode) {
       if (isWordActive) {
-        styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-amber-500 font-bold bg-amber-500/15 dark:bg-amber-500/25 rounded-xs px-0.5`;
+        styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-amber-500 bg-amber-500/15 dark:bg-amber-500/25 rounded-xs`;
       } else if (isActive) {
-        styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-teal-500 font-bold bg-teal-500/15 dark:bg-teal-500/25 rounded-xs px-0.5`;
+        styleClass = `${styleClass} underline decoration-2 underline-offset-4 decoration-teal-500 bg-teal-500/15 dark:bg-teal-500/25 rounded-xs`;
       }
     } else {
       if (isWordActive) {
-        styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 font-extrabold shadow-sm`;
+        styleClass = `${styleClass} ring-2 ring-amber-500 dark:ring-amber-400 bg-amber-500/10 dark:bg-amber-400/15 shadow-sm`;
       } else if (isActive) {
         styleClass = `${styleClass} ring-2 ring-teal-500 dark:ring-teal-400 ring-offset-1 dark:ring-offset-zinc-950 shadow-sm`;
       }

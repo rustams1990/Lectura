@@ -305,7 +305,8 @@
   "sidebar": {
     "library": "Library",
     "practice": "Practice",
-    "statistics": "Statistics",
+    "vocabulary": "Vocabulary",
+    "statistics": "Vocabulary",
     "history": "History",
     "settings": "Settings",
     "navigation": "Navigation",
@@ -655,7 +656,20 @@
     "play_original_clip": "Play original video clip audio",
     "original_clip": "Clip",
     "filter_video_clips": "Video clips 🎬",
-    "playing_clip": "Playing..."
+    "playing_clip": "Playing...",
+    "prev_card": "Previous card (←)",
+    "next_card": "Next card (→)",
+    "auto_tts_on": "🔊 Auto-TTS enabled",
+    "auto_tts_off": "🔇 Auto-TTS disabled",
+    "auto_tts_enabled": "Auto-TTS: ON (click to mute)",
+    "auto_tts_disabled": "Auto-TTS: OFF (click to enable)",
+    "stage_filter": "Learning Stage (1–5)",
+    "lesson_filter": "Book / Video",
+    "all_lessons": "📚 All books & videos",
+    "tag_filter": "Tag / CEFR Level",
+    "all_tags": "🏷️ All tags",
+    "reset_filters": "Reset all filters ×",
+    "image_card": "Image"
   },
   "reader": {
     "no_translation_yet": "— No translation yet",
@@ -825,7 +839,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "Auto-pause",
+    "auto_pause_word_on": "Auto-pause on word click: On (pauses when clicking a word, resumes after choosing status or closing card)",
+    "auto_pause_word_off": "Auto-pause on word click: Off",
+    "auto_pause_word_desc": "Pause video/audio when clicking a word and resume after choosing a status or closing the card",
+    "tb_auto_pause": "Auto-pause Toggle Button"
   },
   "app": {
     "idioms_error": "Error detecting idioms: ",
@@ -1197,11 +1216,13 @@
     "open_root_word": "Open root word: {{word}}"
   },
   "stats_page": {
+    "tab_overview": "Progress & Level",
+    "tab_vocabulary": "Word List",
     "profiler_success": "Successfully analyzed {{lessonsCount}} lessons ({{tokensCount}} words). Automatically updated {{updatedCount}} words in dictionary with CEFR priority tags (A1, A2, B1, B2, C1).",
     "profiler_error": "Error running frequency analysis.",
     "words": "words",
-    "title": "Learning Analytics & Personal Dashboard",
-    "subtitle": "Track your vocabulary growth, reading comprehension metrics, and audio listening activity.",
+    "title": "Vocabulary & Progress",
+    "subtitle": "Vocabulary bank, CEFR level assessment, learning analytics, and words management.",
     "realtime": "Statistics update instantly in real time",
     "choose_lang": "Choose Language for Statistics:",
     "known_title": "Mastered Words (Known)",

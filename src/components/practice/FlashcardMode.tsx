@@ -95,11 +95,16 @@ export default function FlashcardMode({
     }
   };
 
-  const frontText = studyDirection === "forward" ? item.word : item.translation;
-  const backText = studyDirection === "forward" ? item.translation : item.word;
+  const rawTranslation = (item.translation || "").trim();
+  const cleanTranslation =
+    rawTranslation && rawTranslation !== "Pending translation" && !rawTranslation.startsWith("[")
+      ? rawTranslation
+      : "";
+  const cleanDefinition = (item.definition || "").trim();
+
+  const frontText = studyDirection === "forward" ? item.word : cleanTranslation;
   const showIpa = studyDirection === "forward" && item.ipa;
   const frontLabel = studyDirection === "forward" ? t('practice.study_word', "Target Word") : t('practice.translation', "Translation");
-  const backLabel = studyDirection === "forward" ? t('practice.translation', "Translation") : t('practice.study_word', "Target Word");
 
   return (
     <div 
@@ -167,19 +172,32 @@ export default function FlashcardMode({
                   <CheckCircle className="w-3.5 h-3.5" />
                   <span>{t('practice.know_word', 'Know')}</span>
                 </button>
+                {studyDirection === "forward" && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playSpeech();
+                    }}
+                    disabled={playingSpeech}
+                    className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
+                      playingSpeech ? "animate-pulse" : ""
+                    }`}
+                    title={t('practice.listen_word', 'Listen to word (TTS)')}
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    playSpeech();
+                    onEditWord();
                   }}
-                  disabled={playingSpeech}
-                  className={`p-1.5 rounded-lg bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 transition-all cursor-pointer ${
-                    playingSpeech ? "animate-pulse" : ""
-                  }`}
-                  title={t('practice.listen_word', 'Listen to word (TTS)')}
+                  className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 transition-all cursor-pointer"
+                  title={t('practice.edit_word', 'Edit card')}
                 >
-                  <Volume2 className="w-4 h-4" />
+                  <Edit3 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -196,17 +214,25 @@ export default function FlashcardMode({
                 </div>
               )}
 
-              <div className="mb-4 relative">
-                <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-2">
-                  {frontLabel}
-                </span>
-                <h2 className="text-4xl font-black tracking-tight text-teal-950 dark:text-zinc-50 capitalize">
-                  {frontText}
-                </h2>
-                {showIpa && (
-                  <p className="text-sm font-mono text-zinc-500 mt-2">{item.ipa}</p>
-                )}
-              </div>
+              {(frontText || (studyDirection === "reverse" && !item.imageUrl && cleanDefinition)) && (
+                <div className="mb-4 relative">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block mb-2">
+                    {frontLabel}
+                  </span>
+                  {frontText ? (
+                    <h2 className="text-4xl font-black tracking-tight text-teal-950 dark:text-zinc-50 capitalize">
+                      {frontText}
+                    </h2>
+                  ) : (
+                    <p className="text-base font-medium italic text-zinc-700 dark:text-zinc-300 max-w-md">
+                      {cleanDefinition}
+                    </p>
+                  )}
+                  {showIpa && (
+                    <p className="text-sm font-mono text-zinc-500 mt-2">{item.ipa}</p>
+                  )}
+                </div>
+              )}
               
               {item.examples && item.examples.length > 0 && studyDirection === "forward" && (
                 <div className="max-w-md w-full bg-zinc-50/50 dark:bg-zinc-950/30 p-4 rounded-xl border border-zinc-100/50 dark:border-zinc-800/40 opacity-70">
@@ -316,14 +342,27 @@ export default function FlashcardMode({
                 </div>
               )}
 
-              <div className="space-y-1">
-                <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
-                  {backLabel}
-                </span>
-                <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
-                  {backText}
-                </p>
-              </div>
+              {cleanTranslation && (
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold block">
+                    {t('practice.translation', 'Translation')}
+                  </span>
+                  <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
+                    {cleanTranslation}
+                  </p>
+                </div>
+              )}
+
+              {cleanDefinition && (
+                <div className="space-y-1 bg-teal-50/40 dark:bg-teal-950/20 p-3 rounded-xl border border-teal-100/50 dark:border-teal-900/30">
+                  <span className="text-[9px] uppercase tracking-widest text-teal-600/80 dark:text-teal-400/80 font-bold block">
+                    {t('explainer.definition', 'Definition')}
+                  </span>
+                  <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed italic">
+                    {cleanDefinition}
+                  </p>
+                </div>
+              )}
 
               {item.examples && item.examples.length > 0 && (
                 <div className="space-y-1 bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100/75 dark:border-zinc-800">

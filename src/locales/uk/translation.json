@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "Бібліотека",
     "practice": "Практика",
-    "statistics": "Статистика",
+    "statistics": "Словник",
     "history": "історія",
     "settings": "Налаштування",
     "navigation": "Навігація",
@@ -321,7 +321,8 @@
     "close_menu": "Закрити меню",
     "reading": "Читання",
     "focus_mode_desc": "Увійдіть у режим фокусування",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "Словник"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "Слухати оригінальний голос із відео",
     "original_clip": "Кліп",
     "filter_video_clips": "Відеокліпи 🎬",
-    "playing_clip": "Відтворення..."
+    "playing_clip": "Відтворення...",
+    "prev_card": "Попередня картка (←)",
+    "next_card": "Наступна картка (→)",
+    "auto_tts_on": "🔊 Авто-озвучення увімкнено",
+    "auto_tts_off": "🔇 Авто-озвучення вимкнено",
+    "auto_tts_enabled": "Авто-озвучення: УВІМК (натисніть, щоб вимкнути)",
+    "auto_tts_disabled": "Авто-озвучення: ВИМК (натисніть, щоб увімкнути)",
+    "stage_filter": "Етап вивчення (1–5)",
+    "lesson_filter": "Книга / Відео",
+    "all_lessons": "📚 Усі книги та відео",
+    "tag_filter": "Тег / Рівень CEFR",
+    "all_tags": "🏷️ Усі теги",
+    "reset_filters": "Скинути всі фільтри ×",
+    "image_card": "Картинка"
   },
   "reader": {
     "no_translation_yet": "— Перекладу ще немає",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "Авто-пауза",
+    "auto_pause_word_on": "Авто-пауза при кліку на слово: Увімк. (пауза при кліку, продовження після вибору статусу або закриття картки)",
+    "auto_pause_word_off": "Авто-пауза при кліку на слово: Вимк.",
+    "auto_pause_word_desc": "Ставити відео/аудіо на паузу при кліку на слово і продовжувати після вибору статусу або закриття картки",
+    "tb_auto_pause": "Кнопка «Авто-пауза»"
   },
   "app": {
     "idioms_error": "Помилка виявлення ідіом:",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "Видалити відфільтровані слова",
     "delete_filtered_confirm": "Ви збираєтеся видалити {{count}} FILTERED слів для мови \"{{lang}}\".",
     "delete_filtered_warning": "Усі ці слова разом зі статусами буде видалено назавжди.",
-    "deleted_filtered_toast": "Успішно видалено {{count}} відфільтрованих слів."
+    "deleted_filtered_toast": "Успішно видалено {{count}} відфільтрованих слів.",
+    "tab_overview": "Прогрес та рівень",
+    "tab_vocabulary": "Список слів"
   },
   "history_page": {
     "title": "Історія читання та прослуховування",

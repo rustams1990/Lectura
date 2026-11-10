@@ -22,6 +22,7 @@ import {
   Trash2, 
   Calendar,
   Layers,
+  BookMarked,
   Sparkles,
   RefreshCw,
   HelpCircle,
@@ -96,7 +97,15 @@ function StatisticsPage({
   const [vocabFilter, setVocabFilter] = useState<string>("all");
   const [vocabSort, setVocabSort] = useState<"newest" | "oldest" | "alphabetical" | "alphabetical_desc" | "level_desc" | "level_asc">("newest");
   const [onlyPatterns, setOnlyPatternsState] = useState<boolean>(() => readerSettings?.onlyPatterns !== false);
-  const [activeStatsTab, setActiveStatsTab] = useState<"overview" | "vocabulary">("overview");
+  const [activeStatsTab, setActiveStatsTab] = useState<"overview" | "vocabulary">(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      const h = window.location.hash.toLowerCase();
+      if (h.includes("tab=words") || h.includes("tab=vocabulary") || h.includes("notebook") || h.startsWith("#/words")) {
+        return "vocabulary";
+      }
+    }
+    return "overview";
+  });
   const [isProfilerOpen, setIsProfilerOpen] = useState<boolean>(false);
   const [isContextSearchOpen, setIsContextSearchOpen] = useState<boolean>(false);
 
@@ -1646,7 +1655,7 @@ function StatisticsPage({
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            <span>{t('stats_page.tab_overview', 'Overview')}</span>
+            <span>{t('stats_page.tab_overview', 'Progress & Level')}</span>
           </button>
           <button
             type="button"
@@ -1657,8 +1666,8 @@ function StatisticsPage({
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
             }`}
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>{t('stats_page.tab_vocabulary', 'Vocabulary Notebook')}</span>
+            <BookMarked className="w-3.5 h-3.5" />
+            <span>{t('stats_page.tab_vocabulary', 'Word List')}</span>
             <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-zinc-200/60 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
               {statsArray.length}
             </span>
@@ -2312,7 +2321,7 @@ function StatisticsPage({
         <div className="border-b border-zinc-100 dark:border-zinc-800 pb-3 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
           <div className="space-y-0.5">
             <h4 className="text-sm font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-teal-500" />
+              <BookMarked className="w-4 h-4 text-teal-500" />
               {t('stats_page.notebook_title', 'Vocabulary Notebook')}
             </h4>
             <p className="text-xs text-zinc-500">

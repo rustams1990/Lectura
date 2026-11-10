@@ -305,7 +305,7 @@
   "sidebar": {
     "library": "Biblioteca",
     "practice": "Pratica",
-    "statistics": "Statistiche",
+    "statistics": "Vocabolario",
     "history": "Storia",
     "settings": "Impostazioni",
     "navigation": "Navigazione",
@@ -321,7 +321,8 @@
     "close_menu": "Chiudi Menù",
     "reading": "Lettura",
     "focus_mode_desc": "Accedi alla modalità di messa a fuoco",
-    "podcasts": "Podcasts"
+    "podcasts": "Podcasts",
+    "vocabulary": "Vocabolario"
   },
   "auth": {
     "signInTitle": "Sign In",
@@ -638,7 +639,20 @@
     "play_original_clip": "Riproduci audio originale del video",
     "original_clip": "Clip",
     "filter_video_clips": "Clip video 🎬",
-    "playing_clip": "Riproduzione..."
+    "playing_clip": "Riproduzione...",
+    "prev_card": "Scheda precedente (←)",
+    "next_card": "Scheda successiva (→)",
+    "auto_tts_on": "🔊 Audio automatico attivato",
+    "auto_tts_off": "🔇 Audio automatico disattivato",
+    "auto_tts_enabled": "Audio automatico: ON (clicca per disattivare)",
+    "auto_tts_disabled": "Audio automatico: OFF (clicca per attivare)",
+    "stage_filter": "Fase di apprendimento (1–5)",
+    "lesson_filter": "Libro / Video",
+    "all_lessons": "📚 Tutti i libri e video",
+    "tag_filter": "Tag / Livello QCER",
+    "all_tags": "🏷️ Tutti i tag",
+    "reset_filters": "Reimposta filtri ×",
+    "image_card": "Immagine"
   },
   "reader": {
     "no_translation_yet": "— Ancora nessuna traduzione",
@@ -805,7 +819,12 @@
     "mark_known": "Mark as known",
     "known": "Known",
     "mark_ignored": "Ignore (0)",
-    "mark_known_shortcut": "Known (K)"
+    "mark_known_shortcut": "Known (K)",
+    "auto_pause_word": "Auto-pausa",
+    "auto_pause_word_on": "Auto-pausa al clic sulla parola: Attiva (pausa al clic, riprende dopo la scelta dello stato o chiusura)",
+    "auto_pause_word_off": "Auto-pausa al clic sulla parola: Disattivata",
+    "auto_pause_word_desc": "Metti in pausa video/audio cliccando su una parola e riprendi dopo aver scelto lo stato o chiuso la scheda",
+    "tb_auto_pause": "Pulsante Auto-pausa"
   },
   "app": {
     "idioms_error": "Errore durante il rilevamento degli idiomi:",
@@ -1344,7 +1363,9 @@
     "delete_filtered_title": "Elimina parole filtrate",
     "delete_filtered_confirm": "Stai per eliminare {{count}} parole FILTERATE per la lingua \"{{lang}}\".",
     "delete_filtered_warning": "Tutte queste parole verranno eliminate definitivamente con i loro stati.",
-    "deleted_filtered_toast": "Eliminazione di {{count}} parole filtrate riuscita."
+    "deleted_filtered_toast": "Eliminazione di {{count}} parole filtrate riuscita.",
+    "tab_overview": "Progressi e livello",
+    "tab_vocabulary": "Elenco parole"
   },
   "history_page": {
     "title": "Cronologia delle attività di lettura e ascolto",
