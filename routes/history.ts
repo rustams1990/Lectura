@@ -119,11 +119,16 @@ export function handleTrackActivity(req: Request, res: Response) {
 
     let lesson = cleanVideoId
       ? (db.prepare(`
-          SELECT id, timeSpentSeconds, status, duration 
+          SELECT id, timeSpentSeconds, status, duration, targetLanguage
           FROM lessons 
           WHERE (youtubeId = ? OR id = ? OR id = ?) AND user_id = ?
         `).get(cleanVideoId, effectiveLessonId, `youtube_${cleanVideoId}`, userId) as any)
       : null;
+
+    const effectiveTargetLang =
+      lesson && lesson.targetLanguage && String(lesson.targetLanguage).trim()
+        ? normalizeLang(String(lesson.targetLanguage).toLowerCase().trim())
+        : targetLang;
 
     let incrementalSec = 0;
 
@@ -193,6 +198,7 @@ export function handleTrackActivity(req: Request, res: Response) {
           durationSeconds = ?,
           timestamp = ?,
           status = ?,
+          targetLanguage = COALESCE(?, targetLanguage),
           lessonTitle = COALESCE(?, lessonTitle),
           channelName = COALESCE(?, channelName),
           channelAvatarUrl = COALESCE(?, channelAvatarUrl),
@@ -205,6 +211,7 @@ export function handleTrackActivity(req: Request, res: Response) {
         updatedDuration,
         now,
         completed ? "completed" : (existingHistory.status || "in_progress"),
+        effectiveTargetLang || null,
         cleanTitle,
         cleanChannel,
         channelAvatarUrl || null,
@@ -267,7 +274,7 @@ export function handleTrackActivity(req: Request, res: Response) {
         recordedLessonId,
         cleanTitle,
         cleanCover,
-        targetLang,
+        effectiveTargetLang,
         now,
         completed ? "completed" : "in_progress",
         initialDuration,

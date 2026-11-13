@@ -506,28 +506,30 @@ export default function ReaderScreen({
                     )}
 
                     {/* Auto-play Next Lesson Toggle */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setReaderSettings((prev) => ({
-                          ...prev,
-                          autoPlayNextLesson: prev.autoPlayNextLesson === undefined ? false : !prev.autoPlayNextLesson,
-                        }))
-                      }
-                      className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                        readerSettings.autoPlayNextLesson !== false
-                          ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
-                          : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
-                      }`}
-                      title={
-                        readerSettings.autoPlayNextLesson !== false
-                          ? t("reader.autoplay_next_lesson_on", "Auto-play next lesson: On")
-                          : t("reader.autoplay_next_lesson_off", "Auto-play next lesson: Off")
-                      }
-                    >
-                      <FastForward className="w-3.5 h-3.5" />
-                      <span>{t("reader.autoplay_next_lesson", "Auto-play")}</span>
-                    </button>
+                    {toolbarVisibility.showAutoPlayToggle !== false && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReaderSettings((prev) => ({
+                            ...prev,
+                            autoPlayNextLesson: prev.autoPlayNextLesson === undefined ? false : !prev.autoPlayNextLesson,
+                          }))
+                        }
+                        className={`px-3 py-1.5 border rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                          readerSettings.autoPlayNextLesson !== false
+                            ? "bg-teal-50/60 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-800"
+                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                        }`}
+                        title={
+                          readerSettings.autoPlayNextLesson !== false
+                            ? t("reader.autoplay_next_lesson_on", "Auto-play next lesson: On")
+                            : t("reader.autoplay_next_lesson_off", "Auto-play next lesson: Off")
+                        }
+                      >
+                        <FastForward className="w-3.5 h-3.5" />
+                        <span>{t("reader.autoplay_next_lesson", "Auto-play")}</span>
+                      </button>
+                    )}
 
                     {/* Auto-pause Video/Audio on Word Click Toggle */}
                     {toolbarVisibility.showAutoPauseToggle !== false && !isBookLesson && activeLesson?.sourceType !== 'book' && activeLesson?.sourceType !== 'article' && activeLesson?.lessonType !== 'article' && Boolean(activeLesson && (activeLesson.youtubeId || (activeLesson as any).localVideoUrl || activeLesson.audioUrl || activeLesson.audioBase64 || activeLesson.lessonType === "youtube" || activeLesson.lessonType === "video" || activeLesson.lessonType === "podcast" || activeLesson.lessonType === "audio")) && (

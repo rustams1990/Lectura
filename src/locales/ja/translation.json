@@ -300,7 +300,10 @@
     "all_words": "すべての語形",
     "seconds_short": "秒",
     "minutes_short": "分",
-    "hours_short": "時間"
+    "hours_short": "時間",
+    "view_history_tooltip": "学習履歴を開く",
+    "view_practice_tooltip": "単語練習を開く",
+    "view_vocabulary_tooltip": "単語帳と統計を開く"
   },
   "sidebar": {
     "library": "図書館",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "フレームと音声をカードに保存しました！",
     "clip_capture_error": "クリップのキャプチャに失敗しました",
     "audio_ready": "音声クリップの準備完了",
-    "frame_only": "フレーム保存済み"
+    "frame_only": "フレーム保存済み",
+    "translating": "翻訳中..."
   },
   "stats_page": {
     "profiler_success": "{{lessonsCount}} レッスン ({{tokensCount}} 単語) の分析に成功しました。辞書内の {{updatedCount}} 語を CEFR 優先タグ (A1、A2、B1、B2、C1) で自動的に更新しました。",
@@ -1684,7 +1688,10 @@
     "play": "再生",
     "audio_only_badge": "YouTube (音声)",
     "badge_podcast": "ポッドキャスト",
-    "badge_audio": "音声"
+    "badge_audio": "音声",
+    "dual_subs_on": "二重字幕をオフにする (B)",
+    "dual_subs_off": "二重字幕をオンにする (行翻訳) (B)",
+    "switch_to_video_tooltip": "動画表示に戻る"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "中"
+    "of": "中",
+    "active": "有効"
   }
 }

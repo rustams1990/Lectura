@@ -2185,7 +2185,7 @@ export default function VocabularyPractice({
                       title={itemTitle}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all flex justify-between items-center cursor-pointer ${itemBgClass}`}
                     >
-                      <span className="capitalize truncate max-w-[175px] flex items-center gap-2">
+                      <span className="capitalize min-w-0 flex-1 pr-2 flex items-center gap-2">
                         {item.imageUrl && (
                           <img
                             src={item.imageUrl}
@@ -2194,7 +2194,7 @@ export default function VocabularyPractice({
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                           />
                         )}
-                        <span className={`truncate ${!rawLabel?.trim() && studyDirection === "reverse" ? "italic text-zinc-400 dark:text-zinc-500" : ""}`}>
+                        <span className={`truncate pr-1 ${!rawLabel?.trim() && studyDirection === "reverse" ? "italic text-zinc-400 dark:text-zinc-500" : ""}`}>
                           {displayLabel}
                         </span>
                         {spellingStatusIcon}

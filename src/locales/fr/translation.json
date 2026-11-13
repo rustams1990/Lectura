@@ -300,7 +300,10 @@
     "all_words": "Toutes les formes",
     "seconds_short": "s",
     "minutes_short": "min",
-    "hours_short": "h"
+    "hours_short": "h",
+    "view_history_tooltip": "Ouvrir l'historique d'activité",
+    "view_practice_tooltip": "Ouvrir l'entraînement du vocabulaire",
+    "view_vocabulary_tooltip": "Ouvrir le vocabulaire et les statistiques"
   },
   "sidebar": {
     "library": "Bibliothèque",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "Image et extrait audio enregistrés pour la carte !",
     "clip_capture_error": "Échec de la capture du clip",
     "audio_ready": "Extrait audio prêt",
-    "frame_only": "Image enregistrée"
+    "frame_only": "Image enregistrée",
+    "translating": "Traduction..."
   },
   "stats_page": {
     "profiler_success": "Analyse réussie de {{lessonsCount}} leçons ({{tokensCount}} mots). Mots {{updatedCount}} mis à jour automatiquement dans le dictionnaire avec les balises de priorité du CECR (A1, A2, B1, B2, C1).",
@@ -1684,7 +1688,10 @@
     "play": "Lire",
     "audio_only_badge": "YouTube (Audio)",
     "badge_podcast": "Podcast",
-    "badge_audio": "Audio"
+    "badge_audio": "Audio",
+    "dual_subs_on": "Désactiver les doubles sous-titres (B)",
+    "dual_subs_off": "Activer les doubles sous-titres (traduction de ligne) (B)",
+    "switch_to_video_tooltip": "Revenir à la vue vidéo"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "sur"
+    "of": "sur",
+    "active": "Actif"
   }
 }

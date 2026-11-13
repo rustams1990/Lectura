@@ -172,6 +172,7 @@ export interface ReaderToolbarVisibility {
   showDisplayMode: boolean;  // default: true (Badges / Book)
   showWidthToggle: boolean;  // default: true (Standard / Wide / Full)
   showTimestampsToggle: boolean; // default: true
+  showAutoPlayToggle: boolean;  // default: true
   showAutoPauseToggle: boolean; // default: true
 }
 
@@ -185,6 +186,7 @@ export const DEFAULT_TOOLBAR_VISIBILITY: ReaderToolbarVisibility = {
   showDisplayMode: true,
   showWidthToggle: true,
   showTimestampsToggle: true,
+  showAutoPlayToggle: true,
   showAutoPauseToggle: true,
 };
 

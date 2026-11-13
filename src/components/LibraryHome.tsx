@@ -26,6 +26,7 @@ import { BatchPlaylistModal } from "./library/BatchPlaylistModal";
 import { useBingeQueueStore } from "../store/useBingeQueueStore";
 import { resolveApiUrl } from "../utils/apiConfig";
 import { deduplicatePlaylistItems } from "../utils/playlistUtils";
+import { findMatchingLesson } from "../utils/historyLessonMatcher";
 
 
 export function getDifficultyBadgeStyles(_level?: string) {
@@ -170,6 +171,7 @@ interface LibraryHomeProps {
   settings?: ReaderSettings;
   onUpdateSettings?: (newSettings: ReaderSettings) => void;
   isLoading?: boolean;
+  onOpenPractice?: () => void;
   onOpenVocabulary?: () => void;
   onOpenHistory?: () => void;
 }
@@ -539,6 +541,7 @@ function LibraryHome({
   settings,
   onUpdateSettings,
   isLoading = false,
+  onOpenPractice,
   onOpenVocabulary,
   onOpenHistory,
 }: LibraryHomeProps) {
@@ -666,17 +669,15 @@ function LibraryHome({
       }
     };
 
-    // Helper to get exact target language for history entry
+    // Helper to get exact target language for history entry (matching HistoryPage priority)
     const getHistoryItemLanguage = (item: HistoryEntry): string => {
       if (!item) return "spanish";
+      const foundLesson = findMatchingLesson(item, lessons);
+      if (foundLesson && foundLesson.targetLanguage && typeof foundLesson.targetLanguage === "string" && foundLesson.targetLanguage.trim()) {
+        return normalizeLanguage(foundLesson.targetLanguage.trim()).toLowerCase();
+      }
       if (item.targetLanguage && typeof item.targetLanguage === "string" && item.targetLanguage.trim()) {
         return normalizeLanguage(item.targetLanguage.trim()).toLowerCase();
-      }
-      if (item.lessonId) {
-        const foundLesson = lessons.find((l) => l.id === item.lessonId);
-        if (foundLesson && foundLesson.targetLanguage && foundLesson.targetLanguage.trim()) {
-          return normalizeLanguage(foundLesson.targetLanguage.trim()).toLowerCase();
-        }
       }
       return "spanish";
     };
@@ -726,13 +727,11 @@ function LibraryHome({
     dedupedHist.forEach((item) => {
       const isListening = item.actionType === "listen" || item.category === "podcast" || item.category === "video";
       if (!isListening || !item.durationSeconds) return;
-      let rawLang = item.targetLanguage;
-      if (!rawLang && item.lessonId) {
-        const foundLesson = lessons.find((l) => l.id === item.lessonId);
-        if (foundLesson && foundLesson.targetLanguage) {
-          rawLang = foundLesson.targetLanguage;
-        }
-      }
+      const foundLesson = findMatchingLesson(item, lessons);
+      const rawLang =
+        (foundLesson && foundLesson.targetLanguage && foundLesson.targetLanguage.trim())
+          ? foundLesson.targetLanguage
+          : item.targetLanguage;
       const langKey = normalizeLanguage(rawLang || "Spanish");
 
       const existing = map.get(langKey) || { todaySeconds: 0, totalSeconds: 0 };
@@ -1669,6 +1668,7 @@ function LibraryHome({
         stats={languageAwareStats}
         selectedLanguage={selectedLanguage}
         onlyPatterns={settings?.onlyPatterns !== false}
+        onOpenPractice={onOpenPractice}
         onOpenVocabulary={onOpenVocabulary}
         onOpenHistory={onOpenHistory}
       />

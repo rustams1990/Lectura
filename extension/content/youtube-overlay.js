@@ -39284,6 +39284,7 @@
     try {
       const settings = await StorageService.getSettings();
       if (settings.isEnabled === false || settings.trackListeningActivity === false) return;
+      session.studyLanguage = getStudyLanguage(settings);
       const payload = {
         videoId: session.videoId,
         lessonId: `lesson-yt_${session.videoId}`,

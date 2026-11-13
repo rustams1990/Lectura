@@ -300,7 +300,10 @@
     "all_words": "Всі форми",
     "seconds_short": "с",
     "minutes_short": "хв",
-    "hours_short": "год"
+    "hours_short": "год",
+    "view_history_tooltip": "Відкрити історію занять",
+    "view_practice_tooltip": "Відкрити тренування слів, що вивчаються",
+    "view_vocabulary_tooltip": "Відкрити словник і статистику"
   },
   "sidebar": {
     "library": "Бібліотека",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "Кадр та аудіофрагмент збережено для картки!",
     "clip_capture_error": "Не вдалося захопити кліп",
     "audio_ready": "Аудіокліп готовий",
-    "frame_only": "Кадр збережено"
+    "frame_only": "Кадр збережено",
+    "translating": "Переклад..."
   },
   "stats_page": {
     "profiler_success": "Успішно проаналізовано {{lessonsCount}} уроків ({{tokensCount}} слів). Автоматично оновлено {{updatedCount}} слів у словнику з тегами пріоритету CEFR (A1, A2, B1, B2, C1).",
@@ -1684,7 +1688,10 @@
     "play": "Відтворити",
     "audio_only_badge": "YouTube (Аудіо)",
     "badge_podcast": "Подкаст",
-    "badge_audio": "Аудіо"
+    "badge_audio": "Аудіо",
+    "dual_subs_on": "Вимкнути подвійні субтитри (B)",
+    "dual_subs_off": "Увімкнути подвійні субтитри (переклад рядка) (B)",
+    "switch_to_video_tooltip": "Повернутися до перегляду відео"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "з"
+    "of": "з",
+    "active": "Активно"
   }
 }

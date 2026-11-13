@@ -411,11 +411,13 @@ function ReaderPanel({
     y: number;
     position?: "above" | "below";
     phraseText?: string;
+    phraseParentWord?: string;
     phraseTranslation?: string;
     phraseDefinition?: string;
     phraseStatus?: WordStatus;
     phraseTags?: string[];
     detectedPhraseText?: string;
+    detectedPhraseParentWord?: string;
     detectedPhraseTranslation?: string;
     detectedPhraseExplanation?: string;
     detectedPhraseType?: string;
@@ -1760,6 +1762,7 @@ function ReaderPanel({
                 const resolvedImageUrl =
                   (phraseMatch.vocabItem?.imageUrl && phraseMatch.vocabItem.imageUrl.trim() ? phraseMatch.vocabItem.imageUrl.trim() : undefined) ||
                   (parentVocab?.imageUrl && parentVocab.imageUrl.trim() ? parentVocab.imageUrl.trim() : undefined);
+                const phraseParent = phraseKey && phraseKey.toLowerCase() !== phraseMatch.phrase.toLowerCase() ? phraseKey : undefined;
 
                 setHoveredWordObj({
                   word: "",
@@ -1769,6 +1772,7 @@ function ReaderPanel({
                   y: posY,
                   position: showBelow ? "below" : "above",
                   phraseText: phraseMatch.phrase,
+                  phraseParentWord: phraseParent,
                   phraseTranslation: phraseMatch.vocabItem.translation || parentVocab?.translation,
                   phraseDefinition: phraseMatch.vocabItem.definition || parentVocab?.definition,
                   phraseStatus: phraseMatch.vocabItem.status,
@@ -1783,6 +1787,7 @@ function ReaderPanel({
                   vocab[`${phraseLang}_${phraseKey}`] ||
                   vocab[phraseKey];
                 const resolvedImageUrl = savedVocab?.imageUrl && savedVocab.imageUrl.trim() ? savedVocab.imageUrl.trim() : undefined;
+                const detectedPhraseParent = phraseKey && phraseKey.toLowerCase() !== detectedMatch.phrase.toLowerCase() ? phraseKey : undefined;
 
                 setHoveredWordObj({
                   word: "",
@@ -1792,6 +1797,7 @@ function ReaderPanel({
                   y: posY,
                   position: showBelow ? "below" : "above",
                   detectedPhraseText: detectedMatch.phrase,
+                  detectedPhraseParentWord: detectedPhraseParent,
                   detectedPhraseTranslation: savedVocab?.translation || detectedMatch.translation,
                   detectedPhraseExplanation: savedVocab?.definition || detectedMatch.explanation,
                   detectedPhraseType: detectedMatch.type,
@@ -2857,6 +2863,11 @@ function ReaderPanel({
                   <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 capitalize truncate">
                     📖 {hoveredWordObj.phraseText}
                   </span>
+                  {hoveredWordObj.phraseParentWord && (
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium lowercase italic">
+                      ({hoveredWordObj.phraseParentWord})
+                    </span>
+                  )}
                 </div>
                 <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 ${
                   hoveredWordObj.phraseStatus === "1" ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-100/50 dark:border-rose-900/40" :
@@ -2922,6 +2933,11 @@ function ReaderPanel({
                   <span className="text-xs font-extrabold text-purple-600 dark:text-purple-400 capitalize truncate">
                     ✨ {hoveredWordObj.detectedPhraseText}
                   </span>
+                  {hoveredWordObj.detectedPhraseParentWord && (
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium lowercase italic">
+                      ({hoveredWordObj.detectedPhraseParentWord})
+                    </span>
+                  )}
                 </div>
                 <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded leading-none shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100/50 dark:border-purple-900/40 animate-pulse">
                   {getPhraseTypeLabel(hoveredWordObj.detectedPhraseType, t)} (AI)

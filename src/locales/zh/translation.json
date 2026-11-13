@@ -300,7 +300,10 @@
     "all_words": "所有词形",
     "seconds_short": "秒",
     "minutes_short": "分",
-    "hours_short": "时"
+    "hours_short": "时",
+    "view_history_tooltip": "打开学习历史",
+    "view_practice_tooltip": "打开词汇练习",
+    "view_vocabulary_tooltip": "打开词汇表和统计"
   },
   "sidebar": {
     "library": "图书馆",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "已为卡片保存画面与原声片段！",
     "clip_capture_error": "截取剪辑失败",
     "audio_ready": "音频剪辑已就绪",
-    "frame_only": "画面已保存"
+    "frame_only": "画面已保存",
+    "translating": "翻译中..."
   },
   "stats_page": {
     "profiler_success": "成功分析了 {{lessonsCount}} 课程（{{tokensCount}} 个单词）。使用 CEFR 优先级标签（A1、A2、B1、B2、C1）自动更新字典中的 {{updatedCount}} 单词。",
@@ -1684,7 +1688,10 @@
     "play": "播放",
     "audio_only_badge": "YouTube (音频)",
     "badge_podcast": "播客",
-    "badge_audio": "音频"
+    "badge_audio": "音频",
+    "dual_subs_on": "关闭双语字幕 (B)",
+    "dual_subs_off": "开启双语字幕（逐行翻译）(B)",
+    "switch_to_video_tooltip": "返回视频视图"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "共"
+    "of": "共",
+    "active": "已启用"
   }
 }

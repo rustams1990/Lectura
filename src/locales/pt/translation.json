@@ -300,7 +300,10 @@
     "all_words": "Todas as formas",
     "seconds_short": "s",
     "minutes_short": "min",
-    "hours_short": "h"
+    "hours_short": "h",
+    "view_history_tooltip": "Abrir histórico de atividades",
+    "view_practice_tooltip": "Abrir prática de vocabulário",
+    "view_vocabulary_tooltip": "Abrir vocabulário e estatísticas"
   },
   "sidebar": {
     "library": "Biblioteca",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "Quadro e trecho de áudio salvos para o cartão!",
     "clip_capture_error": "Falha ao capturar clipe",
     "audio_ready": "Clipe de áudio pronto",
-    "frame_only": "Quadro salvo"
+    "frame_only": "Quadro salvo",
+    "translating": "Traduzindo..."
   },
   "stats_page": {
     "profiler_success": "{{lessonsCount}} lições ({{tokensCount}} palavras) analisadas com êxito. Palavras {{updatedCount}} atualizadas automaticamente no dicionário com tags de prioridade CEFR (A1, A2, B1, B2, C1).",
@@ -1684,7 +1688,10 @@
     "play": "Reproduzir",
     "audio_only_badge": "YouTube (Áudio)",
     "badge_podcast": "Podcast",
-    "badge_audio": "Áudio"
+    "badge_audio": "Áudio",
+    "dual_subs_on": "Desativar legendas duplas (B)",
+    "dual_subs_off": "Ativar legendas duplas (tradução de linha) (B)",
+    "switch_to_video_tooltip": "Voltar para a visualização de vídeo"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "de"
+    "of": "de",
+    "active": "Ativo"
   }
 }

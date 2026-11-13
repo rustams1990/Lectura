@@ -20,6 +20,7 @@ interface AppSidebarProps {
     text: string;
     border: string;
   };
+  onNavigateHome?: () => void;
 }
 
 export default function AppSidebar({
@@ -34,7 +35,8 @@ export default function AppSidebar({
   setShowSettingsModal,
   activeUser,
   setShowLocalLoginModal,
-  currentReaderTheme
+  currentReaderTheme,
+  onNavigateHome,
 }: AppSidebarProps) {
   const { t } = useTranslation();
 
@@ -75,7 +77,7 @@ export default function AppSidebar({
             id="btn-close-sidebar"
             onClick={() => setIsSidebarOpen(false)}
             className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg cursor-pointer transition-colors"
-            title="{t('sidebar.close_menu', 'Закрыть меню')}"
+            title={t('sidebar.close_menu', 'Close menu')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -95,6 +97,7 @@ export default function AppSidebar({
                 setActiveTab("library");
                 setShowImportForm(false);
                 setIsSidebarOpen(false);
+                onNavigateHome?.();
               }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                 activeTab === "library" && !showImportForm

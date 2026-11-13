@@ -300,7 +300,10 @@
     "all_words": "모든 형태",
     "seconds_short": "초",
     "minutes_short": "분",
-    "hours_short": "시간"
+    "hours_short": "시간",
+    "view_history_tooltip": "학습 기록 열기",
+    "view_practice_tooltip": "단어 연습 열기",
+    "view_vocabulary_tooltip": "단어장 및 통계 열기"
   },
   "sidebar": {
     "library": "도서관",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "카드용 프레임과 오디오가 저장되었습니다!",
     "clip_capture_error": "클립 캡처에 실패했습니다",
     "audio_ready": "오디오 클립 준비됨",
-    "frame_only": "프레임 저장됨"
+    "frame_only": "프레임 저장됨",
+    "translating": "번역 중..."
   },
   "stats_page": {
     "profiler_success": "{{lessonsCount}} 수업({{tokensCount}} 단어)을 성공적으로 분석했습니다. CEFR 우선순위 태그(A1, A2, B1, B2, C1)를 사용하여 사전에 있는 {{updatedCount}} 단어를 자동으로 업데이트했습니다.",
@@ -1684,7 +1688,10 @@
     "play": "재생",
     "audio_only_badge": "YouTube (오디오)",
     "badge_podcast": "팟캐스트",
-    "badge_audio": "오디오"
+    "badge_audio": "오디오",
+    "dual_subs_on": "이중 자막 끄기 (B)",
+    "dual_subs_off": "이중 자막 켜기 (줄 번역) (B)",
+    "switch_to_video_tooltip": "비디오 보기로 돌아가기"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "/"
+    "of": "/",
+    "active": "활성"
   }
 }

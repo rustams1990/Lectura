@@ -2677,7 +2677,7 @@ function StatisticsPage({
                             </span>
                           )}
                           <span className="text-zinc-400 dark:text-zinc-500 shrink-0">➔</span>
-                          <span className="truncate italic text-zinc-500 dark:text-zinc-400">{w.translation}</span>
+                          <span className="truncate italic pr-1 text-zinc-500 dark:text-zinc-400">{w.translation}</span>
                         </div>
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase shrink-0 tracking-wider ${
                           w.customDate 

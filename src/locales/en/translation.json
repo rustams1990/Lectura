@@ -300,7 +300,10 @@
     "all_words": "All Forms",
     "seconds_short": "s",
     "minutes_short": "m",
-    "hours_short": "h"
+    "hours_short": "h",
+    "view_history_tooltip": "Open activity history",
+    "view_practice_tooltip": "Open vocabulary practice",
+    "view_vocabulary_tooltip": "Open vocabulary & stats"
   },
   "sidebar": {
     "library": "Library",
@@ -844,6 +847,7 @@
     "auto_pause_word_on": "Auto-pause on word click: On (pauses when clicking a word, resumes after choosing status or closing card)",
     "auto_pause_word_off": "Auto-pause on word click: Off",
     "auto_pause_word_desc": "Pause video/audio when clicking a word and resume after choosing a status or closing the card",
+    "tb_auto_play": "Auto-play Toggle Button",
     "tb_auto_pause": "Auto-pause Toggle Button"
   },
   "app": {
@@ -1213,7 +1217,8 @@
     "clip_capture_error": "Failed to capture clip",
     "audio_ready": "Audio clip ready",
     "frame_only": "Frame saved",
-    "open_root_word": "Open root word: {{word}}"
+    "open_root_word": "Open root word: {{word}}",
+    "translating": "Translating..."
   },
   "stats_page": {
     "tab_overview": "Progress & Level",
@@ -1705,7 +1710,10 @@
     "play": "Play",
     "audio_only_badge": "YouTube (Audio)",
     "badge_podcast": "Podcast",
-    "badge_audio": "Audio"
+    "badge_audio": "Audio",
+    "dual_subs_on": "Disable dual subtitles (B)",
+    "dual_subs_off": "Enable dual subtitles (line translation) (B)",
+    "switch_to_video_tooltip": "Return to video view"
   },
   "updater": {
     "title": "Update Available",
@@ -2115,7 +2123,8 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "of"
+    "of": "of",
+    "active": "Active"
   },
   "channel_preset": {
     "auto_applied_banner": "Automatically applied default settings for channel \"{{name}}\"",

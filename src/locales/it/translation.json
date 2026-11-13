@@ -300,7 +300,10 @@
     "all_words": "Tutte le forme",
     "seconds_short": "s",
     "minutes_short": "min",
-    "hours_short": "h"
+    "hours_short": "h",
+    "view_history_tooltip": "Apri cronologia attività",
+    "view_practice_tooltip": "Apri pratica del vocabolario",
+    "view_vocabulary_tooltip": "Apri vocabolario e statistiche"
   },
   "sidebar": {
     "library": "Biblioteca",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "Fotogramma e audio salvati per la scheda!",
     "clip_capture_error": "Impossibile catturare il clip",
     "audio_ready": "Clip audio pronto",
-    "frame_only": "Fotogramma salvato"
+    "frame_only": "Fotogramma salvato",
+    "translating": "Traduzione..."
   },
   "stats_page": {
     "profiler_success": "Analizzate con successo le lezioni di {{lessonsCount}} ({{tokensCount}} parole). Parole {{updatedCount}} aggiornate automaticamente nel dizionario con tag di priorità QCER (A1, A2, B1, B2, C1).",
@@ -1684,7 +1688,10 @@
     "play": "Riproduci",
     "audio_only_badge": "YouTube (Audio)",
     "badge_podcast": "Podcast",
-    "badge_audio": "Audio"
+    "badge_audio": "Audio",
+    "dual_subs_on": "Disattiva doppi sottotitoli (B)",
+    "dual_subs_off": "Attiva doppi sottotitoli (traduzione riga) (B)",
+    "switch_to_video_tooltip": "Torna alla vista video"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "di"
+    "of": "di",
+    "active": "Attivo"
   }
 }

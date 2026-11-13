@@ -4201,6 +4201,12 @@ export default function App() {
         activeUser={activeUser}
         setShowLocalLoginModal={setShowLocalLoginModal}
         currentReaderTheme={currentReaderTheme}
+        onNavigateHome={() => {
+          setSelectedPlaylistId(null);
+          setPlaylistInitialDifficulty(undefined);
+          setPlaylistInitialTag(undefined);
+          setEditingLesson(null);
+        }}
       />
 
       {/* Top Header HUD */}
@@ -4232,6 +4238,12 @@ export default function App() {
         onOpenBook={handleOpenWhisperBook}
         onManualSync={() => loadDataFromLocalServer()}
         activeLessonType={activeLesson ? (isBookLesson ? "book" : activeLesson.lessonType) : undefined}
+        onNavigateHome={() => {
+          setSelectedPlaylistId(null);
+          setPlaylistInitialDifficulty(undefined);
+          setPlaylistInitialTag(undefined);
+          setEditingLesson(null);
+        }}
       />
 
       {/* ── Focus Mode Sticky Header / Video Zone (Mobile / Tablet Only < 1024px) ── */}
@@ -4511,6 +4523,7 @@ export default function App() {
               settings={readerSettings}
               onUpdateSettings={updateSettingsAndSync}
               isLoading={isInitialServerLoading && lessons.length === 0}
+              onOpenPractice={() => setActiveTab("practice")}
               onOpenVocabulary={() => setActiveTab("vocabulary")}
               onOpenHistory={() => setActiveTab("history")}
             />

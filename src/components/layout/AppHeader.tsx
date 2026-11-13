@@ -42,6 +42,7 @@ interface AppHeaderProps {
   onOpenBook?: (bookId: string) => void;
   onManualSync?: () => void;
   activeLessonType?: string;
+  onNavigateHome?: () => void;
 }
 
 export default function AppHeader({
@@ -72,6 +73,7 @@ export default function AppHeader({
   onOpenBook,
   onManualSync,
   activeLessonType,
+  onNavigateHome,
 }: AppHeaderProps) {
   const { user: activeUser, isAuthLoading, logout } = useAuth();
   const { t, i18n } = useTranslation();
@@ -134,6 +136,7 @@ export default function AppHeader({
                 setActiveTab("library");
                 setShowImportForm(false);
                 setSelectedWord(null);
+                onNavigateHome?.();
               }
             }}
             className="flex items-center gap-2 sm:gap-2.5 group cursor-pointer transition-all active:scale-98 text-left focus:outline-none no-underline"

@@ -1023,7 +1023,23 @@ export default function TextSettingsControls({
                       </label>
                     </div>
 
-                    {/* 10. Auto-pause Toggle */}
+                    {/* 10. Auto-play Toggle */}
+                    <div className="flex items-center justify-between border-t border-zinc-200/50 dark:border-zinc-850 pt-2">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                        {t('reader.tb_auto_play', 'Auto-play Toggle Button')}
+                      </span>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={toolbarVisibility.showAutoPlayToggle !== false}
+                          onChange={(e) => updateToolbarVisibility("showAutoPlayToggle", e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="relative w-8 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-zinc-600 peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+
+                    {/* 11. Auto-pause Toggle */}
                     <div className="flex items-center justify-between border-t border-zinc-200/50 dark:border-zinc-850 pt-2">
                       <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
                         {t('reader.tb_auto_pause', 'Auto-pause Toggle Button')}

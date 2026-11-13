@@ -18222,10 +18222,11 @@ function handleTrackActivity(req, res) {
     }
     const effectiveLessonId = cleanVideoId ? cleanVideoId.startsWith("lesson-yt_") ? cleanVideoId : `lesson-yt_${cleanVideoId}` : `custom_activity_${Date.now().toString(36)}`;
     let lesson = cleanVideoId ? db.prepare(`
-          SELECT id, timeSpentSeconds, status, duration 
+          SELECT id, timeSpentSeconds, status, duration, targetLanguage
           FROM lessons 
           WHERE (youtubeId = ? OR id = ? OR id = ?) AND user_id = ?
         `).get(cleanVideoId, effectiveLessonId, `youtube_${cleanVideoId}`, userId) : null;
+    const effectiveTargetLang = lesson && lesson.targetLanguage && String(lesson.targetLanguage).trim() ? normalizeLang2(String(lesson.targetLanguage).toLowerCase().trim()) : targetLang;
     let incrementalSec = 0;
     if (lesson) {
       const prevTimeSpent = lesson.timeSpentSeconds || 0;
@@ -18282,6 +18283,7 @@ function handleTrackActivity(req, res) {
           durationSeconds = ?,
           timestamp = ?,
           status = ?,
+          targetLanguage = COALESCE(?, targetLanguage),
           lessonTitle = COALESCE(?, lessonTitle),
           channelName = COALESCE(?, channelName),
           channelAvatarUrl = COALESCE(?, channelAvatarUrl),
@@ -18294,6 +18296,7 @@ function handleTrackActivity(req, res) {
         updatedDuration,
         now,
         completed ? "completed" : existingHistory.status || "in_progress",
+        effectiveTargetLang || null,
         cleanTitle,
         cleanChannel,
         channelAvatarUrl || null,
@@ -18349,7 +18352,7 @@ function handleTrackActivity(req, res) {
         recordedLessonId,
         cleanTitle,
         cleanCover,
-        targetLang,
+        effectiveTargetLang,
         now,
         completed ? "completed" : "in_progress",
         initialDuration,
@@ -19809,7 +19812,7 @@ var import_util3 = require("util");
 var import_adm_zip2 = __toESM(require("adm-zip"), 1);
 
 // src/version.ts
-var APP_VERSION = "v1.0.48";
+var APP_VERSION = "v1.0.49";
 
 // server/updaterService.ts
 var execAsync = (0, import_util3.promisify)(import_child_process5.exec);

@@ -879,9 +879,16 @@ export function dedupeHistory(entries: HistoryEntry[] | undefined): HistoryEntry
       // Exact ID match — always merge (same record from two devices)
       if (m.id === item.id) return true;
 
-      // All content-based matches are guarded by 24h window:
-      // same video watched on different days = different history entries (intentional re-watch)
-      const sameDay = Math.abs((new Date(m.timestamp).getTime() || 0) - itemTime) < 24 * 60 * 60 * 1000;
+      // All content-based matches are guarded by local calendar day:
+      // same video watched on different calendar days = different history entries (intentional re-watch)
+      const mDate = new Date(m.timestamp);
+      const itemDate = new Date(item.timestamp);
+      const sameDay =
+        !isNaN(mDate.getTime()) && !isNaN(itemDate.getTime())
+          ? mDate.getFullYear() === itemDate.getFullYear() &&
+            mDate.getMonth() === itemDate.getMonth() &&
+            mDate.getDate() === itemDate.getDate()
+          : Math.abs((mDate.getTime() || 0) - itemTime) < 24 * 60 * 60 * 1000;
       if (!sameDay) return false;
 
       // youtubeId match within 24h — same video watched today on two devices

@@ -300,7 +300,10 @@
     "all_words": "Tüm Biçimler",
     "seconds_short": "sn",
     "minutes_short": "dk",
-    "hours_short": "sa"
+    "hours_short": "sa",
+    "view_history_tooltip": "Etkinlik geçmişini aç",
+    "view_practice_tooltip": "Kelime pratiğini aç",
+    "view_vocabulary_tooltip": "Kelime hazinesi ve istatistikleri aç"
   },
   "sidebar": {
     "library": "Kütüphane",
@@ -1192,7 +1195,8 @@
     "clip_captured_toast": "Kare ve ses kesiti kart için kaydedildi!",
     "clip_capture_error": "Klip yakalanamadı",
     "audio_ready": "Ses klibi hazır",
-    "frame_only": "Kare kaydedildi"
+    "frame_only": "Kare kaydedildi",
+    "translating": "Çevriliyor..."
   },
   "stats_page": {
     "profiler_success": "{{lessonsCount}} ders ({{tokensCount}} kelime) başarıyla analiz edildi. Sözlükteki {{updatedCount}} kelimeyi CEFR öncelik etiketleriyle (A1, A2, B1, B2, C1) otomatik olarak güncellendi.",
@@ -1684,7 +1688,10 @@
     "play": "Oynat",
     "audio_only_badge": "YouTube (Ses)",
     "badge_podcast": "Podcast",
-    "badge_audio": "Ses"
+    "badge_audio": "Ses",
+    "dual_subs_on": "Çift altyazıyı kapat (B)",
+    "dual_subs_off": "Çift altyazıyı aç (satır çevirisi) (B)",
+    "switch_to_video_tooltip": "Video görünümüne dön"
   },
   "updater": {
     "title": "Update Available",
@@ -2094,6 +2101,7 @@
     "hours": "Hours",
     "minutes": "Minutes",
     "no_results": "No topics found matching search query",
-    "of": "/"
+    "of": "/",
+    "active": "Aktif"
   }
 }

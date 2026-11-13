@@ -8,6 +8,7 @@ interface StatsWidgetProps {
   selectedLanguage?: string;
   onlyPatterns?: boolean;
   onToggleOnlyPatterns?: () => void;
+  onOpenPractice?: () => void;
   onOpenVocabulary?: () => void;
   onOpenHistory?: () => void;
 }
@@ -17,22 +18,23 @@ export default function StatsWidget({
   selectedLanguage,
   onlyPatterns,
   onToggleOnlyPatterns,
+  onOpenPractice,
   onOpenVocabulary,
   onOpenHistory,
 }: StatsWidgetProps) {
   const { t } = useTranslation();
   const formatTime = (totalSeconds: number) => {
-    if (!totalSeconds || totalSeconds <= 0) return `0${t('stats.seconds_short', 'с')}`;
+    if (!totalSeconds || totalSeconds <= 0) return `0${t('stats.seconds_short', 's')}`;
     const hrs = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = Math.floor(totalSeconds % 60);
     if (hrs > 0) {
-      return mins > 0 ? `${hrs}${t('stats.hours_short', 'ч')} ${mins}${t('stats.minutes_short', 'мин')}` : `${hrs}${t('stats.hours_short', 'ч')}`;
+      return mins > 0 ? `${hrs}${t('stats.hours_short', 'h')} ${mins}${t('stats.minutes_short', 'm')}` : `${hrs}${t('stats.hours_short', 'h')}`;
     }
     if (mins > 0) {
-      return secs > 0 ? `${mins}${t('stats.minutes_short', 'мин')} ${secs}${t('stats.seconds_short', 'с')}` : `${mins}${t('stats.minutes_short', 'мин')}`;
+      return secs > 0 ? `${mins}${t('stats.minutes_short', 'm')} ${secs}${t('stats.seconds_short', 's')}` : `${mins}${t('stats.minutes_short', 'm')}`;
     }
-    return `${secs}${t('stats.seconds_short', 'с')}`;
+    return `${secs}${t('stats.seconds_short', 's')}`;
   };
 
   const todaySecs = stats.todayListeningSeconds || 0;
@@ -46,7 +48,7 @@ export default function StatsWidget({
         className={`bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01] ${
           onOpenHistory ? "cursor-pointer hover:border-sky-300 dark:hover:border-sky-800/80 shadow-3xs" : ""
         }`}
-        title={onOpenHistory ? t('stats.view_history_tooltip', 'Открыть историю занятий') : undefined}
+        title={onOpenHistory ? t('stats.view_history_tooltip', 'Open activity history') : undefined}
       >
         <div className="hidden sm:flex p-3 rounded-xl bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 shrink-0">
           <Headphones className="w-5 h-5" />
@@ -71,11 +73,11 @@ export default function StatsWidget({
 
       {/* Learning Status */}
       <div 
-        onClick={onOpenVocabulary}
+        onClick={onOpenPractice || onOpenVocabulary}
         className={`bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01] ${
-          onOpenVocabulary ? "cursor-pointer hover:border-amber-300 dark:hover:border-amber-800/80 shadow-3xs" : ""
+          (onOpenPractice || onOpenVocabulary) ? "cursor-pointer hover:border-amber-300 dark:hover:border-amber-800/80 shadow-3xs" : ""
         }`}
-        title={onOpenVocabulary ? t('stats.view_vocabulary_tooltip', 'Открыть словарь и изучаемые слова') : undefined}
+        title={onOpenPractice ? t('stats.view_practice_tooltip', 'Open vocabulary practice') : (onOpenVocabulary ? t('stats.view_vocabulary_tooltip', 'Open vocabulary & stats') : undefined)}
       >
         <div className="hidden sm:flex p-3 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 shrink-0">
           <Bookmark className="w-5 h-5" />
@@ -97,7 +99,7 @@ export default function StatsWidget({
         className={`bg-slate-50 dark:bg-zinc-900/60 p-2.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-1 sm:gap-4 transition-all hover:scale-[1.01] ${
           onOpenVocabulary ? "cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-800/80 shadow-3xs" : ""
         }`}
-        title={onOpenVocabulary ? t('stats.view_vocabulary_tooltip', 'Открыть словарь и изученные слова') : undefined}
+        title={onOpenVocabulary ? t('stats.view_vocabulary_tooltip', 'Open vocabulary & stats') : undefined}
       >
         <div className="hidden sm:flex p-3 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shrink-0">
           <CheckCircle2 className="w-5 h-5" />

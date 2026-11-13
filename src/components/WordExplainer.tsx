@@ -659,12 +659,13 @@ function WordExplainer({
   const [savedMeaningOpen, setSavedMeaningOpen] = useState(true);
   const [dictionariesOpen, setDictionariesOpen] = useState(true);
   const [wordVariationsOpen, setWordVariationsOpen] = useState(false);
-  const [relatedPhrasesOpen, setRelatedPhrasesOpen] = useState(() => {
+  const [translationSourceOpen, setTranslationSourceOpen] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("vocab_related_phrases_open") !== "false";
+      return localStorage.getItem("vocab_translation_source_open") !== "false";
     }
     return true;
   });
+
   const [tagsOpen, setTagsOpen] = useState(false);
 
   // Compute component words for phrase/idiom detection
@@ -3081,87 +3082,105 @@ function WordExplainer({
               </div>
 
               {/* Translation Source Selector */}
-              <div className="space-y-1 pt-2 border-t border-zinc-100/40 dark:border-zinc-800/40 text-left shrink-0">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400 dark:text-zinc-500 block pl-0.5">
-                    {t('explainer.translation_source', 'TRANSLATION SOURCE')}
-                  </span>
-                  <div className="grid grid-cols-5 gap-0.5 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200/50 dark:border-zinc-700/60 text-[9px] font-bold">
-                    <button
-                      type="button"
-                      onClick={() => handleSetTranslationSource("ai")}
-                      className={`py-1 rounded-md transition-all cursor-pointer ${
-                        translationSource === "ai"
-                          ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                    >
-                      ✨ {t('explainer.source_ai', 'AI')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetTranslationSource("google")}
-                      className={`py-1 rounded-md transition-all cursor-pointer ${
-                        translationSource === "google"
-                          ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                    >
-                      🌐 Google
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetTranslationSource("free_dictionary")}
-                      className={`py-1 rounded-md transition-all cursor-pointer ${
-                        translationSource === "free_dictionary"
-                          ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                    >
-                      📚 FreeDict
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetTranslationSource("wiktionary")}
-                      className={`py-1 rounded-md transition-all cursor-pointer ${
-                        translationSource === "wiktionary"
-                          ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                    >
-                      📖 Wikt
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetTranslationSource("hybrid")}
-                      className={`py-1 rounded-md transition-all cursor-pointer ${
-                        translationSource === "hybrid"
-                          ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                      }`}
-                    >
-                      🌐 {t('explainer.source_hybrid', 'Hybrid')}
-                    </button>
-                  </div>
-
-                {!loading && (
+              <div className="space-y-1.5 pt-2 border-t border-zinc-100/40 dark:border-zinc-800/40 text-left shrink-0">
+                <div className="flex items-center justify-between text-xs font-sans">
                   <button
                     type="button"
-                    onClick={handleTranslate}
-                    className="w-full py-2 px-3 bg-teal-50/70 hover:bg-teal-100/80 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 font-semibold text-xs rounded-xl border border-teal-200/70 dark:border-teal-800/50 shadow-xs hover:shadow-sm transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 active:scale-[0.99]"
+                    onClick={() => {
+                      const next = !translationSourceOpen;
+                      setTranslationSourceOpen(next);
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("vocab_translation_source_open", next ? "true" : "false");
+                      }
+                    }}
+                    className="font-extrabold uppercase tracking-widest text-[8.5px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
                   >
-                    {translationSource === "ai" && <Sparkles className="w-3.5 h-3.5 animate-pulse text-teal-600 dark:text-teal-400" />}
-                    {translationSource === "google" && <Languages className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
-                    {translationSource === "free_dictionary" && <BookOpen className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
-                    {translationSource === "wiktionary" && <BookOpen className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
-                    {translationSource === "hybrid" && <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
-                    <span>
-                      {translationSource === "ai" && "AI Lookup translation ✨"}
-                      {translationSource === "google" && t('explainer.source_google_no_ai', 'Google Translate 🌐')}
-                      {translationSource === "free_dictionary" && "Free Dictionary API"}
-                      {translationSource === "wiktionary" && "Wiktionary REST API"}
-                      {translationSource === "hybrid" && "Dictionary Hybrid Search 🌐"}
-                    </span>
+                    🌐 {t('explainer.translation_source', 'TRANSLATION SOURCE')}
+                    <ChevronDown className={`w-3 h-3 transition-transform ${translationSourceOpen ? "rotate-180" : ""}`} />
                   </button>
+                </div>
+
+                {translationSourceOpen && (
+                  <>
+                    <div className="grid grid-cols-5 gap-0.5 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200/50 dark:border-zinc-700/60 text-[9px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => handleSetTranslationSource("ai")}
+                        className={`py-1 rounded-md transition-all cursor-pointer ${
+                          translationSource === "ai"
+                            ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                      >
+                        ✨ {t('explainer.source_ai', 'AI')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetTranslationSource("google")}
+                        className={`py-1 rounded-md transition-all cursor-pointer ${
+                          translationSource === "google"
+                            ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                      >
+                        🌐 Google
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetTranslationSource("free_dictionary")}
+                        className={`py-1 rounded-md transition-all cursor-pointer ${
+                          translationSource === "free_dictionary"
+                            ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                      >
+                        📚 FreeDict
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetTranslationSource("wiktionary")}
+                        className={`py-1 rounded-md transition-all cursor-pointer ${
+                          translationSource === "wiktionary"
+                            ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                      >
+                        📖 Wikt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetTranslationSource("hybrid")}
+                        className={`py-1 rounded-md transition-all cursor-pointer ${
+                          translationSource === "hybrid"
+                            ? "bg-white dark:bg-zinc-900 text-teal-600 dark:text-teal-400 shadow-3xs"
+                            : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
+                        }`}
+                      >
+                        🌐 {t('explainer.source_hybrid', 'Hybrid')}
+                      </button>
+                    </div>
+
+                    {!loading && (
+                      <button
+                        type="button"
+                        onClick={handleTranslate}
+                        className="w-full py-2 px-3 bg-teal-50/70 hover:bg-teal-100/80 dark:bg-teal-950/30 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 font-semibold text-xs rounded-xl border border-teal-200/70 dark:border-teal-800/50 shadow-xs hover:shadow-sm transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 active:scale-[0.99]"
+                      >
+                        {translationSource === "ai" && <Sparkles className="w-3.5 h-3.5 animate-pulse text-teal-600 dark:text-teal-400" />}
+                        {translationSource === "google" && <Languages className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                        {translationSource === "free_dictionary" && <BookOpen className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                        {translationSource === "wiktionary" && <BookOpen className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                        {translationSource === "hybrid" && <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
+                        <span>
+                          {translationSource === "ai" && "AI Lookup translation ✨"}
+                          {translationSource === "google" && t('explainer.source_google_no_ai', 'Google Translate 🌐')}
+                          {translationSource === "free_dictionary" && "Free Dictionary API"}
+                          {translationSource === "wiktionary" && "Wiktionary REST API"}
+                          {translationSource === "hybrid" && "Dictionary Hybrid Search 🌐"}
+                        </span>
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
               </>
@@ -3290,35 +3309,7 @@ function WordExplainer({
           />
         )}
 
-        {/* 4. Related Phrases Card */}
-        {!imageOpen && !aiTabOpen && sentence && (
-          <div className="border border-zinc-100 dark:border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-50/40 dark:bg-zinc-950/20">
-            <button
-              onClick={() => {
-                const nextVal = !relatedPhrasesOpen;
-                setRelatedPhrasesOpen(nextVal);
-                safeLocalStorageSetItem("vocab_related_phrases_open", String(nextVal));
-              }}
-              className="w-full px-2.5 py-1.5 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/30 transition-colors"
-            >
-              <span className="uppercase tracking-wider text-[9px] text-zinc-400 dark:text-zinc-500 font-extrabold font-sans">Context Sentence</span>
-              {relatedPhrasesOpen ? <ChevronUp className="w-3 h-3 text-zinc-400" /> : <ChevronDown className="w-3 h-3 text-zinc-400" />}
-            </button>
 
-            {relatedPhrasesOpen && (
-              <div className="p-2.5 pt-0 border-t border-zinc-100 dark:border-zinc-800">
-                <p className="text-[11px] text-zinc-600 dark:text-zinc-300 italic leading-relaxed pt-1.5">
-                  &ldquo;{sentence}&rdquo;
-                </p>
-                {contextRelationValue && (
-                  <div className="mt-1.5 bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800 p-1.5 rounded-lg text-[10px] text-zinc-500 dark:text-zinc-400 leading-normal font-medium">
-                    {contextRelationValue}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
 
 
